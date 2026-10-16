@@ -202,8 +202,7 @@ fn source_owned_advice(analysis: &AnalysisResult) -> (Vec<DiagCode>, Vec<DiagCod
     let library = SourceFile::new(&db, "proc cb {} {}".to_owned(), "tcl".to_owned(), None);
     let project = Project::new(&db, vec![library]);
     let diagnostics = project_source_diagnostics_for_analysis(
-        &db,
-        project,
+        (&db, project, ProjectSourceInputMode::Standalone),
         LOGICAL_PROJECT_ADVICE_SOURCE,
         analysis,
         |_| false,

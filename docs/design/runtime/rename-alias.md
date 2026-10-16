@@ -70,7 +70,7 @@ kind is its own variant carrying exactly the data that kind needs:
 | `Proc(Rc<ProcDef>)` | params, body, defining `NsId`, FQN, source provenance | push a frame, run the body |
 | `Alias { target, prefix }` | target name + frozen prefix words | §4.2 |
 | `ParentAlias { target, prefix }` | same, but the target runs in the parent interp | §4.5 |
-| `Imported { source }` | the source command's FQN | re-resolve `source` at global, forward argv unchanged |
+| `Imported { source, source_generation }` | source FQN plus the source command generation | follow that current binding, forwarding argv unchanged |
 | `Ensemble(EnsembleConfig)` | the subcommand map | map `argv[1]` to a target prefix |
 | `ChildInterp(name)` | the child's name | route the subcommand into the child |
 | `OoObject(fqn)` | the object/class FQN | route to `cmd_oo` |
@@ -148,25 +148,28 @@ carries five things across the move:
   callback), with both names fully qualified: `rename` ops get
   ``old new``, the delete form gets ``old {}``.  Afterwards the trace
   list is moved to the new FQN, or dropped on delete.
-- **`namespace import` redirects** are retargeted.  In C an imported
-  command holds the source's command *token*, so renaming the source
-  keeps every import working and `namespace origin` reports the
-  source's **new** name (tclsh 8.6.16 / 9.0.4-pinned).  This runtime
-  stores the source by name, so `Namespaces::retarget_imports` walks
-  the tree and rewrites every `Imported { source }` matching the old
-  FQN.  Deletion is deliberately *not* retargeted: a deleted source
-  leaves the import dangling with ``invalid command name``, also pinned.
+- **`namespace import` redirects** follow source command identity. In C an
+  imported command holds the source's command *token*, so renaming the source
+  keeps every import working and `namespace origin` reports the source's
+  **new** name (tclsh 8.6.16 / 9.0.4-pinned). This runtime records the
+  source FQN together with its command generation. A source rename retargets
+  redirects matching that exact generation, rather than every redirect whose
+  rendered FQN happens to match. Resolution follows the current binding for
+  that generation; a retired source has a separate by-name replacement path,
+  which does not retarget redirects while the old generation remains live. A
+  deleted source otherwise leaves the import dangling with
+  ``invalid command name``, also pinned.
 - **Coroutines.**  A `rename $coro {}` runs `cmd_coro::on_command_deleted`
   first, so the suspended worker is torn down rather than orphaned.
 - **TclOO objects.**  When the OO registry is non-empty, a renamed or
   deleted object command updates (or is removed from) it.
-- **Proc home.**  A cross-namespace rename re-homes the proc:
-  `Namespaces::rehome_proc` builds a fresh `Rc<ProcDef>` with the
-  destination's namespace and FQN, so ``namespace current`` inside the
-  body reports the *destination* (C assigns ``cmdPtr->nsPtr =
-  newNsPtr``, ``tclBasic.c:3239``).  Frames already on the stack keep the
-  snapshot they captured, so a rename during an active call does not
-  re-home that call.
+- **Proc home.** A cross-namespace rename updates the shared proc
+  declaration's location to the destination and relocates that declaration;
+  it does not allocate a replacement `Rc<ProcDef>`. Thus subsequent calls
+  use the destination location for ``namespace current`` (C assigns
+  ``cmdPtr->nsPtr = newNsPtr``, ``tclBasic.c:3239``). Frames already on the
+  stack keep the snapshot they captured, so a rename during an active call
+  does not change that call's frame location.
 
 A delete-trace callback may itself delete the command — by deleting the
 object's namespace, say.  C captured the command token before the

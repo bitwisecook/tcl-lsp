@@ -1,5 +1,14 @@
 # Centralised name handling on work
 
+Implementation has resumed from `554085e`. Eighteen catalogue units now have
+reviewed code or documentation changes pending validation; **zero units are
+verified complete**. All **2,158** units remain unverified or unimplemented.
+Per-unit status is retained in the final JSON catalogue. The first scoped build
+compiled the shared Compiler and Core, then stopped at one test adapter using
+the previous DB helper signature. That adapter is repaired; a fresh build and
+all product regressions/gates remain pending. The historical M12 results below
+are unchanged. Progress reports in this chat now use a 30-minute cadence.
+
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 
 [Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)

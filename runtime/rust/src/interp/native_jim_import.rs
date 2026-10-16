@@ -153,6 +153,24 @@ impl OriginalJimImportTraversal {
         Ok(())
     }
 
+    pub(super) fn check_entry(
+        &self,
+        actual: &Interp,
+        procedure: &ProcDef,
+        root: &Origin,
+    ) -> Result<(), ValueError> {
+        self.check(actual)?;
+        if !self
+            .procedure
+            .upgrade()
+            .is_some_and(|owner| std::ptr::eq(owner.as_ref(), procedure))
+            || !Rc::ptr_eq(&self.root, root)
+        {
+            return Err(unavailable("original Jim Import traversal receipts"));
+        }
+        Ok(())
+    }
+
     pub(super) fn normal_completion(&self, actual: &Interp) -> Result<(), ValueError> {
         self.check(actual)?;
         if !self.state.borrow().outer_finished {

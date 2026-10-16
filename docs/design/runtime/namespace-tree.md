@@ -327,13 +327,15 @@ word. Its variants and their dispatch are tabulated in
   entry between maps is the whole of "changing its home". (One place notices:
   a `Command::Proc` carries its own `ns` and `fqn`, fixed at definition time
   for `info frame` provenance — see §8.1.)
-- **`namespace import` is a `Command::Imported { source }` entry** holding the
-  source's FQN as bytes, re-resolved at global on every dispatch. There is no
-  `ImportedCmdData` / `ImportRef` pair and no back-list of importers. The
-  operations C uses the back-list for are done by scanning instead: a source
-  rename walks the tree rewriting matching `source` fields
-  (`retarget_imports`), and `namespace forget` finds redirects with
-  `imported_in(ns)` and drops them with `remove_in`. Both are cold paths.
+- **`namespace import` is a `Command::Imported` entry** holding the source
+  FQN and exact source command generation. Dispatch follows the current binding
+  for that generation, rather than selecting whichever command later occupies
+  the same FQN. There is no `ImportedCmdData` / `ImportRef` pair and no
+  back-list of importers. A source rename scans the tree and retargets entries
+  for that exact generation; `namespace forget` finds redirects with
+  `imported_in(ns)` and drops them with `remove_in`. When a source generation
+  has retired, the separate by-name replacement path may attach a replacement;
+  it does not conflate simultaneously live generations at one FQN.
 
 ### `Var`
 
@@ -830,11 +832,12 @@ pub fn clear_exports(&mut self, ns: NsId);
 pub fn exports(&self, ns: NsId) -> &[Vec<u8>];
 pub fn exported_commands(&self, ns: NsId) -> Vec<Vec<u8>>;
 pub fn is_exported(&self, ns: NsId, name: &[u8]) -> bool;
-/// `(local name, source FQN)` for every `Command::Imported` in `ns`.
+/// `(local name, source FQN)` projection for imported entries in `ns`;
+/// the entry also retains its source command generation.
 pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)>;
 pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool;
-/// Follow a source rename through every redirect that named it.
-pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]);
+/// Retarget redirects bound to this exact source generation.
+pub fn retarget_imports(&mut self, source_generation: u64, new_fqn: &[u8]);
 ```
 
 `namespace import` itself lives in `cmd_namespace.rs::ns_import`: it splits the
@@ -902,12 +905,13 @@ each attempt requires the command to exist rather than merely the namespace.
 
 ### 8.4 Chained `namespace import`
 
-`Command::Imported` stores the source FQN as written at import time, and
-dispatch re-resolves it. Importing an already-imported command therefore
-produces a redirect naming the *intermediate*, which re-resolves through the
-intermediate's own redirect on each call — the chain is followed at dispatch
-rather than collapsed at import. `command_origin` walks the chain to report
-`namespace origin`.
+`Command::Imported` stores the source FQN and source generation captured at
+import time. Importing an already-imported command therefore produces a
+redirect naming the *intermediate*, which follows that intermediate's bound
+source on each call—the chain is followed at dispatch rather than collapsed at
+import. `command_origin` walks the chain to report `namespace origin`. A
+retired source may use the separate by-name replacement path; a still-live
+generation is not replaced merely because another command has the same FQN.
 
 ### 8.5 `variable` on an FQN
 

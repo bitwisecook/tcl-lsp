@@ -1909,6 +1909,7 @@ mod fallback_pool_source_tests {
         );
         let config = initial.context.as_ref().unwrap().expression_syntax().0;
         for value in [
+            "",
             "plain",
             "a\"b",
             "$literal",

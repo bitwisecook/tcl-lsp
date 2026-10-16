@@ -6544,8 +6544,7 @@ impl Interp {
                             name,
                             original.as_ptr(),
                         );
-                        let installed =
-                            self.install_original_jim_variable(original.as_ptr(), name);
+                        let installed = self.install_original_jim_variable(original.as_ptr(), name);
                         let installed =
                             installed.map_err(|error| self.report_cmd_error(error.into()));
                         self.checked_bootstrap_outcome(scope.currency(), installed)?;
@@ -6661,8 +6660,7 @@ impl Interp {
                         original.as_ptr(),
                     );
                     let installed = self.install_original_jim_variable(original.as_ptr(), name);
-                    let installed =
-                        installed.map_err(|error| self.report_cmd_error(error.into()));
+                    let installed = installed.map_err(|error| self.report_cmd_error(error.into()));
                     self.checked_bootstrap_outcome(scope.currency(), installed)?;
                 }
             }
@@ -17652,27 +17650,39 @@ impl Interp {
             Ok(required) => required.unwrap_or(false),
             Err(error) => return self.report_cmd_error(error.into()),
         };
-        if let Some(procedure) = meta.c_procedure {
-            if let Err(error) = procedure.require_original_jim_import_traversal(self) {
-                return self.report_cmd_error(error.into());
-            }
+        let original_import = match meta
+            .c_procedure
+            .map(|procedure| procedure.original_jim_import_origin(self))
+            .transpose()
+        {
+            Ok(origin) => origin.flatten().is_some(),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        if original_import && !requires_source {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Import selected Source execution",
+                )
+                .into(),
+            );
         }
         let issuer_dispatch = self.native_dispatch_depth.get();
-        let original_artifact = if let Some(procedure) = meta.c_procedure {
-            let original = match procedure
-                .check_native_liveness()
-                .and_then(|()| procedure.body.checked_ptr())
-            {
-                Ok(original) => original,
-                Err(error) => return self.report_cmd_error(error.into()),
+        let original_artifact =
+            if let Some(procedure) = meta.c_procedure.filter(|_| !original_import) {
+                let original = match procedure
+                    .check_native_liveness()
+                    .and_then(|()| procedure.body.checked_ptr())
+                {
+                    Ok(original) => original,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                };
+                match self.prepare_original_c_body(original, ns, Some(procedure)) {
+                    Ok(artifact) => artifact,
+                    Err(code) => return code,
+                }
+            } else {
+                None
             };
-            match self.prepare_original_c_body(original, ns, Some(procedure)) {
-                Ok(artifact) => artifact,
-                Err(code) => return code,
-            }
-        } else {
-            None
-        };
         if requires_source && original_artifact.is_some() {
             return self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -17801,10 +17811,15 @@ impl Interp {
                 .acquire_native_procedure_execution(meta.c_procedure)
                 .map_err(tcl_cmd_core::CmdError::from)
                 .and_then(|()| {
-                    import_traversal
+                    let traversal = import_traversal
                         .as_ref()
-                        .map(|_| ())
-                        .map_err(|error| error.clone().into())
+                        .map_err(|error| tcl_cmd_core::CmdError::from(error.clone()))?;
+                    if let Some(procedure) = meta.c_procedure {
+                        procedure
+                            .require_original_jim_import_traversal(self, traversal.as_ref())
+                            .map_err(tcl_cmd_core::CmdError::from)?;
+                    }
+                    Ok(())
                 })
                 .and_then(|()| {
                     info_frame

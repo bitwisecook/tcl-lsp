@@ -335,9 +335,11 @@ error verbatim (`can't set "a": variable is array`).
 Error shapes from the core:
 
 * A name that is not an interpreted procedure — ``"<name>" isn't a
-  procedure``. `namespace import` redirects are followed first (bounded
-  at 64 hops), so `info default` works on an imported proc, as
-  `info args` / `info body` do.
+  procedure``. `namespace import` redirects are followed first, so
+  `info default` works on an imported proc, as `info args` / `info body` do.
+  The walk tracks source command generations and stops on a repeated
+  generation; it has no fixed 64-hop limit. Introspection advice does not by
+  itself establish that an imported command is executable or publishable.
 * An argument that is not a parameter of the proc — ``procedure "X"
   doesn't have an argument "Y"``.
 

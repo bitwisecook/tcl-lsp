@@ -623,6 +623,7 @@ fn handle_source(
     let raw = texts[idx].clone();
     let is_literal = !raw.contains('$') && !raw.contains('[');
     result.source_targets.push(SignatureSource {
+        original_project_source_load: None,
         original_interpreter_source_load: None,
         raw_path: raw,
         range: argv[idx].span,

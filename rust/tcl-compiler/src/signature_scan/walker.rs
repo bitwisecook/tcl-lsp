@@ -469,6 +469,7 @@ fn dispatch_signature_handler(
                 ctx.result
                     .source_targets
                     .push(super::types::SignatureSource {
+                        original_project_source_load: None,
                         original_interpreter_source_load: None,
                         raw_path: text.clone(),
                         range: token.span,

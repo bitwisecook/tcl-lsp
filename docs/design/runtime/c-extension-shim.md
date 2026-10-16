@@ -276,7 +276,10 @@ synchronous script deletion traces remain typed host refusals. The supported
 shim ABI has no `Tcl_Eval` or namespace-mutation entry; table-only preparation
 cannot claim authority to execute such callbacks.
 
-Invocation marshals the command name and arguments as exact native objects.
+Invocation constructs `objv[0]` from the shim command's retained registered
+name. When the engine supplies original arguments, the shim imports those
+original native objects into `objv[1..]`, preserving their identity; this API
+does not supply the original called command head.
 `HostCommand::invoke_original_completion_with_registrar` returns
 `Completion<OriginalObjectResult>`. The raw code distinguishes normal, Error,
 Return, Break, Continue and custom completions; result and options remain

@@ -31,6 +31,88 @@ impl LogicalNavigationScope {
     }
 }
 
+/// Original variable geometry retains its source frame independently of head lookup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalLogicalVariableWords {
+    input: ResolvedAnalysisInput,
+    original: Arc<[NativeWord]>,
+    scope: LogicalNavigationScope,
+    earlier_unknown_mutations: bool,
+}
+impl OriginalLogicalVariableWords {
+    fn capture(
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+        scope: LogicalNavigationScope,
+    ) -> Option<Self> {
+        let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+            return None;
+        };
+        let root = tcl_core_types::ByteNamespacePath::root();
+        let namespace = match &scope {
+            LogicalNavigationScope::Document(_) => &root,
+            LogicalNavigationScope::Declared(body) => body.namespace_recipe(),
+        };
+        if original.is_empty()
+            || !scope.owns_words(original, input)
+            || graph.logical_namespace.as_ref() != Some(namespace)
+        {
+            return None;
+        }
+        Some(Self {
+            input: input.clone(),
+            original: Arc::from(original),
+            scope,
+            earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
+        })
+    }
+
+    fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input
+            && input.has_logical_source_name_context()
+            && self
+                .original
+                .iter()
+                .all(|word| word.image() == image && word.config() == input.lexer_config())
+            && self.scope.owns_words(&self.original, input)
+    }
+
+    pub(super) fn variable_source_scope(
+        &self,
+        span: tcl_lexer::Span,
+        name: &crate::signature_scan::scope::SignatureSourceNameInput,
+        procedure: Option<Arc<super::OriginalLogicalProcedureBody>>,
+    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
+        match &self.scope {
+            LogicalNavigationScope::Document(origin) => {
+                crate::command_binding::OriginalLogicalVariableScope::document(
+                    &self.input,
+                    Arc::clone(origin),
+                    Arc::clone(&self.original),
+                    self.earlier_unknown_mutations,
+                    span,
+                    name,
+                )
+            }
+            LogicalNavigationScope::Declared(scope) => {
+                crate::command_binding::OriginalLogicalVariableScope::declared(
+                    &self.input,
+                    Arc::clone(scope),
+                    procedure,
+                    Arc::clone(&self.original),
+                    self.earlier_unknown_mutations,
+                    span,
+                    name,
+                )
+            }
+        }
+    }
+}
+
 /// Ordered Logical source coordinates at one authentic original call occurrence.
 /// Unavailable actual lookup and unmodelled mutations remain applicability
 /// obligations; this is neither an installation nor a resolved call edge.
@@ -103,37 +185,6 @@ impl OriginalLogicalCommandCandidates {
             candidates,
             earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
         })
-    }
-
-    pub(super) fn variable_source_scope(
-        &self,
-        span: tcl_lexer::Span,
-        name: &crate::signature_scan::scope::SignatureSourceNameInput,
-        procedure: Option<Arc<super::OriginalLogicalProcedureBody>>,
-    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
-        match &self.scope {
-            LogicalNavigationScope::Document(origin) => {
-                crate::command_binding::OriginalLogicalVariableScope::document(
-                    &self.input,
-                    Arc::clone(origin),
-                    Arc::clone(&self.original),
-                    self.earlier_unknown_mutations,
-                    span,
-                    name,
-                )
-            }
-            LogicalNavigationScope::Declared(scope) => {
-                crate::command_binding::OriginalLogicalVariableScope::declared(
-                    &self.input,
-                    Arc::clone(scope),
-                    procedure,
-                    Arc::clone(&self.original),
-                    self.earlier_unknown_mutations,
-                    span,
-                    name,
-                )
-            }
-        }
     }
 
     /// Whole original head, independently of reporting labels and diagnostics.
@@ -229,7 +280,14 @@ fn external_header_candidates(
     written: &[u8],
     candidates: &[ByteCommandSlot],
 ) -> Option<Vec<ByteCommandSlot>> {
-    let selected = graph.lookup_head_key(written)?;
+    external_header_candidates_at_selected(graph, graph.lookup_head_key(written)?, candidates)
+}
+
+fn external_header_candidates_at_selected(
+    graph: &AdviceGraph,
+    selected: ByteCommandSlot,
+    candidates: &[ByteCommandSlot],
+) -> Option<Vec<ByteCommandSlot>> {
     if graph.cells.contains_key(&selected) {
         return None;
     }
@@ -389,6 +447,7 @@ pub struct OriginalLogicalCallbackCandidates {
     scope: Option<Arc<OriginalDeclaredLogicalBodyContext>>,
     head: tcl_syntax::word_rules::OriginalSourceListElement,
     candidates: Vec<ByteCommandSlot>,
+    external_header_candidates: Option<Vec<ByteCommandSlot>>,
     appended: tcl_registry::AppendedArity,
     baked: usize,
 }
@@ -408,6 +467,19 @@ impl OriginalLogicalCallbackCandidates {
     #[must_use]
     pub fn coordinates(&self) -> &[ByteCommandSlot] {
         &self.candidates
+    }
+    /// External source headers admitted by the actual callback-scope graph.
+    /// Selected source occupants and deleted slots cannot borrow project headers.
+    /// This remains conditional registration advice, without callback entry.
+    #[must_use]
+    pub fn external_header_coordinates(&self) -> Option<&[ByteCommandSlot]> {
+        self.external_header_candidates.as_deref()
+    }
+    /// Original installer operands can affect lookup before registration.
+    #[must_use]
+    pub fn has_lookup_operand_effects(&self) -> bool {
+        !super::body_effects::original_operand_effects(self.registration.original_words())
+            .is_empty()
     }
     /// Arguments the selected callback descriptor appends.
     #[must_use]
@@ -521,6 +593,11 @@ impl super::AdviceInvocationContext<'_> {
                     registration: registration.clone(),
                     scope: scope.clone(),
                     head: head.clone(),
+                    external_header_candidates: graph
+                        .lookup_logical_head_key(namespace, head.value().as_bytes())
+                        .and_then(|selected| {
+                            external_header_candidates_at_selected(graph, selected, &candidates)
+                        }),
                     candidates,
                     appended,
                     baked: elements.len().checked_sub(1)?,
@@ -604,6 +681,15 @@ impl OriginalSourceTransitionAdviceTape {
         let Some(head) = original.first() else {
             return;
         };
+        super::source_class::merge_receipt(
+            &mut self.logical_variable_words,
+            head.span().start(),
+            OriginalLogicalVariableWords::capture(
+                graph,
+                original,
+                LogicalNavigationScope::Document(Arc::clone(origin)),
+            ),
+        );
         self.merge_logical_navigation(
             head.span().start(),
             OriginalLogicalCommandCandidates::capture_document(graph, original, origin),
@@ -619,6 +705,15 @@ impl OriginalSourceTransitionAdviceTape {
         let Some(head) = original.first() else {
             return;
         };
+        super::source_class::merge_receipt(
+            &mut self.logical_variable_words,
+            head.span().start(),
+            OriginalLogicalVariableWords::capture(
+                graph,
+                original,
+                LogicalNavigationScope::Declared(Arc::clone(scope)),
+            ),
+        );
         self.merge_logical_navigation(
             head.span().start(),
             OriginalLogicalCommandCandidates::capture(graph, original, scope),
@@ -684,7 +779,7 @@ impl OriginalSourceTransitionAdviceTape {
         span: tcl_lexer::Span,
         name: &crate::signature_scan::scope::SignatureSourceNameInput,
     ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
-        for (&offset, candidate) in self.logical_navigation.range(..=span.start()).rev() {
+        for (&offset, candidate) in self.logical_variable_words.range(..=span.start()).rev() {
             let Some(candidate) = candidate.as_ref() else {
                 continue;
             };
@@ -769,6 +864,268 @@ mod tests {
             analysis,
             u32::try_from(source.find(needle)?).ok()?,
         )
+    }
+
+    fn logical_variable_analysis(source: &str) -> crate::analyser::AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    fn logical_variable_tape(
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> OriginalSourceTransitionAdviceTape {
+        analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref()
+            .original_source_transition_advice_tape_for(
+                analysis
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .borrowed_context_registry(),
+                super::super::OriginalSourceCataloguePurpose::CompletePrefix,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn logical_variable_occurrences_survive_unavailable_heads_and_paths() {
+        for (source, head, local) in [
+            ("$dispatch $value", "$dispatch", false),
+            ("{*}$dispatch $value", "{*}$dispatch", false),
+            ("proc p {value} {$dispatch $value}", "$dispatch", true),
+            ("proc p {value} {{*}$dispatch $value}", "{*}$dispatch", true),
+            ("namespace path $paths; helper $value", "helper", false),
+            (
+                "namespace eval N {namespace path $paths; proc p {value} {helper $value}}",
+                "helper",
+                true,
+            ),
+        ] {
+            let analysis = logical_variable_analysis(source);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            let offset = u32::try_from(source.rfind("$value").unwrap() + 1).unwrap();
+            let read = analysis
+                .original_variable_symbol_at_offset(offset)
+                .unwrap_or_else(|| panic!("original variable independent of head: {source}"));
+            assert_eq!(!read.symbol().is_namespace(), local, "{source}");
+            assert!(read.has_source_applicability_obligation());
+            assert!(!analysis.original_variable_rename_is_complete(read.symbol()));
+            assert!(
+                analysis
+                    .original_variable_symbol_in_source(&image, input.lexer_config(), offset,)
+                    .is_some()
+            );
+            assert!(query(source, &analysis, head).is_none(), "{source}");
+            if local {
+                let formal = analysis
+                    .original_variable_symbol_at_offset(
+                        u32::try_from(source.find("value").unwrap()).unwrap(),
+                    )
+                    .unwrap();
+                assert_eq!(read.symbol(), formal.symbol(), "{source}");
+            }
+        }
+    }
+
+    #[test]
+    fn logical_variable_occurrences_keep_alias_and_local_frame_boundaries() {
+        let source = "proc p {} {global shared; $dispatch $shared}; proc q {} {$dispatch $shared}";
+        let analysis = logical_variable_analysis(source);
+        let offsets: Vec<_> = source
+            .match_indices("$shared")
+            .map(|(offset, _)| u32::try_from(offset + 1).unwrap())
+            .collect();
+        let linked = analysis
+            .original_variable_symbol_at_offset(offsets[0])
+            .unwrap();
+        let local = analysis
+            .original_variable_symbol_at_offset(offsets[1])
+            .unwrap();
+        assert_eq!(
+            linked.original_local_alias().unwrap().1.as_bytes(),
+            b"shared"
+        );
+        assert!(linked.symbol().is_namespace());
+        assert!(local.original_local_alias().is_none());
+        assert!(!local.symbol().is_namespace());
+        assert_ne!(linked.symbol(), local.symbol());
+        for source in [
+            "proc p {value value} {$dispatch $value}",
+            "namespace eval $unknown {$dispatch $value}",
+            "oo::class create C {method m {} {$dispatch $value}}",
+            "set inert {$dispatch $value}",
+        ] {
+            let analysis = logical_variable_analysis(source);
+            let offset = u32::try_from(source.rfind("$value").unwrap() + 1).unwrap();
+            assert!(
+                analysis
+                    .original_variable_symbol_at_offset(offset)
+                    .is_none(),
+                "{source}"
+            );
+        }
+        for source in [
+            "proc p {} {global shared; namespace upvar ::other value shared; $dispatch $shared}",
+            "proc p {} {global shared; upvar 0 $unknown shared; $dispatch $shared}",
+        ] {
+            let analysis = logical_variable_analysis(source);
+            let image = tcl_lexer::SourceImage::document(source);
+            assert!(!analysis.original_variable_alias_source_is_complete(
+                &image,
+                analysis.body_lexer_config.unwrap(),
+            ));
+            if let Some(read) = analysis.original_variable_symbol_at_offset(
+                u32::try_from(source.rfind("$shared").unwrap() + 1).unwrap(),
+            ) {
+                assert!(!analysis.original_variable_rename_is_complete(read.symbol()));
+            }
+        }
+    }
+
+    #[test]
+    fn logical_variable_scope_receipts_preserve_prior_unknowns_and_withdraw_conflicts() {
+        let source = "unknown_command; $dispatch $value";
+        let analysis = logical_variable_analysis(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let offset = u32::try_from(source.find("$dispatch").unwrap()).unwrap();
+        let read = analysis
+            .original_variable_symbol_at_offset(
+                u32::try_from(source.find("$value").unwrap() + 1).unwrap(),
+            )
+            .unwrap();
+        let mut tape = logical_variable_tape(&analysis);
+        let receipt = tape
+            .logical_variable_words
+            .get(&offset)
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
+        assert!(receipt.earlier_unknown_mutations);
+        let expected = receipt
+            .variable_source_scope(read.span(), read.original_name_input(), None)
+            .unwrap();
+        assert_eq!(
+            tape.logical_variable_scope_at(input, &image, read.span(), read.original_name_input(),),
+            Some(expected)
+        );
+        let mut conflicting = receipt;
+        conflicting.earlier_unknown_mutations = false;
+        let mut other = OriginalSourceTransitionAdviceTape::default();
+        other
+            .logical_variable_words
+            .insert(offset, Some(conflicting));
+        tape.extend_inventory(other);
+        assert!(
+            tape.logical_variable_scope_at(input, &image, read.span(), read.original_name_input(),)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_variable_scope_receipts_require_current_source_input_and_body() {
+        let source = "proc p {value} {$dispatch $value}; proc q {value} {$dispatch $value}";
+        let analysis = logical_variable_analysis(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let tape = logical_variable_tape(&analysis);
+        let read = analysis
+            .original_variable_symbol_at_offset(
+                u32::try_from(source.find("$value").unwrap() + 1).unwrap(),
+            )
+            .unwrap();
+        assert!(
+            tape.logical_variable_scope_at(input, &image, read.span(), read.original_name_input(),)
+                .is_some()
+        );
+        let stale = tcl_lexer::SourceImage::document(&format!("{source} "));
+        assert!(
+            tape.logical_variable_scope_at(input, &stale, read.span(), read.original_name_input(),)
+                .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        for changed in [
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            ),
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ),
+        ] {
+            assert!(
+                tape.logical_variable_scope_at(
+                    &changed,
+                    &image,
+                    read.span(),
+                    read.original_name_input(),
+                )
+                .is_none()
+            );
+        }
+        let receipts: Vec<_> = tape
+            .logical_variable_words
+            .values()
+            .filter_map(Option::as_ref)
+            .filter(|receipt| {
+                receipt
+                    .original
+                    .first()
+                    .is_some_and(|word| word.try_text().ok() == Some("$dispatch"))
+            })
+            .collect();
+        assert_eq!(receipts.len(), 2);
+        let LogicalNavigationScope::Declared(wrong) = &receipts[1].scope else {
+            panic!("genuine original procedure scope");
+        };
+        let mut graph = AdviceGraph::new(
+            input.borrowed_context_registry(),
+            &AdviceNamingPolicy::Logical(input.clone()),
+            tcl_registry::InvocationDialect::of_profile(input.unit_profile()),
+        )
+        .unwrap();
+        graph.logical_namespace = Some(wrong.namespace_recipe().clone());
+        assert!(
+            OriginalLogicalVariableWords::capture(
+                &graph,
+                &receipts[0].original,
+                LogicalNavigationScope::Declared(Arc::clone(wrong)),
+            )
+            .is_none()
+        );
+        let native = Analyser::new().analyse(source, "tcl9.1");
+        let native_input = native.resolved_input.as_ref().unwrap();
+        assert!(
+            native
+                .retained_command_realm()
+                .unwrap()
+                .original_logical_variable_scope_at(
+                    native_input,
+                    &image,
+                    read.span(),
+                    read.original_name_input(),
+                )
+                .is_none()
+        );
     }
 
     #[test]

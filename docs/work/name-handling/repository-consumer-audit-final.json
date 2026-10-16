@@ -194,7 +194,12 @@
       ],
       "api": "coordinate retains namespace+original simple word, but element_value builds combined ${name}($key)",
       "required_change": "Repair separate root/key namespace array snapshot access in the existing shared Tcl helper. Combined ${name}($key) reinterprets root a( and key k as another array coordinate. Preserve whole-array captured root+key purpose or honest representability refusal. CLI snapshot is unchanged affected caller if helper signature retained; Root admitted original capture03 is bounded provider evidence, not Rust acceptance.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "compiler",
@@ -584,7 +589,12 @@
       ],
       "api": "Actual OriginalLogicalVariableScope document/declared source owner, independently retained logical_variable_scopes/body cards",
       "required_change": "Reborrow genuine independent original body/frame/source word scope for ordinary variable occurrences when command head/path selection is unavailable; preserve earlier unknown/alias/local symbol applicability and strict Native purpose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "compiler",
@@ -8670,7 +8680,12 @@
       ],
       "api": "Existing original selected source path/option operand owner and actual source input/config",
       "required_change": "Handler fixes stock source option descriptor11193/10945 then legacy value resolution→raw path/is_literal/namespace. Retain actual selected loader command/effective option pair and original written file operand/value/path context; association remains conditional, not source-entry/cwd/completion or complete external caller coverage.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "compiler",
@@ -10877,6 +10892,11 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
       }
     },
     {
@@ -10920,6 +10940,11 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
       }
     },
     {
@@ -17709,7 +17734,12 @@
       "required_change": [
         "Input read/erasure proof is authentic and purpose-specific. Output uses copied quoting/escape policy without full configured one-word exact-value proof; migrate existing source constructor. Current unavailable read proof still refuses, no fabricated positive execution."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "lsp",
@@ -23159,7 +23189,12 @@
       ],
       "api": "Existing NativeNameProtocol enumeration/qualifier/tail; actual original key and alias owners",
       "required_change": "Still bypasses mutable original nshelper Import dispatch; local destination namespace joins and synthesized List/publication workflow remain. Finite alias/resident/cycle/currentness guards must survive genuine Source helper admission; no fallback authority",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "runtime",
@@ -23181,7 +23216,12 @@
       ],
       "api": "OriginalJimNamespaceHelperSource/NativeJimSourceOrigin; native Proc resource owner",
       "required_change": "Complete positive genuine installed Import Source/Proc entry admission and authentic finite traversal receipt consumption through the existing source-execution owner, preserving unconditional refusal until the full actual issuer/currentness/completion chain is admissible. Existing finite hooks/Source/Info projections are not an executed Native grant; ordinary copies/replacements remain unmarked.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "runtime",
@@ -23203,7 +23243,12 @@
       ],
       "api": "Namespaces actual token/generation; shared import_pattern/qualifier/tail",
       "required_change": "Local qualified-name diagnostic join duplicates existing report owner; report-only, never command identity. Actual import graph/currentness validation separate",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "runtime",
@@ -29719,7 +29764,12 @@
       ],
       "api": "Existing Registry native namespace table/helper descriptor and dispatch_stock_jim_namespace_helper; stock ensemble descriptor metadata",
       "required_change": "Keep actual install roster plus1717 helper-forwarder sites explicit. Existing shared stock helper issuer should be reused for reached original vector/context. Metadata owner versus actual forwarding adapter are distinct purposes; do not imply existing original Jim Namespace table is absent.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "runtime",
@@ -34543,7 +34593,12 @@
         "actual current namespace getter caller-check transport",
         "The complete semantic review below retains existing guards and bounds this specific purpose; sibling purposes are separately mapped."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "vm",
@@ -38750,7 +38805,12 @@
         "retain_narrowed",
         "Actual physical OO cleanup268, exact namespace owner278, SavedExecutionTarget100/132 and terminal operation checks already genuine. Select actual physical teardown protocol from existing actual_native_invocation_dialect, or separately admitted authored purpose; logical name policy is not physical teardown selection. No new namespace resolver or guard weakening."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "vm",
@@ -61951,7 +62011,12 @@
         }
       ],
       "required_change": "Guide says malformed List path falls back singleelement. Actual interp_path obtains ValueOps::list_elements and propagates checked Err after OriginalArguments currentness; no fallback. Preserve current original input/getter/host refusal semantics.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -61998,7 +62063,12 @@
         }
       ],
       "required_change": "Guide says proc introspection imports bounded64hops. Actual state_traits773 proc_default→interp10972proc_def→5944resolve_import_query uses visitedgeneration BTreeSet, current source binding and loop with cycle refusal, no arbitrary64 truncation. Doc must retain genuine finite/lifecycle guards and avoid semanticacceptance from source.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -62023,7 +62093,12 @@
         "vm-embedding-owner-facet-annex.json"
       ],
       "required_change": "Commandname+arguments original wording broader than existing legitimate tailcallbackABI and freshregistrationhead. Existing Runtime embedding.actual-original-command-vector359 proof pins actualsource boundary; missingheadedfacet must not be described as already available. Ordinarytail ABI stays legitimate.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -62054,7 +62129,12 @@
         }
       ],
       "required_change": "Actual info_exists_original875 checks nativeC exists_original_c_parts with originalargs; observed route executes observed_variable_exists; remaining route reaches fire_var_traces_for(name,read), retains firstHostcause thenvar_exists. Blanket no-readtrace assertion stale. No testexecution or original fullparity claimed.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -62099,7 +62179,12 @@
         }
       ],
       "required_change": "Runtime rename/import guide and namespace-tree331/837/905 describe source-FQN-only retarget/relookup. Actual query tracks exact source generation and current source binding; retarget matches generation. Separate intentional ByName replacement fallback applies only retired source, not simultaneously live same-FQN generations. Update current description without changing that selected policy.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -62133,7 +62218,12 @@
         }
       ],
       "required_change": "Guide names rehome_proc allocating fresh Rc<ProcDef>. Actual rehome_command retains genuine declaration, edits selected location through declaration.relocate and returns same command. Describe real declaration/active-frame location purposes; do not reconstruct identity from reporting FQN.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+        "validation": "Not accepted yet; first scoped build found one test adapter requiring the explicit project input mode. Adapter repaired; current source has not completed a fresh build."
+      }
     },
     {
       "area": "audit",
@@ -130818,5 +130908,28 @@
     "Code/schema, validation repairs, existing unexecuted validation, authored guidance and final repository-wide cleanup remain separate. No old afterimage can overwrite newer source; rebase reviewed individual changes.",
     "All current registered targets/hosts/editor/generated surfaces are represented by source owners/adopters and explicit foreign/original/generated input/output roles. Reproducible generated parity and provider execution remain required validation.",
     "No PR, issue closure or merge acceptance; #2286 stays open."
-  ]
+  ],
+  "implementation_progress": {
+    "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+    "utc": "2026-10-16T08:20:06Z",
+    "audit_baseline_counts_unchanged": true,
+    "total_required_units": 2158,
+    "implemented_pending_validation": 18,
+    "verified_complete": 0,
+    "not_started": 2140,
+    "remaining_unverified_or_unimplemented": 2158,
+    "additional_work_not_counted_as_catalogue_completion": [
+      "VM no-argument Parent current-holder projection (catalogue mapping pending)",
+      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)"
+    ],
+    "latest_scoped_build": {
+      "status": "FAIL_TEST_ADAPTER_COMPILE",
+      "log": "/tmp/naming-initial-build.log",
+      "source_diff_sha256": "de4bb5382300a7dc852e2f9ab495340cb10863495ab607e19938e5ef9e2a70ac",
+      "errors": 2,
+      "cause": "One test caller of project_source_diagnostics_for_analysis retained old signature; repaired without changing its assertions."
+    },
+    "required_gates": "Still not green; no PR acceptance.",
+    "report_cadence_minutes": 30
+  }
 }

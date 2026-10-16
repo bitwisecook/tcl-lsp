@@ -200,8 +200,8 @@
     "All current registered targets/hosts/editor/generated surfaces are represented by source owners/adopters and explicit foreign/original/generated input/output roles. Reproducible generated parity and provider execution remain required validation.",
     "No PR, issue closure or merge acceptance; #2286 stays open."
   ],
-  "paused": true,
-  "pause_scope": "Requested audit, documentation and artifacts complete; migration implementation remains pending.",
+  "paused": false,
+  "pause_scope": "Implementation resumed; audit closure remains historical, migration completion remains pending.",
   "remaining_consumer_total": 1321,
   "remaining_semantic_change_total": 1799,
   "all_required_change_total": 2158,
@@ -398,5 +398,28 @@
       "No PR, issue closure or merge acceptance; #2286 stays open."
     ]
   },
-  "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch."
+  "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
+  "implementation_progress": {
+    "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+    "utc": "2026-10-16T08:20:06Z",
+    "audit_baseline_counts_unchanged": true,
+    "total_required_units": 2158,
+    "implemented_pending_validation": 18,
+    "verified_complete": 0,
+    "not_started": 2140,
+    "remaining_unverified_or_unimplemented": 2158,
+    "additional_work_not_counted_as_catalogue_completion": [
+      "VM no-argument Parent current-holder projection (catalogue mapping pending)",
+      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)"
+    ],
+    "latest_scoped_build": {
+      "status": "FAIL_TEST_ADAPTER_COMPILE",
+      "log": "/tmp/naming-initial-build.log",
+      "source_diff_sha256": "de4bb5382300a7dc852e2f9ab495340cb10863495ab607e19938e5ef9e2a70ac",
+      "errors": 2,
+      "cause": "One test caller of project_source_diagnostics_for_analysis retained old signature; repaired without changing its assertions."
+    },
+    "required_gates": "Still not green; no PR acceptance.",
+    "report_cadence_minutes": 30
+  }
 }

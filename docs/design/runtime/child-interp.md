@@ -162,9 +162,10 @@ does not resolve.
 ## 4. Resolving paths
 
 An interpreter path is a Tcl list of child names descending from the
-current interpreter. `interp_path` parses the argument as a list
-(falling back to a single-element path when it is not well-formed
-list syntax, and to the empty path when it is empty).
+current interpreter. `interp_path` parses the original argument as a Tcl
+list. A list-conversion error is propagated; malformed list syntax does not
+fall back to treating the whole argument as one child name. An empty parsed
+list denotes the empty path.
 
 `with_child_path(path, f)` walks it: an empty path is this interp
 itself, a one-element path is `with_child`, and a longer one recurses —

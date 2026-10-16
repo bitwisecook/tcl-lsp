@@ -2305,25 +2305,6 @@ fn alias_string_reference(
     (selected && original_value == proposed_value).then_some(replacement)
 }
 
-/// Whether braces in `s` are properly nested (depth never negative,
-/// ends at zero).
-fn braces_nested(s: &str) -> bool {
-    let mut depth: i64 = 0;
-    for c in s.bytes() {
-        match c {
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    depth == 0
-}
-
 /// First index ≥ `from` where `needle` occurs in `haystack`.
 fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     if needle.is_empty() || from + needle.len() > haystack.len() {
@@ -2415,7 +2396,12 @@ fn fold_original_static_substrings(
                     else {
                         continue;
                     };
-                    edits.insert((span.start(), span.end()), build_replacement(&value));
+                    let Some(replacement) =
+                        tcl_syntax::word_rules::lexical_unicode_source_word(&value, config)
+                    else {
+                        continue;
+                    };
+                    edits.insert((span.start(), span.end()), replacement);
                     folds.insert(content.to_owned(), value);
                 }
             }
@@ -2497,9 +2483,11 @@ fn fold_static_substrings(
     let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
     scopes.extend(cu.procedures.values());
     for fu in scopes {
+        let config = LexerConfig::for_profile(Some(dialect));
         let cx = FoldContext {
             fu,
-            style: dialect.grammar.braced_var,
+            style: config.braced_var,
+            config,
             view: None,
         };
         collect_folds_for_scope(source, cx, &mut edits, &mut fold_map);
@@ -2528,6 +2516,7 @@ fn fold_static_substrings(
 struct FoldContext<'a> {
     fu: &'a FunctionUnit,
     style: tcl_dialect::BracedVarStyle,
+    config: LexerConfig,
     view: Option<tcl_compiler::ssa::SsaSourceView<'a>>,
 }
 
@@ -2591,12 +2580,13 @@ fn collect_folds_for_scope(
                             if has_unsafe_tainted_inputs(content, &uses, &fu.taints, view, style) {
                                 continue;
                             }
-                            if let Some(close) = close_quote_offset(source, arg_off) {
-                                edits.push((
-                                    arg_off,
-                                    close - arg_off + 1,
-                                    build_replacement(&folded),
-                                ));
+                            if let Some(close) = close_quote_offset(source, arg_off)
+                                && let Some(replacement) =
+                                    tcl_syntax::word_rules::lexical_unicode_source_word(
+                                        &folded, cx.config,
+                                    )
+                            {
+                                edits.push((arg_off, close - arg_off + 1, replacement));
                                 fold_map.insert(content.clone(), folded);
                             }
                         }
@@ -2646,7 +2636,11 @@ fn try_fold_region(
     if !(inner.contains('$') || inner.contains('[')) {
         return;
     }
-    edits.push((abs_start, close - abs_start + 1, build_replacement(&folded)));
+    let Some(replacement) = tcl_syntax::word_rules::lexical_unicode_source_word(&folded, cx.config)
+    else {
+        return;
+    };
+    edits.push((abs_start, close - abs_start + 1, replacement));
     fold_map.insert(inner.to_owned(), folded);
 }
 
@@ -2782,26 +2776,6 @@ fn parse_var_ref(
             ..LexerConfig::default()
         },
     )
-}
-
-/// Build a replacement token for a folded static string: bare when
-/// no quoting is needed, braced when safe, else escaped double
-/// quotes.
-fn build_replacement(folded: &str) -> String {
-    let needs_quoting = folded.is_empty()
-        || folded.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';']);
-    if !needs_quoting {
-        return folded.to_owned();
-    }
-    if !folded.contains('\\') && braces_nested(folded) {
-        return format!("{{{folded}}}");
-    }
-    let escaped = folded
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('$', "\\$")
-        .replace('[', "\\[");
-    format!("\"{escaped}\"")
 }
 
 /// Project shared complete groups into the renderer's argument container.
@@ -4463,6 +4437,30 @@ mod tests {
         assert_eq!(out, "set x 5\nputs n=5\n");
         assert_eq!(count, 1);
         assert!(map.values().any(|v| v == "n=5"), "{map:?}");
+    }
+
+    #[test]
+    fn static_fold_quotes_carriage_return_value() {
+        let registry = CommandRegistry::build_default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let (out, count, _) =
+            fold_static_substrings("set x \"a\\rb\"\nputs \"v=$x\"\n", profile, &registry);
+        assert_eq!(count, 1, "{out}");
+        let word = out
+            .split_once("\nputs ")
+            .unwrap()
+            .1
+            .strip_suffix('\n')
+            .unwrap();
+        assert!(
+            tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                word,
+                "v=a\rb",
+                LexerConfig::for_profile(Some(profile)),
+            ),
+            "{out}"
+        );
     }
 
     /// The quoted word embeds a command substitution whose own

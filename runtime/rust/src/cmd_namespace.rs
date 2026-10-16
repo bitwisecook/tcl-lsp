@@ -783,11 +783,13 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
 /// `namespace import ?-force? pattern ?pattern ...?` — install transparent
 /// redirects in the current ns for the exported commands matching each pattern.
 fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
-    if interp
-        .name_policy_protocol()
-        .is_some_and(|policy| policy.recipe().is_jim084())
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
+        )
     {
-        return ns_import_source_names(interp, &argv[2..], arguments);
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
     }
     let dest = interp.current_ns();
     // The introspection form is `objc == 1` — literally no words after
@@ -899,11 +901,7 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
             if destination_generation
                 .is_some_and(|needle| interp.import_chain_contains(source_generation, needle))
             {
-                let mut destination_fqn = interp.namespaces().qualified_name(dest);
-                if destination_fqn != b"::" {
-                    destination_fqn.extend_from_slice(b"::");
-                }
-                destination_fqn.extend_from_slice(&simple);
+                let destination_fqn = interp.namespaces().command_fqn_at(dest, &simple);
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(pat);
                 message.extend_from_slice(b"\" would create a loop containing command \"");
@@ -928,227 +926,6 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
         }
     }
     interp.set_result_bytes(b"");
-    Code::Ok
-}
-
-fn ns_import_source_names(
-    interp: &mut Interp,
-    patterns: &[*mut TclObj],
-    arguments: &OriginalArguments,
-) -> Code {
-    use tcl_syntax::value::ValueOps;
-    let Some(policy) = interp.name_policy_protocol() else {
-        return interp.report_cmd_error(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim import name issuer")
-                .into(),
-        );
-    };
-    let protocol = policy.recipe();
-    let namespace =
-        match crate::interp::OriginalJimLookupNamespace::capture(interp, interp.current_ns()) {
-            Ok(namespace) => namespace,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-    let check = |actual: &Interp| namespace.check_current_arguments(actual, arguments);
-    if let Err(error) = check(interp) {
-        return interp.report_cmd_error(error);
-    }
-    let current = match interp.jim_current_namespace_object() {
-        Ok(current) => current,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let current_name = match interp.materialize_jim_namespace(interp.current_ns()) {
-        Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    if let Err(error) = check(interp) {
-        return interp.report_cmd_error(error);
-    }
-    for (offset, &pattern) in patterns.iter().enumerate() {
-        if let Err(error) = arguments.check_original_for(interp, offset + 2, pattern) {
-            return interp.report_cmd_error(error);
-        }
-        let original = arguments.bytes(offset + 2);
-        if let Err(error) = check(interp) {
-            return interp.report_cmd_error(error);
-        }
-        let original = match original {
-            Ok(bytes) => bytes,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let canonical = interp.jim_canonical_namespace_object(&current, pattern);
-        if let Err(error) = check(interp) {
-            return interp.report_cmd_error(error);
-        }
-        let canonical = match canonical {
-            Ok(canonical) => canonical,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let qualified = interp.native_string_bytes(&canonical.as_ptr());
-        if let Err(error) = check(interp) {
-            return interp.report_cmd_error(error);
-        }
-        let qualified = match qualified {
-            Ok(bytes) => bytes,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let candidates = interp.visible_command_names_in(GLOBAL);
-        let names = match protocol.jim_info_command_names(b"", Some(&qualified), &candidates, false)
-        {
-            Ok(names) => names,
-            Err(_) => {
-                return interp.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "Jim import command enumeration",
-                    )
-                    .into(),
-                );
-            }
-        };
-        let enumerated = interp
-            .namespaces()
-            .original_jim_command_enumeration_keys(&names);
-        let keys = match enumerated {
-            Ok(keys) => keys,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let mut members = Vec::with_capacity(keys.len());
-        for key in &keys {
-            if let Err(error) = obj::check_native_liveness(key.as_ptr()) {
-                return interp.report_cmd_error(error.into());
-            }
-            members.push(obj::Owned::retain(key.as_ptr()));
-        }
-        let pointers: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
-        let command_list = obj::Owned::fresh(interp.new_list_object(&pointers));
-        drop(members);
-        if let Err(error) = check(interp) {
-            return interp.report_cmd_error(error);
-        }
-        for key in keys {
-            let source_object = obj::Owned::retain(key.as_ptr());
-            let source = match interp.native_string_bytes(&source_object.as_ptr()) {
-                Ok(source) => source.to_vec(),
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
-            if let Err(error) = check(interp) {
-                return interp.report_cmd_error(error);
-            }
-            if protocol.namespace_qualifier_bytes(&source) == current_name.as_ref() {
-                let mut error = b"import pattern \"".to_vec();
-                error.extend_from_slice(&original);
-                error.extend_from_slice(b"\" tries to import from namespace \"");
-                error.extend_from_slice(&current_name);
-                error.extend_from_slice(b"\" into itself");
-                return interp.set_error(&error);
-            }
-            let mut destination = current_name.to_vec();
-            destination.extend_from_slice(b"::");
-            destination.extend_from_slice(protocol.namespace_tail_bytes(&source));
-            let mut alias = obj::Owned::retain(source_object.as_ptr());
-            let destination_object = obj::Owned::fresh(obj::new_string_bytes(&destination));
-            let mut seen = std::collections::BTreeSet::new();
-            loop {
-                // The pinned helper is a root procedure. Its original alias
-                // List query has an independent lookup context from the actual
-                // destination namespace; neither context is reconstructed.
-                let lookup = tcl_runtime_api::Aliases::alias_prefix_original_value_at(
-                    interp,
-                    tcl_runtime_api::NsId(GLOBAL as u32),
-                    &alias.as_ptr(),
-                );
-                if let Err(error) = check(interp) {
-                    return interp.report_cmd_error(error);
-                }
-                let next = match lookup {
-                    Ok(
-                        tcl_runtime_api::AliasPrefixLookup::MissingCommand
-                        | tcl_runtime_api::AliasPrefixLookup::NotAlias,
-                    ) => break,
-                    Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original)) => {
-                        obj::Owned::retain(original)
-                    }
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                // The reached lookup owns this resident spelling. Keep the
-                // existing finite cycle guard without another String getter
-                // or decoding any retained prefix member.
-                let snapshot = interp.native_object_snapshot(&alias.as_ptr());
-                if let Err(error) = check(interp) {
-                    return interp.report_cmd_error(error);
-                }
-                let resident = match snapshot {
-                    Ok(snapshot) => match snapshot.resident {
-                        Some(bytes) => bytes,
-                        None => {
-                            return interp.report_cmd_error(
-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                    "Jim import reached alias spelling",
-                                )
-                                .into(),
-                            );
-                        }
-                    },
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                if !seen.insert(resident) {
-                    return interp.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "Jim namespace import cyclic alias chain",
-                        )
-                        .into(),
-                    );
-                }
-                // set alias [info alias $alias] owns the exact stored List.
-                // Equality reaches its selected String/cache before the next
-                // exists -alias lookup; it never rebuilds a prefix List.
-                alias = next;
-                if let Err(error) = check(interp) {
-                    return interp.report_cmd_error(error);
-                }
-                let equality = tcl_syntax::native_equality::full_native_equality(
-                    interp,
-                    &alias.as_ptr(),
-                    &destination_object.as_ptr(),
-                );
-                if let Err(error) = check(interp) {
-                    return interp.report_cmd_error(error);
-                }
-                let closes_loop = match equality {
-                    Ok(equal) => equal,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                };
-                if closes_loop {
-                    let mut error = b"import pattern \"".to_vec();
-                    error.extend_from_slice(&original);
-                    error.extend_from_slice(b"\" would create a loop");
-                    return interp.set_error(&error);
-                }
-            }
-            let prefix = obj::Owned::fresh(interp.new_list_object(&[source_object.as_ptr()]));
-            let installed =
-                interp.install_alias_with_original(&destination, source, Vec::new(), Some(prefix));
-            if let Err(error) = check(interp) {
-                return interp.report_cmd_error(error);
-            }
-            if let Err(name) = installed {
-                let mut error = b"import pattern \"".to_vec();
-                error.extend_from_slice(&original);
-                error.extend_from_slice(b"\" would create a loop containing command \"");
-                error.extend_from_slice(&name);
-                error.push(b'"');
-                return interp.set_error(&error);
-            }
-        }
-        drop(command_list);
-        if let Err(error) = check(interp) {
-            return interp.report_cmd_error(error);
-        }
-    }
-    interp.set_result_bytes(b"");
-    if let Err(error) = check(interp) {
-        return interp.report_cmd_error(error);
-    }
     Code::Ok
 }
 
@@ -1715,21 +1492,13 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `namespace ensemble create|exists ...` — the canonical `ens sub`→target
 /// redirect (the generalised `dict for`→`::tcl::dict::for` mechanism).
 fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() >= 3 {
-        let original = match interp.native_string_bytes(&argv[1]) {
-            Ok(original) => original,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        if let Some(helper) = interp
-            .native_invocation_dialect()
-            .native_namespace_scripted_helper(&original)
-        {
-            let helper = obj::Owned::fresh(crate::interp::new_string(&helper));
-            let mut forwarded = Vec::with_capacity(argv.len() - 1);
-            forwarded.push(helper.as_ptr());
-            forwarded.extend_from_slice(&argv[2..]);
-            return interp.dispatch(&forwarded);
-        }
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Ensemble,
+        )
+    {
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
     }
     if let Some(protocol) = interp
         .native_invocation_dialect()
@@ -3061,6 +2830,25 @@ namespace eval ::caller {
                 .native_namespace_code_policy()
                 .is_none());
         });
+    }
+
+    #[test]
+    fn jim_namespace_ensemble_uses_the_mutable_helper_and_original_arguments() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interp.eval_str(br#"proc {namespace ensemble} {subcommand args} {return "[llength $args]:[lindex $args 0]:[lindex $args 1]"}"#),
+            Code::Ok
+        );
+        assert_eq!(
+            interp.eval_str(b"namespace ensemble custom {two words} tail"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"2:two words:tail");
     }
 
     #[test]
@@ -5455,6 +5243,31 @@ namespace eval ::caller {
                   {TCL IMPORT OVERWRITE} ::S::p ::S::p ::S::p \
                   1 {import pattern \"::B::p\" would create a loop containing command \"::S::p\"} \
                   {TCL IMPORT LOOP} ::S::p ::S::p ::S::p"
+            );
+        });
+    }
+
+    #[test]
+    fn namespace_import_cycle_reports_the_root_command_from_its_slot() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc p {} {return P}
+                      namespace export p
+                      namespace eval S {
+                          namespace import ::p
+                          namespace export p
+                      }
+                      set code [catch {namespace import -force ::S::p} message options]
+                      list $code $message [dict get $options -errorcode] \
+                           [namespace origin ::p] [namespace origin ::S::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {import pattern \"::S::p\" would create a loop containing command \"::p\"} \
+                  {TCL IMPORT LOOP} ::p ::p"
             );
         });
     }

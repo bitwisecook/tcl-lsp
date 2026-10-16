@@ -81,8 +81,9 @@ impl SavedOriginalOoCleanup {
 impl OriginalOoCleanup {
     pub(crate) fn enter(vm: &mut Vm) -> Self {
         let namespace_traversal = vm
-            .name_policy_protocol()
-            .and_then(|policy| policy.recipe().namespace_command_teardown());
+            .actual_native_invocation_dialect()
+            .native_namespace_name_protocol()
+            .map(|protocol| protocol.recipe().command_teardown());
         let method_cache_selected = vm
             .actual_native_invocation_dialect()
             .native_tcloo_method_cache_protocol()
@@ -112,8 +113,9 @@ impl OriginalOoCleanup {
     /// Readonly physical cleanup observations; never issue a new execution owner.
     fn observe(vm: &mut Vm) -> Self {
         let namespace_traversal = vm
-            .name_policy_protocol()
-            .and_then(|policy| policy.recipe().namespace_command_teardown());
+            .actual_native_invocation_dialect()
+            .native_namespace_name_protocol()
+            .map(|protocol| protocol.recipe().command_teardown());
         let method_cache_selected = vm
             .actual_native_invocation_dialect()
             .native_tcloo_method_cache_protocol()

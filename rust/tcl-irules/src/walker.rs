@@ -631,6 +631,8 @@ mod original_object_value_tests {
             "pool {p[set ::hint 1]}\n",
             "pool \"\\x24literal\"\n",
             "pool {茶}\n",
+            "pool \"\"\n",
+            "pool {}\n",
             "pool $dynamic\n",
             "pool [dynamic]\n",
             "}\n",
@@ -642,7 +644,7 @@ mod original_object_value_tests {
                 .iter()
                 .map(|reference| reference.name.as_str())
                 .collect::<Vec<_>>(),
-            ["a\"b", "p[set ::hint 1]", "$literal", "茶"]
+            ["a\"b", "p[set ::hint 1]", "$literal", "茶", "", ""]
         );
         assert!(
             references

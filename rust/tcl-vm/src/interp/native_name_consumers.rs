@@ -230,6 +230,19 @@ impl OriginalNameConsumerScope {
         })
     }
 
+    /// Project the actual entered current namespace, including its captured
+    /// world and incarnation, for a no-argument namespace operation.
+    pub(crate) fn current_namespace_token(&self, vm: &mut Vm) -> Result<NsId, CmdError> {
+        self.check(vm)?;
+        let token = self.state.namespace.resolved_token();
+        self.require(
+            vm,
+            token.is_some_and(|id| vm.native_namespace_token_has_owner(id)),
+            "selected original current namespace holder",
+        )?;
+        Ok(token.expect("checked original current namespace holder"))
+    }
+
     pub(crate) fn require(
         &self,
         vm: &mut Vm,

@@ -1351,6 +1351,7 @@ impl Analyser {
                     range,
                     is_literal,
                     site_namespace: self.command_resolution_namespace(scope_path),
+                    original_project_source_load: None,
                     original_interpreter_source_load: Some(Arc::new(original)),
                 });
         }

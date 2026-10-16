@@ -11182,19 +11182,43 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
     pub fn handle_source_command(
         &mut self,
+        cmd_tok: Token,
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        if args.is_empty() {
-            return;
-        }
-        let file_idx = self.leading_option_words("source", args);
+        let original_project_source_load = (self.interp_path_stack.is_empty()
+            && self.safe_interp_stack.is_empty())
+        .then(|| {
+            crate::registry_invocation::source_structure::capture_original_project_source_load_at(
+                &self.source,
+                &self.result,
+                cmd_tok.span.start(),
+            )
+        })
+        .flatten()
+        .map(std::sync::Arc::new);
+        let file_idx = original_project_source_load.as_ref().map_or_else(
+            || self.leading_option_words("source", args),
+            |load| load.path_argument(),
+        );
         if file_idx >= args.len() || file_idx >= arg_tokens.len() {
+            self.result
+                .source_targets
+                .push(crate::signature_scan::types::SignatureSource {
+                    original_project_source_load: None,
+                    original_interpreter_source_load: None,
+                    raw_path: String::new(),
+                    range: cmd_tok.span,
+                    is_literal: false,
+                    site_namespace: self.command_resolution_namespace(scope_path),
+                });
             return;
         }
         let st = arg_tokens[file_idx];
+        let original_project_source_load = original_project_source_load
+            .filter(|load| load.path_word().is_some_and(|path| path.span() == st.span));
         let path = &args[file_idx];
         let is_single = arg_single.get(file_idx).copied().unwrap_or(false);
         // A dynamic path — a bare `$var` or a concatenation like
@@ -11230,6 +11254,7 @@ impl Analyser {
             .iter_mut()
             .find(|source| source.range == st.span)
         {
+            source.original_project_source_load = original_project_source_load;
             source.raw_path = path;
             source.is_literal = is_lit;
             source.site_namespace = site_namespace;
@@ -11238,6 +11263,7 @@ impl Analyser {
         self.result
             .source_targets
             .push(crate::signature_scan::types::SignatureSource {
+                original_project_source_load,
                 raw_path: path,
                 range: st.span,
                 is_literal: is_lit,

@@ -45,6 +45,7 @@ pub(super) fn file_source_structure(
                 .source_targets
                 .iter()
                 .map(|site| FileSourceTarget {
+                    original_source_load: site.original_project_source_load.clone(),
                     raw_path: site.raw_path.clone(),
                     is_literal: site.is_literal,
                 })
@@ -115,28 +116,11 @@ fn project_dispatch_components_for_inputs(
         .map(|&file| {
             let targets = file_source_targets_for_inputs(db, file, project)?;
             let path = file.path(db).clone();
-            let links = path.as_deref().map_or_else(BTreeSet::new, |path| {
-                targets
-                    .iter()
-                    .filter(|site| site.is_literal)
-                    .map(|site| {
-                        tcl_lsp_core::source_graph::resolve_source_target(
-                            std::path::Path::new(path),
-                            &site.raw_path,
-                        )
-                        .to_string_lossy()
-                        .into_owned()
-                    })
-                    .collect()
-            });
-            Some((
-                path,
-                Arc::new(links),
-                file_decls_for_inputs(db, file, project)?,
-            ))
+            let links = Arc::new(conditional_source_links(path.as_deref(), &targets)?);
+            Some((path, links, file_decls_for_inputs(db, file, project)?))
         })
         .collect::<Option<Vec<_>>>()?;
-    Some(merge_dispatch_components(rows))
+    merge_dispatch_components(rows)
 }
 
 #[salsa::tracked(returns(clone))]

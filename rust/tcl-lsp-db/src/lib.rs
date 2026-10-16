@@ -1106,10 +1106,13 @@ fn merge_class_factories(
 
 /// The coverage-relevant projection of one `source` site.
 ///
-/// Spans are intentionally absent: inserting text before an unchanged source
-/// command must not invalidate project topology or cross-file coverage.
+/// Original ownership remains attached; the derived link query keeps unchanged
+/// project associations equal when original source geometry moves.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileSourceTarget {
+    /// Genuine conditional current-interpreter path, independent of report text.
+    pub original_source_load:
+        Option<Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>>,
     /// Verbatim path text, including any substitution markers.
     pub raw_path: String,
     /// Whether the path is a plain literal known at analysis time.
@@ -1124,13 +1127,15 @@ pub struct FileSourceTarget {
 /// workspace index.
 #[salsa::tracked(returns(clone))]
 pub fn file_source_targets(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<FileSourceTarget>> {
-    let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
+    let result = Analyser::new()
+        .structure_only()
+        .analyse(file.text(db), file.dialect(db));
     Arc::new(
-        tcl_compiler::signature_scan::extract_signatures(file.text(db), registry)
+        result
             .source_targets
             .into_iter()
             .map(|target| FileSourceTarget {
+                original_source_load: target.original_project_source_load,
                 raw_path: target.raw_path,
                 is_literal: target.is_literal,
             })
@@ -1138,35 +1143,34 @@ pub fn file_source_targets(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<FileSour
     )
 }
 
-/// The project files this file pulls into its own interpreter — its resolved
-/// literal `source` targets, as document-path strings keyed the same way
-/// [`SourceFile::path`] is.
-///
-/// Only *literal* targets are recorded. A computed path (`source [file join
-/// $dir x.tcl]`) is not resolved here: guessing an edge would be worse than
-/// missing one, because the edge widens what an unenumerable dispatch is
-/// allowed to reach (see [`file_dispatch_reach`]).
-///
-/// Signature-level, like [`file_decls`]: a body edit that does not add or
-/// remove a `source` leaves this equal, so it backdates and no cross-file
-/// query re-runs.
+/// Conditional script-directory source associations for display consumers.
+/// An empty compatibility projection does not establish complete source coverage.
+/// Dispatch bounds use the checked projection and retain unknown paths.
 #[salsa::tracked(returns(clone))]
 pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<String>> {
-    let Some(path) = file.path(db).as_deref() else {
-        return Arc::new(BTreeSet::new());
-    };
-    let parent = std::path::Path::new(path);
-    Arc::new(
-        file_source_targets(db, file)
-            .iter()
-            .filter(|target| target.is_literal)
-            .map(|target| {
-                tcl_lsp_core::source_graph::resolve_source_target(parent, &target.raw_path)
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect(),
-    )
+    checked_file_link_targets(db, file).unwrap_or_default()
+}
+
+#[salsa::tracked(returns(clone))]
+fn checked_file_link_targets(db: &dyn TclDb, file: SourceFile) -> Option<Arc<BTreeSet<String>>> {
+    conditional_source_links(file.path(db).as_deref(), &file_source_targets(db, file)).map(Arc::new)
+}
+
+fn conditional_source_links(
+    path: Option<&str>,
+    targets: &[FileSourceTarget],
+) -> Option<BTreeSet<String>> {
+    targets
+        .iter()
+        .map(|target| {
+            let load = target.original_source_load.as_ref()?;
+            let target = tcl_lsp_core::source_graph::conditional_project_source_target(
+                std::path::Path::new(path?),
+                load,
+            )?;
+            Some(target.to_str()?.to_owned())
+        })
+        .collect()
 }
 
 /// Union-find root of `i`, with path halving.
@@ -1193,58 +1197,42 @@ pub struct DispatchComponents {
 }
 
 impl DispatchComponents {
-    /// The procedures the file at `index` in [`Project::files`] may reach
-    /// through an unenumerable dispatch; `None` when `index` is past the file
-    /// set this was computed for.
+    /// Conditional procedure names in this represented source component.
+    /// Missing project membership supplies no bound or actual interpreter proof.
     #[must_use]
     pub fn reach(&self, index: usize) -> Option<&Arc<BTreeSet<String>>> {
         self.procs.get(*self.component_of.get(index)?)
     }
 }
 
-/// Decompose the project into `source`-connected components once per revision.
-///
-/// `set cmd [gets stdin]; $cmd dev` names a command this analysis cannot
-/// determine, so it is a caller of *something*. Which something is bounded by
-/// the interpreter the file's script runs in, and `source` is what puts two
-/// files in one interpreter — in **both** directions: a file reaches the procs
-/// of what it sources, and equally the procs of whatever sources *it*, because
-/// its script runs in that caller's interpreter. Hence connected components of
-/// the undirected `source` graph, not reachability along its arrows.
-///
-/// Bounding it this way is what keeps the blast radius proportionate: an
-/// unrelated file in the same workspace folder is not in the component, so its
-/// `eval $script` cannot withdraw this file's seeds. Without any bound, one
-/// such file disables interprocedural folding project-wide; with a
-/// *directional* bound (what the file loads, but not what loads it) a sourced
-/// library's unreadable dispatch silently fails to retract its sourcing file's
-/// seeds — the hole this replaces.
-///
-/// **Why this is a project query rather than per-file work:** the
-/// union-find is over the whole `source` graph and the merge visits every
-/// component member's [`file_decls`], so computing it inside
-/// [`file_dispatch_reach`] cost `O(N)` *per file* — `O(N²)` `String` clones and
-/// path-map inserts across a project, which a signature edit re-paid in full
-/// because it invalidates every file's reach at once. Hoisted here it is paid
-/// once, and each file's reach becomes an `Arc` clone.
-///
-/// Depends only on signature-level facts ([`file_link_targets`],
-/// [`file_decls`]), so it sits behind the same firewall as the rest of the
-/// cross-file layer.
+/// Decompose the declared project source associations once per revision.
+/// Each genuine literal path uses the explicit script-directory policy, without
+/// proving actual loads, shared interpreters or runtime working directories.
+/// Dynamic/unowned paths and targets outside the represented project withdraw
+/// the finite bound. Parameter evidence then retains only unknown callers.
+/// Per-file checked associations and declarations retain signature early cutoff.
 #[salsa::tracked(returns(clone))]
-pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
-    merge_dispatch_components(project.files(db).iter().map(|&file| {
-        (
-            file.path(db).clone(),
-            file_link_targets(db, file),
-            file_decls(db, file),
-        )
-    }))
+pub fn project_dispatch_components(
+    db: &dyn TclDb,
+    project: Project,
+) -> Option<Arc<DispatchComponents>> {
+    let rows = project
+        .files(db)
+        .iter()
+        .map(|&file| {
+            Some((
+                file.path(db).clone(),
+                checked_file_link_targets(db, file)?,
+                file_decls(db, file),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    merge_dispatch_components(rows)
 }
 
 fn merge_dispatch_components(
     rows: impl IntoIterator<Item = (Option<String>, Arc<BTreeSet<String>>, Arc<FileDecls>)>,
-) -> Arc<DispatchComponents> {
+) -> Option<Arc<DispatchComponents>> {
     let rows: Vec<_> = rows.into_iter().collect();
     // Index files by path so `source` targets can be matched to project files.
     let mut by_path: HashMap<&str, usize> = HashMap::new();
@@ -1257,9 +1245,7 @@ fn merge_dispatch_components(
     let mut parent: Vec<usize> = (0..rows.len()).collect();
     for (i, (_, links, _)) in rows.iter().enumerate() {
         for target in links.iter() {
-            let Some(&j) = by_path.get(target.as_str()) else {
-                continue;
-            };
+            let &j = by_path.get(target.as_str())?;
             let (a, b) = (
                 component_root(&mut parent, i),
                 component_root(&mut parent, j),
@@ -1281,18 +1267,18 @@ fn merge_dispatch_components(
     for (i, (_, _, declarations)) in rows.iter().enumerate() {
         merged[component_of[i]].extend(declarations.procs.iter().cloned());
     }
-    Arc::new(DispatchComponents {
+    Some(Arc::new(DispatchComponents {
         component_of,
         procs: merged.into_iter().map(Arc::new).collect(),
-    })
+    }))
 }
 
-/// The procedures an *unenumerable* dispatch in `file` may reach — every proc
-/// declared by a file in the same `source`-connected component.
+/// Conditional project procedure names for an unenumerable source dispatch.
+/// A missing association bound remains unavailable, including unrepresented loads.
 ///
 /// An index into [`project_dispatch_components`], which does the work; see
 /// there for what the component bound means and why it is not computed here.
-/// A file the project does not contain reaches only its own declarations.
+/// Missing project membership or incomplete source paths leave the bound unavailable.
 ///
 /// Kept as its own query so the result still early-cutoffs per file: a decl
 /// change in one component recomputes the project decomposition, but every
@@ -1303,15 +1289,13 @@ pub fn file_dispatch_reach(
     db: &dyn TclDb,
     file: SourceFile,
     project: Project,
-) -> Arc<BTreeSet<String>> {
-    let Some(me) = project.files(db).iter().position(|f| *f == file) else {
-        return Arc::new(file_decls(db, file).procs.clone());
-    };
-    let components = project_dispatch_components(db, project);
-    match components.reach(me) {
-        Some(reach) => Arc::clone(reach),
-        None => Arc::new(file_decls(db, file).procs.clone()),
-    }
+) -> Option<Arc<BTreeSet<String>>> {
+    let me = project
+        .files(db)
+        .iter()
+        .position(|member| *member == file)?;
+    let components = project_dispatch_components(db, project)?;
+    components.reach(me).cloned()
 }
 
 /// Every call site **this** file contributes, resolved against the whole
@@ -1336,10 +1320,12 @@ pub fn file_call_site_evidence(
     project: Project,
 ) -> Arc<CallSiteEvidence> {
     let known: HashSet<String> = project_proc_names(db, project).iter().cloned().collect();
-    let reach: Vec<String> = file_dispatch_reach(db, file, project)
-        .iter()
-        .cloned()
-        .collect();
+    let Some(reach) = file_dispatch_reach(db, file, project) else {
+        let mut unavailable = CallSiteEvidence::default();
+        unavailable.record_unenumerable_caller(&known.iter().cloned().collect::<Vec<_>>());
+        return Arc::new(unavailable);
+    };
+    let reach = reach.iter().cloned().collect::<Vec<_>>();
     let declared = declared_command_surface(db, file);
     let config = project_token_inputs::configuration_for_file(db, project, file);
     let own = config.and_then(|config| file_original_procedure_facts(db, file, config));
@@ -1643,6 +1629,27 @@ pub fn original_command_arity<'db>(
     Some(Arc::new(arities))
 }
 
+#[salsa::tracked(returns(clone))]
+fn original_command_arity_for_inputs<'db>(
+    db: &'db dyn TclDb,
+    project: Project,
+    name: OriginalCommandSlot<'db>,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    use tcl_compiler::analyser::ItemKind;
+    let headers = original_command_signatures_for_inputs(db, project, name)?;
+    let mut arities = if headers.iter().any(|header| header.kind() != ItemKind::Proc) {
+        Vec::new()
+    } else {
+        headers
+            .iter()
+            .map(|header| proc_arity(header.formal_count_projection()))
+            .collect()
+    };
+    arities.sort_unstable();
+    arities.dedup();
+    Some(Arc::new(arities))
+}
+
 /// Header arity assistance at an authentic original call's retained lookup.
 /// Ordered paths and policy come from the shared owner; unknown alternatives
 /// cannot be replaced by a bare-tail search. Each demanded slot retains the
@@ -1653,13 +1660,28 @@ pub fn original_lookup_command_arities(
     project: Project,
     lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
 ) -> Option<Arc<Vec<(usize, usize)>>> {
+    original_lookup_command_arities_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        lookup,
+    )
+}
+
+fn original_lookup_command_arities_with_mode(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+) -> Option<Arc<Vec<(usize, usize)>>> {
+    let (db, project, mode) = source;
     let mut slots = Vec::new();
     for candidate in lookup.candidates().iter().flatten() {
         if slots.iter().any(|(slot, _)| slot == candidate) {
             continue;
         }
         let key = OriginalCommandSlot::new(db, lookup.policy(), candidate.clone());
-        if let Some(arities) = original_command_arity(db, project, key) {
+        let arities = match mode {
+            ProjectSourceInputMode::Standalone => original_command_arity(db, project, key),
+            ProjectSourceInputMode::Supplied => original_command_arity_for_inputs(db, project, key),
+        };
+        if let Some(arities) = arities {
             slots.push((candidate.clone(), arities));
         }
     }
@@ -1889,6 +1911,7 @@ fn callback_source_target_signatures(
     }
 }
 
+#[cfg(test)]
 fn apply_original_callback_arity<'a>(
     db: &dyn TclDb,
     project: Project,
@@ -1963,7 +1986,9 @@ fn apply_original_callback_arity_with_mode<'a>(
     }
 }
 
-/// Project source-header advice for actual unresolved original occurrences.
+/// Standalone project source-header advice for retained original occurrences.
+/// Foreign headers use each file's explicit compatibility defaults. Use
+/// [`project_diagnostics_for_inputs`] for checked per-file project inputs.
 /// Native source lookups keep their independent retained policy/slot purpose;
 /// Logical calls require their genuine Document/body frame recipe and complete
 /// original argv. Missing ownership and earlier opaque mutations preserve the
@@ -1985,21 +2010,47 @@ pub fn project_diagnostics(
     let analysis = file_analysis_incremental(db, file, config);
 
     Arc::new(project_source_diagnostics_for_analysis(
-        db,
-        project,
+        (db, project, ProjectSourceInputMode::Standalone),
         file.text(db),
         &analysis,
         |code| disabled.iter().any(|disabled| disabled == code),
     ))
 }
 
-fn project_source_diagnostics_for_analysis(
+/// Project source-header advice using every member's checked document input.
+/// Missing member configuration or source ownership preserves diagnostics;
+/// compatibility defaults never replace an unavailable supplied header.
+#[salsa::tracked(returns(clone))]
+pub fn project_diagnostics_for_inputs(
     db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
     project: Project,
+) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    let analysis = file_analysis_incremental(db, file, config);
+    if project_token_inputs::configuration_for_file(db, project, file) != Some(config) {
+        return Arc::new(analysis.diagnostics.clone());
+    }
+    Arc::new(project_source_diagnostics_for_analysis(
+        (db, project, ProjectSourceInputMode::Supplied),
+        file.text(db),
+        &analysis,
+        |code| {
+            config
+                .disabled_diagnostics(db)
+                .iter()
+                .any(|disabled| disabled == code)
+        },
+    ))
+}
+
+fn project_source_diagnostics_for_analysis(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
     text: &str,
     analysis: &AnalysisResult,
     is_disabled: impl Fn(&str) -> bool,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let (db, project, mode) = source;
     let Some(input) = analysis.resolved_input.as_ref() else {
         return analysis.diagnostics.clone();
     };
@@ -2028,17 +2079,20 @@ fn project_source_diagnostics_for_analysis(
         .map(|invocation| {
             (
                 (invocation.range.start(), invocation.range.end()),
-                invocation
-                    .original_lookup
-                    .as_ref()
-                    .and_then(|lookup| original_lookup_command_arities(db, project, lookup)),
+                invocation.original_lookup.as_ref().and_then(|lookup| {
+                    original_lookup_command_arities_with_mode((db, project, mode), lookup)
+                }),
             )
         })
         .collect::<HashMap<_, _>>();
     let mut logical_sites = BTreeMap::new();
-    for candidate in tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
-        text, analysis,
-    ).into_iter().flatten() {
+    for candidate in
+        tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+            text, analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
         let Some(head) = candidate.original_head() else {
             continue;
         };
@@ -2052,9 +2106,7 @@ fn project_source_diagnostics_for_analysis(
         let Some(coordinates) = candidate.external_header_coordinates() else {
             continue;
         };
-        if candidate.has_earlier_unknown_mutations()
-            || candidate.has_lookup_operand_effects()
-        {
+        if candidate.has_earlier_unknown_mutations() || candidate.has_lookup_operand_effects() {
             continue;
         }
         let Some(arities) = coordinates.iter().find_map(|slot| {
@@ -2062,7 +2114,7 @@ fn project_source_diagnostics_for_analysis(
                 db,
                 project,
                 LogicalSourceCommandSlot::new(db, slot.clone()),
-                false,
+                matches!(mode, ProjectSourceInputMode::Supplied),
             )
         }) else {
             continue;
@@ -2135,15 +2187,14 @@ fn project_source_diagnostics_for_analysis(
         }
     }
     apply_logical_source_callback_arity(
-        (db, project, ProjectSourceInputMode::Standalone),
+        (db, project, mode),
         text,
         analysis,
         &mut diagnostics,
         &is_disabled,
     );
-    apply_original_callback_arity(
-        db,
-        project,
+    apply_original_callback_arity_with_mode(
+        (db, project, mode),
         &mut diagnostics,
         retained_callback_invocations(analysis),
         &is_disabled,
@@ -2219,11 +2270,17 @@ fn apply_logical_source_callback_arity(
         if callback.registration().obligations().contains(
             &tcl_compiler::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
         ) { continue; }
+        if callback.has_lookup_operand_effects() {
+            continue;
+        }
         let appended = callback.appended_arity();
         if !appended.is_checkable() {
             continue;
         }
-        let Some(candidates) = callback.coordinates().iter().find_map(|slot| {
+        let Some(coordinates) = callback.external_header_coordinates() else {
+            continue;
+        };
+        let Some(candidates) = coordinates.iter().find_map(|slot| {
             logical_source_command_arity(
                 db,
                 project,
@@ -4981,6 +5038,122 @@ mod tests {
     }
 
     #[test]
+    fn logical_callback_project_headers_keep_installer_operand_effects_unknown() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(&db, "proc helper {} {}".to_owned(), "tcl".to_owned(), None);
+        let source = "lsort -command helper [set items {a b}]";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn logical_callback_project_headers_preserve_selected_source_occupants() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc puts {} {}; proc helper {} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for source in [
+            "lsort -command puts {a b}",
+            "proc helper {a b} {}; lsort -command helper {a b}",
+            "interp alias {} helper {} puts; lsort -command helper {a b}",
+            "proc helper {a b} {}; rename helper {}; lsort -command helper {a b}",
+        ] {
+            let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![provider, caller]);
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let callbacks = tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(source, &analysis).unwrap();
+            assert_eq!(callbacks.len(), 1, "{source}");
+            assert!(
+                callbacks[0].external_header_coordinates().is_none(),
+                "{source}"
+            );
+            let mut local = analysis.clone();
+            local.diagnostics.clear();
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &local, |_| false);
+            assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+        }
+    }
+
+    #[test]
+    fn logical_callback_project_headers_use_callback_scope_and_skip_deleted_alternatives() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc helper {} {}; namespace eval A {proc helper {a b} {}}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        for (source, expected) in [
+            (
+                "namespace eval A {proc helper {a b} {}; after 1 {helper baked}}",
+                1,
+            ),
+            (
+                "proc helper {a b} {}; namespace eval A {lsort -command helper {a b}}",
+                0,
+            ),
+            (
+                "namespace eval A {proc helper {a b} {}; rename helper {}; lsort -command helper {a b}}",
+                1,
+            ),
+        ] {
+            let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+            let project = Project::new(&db, vec![provider, caller]);
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let mut local = analysis.clone();
+            local.diagnostics.clear();
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &local, |_| false);
+            assert_eq!(
+                diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+                    .count(),
+                expected,
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_direct_project_headers_do_not_depend_on_unknown_command_reporting() {
+        let db = TclDatabase::default();
+        let provider = SourceFile::new(
+            &db,
+            "proc helper {a b} {}".to_owned(),
+            "tcl".to_owned(),
+            None,
+        );
+        let source = "helper ONE";
+        let caller = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+        let project = Project::new(&db, vec![provider, caller]);
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.unresolved_command_sites.clear();
+        analysis.diagnostics.clear();
+        analysis.command_invocations.clear();
+        let diagnostics = project_source_diagnostics_for_analysis(
+            (&db, project, ProjectSourceInputMode::Standalone),
+            source,
+            &analysis,
+            |_| false,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, DiagCode::E002);
+    }
+
+    #[test]
     fn logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs() {
         let db = TclDatabase::default();
         let provider = SourceFile::new(&db,
@@ -6807,9 +6980,12 @@ p\uD801 ordinary";
                 Some("/w/c.tcl".to_owned()),
             );
             let project = Project::new(&db, vec![a, b, unlinked]);
-            let reach_a = file_dispatch_reach(&db, a, project);
-            let reach_b = file_dispatch_reach(&db, b, project);
-            let reach_c = file_dispatch_reach(&db, unlinked, project);
+            let reach_a = file_dispatch_reach(&db, a, project)
+                .expect("complete original project source paths");
+            let reach_b = file_dispatch_reach(&db, b, project)
+                .expect("complete original project source paths");
+            let reach_c = file_dispatch_reach(&db, unlinked, project)
+                .expect("complete original project source paths");
             assert_eq!(
                 reach_a.iter().map(String::as_str).collect::<Vec<_>>(),
                 vec!["::a", "::b"],
@@ -6904,7 +7080,9 @@ p\uD801 ordinary";
                 "a decl change recomputes the decomposition once, not once per file"
             );
             assert!(
-                file_dispatch_reach(&db, files[0], project).contains("::extra"),
+                file_dispatch_reach(&db, files[0], project)
+                    .unwrap()
+                    .contains("::extra"),
                 "the new proc joins every component member's reach"
             );
         }
@@ -8772,8 +8950,14 @@ p\uD801 ordinary";
         let source = "namespace eval A {proc helper {x} {}; rename helper {}; helper ONE}";
         let calls = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
         for (headers, expected) in [
-            ("namespace eval A {proc helper {x y} {}}; proc helper {x} {}", 0),
-            ("namespace eval A {proc helper {x} {}}; proc helper {x y} {}", 1),
+            (
+                "namespace eval A {proc helper {x y} {}}; proc helper {x} {}",
+                0,
+            ),
+            (
+                "namespace eval A {proc helper {x} {}}; proc helper {x y} {}",
+                1,
+            ),
         ] {
             let definitions = SourceFile::new(&db, headers.to_owned(), "tcl".to_owned(), None);
             let project = Project::new(&db, vec![definitions, calls]);
@@ -8785,7 +8969,10 @@ p\uD801 ordinary";
             assert_eq!(arity.len(), expected, "{headers}: {diagnostics:?}");
             if let Some(diagnostic) = arity.first() {
                 assert_eq!(diagnostic.code, DiagCode::E002);
-                assert_eq!(diagnostic.span.start(), u32::try_from(source.find("helper ONE").unwrap()).unwrap());
+                assert_eq!(
+                    diagnostic.span.start(),
+                    u32::try_from(source.find("helper ONE").unwrap()).unwrap()
+                );
             }
         }
     }

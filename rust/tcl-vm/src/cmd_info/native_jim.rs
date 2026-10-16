@@ -24,13 +24,10 @@ pub(super) fn command_inventory(
                 Ok(namespace) => namespace,
                 Err(error) => return vm.refuse_host_command(error.to_string()),
             };
-        let reached_namespace = vm.native_string_bytes(&original_namespace);
-        if let Err(error) = original_names.check(vm) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
+        let reached_namespace = original_names.read(vm, &original_namespace);
         let namespace = match reached_namespace {
             Ok(namespace) => namespace,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         let first_operand = match original
             .get(1)

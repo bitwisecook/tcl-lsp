@@ -24,6 +24,39 @@ fn native() -> Vm {
 }
 
 #[test]
+fn original_oo_cleanup_selects_physical_namespace_teardown_order() {
+    for entered in [false, true] {
+        let mut vm = native();
+        vm.set_dialect_profile(crate::environment::profile_for_dialect("f5-irules"));
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
+        assert_eq!(
+            vm.name_policy_protocol()
+                .unwrap()
+                .recipe()
+                .namespace_command_teardown(),
+            Some(tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown::RepeatedFirstEntry)
+        );
+        let original = if entered {
+            OriginalOoCleanup::enter(&mut vm)
+        } else {
+            OriginalOoCleanup::observe(&mut vm)
+        };
+        assert_eq!(original.operation.is_some(), entered);
+        assert_eq!(
+            original.namespace_traversal,
+            Some(tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown::SnapshotPass)
+        );
+        let saved = original.saved();
+        assert_eq!(saved.namespace_traversal, original.namespace_traversal);
+        drop(original);
+        let attached = saved.attach(&mut vm);
+        assert_eq!(attached.namespace_traversal, saved.namespace_traversal);
+    }
+}
+
+#[test]
 fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

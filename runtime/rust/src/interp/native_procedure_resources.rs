@@ -493,13 +493,16 @@ impl ProcDef {
     pub(super) fn require_original_jim_import_traversal(
         &self,
         actual: &Interp,
+        traversal: Option<&Rc<super::native_jim_import::OriginalJimImportTraversal>>,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        if self.original_jim_import_origin(actual)?.is_some() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        let Some(root) = self.original_jim_import_origin(actual)? else {
+            return Ok(());
+        };
+        let traversal =
+            traversal.ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original Jim Import traversal receipts",
-            ));
-        }
-        Ok(())
+            ))?;
+        traversal.check_entry(actual, self, &root)
     }
 
     /// Select the retained Script path when actual token/operation receipts are required.

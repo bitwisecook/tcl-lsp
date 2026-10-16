@@ -693,6 +693,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_variable_scopes:
         BTreeMap<(u32, u32), Option<Arc<super::OriginalDeclaredLogicalBodyContext>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
+    logical_variable_words: BTreeMap<u32, Option<logical_navigation::OriginalLogicalVariableWords>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
     logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
     logical_body_words: BTreeMap<u32, Option<logical_word_geometry::OriginalLogicalBodyWords>>,
@@ -885,6 +886,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, receipt) in other.logical_callbacks {
             source_class::merge_receipt(&mut self.logical_callbacks, offset, receipt);
+        }
+        for (offset, receipt) in other.logical_variable_words {
+            source_class::merge_receipt(&mut self.logical_variable_words, offset, receipt);
         }
         for (offset, candidate) in other.logical_navigation {
             self.merge_logical_navigation(offset, candidate);
@@ -1142,6 +1146,14 @@ impl AdviceGraph {
         let Some(namespace) = &self.logical_namespace else {
             return lookup_key(&self.policy, bytes);
         };
+        self.lookup_logical_head_key(namespace, bytes)
+    }
+
+    fn lookup_logical_head_key(
+        &self,
+        namespace: &ByteNamespacePath,
+        bytes: &[u8],
+    ) -> Option<ByteCommandSlot> {
         let local = tcl_syntax::naming::authored_source_command_slot(namespace, bytes)?;
         if !bytes.starts_with(b"::")
             && self.unknown_paths.contains(namespace)

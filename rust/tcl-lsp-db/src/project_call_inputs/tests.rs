@@ -228,3 +228,80 @@ fn supplied_project_evidence_keeps_header_cutoffs_and_avoids_document_deep_queri
         "a body-only edit keeps selected paths and declaration topology equal: {events:?}"
     );
 }
+
+#[test]
+fn source_dispatch_bounds_use_original_paths_and_keep_dynamic_coverage_open() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "proc helper {value} {}".to_owned(),
+        "tcl".to_owned(),
+        Some("/source-bound/library.tcl".to_owned()),
+    );
+    let caller = SourceFile::new(
+        &db,
+        "source library.tcl".to_owned(),
+        "tcl".to_owned(),
+        Some("/source-bound/main.tcl".to_owned()),
+    );
+    let isolated = SourceFile::new(
+        &db,
+        "proc isolated {} {}".to_owned(),
+        "tcl".to_owned(),
+        Some("/source-bound/isolated.tcl".to_owned()),
+    );
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, caller, isolated],
+        Some(vec![
+            (library, config),
+            (caller, config),
+            (isolated, config),
+        ]),
+    );
+    let finite = project_dispatch_components_for_inputs(&db, project).unwrap();
+    assert!(finite.reach(1).unwrap().contains("::helper"));
+    assert!(!finite.reach(1).unwrap().contains("::isolated"));
+    let targets = file_source_targets_for_inputs(&db, caller, project).unwrap();
+    let mut reporting = (*targets).clone();
+    reporting[0].raw_path = "isolated.tcl".to_owned();
+    reporting[0].is_literal = false;
+    assert_eq!(
+        conditional_source_links(caller.path(&db).as_deref(), &reporting),
+        Some(BTreeSet::from(["/source-bound/library.tcl".to_owned()]))
+    );
+    reporting[0].original_source_load = None;
+    assert!(conditional_source_links(caller.path(&db).as_deref(), &reporting).is_none());
+    for source in [
+        "source $path",
+        "set path library.tcl; source $path",
+        "source {*}$arguments",
+        "source ~user/library.tcl",
+        "source {}",
+        "source external-unrepresented.tcl",
+    ] {
+        caller.set_text(&mut db).to(source.to_owned());
+        assert!(
+            project_dispatch_components_for_inputs(&db, project).is_none(),
+            "{source}"
+        );
+        assert!(
+            project_dispatch_components(&db, project).is_none(),
+            "standalone {source}"
+        );
+        assert!(
+            file_external_call_sites_for_inputs(&db, library, project).is_none(),
+            "{source}"
+        );
+        let unknown = file_call_site_evidence(&db, caller, project);
+        let helper = unknown
+            .get("::helper")
+            .expect("unknown external code may call any represented procedure");
+        assert!(helper.opaque_caller);
+        assert_eq!(helper.uniform_literal_at(0), None);
+    }
+    caller.set_text(&mut db).to("source library.tcl".to_owned());
+    caller.set_path(&mut db).to(None);
+    assert!(project_dispatch_components_for_inputs(&db, project).is_none());
+}

@@ -490,6 +490,14 @@ fn cmd_namespace_in(
                         }
                         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                     },
+                    None if subcommand_name == "parent" => {
+                        match original_names.current_namespace_token(vm) {
+                            Ok(namespace) => namespace,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
+                        }
+                    }
                     None => vm.current_ns_id(),
                 };
                 let selected_current = vm.native_namespace_token_has_owner(namespace);
@@ -2918,6 +2926,36 @@ mod original_jim_parent_current_holder_tests {
             vm.pop_ns();
             vm.pop_call_frame();
         }
+    }
+}
+
+#[cfg(test)]
+mod original_c_parent_current_holder_tests {
+    use super::*;
+
+    #[test]
+    fn parent_without_operand_uses_the_entered_namespace_incarnation() {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+        let parent = vm.activate_namespace_operand(b"::outer").unwrap();
+        let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
+        vm.push_ns_token("outer::inner", entered);
+        let arguments = [Value::string("parent")];
+        let result = cmd_namespace(&mut vm, &arguments);
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(result.result.string_bytes().as_ref(), b"::outer");
+        assert!(vm.native_namespace_token_has_owner(parent));
+
+        assert!(
+            vm.delete_namespace_path(&tcl_core_types::ByteNamespacePath::from_segments([
+                b"outer".as_slice(),
+                b"inner".as_slice(),
+            ]))
+        );
+        let replacement = vm.activate_namespace_operand(b"::outer::inner").unwrap();
+        assert_ne!(entered, replacement);
+        let result = cmd_namespace(&mut vm, &arguments);
+        assert_eq!(result.code, Code::Error);
     }
 }
 

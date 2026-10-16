@@ -74,6 +74,32 @@ pub fn resolve_source_target(parent_file: &Path, raw_path: &str) -> PathBuf {
     )
 }
 
+/// Associate a genuine original SourceLoad path under the declared project
+/// script-directory policy. This is neither a reached load nor runtime cwd.
+/// Dynamic paths and unsupported host-path forms preserve unknown topology.
+#[must_use]
+pub fn conditional_project_source_target(
+    document: &Path,
+    load: &tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
+) -> Option<PathBuf> {
+    let literal = load.literal_path()?;
+    if literal.is_empty()
+        || literal.starts_with('~')
+        || literal.contains('\0')
+        || !project_source_action_path(document)
+    {
+        return None;
+    }
+    let raw = Path::new(&literal);
+    if raw.is_absolute() && !project_source_action_path(raw)
+        || !raw.is_absolute() && matches!(raw.components().next(), Some(Component::Prefix(_)))
+    {
+        return None;
+    }
+    let target = resolve_source_target(document, &literal);
+    project_source_action_path(&target).then_some(target)
+}
+
 /// Resolve `raw_path` relative to the directory `base_dir` (absolute paths pass
 /// through), lexically normalised.  Used both for a `source` target (relative
 /// to the sourcing file's directory) and for a configured project entry-point

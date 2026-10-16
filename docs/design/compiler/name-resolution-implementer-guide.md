@@ -7058,6 +7058,13 @@ proves live native dispatch nor grants source editing.
 
 ## Plan minification by independent source and naming purposes
 
+Static-substring output uses `word_rules::lexical_unicode_source_word` under the
+original complete configuration. The shared constructor must reproduce one
+whole literal word with the exact folded value, including configured whitespace
+and substitution characters. An unavailable spelling leaves the original word.
+The existing original read, SSA and taint guards remain independently required;
+source rendering supplies no permission to erase another evaluation.
+
 `minify::minify_with_analysis(source, analysis, MinifyOptions)` is the shared
 entry for document consumers. It retains the actual resolved Registry/profile,
 complete `SourceImage`, and every `body_lexer_config` axis. A stale or missing

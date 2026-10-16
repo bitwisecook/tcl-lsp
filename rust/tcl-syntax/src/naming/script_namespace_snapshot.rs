@@ -58,6 +58,9 @@ proc ::__tcl_name_snapshot::call {coordinate prefix {suffix {}}} {
 }
 proc ::__tcl_name_snapshot::element_value {coordinate key} {
     foreach {ns name} [::__tcl_name_snapshot::coordinate $coordinate] break
+    if {[string first ( $name] >= 0} {
+        error "array snapshot root has no unambiguous element operand"
+    }
     return [::namespace inscope $ns [list ::set ${name}($key)]]
 }
 proc ::__tcl_name_snapshot::shown {coordinate} {

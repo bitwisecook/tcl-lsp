@@ -254,6 +254,11 @@ pub struct SignaturePackagePrefer {
 /// evidence the path is a plain literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureSource {
+    /// Conditional current-interpreter path with genuine original argv/schema.
+    /// Missing ownership preserves unknown project topology.
+    pub original_project_source_load: Option<
+        std::sync::Arc<crate::registry_invocation::source_structure::OriginalProjectSourceLoad>,
+    >,
     /// Optional genuine child source-load advice, retaining its original path,
     /// full invocation and visibility assumptions. This supplies no file or
     /// runtime execution authority; consumers can check complete source/input.

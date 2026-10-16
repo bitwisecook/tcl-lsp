@@ -266,6 +266,38 @@ fn import_case(label: &str) {
 }
 
 #[test]
+fn public_import_enters_the_original_source_and_publishes_its_alias() {
+    let mut actual = jim();
+    assert_eq!(
+        actual.eval_str(include_bytes!(
+            "../../../tests/data/native_jim_import_source_completion/setup.tcl"
+        )),
+        Code::Ok
+    );
+    assert_eq!(
+        actual.eval_str(b"namespace import ::ReceiptImportSrc::p"),
+        Code::Ok,
+        "{:?}",
+        actual.native_execution_refusal()
+    );
+    assert_eq!(actual.eval_str(b"::p"), Code::Ok);
+    assert_eq!(actual.result_bytes(), b"P");
+    assert!(actual.native_execution_refusal().is_none());
+}
+
+#[test]
+fn public_import_replacement_receives_the_original_pattern() {
+    let mut actual = jim();
+    assert_eq!(
+        actual.eval_str(b"proc {namespace import} {args} {return [lindex $args 0]}"),
+        Code::Ok
+    );
+    assert_eq!(actual.eval_str(b"namespace import {a b::*}"), Code::Ok);
+    assert_eq!(actual.result_bytes(), b"a b::*");
+    assert!(actual.native_execution_refusal().is_none());
+}
+
+#[test]
 fn genuine_import_source_completes_a_direct_command() {
     import_case("SIMPLE");
 }

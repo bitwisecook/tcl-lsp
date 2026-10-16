@@ -105,6 +105,15 @@ source image/configuration, Registry/context and any actually selected target.
 Source-only catalogue rows cannot establish reached runtime applicability or
 current stores. Consumers must keep their independent execution/frame proofs.
 
+`OriginalProjectSourceLoad` retains the selected current-interpreter SourceLoad
+schema, original whole argv, complete input and pathname ordinal. Its literal
+path query decodes that original word; reporting paths and folded values cannot
+replace it. Child-interpreter loads retain their separate visibility owner.
+Project association uses the declared script-directory policy without proving a
+runtime working directory, file existence or reached load. Dynamic, unowned,
+unsafe and unrepresented external paths withdraw finite dispatch bounds and
+parameter evidence rather than becoming an empty source graph.
+
 Conditional body lookup effects share the source-catalogue adapter. Exact
 command-binding and namespace-resolution changes still withdraw affected
 lookups. Variable and observer effects with complete source role layouts retain
@@ -405,6 +414,9 @@ Ambiguous namespace reports, array-shaped simple reports and unavailable queries
 produce an unsupported purity result while ordinary questions continue. These
 script coordinates grant no Native namespace incarnation or variable-cell
 identity.
+Array-element reads also refuse a root containing `(` before reading a cell:
+combining that root with a key would select a different Tcl array coordinate.
+Literal element keys remain independent data.
 
 CLI SpecTest presence retains the original command operand and root query
 context. Syntax's `ScriptRootCommandPresencePlan` supplies separate inventory
@@ -1155,6 +1167,12 @@ Readonly Authored coverage retains both declaration and Installed inventories. D
 Namespace subcommand descriptor selection retains the original counted argv and actual dialect-filtered table. `namespace_subcommand_input` governs the exact CString comparison; `namespace_subcommand_prefix_input` separately governs Jim counted/C CString abbreviations. `resolve_native_namespace_subcommand_bytes_for_dialect` delegates to the existing table matcher in that order. Metadata cannot issue an original subcommand table/header cache. Runtime scripted helper heads use the actual original selector through `native_namespace_scripted_helper`, with namespace/frame/argv guards around reached getters and publication. Import retains its independent finite alias/cycle/key/List guards.
 
 Logical variable scope witnesses retain the actual full input, image/channel/configuration, original words and source obligations from the current tape. Declared bodies join their identical retained scope-body owner and frame recipe; report-tree labels cannot create scope. Occurrence queries recheck the witness, and earlier uncertainty bars complete rename. Genuine aliases keep precedence; unavailable namespace selections decline. Original source topology supplies no Native frame/cell or execution.
+
+The occurrence receipt is retained before command-head and namespace-path
+candidate selection. A dynamic or expanded head can therefore retain its
+genuine variable source frame while command navigation remains unavailable.
+Conflicting receipts withdraw the occurrence; they cannot erase earlier
+unknown-effect obligations or establish complete rename coverage.
 
 Shared dynamic command-name overlap uses an authentic configured original word and explicit Logical authored-C purpose. Unknown substitutions remain wildcard; literal colon-edge constraints next to unknowns are discarded conservatively, while wholly static names canonicalise once through their owner. The caller independently owns schema, original operand ordinal and source currentness; possible overlap does not select a command binding.
 

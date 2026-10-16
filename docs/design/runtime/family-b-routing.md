@@ -375,10 +375,13 @@ original command selection, native compiler admission or an active frame.
 
 ## 4. Known contract gaps
 
-- `info exists` runs a variable's read trace in C Tcl and in `tcl-vm`.
-  `runtime/rust`'s does not: `trace add variable v read cb; info exists v`
-  leaves the callback uncalled. The array queries fire their array traces in
-  both runtimes.
+- `info exists` routing depends on the selected variable-name path. The C
+  original-command route uses the original-argument existence helper, and the
+  observed-variable route uses the observation helper. The remaining Runtime
+  path fires read traces before checking existence: a guest read-trace error
+  is ignored, while a host refusal is propagated. These paths should not be
+  summarised as a blanket read-trace parity claim. Array query behavior is
+  covered separately by the route-specific tests.
 
 - The array-element methods (`get_elem`/`set_elem`/`unset_elem`/`exists_elem`)
   honour the `FrameId` they are given on both runtimes. `VarStore::array_keys`

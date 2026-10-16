@@ -314,7 +314,11 @@ fn supplied_project_headers_keep_unavailable_members_as_lookup_barriers() {
     let analysis = file_analysis_incremental(&db, caller, caller_config);
     assert!(
         project_callback_diagnostics_for_analysis_with_inputs(
-            &db, project, source, &analysis, |_| false,
+            &db,
+            project,
+            source,
+            &analysis,
+            |_| false,
         )
         .iter()
         .any(|row| row.code == DiagCode::E003 && row.callback_source_arity().is_some())
@@ -324,7 +328,11 @@ fn supplied_project_headers_keep_unavailable_members_as_lookup_barriers() {
     assert!(project_original_command_signatures_for_inputs(&db, project).is_empty());
     assert!(
         project_callback_diagnostics_for_analysis_with_inputs(
-            &db, project, source, &analysis, |_| false,
+            &db,
+            project,
+            source,
+            &analysis,
+            |_| false,
         )
         .iter()
         .all(|row| row.callback_source_arity().is_none())
@@ -337,7 +345,11 @@ fn supplied_project_headers_keep_unavailable_members_as_lookup_barriers() {
     assert!(project_original_command_signatures_for_inputs(&db, project).is_empty());
     assert!(
         project_callback_diagnostics_for_analysis_with_inputs(
-            &db, project, source, &analysis, |_| false,
+            &db,
+            project,
+            source,
+            &analysis,
+            |_| false,
         )
         .iter()
         .all(|row| row.callback_source_arity().is_none())
@@ -485,17 +497,10 @@ fn project_factory_hints_preserve_duplicate_provider_ambiguity_in_every_order() 
         "tcl".to_owned(),
         None,
     );
-    let single = Project::with_token_configurations(
-        &db,
-        vec![first],
-        Some(vec![(first, config)]),
-    );
+    let single = Project::with_token_configurations(&db, vec![first], Some(vec![(first, config)]));
     assert!(project_class_factories_for_inputs(&db, single).contains_key("::Meta"));
-    let repeated_owner = Project::with_token_configurations(
-        &db,
-        vec![first, first],
-        Some(vec![(first, config)]),
-    );
+    let repeated_owner =
+        Project::with_token_configurations(&db, vec![first, first], Some(vec![(first, config)]));
     assert_eq!(
         project_class_factories_for_inputs(&db, repeated_owner),
         project_class_factories_for_inputs(&db, single)
@@ -559,4 +564,122 @@ fn configured_project_headers_and_factories_preserve_the_structure_tier_firewall
             && !event.contains("function_lattice")),
         "{events:?}"
     );
+}
+
+#[test]
+fn configured_project_diagnostics_use_actual_foreign_headers_for_direct_calls_and_callbacks() {
+    let mut db = TclDatabase::default();
+    let packs = procedure_pack(true);
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
+    let library_config = configuration(&db, packs.key);
+    let caller_config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "project_source356::define provided {one} {}".to_owned(),
+        "tcl".to_owned(),
+        None,
+    );
+    let caller = SourceFile::new(&db, "provided ONE TWO".to_owned(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, caller],
+        Some(vec![(library, library_config), (caller, caller_config)]),
+    );
+    for source in ["provided ONE TWO", "lsort -command provided {a b}"] {
+        caller.set_text(&mut db).to(source.to_owned());
+        let supplied = project_diagnostics_for_inputs(&db, caller, caller_config, project);
+        assert_eq!(
+            supplied
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::E003)
+                .count(),
+            1,
+            "{source}: {supplied:?}"
+        );
+        let standalone = project_diagnostics(&db, caller, caller_config, project);
+        assert!(
+            standalone
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::E003),
+            "{source}: {standalone:?}"
+        );
+        project
+            .set_token_configurations(&mut db)
+            .to(Some(vec![(caller, caller_config)]));
+        let unavailable = project_diagnostics_for_inputs(&db, caller, caller_config, project);
+        assert!(
+            unavailable
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::E003),
+            "{source}: {unavailable:?}"
+        );
+        if source.starts_with("provided") {
+            assert!(
+                unavailable
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == DiagCode::W123)
+            );
+            assert!(
+                supplied
+                    .iter()
+                    .all(|diagnostic| diagnostic.code != DiagCode::W123)
+            );
+        }
+        project.set_token_configurations(&mut db).to(Some(vec![
+            (library, library_config),
+            (caller, caller_config),
+        ]));
+    }
+    library_config.set_spec_pack_key(&mut db).to(u64::MAX - 357);
+    assert!(document_analysis_input(&db, library, library_config).is_err());
+    assert!(
+        project_diagnostics_for_inputs(&db, caller, caller_config, project)
+            .iter()
+            .all(|diagnostic| diagnostic.code != DiagCode::E003)
+    );
+}
+
+#[test]
+fn configured_project_diagnostics_do_not_default_missing_native_members() {
+    let db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "proc external {one} {}".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let caller = SourceFile::new(
+        &db,
+        "external ONE TWO".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    for (members, expected) in [
+        (vec![(library, config), (caller, config)], true),
+        (vec![(caller, config)], false),
+    ] {
+        let project = Project::with_token_configurations(&db, vec![library, caller], Some(members));
+        let supplied = project_diagnostics_for_inputs(&db, caller, config, project);
+        assert_eq!(
+            supplied
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003),
+            expected,
+            "{supplied:?}"
+        );
+        assert_eq!(
+            supplied
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W123),
+            !expected,
+            "{supplied:?}"
+        );
+        assert!(
+            project_diagnostics(&db, caller, config, project)
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
 }
