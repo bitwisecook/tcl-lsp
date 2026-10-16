@@ -1,5 +1,7 @@
 # Current centralised naming work
 
+The304 active authored guides now have complete source-role reviews; their proposed corrections are being challenged against actual owners. Runtime’s final join records376 distinct required changes after splitting the separate seek/puts adapters, preserving earlier seals. Compiler operational caller/body roles remain under exact disjoint source review. Supporting receipt `repository-audit-closure-progress-20261016T035425Z.tar.gz` (SHA256 `05e8d5b0442932b8c9af1a9926473eb3fe1a820f0730960856e70083620d0808`) retains this progress; no repository total or execution acceptance follows.
+
 The repository audit is active. The 03:20 UTC portable checkpoint retains **9,147 provisional purpose records / 1,977 verified primary members**; these are not migration counts. Required changes are being counted separately at actual integration boundaries and joined to their shared owners. The current source-backed local registers are DB184, LSP203 plus122 validation changes, Root188, Runtime374 plus one post-seal Core owner, and VM328. Compiler and the broader tooling/generated/guidance lane still have source-role and final-boundary reconciliation work. **No repository-wide total is accepted yet.** See [audit-status.md](audit-status.md). This tranche changes no production/tests and supplies no execution acceptance.
 
 ## Paused audit checkpoint — 2026-10-15 22:10 UTC
