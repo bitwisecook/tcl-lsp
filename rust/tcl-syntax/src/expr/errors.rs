@@ -206,6 +206,9 @@ impl OperandSide {
 // evidence; folding them together would lose that.
 #[allow(clippy::match_same_arms)]
 pub fn ambient_release() -> TclVersion {
+    if let Some(release) = crate::number::runtime_release() {
+        return release;
+    }
     match crate::number::runtime_syntax() {
         tcl_dialect::NumberSyntax::Tcl90 => TclVersion::V9_0,
         tcl_dialect::NumberSyntax::Tcl85 => TclVersion::V8_6,
@@ -257,15 +260,16 @@ pub fn illegal_operand_message(
 }
 
 /// The `-errorcode` C stamps on an operand-type error for `value`:
-/// `ARITH DOMAIN <detail>` from 8.5, and in 8.4 `NONE` but for a formal
-/// integer too large, `ARITH IOVERFLOW`.
+/// `ARITH DOMAIN <detail>` from 8.5
+/// ([`TclVersion::has_illegal_operand_error_codes`]), and in 8.4 `NONE` but
+/// for a formal integer too large, `ARITH IOVERFLOW`.
 #[must_use]
 pub fn illegal_operand_error_code(desc: OperandDesc, value: &str, release: TclVersion) -> String {
     let desc = desc.of_value(value, release);
     if desc == OperandDesc::IntegerTooLarge {
         return IOVERFLOW_CODE.to_owned();
     }
-    if release == TclVersion::V8_4 {
+    if !release.has_illegal_operand_error_codes() {
         return "NONE".to_owned();
     }
     let detail = desc.error_code_detail();
@@ -330,21 +334,13 @@ pub const DIVZERO_CODE: &str = "ARITH DIVZERO {divide by zero}";
 /// too large, where later releases keep it. `None` where it is kept.
 #[must_use]
 pub fn float_result_error(value: f64, release: TclVersion) -> Option<(&'static str, &'static str)> {
-    if !checks_float_range(release) || value.is_finite() {
+    if !release.raises_float_range_errors() || value.is_finite() {
         None
     } else if value.is_nan() {
         Some((DOMAIN_MESSAGE, DOMAIN_CODE))
     } else {
         Some(float_range_error(value))
     }
-}
-
-/// Whether `release` checks each double an operator, a math function or a
-/// numeral produces (`TclExprFloatError`): 8.4 does, later releases keep an
-/// infinity, a NaN or an underflow.
-#[must_use]
-pub fn checks_float_range(release: TclVersion) -> bool {
-    release == TclVersion::V8_4
 }
 
 /// The message and `-errorcode` 8.4 gives a double C reported with `ERANGE`
@@ -358,13 +354,6 @@ pub fn float_range_error(value: f64) -> (&'static str, &'static str) {
     } else {
         (FLOAT_OVERFLOW_MESSAGE, FLOAT_OVERFLOW_CODE)
     }
-}
-
-/// Whether `release` refuses a double divided by zero as it does an integer
-/// one: 8.4 does, where later releases give an infinity or a NaN.
-#[must_use]
-pub fn refuses_double_division_by_zero(release: TclVersion) -> bool {
-    release == TclVersion::V8_4
 }
 
 #[cfg(test)]
@@ -462,7 +451,7 @@ mod tests {
     #[test]
     fn the_error_code_follows_the_description_from_eight_five() {
         use OperandDesc::{FloatingPointValue, List, NonNumericString};
-        for release in [TclVersion::V8_6, TclVersion::V9_0] {
+        for release in [TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0] {
             assert_eq!(
                 illegal_operand_error_code(NonNumericString, "abc", release),
                 "ARITH DOMAIN {non-numeric string}"

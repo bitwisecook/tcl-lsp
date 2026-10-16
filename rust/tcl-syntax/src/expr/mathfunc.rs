@@ -381,7 +381,7 @@ pub fn try_dispatch_for_release<B: super::super::number_tower::BigIntOps>(
     args: &[NumValue<B>],
     release: tcl_dialect::TclVersion,
 ) -> Result<NumValue<B>, MathFuncError> {
-    let checks = super::errors::checks_float_range(release);
+    let checks = release.raises_float_range_errors();
     if checks && matches!(args, [NumValue::Float(x)] if integer_conversion_overflows_84(name, *x)) {
         return Err(MathFuncError::IntegerOverflow);
     }

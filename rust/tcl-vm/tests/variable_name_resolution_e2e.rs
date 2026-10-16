@@ -537,8 +537,13 @@ fn vm_matches_the_pinned_variable_name_vectors() {
 /// Vectors whose 8.4 and 8.5 answers differ from 8.6's: those releases leave
 /// `errorCode` `NONE` where 8.6 sets `TCL UPVAR …`/`TCL LOOKUP …` words, and
 /// 8.4 words the inverted link and accepts the element name differently.
-const FROM_8_6_ONLY: &[&str] =
-    &["upvar validates namespace targets and rejects inverted proc links"];
+const FROM_8_6_ONLY: &[&str] = &[
+    "upvar validates namespace targets and rejects inverted proc links",
+    // `TCL LOOKUP VARNAME` and `TCL UPVAR` start in 8.6; tclsh 8.4.20 and
+    // 8.5.19 leave `NONE`.
+    "relative-qualified upvar targets use the caller frame namespace",
+    "upvar preserves defined and traced locals while reusing undefined shells",
+];
 
 /// The release-invariant vectors must also hold at 8.4, 8.5 and 9.1 — the VM is
 /// release-parameterised, and only the two `${{}}` vectors have a per-release

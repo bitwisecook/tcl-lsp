@@ -737,6 +737,67 @@ impl NumberSyntax {
         }
     }
 
+    /// Whether an integer past 64 bits wraps modulo 2^64 as long as its
+    /// magnitude fits `u64`, as 8.4's `strtoull`-based reads do on an LP64
+    /// host, rather than becoming a bignum. Measured: `expr
+    /// {18446744073709551615 + 0}` is -1 and `incr x` from
+    /// 9223372036854775807 gives -9223372036854775808 on tclsh 8.4.20 (64-bit).
+    /// The width is the host's, so only a running interpreter applies it.
+    #[must_use]
+    pub fn wraps_wide_integers(self) -> bool {
+        matches!(self, Self::Tcl84)
+    }
+
+    /// How `Tcl_PrintDouble` lays a double out while the precision is
+    /// `precision`.
+    ///
+    /// 8.4 formats with `sprintf("%.<precision>g")`; 8.5 onward take the
+    /// shortest digits at precision 0 and otherwise `precision` correctly
+    /// rounded significant digits from `TclDoubleDigits`, laid out with the
+    /// shortest form's cutover (`tclUtil.c`). Jim is always `%.12g`.
+    /// Measured: at precision 17 `expr {1e-7}` is `9.9999999999999995e-08`
+    /// on tclsh 8.4.20 to 8.6.18; at 12 `expr {1e15}` is `1e+15` on 8.4.20
+    /// and `1000000000000000.0` on 8.5.19 and 8.6.18.
+    #[must_use]
+    pub fn double_format(self, precision: u8) -> DoubleFormat {
+        match self {
+            Self::Tcl84 => DoubleFormat::Printf(precision),
+            Self::Jim | Self::Jim080 => DoubleFormat::Printf(12),
+            Self::Tcl85 | Self::Tcl90 if precision == 0 => DoubleFormat::Shortest,
+            Self::Tcl85 | Self::Tcl90 => DoubleFormat::Significant(precision),
+        }
+    }
+
+    /// The precision a fresh interpreter prints doubles at: 12 on 8.4 and
+    /// Jim, 0 (shortest) from 8.5.
+    #[must_use]
+    pub fn default_precision(self) -> u8 {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => 12,
+            Self::Tcl85 | Self::Tcl90 => 0,
+        }
+    }
+
+    /// The values [`Self::precision_variable`] accepts. `TclPrecTraceProc`
+    /// (`tclUtil.c`) rejects anything outside 1 to 17 on 8.4 and 0 to 17
+    /// from 8.5 with `improper value for precision`.
+    #[must_use]
+    pub fn precision_range(self) -> core::ops::RangeInclusive<u8> {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => 1..=17,
+            Self::Tcl85 | Self::Tcl90 => 0..=17,
+        }
+    }
+
+    /// Whether [`Self::precision_variable`] is read with `strtoul` in base
+    /// 10, as 8.4's `TclPrecTraceProc` reads it, rather than as a Tcl
+    /// integer (`Tcl_GetIntFromObj`, 8.5 and 8.6). Measured: `set
+    /// tcl_precision 0x10` is refused by tclsh 8.4.20 and sets 16 on 8.5.19.
+    #[must_use]
+    pub fn precision_reads_decimal(self) -> bool {
+        matches!(self, Self::Tcl84 | Self::Jim | Self::Jim080)
+    }
+
     /// Whether reading a decimal spelling outside the double range as a
     /// number fails, as Tcl 8.4's `Tcl_GetDouble` does on `strtod`'s
     /// `ERANGE` — unlike [`Self::string_is_double_rejects_range_error`], in
@@ -775,6 +836,21 @@ pub enum DoubleSpelling {
     /// `%.12g`, with `.0` appended when that has neither a point nor an
     /// exponent: Tcl 8.4 at its default `tcl_precision` of 12, and Jim.
     Precision12,
+}
+
+/// How `Tcl_PrintDouble` lays a double out at run time
+/// ([`NumberSyntax::double_format`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DoubleFormat {
+    /// [`DoubleSpelling::Shortest`]: 8.5 onward at `tcl_precision` 0.
+    Shortest,
+    /// That many correctly rounded significant digits, trailing zeros
+    /// dropped, laid out as [`Self::Shortest`] is but with an exponent of at
+    /// least two digits: 8.5 and 8.6 at a non-zero `tcl_precision`.
+    Significant(u8),
+    /// `sprintf("%.<n>g")` with `.0` appended to an integral result: 8.4
+    /// and Jim.
+    Printf(u8),
 }
 
 /// How a target spells the numbers it computes, read back under the grammar

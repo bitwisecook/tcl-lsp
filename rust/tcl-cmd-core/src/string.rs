@@ -51,12 +51,17 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
 }
 
 /// `string bytelength str` (8.4 to 8.6) — the bytes of the string's internal
-/// form, Tcl's modified UTF-8, which spells a NUL in two.
+/// form, Tcl's modified UTF-8, which spells a NUL in two and keeps every
+/// character within three (`TCL_UTF_MAX` 3 in those releases).
 pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     let text = ops.as_chars(s);
     let n: usize = text
         .chars()
-        .map(|c| if c == '\0' { 2 } else { c.len_utf8() })
+        .map(|c| match u32::from(c) {
+            1..0x80 => 1,
+            0 | 0x80..0x800 => 2,
+            _ => 3,
+        })
         .sum();
     ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
 }

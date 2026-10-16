@@ -1709,6 +1709,26 @@ impl CodegenCtx<'_> {
         Some((parse_cmd_parts(text), false))
     }
 
+    /// An inline `[expr word]`. A simple word is the expression and compiles
+    /// inline; a word with substitutions is substituted first and its value
+    /// parsed at run time (`TclCompileExprWords`): `expr $x` evaluates a
+    /// `[cmd]` inside `x`'s value, and `\"` reaches `expr` as `"`.
+    fn emit_inline_expr(&mut self, word: &(String, bool)) {
+        if !lone_spelled_expression(std::slice::from_ref(word)) {
+            self.emit_cmd_subst_arg(&word.0, word.1);
+            self.emit(Op::EXPR_STK, vec![]);
+            return;
+        }
+        // Re-parsed under the compile's own dialect, exactly as the lowering
+        // pass parses a statement-position `expr` — parsing it dialect-blind
+        // here would leave a dialect-only operator (`$x contains "a"`)
+        // unrecognised and push it as a raw string.
+        let node = self.parse_compile_expr(&word.0);
+        if !self.emit_expr(&node) {
+            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+        }
+    }
+
     fn emit_inline_cmd_subst_with_tokens_unstamped(
         &mut self,
         text: &str,
@@ -1749,14 +1769,8 @@ impl CodegenCtx<'_> {
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
         match self.inline_cmd_subst_resolution(cmd, args) {
-            Some((InlineCodegenHookId::Expr, _)) if lone_spelled_expression(args) => {
-                let expr_body = &args[0].0;
-                // Re-parsed under the compile's own dialect, exactly as the
-                // lowering pass parses a statement-position `expr` — parsing
-                // it dialect-blind here would leave a dialect-only operator
-                // (`$x contains "a"`) unrecognised and push it as a raw string.
-                let node = self.parse_compile_expr(expr_body);
-                self.emit_expr(&node);
+            Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
+                self.emit_inline_expr(&args[0]);
             }
             Some((InlineCodegenHookId::Incr, _)) if (1..=2).contains(&args.len()) => {
                 self.emit_inline_incr(args);

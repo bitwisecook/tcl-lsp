@@ -697,6 +697,104 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// How a math function called with too few arguments says so: `too
+    /// few` through 8.5, `not enough` from 8.6.
+    #[must_use]
+    pub const fn math_arity_shortfall(self) -> &'static str {
+        if matches!(self, Self::V8_4 | Self::V8_5) {
+            "too few arguments"
+        } else {
+            "not enough arguments"
+        }
+    }
+
+    /// Whether `srand` of a non-integer reports the conversion error. 9.0's
+    /// `ExprSrandFunc` converts with a NULL interpreter, so the error is
+    /// empty with errorCode `NONE`. Measured on tclsh 8.6.18 and 9.0.4.
+    #[must_use]
+    pub const fn srand_reports_conversion_error(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
+    }
+
+    /// Whether builtins set the errorCode `TCL <family> <detail> …`. 8.4's
+    /// sources set no `TCL` code; 8.5's set `TCL LOOKUP` for the kinds
+    /// [`Self::has_lookup_error_code`] lists, `TCL VALUE NUMBER`, `TCL
+    /// IDELETE` and `TCL API_ABUSE`, and none of `TCL WRONGARGS`, `TCL PARSE`,
+    /// `TCL UPVAR` or the other `TCL VALUE` codes, which 8.6 adds. Measured:
+    /// `catch set`, `expr {1 +}`, `lindex {a} x` and an `upvar` onto an
+    /// existing local leave `NONE` on tclsh 8.4.20 and 8.5.19.
+    #[must_use]
+    pub fn has_tcl_error_code(self, family: &str, detail: Option<&str>) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => match (family, detail) {
+                ("LOOKUP", Some(kind)) => self.has_lookup_error_code(kind),
+                ("VALUE", Some("NUMBER")) | ("IDELETE" | "API_ABUSE", _) => true,
+                _ => false,
+            },
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
+    }
+
+    /// Whether a failed lookup of `kind` carries `TCL LOOKUP <kind> …`. 8.5
+    /// sets it for an ensemble, index, namespace, alias, package, channel,
+    /// interpreter, encoding, array search or variable lookup, and not for a
+    /// command, dictionary key or variable name, which 8.6 adds everywhere
+    /// (8.5 already sets the first two for `namespace origin` and a nested
+    /// dictionary path, which this does not single out). Measured:
+    /// `dict get {a 1} b` and `upvar 0 nosuch::x y` leave `NONE` on tclsh
+    /// 8.5.19 and set `TCL LOOKUP DICT b` and `TCL LOOKUP VARNAME
+    /// nosuch::x` on 8.6.18.
+    #[must_use]
+    pub fn has_lookup_error_code(self, kind: &str) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => matches!(
+                kind,
+                "SUBCOMMAND"
+                    | "INDEX"
+                    | "NAMESPACE"
+                    | "ALIAS"
+                    | "PACKAGE"
+                    | "ENSEMBLE"
+                    | "CHANNEL"
+                    | "VARIABLE"
+                    | "INTERP"
+                    | "ENCODING"
+                    | "ELEMENT"
+                    | "ARRAYSEARCH"
+            ),
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
+    }
+
+    /// Whether an operand `expr` cannot use carries `ARITH DOMAIN <desc>`
+    /// (8.5). Measured: `expr {"x" + 1}` leaves `NONE` on tclsh 8.4.20.
+    #[must_use]
+    pub const fn has_illegal_operand_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether a floating-point `expr` result that is infinite or NaN is an
+    /// error, as is a division by a zero double (8.4's
+    /// `TclExprFloatError`); later releases return `Inf`. Measured: `expr
+    /// {1e308 * 10}` is `floating-point value too large to represent` and
+    /// `expr {1.0 / 0}` `divide by zero` on tclsh 8.4.20, `Inf` from 8.5.19.
+    #[must_use]
+    pub const fn raises_float_range_errors(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether a failed variable trace keeps its callback's errorInfo and
+    /// adds a `(write trace on "x")` frame (`TclCallVarTraces`, 8.5). 8.4's
+    /// `CallVarTraces` resets the result to `can't set "x": <message>`, so
+    /// errorInfo starts again from that message. Measured on tclsh 8.4.20
+    /// and 8.5.19.
+    #[must_use]
+    pub const fn has_var_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// Whether the bytecode compiler emits only the wide (4-byte operand)
     /// instruction forms, which then drop their width suffix (`invokeStk`,
     /// `loadScalar`). Measured in `-errorstack` on tclsh 9.1.0.
@@ -761,8 +859,8 @@ impl TclVersion {
     /// (`TCL OPERATION RENAME TARGET_EXISTS`). Measured on tclsh 8.4.20
     /// through 9.1.0: both arrive at 8.6, earlier releases leave `NONE`.
     #[must_use]
-    pub const fn has_rename_error_codes(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
+    pub fn has_rename_error_codes(self) -> bool {
+        self.has_tcl_error_code("LOOKUP", Some("COMMAND"))
     }
 
     /// Whether this release exposes TIP 348 structured error stacks.
@@ -780,26 +878,39 @@ impl TclVersion {
     /// `TCL …` error code. 8.4 and 8.5 set none, so `$errorCode` is `NONE`.
     #[must_use]
     pub fn tags_usage_error_codes(self) -> bool {
-        matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+        self.has_tcl_error_code("WRONGARGS", None)
+    }
+
+    /// Whether a builtin raising errorCode `code` leaves it under this
+    /// release: any code but a `TCL …` one the release does not set yet
+    /// ([`Self::has_tcl_error_code`]).
+    #[must_use]
+    pub fn sets_error_code(self, code: &[u8]) -> bool {
+        let mut words = code
+            .split(u8::is_ascii_whitespace)
+            .filter(|w| !w.is_empty());
+        if words.next() != Some(b"TCL") {
+            return true;
+        }
+        let word = |w: &[u8]| std::str::from_utf8(w).ok().map(str::to_owned);
+        match words.next().and_then(word) {
+            Some(family) => {
+                self.has_tcl_error_code(&family, words.next().and_then(word).as_deref())
+            }
+            None => true,
+        }
     }
 
     /// The `-errorcode` a builtin raising `code` leaves under this release:
-    /// `NONE` for a code this release does not set yet — a usage error's
-    /// (`TCL WRONGARGS`), a bad index's (`TCL VALUE INDEX`) and a malformed
-    /// list's or dictionary's, which arrive in 8.6
-    /// ([`Self::tags_usage_error_codes`]) — and `code` otherwise.
+    /// `NONE` for a code this release does not set yet
+    /// ([`Self::sets_error_code`]), and `code` otherwise.
     #[must_use]
     pub fn release_error_code(self, code: &[u8]) -> &[u8] {
-        let untagged = !self.tags_usage_error_codes()
-            && (code == b"TCL VALUE INDEX"
-                || [
-                    &b"TCL WRONGARGS"[..],
-                    b"TCL VALUE LIST ",
-                    b"TCL VALUE DICTIONARY ",
-                ]
-                .iter()
-                .any(|family| code.starts_with(family)));
-        if untagged { b"NONE" } else { code }
+        if self.sets_error_code(code) {
+            code
+        } else {
+            b"NONE"
+        }
     }
 
     /// Whether this release tags an expression's parse error with a
@@ -807,7 +918,7 @@ impl TclVersion {
     /// and 8.5's parsers set none, so `$errorCode` is `NONE`.
     #[must_use]
     pub fn tags_expression_parse_errors(self) -> bool {
-        matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+        self.has_tcl_error_code("PARSE", Some("EXPR"))
     }
 
     /// Whether a script this release compiles fails whole on a compile

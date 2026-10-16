@@ -1536,6 +1536,9 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 /// An `ERROR` completion carrying an `-errorcode` (e.g. `TCL BINARY DECODE
 /// INVALID`), so `$errorCode` is set when the error propagates.
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
+    if !release_sets_error_code(code) {
+        return err(message);
+    }
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
 }
@@ -1679,17 +1682,38 @@ pub(crate) fn resolved_error_code(comp: &Completion<Value>, release: TclVersion)
     Value::string(default_error_code(&comp.result.to_str(), release))
 }
 
+/// Whether the emulated release's builtins set errorCode `code`
+/// ([`TclVersion::sets_error_code`]).
+fn release_sets_error_code(code: &str) -> bool {
+    tcl_syntax::number::runtime_release()
+        .is_none_or(|release| release.sets_error_code(code.as_bytes()))
+}
+
 /// The `errorCode` a bare builtin error (no carried `-errorcode`) defaults to,
 /// keyed off its message — the codes C's `Tcl_WrongNumArgs` / list parser
-/// (`tclUtil.c`) attach where the release has them
-/// ([`TclVersion::tags_usage_error_codes`]). Only consulted when the
-/// completion carries no explicit `-errorcode`, so a user `error msg` (which
-/// sets `-errorcode NONE`) is never reclassified. Anything unrecognised is
-/// `NONE`.
-fn default_error_code(message: &str, release: TclVersion) -> &'static str {
-    if !release.tags_usage_error_codes() {
-        "NONE"
-    } else if message.starts_with("wrong # args:") {
+/// (`tclUtil.c`) attach, where the release sets them
+/// ([`TclVersion::sets_error_code`]). Only consulted when the completion
+/// carries no explicit `-errorcode`, so a user `error msg` (which sets
+/// `-errorcode NONE`) is never reclassified. Anything unrecognised is `NONE`.
+fn default_error_code(message: &str, release: TclVersion) -> String {
+    let code = default_error_code_of(message);
+    if release.sets_error_code(code.as_bytes()) {
+        code
+    } else {
+        "NONE".to_owned()
+    }
+}
+
+fn default_error_code_of(message: &str) -> String {
+    // An ensemble's miss names the word it could not resolve.
+    let subcommand = message
+        .strip_prefix("unknown or ambiguous subcommand \"")
+        .or_else(|| message.strip_prefix("unknown subcommand \""))
+        .and_then(|rest| rest.split_once("\": "));
+    if let Some((word, _)) = subcommand {
+        return tcl_syntax::list::join_list(["TCL", "LOOKUP", "SUBCOMMAND", word]);
+    }
+    if message.starts_with("wrong # args:") {
         "TCL WRONGARGS"
     } else if message == "unmatched open brace in list" {
         "TCL VALUE LIST BRACE"
@@ -1702,6 +1726,7 @@ fn default_error_code(message: &str, release: TclVersion) -> &'static str {
     } else {
         "NONE"
     }
+    .to_owned()
 }
 
 /// Rebuild a return-options dict with its `-level` replaced — the proc-boundary
