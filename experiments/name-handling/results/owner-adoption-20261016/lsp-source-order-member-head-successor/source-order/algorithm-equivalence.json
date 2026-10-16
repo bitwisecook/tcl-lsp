@@ -1,0 +1,11 @@
+{
+  "status": "SOURCE_SPECIALISATION_EQUIVALENT",
+  "constructed_build_body_sha256": "74f9514f190a35deabe0cb1942902d65b0dc236840e070b9fdd4f7993d7f5cae",
+  "precedence_body_sha256": "3d77b53014aa3a61ed1feaad61cb92f6eacf99ccd1f249c9489d0d70f1f1e122",
+  "comparison_body_sha256": "71628c50aabb2b8fd19cda0a4e98d42a93c004a23cc00ff0b63e63a66b74f938",
+  "common_frame_body_sha256": "23329f5a179ae07faec727a1b4eaddd9ba061918e5ef28bb60fdc87dc4004b76",
+  "decide_body_sha256": "3ec76ecf68ade8c08ebae4a8759274a19fe47a73129b5aebbd8789b38a614328",
+  "early_point_guard_identity_in_constructed_mode": true,
+  "premise": "Empty unavailable-source seed and absent source_contexts recover the old constructed model body byte-for-byte. New source purpose canonicalises genuine points and cannot export legacy executed answers.",
+  "execution": "Textual function-body comparison only, no executable tests or builds."
+}

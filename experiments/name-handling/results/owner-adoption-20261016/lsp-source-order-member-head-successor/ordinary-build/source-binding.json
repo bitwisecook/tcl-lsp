@@ -1,0 +1,26 @@
+{
+  "source_head": "19b25285b82cf2053278713c13f925957a525a7f",
+  "rust_diff_sha256": "db9d7f505c8af7eadc31259ace8e9734f9c32817b21e07dd67e5ccfe187f797e",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39001,
+  "utc": "2026-10-16T20:27:51.504554+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Reviewed actual conditional source-order owner/allWorkspace+Definitionadopters and genuine dual-head-issuer member correspondence successor; allNative/edit/Normalguards and oldassertions retained. Previous reviewed LSP isolated proposal/actual recovery-provider ledger/fullcontext/editor adapters and selected minifier syntax census successor; instrumentation restored on39000inputs. Includes14new actual provider/recovery/poison/endpoint/minifier controls, retains all446 for future replay. Previous source geometry: exact full-context UTF16 cursor and body/scope visibility; current-analysis original declaration outline with actual nonzero overlay Registry; genuine original formal-name minifier geometry under independent edit barriers; selected source package positive/incomplete census and shared typed syntax coverage; genuine earlier-Written operand continuity and static original anchor for Logical document links. Two exact UFCS call spellings and accurate private/public/internal contract routes preserve all guards; Registry2048-source traversal gate stays open. All original338controls and additional scoped controls retained for future replay. Runtime/VM/BIG-IP dedicated work paused; no execution/Normal/absence/edit authority from source geometry.",
+  "exit_code": 0,
+  "build_seconds": 466.661,
+  "input_after_count": 39001,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T20:35:38.166016+00:00"
+}

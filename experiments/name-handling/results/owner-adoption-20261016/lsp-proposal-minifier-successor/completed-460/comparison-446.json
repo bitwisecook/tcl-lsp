@@ -1,0 +1,87 @@
+{
+  "status": "COMPLETE_CAPTURE_COMPARISON_NO_GLOBAL_ACCEPTANCE",
+  "total": 460,
+  "counts": {
+    "PASS": 389,
+    "FAIL": 69,
+    "TIMEOUT": 2
+  },
+  "retained": 446,
+  "drops": [],
+  "changes": [],
+  "additions": [
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::proposal_selected_provider_refuses_old_schema_before_inventory_and_keeps_failure",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capture",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::proposal_unversioned_disk_provider_remains_unavailable_even_with_readable_bytes",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::lost_proposal_capture_owner_cannot_become_an_empty_source_report",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "provider_source::tests::poisoned_proposal_inventory_cannot_issue_empty_or_populated_source_completion",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "recovery_source::tests::detached_indexes_with_equal_generations_keep_recovery_names_separate",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_changes_diagnostics_without_mutating_live_project",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_stale_original_and_withdrawn_source_admission",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_selected_provider_and_unversioned_disk_provider",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_never_turns_suppression_or_incomplete_source_into_clean",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_owns_selected_full_vectors_and_complete_regions",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_retains_partial_candidates_without_barrier_absence",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete",
+      "status": "PASS"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "minify::lexical_metadata::source_census_tests::minifier_source_census_refuses_foreign_analysis_realm_and_full_config",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "artifact_drift": {},
+  "result_sha256": "17634b993e6b62bb5235b5d251c529995a8269edf6f6dee5cece38950b6d9b5a"
+}

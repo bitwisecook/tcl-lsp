@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-16T20:26:00.252165+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-source-geometry-successor-repair3-frozen.tar.zst",
+  "sha256": "a1823d138259c58a8902ea1cb7342c4d2b95b61e31f4972d3ede6ded9f01729d",
+  "bytes": 183281085,
+  "members": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+      "sha256": "6f36e209829f94cb10bd90925ab98a579955d78f8df45cc72e42d91b178d96a3",
+      "bytes": 250191520
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+      "sha256": "b6e0e49825990d8161d674ff1ebc3afac07dd3923226a2c14d0329a1e338953c",
+      "bytes": 197849136
+    },
+    "tcl_lsp_db": {
+      "path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+      "sha256": "7cb71dcc53c85ff0f0ca058d89b7e751e249af0df671030df180ab269b79891a",
+      "bytes": 213842160
+    },
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+      "sha256": "75bdb48c9e7062cec330f45e19873b5c49eef03cb08f093ce0bac5a52191921c",
+      "bytes": 333779552
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/lsp-source-geometry-successor-repair3/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+      "sha256": "a11e2cb0eaa1b8c95c7405bbebeab6cba84676ddf2d63421de81c7cad4225db9",
+      "bytes": 61921912
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

@@ -1,0 +1,175 @@
+{
+  "scope": "Source-basis/purpose evidence only; no execution, no main catalogue writes, no count/acceptance claim.",
+  "patch_sha256": "1beda2357828adfbc563ec6b333dbff68d1da47f110dc4fa8b03a5ae37fe8a7b",
+  "diagnostic": {
+    "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/test-222.log",
+    "sha256": "75562ada91c69bdf9721a5fe18c7f5b49a13f2ab3b21da79a1b0a3704d08badb",
+    "binding_path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/binding.json",
+    "binding_sha256": "7e4330f5620acb40b48b6ceb6f9716798985078adf224c664134536de10b0b53",
+    "observed": "Both selectors pass schema/reborrow/initial canonical owner guard. Last stage correspondence.geometry.pass; no argv.pass.",
+    "limits": "Group observed, individual origin values not printed. Actual schema/arg-offset/definition grammar/member uniqueness/MRO downstream outcomes remain unobserved. Source-defined issuer control asserts real expected producer pairing on next ordinary execution."
+  },
+  "current_source_producer_basis": {
+    "written_source_head": {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "line": 3161,
+      "sha256": "459d5e279e838e30b6d1038724510922484e8e036231cdd478d76993a6a2f0fd",
+      "source_line": "    let mut origins = vec![InvocationWordOrigin::Written(0)];"
+    },
+    "selected_effective_head": {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "line": 5004,
+      "sha256": "0d915617d8f94dbd13bdaec8df97c297ed271daf4e49249aed78bc741285f29e",
+      "source_line": "pub(crate) fn compose_original_effective_words("
+    },
+    "selected_source_carries_head": {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "line": 901,
+      "sha256": "459d5e279e838e30b6d1038724510922484e8e036231cdd478d76993a6a2f0fd",
+      "source_line": "    let head = native.as_deref().and_then(|words| {"
+    },
+    "canonical_definition_body": {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "line": 10693,
+      "sha256": "27ba00fbb13a054144ca074ba6f6fbca8816b180726e6b3e917efa395899527d",
+      "source_line": "    fn original_class_definition_body_at("
+    },
+    "original_method_parent_capture": {
+      "path": "rust/tcl-compiler/src/analyser/original_members.rs",
+      "line": 1267,
+      "sha256": "0fd761d5fbeeb488aac8bf598968ea0c6c58c33f078f807bbe8e1cea09b8eee8",
+      "source_line": "                .with_definition_parent(self.class_relation_body)?,"
+    },
+    "parent_correspondence_refusal": {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "line": 696,
+      "sha256": "17a12c241311f8ff4b4b70f0cabb31506f68292a36b9d3e2ab20395c2fef1baf",
+      "source_line": "        if left.origins() != right.origins()"
+    }
+  },
+  "current_catalogue": {
+    "path": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+    "sha256": "566bb7acaa1144235d01dd65e654cd918e595e7d26b52df559e001e0d0ab2477",
+    "existing_validation_purposes": [
+      {
+        "json_pointer": "/existing_validation_obligations/lsp/67",
+        "row": {
+          "id": "lsp-original-declaration-reference-projection",
+          "original_rows": [
+            "lsp-original-declaration-reference-projection"
+          ],
+          "state": "validation_pending",
+          "implementation_state": "already_integrated_bounded_purpose",
+          "sites": [
+            {
+              "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+              "line": 818,
+              "symbol": "select / reference_spans / invocation_targets_declaration_in",
+              "source_sha256": "6be2b36dd6d75d00e54590bc8ff81f300abf4aeadc27e502ab890a931812187a",
+              "source_line": "pub fn reference_spans(",
+              "purpose": "Positive readonly procedure/class/method/math-function source reference candidates."
+            }
+          ],
+          "existing_tests": [
+            [
+              "original declaration/reference controls"
+            ]
+          ],
+          "required_validation": [
+            "Positive spans do not certify complete editable reference inventory, hierarchy/rename/action callers must keep separate admission. Source math API literal Unicode name matching explicitly at rooted API lookup purpose, not reconstructed original source word. Report-key helpers used only presentation membership in inspected code_lens caller; full downstream lens resolve still pending."
+          ],
+          "source_evidence": [
+            [
+              "Entire select/reference/literal matching/label helpers read; code_lens345\u2013411 and original_call_hierarchy1\u201375 callers inspected without marking those files full."
+            ]
+          ],
+          "not_counted_as_remaining_code_migration": true
+        },
+        "relationship": "Readonly source candidates/projection require actual canonical source ownership; strong entry/edit purpose174 remains unchanged and is not discharged by this repair."
+      },
+      {
+        "json_pointer": "/existing_validation_obligations/lsp/112",
+        "row": {
+          "id": "lsp-original-method-query-and-candidate",
+          "original_rows": [
+            "lsp-original-method-query-and-candidate"
+          ],
+          "state": "validation_pending",
+          "implementation_state": "already_integrated_bounded_purpose",
+          "sites": [
+            {
+              "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+              "line": 586,
+              "symbol": "select / temporal_query / metadata_candidate / local_reference_spans",
+              "source_sha256": "494a01a3293116a188d73492bbca72e44b40c830f6bb500aed6b28825a771efa",
+              "source_line": "pub fn select(",
+              "purpose": "Readonly original method operands, canonical source declarations and distinct optional call-point entry."
+            }
+          ],
+          "existing_tests": [
+            {
+              "existing": "method_symbol source operand/class/member/currentness controls; M12 new lexical-root role negative PASS reported externally",
+              "execution": "not run by source auditor"
+            }
+          ],
+          "required_validation": [
+            "No report class/method label participates in canonical candidate identity; missing native/original source field refuses at positive role boundary. Existing label hover is report-only. Complete reference/family/action coverage remains independent, and source_queries uses positive partial walker."
+          ],
+          "source_evidence": [
+            {
+              "source_read": "Full1124-line production read in1\u2013460/461\u2013950/951\u2013end.",
+              "limits": "Existing declaration candidates explicitly have call_point=false and cannot grant live dispatch/edit. Missing source inventory is not closure."
+            }
+          ],
+          "not_counted_as_remaining_code_migration": true
+        },
+        "relationship": "Readonly source candidates/projection require actual canonical source ownership; strong entry/edit purpose174 remains unchanged and is not discharged by this repair."
+      },
+      {
+        "json_pointer": "/existing_validation_obligations/lsp/174",
+        "row": {
+          "id": "lsp-references-method-entry-reference-owner",
+          "original_rows": [
+            "lsp-references-method-entry-reference-owner"
+          ],
+          "state": "validation_pending",
+          "implementation_state": "already_integrated_bounded_purpose",
+          "sites": [
+            {
+              "path": "rust/tcl-lsp-core/src/references.rs",
+              "line": 1891,
+              "symbol": "method_references_for_declaration / obj method scan / receiver matching",
+              "source_sha256": "8b5ea057a5413e9cc98c5bf76aa1a16768e6b5aa337955e2a93783a17238ef11",
+              "source_line": "pub(crate) fn method_references_for_declaration(",
+              "purpose": "Actual temporal original receiver/member declaration references and readonly linked member source advice."
+            }
+          ],
+          "existing_tests": [
+            [
+              "temporal own-object/class/instance/private/captured prefix receiver controls"
+            ]
+          ],
+          "required_validation": [
+            "Shared actual receiver/entry receipt adopted; CommandReceivers additionally matches declaration spans and current selected.editable_selector. Positive returned Vec inventory is not complete rename census; None linked source inventory is currently defaulted empty and transform caller must independently refuse incompleteness."
+          ],
+          "source_evidence": [
+            [
+              "Full1891\u20131927 and3554\u20133858 read. Workspace extra class command names insert None target and cannot by themselves satisfy actual declaration tuple match. Variable receivers withheld across frame-shift regions."
+            ]
+          ],
+          "not_counted_as_remaining_code_migration": true
+        },
+        "relationship": "Readonly source candidates/projection require actual canonical source ownership; strong entry/edit purpose174 remains unchanged and is not discharged by this repair."
+      }
+    ]
+  },
+  "once_only_reconciliation": "Head-purpose correspondence extends the existing OriginalRegistryWords/body-member source association owner as a necessary readonly dependency. Root alone reconciles this source-facet repair against existing readonly source candidate/projection purposes; no per-test or per-API work units, no edit/Native unit closure.",
+  "preserved": [
+    "Both complete head/argv/source/applicability receipts, not rewritten fields.",
+    "Whole same source/config/context and real canonical declaration source allocation checks.",
+    "Exact post-head origin/value/original operand vector.",
+    "Actual selected descriptor/argument offset and unchanged definition grammar.",
+    "Unique original member/body/formals/container/parent and actual source MRO checks.",
+    "Entire original source_method_reference production and assertions; old strong Realm/edit functions untouched."
+  ]
+}

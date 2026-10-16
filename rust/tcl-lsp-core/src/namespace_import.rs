@@ -142,6 +142,9 @@
 //! Every one of those rows is oracle-confirmed byte-identically on tclsh
 //! 9.0.4 and 8.6.14; the transcripts sit on the individual items.
 
+// Workspace source order is conditional navigation, not event completion.
+// Its typed adapter cannot remove a candidate using a source-only tombstone;
+// explicitly constructed compatibility inputs retain their original model.
 use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
@@ -261,7 +264,9 @@ pub struct ExportEvent<'a, P = &'a str> {
     pub at: RunPoint<'a>,
 }
 
-/// Whether `later` is **known** to have run strictly after `earlier`.
+/// Whether the explicit constructed model authorizes its existing removal.
+/// Genuine source navigation relations retain their unresolved completion and
+/// return false here, preserving candidates and unknown barriers.
 ///
 /// The one direction both folds below need, stated once over
 /// [`RunOrder::has_run`] so the gate ("had this run by the query point?") and
@@ -272,13 +277,21 @@ pub struct ExportEvent<'a, P = &'a str> {
 /// Incomparable answers `false`: a removal that cannot be placed revokes
 /// nothing, the abstain-toward-answering direction this whole family takes.
 fn ran_after(order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
-    order.has_run(later, earlier) == Some(false)
+    order
+        .navigation_precedence(later, earlier)
+        .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+        == Some(false)
 }
 
-/// Whether an event had already run at the query point, abstaining toward
-/// *yes* when the two have no static order.
+/// Admit a candidate unless an explicitly constructed model excludes it.
+/// Conditional original source order never supplies a negative completion.
 fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
-    query.is_none_or(|q| order.has_run(event, q).unwrap_or(true))
+    query.is_none_or(|q| {
+        order
+            .navigation_precedence(event, q)
+            .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+            .unwrap_or(true)
+    })
 }
 
 /// Whether the source namespace exported `name` **at the point the import

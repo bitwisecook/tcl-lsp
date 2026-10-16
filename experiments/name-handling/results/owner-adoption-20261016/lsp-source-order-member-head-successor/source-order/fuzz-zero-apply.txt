@@ -1,0 +1,7 @@
+patching file docs/design/analysis/import-order-source-graph.md
+patching file docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+patching file docs/design/contracts/shared-utility-contracts-rust.md
+patching file rust/tcl-lsp-core/src/definition.rs
+patching file rust/tcl-lsp-core/src/namespace_import.rs
+patching file rust/tcl-lsp-core/src/source_graph.rs
+patching file rust/tcl-lsp-core/src/workspace_index.rs

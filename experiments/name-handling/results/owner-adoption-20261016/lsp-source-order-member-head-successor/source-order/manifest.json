@@ -1,0 +1,116 @@
+{
+  "status": "TMP_SOURCE_CANDIDATE_NO_EXECUTION",
+  "patch_sha256": "a8afede294e5af8b047fcdec3597afd7db1e6b623fc8bfc42534f4c9d45b5c2c",
+  "baseline_unit": "lsp-source-run-order-purpose",
+  "original_work_kind": "shared_owner_extension",
+  "files": [
+    {
+      "path": "docs/design/analysis/import-order-source-graph.md",
+      "before_sha256": "6f239d057bf65662db74656353d2c2b83b503dd62cfb7a323a1662871b70549b",
+      "after_sha256": "5ce28fcf3b55f5e4cc893f8e687a37592b24ef1d59009fdc5bd0c3f1f2cb551e",
+      "before_bytes": 23960,
+      "after_bytes": 28332
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md",
+      "before_sha256": "7fb7582329d0c1f50b184a4e22a07b187dd3779afc5046e7bab04392c3cc5e26",
+      "after_sha256": "54cee982bf99827c237d90d514688c50866583265d978c942e842f0bba5eab4a",
+      "before_bytes": 12715,
+      "after_bytes": 15178
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "5e9322af564df6d6164d4f37acda9c4102a250961fc6df6c3e68613b92735fbd",
+      "after_sha256": "5f39f48ec7f23389edd005f2f10b2b03075d8a4b2fac5eb77f85282b99950981",
+      "before_bytes": 1086639,
+      "after_bytes": 1089247
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "before_sha256": "6d74d0039c3515e717f9d9e7ebdc35c1968797cb579a940babd90635216e296f",
+      "after_sha256": "3979a25f87e8550e01c54af53761a1a10fb6cf3cfe473cf56955996c1708355f",
+      "before_bytes": 427769,
+      "after_bytes": 429694
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "before_sha256": "6f19c1d5a60ad9559eebb41df7561a71d25f4d961a632a330cadbf438297dd65",
+      "after_sha256": "5f0efe45172878eb34c97dc7d84a7f2adaf00a4d32b154590526d82c83cf2903",
+      "before_bytes": 58797,
+      "after_bytes": 59474
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "before_sha256": "dba63f56a4ca86a06db5c8788a09b03ea603c625aa537cedb5e7bc45621fe70c",
+      "after_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "before_bytes": 84298,
+      "after_bytes": 108012
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "before_sha256": "e542f939850d7384a991f306648ff4b12ed2efcd7131cd4478a725b6f8ba8f8b",
+      "after_sha256": "a62ec20c6fca0c6ce27a7ad372c25ebeb316811073e9e5e57fc28a1fe624e85b",
+      "before_bytes": 671821,
+      "after_bytes": 677535
+    }
+  ],
+  "original_test_suffixes": [
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "old_suffix_sha256": "73ffd2856ac0fe6aa4a293f5f0c63edbe3d1fa65aba3688f5ff9cc6a899d5e00",
+      "bytes": 247845,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "old_suffix_sha256": "99dea5e755558cdb85ef2ea4988fd1dbd92263127467f51be6e6849845fe068e",
+      "bytes": 28605,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "old_suffix_sha256": "cb954b026710d24f13984fc4cb57416cf1b8f9b891ad1f306d3561a3bbd53dac",
+      "bytes": 37866,
+      "retained_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "old_suffix_sha256": "3a1cb579daf25e9da9c66c5a5c486678f5cecd97da763ebeaa9ce3fdc36aab91",
+      "bytes": 312776,
+      "retained_byte_identical": true
+    }
+  ],
+  "new_unexecuted_selectors": [
+    "source_graph::original_source_navigation_order_tests::original_workspace_order_retains_conditional_purpose_without_tombstone_authority",
+    "source_graph::original_source_navigation_order_tests::original_source_order_context_keeps_full_input_and_missing_body_owners_unknown",
+    "source_graph::original_source_navigation_order_tests::original_source_graph_uses_real_points_and_preserves_cycle_and_re_source_refusal",
+    "workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion",
+    "workspace_index::original_source_order_transport_tests::indexed_order_context_is_replaced_and_missing_full_input_remains_unknown",
+    "definition::original_document_source_order_tests::document_export_adopter_keeps_conditional_clear_and_missing_input_unknown",
+    "source_graph::original_package_alternative_owner_tests::package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points"
+  ],
+  "old_regression_count": 101,
+  "count_reconciliation": {
+    "existing_baseline_owner_purpose": 1,
+    "new_annexes": 0,
+    "acceptance_advance": 0,
+    "parent_owns_final_counts": true
+  },
+  "source_checks": [
+    "all seven current beforeimages exact",
+    "fresh fuzz0 patch apply and exact all afterimages",
+    "four complete original test suffixes byte-identical",
+    "no new allow attribute",
+    "isolated Rustfmt parse/format only; original test suffixes restored byte-for-byte",
+    "legacy graph/precedence/ranking/common-frame/decide body specialisation exact",
+    "both original source points validate before any package alternative",
+    "all V2 existing test fixture bytes retained"
+  ],
+  "limits": [
+    "Conditional original source navigation cannot become namespace-event, tombstone, conflict, loader or Native execution/Normal completion.",
+    "Completed modeled command-publication worlds are not repurposed.",
+    "Old Workspace chronology assertions remain unchanged and receive no new passing result; actual current replay remains Root-owned.",
+    "Original bodies missing a genuine corresponding context stay unavailable; partial source inventory grants no complete callgraph."
+  ],
+  "execution": "No main writes/Git/Cargo/build/test/list/oracle executable action."
+}

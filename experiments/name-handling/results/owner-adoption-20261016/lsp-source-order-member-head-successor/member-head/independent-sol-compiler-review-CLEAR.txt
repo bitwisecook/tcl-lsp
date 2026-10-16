@@ -1,0 +1,29 @@
+Independent source and contract review: CLEAR
+
+Exact final patch: 1beda2357828adfbc563ec6b333dbff68d1da47f110dc4fa8b03a5ae37fe8a7b
+Exact manifest: 78b674ff7a227aabfb8178ae9c7ab0d6d9dd816f5bfdf97471e6bd311363135b
+
+V2 resolves the sole V1 contract HOLD. Independently verified its only delta
+from the fully source-reviewed V1 afterimages is removal of the two new
+pub(crate) head APIs from the shared-utility PUBLIC API cell. The exact actual
+internal source routes and narrative remain, with no visibility/gate change.
+All three Rust afterimages and the other two documents are byte-identical V1.
+
+Full source reasoning and limitations remain in
+/tmp/sol-lsp-readonly-member-head-correspondence-v1/independent-sol-compiler-review.txt.
+Both genuine complete head issuers remain retained. The only differing-origin
+correspondence is original SourceTransitions Written(0) to Selected effective
+ResolvedHead, authenticated by whole original head/image/config/context and
+actual selected descriptor/argument offset. Every posthead origin/value/original
+operand, definition grammar, unique member/formals/body/container/parent and
+outer canonical source allocation check remains. No origin rewriting, Native
+promotion, entered frame/cell, dispatch, effect closure, Normal or edit grant.
+All original source_method_reference production/tests remain byte-identical.
+
+Independent final verification: all six base/current-before/expected-after and
+inverse hashes match; forward/inverse --fuzz=0 applies succeed. Evidence:
+/tmp/sol-compiler-member-head-review-v2/verification.json.
+
+No Cargo/build/test/listing/ELF/trace/oracle execution, main writes or Git.
+Source/contract clearance supplies no ordinary efficacy, downstream green,
+acceptance or count change. Root retains ordinary validation and reconciliation.

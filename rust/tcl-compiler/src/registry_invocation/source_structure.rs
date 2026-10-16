@@ -290,6 +290,26 @@ impl OriginalLogicalStaticOperandPrefix<'_> {
     }
 }
 
+/// Source-only correspondence of two genuinely retained head purposes.
+/// The complete issuers remain separate: a selected effective ResolvedHead
+/// never becomes a Written word, and the Written source head acquires no
+/// selected dispatch, entered frame or replacement authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalSourceHeadCorrespondence {
+    left: OriginalRegistryWords,
+    right: OriginalRegistryWords,
+}
+impl OriginalSourceHeadCorrespondence {
+    #[cfg(test)]
+    pub(crate) const fn left(&self) -> &OriginalRegistryWords {
+        &self.left
+    }
+    #[cfg(test)]
+    pub(crate) const fn right(&self) -> &OriginalRegistryWords {
+        &self.right
+    }
+}
+
 /// Sealed effective source argv and authored Registry roles. This supplies
 /// source structure only: no runtime dispatch, entered frame, cell, compiler,
 /// Normal, reflection equivalence or edit permission follows from this view.
@@ -466,6 +486,64 @@ impl OriginalRegistryWords {
     pub fn origins(&self) -> &[crate::registry_invocation::InvocationWordOrigin] {
         &self.origins
     }
+    /// Join actual original head words under the same source/config/context
+    /// and selected descriptor, without equating their independent purposes.
+    /// A differing head origin is admitted only for the existing authored
+    /// transition Written(0) and selected effective ResolvedHead producers.
+    pub(crate) fn original_source_head_correspondence(
+        &self,
+        other: &Self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<OriginalSourceHeadCorrespondence> {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        use crate::registry_invocation::InvocationWordOrigin;
+        if self.image != other.image || self.config != other.config {
+            return None;
+        }
+        let left = self.head_source()?.word()?;
+        let right = other.head_source()?.word()?;
+        if left != right
+            || left.image() != &self.image
+            || left.config() != self.config
+            || left.group().expand
+        {
+            return None;
+        }
+        let left_origin = self.origins.first()?;
+        let right_origin = other.origins.first()?;
+        if left_origin != right_origin {
+            if left_origin != &InvocationWordOrigin::Written(0)
+                || right_origin != &InvocationWordOrigin::ResolvedHead
+            {
+                return None;
+            }
+            let OriginalRegistrySource::SourceTransitions(advice) = self.source() else {
+                return None;
+            };
+            if !matches!(other.source(), OriginalRegistrySource::Selected)
+                || !advice.matches_source(&self.image, self.config)
+                || !advice.matches_context(context)
+                || advice.original_words().first() != Some(left)
+            {
+                return None;
+            }
+        }
+        let same_descriptor = self.with_source_schema(context, |left| {
+            other.with_source_schema(context, |right| {
+                std::ptr::eq(
+                    left.authored_source_descriptors().command,
+                    right.authored_source_descriptors().command,
+                ) && left.semantics.argument_offset == right.semantics.argument_offset
+            })
+        })??;
+        same_descriptor.then_some(())?;
+        Some(OriginalSourceHeadCorrespondence {
+            left: self.clone(),
+            right: other.clone(),
+        })
+    }
+
     /// Complete unanimous roles at effective post-head ordinals, or unknown.
     #[must_use]
     pub fn roles(&self) -> Option<&[(usize, tcl_registry::ArgRole)]> {

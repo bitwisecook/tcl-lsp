@@ -1,0 +1,25 @@
+{
+  "selection_sha256": "c4e0c71c4de30d05122906e00e33e98f4766355cb33411339bb12dc383efa1c2",
+  "launcher_sha256": "98d71599fe8299d4f52430bef288f827a3aa03d50aa7b6d7905561fc6844fa00",
+  "usage_sha256": "60b0a03651fd9c9b15829dadc1bbfa41c7e53327991be9e3e017b384f6030420",
+  "prepare_sha256": "9bac0704b12ac9caae38806f4c5525b05f8633d080b137cd74a5a93d5f2ee2ee",
+  "total_exact_controls": 12,
+  "selected_targets": {
+    "tcl_compiler": 3,
+    "tcl_lsp_core": 8,
+    "tcl_lsp_server": 1
+  },
+  "retained_ordinals": [
+    222,
+    223,
+    224,
+    242
+  ],
+  "actual_new_member_issuer_controls": 1,
+  "actual_new_source_run_order_controls": 7,
+  "status": "PREPARED_ONLY_NO_TEST_LIST_BUILD_EXECUTION",
+  "actual_frozen_build_destination": "/workspace/naming-validation/lsp-source-order-member-head-successor",
+  "full_input_count": 39001,
+  "preparation": "AllfiveELF hashes + selected12 actualsource/modulecfg/frozeninput match; no full39001 currentness claim until launcher preflight",
+  "launcher_syntax": "ast.parse PASS without executing launcher"
+}

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T20:27:48.218460+00:00",
+  "source_head": "19b25285b82cf2053278713c13f925957a525a7f",
+  "packets": [
+    {
+      "path": "/tmp/sol-lsp-readonly-member-head-correspondence-v2/repair.patch",
+      "sha256": "1beda2357828adfbc563ec6b333dbff68d1da47f110dc4fa8b03a5ae37fe8a7b"
+    },
+    {
+      "path": "/tmp/lsp-source-run-order-purpose-v3/candidate.patch",
+      "sha256": "a8afede294e5af8b047fcdec3597afd7db1e6b623fc8bfc42534f4c9d45b5c2c"
+    }
+  ],
+  "source_review": "Exact complete source/contract independent CLEAR. Actual current-main union preserves proposal/minifier and shared source-owner routes.",
+  "counts": "Existing baseline lsp-source-run-order-purpose sharedownerextension once; memberhead correspondence repairs existing owner/adopter purpose, no perhelperannex. Root count reconciliation pending.",
+  "execution": "Fresh ordinary Native5 build pending; no efficacy claim."
+}

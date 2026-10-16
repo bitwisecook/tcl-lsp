@@ -1,0 +1,41 @@
+{
+  "utc": "2026-10-16T20:05:26.752154+00:00",
+  "argv": [
+    "python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/workspace/naming-validation/lsp-source-geometry-successor-repair3/selection.json",
+    "--manifest-sha256",
+    "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-source-geometry-successor-repair3/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-source-geometry-successor-repair3/results"
+  ],
+  "environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "tclsh9.0": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+  "tclsh8.6": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+  "actual_full_ordinary_input_count": 39000,
+  "actual_full_ordinary_input_drift": 0,
+  "instrumentation_restored_byte_exact_before_replay": true,
+  "all338_retained_with_original_assertions_selectors_budgets_and_guards": true,
+  "all446_selected": true,
+  "selection_sha256": "4d6569c6f4f431b27200ac2bc1e2a618bcc9afa856241eab74f5ec98dd6ca811",
+  "jim_recheck": {
+    "utc": "2026-10-16T20:00:45.718910+00:00",
+    "upstream_url": "https://github.com/msteveb/jimtcl.git",
+    "upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "local_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "scope": "Actual upstream ls-remote HEAD rechecked19:59UTC before next frozen ordinary replay. Original provider pairing retained independently."
+  }
+}

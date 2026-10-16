@@ -18,6 +18,12 @@ The source inventory retains genuine whole operand Inputs, invocation sites and 
 
 Readonly source naming advice under selected C Tcl 8.4, 8.5, 8.6, 9.0 and 9.1 policies. Whole authentic static words and independently retained readonly values remain separate Inputs; grouped words retain their original complete vector and configuration. Export and import geometry, original declaration-body source ordering and UI association supply neither current command existence, import authority, native namespace or command tokens, entered bodies, compiler preparation, Normal completion nor edit grants. Jim export inventory and unsupported or conflicting operand producers remain unavailable. Native provider measurements are independent from this Rust implementation contract. Conditional declaration fallback is bounded to authentic static original operands and a chain of explicit static namespace-eval source scopes under the same source image, complete configuration and name policy. Computed namespace scopes, unknown scopes and unentered callable scopes cannot borrow an enclosing namespace through this fallback.
 
+## Conditional workspace ordering boundary
+
+The actual workspace timeline now retains original full-input/image/Realm and body/schema source owners through `SourceOrderContext`, and consumes `RunOrder::navigation_precedence` and `navigation_comparison`. Sealed `SourceNavigationOrder` values explicitly retain Conditional purpose. Unique source-path coordinates are not successful file evaluation or namespace-event completion. The shared namespace folds preserve possible patterns/installs and withhold conditional clears/removals/conflicts; `has_run`/`cmp_run` cannot lend an execution result from workspace source purpose. Unknown original export operands retain their existing May barriers. Existing original event payloads, counted slots and selected policy checks remain unchanged.
+
+Completed modeled command-world publication data is not an export/import, loader, actual frame or Native Normal receipt and is not used to bypass this boundary. Standalone explicitly constructed models retain their previous bounded semantics and original tests. The original workspace chronology assertions also remain unchanged; no acceptance result is attached to their new source image. See import-order-source-graph.md section 8 for the exact purpose and owner transport.
+
 ## Provider answers
 
 ### tcl8.4
@@ -105,3 +111,7 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The listed Rust selectors bind the implementation contract; no execution receipt is attached. Native source-control questions and measured providers retain their separate records. Source advice never establishes runtime import completion or command absence.
+
+The actual in-document Definition alias-lifetime and original-export timeline ingresses also use `in_document_source_order` with the same original analysis owner and source-purpose constructor. Missing input does not fall back to the constructed model. The unknown-export gate consumes typed navigation precedence. Pre-existing independent call-resolution/slot folds and StrongNative admission guards remain unchanged; source order supplies them no runtime fact. A sixth fixed source control binds the actual local original-export adopter and missing-input refusal, with all existing Definition tests unchanged and no execution outcome attached.
+
+The original source ownership of both comparison points is checked before any package-require alternative is considered. A document-level bound cannot replace a dynamic, unrepresented deferred-body or missing-input point. The same check is an identity for explicitly constructed input models. A seventh fixed source control retains a genuine require-bound route and positive owned point while refusing both orientations/rankings for actual unowned points. It grants no successful package loading, namespace-event completion or Native/Normal result.

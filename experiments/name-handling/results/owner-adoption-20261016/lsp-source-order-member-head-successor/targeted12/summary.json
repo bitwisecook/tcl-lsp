@@ -1,0 +1,24 @@
+{
+  "controls": 12,
+  "PASS": 10,
+  "FAIL": 2,
+  "TIMEOUT": 0,
+  "scope": "Targeted subset only, no full460 replay claim",
+  "retained_originals": {
+    "222": "PASS",
+    "223": "FAIL",
+    "224": "PASS",
+    "242": "PASS"
+  },
+  "new_controls": {
+    "PASS": 7,
+    "FAIL": 1
+  },
+  "failure_selectors": [
+    "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources",
+    "source_graph::original_package_alternative_owner_tests::package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points"
+  ],
+  "errors": [],
+  "artifact_drift": {},
+  "result_sha256": "0e9a1050ba3939aab083049c7892b88bd307ab3cc44ff4d614197e666285d0cb"
+}

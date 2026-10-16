@@ -427,15 +427,14 @@ pub fn descendant_requirements<K: Clone + Eq + std::hash::Hash, S: BuildHasher>(
     out
 }
 
-/// **How** one document enters another's execution — the difference between
-/// a statement that says *exactly* when the child ran and one that only
-/// bounds it.
+/// Coordinate rule of a constructed source-order hypothesis. The kind alone
+/// authenticates neither original source, file entry nor event completion.
+/// Workspace navigation retains those missing premises as Conditional.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RunEdgeKind {
-    /// `source CHILD`: the child's whole body is inlined **at this
-    /// statement**.  The position is exact in both directions — everything
-    /// written above the `source` had run when the child loaded, and nothing
-    /// written below it had.
+    /// Candidate source route: the hypothetical child position is this
+    /// statement's coordinate. Actual file entry and successful completion
+    /// require separate owners; no such premise follows from this variant.
     #[default]
     Source,
     /// `package require P`, with `CHILD` the document that `package provide`s
@@ -464,17 +463,17 @@ pub enum RunEdgeKind {
 }
 
 impl RunEdgeKind {
-    /// Whether the child's position is the edge's `at` exactly, rather than an
-    /// upper bound on it.
+    /// Whether the coordinate is exact within the constructed order model.
+    /// This says nothing about source entry, execution or Normal completion.
     #[must_use]
     pub fn is_exact(self) -> bool {
         matches!(self, Self::Source)
     }
 }
 
-/// One edge of the workspace's **execution timeline**: a statement in `parent`
-/// that brings `child`'s body into the run, with the execution-order facts a
-/// state question needs.
+/// One constructed source-order edge. Its public geometry carries no original
+/// source issuer or executed timeline. The workspace constructor validates its
+/// actual source operation/body/input and retains only conditional navigation.
 ///
 /// [`ancestor_requires`] only asks *whether* one file reaches another, so a
 /// bare `(parent, child)` pair is enough for it.  An **interpreter-state**
@@ -568,9 +567,9 @@ pub fn ancestor_prefer_latest_raised<S: BuildHasher>(
     entered_raised.contains(target)
 }
 
-/// One statement's position in the workspace's **execution timeline**: the
-/// document it is written in, its byte offset there, and the innermost
-/// proc/class body containing it (`None` at load level).
+/// Supplied source position. Workspace navigation reborrows its original
+/// configured command/body owner instead of trusting the supplied body span.
+/// This is not an entered execution point or event-completion receipt.
 ///
 /// The three facts every import-lifecycle event and every query point already
 /// carries, named once so [`RunOrder`] can take a pair of them rather than six
@@ -608,6 +607,170 @@ pub struct Placed {
     pub exact: bool,
 }
 
+/// Purpose of a source navigation relation, never executed chronology.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceNavigationOrderPurpose {
+    /// Explicit constructed-input compatibility model; no source issuer implied.
+    Constructed,
+    /// Genuine source geometry with unresolved entry/completion/event effects.
+    Conditional,
+}
+
+/// A sealed purpose-specific source relation. A conditional relation alone
+/// cannot revoke an export/import candidate, even within the same document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceNavigationOrder<T> {
+    relation: T,
+    purpose: SourceNavigationOrderPurpose,
+}
+
+impl<T> SourceNavigationOrder<T> {
+    /// The relation's original purpose, without completion or execution facts.
+    #[must_use]
+    pub const fn purpose(&self) -> SourceNavigationOrderPurpose {
+        self.purpose
+    }
+
+    /// The source relation, without asserting any handler or body executed.
+    #[must_use]
+    pub const fn conditional_relation(&self) -> &T {
+        &self.relation
+    }
+
+    /// Only an explicit constructed-input model supports its existing bounded
+    /// exclusion. Source geometry and completed command-publication worlds
+    /// cannot donate namespace event, tombstone or conflict completion.
+    #[must_use]
+    pub fn modeled_source_exclusion(self) -> Option<T> {
+        (self.purpose == SourceNavigationOrderPurpose::Constructed).then_some(self.relation)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalSourceOrderSite {
+    span: tcl_lexer::Span,
+    body: Option<tcl_lexer::Span>,
+    source_load:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>,
+    package_require:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalSourcePackageReference>,
+    words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+}
+
+/// Original source-point transport retained at the actual indexing ingress.
+/// Captured source/body/schema owners stay separate from runtime completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SourceOrderContext {
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    realm: tcl_compiler::realm::CommandBindingRealm,
+    sites: Vec<OriginalSourceOrderSite>,
+}
+
+impl SourceOrderContext {
+    pub(crate) fn capture(analysis: &tcl_compiler::analyser::AnalysisResult) -> Option<Self> {
+        let input = analysis.resolved_input.as_ref()?;
+        let realm = analysis.retained_command_realm()?;
+        let image = realm.original_source_image()?;
+        let config = input.lexer_config();
+        if image.channel() != tcl_lexer::SourceChannel::Document
+            || !analysis.matches_original_source_image(image, config)
+            || !realm.matches_resolved_analysis_input(input)
+        {
+            return None;
+        }
+        let source = image.try_text().ok()?;
+        // Reuse the original readonly body/command issuer. Missing geometry
+        // remains unrepresented; this partial inventory supplies no closure.
+        let structure =
+            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
+        let mut sites = Vec::new();
+        for command in &structure.commands {
+            let at = command.argv.first()?.span.start();
+            let body = analysis.original_definition_body_span(at);
+            if body.is_none()
+                && structure
+                    .caller_context_unavailable_bodies
+                    .iter()
+                    .any(|span| span.start() <= at && at < span.end())
+            {
+                continue;
+            }
+            let Some(words) =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, command,
+                )
+            else {
+                continue;
+            };
+            if !words.matches_source(image, config)
+                || !words.matches_registry(input.borrowed_context_registry().commands())
+                || words.context() != Some(input.availability_context())
+            {
+                continue;
+            }
+            let source_load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(source, analysis, at);
+            let package_require = words
+                .package_reference(input.borrowed_context_registry())
+                .filter(|reference| {
+                    reference.kind()
+                        == tcl_registry::source_navigation::SourcePackageReferenceKind::Require
+                });
+            sites.push(OriginalSourceOrderSite {
+                span: command.span,
+                body,
+                source_load,
+                package_require,
+                words,
+            });
+        }
+        Some(Self {
+            image: image.clone(),
+            input: input.clone(),
+            realm: realm.clone(),
+            sites,
+        })
+    }
+
+    fn site(&self, at: u32) -> Option<&OriginalSourceOrderSite> {
+        if !self.realm.matches_resolved_analysis_input(&self.input)
+            || !self
+                .realm
+                .matches_original_source_image(&self.image, self.input.lexer_config())
+        {
+            return None;
+        }
+        self.sites
+            .iter()
+            .filter(|site| {
+                site.span.start() <= at
+                    && at < site.span.end()
+                    && site
+                        .words
+                        .matches_source(&self.image, self.input.lexer_config())
+                    && site
+                        .words
+                        .matches_registry(self.input.borrowed_context_registry().commands())
+            })
+            .min_by_key(|site| site.span.end() - site.span.start())
+    }
+
+    fn edge_site(&self, edge: &RunEdge) -> Option<&OriginalSourceOrderSite> {
+        let site = self.site(edge.at)?;
+        match edge.kind {
+            RunEdgeKind::Source => site
+                .source_load
+                .as_ref()?
+                .matches_source(&self.image, &self.input)
+                .then_some(())?,
+            RunEdgeKind::PackageRequire => {
+                site.package_require.as_ref()?;
+            }
+        }
+        Some(site)
+    }
+}
+
 /// A `String`-keyed map on the [`RunOrder`] hot path.
 ///
 /// Every one of these is probed from inside the cross-document import walk,
@@ -621,9 +784,15 @@ type UriMap<V> = rustc_hash::FxHashMap<String, V>;
 /// The [`UriMap`] of sets — same keys, same reasoning.
 type UriSet = rustc_hash::FxHashSet<String>;
 
-/// The **load order the workspace proves** — the single relation both
+/// A constructed source-order model, or purpose-bound conditional workspace
+/// navigation when built with authentic indexed source contexts. Neither mode
+/// is an actual interpreter chronology. The relation both
 /// wildcard-import tiers rank cross-document events with (design in
 /// `docs/design/analysis/import-order-source-graph.md` §6).
+///
+/// The coordinate explanation below describes the constructed hypothesis.
+/// Actual WorkspaceIndex results keep Conditional purpose even when its
+/// relative coordinates are unique; they do not authorize event suppression.
 ///
 /// # Why an order exists at all
 ///
@@ -687,6 +856,9 @@ type UriSet = rustc_hash::FxHashSet<String>;
 /// [`ancestor_prefer_latest_raised`] already applies to the same edges.
 #[derive(Debug, Clone, Default)]
 pub struct RunOrder {
+    /// None is the explicitly constructed compatibility model. Workspace
+    /// navigation always retains Some, including unavailable source owners.
+    source_contexts: Option<UriMap<SourceOrderContext>>,
     /// Root-ward path of every document the graph knows: root-first positions
     /// of the `source` statements that enter the next document down.  Empty
     /// for a root.
@@ -731,7 +903,9 @@ impl OwnedRunPoint {
 }
 
 impl RunOrder {
-    /// Build the order from the workspace's resolved edges.
+    /// Build an explicitly constructed source-order hypothesis. This pure
+    /// compatibility ingress authenticates no execution or original source.
+    /// Workspace navigation uses `for_source_navigation` and typed answers.
     ///
     /// `edges` are `(parent, child)` with the parent-side position of the
     /// statement that brings `child` into the run; the caller has already
@@ -750,8 +924,11 @@ impl RunOrder {
     /// earlier, and those can contradict.
     #[must_use]
     pub fn build(edges: &[RunEdge]) -> Self {
+        Self::build_with_source_refusals(edges, UriSet::default())
+    }
+
+    fn build_with_source_refusals(edges: &[RunEdge], mut ambiguous: UriSet) -> Self {
         let mut parent_of: HashMap<&str, (&str, Placed)> = HashMap::new();
-        let mut ambiguous: UriSet = UriSet::default();
         let mut documents: HashSet<&str> = HashSet::new();
         let mut package_entries: HashMap<String, Vec<OwnedRunPoint>> = HashMap::new();
         for edge in edges {
@@ -844,10 +1021,74 @@ impl RunOrder {
         let package_alternatives =
             Self::fold_package_alternatives(&documents, &root_of, &ambiguous, &package_entries);
         Self {
+            source_contexts: None,
             paths,
             root_of,
             ambiguous,
             package_alternatives,
+        }
+    }
+
+    /// Reuse the same source forest/cycle/re-source/package-bound algorithm,
+    /// but retain the actual indexed source owners and conditional purpose.
+    pub(crate) fn for_source_navigation(
+        edges: &[RunEdge],
+        contexts: impl Iterator<Item = (String, SourceOrderContext)>,
+    ) -> Self {
+        let source_contexts: UriMap<_> = contexts.collect();
+        let mut unknown = UriSet::default();
+        let edges = edges
+            .iter()
+            .filter_map(|edge| {
+                let Some(site) = source_contexts
+                    .get(&edge.parent)
+                    .and_then(|context| SourceOrderContext::edge_site(context, edge))
+                else {
+                    unknown.insert(edge.child.clone());
+                    return None;
+                };
+                Some(RunEdge {
+                    enclosing_body: site.body,
+                    ..edge.clone()
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut order = Self::build_with_source_refusals(&edges, unknown);
+        order.source_contexts = Some(source_contexts);
+        order
+    }
+
+    /// Conditional source relation for navigation, retaining its own purpose.
+    /// No source/package path establishes that either event actually executed.
+    #[must_use]
+    pub fn navigation_precedence(
+        &self,
+        event: RunPoint<'_>,
+        query: RunPoint<'_>,
+    ) -> Option<SourceNavigationOrder<bool>> {
+        let answer = self.precedence_relation(event, query)?;
+        Some(self.source_navigation_answer(answer))
+    }
+
+    /// Source-model ranking; a conditional result cannot become a conflict.
+    #[must_use]
+    pub fn navigation_comparison(
+        &self,
+        a: RunPoint<'_>,
+        b: RunPoint<'_>,
+    ) -> Option<SourceNavigationOrder<std::cmp::Ordering>> {
+        let answer = self.comparison_relation(a, b)?;
+        Some(self.source_navigation_answer(answer))
+    }
+
+    fn source_navigation_answer<T>(&self, answer: T) -> SourceNavigationOrder<T> {
+        SourceNavigationOrder {
+            relation: answer,
+            purpose: if self.source_contexts.is_some() {
+                SourceNavigationOrderPurpose::Conditional
+            } else {
+                SourceNavigationOrderPurpose::Constructed
+            },
         }
     }
 
@@ -887,8 +1128,9 @@ impl RunOrder {
         out
     }
 
-    /// Whether the statement at `event` had already run when the statement at
-    /// `query` ran; `None` when the two have no static order.
+    /// Legacy explicitly constructed model comparison, without an execution
+    /// receipt. Always None for purpose-bound workspace source navigation;
+    /// use `navigation_precedence` to retain its conditional relation.
     ///
     /// The gating question — the leniency is
     /// [`tcl_compiler::analyser::indirection::in_effect_within`]'s, applied in
@@ -898,6 +1140,13 @@ impl RunOrder {
     /// whole file loads before any body runs.
     #[must_use]
     pub fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
+        if self.source_contexts.is_some() {
+            return None;
+        }
+        self.precedence_relation(event, query)
+    }
+
+    fn precedence_relation(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
         self.decide(event, query, |e, q| {
             let ran =
                 tcl_compiler::analyser::indirection::in_effect_within(e.at, q.at, q.enclosing_body);
@@ -905,9 +1154,9 @@ impl RunOrder {
         })
     }
 
-    /// Which of two statements ran first under the **strict** "did this
-    /// definitely already run" order ([`crate::namespace_import::load_order`]);
-    /// `None` when they are incomparable.
+    /// Legacy explicitly constructed model ranking. Always None for
+    /// purpose-bound workspace source navigation; `navigation_comparison`
+    /// retains conditional coordinates without conflict/completion authority.
     ///
     /// The ranking question the latest-wins folds and the import-conflict rule
     /// need.  Deliberately *not* [`Self::has_run`]'s leniency: a conflict
@@ -916,6 +1165,13 @@ impl RunOrder {
     /// has — the reasoning on [`crate::namespace_import::load_order`].
     #[must_use]
     pub fn cmp_run(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
+        if self.source_contexts.is_some() {
+            return None;
+        }
+        self.comparison_relation(a, b)
+    }
+
+    fn comparison_relation(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<std::cmp::Ordering> {
         use crate::namespace_import::load_order;
         use std::cmp::Ordering;
         self.decide(a, b, |pa, pb| {
@@ -980,6 +1236,10 @@ impl RunOrder {
         b: RunPoint<'_>,
         judge: impl Fn(Placed, Placed) -> Option<T>,
     ) -> Option<T> {
+        // A URI-level package bound cannot replace a refused original point.
+        // Constructed inputs retain original_point's identity behavior.
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
         if let Some((x, y)) = self.common_frame(a, b) {
             return judge(x, y);
         }
@@ -1022,11 +1282,24 @@ impl RunOrder {
             .map_or(&[], |sites| &**sites)
     }
 
+    fn original_point<'a>(&self, point: RunPoint<'a>) -> Option<RunPoint<'a>> {
+        let Some(contexts) = &self.source_contexts else {
+            return Some(point);
+        };
+        let site = SourceOrderContext::site(contexts.get(point.uri)?, point.at)?;
+        Some(RunPoint {
+            enclosing_body: site.body,
+            ..point
+        })
+    }
+
     /// Both points as positions in their deepest common document — the single
     /// projection [`Self::has_run`] and [`Self::cmp_run`] share, so the gate
     /// and the conflict rule read one relation and differ only in which
     /// single-document rule they then apply.
     fn common_frame(&self, a: RunPoint<'_>, b: RunPoint<'_>) -> Option<(Placed, Placed)> {
+        let a = self.original_point(a)?;
+        let b = self.original_point(b)?;
         let own = |p: RunPoint<'_>| Placed {
             at: p.at,
             enclosing_body: p.enclosing_body,
@@ -1999,5 +2272,315 @@ mod project_source_action_tests {
                     .is_none()
             );
         }
+    }
+}
+#[cfg(test)]
+mod original_source_navigation_order_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn point(uri: &str, at: u32) -> RunPoint<'_> {
+        RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        }
+    }
+
+    #[test]
+    fn original_workspace_order_retains_conditional_purpose_without_tombstone_authority() {
+        let source = "set before 1\nset after 2\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.dialect = "display-only-changed".into();
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+        let before = point("doc", 0);
+        let after = point(
+            "doc",
+            u32::try_from(source.find("set after").unwrap()).unwrap(),
+        );
+        let relation = order.navigation_precedence(before, after).unwrap();
+        assert_eq!(
+            relation.purpose(),
+            SourceNavigationOrderPurpose::Conditional
+        );
+        assert_eq!(*relation.conditional_relation(), true);
+        assert_eq!(relation.modeled_source_exclusion(), None);
+        assert_eq!(order.has_run(before, after), None);
+        assert_eq!(order.cmp_run(before, after), None);
+        let ranking = order.navigation_comparison(before, after).unwrap();
+        assert_eq!(*ranking.conditional_relation(), std::cmp::Ordering::Less);
+        assert_eq!(ranking.modeled_source_exclusion(), None);
+
+        let mut events = [
+            crate::namespace_import::ExportEvent {
+                pattern: "p",
+                clears: false,
+                at: before,
+            },
+            crate::namespace_import::ExportEvent {
+                pattern: "",
+                clears: true,
+                at: after,
+            },
+        ]
+        .into_iter();
+        assert!(crate::namespace_import::exported_at_import_site(
+            &mut events,
+            "p",
+            &order,
+            after
+        ));
+        let mut aliases = [
+            crate::namespace_import::AliasEvent {
+                kind: crate::namespace_import::AliasEventKind::Install,
+                at: before,
+            },
+            crate::namespace_import::AliasEvent {
+                kind: crate::namespace_import::AliasEventKind::Remove,
+                at: after,
+            },
+        ]
+        .into_iter();
+        assert!(crate::namespace_import::alias_live_at(
+            &mut aliases,
+            &order,
+            Some(after)
+        ));
+    }
+
+    #[test]
+    fn original_source_order_context_keeps_full_input_and_missing_body_owners_unknown() {
+        let source = "set value 1\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(SourceOrderContext::capture(&analysis).is_some());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(SourceOrderContext::capture(&changed).is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(SourceOrderContext::capture(&missing).is_none());
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(SourceOrderContext::capture(&foreign).is_none());
+        let dynamic = "$head arbitrary\n";
+        let dynamic_analysis = Analyser::new().analyse(dynamic, "tcl8.6");
+        let context = SourceOrderContext::capture(&dynamic_analysis).unwrap();
+        assert!(context.site(0).is_none());
+        let order = RunOrder::for_source_navigation(&[], std::iter::empty());
+        assert!(
+            order
+                .navigation_precedence(point("doc", 0), point("doc", 1))
+                .is_none()
+        );
+        assert_eq!(order.has_run(point("doc", 0), point("doc", 1)), None);
+
+        let source = "proc pending {} {set body 1}\nset root 2\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let body_at = u32::try_from(source.find("set body").unwrap()).unwrap();
+        assert!(analysis.original_definition_body_span(body_at).is_some());
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        if let Some(site) = context.site(body_at) {
+            assert_eq!(site.body, analysis.original_definition_body_span(body_at));
+        }
+        let original_body = analysis.original_definition_body_span(body_at);
+        analysis.all_procs.clear();
+        // Reporting-map deletion neither erases the independent original body
+        // nor manufactures a source-global point from it.
+        assert_eq!(
+            analysis.original_definition_body_span(body_at),
+            original_body
+        );
+        let context = SourceOrderContext::capture(&analysis).unwrap();
+        if let Some(site) = context.site(body_at) {
+            assert_eq!(site.body, original_body);
+        }
+    }
+
+    #[test]
+    fn original_source_graph_uses_real_points_and_preserves_cycle_and_re_source_refusal() {
+        let parent = "set before 1\nsource child.tcl\nsource child.tcl\nset after 2\n";
+        let child = "set child 1\nsource parent.tcl\n";
+        let parent_analysis = Analyser::new().analyse(parent, "tcl8.6");
+        let child_analysis = Analyser::new().analyse(child, "tcl8.6");
+        let at = u32::try_from(parent.find("source child").unwrap()).unwrap();
+        let contexts = || {
+            [
+                (
+                    "parent".into(),
+                    SourceOrderContext::capture(&parent_analysis).unwrap(),
+                ),
+                (
+                    "child".into(),
+                    SourceOrderContext::capture(&child_analysis).unwrap(),
+                ),
+            ]
+            .into_iter()
+        };
+        let edge = RunEdge {
+            parent: "parent".into(),
+            child: "child".into(),
+            at,
+            enclosing_body: Some(tcl_lexer::Span::new(
+                0,
+                u32::try_from(parent.len()).unwrap(),
+            )),
+            kind: RunEdgeKind::Source,
+        };
+        let order = RunOrder::for_source_navigation(&[edge.clone()], contexts());
+        // Supplied report body geometry cannot replace the genuine root point.
+        assert_eq!(order.paths.get("child").unwrap()[0].enclosing_body, None);
+        let relation = order
+            .navigation_precedence(point("parent", 0), point("child", 0))
+            .unwrap();
+        assert_eq!(*relation.conditional_relation(), true);
+        assert_eq!(relation.modeled_source_exclusion(), None);
+        let re_source = RunEdge {
+            at: u32::try_from(parent.rfind("source child").unwrap()).unwrap(),
+            ..edge.clone()
+        };
+        let order = RunOrder::for_source_navigation(&[edge.clone(), re_source], contexts());
+        assert!(
+            order
+                .navigation_precedence(point("parent", 0), point("child", 0))
+                .is_none()
+        );
+        let cycle = RunEdge {
+            parent: "child".into(),
+            child: "parent".into(),
+            at: u32::try_from(child.find("source parent").unwrap()).unwrap(),
+            enclosing_body: None,
+            kind: RunEdgeKind::Source,
+        };
+        let order = RunOrder::for_source_navigation(&[edge, cycle], contexts());
+        assert!(
+            order
+                .navigation_comparison(point("parent", 0), point("child", 0))
+                .is_none()
+        );
+    }
+}
+#[cfg(test)]
+mod original_package_alternative_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn point(uri: &str, at: u32) -> RunPoint<'_> {
+        RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        }
+    }
+
+    #[test]
+    fn package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points() {
+        let parent_source = "package require P\nset after 1\n";
+        let parent = Analyser::new().analyse(parent_source, "tcl8.6");
+        let query_at = u32::try_from(parent_source.find("set after").unwrap()).unwrap();
+        let edge = RunEdge {
+            parent: "parent".into(),
+            child: "child".into(),
+            at: 0,
+            enclosing_body: None,
+            kind: RunEdgeKind::PackageRequire,
+        };
+        let parent_context = SourceOrderContext::capture(&parent).unwrap();
+        assert!(parent_context.edge_site(&edge).is_some());
+        assert!(parent_context.site(query_at).is_some());
+
+        let child_source = "set owned 1\npackage provide P 1\n$head arbitrary\n";
+        let child = Analyser::new().analyse(child_source, "tcl8.6");
+        let child_context = SourceOrderContext::capture(&child).unwrap();
+        assert!(child_context.site(0).is_some());
+        let dynamic_at = u32::try_from(child_source.find("$head").unwrap()).unwrap();
+        assert!(child_context.site(dynamic_at).is_none());
+        let order = RunOrder::for_source_navigation(
+            &[edge.clone()],
+            [
+                ("parent".into(), parent_context.clone()),
+                ("child".into(), child_context),
+            ]
+            .into_iter(),
+        );
+        let parent_point = point("parent", query_at);
+        let owned = point("child", 0);
+        assert!(!order.alternatives(owned).is_empty());
+        let positive = order.navigation_precedence(owned, parent_point).unwrap();
+        assert_eq!(*positive.conditional_relation(), true);
+        assert_eq!(
+            positive.purpose(),
+            SourceNavigationOrderPurpose::Conditional
+        );
+        assert_eq!(positive.modeled_source_exclusion(), None);
+        let dynamic = point("child", dynamic_at);
+        assert!(order.navigation_precedence(dynamic, parent_point).is_none());
+        assert!(order.navigation_precedence(parent_point, dynamic).is_none());
+        assert!(order.navigation_comparison(dynamic, parent_point).is_none());
+        assert!(order.navigation_comparison(parent_point, dynamic).is_none());
+
+        let deferred_source = "package provide P 1\nproc pending {} {$head arbitrary}\n";
+        let deferred = Analyser::new().analyse(deferred_source, "tcl8.6");
+        let deferred_at = u32::try_from(deferred_source.find("$head").unwrap()).unwrap();
+        assert!(
+            deferred
+                .original_definition_body_span(deferred_at)
+                .is_some()
+        );
+        let context = SourceOrderContext::capture(&deferred).unwrap();
+        assert!(context.site(deferred_at).is_none());
+        let order = RunOrder::for_source_navigation(
+            &[edge.clone()],
+            [
+                ("parent".into(), parent_context.clone()),
+                ("child".into(), context),
+            ]
+            .into_iter(),
+        );
+        let unowned_body = point("child", deferred_at);
+        assert!(!order.alternatives(unowned_body).is_empty());
+        assert!(
+            order
+                .navigation_precedence(unowned_body, parent_point)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_precedence(parent_point, unowned_body)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_comparison(unowned_body, parent_point)
+                .is_none()
+        );
+        assert!(
+            order
+                .navigation_comparison(parent_point, unowned_body)
+                .is_none()
+        );
+
+        let mut missing = child.clone();
+        missing.resolved_input = None;
+        assert!(SourceOrderContext::capture(&missing).is_none());
+        let order = RunOrder::for_source_navigation(
+            &[edge],
+            [("parent".into(), parent_context)].into_iter(),
+        );
+        // The actual require route remains. Missing original source transport
+        // cannot become a point merely because its document has that route.
+        assert!(!order.alternatives(owned).is_empty());
+        assert!(order.navigation_precedence(owned, parent_point).is_none());
+        assert!(order.navigation_precedence(parent_point, owned).is_none());
+        assert!(order.navigation_comparison(owned, parent_point).is_none());
+        assert!(order.navigation_comparison(parent_point, owned).is_none());
+        assert_eq!(order.has_run(owned, parent_point), None);
+        assert_eq!(order.cmp_run(owned, parent_point), None);
     }
 }

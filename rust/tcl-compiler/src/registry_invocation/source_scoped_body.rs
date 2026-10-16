@@ -592,6 +592,7 @@ pub struct OriginalSourceDefinitionMemberScriptBody {
 pub(crate) struct OriginalSourceDefinitionMemberBodyCorrespondence {
     catalogue: OriginalSourceDefinitionMemberScriptBody,
     declaration: OriginalSourceDefinitionMemberScriptBody,
+    heads: super::source_structure::OriginalSourceHeadCorrespondence,
 }
 
 impl OriginalSourceDefinitionMemberBodyCorrespondence {
@@ -600,6 +601,12 @@ impl OriginalSourceDefinitionMemberBodyCorrespondence {
     }
     pub(crate) const fn declaration_body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
         &self.declaration
+    }
+    #[cfg(test)]
+    pub(crate) const fn original_heads(
+        &self,
+    ) -> &super::source_structure::OriginalSourceHeadCorrespondence {
+        &self.heads
     }
 }
 
@@ -693,8 +700,8 @@ impl OriginalSourceDefinitionMemberScriptBody {
         }
         let left = original_parent.source_words();
         let right = parent.source_words();
-        if left.origins() != right.origins()
-            || left.head_source()?.word()? != right.head_source()?.word()?
+        let heads = crate::registry_invocation::source_structure::OriginalRegistryWords::original_source_head_correspondence(left, right, context)?;
+        if left.origins().get(1..) != right.origins().get(1..)
             || left.arguments().len() != right.arguments().len()
             || !left
                 .arguments()
@@ -747,6 +754,7 @@ impl OriginalSourceDefinitionMemberScriptBody {
             .then_some(OriginalSourceDefinitionMemberBodyCorrespondence {
                 catalogue: self.clone(),
                 declaration,
+                heads,
             })
     }
 

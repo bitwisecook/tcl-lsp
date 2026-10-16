@@ -1,0 +1,20 @@
+{
+  "patch_sha256": "a8afede294e5af8b047fcdec3597afd7db1e6b623fc8bfc42534f4c9d45b5c2c",
+  "manifest_sha256": "ceccfecdf7e9003965a6eb89f82600a8593d159d735ddf19a1c947c715dcf76b",
+  "all7before_after_hashes_verified": true,
+  "current_beforeimages": {
+    "docs/design/analysis/import-order-source-graph.md": true,
+    "docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md": true,
+    "docs/design/contracts/shared-utility-contracts-rust.md": true,
+    "rust/tcl-lsp-core/src/definition.rs": true,
+    "rust/tcl-lsp-core/src/namespace_import.rs": true,
+    "rust/tcl-lsp-core/src/source_graph.rs": true,
+    "rust/tcl-lsp-core/src/workspace_index.rs": true
+  },
+  "fresh_fuzz0_afterimages_match": true,
+  "all4_original_and_V2_complete_test_suffixes_byte_identical": true,
+  "only_V2_production_delta_is_early_both_point_authentication": true,
+  "integrated_proposal_owner_row_preserved": true,
+  "status": "SOURCE_CLEAR",
+  "execution": "not run"
+}

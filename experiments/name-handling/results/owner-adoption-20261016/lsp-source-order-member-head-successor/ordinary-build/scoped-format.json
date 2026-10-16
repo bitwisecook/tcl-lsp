@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-16T20:31:43.130869+00:00",
+  "argv": [
+    "/workspace/.toolchains/cargo/bin/rustfmt",
+    "--edition",
+    "2024",
+    "--config",
+    "skip_children=true",
+    "--check",
+    "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "rust/tcl-lsp-core/src/definition.rs",
+    "rust/tcl-lsp-core/src/namespace_import.rs",
+    "rust/tcl-lsp-core/src/source_graph.rs",
+    "rust/tcl-lsp-core/src/workspace_index.rs"
+  ],
+  "exit_code": 1,
+  "scope": "Read-only check on actual7changedRustpaths, after Root earlier command guessed a nonexistent source_words.rs. Formatting currently pending; all assertion predicates preserved. No source mutation during build."
+}

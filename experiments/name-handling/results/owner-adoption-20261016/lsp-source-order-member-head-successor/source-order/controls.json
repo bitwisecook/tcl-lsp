@@ -1,0 +1,695 @@
+{
+  "new_unexecuted": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::original_workspace_order_retains_conditional_purpose_without_tombstone_authority",
+      "source_path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "source_line": 2291,
+      "after_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::original_source_order_context_keeps_full_input_and_missing_body_owners_unknown",
+      "source_path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "source_line": 2353,
+      "after_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::original_source_graph_uses_real_points_and_preserves_cycle_and_re_source_refusal",
+      "source_path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "source_line": 2407,
+      "after_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion",
+      "source_path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "source_line": 14783,
+      "after_sha256": "a62ec20c6fca0c6ce27a7ad372c25ebeb316811073e9e5e57fc28a1fe624e85b",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_source_order_transport_tests::indexed_order_context_is_replaced_and_missing_full_input_remains_unknown",
+      "source_path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "source_line": 14836,
+      "after_sha256": "a62ec20c6fca0c6ce27a7ad372c25ebeb316811073e9e5e57fc28a1fe624e85b",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::original_document_source_order_tests::document_export_adopter_keeps_conditional_clear_and_missing_input_unknown",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 9539,
+      "after_sha256": "3979a25f87e8550e01c54af53761a1a10fb6cf3cfe473cf56955996c1708355f",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_package_alternative_owner_tests::package_alternatives_cannot_replace_unowned_dynamic_deferred_or_missing_input_points",
+      "source_path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "source_line": 2483,
+      "after_sha256": "23f4f4fe8a12f872e7715af87feb16473334918ba4517983c704e3f704f79f88",
+      "expected_singleton": 1,
+      "budget_seconds": 180,
+      "source_definition_only": true
+    }
+  ],
+  "original_regressions": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::original_export_tests::original_export_fold_preserves_counted_identity_and_clear_at_import_time",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_body_local_call_observes_a_later_top_level_install",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_clear_in_a_later_sourced_file_revokes_an_earlier_export",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_clear_revokes_a_pattern_written_above_it_in_the_same_foreign_file",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_forget_after_the_call_leaves_it_alive",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_forget_after_the_import_kills_the_alias",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_forget_after_the_source_statement_revokes_the_sourced_install",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_re_import_after_a_forget_reinstates_the_alias",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::a_second_import_sees_the_later_export",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_export_in_a_later_sourced_file_is_not_retroactive",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_export_in_an_earlier_sourced_file_counts",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_import_with_no_removal_is_live",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_install_later_than_the_call_has_not_run_yet",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_ordered_clear_does_not_revoke_an_unrankable_export",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_unrankable_install_counts",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_unrankable_pattern_counts_and_an_unrankable_clear_does_not_revoke",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::an_unrankable_removal_revokes_nothing",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::clear_before_import_does_revoke",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::clear_then_add_on_the_same_call_keeps_the_new_pattern",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::direction_a_clear_after_import_does_not_revoke",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::direction_b_export_after_import_is_not_retroactive",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::export_before_import_is_visible",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::exports_are_additive_across_calls",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::exports_in_effect_is_exported_at_import_site_without_the_name",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::exports_in_effect_keeps_exactly_the_untombstoned_visible_patterns",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::glob_patterns_use_tcl_semantics",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::load_order_is_the_strict_did_this_already_run_relation",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::no_events_at_all_means_no_alias",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::no_events_means_not_exported",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::nothing_installed_means_no_alias",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::the_latest_removal_wins_over_an_earlier_install",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_import::tests::without_a_query_point_only_the_install_removal_order_matters",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::project_source_action_tests::rename_association_requires_a_unique_declared_base_and_same_host_root",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_body_local_query_observes_a_later_top_level_require",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_body_local_query_observes_a_later_top_level_source",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_body_source_sees_a_later_load_level_raise",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_document_both_sourced_and_required_is_ambiguous",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_document_that_does_not_require_the_package_is_not_ordered_by_it",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_grandchild_is_ordered_through_the_common_document",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_parent_statement_is_ordered_against_the_child_body",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_point_does_not_precede_itself",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_raise_after_the_source_does_not_reach_the_child",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_raise_before_the_source_reaches_the_child",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_re_sourced_document_has_no_position",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_require_never_proves_the_provider_has_not_run_yet",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_require_proves_the_provider_has_already_run",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_root_with_no_ancestors_inherits_nothing",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_source_cycle_abstains",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::a_workspace_with_no_package_edge_has_no_alternatives",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::absolute_source_passes_through",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::ambiguity_is_inherited_by_descendants",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::an_ambiguous_document_gets_no_alternatives",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::an_empty_graph_orders_nothing_across_documents",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::an_unknown_document_has_no_alternatives",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::an_unrelated_raise_does_not_reach_the_target",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::cmp_run_is_strict_where_has_run_is_lenient",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::cmp_run_reads_only_the_half_the_bound_supports",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_carries_a_sourced_files_package_up",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_excludes_the_targets_own_requires",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_ignores_package_require_edges",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_is_empty_for_a_sourced_file_with_no_requires",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_is_transitive_and_placed_at_the_first_hop",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_reports_a_twice_sourced_file_at_both_positions",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::descendant_requires_terminates_on_a_cycle",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::different_trees_are_incomparable",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::every_require_site_survives_the_per_document_fold",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::inherits_requires_from_direct_parent",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::inherits_transitively_through_a_chain",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::many_requires_of_one_package_all_bound_it",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::one_document_is_ordered_without_the_graph",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::package_alternatives_cover_the_required_tree_and_nothing_else",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::resolves_dot_and_dotdot_segments",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::resolves_relative_source_against_parent_dir",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::siblings_are_ordered_by_their_source_statements",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::the_bound_covers_what_the_provider_sources",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::the_latch_travels_the_whole_graph_once_raised",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::the_prefer_walk_tolerates_cycles",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::the_targets_own_raise_is_not_an_ancestor_raise",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::tolerates_cycles",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::trust_needs_the_side_the_answer_rests_on",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::two_package_loaded_documents_are_incomparable",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::tests::unions_requires_from_multiple_entry_points",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_cross_file_import_conflict_is_decided_by_the_source_order",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_forget_written_after_the_source_revokes_the_sourced_import",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_re_sourced_export_file_keeps_abstaining",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::an_export_sourced_after_the_import_is_not_retroactive",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::an_export_sourced_before_the_import_resolves",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::exact_import_survives_a_later_export_clear",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::resolve_wildcard_import_survives_a_later_export_clear_in_the_import_file",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::body_only_replacement_re_settles_only_the_changed_document",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::export_replacement_re_settles_wildcard_import_callers",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::resolution_input_replacement_re_settles_cross_document_callers",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::settled_target_index_is_cached_until_its_inputs_change",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_namespace_export_index_tests::original_export_unknown_operand_blocks_source_absence_and_match_advice",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_namespace_export_index_tests::original_import_index_retains_opaque_patterns_without_reporting_rows",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_settlement_transport_tests::original_body_only_replacement_keeps_minimal_settlement_dependencies",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_forget_after_the_import_stops_resolving_the_alias",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_forget_of_an_unrelated_source_leaves_the_alias_alone",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_redefinition_ends_a_forced_import_shadow",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form",
+      "expected_singleton": 1,
+      "budget_seconds": 180
+    }
+  ],
+  "old_listing": {
+    "path": "/workspace/naming-validation/lsp-selected-owners-successor-repair2/results/tcl_lsp_core.list",
+    "sha256": "13d9edc4b20c0cd4d2c3309379336651b10038b47774148be1a83adde97ea69d"
+  },
+  "counts": {
+    "new": 7,
+    "original": 101,
+    "source_graph": 50,
+    "namespace_import": 32,
+    "workspace": 15,
+    "definition": 4
+  },
+  "execution": "No new binary/list/test execution. Actual current source-bound singleton listing and original unchanged assertions remain Root obligations."
+}

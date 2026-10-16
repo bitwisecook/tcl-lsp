@@ -1,0 +1,54 @@
+{
+  "utc": "2026-10-16T20:42:28.259529+00:00",
+  "status": "PREFLIGHT_PASS_TARGETED12_ONLY",
+  "argv": [
+    "python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/tmp/lsp-member-source-order-targeted-replay/selection.json",
+    "--manifest-sha256",
+    "c4e0c71c4de30d05122906e00e33e98f4766355cb33411339bb12dc383efa1c2",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-source-order-member-head-successor/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-source-order-member-head-successor/targeted12-results"
+  ],
+  "manifest_sha256": "c4e0c71c4de30d05122906e00e33e98f4766355cb33411339bb12dc383efa1c2",
+  "actual_build_binding": {
+    "destination": "/workspace/naming-validation/lsp-source-order-member-head-successor",
+    "source_binding": {
+      "path": "/workspace/naming-validation/lsp-source-order-member-head-successor/source-binding.json",
+      "sha256": "f92d3669be3d485f8cf13e272020b15bd72d5f6e8270b37c98151f85ca8a7f0d"
+    },
+    "input_manifest": {
+      "path": "/workspace/naming-validation/lsp-source-order-member-head-successor/input-before.json",
+      "sha256": "c2e274867b5b199ec49a0c2359c6fbbe48f0f1752fc8dcc2793829249e7a9f10",
+      "count": 39001
+    },
+    "artifacts_manifest": {
+      "path": "/workspace/naming-validation/lsp-source-order-member-head-successor/artifacts.json",
+      "sha256": "3e223654e32dc5de8c282f63a5a2a75ad42dd966e0ebe09ee4053bebbdda0271"
+    },
+    "source_diff": {
+      "path": "/workspace/naming-validation/lsp-source-order-member-head-successor/source.diff",
+      "sha256": "db9d7f505c8af7eadc31259ace8e9734f9c32817b21e07dd67e5ccfe187f797e"
+    }
+  },
+  "all39001_current_input_hashes_match": true,
+  "all_five_actual_frozen_elf_hashes_match": true,
+  "original_provider_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "whole460_selected": false,
+  "scope": "Four retained originals222/223/224/242 plus one actual member issuer control and seven source-order controls only; no cumulative/future/Native completion claim",
+  "canonical_exit_code": 1,
+  "all39001_input_hashes_still_match": true,
+  "all_five_actual_elf_hashes_still_match": true,
+  "completed_utc": "2026-10-16T20:42:46.388521+00:00"
+}

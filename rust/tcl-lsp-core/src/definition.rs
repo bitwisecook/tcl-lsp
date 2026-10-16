@@ -3387,7 +3387,7 @@ fn live_import_at(
         .into_iter();
     crate::namespace_import::alias_live_at(
         &mut log,
-        &RunOrder::default(),
+        &in_document_source_order(analysis, ctx),
         Some(in_document_point(analysis, ctx, call_off)),
     )
     .then(|| source_ns.to_owned())
@@ -3657,6 +3657,17 @@ fn slot_events<'a>(
     events
 }
 
+/// Retain the actual analysis owner even without an attached workspace view.
+/// Missing source transport stays conditional/unavailable, never constructed.
+fn in_document_source_order(analysis: &AnalysisResult, ctx: CallResolution<'_>) -> RunOrder {
+    RunOrder::for_source_navigation(
+        &[],
+        crate::source_graph::SourceOrderContext::capture(analysis)
+            .map(|owner| (ctx.uri().to_owned(), owner))
+            .into_iter(),
+    )
+}
+
 fn exported_original_slot_at_import(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
@@ -3665,13 +3676,14 @@ fn exported_original_slot_at_import(
     import_at: u32,
 ) -> ExportVerdict {
     let site = in_document_point(analysis, ctx, import_at);
-    let order = RunOrder::default();
+    let order = in_document_source_order(analysis, ctx);
     if analysis
         .original_namespace_export_unknowns()
         .iter()
         .any(|span| {
             order
-                .has_run(in_document_point(analysis, ctx, span.start()), site)
+                .navigation_precedence(in_document_point(analysis, ctx, span.start()), site)
+                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
                 .unwrap_or(true)
         })
     {
@@ -9515,5 +9527,41 @@ mod exact_source_position_advice_tests {
         assert!(
             crate::declaration::declaration(source, 2, 0, profile, &analysis, registry).is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_document_source_order_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn document_export_adopter_keeps_conditional_clear_and_missing_input_unknown() {
+        let source = "proc p {} {}; namespace export p; namespace export -clear\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declaration = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        let ctx = CallResolution::document_only();
+        assert_eq!(
+            exported_original_slot_at_import(
+                &analysis,
+                ctx,
+                declaration.slot(),
+                declaration.policy(),
+                u32::try_from(source.len()).unwrap()
+            ),
+            ExportVerdict::Exported
+        );
+        let order = in_document_source_order(&analysis, ctx);
+        let point = in_document_point(&analysis, ctx, 0);
+        assert_eq!(order.has_run(point, point), None);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let order = in_document_source_order(&missing, ctx);
+        assert_eq!(order.has_run(point, point), None);
+        assert!(order.navigation_precedence(point, point).is_none());
     }
 }

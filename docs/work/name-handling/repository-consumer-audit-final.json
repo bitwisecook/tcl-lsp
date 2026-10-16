@@ -16849,7 +16849,13 @@
       "required_change": [
         "Source kind is treated as exact without a typed source-phase/Normal premise. WorkspaceIndex resolved_source_edges supplies conditional path advice, so downstream navigation liveness/tombstone suppression needs explicit conditional-order purpose or stronger issuer. No Native execution bug claimed from this pure utility alone."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor of19b25285b",
+        "validation": "Native5libPASS466.661s39001inputs0drift;1unusednewtestimport and scopedfmt pending. Exacttargeted12=10PASS2FAIL: retained222/224/242gain,223stillFAIL, sevenofeightnewPASS; newdeferred-body refusalFAILunderinvestigation. No full460successor replay claim.",
+        "scope": "Actual indexed and both in-document Definition producers retain source/input/Realm/body/edge/point currentness and explicit conditional navigation purpose; authenticate both points before package alternatives. Shared graph/cycle/re-source/bounds algorithm reused; conditional ordering cannot supply executed chronology, namespace/export/loader/Normal/tombstone exclusion. Old tests/assertions unchanged."
+      }
     },
     {
       "area": "lsp",
@@ -132217,12 +132223,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T20:12:41.529602+00:00",
+    "utc": "2026-10-16T20:35:40.884821+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 268,
+    "implemented_pending_validation": 269,
     "verified_complete": 0,
-    "not_started": 1890,
+    "not_started": 1889,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132481,7 +132487,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2212,
-    "effective_implemented_pending_validation": 321,
+    "effective_implemented_pending_validation": 322,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -132651,7 +132657,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 257,
+    "fully_implemented_pending_validation": 258,
     "partially_implemented_pending_validation": 11,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132817,14 +132823,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 137,
+      "lsp_integrated_pending_validation": 138,
       "lsp_by_kind_integrated": {
-        "semantic": 50,
+        "semantic": 51,
         "validation": 85,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 188,
+      "lsp_without_integrated_implementation": 187,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -133464,18 +133470,18 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T20:06:00Z",
-      "lsp_integrated": 135,
+      "utc": "2026-10-16T20:36:00Z",
+      "lsp_integrated": 138,
       "lsp_required": 325,
-      "lsp_semantic": 48,
+      "lsp_semantic": 51,
       "lsp_validation": 85,
       "lsp_documentation": 2,
-      "lsp_without_integration": 190,
-      "effective_integrated": 318,
-      "effective_required": 2211,
+      "lsp_without_integration": 187,
+      "effective_integrated": 322,
+      "effective_required": 2212,
       "verified": 0,
-      "next_report_utc": "2026-10-16T20:36:00Z",
-      "validation": "Fullcorrected338=288PASS48FAIL2TIMEOUT;310retained2gains0regressions0drops. Freshsourcegeometry5libPASS356.191s0warnings39000inputs0drift.446replayrunning. Exactmember222/comment232tracescaptured andfull39000restored. Proposal/minifiernextforintegration atreporttime; notcountedyet."
+      "next_report_utc": "2026-10-16T21:06:00Z",
+      "validation": "Completed446=375PASS69FAIL2TIMEOUT; all338retained,5gains1Jimdoclinkregression0drops. Regressionrepair sourceCLEAR, notexecuted.460replayrunning. Source-order/member5libPASS466.661s39001inputs0drift;1unusedtestimport and scopedformat pending. Lastowner gate310errors; globalgatesred."
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -133541,8 +133547,104 @@
       "status": "integrated_pending_validation",
       "other_partial_callers": "Proposal/application separation and full historical report evidence improved existing AI iterate/clean/Tcl action/diagnostic boundaries; remaining per-resource/fullordinaryreport contexts explicit, no fullupgrade.",
       "editor_validation": "PASS actual TS/scopedPrettier/npmNode+browserbundles405inputs0drift; initialwrongbundlefilenamesretainedasRootinvocationfailure, actualscriptsrerunPASS.",
-      "native_validation": "First ordinary5libFAIL10API/type/newtestDebugerrors39001inputs0drift; samepredicate/no visibility repair under independentreview; freshrepairbuildpending.",
+      "native_validation": "Ordinaryrepair1PASS329.785s0warnings39001inputs0drift.460complete389PASS69FAIL2TIMEOUT; all446retained unchanged,14newPASS,0regressions/drops/errors/artifactdrift.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor"
+    },
+    "source_order_member_head_successor": {
+      "baseline_new": [
+        "lsp-source-run-order-purpose"
+      ],
+      "new_annex": 0,
+      "member_head_repair": "1beda235genuineheadissuerpurposecorrespondence repairs existingowner; no count0Native/edit/Normal grant",
+      "source_order": "a8afede2fullactualadopters and independentCLEAR",
+      "native": "Native5librarybuildrunning, scopedformatpending plusoneunusedtestimportwarning, no testacceptance",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-order-member-head-successor",
+      "execution": "Native5libPASS466.661s39001inputs0drift;1unusednewtestimport and scopedfmt pending. Exacttargeted12=10PASS2FAIL: retained222/224/242gain,223stillFAIL, sevenofeightnewPASS; newdeferred-body refusalFAILunderinvestigation. No full460successor replay claim.",
+      "targeted12": {
+        "PASS": 10,
+        "FAIL": 2,
+        "TIMEOUT": 0,
+        "errors": 0,
+        "artifact_drift": 0,
+        "scope": "Four retained originals plus eight new owner controls; no cumulative full replay claim."
+      }
+    },
+    "source_geometry_actual446": {
+      "scope": "Complete ordinary446 sourcegeometry replay, originalmandatoryprovider/PATH and exactfresh5binaries; source/admission before and fullsource restoration verified.",
+      "result_sha256": "272ab162a704791f2ef1ccf3d5463977e90a31bfa9b947446e378a4cd6f51b9e",
+      "previous_result": "/workspace/naming-validation/lsp-selected-owners-successor-repair2/results-provider-corrected/result.json",
+      "previous_result_sha256": "55392dbe5fd7e77768bfc1f6eef6897b0ba5a15b53d002df1fa54450142bb68b",
+      "complete": true,
+      "errors": [],
+      "artifact_drift": {},
+      "total": 446,
+      "counts": {
+        "PASS": 375,
+        "FAIL": 69,
+        "TIMEOUT": 2
+      },
+      "retained": 338,
+      "dropped": [],
+      "gains": [
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::a_computed_source_path_resolves_to_its_real_target_923_idx41",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::a_computed_source_link_anchors_on_the_file_name_only_775",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::a_normalized_computed_source_path_resolves_775",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+          "before": "FAIL",
+          "after": "PASS"
+        }
+      ],
+      "regressions": [
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+          "before": "PASS",
+          "after": "FAIL"
+        }
+      ],
+      "added_counts": {
+        "FAIL": 25,
+        "PASS": 83
+      }
+    },
+    "proposal_minifier_actual460": {
+      "status": "COMPLETE_SCOPED_ORDINARY_CAPTURE",
+      "PASS": 389,
+      "FAIL": 69,
+      "TIMEOUT": 2,
+      "retained": 446,
+      "gains": 0,
+      "regressions": 0,
+      "drops": 0,
+      "new_controls": 14,
+      "new_PASS": 14,
+      "errors": 0,
+      "artifact_drift": 0,
+      "result_sha256": "17634b993e6b62bb5235b5d251c529995a8269edf6f6dee5cece38950b6d9b5a",
+      "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-proposal-minifier-successor/completed-460"
     }
   }
 }

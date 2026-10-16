@@ -1,0 +1,57 @@
+{
+  "scope": "TMP-only readonly actual member parent-head source correspondence. No main/Git/Cargo/build/test/list/trace/oracle execution.",
+  "patch_sha256": "1beda2357828adfbc563ec6b333dbff68d1da47f110dc4fa8b03a5ae37fe8a7b",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "before_sha256": "4b5bccbecb61e57eee4ea0cdb9b4fa3792ccea3d43d7b787638d3570cab30089",
+      "after_sha256": "b6c9fc74aa50b674ebe28e481b4fe14f53f9ed450483cb0b7d888d2733d2e5d7",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "ed7788bbef487b3b2e3683b29d7dbb613613a22a27a17d5ef03e5330ceb01cfe",
+      "after_sha256": "64ff212c9e2d3942321fb150e2e57c57fcada77e467515bb4aecca35c6092c65",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "e6d239a8496a3c7e644461eb1983e9e52dd4462521961d4efc66254ec508e983",
+      "after_sha256": "9ce28dd9a9a0edf09a5cf49cb29d11d1072fe096fd7c0e51de3bf1a5c89cb609",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before_sha256": "2ece1395afe6922b75ea9f9a04f586a8d8643087605ebcf08480e3ac0e7d14e4",
+      "after_sha256": "bf1466a8944fa2c75f790ab3fbf25991dd8da85cbd3eaabc51ddf0018dea826b",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "17a12c241311f8ff4b4b70f0cabb31506f68292a36b9d3e2ab20395c2fef1baf",
+      "after_sha256": "a961c722c6330b9dcf4174df0380303da24066467a264c50a2cb4b58620dc3dc",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "459d5e279e838e30b6d1038724510922484e8e036231cdd478d76993a6a2f0fd",
+      "after_sha256": "01a6d2a0cd05edb81cc4c14ade69a5e2b57cd62a788f18a5934122855951447c",
+      "current_before_matches": true
+    }
+  ],
+  "exact_diagnostic": {
+    "path": "/workspace/naming-validation/lsp-member-comment-stage-diagnostic/test-222.log",
+    "sha256": "75562ada91c69bdf9721a5fe18c7f5b49a13f2ab3b21da79a1b0a3704d08badb",
+    "observed": "schema/reborrow/member owner guard PASS; correspondence.geometry.pass then no correspondence.argv.pass for bothselectors.",
+    "not_observed": "Individual origin field values, later schema/MRO/method joins or ordinary efficacy."
+  },
+  "source_repair": "Authenticate different actual Written(0) SourceTransitions and Selected ResolvedHead head issuers under equal actual head/image/config/context/descriptor/offset; retain both complete vectors in sealed head receipt, then exact post-head vector/words/values/definition grammar/unique member reissue. No head mutation/upcast.",
+  "new_control": "analyser::class_hierarchy::original_metadata::source_method_reference::original_head_correspondence_tests::readonly_member_parent_retains_written_and_selected_head_issuers",
+  "all_original_source_method_reference_production_and_tests_byte_equal": true,
+  "old_source_method_test_suffix_sha256": "2a5cd0db0189d0fd0d34441cf7d57dcfc6735c4a7a54dd1bda0b77755fa6e50e",
+  "strong_realm_and_core_edit_inventories": "Untouched, not in patch.",
+  "counting": "Root reconciles existing original-method source correspondence purpose once; no per-test annex/reduction or acceptance claim.",
+  "review": "Requested immutable successor after private/public documentation correction; no execution.",
+  "supersedes_patch_sha256": "da946f73c9b5764c40f85f027f08c01912836a206ecbf5b95d7a7ab70cf3bd37",
+  "v2_change": "Documentation only: remove new crate-private head type/method from PUBLIC API-entry cell; keep exact internal transport rows and normative narrative. All three Rust afterimages byte-identical to V1."
+}

@@ -1259,6 +1259,8 @@ struct DocumentRecords {
     /// actual input and complete source context independently of this label.
     dialect: String,
     diagnostic_source: Option<WorkspaceDiagnosticSourceContext>,
+    /// Genuine source-point/body/input owners; no executed chronology.
+    source_order_context: Option<crate::source_graph::SourceOrderContext>,
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
     /// Complete original declarations, including opaque names and records
@@ -1632,6 +1634,7 @@ impl DocumentRecords {
             revision: _,
             dialect,
             diagnostic_source,
+            source_order_context,
             procs,
             classes,
             original_command_world,
@@ -1669,6 +1672,7 @@ impl DocumentRecords {
         uri.clear();
         dialect.clear();
         *diagnostic_source = None;
+        *source_order_context = None;
         path_constant_assignments.clear();
         procs.clear();
         classes.clear();
@@ -1840,9 +1844,19 @@ impl DocumentRecords {
     /// The caller ([`WorkspaceIndex::add_document`]) has already cleared the
     /// slot, so this only ever appends.
     fn index_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let had_source_view = !self.uri.is_empty();
+        let source_order_context = crate::source_graph::SourceOrderContext::capture(analysis);
         self.uri = uri.to_owned();
         self.dialect.clone_from(&analysis.dialect);
         self.diagnostic_source = WorkspaceDiagnosticSourceContext::for_analysis(analysis);
+        // Accumulated source-site views cannot replace an incompatible
+        // original input/Realm with the latest reporting view.
+        self.source_order_context =
+            if !had_source_view || self.source_order_context == source_order_context {
+                source_order_context
+            } else {
+                None
+            };
         self.original_command_world = analysis.original_completed_command_world().cloned();
         self.original_source_input
             .clone_from(&analysis.resolved_input);
@@ -3150,7 +3164,9 @@ impl WorkspaceIndex {
         crate::source_graph::ancestor_prefer_latest_raised(target_uri, edges, &raises)
     }
 
-    /// The load order over this workspace's documents, built at most once per
+    /// Conditional source navigation order, retaining the exact original
+    /// source/body/schema/input owners and no executed event completion.
+    /// The existing forest is built at most once per
     /// [`Self::generation`] from the `source` graph
     /// ([`Self::set_source_resolver`]) **and** the `package require` graph
     /// ([`Self::package_run_edges`]).
@@ -3166,7 +3182,12 @@ impl WorkspaceIndex {
             let source_edges = self.resolved_source_edges().into_iter();
             let edges: Vec<crate::source_graph::RunEdge> =
                 source_edges.chain(self.package_run_edges()).collect();
-            crate::source_graph::RunOrder::build(&edges)
+            crate::source_graph::RunOrder::for_source_navigation(
+                &edges,
+                self.docs
+                    .iter()
+                    .filter_map(|doc| Some((doc.uri.clone(), doc.source_order_context.clone()?))),
+            )
         })
     }
 
@@ -3420,13 +3441,15 @@ impl WorkspaceIndex {
     /// document contribution.
     fn invalidate(&mut self, resolution_inputs_changed: bool, changed_slot: usize) {
         self.generation = self.generation.wrapping_add(1);
+        // Both carry whole current source-point owners, even when command
+        // settlement can preserve other documents after a body-only edit.
+        self.run_order = Derived::default();
+        self.export_snapshot = Derived::default();
         if resolution_inputs_changed {
             self.command_names = Derived::default();
             self.live_links = Derived::default();
             self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
             self.command_link_map = Derived::default();
-            self.export_snapshot = Derived::default();
-            self.run_order = Derived::default();
             self.imported_constants = Derived::default();
             for settled in &self.settled_invocations {
                 settled.invalidate_all();
@@ -6814,14 +6837,14 @@ impl<'a> ExportGate<'a> {
                 && exports_by_ns.values().flatten().any(|event| {
                     event.unknown
                         && order
-                            .has_run(
+                            .navigation_precedence(
                                 RunPoint {
                                     uri: &event.uri,
                                     at: event.at,
                                     enclosing_body: event.enclosing_body,
                                 },
                                 site.point(),
-                            )
+                            ).and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
                             .unwrap_or(true)
                 })
             {
@@ -7456,7 +7479,10 @@ impl<'a> WildcardImportIndex<'a> {
                     .map(|other| (other.gate.source_ns.as_str(), other.site(), &other.exported)),
             );
         earlier.any(|(other_source, other_site, other_exported)| {
-            self.order.cmp_run(other_site.point(), site.point()) == Some(std::cmp::Ordering::Less)
+            self.order
+                .navigation_comparison(other_site.point(), site.point())
+                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+                == Some(std::cmp::Ordering::Less)
                 && !ns_eq(other_source, source_ns)
                 && other_exported.covers(name)
                 && self.alias_live_at(ns, other_source, name, other_site, call)
@@ -7560,13 +7586,16 @@ impl<'a> WildcardImportIndex<'a> {
                 event.unknown
                     && self
                         .order
-                        .has_run(
+                        .navigation_precedence(
                             RunPoint {
                                 uri: &event.uri,
                                 at: event.at,
                                 enclosing_body: event.enclosing_body,
                             },
                             site.point(),
+                        )
+                        .and_then(
+                            crate::source_graph::SourceNavigationOrder::modeled_source_exclusion,
                         )
                         .unwrap_or(true)
             }) {
@@ -7731,13 +7760,16 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot 
                 event.unknown
                     && self
                         .order
-                        .has_run(
+                        .navigation_precedence(
                             RunPoint {
                                 uri: &event.uri,
                                 at: event.at,
                                 enclosing_body: event.enclosing_body,
                             },
                             import_site,
+                        )
+                        .and_then(
+                            crate::source_graph::SourceNavigationOrder::modeled_source_exclusion,
                         )
                         .unwrap_or(true)
             })
@@ -14737,5 +14769,118 @@ mod typed_variable_source_index_tests {
             missing.documents_with_ambiguous_alias_of("::N::value"),
             ["file:///missing.tcl"]
         );
+    }
+}
+
+#[cfg(test)]
+mod original_source_order_transport_tests {
+    use super::*;
+    use crate::namespace_import::NamespaceExportOracle;
+    use crate::source_graph::SourceNavigationOrderPurpose;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn workspace_order_keeps_original_export_evidence_without_conditional_clear_completion() {
+        let source = "proc p {} {}; namespace export p; namespace export -clear\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declaration = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name()
+            .clone();
+        let exports = analysis
+            .original_namespace_exports()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(exports.len(), 2);
+        analysis.namespace_exports.clear();
+        analysis.command_invocations.clear();
+        analysis.dialect = "display-only-label".into();
+        let uri = "file:///original-order.tcl";
+        let index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let order = index.run_order();
+        let first = RunPoint {
+            uri,
+            at: exports[0].span().start(),
+            enclosing_body: None,
+        };
+        let clear = RunPoint {
+            uri,
+            at: exports[1].span().start(),
+            enclosing_body: None,
+        };
+        let relation = order.navigation_precedence(first, clear).unwrap();
+        assert_eq!(
+            relation.purpose(),
+            SourceNavigationOrderPurpose::Conditional
+        );
+        assert_eq!(relation.modeled_source_exclusion(), None);
+        assert_eq!(order.has_run(first, clear), None);
+        let query = RunPoint {
+            uri,
+            at: u32::try_from(source.len()).unwrap(),
+            enclosing_body: None,
+        };
+        assert_eq!(
+            index.export_snapshot().exported_at_original(
+                declaration.slot(),
+                declaration.policy(),
+                query
+            ),
+            ExportVerdict::Exported
+        );
+    }
+
+    #[test]
+    fn indexed_order_context_is_replaced_and_missing_full_input_remains_unknown() {
+        let source = "set original 1\nset second 2\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let uri = "file:///order-currency.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let first = RunPoint {
+            uri,
+            at: 0,
+            enclosing_body: None,
+        };
+        let second = RunPoint {
+            uri,
+            at: u32::try_from(source.find("set second").unwrap()).unwrap(),
+            enclosing_body: None,
+        };
+        assert!(
+            index
+                .run_order()
+                .navigation_precedence(first, second)
+                .is_some()
+        );
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        index.add_document(uri, &stale);
+        assert!(
+            index
+                .run_order()
+                .navigation_precedence(first, second)
+                .is_none()
+        );
+        index.remove_document(uri);
+        assert!(
+            index
+                .run_order()
+                .navigation_precedence(first, second)
+                .is_none()
+        );
+        index.add_document(uri, &analysis);
+        assert!(
+            index
+                .run_order()
+                .navigation_precedence(first, second)
+                .is_some()
+        );
+        let other = Analyser::new().analyse("set different 3\n", "tcl8.6");
+        index.add_document(uri, &other);
+        // Accumulation is intentional for source-site views; a foreign source
+        // issuer cannot replace the original context of existing rows.
+        assert!(index.run_order().navigation_precedence(first, second).is_none());
     }
 }

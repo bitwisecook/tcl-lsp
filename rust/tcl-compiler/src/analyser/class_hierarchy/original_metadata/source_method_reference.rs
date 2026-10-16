@@ -521,3 +521,93 @@ mod original_source_correspondence_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod original_head_correspondence_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::registry_invocation::InvocationWordOrigin;
+    use crate::registry_invocation::source_structure::OriginalRegistrySource;
+
+    #[test]
+    fn readonly_member_parent_retains_written_and_selected_head_issuers() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let realm = analysis.retained_command_realm().unwrap();
+        let tape = realm
+            .source_bindings_ref()
+            .original_source_transition_advice_tape(&context)
+            .unwrap();
+        let advice = tape
+            .original_definition_member_source_catalogue()
+            .find(|advice| {
+                advice.original_words()[0].span().start() == source.find("my ping").unwrap() as u32
+            })
+            .unwrap();
+        let catalogue = advice.original_definition_member_source_body().unwrap();
+        let class = analysis.original_class_declarations().next().unwrap();
+        let method = class
+            .metadata()
+            .original_members
+            .declarations()
+            .find(|method| method.original_name_input().bytes() == b"body")
+            .unwrap();
+        let parent = method.definition_parent().unwrap();
+        let left = catalogue.original_parent_body().source_words();
+        let right = parent.source_words();
+        assert_eq!(
+            left.origins().first(),
+            Some(&InvocationWordOrigin::Written(0))
+        );
+        assert_eq!(
+            right.origins().first(),
+            Some(&InvocationWordOrigin::ResolvedHead)
+        );
+        assert!(matches!(
+            left.source(),
+            OriginalRegistrySource::SourceTransitions(_)
+        ));
+        assert!(matches!(right.source(), OriginalRegistrySource::Selected));
+        assert_eq!(
+            left.head_source().unwrap().word(),
+            right.head_source().unwrap().word()
+        );
+        let pair = catalogue
+            .original_source_correspondence_in_parent(&context, parent)
+            .unwrap();
+        assert_eq!(pair.catalogue_body(), catalogue);
+        assert_eq!(pair.declaration_body().original_parent_body(), parent);
+        assert_eq!(pair.original_heads().left(), left);
+        assert_eq!(pair.original_heads().right(), right);
+        assert!(pair.original_heads().left().source() == left.source());
+        let foreign = Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            catalogue
+                .original_source_correspondence_in_parent(
+                    &foreign.resolved_input.as_ref().unwrap().context_registry(),
+                    parent
+                )
+                .is_none()
+        );
+        let changed_source = source.replace("C", "Other");
+        let changed = Analyser::new().analyse(&changed_source, "tcl8.6");
+        let changed_class = changed.original_class_declarations().next().unwrap();
+        let changed_parent = changed_class
+            .metadata()
+            .original_members
+            .declarations()
+            .find(|method| method.original_name_input().bytes() == b"body")
+            .unwrap()
+            .definition_parent()
+            .unwrap();
+        assert!(
+            catalogue
+                .original_source_correspondence_in_parent(&context, changed_parent)
+                .is_none()
+        );
+    }
+}
