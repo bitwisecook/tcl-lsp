@@ -89,7 +89,88 @@ type Case = (String, &'static str, Option<&'static str>);
 fn cases() -> Vec<Case> {
     let mut cases = expr_cases();
     cases.extend(command_cases());
+    cases.extend(shape_cases());
     cases
+}
+
+/// [`Case`]s whose word shapes decide whether 8.4 compiles the command, and
+/// one that names the command its unit was entered with.
+fn shape_cases() -> Vec<Case> {
+    let case = |redefine: &str, body: &str, v84: &'static str, v90: &'static str| {
+        (
+            format!("proc r {{}} {{{redefine}}}; {body}"),
+            v84,
+            Some(v90),
+        )
+    };
+    vec![
+        // `append` compiles one value at most, `lappend` one value.
+        case(
+            "rename append _a; proc append args {puts AP}",
+            "proc p {} {set s {}; r; append s x; append s y z; puts $s}; p",
+            "AP\nx\n",
+            "AP\nAP\n\n",
+        ),
+        case(
+            "rename lappend _l; proc lappend args {puts LA}",
+            "proc p {} {set L {}; r; lappend L x; lappend L y z; puts $L}; p",
+            "LA\nx\n",
+            "LA\nLA\n\n",
+        ),
+        // `regexp` compiles a plain pattern without match variables.
+        case(
+            "rename regexp _re; proc regexp args {return RE}",
+            "proc p {} {r; puts [regexp abc xabcx]; puts [regexp a+ aa]; \
+             puts [regexp ^ab.* abc]; puts [regexp -nocase -- AB ab]; puts [regexp b abc m]}; p",
+            "1\nRE\n1\n1\nRE\n",
+            "RE\nRE\nRE\nRE\nRE\n",
+        ),
+        // `string` reads its subcommand as a unique prefix, and counts words.
+        case(
+            "rename string _s; proc string args {return S}",
+            "proc p {} {r; puts [string len abc]; puts [string match -nocase A* abc]; \
+             puts [string equal -nocase a A]; puts [string index abc 1]; \
+             puts [string compare a b]}; p",
+            "3\n1\nS\nb\n-1\n",
+            "S\nS\nS\nS\nS\n",
+        ),
+        // A result or loop variable must be a local scalar.
+        case(
+            "rename catch _c; proc catch args {puts CATCH}",
+            "proc p {} {r; catch {puts b1} m; catch {puts b2} ::m2; catch {puts b3} a(x)}; p",
+            "b1\nCATCH\nCATCH\n",
+            "CATCH\nCATCH\nCATCH\n",
+        ),
+        case(
+            "rename foreach _f; proc foreach args {puts FE}",
+            "proc p {} {r; foreach x {1} {puts x$x}; foreach ::y {1} {puts y}; \
+             foreach {a b} {1 2} {puts $a$b}}; p",
+            "x1\nFE\n12\n",
+            "FE\nFE\nFE\n",
+        ),
+        // `return` is not compiled inside a `catch`.
+        case(
+            "rename return _r; proc return args {puts RET}",
+            "proc p {} {r; catch {return x}; puts after}; puts [p]",
+            "RET\nafter\n\n",
+            "RET\nafter\n\n",
+        ),
+        case(
+            "rename lindex _i; proc lindex args {return IX}",
+            "proc p {} {r; puts [lindex {a b} 1]; puts [lindex {a b}]}; p",
+            "b\na b\n",
+            "IX\nIX\n",
+        ),
+        // A command defined in the procedure's namespace after its unit was
+        // entered does not displace the global builtin the unit compiled.
+        (
+            "proc r {} {proc ::ns::expr args {return NSR}}; \
+             namespace eval ns {proc p {} {puts [expr {1+1}]; ::r; puts [expr {1+1}]}}; ns::p; ns::p"
+                .to_owned(),
+            "2\n2\nNSR\nNSR\n",
+            Some("2\nNSR\nNSR\nNSR\n"),
+        ),
+    ]
 }
 
 /// [`Case`]s that replace `expr` while bytecode runs.

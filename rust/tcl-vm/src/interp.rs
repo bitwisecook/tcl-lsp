@@ -969,6 +969,28 @@ impl ScriptCaches {
     }
 }
 
+/// The seams a debugger or embedder watches execution through
+/// ([`InterpState::debug`]).
+#[derive(Default)]
+struct DebugSeams {
+    /// Optional debug hook fired once per source command (the execution-control
+    /// seam a step debugger drives). `None` in normal runs — the only
+    /// per-instruction cost is an `Option` check.
+    hook: Option<crate::debug::DebugHook>,
+    /// Optional shared cell tracking the source line of the instruction being
+    /// dispatched — the lightweight sibling of the debug hook, for an embedder
+    /// that needs "what line is the interpreter on" (the `SpecTcl`
+    /// pack-evaluation loader attributes captured registrations with it)
+    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
+    /// `None` in normal runs — one `Option` check per instruction.
+    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
+    /// The `(line, span-start)` key of the last command the debug hook fired
+    /// for, so it fires once per source command rather than per instruction
+    /// (`startCommand` is emitted only conditionally, so it cannot be the
+    /// boundary marker).
+    last_key: Option<u64>,
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1250,22 +1272,12 @@ pub struct InterpState {
     /// which hides nothing; `set_runtime_version` pins the matching plain-Tcl
     /// profile and `set_dialect_profile` pins a vendor one.
     pin: tcl_registry::model::PinnedContext,
-    /// Optional debug hook fired once per source command (the execution-control
-    /// seam a step debugger drives). `None` in normal runs — the only
-    /// per-instruction cost is an `Option` check.
-    debug_hook: Option<crate::debug::DebugHook>,
-    /// Optional shared cell tracking the source line of the instruction being
-    /// dispatched — the lightweight sibling of the debug hook, for an embedder
-    /// that needs "what line is the interpreter on" (the `SpecTcl`
-    /// pack-evaluation loader attributes captured registrations with it)
-    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
-    /// `None` in normal runs — one `Option` check per instruction.
-    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
-    /// The `(line, span-start)` key of the last command the debug hook fired
-    /// for, so it fires once per source command rather than per instruction
-    /// (`startCommand` is emitted only conditionally, so it cannot be the
-    /// boundary marker).
-    last_debug_key: Option<u64>,
+    /// The seams a debugger or embedder watches execution through.
+    debug: DebugSeams,
+    /// The outermost command a directly evaluated script is running
+    /// ([`tcl_bytecode::Instruction::script_command`]), which a completion
+    /// settled at level 0 names.
+    script_command: Option<(Rc<FunctionAsm>, usize)>,
     /// Set by the `exit` command to the requested process code. The VM library
     /// never terminates the process itself — a standalone driver (the `tclvm`
     /// CLI) translates this into `std::process::exit`, while an embedder (the
@@ -1582,11 +1594,11 @@ struct CommandIdentityIndex {
     generations: HashMap<String, u64>,
     next_generation: u64,
     handles: RefCell<CmdArena>,
-    /// Under a release that keeps the commands running bytecode compiled, the
-    /// builtins command-table changes removed from their keys, which an
+    /// Under a release that keeps the commands running bytecode compiled, what
+    /// each change to a key the release may compile found there, so that an
     /// invocation the release compiled into a unit entered before the change
-    /// still runs.
-    replaced_builtins: crate::release_units::ReplacedBuiltins,
+    /// still runs the command it was compiled against.
+    table_history: crate::release_units::CommandTableHistory,
 }
 
 /// External command handles intern one exact command-token generation. Names
@@ -2334,9 +2346,8 @@ impl InterpState {
             compiler: None,
             pack_facts: Vec::new(),
             pin: tcl_registry::model::PinnedContext::for_profile(unpinned),
-            debug_hook: None,
-            line_watch: None,
-            last_debug_key: None,
+            debug: DebugSeams::default(),
+            script_command: None,
             pending_exit: None,
             script_caches: ScriptCaches::default(),
             error_info: None,
@@ -2749,8 +2760,8 @@ impl Vm {
     /// Install a debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). Pass `None` to detach.
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
-        self.debug_hook = hook;
-        self.last_debug_key = None;
+        self.debug.hook = hook;
+        self.debug.last_key = None;
     }
 
     /// Install a shared cell the VM keeps set to the source line of the
@@ -2759,13 +2770,13 @@ impl Vm {
     /// attribution (a registered command reads the cell to learn which line
     /// invoked it). Pass `None` to detach.
     pub fn set_line_watch(&mut self, watch: Option<std::rc::Rc<std::cell::Cell<u32>>>) {
-        self.line_watch = watch;
+        self.debug.line_watch = watch;
     }
 
     /// Publish `line` to the line watch, when one is installed.
     #[inline]
     pub(crate) fn note_line(&self, line: u32) {
-        if let Some(watch) = &self.line_watch {
+        if let Some(watch) = &self.debug.line_watch {
             watch.set(line);
         }
     }
@@ -2801,17 +2812,17 @@ impl Vm {
         span_start: Option<u32>,
         cmd_text: &str,
     ) -> bool {
-        if self.debug_hook.is_none() {
+        if self.debug.hook.is_none() {
             return false;
         }
         let Some(start) = span_start else {
             return false;
         };
         let key = (u64::from(line) << 32) | u64::from(start);
-        if self.last_debug_key == Some(key) {
+        if self.debug.last_key == Some(key) {
             return false;
         }
-        self.last_debug_key = Some(key);
+        self.debug.last_key = Some(key);
         self.fire_debug_hook(line, cmd_text)
     }
 
@@ -2854,17 +2865,17 @@ impl Vm {
     /// Fire the debug hook (if installed) for the command at `line` / `cmd_text`.
     /// Returns `true` when the hook asked to stop the run.
     pub(crate) fn fire_debug_hook(&mut self, line: u32, cmd_text: &str) -> bool {
-        if self.debug_hook.is_none() {
+        if self.debug.hook.is_none() {
             return false;
         }
         let snapshot = self.debug_snapshot(line, cmd_text);
         // Take the hook out so the closure can borrow `self`-derived data
         // (already captured in `snapshot`) without aliasing the field.
-        let mut hook = self.debug_hook.take();
+        let mut hook = self.debug.hook.take();
         let action = hook
             .as_mut()
             .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
-        self.debug_hook = hook;
+        self.debug.hook = hook;
         action == crate::debug::DebugAction::Stop
     }
 
@@ -3548,6 +3559,8 @@ impl Vm {
         // intermediate state and then retaining the replaced implementation.
         if replacing_command {
             self.invalidate_compiled_command_semantics_for_key(name);
+        } else {
+            self.record_table_change(name);
         }
         let replaced_token = replacing_command
             .then(|| self.command_token_identity(&CommandSidecarKey::visible(name)))
@@ -6287,25 +6300,62 @@ impl Vm {
     /// remain optimised when those identities still match (including after a
     /// rename is reversed) and deoptimise only when they do not.
     fn invalidate_compiled_command_semantics_for_key(&mut self, key: &str) {
-        if !self.runtime_version.revalidates_running_bytecode()
-            && self.command_semantics.get() == CommandSemantics::Tracking
-            && let Some(&Command::Builtin(builtin)) = self.commands.get(key)
-        {
-            let epoch = self.trace_deopt_epoch();
-            self.command_identity
-                .replaced_builtins
-                .record(epoch, key, builtin);
-        }
+        self.record_table_change(key);
         self.invalidate_compiled_command_semantics();
     }
 
-    /// The builtin `key` held when a unit was entered at `entered`, where a
-    /// command-table change since has removed it
-    /// ([`crate::release_units::ReplacedBuiltins::at_entry`]).
-    pub(crate) fn builtin_at_unit_entry(&self, key: &str, entered: u64) -> Option<BuiltinFn> {
-        self.command_identity
-            .replaced_builtins
-            .at_entry(key, entered)
+    /// Record what `key` holds before a change to it, where a release that
+    /// keeps the commands running bytecode compiled may compile its command.
+    fn record_table_change(&mut self, key: &str) {
+        let tail = key.rsplit("::").next().unwrap_or(key);
+        if self.command_semantics.get() != CommandSemantics::Tracking
+            || !tcl_registry::release_compilation::may_compile(self.runtime_version, tail)
+        {
+            return;
+        }
+        let held = self.held_at_key(key);
+        let epoch = self.trace_deopt_epoch();
+        self.command_identity.table_history.record(epoch, key, held);
+    }
+
+    /// What the command table holds at `key` now.
+    fn held_at_key(&self, key: &str) -> crate::release_units::Held {
+        match self.commands.get(key) {
+            None => crate::release_units::Held::Absent,
+            Some(&Command::Builtin(builtin)) => crate::release_units::Held::Builtin(builtin),
+            Some(_) => crate::release_units::Held::Other,
+        }
+    }
+
+    /// The builtin an invocation of `name` the release compiled into a unit
+    /// entered at `entered` runs: the one `name` resolved to then, as 8.4
+    /// resolves a command (the current namespace, then the global one), where
+    /// a change since has made the table answer otherwise.
+    pub(crate) fn builtin_at_unit_entry(&self, name: &str, entered: u64) -> Option<BuiltinFn> {
+        let candidates = match name.strip_prefix("::") {
+            Some(absolute) => vec![absolute.to_owned()],
+            None if self.current_ns().is_empty() => vec![name.to_owned()],
+            None => vec![format!("{}::{name}", self.current_ns()), name.to_owned()],
+        };
+        let history = &self.command_identity.table_history;
+        if candidates
+            .iter()
+            .all(|key| history.held_at(key, entered).is_none())
+        {
+            return None;
+        }
+        candidates
+            .iter()
+            .map(|key| {
+                history
+                    .held_at(key, entered)
+                    .unwrap_or_else(|| self.held_at_key(key))
+            })
+            .find(|held| !matches!(held, crate::release_units::Held::Absent))
+            .and_then(|held| match held {
+                crate::release_units::Held::Builtin(builtin) => Some(builtin),
+                _ => None,
+            })
     }
 
     /// Advance the compilation generation after a non-table mutation changes
@@ -13305,6 +13355,20 @@ impl Vm {
         completion
     }
 
+    /// Note that a directly evaluated script is running the command that
+    /// `asm`'s instruction `pc` starts.
+    pub(crate) fn enter_script_command(&mut self, asm: &Rc<FunctionAsm>, pc: usize) {
+        self.script_command = Some((Rc::clone(asm), pc));
+    }
+
+    /// The text and line of the outermost command a directly evaluated script
+    /// last ran.
+    pub(crate) fn script_command(&self) -> Option<(String, u32)> {
+        let (asm, pc) = self.script_command.as_ref()?;
+        let instruction = asm.instructions.get(*pc)?;
+        Some((instruction.source_cmd_text.clone(), instruction.source_line))
+    }
+
     /// Run a script file's contents as C's `Tcl_FSEvalFileEx` does: a
     /// `return` reaching the file is settled as at a procedure boundary, and
     /// an error adds the `(file "…" line N)` frame. `top_level` runs the file
@@ -13313,6 +13377,7 @@ impl Vm {
     /// leaving one is settled as C settles one at `numLevels == 0`.
     pub fn eval_file(&mut self, path: &str, src: &str, top_level: bool) -> Completion<Value> {
         let (evaluation, role) = if top_level {
+            self.script_command = None;
             (
                 CommandEvaluation::Direct,
                 crate::exec::ActivationRole::TopLevel { direct: true },

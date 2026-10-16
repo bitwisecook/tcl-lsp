@@ -804,7 +804,10 @@ fn cmd_subst_arg_braced_with_subst_is_verbatim() {
         vec![Op::PUSH1],
         "braced-with-subst → single push"
     );
-    assert!(ctx.instructions[0].push_verbatim);
+    assert_eq!(
+        ctx.instructions[0].literal_rep,
+        tcl_bytecode::LiteralRep::Verbatim
+    );
     assert!(
         ctx.literals.entries().iter().any(|l| l == "$x"),
         "the exact literal is interned: {:?}",

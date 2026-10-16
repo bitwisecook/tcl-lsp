@@ -756,6 +756,15 @@ impl TclVersion {
         }
     }
 
+    /// Whether `rename` sets a structured `errorCode` for a missing source
+    /// (`TCL LOOKUP COMMAND <name>`) and a taken destination
+    /// (`TCL OPERATION RENAME TARGET_EXISTS`). Measured on tclsh 8.4.20
+    /// through 9.1.0: both arrive at 8.6, earlier releases leave `NONE`.
+    #[must_use]
+    pub const fn has_rename_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether this release exposes TIP 348 structured error stacks.
     ///
     /// Tcl 8.6 introduced both `info errorstack` and the `-errorstack` return

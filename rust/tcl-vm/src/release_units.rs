@@ -22,16 +22,14 @@
 //! unit only through the commands it looks up as they run.
 //!
 //! The compiler says which unit the release compiled each instruction in
-//! ([`tcl_bytecode::Instruction::release_unit`]); an activation records when
-//! it entered each one ([`ReleaseUnits`]), and the VM keeps the builtins a
-//! change replaced ([`ReplacedBuiltins`]) so an invocation the release
-//! compiled still runs the command the unit was entered with.
+//! ([`tcl_bytecode::Instruction::release_body`]); an activation records when
+//! it entered each one ([`ReleaseUnits`]), and the VM keeps what each change
+//! found ([`CommandTableHistory`]) so an invocation the release compiled still
+//! runs the command the unit was entered with.
 
 use tcl_bytecode::Instruction;
-#[cfg(test)]
-use tcl_bytecode::ReleaseBodyEntry;
-#[cfg(test)]
-use tcl_runtime_api::ReleaseBinding;
+
+use tcl_runtime_api::UnitKind;
 
 use crate::command::BuiltinFn;
 
@@ -52,8 +50,8 @@ pub(crate) struct UnitEntry {
 pub(crate) struct InheritedUnit {
     /// When the unit was entered.
     pub(crate) entry: UnitEntry,
-    /// Whether the release compiled the unit as a procedure body.
-    pub(crate) in_procedure: bool,
+    /// What the release's compile of the unit can see where the body stands.
+    pub(crate) kind: UnitKind,
 }
 
 /// The units an activation's instructions run in and when it entered each.
@@ -62,15 +60,16 @@ pub(crate) struct InheritedUnit {
 /// inlined ([`Instruction::release_body`]) runs in the unit enclosing it where
 /// the release compiles the body's owner into that unit, and otherwise in a
 /// unit of its own, numbered as the body and entered afresh at each of the
-/// body's entries. Only the activation's own unit can be a procedure body.
+/// body's entries. Only the activation's own unit can be a procedure body or
+/// a `catch` body.
 #[derive(Debug, Default)]
 pub(crate) struct ReleaseUnits {
     /// Body → the unit it runs in, as resolved at its latest entry.
     bodies: Vec<Option<u32>>,
     /// Unit → when the activation last entered it.
     entries: Vec<Option<UnitEntry>>,
-    /// Whether the activation's own unit is a procedure body.
-    in_procedure: bool,
+    /// The kind of the activation's own unit.
+    kind: UnitKind,
     /// The unit the activation inherited from the invocation that runs it.
     inherited: Option<InheritedUnit>,
 }
@@ -80,7 +79,10 @@ impl ReleaseUnits {
     /// `in_procedure` says so.
     pub(crate) fn new(in_procedure: bool) -> Self {
         Self {
-            in_procedure,
+            kind: UnitKind {
+                in_procedure,
+                in_catch_body: false,
+            },
             ..Self::default()
         }
     }
@@ -108,9 +110,14 @@ impl ReleaseUnits {
         slots[index] = Some(value);
     }
 
-    /// Whether the release compiled `unit` as a procedure body.
-    pub(crate) fn in_procedure(&self, unit: u32) -> bool {
-        unit == 0 && self.in_procedure
+    /// The kind of `unit`: a unit of a body's own is neither a procedure body
+    /// nor a `catch` body.
+    pub(crate) fn kind(&self, unit: u32) -> UnitKind {
+        if unit == 0 {
+            self.kind
+        } else {
+            UnitKind::default()
+        }
     }
 
     /// When the activation last entered `unit`.
@@ -124,7 +131,7 @@ impl ReleaseUnits {
         let unit = self.unit_of(instruction);
         Some(InheritedUnit {
             entry: self.entry(unit)?,
-            in_procedure: self.in_procedure(unit),
+            kind: self.kind(unit),
         })
     }
 
@@ -144,7 +151,7 @@ impl ReleaseUnits {
         };
         let enclosing = self.body_unit(start.parent);
         let body = instruction.release_body;
-        if start.owner.binds(self.in_procedure(enclosing)) {
+        if start.owner.binds(self.kind(enclosing)) {
             Self::set(&mut self.bodies, body, enclosing);
         } else {
             Self::set(&mut self.bodies, body, body);
@@ -155,7 +162,7 @@ impl ReleaseUnits {
     /// Run in `unit` as the activation's own unit.
     pub(crate) fn inherit(&mut self, unit: InheritedUnit) {
         Self::set(&mut self.entries, 0, unit.entry);
-        self.in_procedure = unit.in_procedure;
+        self.kind = unit.kind;
         self.inherited = Some(unit);
     }
 
@@ -166,38 +173,50 @@ impl ReleaseUnits {
     }
 }
 
-/// One builtin a command-table change removed from its key.
+/// What a command-table key held.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Held {
+    /// No command.
+    Absent,
+    /// A builtin, which an invocation the release compiled runs.
+    Builtin(BuiltinFn),
+    /// Any other command, which the release invokes by name.
+    Other,
+}
+
+/// What one key held before a command-table change at `epoch`.
 #[derive(Debug, Clone)]
-struct Replaced {
+struct Change {
     epoch: u64,
     key: String,
-    builtin: BuiltinFn,
+    held: Held,
 }
 
-/// The builtins command-table changes removed, each with the epoch the change
-/// was made at.
+/// The changes to keys whose command a release may compile, each with what
+/// the key held before it, so that a unit entered before a change can name
+/// the command it was compiled against.
 #[derive(Debug, Default)]
-pub(crate) struct ReplacedBuiltins {
-    log: Vec<Replaced>,
+pub(crate) struct CommandTableHistory {
+    log: Vec<Change>,
 }
 
-impl ReplacedBuiltins {
-    /// Record that a change at `epoch` removes `builtin` from `key`.
-    pub(crate) fn record(&mut self, epoch: u64, key: &str, builtin: BuiltinFn) {
-        self.log.push(Replaced {
+impl CommandTableHistory {
+    /// Record that `key` held `held` before a change made at `epoch`.
+    pub(crate) fn record(&mut self, epoch: u64, key: &str, held: Held) {
+        self.log.push(Change {
             epoch,
             key: key.to_owned(),
-            builtin,
+            held,
         });
     }
 
-    /// The builtin `key` held when a unit was entered at `entered`, where a
-    /// change since has removed it.
-    pub(crate) fn at_entry(&self, key: &str, entered: u64) -> Option<BuiltinFn> {
+    /// What `key` held when a unit was entered at `entered`, where a change
+    /// has been made to it since; `None` where it is unchanged.
+    pub(crate) fn held_at(&self, key: &str, entered: u64) -> Option<Held> {
         self.log
             .iter()
-            .find(|replaced| replaced.epoch >= entered && replaced.key == key)
-            .map(|replaced| replaced.builtin)
+            .find(|change| change.epoch >= entered && change.key == key)
+            .map(|change| change.held)
     }
 }
 
@@ -206,14 +225,11 @@ mod tests {
     use super::*;
     use crate::interp::{Vm, ok};
     use crate::value::Value;
-    use tcl_runtime_api::Completion;
+    use tcl_bytecode::ReleaseBodyEntry;
+    use tcl_runtime_api::{Completion, ReleaseBinding};
 
     fn first(_: &mut Vm, _: &[Value]) -> Completion<Value> {
         ok(Value::string("first"))
-    }
-
-    fn second(_: &mut Vm, _: &[Value]) -> Completion<Value> {
-        ok(Value::string("second"))
     }
 
     fn body(body: u32, parent: u32, owner: ReleaseBinding) -> Instruction {
@@ -238,8 +254,7 @@ mod tests {
         units.enter(&first, at(1));
         assert!(!units.enters(&first));
 
-        // A `foreach` in a procedure body is compiled into it, and so is a
-        // `while` in that body.
+        // A `foreach` in a procedure body is compiled into it.
         let loop_body = body(1, 0, ReleaseBinding::CompiledInProcedure);
         units.enter(&loop_body, at(2));
         assert_eq!(units.unit_of(&loop_body), 0);
@@ -250,7 +265,7 @@ mod tests {
         let arm = body(2, 1, ReleaseBinding::Invoked);
         units.enter(&arm, at(3));
         assert_eq!(units.unit_of(&arm), 2);
-        assert!(!units.in_procedure(2));
+        assert!(!units.kind(2).in_procedure);
         let nested = body(3, 2, ReleaseBinding::CompiledInProcedure);
         units.enter(&nested, at(4));
         assert_eq!(units.unit_of(&nested), 3);
@@ -261,30 +276,36 @@ mod tests {
     #[test]
     fn an_inherited_unit_decides_its_bodies() {
         let mut units = ReleaseUnits::new(false);
-        units.inherit(InheritedUnit {
-            entry: at(5),
+        let kind = UnitKind {
             in_procedure: true,
-        });
+            in_catch_body: true,
+        };
+        units.inherit(InheritedUnit { entry: at(5), kind });
         let loop_body = body(1, 0, ReleaseBinding::CompiledInProcedure);
         units.enter(&loop_body, at(6));
         assert_eq!(units.unit_of(&loop_body), 0);
         assert_eq!(units.entry(0), Some(at(5)));
+        assert_eq!(units.kind(0), kind);
         assert!(units.inherited().is_some());
+        assert!(!ReleaseBinding::CompiledInProcedureOutsideCatch.binds(kind));
     }
 
     #[test]
-    fn the_builtin_at_entry_is_the_first_one_removed_since() {
-        let mut replaced = ReplacedBuiltins::default();
-        replaced.record(3, "expr", first as BuiltinFn);
-        replaced.record(7, "expr", second as BuiltinFn);
-        let at = |entered| {
-            replaced
-                .at_entry("expr", entered)
-                .map(|builtin| builtin as usize)
+    fn a_key_held_at_entry_is_what_the_first_later_change_found() {
+        let mut history = CommandTableHistory::default();
+        history.record(3, "expr", Held::Builtin(first as BuiltinFn));
+        history.record(7, "expr", Held::Other);
+        history.record(8, "ns::expr", Held::Absent);
+        let builtin = |held: Option<Held>| match held {
+            Some(Held::Builtin(builtin)) => Some(builtin as usize),
+            _ => None,
         };
-        assert_eq!(at(1), Some(first as BuiltinFn as usize));
-        assert_eq!(at(4), Some(second as BuiltinFn as usize));
-        assert_eq!(at(8), None);
-        assert!(replaced.at_entry("set", 0).is_none());
+        assert_eq!(
+            builtin(history.held_at("expr", 1)),
+            Some(first as BuiltinFn as usize)
+        );
+        assert!(matches!(history.held_at("expr", 4), Some(Held::Other)));
+        assert!(history.held_at("expr", 8).is_none());
+        assert!(matches!(history.held_at("ns::expr", 2), Some(Held::Absent)));
     }
 }

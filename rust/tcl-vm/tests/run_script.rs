@@ -1203,7 +1203,7 @@ fn string_first_last() {
 fn pushv(idx: i32) -> tcl_bytecode::Instruction {
     use tcl_bytecode::{Instruction, Op, Operand};
     let mut i = Instruction::new(Op::PUSH1, vec![Operand::Imm(idx)]);
-    i.push_verbatim = true;
+    i.literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     i
 }
 

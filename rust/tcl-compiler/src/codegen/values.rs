@@ -181,7 +181,7 @@ impl CodegenCtx<'_> {
     /// Push a *verbatim* literal — a braced / constant word that the VM must
     /// push exactly as-is, suppressing runtime word substitution. Apart from the
     /// brace-word `\<newline>` continuation collapse below, the literal bytes
-    /// match [`push_lit`]; only the out-of-band `push_verbatim` flag differs, so
+    /// match [`push_lit`]; only the out-of-band `literal_rep` differs, so
     /// disassembly stays byte-stable.
     pub fn push_lit_verbatim(&mut self, value: &str) {
         // A braced word's value collapses `\<newline>` continuations even inside
@@ -199,7 +199,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\"", esc(&value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push a *verbatim* literal **byte for byte** — a value that is already
@@ -228,7 +228,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\"", esc(value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push a word's **finished value** — text every word-level rule has
@@ -262,7 +262,7 @@ impl CodegenCtx<'_> {
     /// braced word, so the brace-word `\<newline>` collapse is not its rule —
     /// a quoted word's continuations were folded when its escapes were decoded.
     /// The literal bytes are unchanged either way, so disassembly stays stable
-    /// and only the out-of-band `push_verbatim` flag differs.
+    /// and only the out-of-band `literal_rep` differs.
     pub fn push_word_value(&mut self, value: &str) {
         if value.contains("${") || value.contains('[') {
             self.push_lit(value);
@@ -285,7 +285,7 @@ impl CodegenCtx<'_> {
     /// Push a *verbatim* no-dedup literal — a constant-folded result (e.g.
     /// `[list …]` / `[format …]`) that is already its own final value and must
     /// be pushed exactly, suppressing runtime word substitution. Without the
-    /// `push_verbatim` flag a single-element fold like `[list "a b"]` → `{a b}`
+    /// `literal_rep` a single-element fold like `[list "a b"]` → `{a b}`
     /// is mistaken for a braced literal and the braces are stripped at runtime.
     /// The literal bytes and disassembly comment match [`push_lit_no_dedup`], so
     /// the only difference is the out-of-band flag.
@@ -297,7 +297,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\" #nodedup", esc(value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Emit `startCommand` for non-first specialised commands.
@@ -1031,7 +1031,8 @@ mod tests {
                 .iter()
                 .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
                 .expect("folded literal push")
-                .push_verbatim,
+                .literal_rep
+                != tcl_bytecode::LiteralRep::Word,
             "a folded command result is already a final Tcl value",
         );
     }
@@ -1047,7 +1048,7 @@ mod tests {
             .iter()
             .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
             .expect("dict payload push");
-        assert!(push.push_verbatim);
+        assert_eq!(push.literal_rep, tcl_bytecode::LiteralRep::Verbatim);
         assert!(
             ctx.instructions
                 .iter()

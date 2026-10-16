@@ -199,7 +199,11 @@ impl ConstSubstCtx<'_> {
                     head,
                     spec.name,
                 ),
-                shape: tcl_registry::release_compilation::InvocationShape::of(rest, |_| true),
+                shape: tcl_registry::release_compilation::InvocationShape::of(
+                    self.version.unwrap_or(TclVersion::V9_0),
+                    rest,
+                    |_| true,
+                ),
             });
             site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
             return Some(ResolvedConstSubst {
@@ -235,7 +239,11 @@ impl ConstSubstCtx<'_> {
                 head,
                 spec.name,
             ),
-            shape: tcl_registry::release_compilation::InvocationShape::of(rest, |_| true),
+            shape: tcl_registry::release_compilation::InvocationShape::of(
+                self.version.unwrap_or(TclVersion::V9_0),
+                rest,
+                |_| true,
+            ),
         });
         // A pack-supplied spec answered at compile time: the constant rests
         // on that pack's facts, so the site claims them (rung 1).

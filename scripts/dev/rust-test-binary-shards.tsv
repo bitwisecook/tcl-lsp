@@ -177,6 +177,7 @@
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax
 3	tcl-test-support	lib	tcl-test-support	tcl_test_support
+3	tcl-vm-cli::script_errors	test	tcl-vm-cli	script_errors
 3	tcl-vm::c_error_paths_e2e	test	tcl-vm	c_error_paths_e2e
 3	tcl-vm::cmd_control_e2e	test	tcl-vm	cmd_control_e2e
 3	tcl-vm::cmd_math_expr_e2e	test	tcl-vm	cmd_math_expr_e2e
@@ -194,6 +195,7 @@
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
 3	tcl-vm::release_running_bytecode_e2e	test	tcl-vm	release_running_bytecode_e2e
+3	tcl-vm::rename_return_source_e2e	test	tcl-vm	rename_return_source_e2e
 3	tcl-vm::return_code_boundary_e2e	test	tcl-vm	return_code_boundary_e2e
 3	tcl-vm::run_script	test	tcl-vm	run_script
 3	tcl-vm::tricky_resolution_e2e	test	tcl-vm	tricky_resolution_e2e

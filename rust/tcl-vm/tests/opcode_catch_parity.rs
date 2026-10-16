@@ -86,7 +86,7 @@ fn assemble(
 fn push_lit(lits: &mut LiteralTable, s: &str) -> Instruction {
     let idx = i32::try_from(lits.intern(s)).unwrap();
     let mut i = Instruction::new(Op::PUSH1, vec![Operand::Imm(idx)]);
-    i.push_verbatim = true;
+    i.literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     i
 }
 

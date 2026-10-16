@@ -15,9 +15,10 @@
 //! inline decides what a running unit sees after a command-table change.
 //!
 //! Modelled for Tcl 8.4.20 from `generic/tclBasic.c`'s `builtInCmds[]` (the
-//! entries with a `compileProc`) and `generic/tclCompCmds.c`. A `compileProc`
-//! that declines one particular word shape (a non-literal body, a `regexp`
-//! pattern it cannot compile) is not modelled; the command counts as compiled.
+//! entries with a `compileProc`) and `generic/tclCompCmds.c`, including the
+//! word shapes each `compileProc` declines. A `compileProc` that fails with a
+//! compile error (a wrong word count it reports itself) fails the whole unit,
+//! so its command counts as compiled.
 
 use tcl_dialect::TclVersion;
 use tcl_runtime_api::ReleaseBinding;
@@ -26,48 +27,60 @@ use tcl_runtime_api::ReleaseBinding;
 /// release's choice to compile it depends on them.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct InvocationShape {
-    /// Whether each word after the command is one literal word, when the
-    /// words are known.
-    pub literal: Option<Box<[bool]>>,
-    /// The first word after the command, when it is literal.
-    pub subcommand: Option<Box<str>>,
+    /// Each word after the command, with its text where it is one literal
+    /// word, when the words are known.
+    pub words: Option<Box<[Option<Box<str>>]>>,
 }
 
 impl InvocationShape {
-    /// The shape of an invocation whose words after the command are `args`,
-    /// the word at each index literal where `literal` says so.
+    /// The shape `release` reads of an invocation whose words after the
+    /// command are `args`, the word at each index literal where `literal`
+    /// says so. A release that revalidates running bytecode reads none.
     #[must_use]
-    pub fn of<S: AsRef<str>>(args: &[S], literal: impl Fn(usize) -> bool) -> Self {
-        let literal: Box<[bool]> = (0..args.len()).map(literal).collect();
+    pub fn of<S: AsRef<str>>(
+        release: TclVersion,
+        args: &[S],
+        literal: impl Fn(usize) -> bool,
+    ) -> Self {
+        if release.revalidates_running_bytecode() {
+            return Self::default();
+        }
         Self {
-            subcommand: args
-                .first()
-                .filter(|_| literal.first().copied().unwrap_or(false))
-                .map(|word| word.as_ref().into()),
-            literal: Some(literal),
+            words: Some(
+                args.iter()
+                    .enumerate()
+                    .map(|(index, word)| literal(index).then(|| word.as_ref().into()))
+                    .collect(),
+            ),
+        }
+    }
+
+    /// The shape of an invocation of `count` words after the command, none
+    /// of them known to be literal.
+    #[must_use]
+    pub fn counted(count: usize) -> Self {
+        Self {
+            words: Some(vec![None; count].into()),
         }
     }
 
     /// The number of words after the command.
     #[must_use]
     pub fn arg_count(&self) -> Option<usize> {
-        self.literal.as_deref().map(<[bool]>::len)
+        self.words.as_deref().map(<[_]>::len)
     }
 
-    /// Whether every word after the command at `indices` is literal; `false`
-    /// when the words are not known.
-    fn literal_at(&self, mut indices: impl Iterator<Item = usize>) -> bool {
-        self.literal.as_deref().is_some_and(|literal| {
-            indices.all(|index| literal.get(index).copied().unwrap_or(false))
-        })
+    /// The text of the word after the command at `index`, when it is literal.
+    #[must_use]
+    pub fn word(&self, index: usize) -> Option<&str> {
+        self.words.as_deref()?.get(index)?.as_deref()
     }
 }
 
 /// How `version` binds an invocation of `command` of `shape`. `None` for a
 /// release that revalidates running bytecode, where the answer is not
 /// observable and so not modelled. An unknown word that decides the answer
-/// takes the binding that holds in fewer places, except a `catch` result
-/// variable, which is assumed present.
+/// takes the binding that holds in fewer places.
 #[must_use]
 pub fn release_binding(
     version: TclVersion,
@@ -86,43 +99,218 @@ pub fn release_binding(
             ReleaseBinding::Invoked
         }
     };
-    Some(match command {
-        "append" | "break" | "continue" | "expr" | "incr" | "llength" | "regexp" | "set" => {
-            ReleaseBinding::Compiled
+    let in_procedure_if = |compiles: bool| {
+        if compiles {
+            ReleaseBinding::CompiledInProcedure
+        } else {
+            ReleaseBinding::Invoked
         }
-        // `TclCompileIfCmd` compiles only words free of substitution, and
-        // `TclCompileForCmd` and `TclCompileWhileCmd` only a literal test,
-        // step and body.
-        "if" => compiled_if(shape.literal_at(0..count.unwrap_or(0))),
-        "for" => compiled_if(count == Some(4) && shape.literal_at(1..4)),
-        "while" => compiled_if(count == Some(2) && shape.literal_at(0..2)),
+    };
+    Some(match command {
+        "break" | "continue" | "expr" | "incr" | "llength" | "set" => ReleaseBinding::Compiled,
+        // `TclCompileAppendCmd` compiles one value at most.
+        "append" => compiled_if(count.is_some_and(|count| count <= 2)),
+        // A wrong word count is a compile error that fails the whole unit,
+        // so only a well-formed invocation's binding is observable.
+        "if" | "for" | "while" => compiled_if(compiles_shape(version, command, shape, false)),
         "lindex" => compiled_if(count.is_some_and(|count| count >= 1)),
         "lset" => compiled_if(count.is_some_and(|count| count >= 2)),
-        // `TclCompileForeachCmd` declines outside a procedure body and for a
-        // variable list or body that is not literal.
-        "foreach" => match count {
-            Some(count) if count >= 3 && count % 2 == 1 => {
-                let words = (0..count - 1).step_by(2).chain(std::iter::once(count - 1));
-                if shape.literal_at(words) {
-                    ReleaseBinding::CompiledInProcedure
-                } else {
-                    ReleaseBinding::Invoked
-                }
+        "regexp" => compiled_if(regexp_compiles(shape)),
+        "string" => compiled_if(string_compiles(shape)),
+        // The rest decline outside a procedure body, `TclCompileLappendCmd`
+        // for more than one value and `TclCompileReturnCmd` for options or
+        // inside a `catch`.
+        "foreach" => in_procedure_if(compiles_shape(version, command, shape, true)),
+        "lappend" => in_procedure_if(matches!(count, Some(0 | 2))),
+        "list" => ReleaseBinding::CompiledInProcedure,
+        "return" => {
+            if count.is_some_and(|count| count <= 1) {
+                ReleaseBinding::CompiledInProcedureOutsideCatch
+            } else {
+                ReleaseBinding::Invoked
             }
-            _ => ReleaseBinding::Invoked,
-        },
-        // `TclCompileCatchCmd` needs a local for its result variable, and
-        // `TclCompileLappendCmd`, `TclCompileListCmd` and
-        // `TclCompileReturnCmd` decline outside a procedure body.
-        "catch" if count == Some(1) => ReleaseBinding::Compiled,
-        "catch" | "lappend" | "list" | "return" => ReleaseBinding::CompiledInProcedure,
-        // `TclCompileStringCmd` compiles these subcommands and invokes the rest.
-        "string" => match shape.subcommand.as_deref() {
-            Some("compare" | "equal" | "index" | "length" | "match") => ReleaseBinding::Compiled,
-            _ => ReleaseBinding::Invoked,
+        }
+        // `TclCompileCatchCmd` needs a local scalar for its result variable;
+        // any other word count is its wrong-arity error, which counts as
+        // compiled.
+        "catch" => match count {
+            Some(2) => in_procedure_if(shape.word(1).is_some_and(is_local_scalar)),
+            Some(_) => ReleaseBinding::Compiled,
+            None => ReleaseBinding::Invoked,
         },
         _ => ReleaseBinding::Invoked,
     })
+}
+
+/// Whether `version` compiles some invocation of `command`, so that what the
+/// command table holds for it at a unit's entry can decide what the unit
+/// runs.
+#[must_use]
+pub fn may_compile(version: TclVersion, command: &str) -> bool {
+    !version.revalidates_running_bytecode()
+        && matches!(
+            command.strip_prefix("::").unwrap_or(command),
+            "append"
+                | "break"
+                | "catch"
+                | "continue"
+                | "expr"
+                | "for"
+                | "foreach"
+                | "if"
+                | "incr"
+                | "lappend"
+                | "lindex"
+                | "list"
+                | "llength"
+                | "lset"
+                | "regexp"
+                | "return"
+                | "set"
+                | "string"
+                | "while"
+        )
+}
+
+/// C's `TclIsLocalScalar`: a name with no namespace qualifier and no array
+/// element.
+fn is_local_scalar(name: &str) -> bool {
+    let element = name.contains('(') && name.ends_with(')');
+    !name.contains("::") && !element
+}
+
+/// [`compiles_control`] for an invocation of `shape`, a word not known to
+/// be literal read as one that is not.
+fn compiles_shape(
+    version: TclVersion,
+    command: &str,
+    shape: &InvocationShape,
+    in_procedure: bool,
+) -> bool {
+    let words: Vec<CompileWord<'_>> = (0..shape.arg_count().unwrap_or(0))
+        .map(|index| {
+            let word = shape.word(index);
+            CompileWord {
+                text: word.unwrap_or_default(),
+                literal: word.is_some(),
+            }
+        })
+        .collect();
+    compiles_control(version, command, &words, in_procedure) == Some(true)
+}
+
+/// `TclCompileRegexpCmd`'s shape: literal `-nocase` or `--` options, then a
+/// literal pattern and the string, the pattern a plain string once a leading
+/// `^`, a trailing `$`, and a leading or trailing `.*` are set aside.
+fn regexp_compiles(shape: &InvocationShape) -> bool {
+    let Some(count) = shape.arg_count() else {
+        return false;
+    };
+    if count < 2 {
+        return false;
+    }
+    // Indexed as C indexes the command's words, the command at 0.
+    let words = count + 1;
+    let mut i = 1;
+    while i < words - 2 {
+        match shape.word(i - 1) {
+            Some("--") => {
+                i += 1;
+                break;
+            }
+            Some(option) if option.len() > 1 && "-nocase".starts_with(option) => {}
+            _ => return false,
+        }
+        i += 1;
+    }
+    if words - i != 2 {
+        return false;
+    }
+    let Some(pattern) = shape.word(i - 1) else {
+        return false;
+    };
+    if pattern.starts_with('-') {
+        return false;
+    }
+    let bytes = pattern.as_bytes();
+    let mut start = 0;
+    let mut end = bytes.len();
+    if end == 0 {
+        return true;
+    }
+    if bytes[0] == b'^' {
+        start = 1;
+    }
+    if bytes[end - 1] == b'$' && (end == 1 || bytes[end - 2] != b'\\') {
+        end -= 1;
+    }
+    if end > start + 1 && bytes[start] == b'.' && bytes[start + 1] == b'*' {
+        start += 2;
+    }
+    if end > start + 2
+        && bytes[end - 3] != b'\\'
+        && bytes[end - 2] == b'.'
+        && bytes[end - 1] == b'*'
+    {
+        end -= 2;
+    }
+    start >= end
+        || !bytes[start..end]
+            .iter()
+            .any(|byte| b"*+?{}()[].\\|^$".contains(byte))
+}
+
+/// `TclCompileStringCmd`'s shape: a literal subcommand, read as
+/// `Tcl_GetIndexFromObj` reads it, of the ones it compiles with their word
+/// counts.
+fn string_compiles(shape: &InvocationShape) -> bool {
+    const SUBCOMMANDS: [&str; 21] = [
+        "bytelength",
+        "compare",
+        "equal",
+        "first",
+        "index",
+        "is",
+        "last",
+        "length",
+        "map",
+        "match",
+        "range",
+        "repeat",
+        "replace",
+        "tolower",
+        "toupper",
+        "totitle",
+        "trim",
+        "trimleft",
+        "trimright",
+        "wordend",
+        "wordstart",
+    ];
+    let (Some(count), Some(written)) = (shape.arg_count(), shape.word(0)) else {
+        return false;
+    };
+    let subcommand = SUBCOMMANDS
+        .iter()
+        .find(|name| **name == written)
+        .or_else(|| {
+            let mut prefixed = SUBCOMMANDS
+                .iter()
+                .filter(|name| !written.is_empty() && name.starts_with(written));
+            prefixed.next().filter(|_| prefixed.next().is_none())
+        });
+    match subcommand.copied() {
+        Some("compare" | "equal" | "index") => count == 3,
+        Some("length") => count == 2,
+        Some("match") => {
+            count == 3
+                || (count == 4
+                    && shape
+                        .word(1)
+                        .is_some_and(|option| option.len() > 1 && "-nocase".starts_with(option)))
+        }
+        _ => false,
+    }
 }
 
 /// Whether `version` evaluates the script an invocation of `command` runs
@@ -248,12 +436,6 @@ pub fn compiled_loop_variables(command: &str, words: &[CompileWord<'_>]) -> Vec<
         .flatten()
         .map(|name| name.to_string())
         .collect()
-}
-
-/// Whether a name is one a compile procedure makes a local scalar of
-/// (`LocalScalar`): no namespace qualifier and no array element.
-fn is_local_scalar(name: &str) -> bool {
-    !(name.contains("::") || name.ends_with(')') && name.contains('('))
 }
 
 /// `foreach` and `lmap` (`TclCompileForeachCmd`, 8.6's `CompileEachloopCmd`):
@@ -530,95 +712,115 @@ pub fn compile_procedure(
 mod tests {
     use super::*;
 
-    fn bind(command: &str, args: &[&str]) -> Option<ReleaseBinding> {
-        release_binding(
-            TclVersion::V8_4,
-            command,
-            &InvocationShape::of(args, |_| true),
-        )
+    fn shaped(command: &str, args: &[&str], literal: &[bool]) -> Option<ReleaseBinding> {
+        let shape = InvocationShape::of(TclVersion::V8_4, args, |index| literal[index]);
+        release_binding(TclVersion::V8_4, command, &shape)
     }
+
+    fn bind(command: &str, args: &[&str]) -> Option<ReleaseBinding> {
+        shaped(command, args, &vec![true; args.len()])
+    }
+
+    const COMPILED: Option<ReleaseBinding> = Some(ReleaseBinding::Compiled);
+    const IN_PROCEDURE: Option<ReleaseBinding> = Some(ReleaseBinding::CompiledInProcedure);
+    const INVOKED: Option<ReleaseBinding> = Some(ReleaseBinding::Invoked);
 
     #[test]
     fn only_a_release_keeping_running_bytecode_models_its_bindings() {
         let unknown = InvocationShape::default();
         assert_eq!(release_binding(TclVersion::V8_5, "set", &unknown), None);
+        assert_eq!(release_binding(TclVersion::V8_4, "set", &unknown), COMPILED);
+        assert_eq!(bind("switch", &[]), INVOKED);
         assert_eq!(
-            release_binding(TclVersion::V8_4, "set", &unknown),
-            Some(ReleaseBinding::Compiled)
+            InvocationShape::of(TclVersion::V9_0, &["x"], |_| true),
+            InvocationShape::default(),
+            "a release that revalidates reads no words"
         );
-        assert_eq!(bind("switch", &[]), Some(ReleaseBinding::Invoked));
     }
 
     #[test]
     fn eight_four_compiles_some_commands_only_in_a_procedure() {
-        assert_eq!(bind("catch", &["body"]), Some(ReleaseBinding::Compiled));
+        assert_eq!(bind("catch", &["body"]), COMPILED);
+        assert_eq!(bind("catch", &["body", "m"]), IN_PROCEDURE);
+        assert_eq!(bind("catch", &["body", "::m"]), INVOKED);
+        assert_eq!(bind("catch", &["body", "a(b)"]), INVOKED);
+        assert_eq!(shaped("catch", &["body", "$v"], &[true, false]), INVOKED);
+        assert_eq!(bind("::foreach", &["x", "l", "b"]), IN_PROCEDURE);
         assert_eq!(
-            bind("catch", &["body", "m"]),
-            Some(ReleaseBinding::CompiledInProcedure)
+            bind("foreach", &["{a b}", "l", "c d", "m", "b"]),
+            IN_PROCEDURE
         );
+        assert_eq!(bind("foreach", &["::x", "l", "b"]), INVOKED);
+        assert_eq!(bind("lappend", &["L", "x"]), IN_PROCEDURE);
+        assert_eq!(bind("lappend", &["L", "x", "y"]), INVOKED);
+        let outside_catch = Some(ReleaseBinding::CompiledInProcedureOutsideCatch);
+        assert_eq!(bind("return", &["x"]), outside_catch);
+        assert_eq!(bind("return", &["-code", "error", "x"]), INVOKED);
         assert_eq!(
-            release_binding(TclVersion::V8_4, "catch", &InvocationShape::default()),
-            Some(ReleaseBinding::CompiledInProcedure)
+            release_binding(TclVersion::V8_4, "return", &InvocationShape::counted(1)),
+            outside_catch
         );
-        assert_eq!(
-            bind("::foreach", &["x", "l", "b"]),
-            Some(ReleaseBinding::CompiledInProcedure)
-        );
+    }
+
+    #[test]
+    fn eight_four_compiles_some_word_counts() {
+        assert_eq!(bind("append", &["s", "x"]), COMPILED);
+        assert_eq!(bind("append", &["s", "x", "y"]), INVOKED);
+        assert_eq!(bind("lindex", &[]), INVOKED);
+        assert_eq!(bind("lindex", &["l"]), COMPILED);
+        assert_eq!(bind("lset", &["l", "x"]), COMPILED);
+        assert_eq!(bind("lset", &["l"]), INVOKED);
     }
 
     #[test]
     fn eight_four_compiles_some_string_subcommands() {
+        assert_eq!(bind("string", &["length", "x"]), COMPILED);
+        assert_eq!(bind("string", &["len", "x"]), COMPILED, "a unique prefix");
+        assert_eq!(bind("string", &["length", "x", "y"]), INVOKED);
+        assert_eq!(bind("string", &["equal", "a", "b"]), COMPILED);
+        assert_eq!(bind("string", &["equal", "-nocase", "a", "b"]), INVOKED);
+        assert_eq!(bind("string", &["match", "-nocase", "a*", "b"]), COMPILED);
+        assert_eq!(bind("string", &["toupper", "x"]), INVOKED);
+        assert_eq!(bind("string", &["t", "x"]), INVOKED, "an ambiguous prefix");
+        assert_eq!(shaped("string", &["length", "x"], &[false, true]), INVOKED);
+    }
+
+    #[test]
+    fn eight_four_compiles_a_regexp_of_a_plain_pattern() {
+        assert_eq!(bind("regexp", &["abc", "s"]), COMPILED);
+        assert_eq!(bind("regexp", &["^ab.*", "s"]), COMPILED);
+        assert_eq!(bind("regexp", &["-nocase", "--", "ab$", "s"]), COMPILED);
+        assert_eq!(bind("regexp", &["a+", "s"]), INVOKED);
         assert_eq!(
-            bind("string", &["length", "x"]),
-            Some(ReleaseBinding::Compiled)
+            bind("regexp", &["a", "s", "m"]),
+            INVOKED,
+            "a match variable"
         );
-        assert_eq!(
-            bind("string", &["toupper", "x"]),
-            Some(ReleaseBinding::Invoked)
-        );
-        let substituted = InvocationShape::of(&["length", "x"], |index| index != 0);
-        assert_eq!(
-            release_binding(TclVersion::V8_4, "string", &substituted),
-            Some(ReleaseBinding::Invoked)
-        );
+        assert_eq!(bind("regexp", &["-all", "a", "s"]), INVOKED);
+        assert_eq!(bind("regexp", &["-x", "s"]), INVOKED);
+        assert_eq!(shaped("regexp", &["a", "s"], &[false, true]), INVOKED);
     }
 
     #[test]
     fn eight_four_compiles_control_commands_only_with_literal_scripts() {
-        let shaped = |command: &str, args: &[&str], literal: &[bool]| {
-            release_binding(
-                TclVersion::V8_4,
-                command,
-                &InvocationShape::of(args, |index| literal[index]),
-            )
-        };
-        assert_eq!(
-            shaped("if", &["1", "b"], &[true, true]),
-            Some(ReleaseBinding::Compiled)
-        );
-        assert_eq!(
-            shaped("if", &["$c", "b"], &[false, true]),
-            Some(ReleaseBinding::Invoked)
-        );
+        assert_eq!(shaped("if", &["1", "b"], &[true, true]), COMPILED);
+        assert_eq!(shaped("if", &["$c", "b"], &[false, true]), INVOKED);
         assert_eq!(
             shaped("for", &["$i", "t", "n", "b"], &[false, true, true, true]),
-            Some(ReleaseBinding::Compiled)
+            COMPILED
         );
-        assert_eq!(
-            shaped("while", &["t", "$b"], &[true, false]),
-            Some(ReleaseBinding::Invoked)
-        );
+        assert_eq!(shaped("while", &["t", "$b"], &[true, false]), INVOKED);
         assert_eq!(
             shaped("foreach", &["x", "$l", "b"], &[true, false, true]),
-            Some(ReleaseBinding::CompiledInProcedure)
+            IN_PROCEDURE
         );
         assert_eq!(
             shaped("foreach", &["x", "$l", "$b"], &[true, false, false]),
-            Some(ReleaseBinding::Invoked)
+            INVOKED
         );
         assert_eq!(
             release_binding(TclVersion::V8_4, "if", &InvocationShape::default()),
-            Some(ReleaseBinding::Invoked)
+            INVOKED
         );
     }
 
