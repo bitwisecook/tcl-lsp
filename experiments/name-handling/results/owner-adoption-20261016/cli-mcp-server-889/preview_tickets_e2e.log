@@ -1,0 +1,49 @@
+
+running 24 tests
+test a_pack_declared_configuration_member_declares_no_method ... tcl-lsp: the editor did not answer workspace/configuration within 10s; keeping the previous settings so a later pull can retry.
+
+thread 'tokio-rt-worker' (124655) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-rt-worker' (124635) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'a_pack_declared_configuration_member_declares_no_method' (124542) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'a_pack_declared_configuration_member_declares_no_method' (124542) panicked at rust/tcl-lsp-server/tests/preview_tickets_e2e.rs:1436:5:
+server never published diagnostics for the opened document
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared
+
+thread 'tokio-rt-worker' (124879) panicked at rust/tcl-vm/src/interp.rs:4753:14:
+native implementation namespace was declared

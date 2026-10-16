@@ -1,0 +1,13 @@
+{
+  "unit": "compiler.source.original-formal-reference-observations:3936",
+  "base_sha256": {
+    "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs": "59c940877c1bc0f9a3ce3016ab2f8d7d90f6b31915d0fcad975dc4fab70e743b"
+  },
+  "frozen_failure_source": "889643a45508661705052ae7b447aed5f226a885",
+  "frozen_failure_binary_sha256": "c42bc82b4bf4eb7b3b7dc6e3e1bc5313f2e678fe25be55b0fb269adb31851f7d",
+  "candidate_tests": "not run; root owns Cargo/main",
+  "edit_sha256": {
+    "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs": "0766d1ca0679dc14a58f39f8ab3cc80963b5fe4f2260f1dc4b20b9eae0adc501"
+  },
+  "patch_sha256": "a6d90f3e5841790073b852d869b96af45227982a04019cc40cddfa6f75aa7f03"
+}

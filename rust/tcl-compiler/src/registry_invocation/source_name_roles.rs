@@ -428,7 +428,7 @@ pub(crate) fn original_source_name_roles(
             roles_complete: true,
             direct_written_arguments: true,
             config: binding
-                .original_authored_source_body_scope_for_name_roles(tokens, registry)?
+                .original_authored_scalar_body_scope(tokens, registry)?
                 .config(),
         });
     }
@@ -967,6 +967,73 @@ mod tests {
             let mut changed = tokens.clone();
             changed.argv_texts[2] = "changed".to_owned();
             assert!(original_source_name_roles(&registry, &changed).is_none());
+        }
+    }
+
+    #[test]
+    fn scalar_source_name_roles_keep_original_declaration_scope_and_currency() {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let source = "proc p {used spare} {set local 1; return $used}";
+        let config = tcl_lexer::LexerConfig::for_file_grammar(environment.unit_profile().grammar);
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source, registry, false, config,
+        );
+        let module = &unit.ir_module;
+        let (&id, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = unit.original_procedure_for_body(id).unwrap();
+        assert_eq!(procedure.body.statements.len(), 2);
+        for statement in &procedure.body.statements {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.has_original_source_layout_owner());
+            assert!(
+                binding
+                    .original_authored_source_body_scope_for_name_roles(tokens, registry)
+                    .is_none()
+            );
+            let scope = binding
+                .original_authored_scalar_body_scope(tokens, registry)
+                .unwrap();
+            assert!(super::super::original_authored_scalar_invocation(tokens, registry).is_some());
+            let selected = original_source_name_roles(registry, tokens)
+                .expect("authenticated scalar source scope");
+            assert_eq!(selected.config(), scope.config());
+            assert_eq!(selected.config(), config.nested());
+            assert!(selected.roles_complete());
+            assert!(selected.has_unknown_residual());
+            assert!(selected.direct_written_arguments());
+            assert_eq!(
+                selected.roles(),
+                super::super::original_authored_scalar_invocation(tokens, registry)
+                    .unwrap()
+                    .written_roles()
+            );
+            assert!(
+                super::super::normal_representation_invocation_with_metadata_context(
+                    registry, None, tokens
+                )
+                .is_none()
+            );
+            assert!(
+                super::super::admitted_native_compiler_invocation(registry, None, tokens).is_none()
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[0].push('_');
+            assert!(original_source_name_roles(registry, &changed).is_none());
+            let mut withdrawn = tokens.clone();
+            withdrawn.source_binding = None;
+            assert!(original_source_name_roles(registry, &withdrawn).is_none());
+            let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+            assert!(original_source_name_roles(foreign.commands(), tokens).is_none());
         }
     }
 

@@ -1,0 +1,20 @@
+{
+  "source_head": "889643a45508661705052ae7b447aed5f226a885",
+  "source_diff_sha256": "0ba2defb31b920a637a4dd324fc0f6cdb903b31b063eb6239bd881dec0eb25fb",
+  "ordinary": true,
+  "completed_groups": 5,
+  "PASS": 65,
+  "FAIL": 34,
+  "zero_test_runs": 0,
+  "unaccepted_groups": 1,
+  "preview_group": {
+    "status": "operator_stopped_after_original_failure_and_nonterminating_shutdown",
+    "seconds": 251.50874807299988,
+    "signal": "SIGTERM",
+    "first_original_test": "a_pack_declared_configuration_member_declares_no_method",
+    "observed_failure": "Actual interp.rs4753 native bootstrap panic followed by original preview assertion1436: server never published diagnostics. Test harness did not terminate after original failure.",
+    "remaining_tests_unexecuted": 23,
+    "original_assertions_and_budgets_unchanged": true
+  },
+  "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance."
+}

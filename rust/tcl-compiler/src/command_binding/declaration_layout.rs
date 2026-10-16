@@ -4041,10 +4041,7 @@ mod tests {
                 }
             }
             assert_eq!(layout.config, config);
-            assert_eq!(
-                layout.dialect().word_values.brace,
-                tcl_dialect::BraceBackslashNewline::Folds
-            );
+            assert_eq!(layout.dialect().word_values.brace, brace);
             let operand = binding
                 .declaration_source_variable_operand_advice(registry, &tokens, &tokens.words()[1])
                 .expect("genuine original scalar operand under its selected configuration");

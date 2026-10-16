@@ -1150,7 +1150,7 @@ fn scan_command<'p>(
         // observer/lookup debt remains on its genuine prefix; no closed,
         // definite, successful alias or runtime write follows from this path.
         apply_arg_role_traits(
-            &shape.written_argument_roles(),
+            &selected.written_argument_roles(),
             cmd_args,
             braced,
             values,
@@ -1163,8 +1163,9 @@ fn scan_command<'p>(
             values,
             traits,
         );
-        record_selected_aliases(view, selected, values, traits, aliases);
-        apply_definite_writes(view, selected, values, traits, aliases);
+        let original = selected.retained_invocation();
+        record_selected_aliases(view, original, values, traits, aliases);
+        apply_definite_writes(view, original, values, traits, aliases);
         if shape.may_execute_parameter_body() {
             aliases.clear();
         }
@@ -1582,10 +1583,12 @@ pub fn caller_frame_upvar_params(
         let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
-        let Some(selected) = view
-            .parameter_invocation(params)
-            .or_else(|| view.conditional_parameter_source_invocation(params))
-        else {
+        let source = view.conditional_parameter_source_invocation(params);
+        let Some(selected) = view.parameter_invocation(params).or_else(|| {
+            source
+                .as_ref()
+                .map(|selected| selected.retained_invocation())
+        }) else {
             continue;
         };
         let Some((level, first)) = selected_alias_layout(&view, selected) else {
@@ -1935,6 +1938,20 @@ mod tests {
             .expect("dedicated conditional source invocation");
         let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
         assert!(!selected.facts.arg_roles_complete);
+        assert!(
+            selected
+                .retained_invocation()
+                .written_argument_roles()
+                .is_empty()
+        );
+        assert!(std::ptr::eq(
+            selected.facts,
+            selected.retained_invocation().facts.as_ref()
+        ));
+        assert_eq!(
+            selected.written_argument_roles(),
+            shape.written_argument_roles()
+        );
         assert!(shape.roles_complete);
         assert!(!shape.written_argument_roles().is_empty());
         assert!(view.parameter_role_advice().candidates().is_empty());

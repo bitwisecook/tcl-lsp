@@ -1,0 +1,15 @@
+{
+  "baseline_id": "root:host.environment-presence:220:0",
+  "patch_sha256": "e2bb9340ecac6ffa302d27117d11c8754e2b7db293a0b123a787f6710ea75b66",
+  "files": [
+    {
+      "path": "rust/f5-cli/src/commands/remote/auth.rs",
+      "old_sha256": "03c4a96dca3e1efac95705aec41cb7ef8e121348e308554e099ee309acde648d",
+      "new_sha256": "a82259bed5bb37de3e6f0d16f1c0720c97ee8c648097964d0d102ad61dbcdbc0"
+    }
+  ],
+  "selectors": [
+    "cargo test -p f5-cli commands::remote::auth::tests::opaque_environment_is_present_but_explicit_user_wins",
+    "cargo test -p f5-cli commands::remote::auth::tests::opaque_environment_child"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "purpose": "existing dedicated Logical own-formal conditional source layout; no new baseline unit",
+  "base_sha256": {
+    "rust/tcl-compiler/src/registry_invocation.rs": "5d4c565e579e7f31c4ee2986ffedf4b93ab290c2ca08797dd6c10a0a4b0353d0",
+    "rust/tcl-compiler/src/analyser/param_traits.rs": "83f172ef883d023ba0c93786c2a22f7ce07d36b367d6614765777585e8e865ba"
+  },
+  "frozen_failure_source": "889643a45508661705052ae7b447aed5f226a885",
+  "tests": "not run; Root owns Cargo and main",
+  "patch_sha256": "9c834217f7d38495aa7d25034e533d81cb72ed7e84d671654943670633918023",
+  "edit_sha256": {
+    "rust/tcl-compiler/src/registry_invocation.rs": "506eee229fc6f05929b34f0ab3424f8fcd809e96f1074d74a18836940901a181",
+    "rust/tcl-compiler/src/analyser/param_traits.rs": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1"
+  }
+}

@@ -1,0 +1,521 @@
+{
+  "status": "TMP-only proposal; not schema-valid under current proof schema; no repository changes",
+  "purpose": "Field-level relation between a current sanitized JSON container, its exact retained Tcl operation-result hex field, and the historical report row that already names the input-payload and result SHA. It does not assert current container equals historical whole file.",
+  "current_proof_mechanism_compatibility": {
+    "current_evidence_outer_path_sha256": "Required and computed over complete current file; checker raises evidence digest changed unless it equals current bytes. Thus use current container hash only in `evidence.sha256`.",
+    "json_pointer": "Supported; selects one JSON value before optional `contains` validation.",
+    "contains": "Supported but only checks substring membership in stringified selected value; it does not decode result_hex or compute field SHA/length.",
+    "additional_fields": "Rejected because schema sets additionalProperties=false for evidence.",
+    "historical_whole_file_sha256": "No typed property; placing an old hash in `sha256` incorrectly identifies the current projected file and fails checker. Preserve as a clearly labelled historical value in prose/description or extend schema.",
+    "conclusion": "Existing mechanism can safely identify the current projected container and point to selected fields without claiming original whole-file identity. It cannot machine-verify a hex field digest/byte count or encode the historical/current relationship as typed data. For durable automated validation, add an additive, narrowly scoped field-digest/projection contract to schema+checker."
+  },
+  "durable_receipt_candidate": {
+    "schema_version": 1,
+    "role": "sanitized transport projection; operation-result fields preserved per retained provenance statement",
+    "current_container": {
+      "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json",
+      "sha256": "56bb79f46c1ee60997defb60bc3813f00d966cd4c42dc8e0f6c2ffe6c2a83d4b",
+      "bytes": 1708272,
+      "historical_whole_file_sha256": "ee533a62089293ff9c10075994ee3fc81fb01402ca978836a95b2a3dff368426",
+      "historical_whole_file_bytes": 1711344
+    },
+    "current_report": {
+      "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "sha256": "08bf650252be6aa5e5c0e9c6710927cea267ae4a333c4309c37884bbd7e250bd",
+      "bytes": 31714,
+      "historical_whole_file_sha256": "c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7",
+      "historical_whole_file_bytes": 31721
+    },
+    "sanitization_scope": "Current decoded artifact states transport/device placeholders; backend envelope bytes may differ; Tcl operation/status/result fields are preserved; historical execution hashes are not renewed.",
+    "selectors": [
+      {
+        "selector": "nul_counted_last",
+        "existing_proof_id": "naming.bigip.cross-context-variable-links-traces",
+        "report_line_range": [
+          135,
+          135
+        ],
+        "historical_input_payload_sha256": "c6d687f237c239600f5bd1cf76e16d371f584eea315f1338fceecb14149a64e9",
+        "historical_operation_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+        "result_bytes": 299,
+        "current_result_fields": [
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:0/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:0/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:0/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:1/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:1/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:1/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:2/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:2/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:2/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:3/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:3/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:3/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:0/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:0/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:0/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:1/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:1/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:1/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:2/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:2/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:2/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:3/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:3/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_counted_last/0:3/result_size",
+            "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "bytes": 299,
+            "stored_result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+            "stored_result_size": 299
+          }
+        ],
+        "cross_context_corroboration": "same_run_event_http_comparison marks all TMM result copies exactly equal to HTTP result",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      },
+      {
+        "selector": "nul_array_root",
+        "existing_proof_id": "naming.bigip.cross-context-variable-links-traces",
+        "report_line_range": [
+          136,
+          136
+        ],
+        "historical_input_payload_sha256": "1a942ef715ac1b9655a3c34098864fa1f87a9feeb129d9afd95dba545de75fd0",
+        "historical_operation_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+        "result_bytes": 490,
+        "current_result_fields": [
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:0/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:0/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:0/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:1/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:1/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:1/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:2/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:2/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:2/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:3/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:3/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_root/0:3/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_root/0:0/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:0/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:0/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_root/0:1/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:1/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:1/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_root/0:2/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:2/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:2/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_root/0:3/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:3/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_root/0:3/result_size",
+            "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "bytes": 490,
+            "stored_result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+            "stored_result_size": 490
+          }
+        ],
+        "cross_context_corroboration": "same_run_event_http_comparison marks all TMM result copies exactly equal to HTTP result",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      },
+      {
+        "selector": "nul_array_index",
+        "existing_proof_id": "naming.bigip.cross-context-variable-links-traces",
+        "report_line_range": [
+          137,
+          137
+        ],
+        "historical_input_payload_sha256": "8e0c4f79d9213ef60f1b8725af64b25ef1cad809a06aa99643290dd04a1d7cf6",
+        "historical_operation_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+        "result_bytes": 503,
+        "current_result_fields": [
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:0/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:0/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:0/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:1/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:1/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:1/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:2/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:2/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:2/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:3/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:3/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/nul_array_index/0:3/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_index/0:0/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:0/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:0/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_index/0:1/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:1/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:1/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_index/0:2/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:2/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:2/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/nul_array_index/0:3/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:3/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/nul_array_index/0:3/result_size",
+            "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "bytes": 503,
+            "stored_result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+            "stored_result_size": 503
+          }
+        ],
+        "cross_context_corroboration": "same_run_event_http_comparison marks all TMM result copies exactly equal to HTTP result",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      },
+      {
+        "selector": "lexical_clean",
+        "existing_proof_id": "naming.bigip.cross-context-lexical-names",
+        "report_line_range": [
+          138,
+          138
+        ],
+        "historical_input_payload_sha256": "7a55589049588f9bb5ddbe36b944c41b2294374942c348a969dfa56e65db543f",
+        "historical_operation_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+        "result_bytes": 1843,
+        "current_result_fields": [
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:0/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:0/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:0/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:1/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:1/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:1/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:2/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:2/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:2/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:3/result_hex",
+            "result_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:3/result_sha256",
+            "size_pointer": "/chunked_events/CLIENT_ACCEPTED/lexical_clean/0:3/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/lexical_clean/0:0/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:0/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:0/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/lexical_clean/0:1/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:1/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:1/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/lexical_clean/0:2/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:2/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:2/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          },
+          {
+            "pointer": "/chunked_events/RULE_INIT/lexical_clean/0:3/result_hex",
+            "result_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:3/result_sha256",
+            "size_pointer": "/chunked_events/RULE_INIT/lexical_clean/0:3/result_size",
+            "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "bytes": 1843,
+            "stored_result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+            "stored_result_size": 1843
+          }
+        ],
+        "cross_context_corroboration": "same_run_event_http_comparison marks all TMM result copies exactly equal to HTTP result",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      },
+      {
+        "selector": "nul_array_root_portable",
+        "existing_proof_id": "naming.bigip.cross-context-variable-links-traces",
+        "report_line_range": [
+          99,
+          99
+        ],
+        "historical_input_payload_sha256": "8fa234686f7534a4961585b9138d994f1d2016a8a81f6c456bb1f0abd8bc1654",
+        "historical_operation_result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+        "result_bytes": 1357,
+        "current_result_fields": [
+          {
+            "pointer": "/portable_array_controls/isolated_root_traffic/traffic-http-nul-array-root-portable-rerun/unique_bodies/0/result_hex",
+            "result_pointer": "/portable_array_controls/isolated_root_traffic/traffic-http-nul-array-root-portable-rerun/unique_bodies/0/result_sha256",
+            "size_pointer": "/portable_array_controls/isolated_root_traffic/traffic-http-nul-array-root-portable-rerun/unique_bodies/0/result_size",
+            "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "bytes": 1357,
+            "stored_result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "stored_result_size": 1357
+          },
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/IAppImplementation/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/IAppImplementation/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/IAppImplementation/result_size",
+            "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "bytes": 1357,
+            "stored_result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "stored_result_size": 1357
+          },
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/ICallScript/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/ICallScript/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/ICallScript/result_size",
+            "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "bytes": 1357,
+            "stored_result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "stored_result_size": 1357
+          },
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/TmshCliScript/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/TmshCliScript/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_root_portable/contexts/TmshCliScript/result_size",
+            "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "bytes": 1357,
+            "stored_result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+            "stored_result_size": 1357
+          }
+        ],
+        "cross_context_corroboration": "published result matrix says all reached contexts returned identical result SHA",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      },
+      {
+        "selector": "nul_array_index_portable",
+        "existing_proof_id": "naming.bigip.cross-context-variable-links-traces",
+        "report_line_range": [
+          100,
+          100
+        ],
+        "historical_input_payload_sha256": "27444ad7e4c3ffa8e72c8655f4b562a53fc362982b2ae3b41bf35297fc6b014d",
+        "historical_operation_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+        "result_bytes": 1612,
+        "current_result_fields": [
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/IAppImplementation/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/IAppImplementation/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/IAppImplementation/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          },
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/ICallScript/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/ICallScript/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/ICallScript/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          },
+          {
+            "pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/TmshCliScript/result_hex",
+            "result_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/TmshCliScript/result_sha256",
+            "size_pointer": "/portable_array_controls/non_tmm/nul_array_index_portable/contexts/TmshCliScript/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          },
+          {
+            "pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable/unique_bodies/0/result_hex",
+            "result_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable/unique_bodies/0/result_sha256",
+            "size_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable/unique_bodies/0/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          },
+          {
+            "pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable-rerun/unique_bodies/0/result_hex",
+            "result_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable-rerun/unique_bodies/0/result_sha256",
+            "size_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-index-portable-rerun/unique_bodies/0/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          },
+          {
+            "pointer": "/portable_array_controls/traffic/traffic-http-nul-array-root-portable/unique_bodies/0/result_hex",
+            "result_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-root-portable/unique_bodies/0/result_sha256",
+            "size_pointer": "/portable_array_controls/traffic/traffic-http-nul-array-root-portable/unique_bodies/0/result_size",
+            "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "bytes": 1612,
+            "stored_result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+            "stored_result_size": 1612
+          }
+        ],
+        "cross_context_corroboration": "published result matrix says all reached contexts returned identical result SHA",
+        "limits": "Input SHA is retained historical provenance, not independently recomputed from original script bytes. This row does not identify an original full HTTP response or archive byte string."
+      }
+    ]
+  },
+  "minimal_checker_owner_extension_candidate": {
+    "evidence.sha256": "Continue to mean current whole-container SHA-256; never reinterpret it as historical SHA.",
+    "historical_container_identity": {
+      "whole_sha256": "historical corpus/source artifact SHA; informational provenance only when historical bytes are absent",
+      "whole_bytes": "historical source byte count"
+    },
+    "selected_field": {
+      "json_pointer": "required",
+      "encoding": "hex",
+      "sha256": "checker decodes selected string and verifies SHA-256",
+      "bytes": "checker verifies decoded byte length",
+      "historical_value_role": "operation-result; binds the current exact field to a separately cited historical report result hash"
+    },
+    "relation": "Require `selected_field.sha256` and `bytes` equal the cited report result hash/length; retain historical input payload SHA separately and do not equate it with result SHA. No full response/body/archive reconstruction claim."
+  },
+  "existing_proof_ids_touched_if_root_accepts": [
+    "naming.bigip.cross-context-lexical-names",
+    "naming.bigip.cross-context-variable-links-traces"
+  ],
+  "no_new_proof_or_semantic_count": true
+}

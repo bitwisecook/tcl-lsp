@@ -1,0 +1,113 @@
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+   Compiling tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+error[E0275]: overflow evaluating the requirement `Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>: Sync`
+    |
+    = help: consider increasing the recursion limit by adding a `#![recursion_limit = "256"]` attribute to your crate (`tcl_lsp_server`)
+note: required because it appears within the type `Option<Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_preflight::SourceNativeCompilationDependency`
+   --> rust/tcl-compiler/src/command_binding/compiled_preflight.rs:57:12
+    |
+ 57 | pub struct SourceNativeCompilationDependency {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::compiled_preflight::SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_invocation::SourceCompiledInvocationProof`
+   --> rust/tcl-compiler/src/command_binding/compiled_invocation.rs:195:12
+    |
+195 | pub struct SourceCompiledInvocationProof {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Unique<SourceCompiledInvocationProof>` to implement `Sync`
+note: required because it appears within the type `Box<tcl_compiler::command_binding::compiled_invocation::SourceCompiledInvocationProof>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/boxed.rs:236:11
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_invocation::SourceNativeCompilerAdmission`
+   --> rust/tcl-compiler/src/command_binding/compiled_invocation.rs:218:10
+    |
+218 | pub enum SourceNativeCompilerAdmission {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::compiled_invocation::SourceNativeCompilerAdmission>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<SourceNativeCompilerAdmission>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation`
+   --> rust/tcl-compiler/src/command_binding/compiler_inventory.rs:273:19
+    |
+273 | pub(super) struct SourceCompilerInvocation {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+    = note: required for `NodeRef<Owned, CommandAllocationSite, Vec<_>, _>` to implement `Sync`
+note: required because it appears within the type `Option<NodeRef<Owned, CommandAllocationSite, Vec<_>, _>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `BTreeMap<CommandAllocationSite, Vec<SourceCompilerInvocation>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/collections/btree/map.rs:189:11
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::ExpressionScriptCompilerVisit`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:786:8
+    |
+786 | struct ExpressionScriptCompilerVisit {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::expression_preparation::ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::SourceExpressionScriptCompilation`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:777:12
+    |
+777 | pub struct SourceExpressionScriptCompilation {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::expression_preparation::SourceExpressionScriptCompilation>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<SourceExpressionScriptCompilation>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:759:12
+    |
+759 | pub struct SourceExpressionPreparation {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>` to implement `Sync`
+note: required because it appears within the type `tcl_compiler::native_numeric::SourceNativeNumericObject`
+   --> rust/tcl-compiler/src/native_numeric.rs:64:12
+    |
+ 64 | pub struct SourceNativeNumericObject {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::native_numeric::SourceNativeNumericObject>` to implement `Send`
+note: required because it appears within the type `tcl_compiler::native_numeric::StoredNativeRepresentation`
+   --> rust/tcl-compiler/src/native_numeric.rs:319:10
+    |
+319 | pub enum StoredNativeRepresentation {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required because it appears within the type `(VariableCellKey, StoredNativeRepresentation)`
+    = note: required for `RawTable<(VariableCellKey, StoredNativeRepresentation)>` to implement `Send`
+note: required because it appears within the type `HashMap<VariableCellKey, StoredNativeRepresentation, RandomState>`
+   --> /rust/deps/hashbrown-0.17.1/src/map.rs:182:11
+note: required because it appears within the type `HashMap<VariableCellKey, StoredNativeRepresentation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/collections/hash/map.rs:245:11
+note: required because it appears within the type `VariableCellTable<StoredNativeRepresentation>`
+   --> rust/tcl-compiler/src/var_resolve/cell_key.rs:347:12
+    |
+347 | pub struct VariableCellTable<V>(HashMap<VariableCellKey, V>);
+    |            ^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `tcl_compiler::var_resolve::ResolveContext`
+   --> rust/tcl-compiler/src/var_resolve.rs:512:12
+    |
+512 | pub struct ResolveContext {
+    |            ^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::var_resolve::ResolveContext>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<tcl_compiler::var_resolve::ResolveContext>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-3155e6f0a2df2cc1.long-type-17554303758140160528.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+For more information about this error, try `rustc --explain E0275`.
+error: could not compile `tcl-lsp-server` (bin "tcl-lsp-server") due to 1 previous error

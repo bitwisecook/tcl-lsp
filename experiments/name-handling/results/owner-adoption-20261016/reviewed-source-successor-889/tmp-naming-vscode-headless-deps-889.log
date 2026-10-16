@@ -1,0 +1,14 @@
+==> SKIP_TCLSH=1 — skipping tclsh
+==> SKIP_TCLLIB=1 — skipping tcllib source
+==> SKIP_PYTHON_TK=1 — skipping python tk
+==> SKIP_NODE=1 — skipping node
+==> SKIP_KOTLINC=1 — skipping kotlinc
+==> SKIP_RUST=1 — skipping rust
+==> SKIP_WASMTIME=1 — skipping wasmtime
+==> SKIP_BINARYEN=1 — skipping Binaryen
+==> SKIP_WASI_SDK=1 — skipping wasi-sdk
+==> SKIP_TSHARK=1 — skipping tshark
+==> SKIP_EMACS=1 — skipping emacs
+W: Unable to read /etc/apt/apt.conf.d/80-applied-apt-retries - open (13: Permission denied)
+E: List directory /var/lib/apt/lists/partial is missing. - Acquire (30: Read-only file system)
+make: *** [Makefile:1682: ensure-vscode-test-deps] Error 100

@@ -114,6 +114,25 @@ impl VendorRegistryInvocationShape {
         self.source_transitions.as_ref()
     }
 
+    /// Available option descriptors from this exact hosted source selection.
+    /// The complete input, configuration, context, Registry and original word
+    /// vector are rechecked before projecting source advice, never acceptance.
+    pub fn source_completion_options(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        context: super::InvocationMetadataContext<'_>,
+    ) -> Option<Vec<tcl_registry::hover::OptionSpec>> {
+        self.with_source_schema(registry, context, |selected| {
+            Some(
+                selected
+                    .authored_source_available_options()?
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+            )
+        })
+    }
+
     /// Requery the original hosted source schema under its complete owner.
     /// This grants conditional warning/syntax metadata, not a loaded handler,
     /// accepted argv, physical variable access or Native execution.

@@ -152,20 +152,24 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
         .cloned()
         .unwrap_or_default();
 
-    let pick = |entry: &AliasEntry, field: &str, env_name: &str| -> Option<String> {
-        if let Some(v) = env::var(env_name).ok().filter(|v| !v.is_empty()) {
-            return Some(v);
-        }
-        if let Some(v) = entry.get(field) {
-            return Some(v.clone());
-        }
-        None
-    };
+    let pick =
+        |entry: &AliasEntry, field: &str, env_name: &str| -> Result<Option<String>, String> {
+            if let Some(value) = env::var_os(env_name) {
+                let value = value
+                    .into_string()
+                    .map_err(|_| format!("{env_name} is not valid Unicode"))?;
+                if !value.is_empty() {
+                    return Ok(Some(value));
+                }
+            }
+            Ok(entry.get(field).cloned())
+        };
 
-    let mut resolved_host = opts
-        .host
-        .map(str::to_owned)
-        .or_else(|| pick(&alias_entry, "host", "F5_HOST"));
+    let mut resolved_host = if let Some(host) = opts.host {
+        Some(host.to_owned())
+    } else {
+        pick(&alias_entry, "host", "F5_HOST")?
+    };
     if resolved_host.is_none() {
         if !opts.interactive {
             return Err("no host configured (set --host or F5_HOST)".to_owned());
@@ -185,11 +189,12 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
         resolved_host = real.clone();
     }
 
-    let resolved_user = if let Some(u) = opts
-        .user
-        .map(str::to_owned)
-        .or_else(|| pick(&alias_entry, "user", "F5_USER"))
-    {
+    let configured_user = if let Some(user) = opts.user {
+        Some(user.to_owned())
+    } else {
+        pick(&alias_entry, "user", "F5_USER")?
+    };
+    let resolved_user = if let Some(u) = configured_user {
         u
     } else {
         if !opts.interactive {
@@ -202,11 +207,12 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
         u
     };
 
-    let resolved_password = if let Some(p) = opts
-        .password
-        .map(str::to_owned)
-        .or_else(|| pick(&alias_entry, "password", "F5_PASSWORD"))
-    {
+    let configured_password = if let Some(password) = opts.password {
+        Some(password.to_owned())
+    } else {
+        pick(&alias_entry, "password", "F5_PASSWORD")?
+    };
+    let resolved_password = if let Some(p) = configured_password {
         p
     } else {
         if !opts.interactive {
@@ -224,7 +230,7 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
     let resolved_port = if let Some(port) = opts.port {
         port
     } else {
-        pick(&alias_entry, "port", "F5_PORT")
+        pick(&alias_entry, "port", "F5_PORT")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(443)
     };
@@ -232,7 +238,7 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
     let resolved_ssh_port = if let Some(port) = opts.ssh_port {
         port
     } else {
-        pick(&alias_entry, "ssh_port", "F5_SSH_PORT")
+        pick(&alias_entry, "ssh_port", "F5_SSH_PORT")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(22)
     };
@@ -255,4 +261,83 @@ fn prompt_line(prompt: &str) -> Result<String, String> {
         .read_line(&mut line)
         .map_err(|e| e.to_string())?;
     Ok(line.trim().to_owned())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{ResolveOptions, resolve_credentials};
+    use std::process::Command;
+
+    const CHILD_TEST: &str = "commands::remote::auth::tests::opaque_environment_child";
+    const MODE_ENV: &str = "F5_AUTH_OPAQUE_ENV_TEST_MODE";
+
+    #[test]
+    fn opaque_environment_is_present_but_explicit_user_wins() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let config_home =
+            std::env::temp_dir().join(format!("f5-auth-opaque-env-{}", std::process::id()));
+        let config_dir = config_home.join("f5");
+        let _ = std::fs::remove_dir_all(&config_home);
+        std::fs::create_dir_all(&config_dir).expect("create XDG config directory");
+        std::fs::write(
+            config_dir.join("hosts.toml"),
+            r#"[hosts.edge]
+host = "192.0.2.10"
+user = "alias-user"
+password = "alias-password"
+"#,
+        )
+        .expect("write low-priority alias credentials");
+
+        for mode in ["opaque", "explicit"] {
+            let output = Command::new(std::env::current_exe().expect("current test executable"))
+                .args(["--exact", CHILD_TEST, "--nocapture"])
+                .env_remove("F5_HOST")
+                .env_remove("F5_USER")
+                .env_remove("F5_PASSWORD")
+                .env_remove("F5_PORT")
+                .env_remove("F5_SSH_PORT")
+                .env("XDG_CONFIG_HOME", &config_home)
+                .env(MODE_ENV, mode)
+                .env(
+                    "F5_USER",
+                    std::ffi::OsString::from_vec(b"opaque-\xff-user".to_vec()),
+                )
+                .output()
+                .expect("run resolver child test");
+            assert!(
+                output.status.success(),
+                "resolver child mode `{mode}` failed; stdout: {}; stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        std::fs::remove_dir_all(&config_home).expect("remove XDG config directory");
+    }
+
+    #[test]
+    fn opaque_environment_child() {
+        let Ok(mode) = std::env::var(MODE_ENV) else {
+            return;
+        };
+        let opts = ResolveOptions {
+            host: Some("edge"),
+            user: (mode == "explicit").then_some("explicit-user"),
+            password: None,
+            port: None,
+            ssh_port: None,
+            interactive: false,
+        };
+        let result = resolve_credentials(&opts);
+        match mode.as_str() {
+            "opaque" => assert_eq!(result.unwrap_err(), "F5_USER is not valid Unicode"),
+            "explicit" => assert_eq!(
+                result.expect("explicit CLI user bypasses F5_USER").user,
+                "explicit-user"
+            ),
+            other => panic!("unexpected child mode {other}"),
+        }
+    }
 }

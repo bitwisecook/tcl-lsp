@@ -1,0 +1,20 @@
+{
+  "prior": "workspace-6fa",
+  "current": "compiler-vm-889",
+  "common_tests": 105,
+  "common_gains": [],
+  "common_regressions": [],
+  "additional_selected_tests": {
+    "tcl_compiler::body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories": "PASS",
+    "tcl_compiler::body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners": "PASS",
+    "tcl_compiler::interprocedural::tests::call_by_name_param_traits_inferred": "FAIL",
+    "tcl_compiler::interprocedural::tests::forwarded_to_callee_detected": "FAIL",
+    "tcl_compiler::interprocedural::tests::original_formal_reference_parts_keep_lexical_names_and_complete_grammar": "PASS",
+    "tcl_compiler::interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners": "FAIL",
+    "tcl_compiler::interprocedural::tests::original_formal_reference_traits_keep_authored_conditions_and_unknown_obligations": "PASS",
+    "tcl_compiler::interprocedural::tests::param_traits_inferred": "FAIL",
+    "tcl_compiler::interprocedural::tests::used_in_condition_detected": "PASS",
+    "tcl_compiler::registry_invocation::original_word_data::tests::original_command_words_keep_actual_module_source_and_vector_owners": "PASS"
+  },
+  "scope": "Selection differs. Tests outside this run are not classified as drops. Existing VM panics persist; this is not zero-regression acceptance."
+}

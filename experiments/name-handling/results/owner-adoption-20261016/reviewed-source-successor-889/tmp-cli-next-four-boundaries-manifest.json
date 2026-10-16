@@ -1,0 +1,37 @@
+{
+  "baseline_ids": [
+    "root:host.source-inventory:8:0",
+    "root:host.source-inventory:148:0",
+    "root:host.environment-presence:220:0",
+    "root:host.actual-browser-authority:241:0"
+  ],
+  "rationale": {
+    "root:host.source-inventory:8:0": "The shared Path-based source walker owns discovery. Preserve OS Path traversal and supported-extension policy; reject opaque directory labels explicitly, and propagate actual read_dir iterator errors instead of silently presenting incomplete inventory.",
+    "root:host.source-inventory:148:0": "The f5 merge command owns its actual native child Path inventory through std::fs::ReadDir; propagate iteration failure before publishing a merged result.",
+    "root:host.environment-presence:220:0": "The environment boundary uses std::env::var_os and explicit Unicode transport refusal; CLI arguments retain precedence, and credential bytes are never printed.",
+    "root:host.actual-browser-authority:241:0": "TcpListener::local_addr already supplies the selected bound SocketAddr; its standard formatter handles IPv6 brackets and avoids using an unresolved input spelling."
+  },
+  "patch_sha256": "0bf5ab155b4d09fbbb802ad7f870186b0539ba945001e8e7c7a3909fc0a79442",
+  "files": [
+    {
+      "path": "rust/tcl-cli-support/src/input.rs",
+      "old_sha256": "bd351643e11cc75f6bbcd6ba0d49847f0007375c5a39c65cd08beef9b78286cc",
+      "new_sha256": "1bd506b3af524ce59ae3e002f3259d4a5a2e85508d27971a333bc093efd20a2a"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/merge.rs",
+      "old_sha256": "06e2c416b9edd5a14339821d029e23a7900f8600c19da859018be6a42d30dbc2",
+      "new_sha256": "6604b7a9e7de8b93d36083b59aef5a8e10087f23965ca521e3d2e755d9c3f365"
+    },
+    {
+      "path": "rust/f5-cli/src/commands/remote/auth.rs",
+      "old_sha256": "03c4a96dca3e1efac95705aec41cb7ef8e121348e308554e099ee309acde648d",
+      "new_sha256": "71deeef9064f9e04b7b1fc6a3ca02cc9383817b385647dcb9a79ce8312fb10a4"
+    },
+    {
+      "path": "rust/tcl-cli/src/commands/gui.rs",
+      "old_sha256": "2dda147d288aad82a8cc5975407496560b6244a3d4806040d11e2383788e7184",
+      "new_sha256": "bb1fa3e0225b1b4560db31d4f920970ffcd65be2b957b56b17d2f6a63763ebce"
+    }
+  ]
+}

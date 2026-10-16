@@ -1,0 +1,22 @@
+{
+  "sha256": "d2b4f5f49f36a76cd97af89b4d7457427d1f89cfc57dd2a52cee872eafbf054d",
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/cmd_array.rs",
+      "before_sha256": "973bc927af2e663521478537be3c684977cd92331b7b401d3f80c1c9a75f6253",
+      "after_sha256": "3c79323b1993cec2270eef87021d6807489f0fa7b3d961d584cdbc53e14ecded"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_binary.rs",
+      "before_sha256": "00c1db504872f4db83db48e2bae0b240b013c60b992caa0456fefb240bca2ec8",
+      "after_sha256": "cd0b8b222cee519d8f5f87b708554e387335777703ef918cf5a8fe8db5b8aceb"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace.rs",
+      "before_sha256": "51228a262b2af0554a0f7782577d8d32051132c8596fc729b65fc6b2fabb765f",
+      "after_sha256": "ef487d8c4c176c06af71158a8750ce2e2bb12c4093bdf204d2072b25b78c7ab7"
+    }
+  ],
+  "validation": "Source only; no build/tests/main/Git",
+  "scope": "7 actual registration/retirement capability selectors and2 actual private roster profile selectors"
+}

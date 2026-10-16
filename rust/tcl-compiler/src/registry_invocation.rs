@@ -6208,6 +6208,31 @@ struct LogicalTraitInvocation {
     invocation: ResolvedStatementInvocation,
 }
 
+/// Borrowed conditional source parameter layout from its genuine retained
+/// body/prefix owner. Ordinary invocation facts retain their own proof purpose.
+/// This facade supplies no closed advice, Native handler or Normal operation.
+pub(crate) struct ConditionalParameterSourceInvocation<'a> {
+    invocation: &'a ResolvedStatementInvocation,
+    shape: &'a RegistryInvocationShape,
+    pub(crate) facts: &'a tcl_registry::InvocationFacts,
+}
+
+impl<'a> ConditionalParameterSourceInvocation<'a> {
+    pub(crate) fn written_argument_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
+        mapped_written_argument_roles(
+            &self.invocation.effective,
+            self.facts.argument_offset,
+            &self.shape.roles,
+        )
+    }
+
+    /// The original data-only invocation for the existing body-owner-checked
+    /// alias/template readers. Its ordinary facts are unchanged.
+    pub(crate) fn retained_invocation(&self) -> &'a ResolvedStatementInvocation {
+        self.invocation
+    }
+}
+
 struct ConditionalBodyInvocation {
     entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
     invocation: ResolvedStatementInvocation,
@@ -6330,9 +6355,14 @@ impl InvocationBodyAssistance {
     pub(crate) fn conditional_parameter_source_invocation(
         &self,
         parameters: &[&str],
-    ) -> Option<&ResolvedStatementInvocation> {
-        self.conditional_parameter_source_shape(parameters)?;
-        Some(&self.conditional_parameter_source()?.invocation)
+    ) -> Option<ConditionalParameterSourceInvocation<'_>> {
+        let shape = self.conditional_parameter_source_shape(parameters)?;
+        let invocation = &self.conditional_parameter_source()?.invocation;
+        Some(ConditionalParameterSourceInvocation {
+            facts: &invocation.facts,
+            invocation,
+            shape,
+        })
     }
 
     /// Conditional source alias layout from the same retained Registry source

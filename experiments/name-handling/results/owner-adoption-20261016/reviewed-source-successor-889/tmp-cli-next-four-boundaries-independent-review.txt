@@ -1,0 +1,24 @@
+INDEPENDENT SOURCE REVIEW
+Production candidate: /tmp/cli-next-four-boundaries.patch
+SHA256: 0bf5ab155b4d09fbbb802ad7f870186b0539ba945001e8e7c7a3909fc0a79442
+Decision: source CLEAR for exactly FOUR existing baseline caller requirements. No new semantic owner requirement.
+
+Exact catalogue count:
+1. root:host.source-inventory:8:0 -- existing Path/OsStr source walker and shared supported-extension registry. The catalogue explicitly permits refusal of opaque directory labels. New fallible Unicode admission refuses instead of silently excluding an entire opaque child directory; actual traversal and canonical PathBufs never come from display text. Actual ReadDir entry failures propagate and withhold the public Result<Vec<PathBuf>>; local already-collected paths cannot escape as successful partial inventory. Unicode skip names, leading-dot policy, sorting and supported extensions remain unchanged.
+2. root:host.source-inventory:148:0 -- existing native merge inventory now collects std::io::Result before selecting/sorting .conf children. Any reached iterator error prevents source loading/rendering/output. Actual PathBuf membership and the separately integrated Unicode loader refusal remain unchanged; error dir.display() is reporting only. Exact extension matching is not a lossy parent-path inverse.
+3. root:host.environment-presence:220:0 -- existing actual environment ingress now distinguishes absent/empty from present non-Unicode. Opaque values refuse with only the variable name, never credential bytes. Explicit per-field CLI values skip lower-priority environment access; nonempty Unicode env, empty-to-alias fallback, alias substitution, prompting, and valid-Unicode port parse/default behavior remain unchanged. Return type Result is consumed with ? before any lower-priority fallback.
+4. root:host.actual-browser-authority:241:0 -- existing TcpListener::local_addr supplies the selected SocketAddr after bind. SocketAddr Display retains the actual address/ephemeral port and IPv6 brackets; input DNS/bind spelling no longer supplies authority. Both announcement and browser opening consume this same URL. Embedded-asset lookup remains fixed-literal and independent.
+
+Withheld root:registry.event-candidate-inventory:61:0 is absent from this revised patch and is NOT reviewed, accepted or counted here. No release-aware event conclusion follows.
+
+Additional test candidate /tmp/cli-source-inventory-opaque-dir-test.patch
+SHA256: 7f61c8cb2f181740fe5d3e65d2857fd16fdb83199c08cb73e71dfe6e2483dba5
+Decision: source CLEAR. The Unix OsString contains actual ff, beneath it is a supported .tcl file, and the public discovery Result must refuse. CliError::Input derives #[error("{0}")], so error.to_string() is exactly the asserted message; the binary-only error: prefix does not apply. Separate genuine Unicode directory discovers one supported file. This is meaningful against old silent omission. PID-unique fixture and cleanup fit current harness; no existing assertions changed. No execution claim.
+
+Additional test candidate /tmp/f5-opaque-env-precedence-test.patch
+SHA256: 3571b70d2708c2d0b40d0594131f3955215a669a094581ffe3709841efd8662a
+Decision: BLOCKED (P1 test cannot reach selected ingress).
+At rust/f5-cli/src/commands/push.rs:84, run_push handles --dry-run, prints the plan/payload and returns 0 before resolve_credentials at line91. Both new invocations supply --dry-run. The first will therefore return 0 with output rather than asserted 2/empty output; the explicit-user invocation returning 0 proves no credential precedence. Do not move credentials before dry-run merely to satisfy this test: existing offline dry-run behavior is independent and must stay intact.
+The fixture path and syntax themselves are authentic: XDG_CONFIG_HOME=root -> root/f5/hosts.toml; the current loader accepts [hosts.edge] and string host/user/password fields, and --host edge selects the entry. Actual OsString ff env is passed to the child unchanged. An actual credential-resolution failure outside dry-run is printed as error: <message> and returns2; the test's diagnostic is correct for a reached resolver, but that resolver is bypassed. Repair using a direct genuine resolver-level test (ideally isolated child env), or an actual non-dry-run local transport control whose success proves explicit CLI precedence. A later transport failure alone does not prove the positive success asserted here.
+
+Verification performed: all three patch hashes and all manifest beforeimage hashes match; patch --dry-run -p1 succeeds independently against current main. No main writes, Cargo, builds, or candidate test executions. No verified-complete advance is justified by source review alone.

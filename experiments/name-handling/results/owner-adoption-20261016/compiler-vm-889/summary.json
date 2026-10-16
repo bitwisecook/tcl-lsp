@@ -1,0 +1,15 @@
+{
+  "source_head": "889643a45508661705052ae7b447aed5f226a885",
+  "ordinary": true,
+  "groups": 16,
+  "PASS": 93,
+  "FAIL": 22,
+  "zero_test_runs": 0,
+  "build": {
+    "status": "PASS",
+    "seconds": 431,
+    "warnings": 0,
+    "note": "Build began at6fa; the Rust source bytes match the889 clean capture. No instrumentation."
+  },
+  "scope": "Selected Compiler/VM controls only. Original selectors/assertions remain. No whole-suite, Native provider, issue or gate acceptance."
+}

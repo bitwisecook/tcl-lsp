@@ -219,14 +219,14 @@ fn namespace_frame_arguments(
 
 pub(crate) fn register(vm: &mut Vm) {
     let Some(namespace) = vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Namespace)
     else {
         vm.register_stock_builtin("namespace", cmd_namespace);
         return;
     };
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.actual_native_execution_profile().name,
         "namespace",
         NAMESPACE_SUBS,
     );
@@ -249,7 +249,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     }
     register(vm);
     if vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Namespace)
         .is_none()
     {

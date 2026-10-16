@@ -615,6 +615,20 @@ impl ResolvedContext {
         }
     }
 
+    /// Configured core catalogue membership for lexical source presentation.
+    /// Missing cores and unknown builds abstain. Compatibility targets do not
+    /// replace the environment's assistance point.
+    /// This does not resolve a current math command or establish execution.
+    #[must_use]
+    pub fn source_math_function(&self, name: &str) -> CapabilityAnswer {
+        let Some(core) = self.environment.core else {
+            return CapabilityAnswer::Unknown;
+        };
+        CoreProfileId::new(core.default_release, core.build)
+            .resolve()
+            .mathfunc(name)
+    }
+
     /// Whether `predicate` holds in this context. The capability half
     /// resolves through the environment's core build (an environment with
     /// no core, or an unknown build, answers `Unknown` and fails — B1).
@@ -1859,6 +1873,64 @@ mod tests {
             older
                 .resolve_spec_case_advice(&registry, "missing")
                 .is_none()
+        );
+    }
+
+    #[test]
+    // naming.core.original-math-function-selection
+    // docs/design/analysis/name-resolution-proofs/core-original-math-function-selection.md
+    fn source_math_catalogue_retains_core_release_build_and_unknown() {
+        assert_eq!(
+            context("tcl8.6").source_math_function("isnan"),
+            CapabilityAnswer::No
+        );
+        assert_eq!(
+            context("tcl9.0").source_math_function("isnan"),
+            CapabilityAnswer::Yes
+        );
+        assert_eq!(
+            context("tcl8.6").source_math_function("sqrt"),
+            CapabilityAnswer::Yes
+        );
+        assert_eq!(
+            context("jim").source_math_function("min"),
+            CapabilityAnswer::No
+        );
+        assert_eq!(
+            context("jim").source_math_function("sqrt"),
+            CapabilityAnswer::Yes
+        );
+        let mut minimal = context("jim");
+        Arc::make_mut(&mut minimal.environment)
+            .core
+            .as_mut()
+            .unwrap()
+            .build = tcl_dialect::model::BuildProfileId::JimMinimal;
+        assert_eq!(minimal.source_math_function("sqrt"), CapabilityAnswer::No);
+        assert_eq!(minimal.source_math_function("int"), CapabilityAnswer::Yes);
+        let mut compatibility = context("tcl8.6");
+        compatibility.declare_targets(
+            targets_from_clauses(&VersionAxisId::core(Family::Tcl), &["9.0"]).unwrap(),
+        );
+        assert_eq!(
+            compatibility.source_math_function("isnan"),
+            CapabilityAnswer::No
+        );
+        let mut unknown_build = context("jim");
+        Arc::make_mut(&mut unknown_build.environment)
+            .core
+            .as_mut()
+            .unwrap()
+            .build = tcl_dialect::model::BuildProfileId::Unknown;
+        assert_eq!(
+            unknown_build.source_math_function("sqrt"),
+            CapabilityAnswer::Unknown
+        );
+        let mut unknown = context("tcl8.6");
+        Arc::make_mut(&mut unknown.environment).core = None;
+        assert_eq!(
+            unknown.source_math_function("sqrt"),
+            CapabilityAnswer::Unknown
         );
     }
 

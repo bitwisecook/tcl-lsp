@@ -1,0 +1,25 @@
+diff --git a/rust/tcl-lsp-server/src/main.rs b/rust/tcl-lsp-server/src/main.rs
+index ac2fafd29..1ba2b2945 100644
+--- a/rust/tcl-lsp-server/src/main.rs
++++ b/rust/tcl-lsp-server/src/main.rs
+@@ -36,6 +36,7 @@
+ //! `postMessage`.
+ 
+ #![forbid(unsafe_code)]
++#![recursion_limit = "256"]
+ 
+ #[cfg(not(target_family = "wasm"))]
+ use tcl_lsp_server::Backend;
+diff --git a/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs b/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
+index dccc7bbbb..924de9c30 100644
+--- a/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
++++ b/rust/tcl-lsp-server/tests/preview_tickets_e2e.rs
+@@ -35,6 +35,8 @@
+ //!
+ //! Driven over real JSON-RPC against the `tower-lsp` service.
+ 
++#![recursion_limit = "256"]
++
+ use std::time::Duration;
+ 
+ use tcl_lsp_server::Backend;

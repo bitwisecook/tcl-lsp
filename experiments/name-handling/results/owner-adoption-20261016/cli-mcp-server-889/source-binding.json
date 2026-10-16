@@ -1,0 +1,44 @@
+{
+  "source_head": "889643a45508661705052ae7b447aed5f226a885",
+  "source_diff_sha256": "0ba2defb31b920a637a4dd324fc0f6cdb903b31b063eb6239bd881dec0eb25fb",
+  "ordinary": true,
+  "binaries": {
+    "unittests src/main.rs:f5_query": {
+      "name": "f5_query-88a5e27b98d90967",
+      "sha256": "821d970974e7cfa211c6fa186f7d36463878f349ec66f191a90ebc59219f4cba"
+    },
+    "tests/cli.rs:cli": {
+      "name": "cli-153c8adc63023eef",
+      "sha256": "3f9978f3962a4c9d5d48b8e20cf1eec099db2c3afc6e371d0e22b9ce4840be8f"
+    },
+    "tests/grep.rs:grep": {
+      "name": "grep-1e4f09243ce95374",
+      "sha256": "da48b2bfc2ed51f815ede85fb4102c98ccffd9a48bd1239dc2716dbfb85d9dd8"
+    },
+    "tests/query_input.rs:query_input": {
+      "name": "query_input-5d369ceb9235ab40",
+      "sha256": "7795d73e9257a9beb075c9394b71e3de3df410d821c89e0c44057a8fb82c9afd"
+    },
+    "tests/tmsh.rs:tmsh": {
+      "name": "tmsh-924f254bb1c51389",
+      "sha256": "fbb87d7582ceddda4fe98daf530a8206f20e782c63755120ca769750f254f4e2"
+    },
+    "unittests src/main.rs:tcl_lsp_server": {
+      "name": "tcl_lsp_server-5796f44ac2d4dfce",
+      "sha256": "ff2acf2a0e169665daa5c3916e34d1093bed43c3c21cdf39da64d8b459b0810b"
+    },
+    "tests/preview_tickets_e2e.rs:preview_tickets_e2e": {
+      "name": "preview_tickets_e2e-c2624556c8d0c28b",
+      "sha256": "88daf55799b74d90f12c202f4443d6938df1464429cf9c4d9c6dd5eca05abc84"
+    },
+    "unittests src/main.rs:tcl_mcp": {
+      "name": "tcl_mcp-ab2879aae42c0240",
+      "sha256": "4c2e491b242a87297f9a19c3bce4b1a5f3ed74b8f909ca7f47bc4b9c71a02ab1"
+    }
+  },
+  "production_f5_query": {
+    "path": "/workspace/tcl-lsp/target/debug/f5-query",
+    "sha256": "babe6059c1e231a849b26be68a4916c4166d8706154f92de58e50fbe9d663ba9"
+  },
+  "build": "retry2 PASS87sec zero warnings; two earlier E0275 failures retained. Server binary/test use same256 compiler recursion limit as existing library. No runtime test budget changed."
+}

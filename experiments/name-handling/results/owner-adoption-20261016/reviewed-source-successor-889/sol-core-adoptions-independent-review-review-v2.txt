@@ -1,0 +1,15 @@
+Independent V2 source review
+
+Candidate: /tmp/sol-core-adoptions-v2/core-adoptions-v2.patch
+SHA-256: 89c131c72cc458eccb9db3be2c13028f9520d0f69582ff508afca66cae10c165
+Recommendation: source-clear for root integration and required validation. The V1 P2 nested-selector issue is repaired. No further actionable defect found in this bounded review.
+
+The new private authored_source_option_selector_path extracts the exact guard previously present in authored_source_diagnostic_options. The outer selector must be NotApplicable, Exact or UniquePrefix. For a selected subcommand declaring nested selectors, it requires the original argument1 literal and actual resolve_sub_subcommand_gated under the retained surface query and package floor. Both diagnostics and authored_source_available_options now call this one helper. Unknown, dynamic, missing and ambiguous nested selectors therefore cannot expose the namespace ensemble sibling fallback union. Exact/unique-prefix rows keep their original selection semantics; explicit empty tables stay empty. The diagnostic scan's argument slicing, selected placement, selected availability and published selector names are otherwise unchanged.
+
+The added regression exercises the original Registry structured resolver directly, retains positive create/configure vocabulary, and refuses both available-option and diagnostic projections for dynamic, unknown and absent nested operations. These assertions test the precise V1 defect. They do not claim accepted argc, selected live handler or Normal completion. Existing source/currentness/build/compatibility and selected form tests remain intact.
+
+All five manifest live beforeimages and candidate afterimages match. Candidate patch SHA matches. Public API visibility, borrowed Registry descriptor lifetime and owned Compiler/Core copies remain sound on inspection. Original full source/config/input/Registry/word guards remain in with_source_schema. The configured math helper still delegates environment release/build to CoreProfileId, abstains on missing/unknown capabilities, keeps compatibility declarations separate, and changes only the existing lexical branch. Native selected function lookup/identity is unchanged.
+
+The unindexed V1 proof document/ID is removed. V2 references the existing completion and math proof families. Root must apply the actual canonical proof scope/binding updates described in REVIEW-v2 so the math contract explicitly includes its separate lexical Source purpose, without treating those source tests as Native provenance. This is a root-owned publishing obligation, not another semantic defect in these bytes.
+
+Validation performed: read-only source inspection, comparison with V1 and current source, Python SHA checks. No formatting, Cargo, compilation, tests, runtime oracle, main edits, Git or network. Source-clear does not mean compiled or test-validated.

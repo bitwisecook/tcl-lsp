@@ -1,17 +1,19 @@
 # Remaining naming implementation obligations
 
-Implementation has resumed from `554085e`. **124 baseline units** have reviewed
-implementation pending validation: 70 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **130 baseline units** have reviewed
+implementation pending validation: 76 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,034 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **30 demonstrated
-requirements**, 29 integrated pending validation and one blocked before integration.
-Effective scope is **2,188 obligations**, with **153 integrated pending validation**
-and **2,035 not integrated**. These counts establish neither semantic acceptance
+2,028 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **31 demonstrated
+requirements**, 29 integrated pending validation and two blocked before integration.
+Effective scope is **2,189 obligations**, with **159 integrated pending validation**
+and **2,030 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `6fa086c78` is pushed to `work`; the reviewed successor
-is being prepared. Its current scope includes typed trace lexical exclusions,
+Development checkpoint `889643a45` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
+scalar source configuration reborrow, a dedicated source parameter-role facade
+and the remaining physical ensemble availability repairs. The current five-library
+ordinary build is running. Its prior scope includes typed trace lexical exclusions,
 editor validation, retained MCP context, explicit native-path refusal, conditional
 source-role and actual VM registration repairs, and baseline3936 formal-reference
 observations. No new code is accepted solely from source review.
@@ -23,7 +25,7 @@ prior-PASS regressions; nine added controls are seven PASS/two FAIL. Exact
 [test comparison](../../../experiments/name-handling/results/owner-adoption-20261016/workspace-6fa/test-comparison.json)
 retains names, binary/source hashes and original logs. The regressions are four
 info and ten namespace controls, all panicking during native namespace bootstrap.
-The reviewed actual-engine availability repair is integrated and awaits execution.
+The integrated actual-engine availability repair does not resolve these panics in the fresh889 run; remaining physical array/binary/namespace registration selectors are under review.
 Mapped-source controls gain two passes and Logical parameter traits gain one;
 the genuine Jim helper and terminal-refusal fixture corrections gain two more.
 The remaining parameter-role repair retains ordinary role incompleteness and all
@@ -31,6 +33,21 @@ lookup/observer debt. A separate new-test correction distinguishes transformed
 Fold source from unchanged Literal Standalone source without changing a production
 guard. Mapped trace continuation, constructor coverage, typed navigation and
 instance reports still fail. Original tests and their budgets remain intact.
+
+A fresh ordinary Compiler/VM build passes in **7m11s** with zero warnings.
+Its [16 selected groups](../../../experiments/name-handling/results/owner-adoption-20261016/compiler-vm-889/summary.json)
+are **93 PASS / 22 FAIL / zero zero-test runs**. VM info/namespace results remain
+19/5 and 47/10; result-publication six and original-lookup eight controls pass.
+The new formal-reference controls are two PASS/one FAIL. Installed parameter
+traits and forwarding, Logical upvar roles, selected configuration fixture and
+mapped trace continuation remain failing. The separate CLI/MCP/server target build passes after the reached binary and
+preview crate adopt the existing server library compiler trait-recursion limit256.
+Earlier E0275 build failures remain recorded; runtime budgets are unchanged.
+The five completed [target selections](../../../experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889/summary.json)
+are **65 PASS / 34 FAIL**. Query-input23, tmsh1 and opaque-path merge pass;
+MCP tools are26/22. Preview first fails its original diagnostics assertion after
+the known native bootstrap panic, then does not terminate; Root stops it after
+251.5s. Its23 successors remain unexecuted. No counts advance from execution.
 
 The four-package `cargo check --tests` before formal3936/path5 passes in 3m09s
 with one existing unused helper warning. The successor including formal3936/path5 passes in 2m43s with the same warning. The
@@ -41,8 +58,9 @@ the historical Runtime174/VM133 whole groups.
 Full editor `npm run compile` passes, including actual AI prompt generation,
 TypeScript and Node/browser bundles. Its Rust dependencies emit nine existing
 warnings; missing WASM distribution assets are skipped by their owner. TypeScript
-noEmit and scoped Prettier also pass. GUI multi-folder and preview-ticket controls,
-actual CLI/MCP target tests and Web execution remain pending. Latest Jim upstream
+noEmit and scoped Prettier also pass. GUI multi-folder and Web execution remain pending. The repository headless
+dependency owner fails on read-only apt state, so Xvfb is unavailable. Reached
+CLI/MCP/preview outcomes are recorded above. Latest Jim upstream
 still equals the compiled original5bac7c99 at 12:15:42 UTC.
 
 The complete unchanged proof checker runs against **49,278 inputs with zero
@@ -55,7 +73,10 @@ restorations preserve retained hashes; none of those payloads was executed.
 The 952 differing census payloads match current Git bytes but still need genuine
 historical/projection provenance review. No blanket hash refresh is authorised.
 
-One additional source-definition effect-coverage requirement is counted but
+Two additional effect-coverage requirements are counted but not integrated. The
+Registry conditional source-operation continuation facet must retain synchronous
+coverage and residual lookup/observer debt; its mapped caller is already counted.
+The source-definition effect-coverage requirement remains
 blocked on genuine mutable worker applicability. Its dependent SourceSelf repair
 remains within the existing navigation owner and is withheld. Project-role root
 fallback retains real command-trace observer/world debt; original header selection
@@ -63,7 +84,7 @@ and geometry do not discharge it. Source variable-expression action/read/cell/tr
 and child-body observer requirements also remain open. Required owner/proof,
 generated, `make rust-check` and `make prep-pr` gates are not green. There is no PR,
 issue closure or merge acceptance. Reports use 30-minute intervals; the next is
-13:06 UTC.
+13:36 UTC.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

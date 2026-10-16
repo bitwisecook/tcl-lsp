@@ -1,0 +1,12 @@
+INDEPENDENT SOURCE REVIEW: CLEAR
+Candidate /tmp/f5-opaque-env-resolver-unit-test.patch
+SHA256 e2bb9340ecac6ffa302d27117d11c8754e2b7db293a0b123a787f6710ea75b66
+Requires the independently cleared production environment-ingress patch0bf5ab15; this test alone intentionally fails old env::var(...).ok() behavior.
+
+The replacement reaches the actual private resolve_credentials directly in the same auth module of the library test executable. Actual current_exe + --exact commands::remote::auth::tests::opaque_environment_child matches the real lib.rs mod commands -> commands/mod.rs pub mod remote -> remote/mod.rs pub mod auth nesting. Only the child test executes, so it does not recurse through the parent test. Missing MODE_ENV makes the ordinary full-suite child test a no-op; parent explicitly supplies both supported modes and checks each actual exit status.
+
+Actual Unix OsString ff bytes enter F5_USER through Command::env. Each child gets its own scrubbed F5_HOST/USER/PASSWORD/PORT/SSH_PORT and XDG_CONFIG_HOME; there is no unsafe process-global environment mutation. root/f5/hosts.toml and [hosts.edge] string fields are accepted by the real existing xdg_config_dir/load_hosts_config reader. --host equivalent ResolveOptions.host=Some(edge) selects the table and resolves its actual host. Alias password allows the positive to complete credential resolution rather than merely pass the user branch.
+
+Opaque mode genuinely queries F5_USER and requires the exact purpose error before selecting the available lower-priority alias user. Old production silently falls through to alias-user and returns Ok, so unwrap_err fails. Explicit mode keeps the exact same opaque environment but supplies user=Some(explicit-user); the production per-field CLI branch bypasses that lower-priority variable, and the test requires a complete Ok Credentials whose user is explicit-user. It does not use --dry-run, CLI prevalidation, network or an unrelated later transport failure. This correctly replaces the blocked dry-run regression without changing original dry-run behavior. No credential bytes from ambient process state are exposed.
+
+Existing inputs/assertions are unchanged. Test-only addition; baseline root:host.environment-presence:220:0 remains one existing caller requirement with zero new owner count. Hash/beforeimage verified and patch --dry-run clean. Source review only; no Cargo/main writes/build/test execution or verified-complete claim.

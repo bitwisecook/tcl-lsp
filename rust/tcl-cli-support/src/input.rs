@@ -307,11 +307,11 @@ fn walk_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), CliError> {
     let mut files: Vec<PathBuf> = Vec::new();
     for path in entries {
         if path.is_dir() {
-            let keep = path
+            let name = path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| !SKIP_DIRECTORY_NAMES.contains(&n) && !n.starts_with('.'));
-            if keep {
+                .ok_or_else(|| CliError::input("directory name is not representable as Unicode"))?;
+            if !SKIP_DIRECTORY_NAMES.contains(&name) && !name.starts_with('.') {
                 subdirs.push(path);
             }
         } else if path.is_file() && is_supported_source_file(&path) {
@@ -330,8 +330,14 @@ fn walk_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), CliError> {
 fn read_dir_sorted(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
         .map_err(|e| CliError::Io(format!("failed to read directory {}: {e}", dir.display())))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .collect();
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<std::io::Result<_>>()
+        .map_err(|e| {
+            CliError::Io(format!(
+                "failed to read a directory entry under {}: {e}",
+                dir.display()
+            ))
+        })?;
     entries.sort();
     Ok(entries)
 }
@@ -507,7 +513,7 @@ fn expand_user(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
 
-    use super::{known_dialect_names, resolve_dialect};
+    use super::{iter_directory_sources, known_dialect_names, resolve_dialect};
     use tcl_dialect::model::EnvironmentRegistry;
 
     #[test]
@@ -590,6 +596,41 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recursive_discovery_refuses_opaque_directory_and_keeps_unicode_directories() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let root =
+            std::env::temp_dir().join(format!("tcl-input-opaque-dir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let opaque_dir = root.join(std::ffi::OsString::from_vec(b"vendor-\xff".to_vec()));
+        std::fs::create_dir_all(&opaque_dir).expect("create opaque directory");
+        std::fs::write(opaque_dir.join("found.tcl"), "set marker 1\n").expect("write Tcl source");
+
+        let error = iter_directory_sources(&root, true).expect_err(
+            "opaque directory names must not disappear from a recursive source inventory",
+        );
+        assert_eq!(
+            error.to_string(),
+            "directory name is not representable as Unicode"
+        );
+
+        let unicode_root = root.join("unicode-positive");
+        let unicode_dir = unicode_root.join("vendor");
+        std::fs::create_dir_all(&unicode_dir).expect("create Unicode directory");
+        std::fs::write(unicode_dir.join("found.tcl"), "set marker 1\n").expect("write Tcl source");
+        let discovered =
+            iter_directory_sources(&unicode_root, true).expect("discover Unicode path");
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(
+            discovered[0].file_name().and_then(|name| name.to_str()),
+            Some("found.tcl")
+        );
+
+        std::fs::remove_dir_all(&root).expect("remove temp directory");
     }
 
     #[test]

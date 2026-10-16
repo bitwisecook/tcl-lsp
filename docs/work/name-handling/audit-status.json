@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T12:40:22.962973+00:00",
+    "utc": "2026-10-16T13:10:25.495579+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 124,
+    "implemented_pending_validation": 130,
     "verified_complete": 0,
-    "not_started": 2034,
+    "not_started": 2028,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "30 additional unverified requirements accepted;29 integrated pendingvalidation,1notintegrated. Definition source-effect coverage includes mutable worker applicability once; dependent SourceSelf remains existing Logical navigation owner.",
+    "owner_facet_reconciliation": "31 additional unverified requirements accepted;29 integrated pending validation,2 not integrated. Definition worker/observer coverage and conditional source-operation continuation are distinct once-counted requirements. Existing callers are not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 30,
+      "required": 31,
       "implemented_pending_validation": 29,
-      "not_integrated": 1,
+      "not_integrated": 2,
       "verified_complete": 0
     },
-    "effective_required_units": 2188,
-    "effective_implemented_pending_validation": 153,
+    "effective_required_units": 2189,
+    "effective_implemented_pending_validation": 159,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -773,7 +773,7 @@
       "status": "integrated pending target Rust checks/tests",
       "scope": "hover, completion, rename, inline and refactor consume actual retained ContextRegistry; existing source/edit guards independent."
     },
-    "remaining_ordinary_regressions": "Four info +tennamespace prior passes panic at native implementation namespace. Reviewed actual-availability repair90c73e integrated, execution pending.",
+    "remaining_ordinary_regressions": "Four info +ten namespace prior passes still panic at interp.rs4753 in fresh889. Actual-availability90c is insufficient; remaining array/binary/namespace registration selectors under review.",
     "latest_successor_check_current": {
       "status": "PASS",
       "log": "/tmp/naming-formal-observations-native-path-check.log",
@@ -781,6 +781,63 @@
       "seconds": 163,
       "warnings": 1,
       "capture": "experiments/name-handling/results/owner-adoption-20261016/formal-reference-adoption/checked-source-binding.json"
+    },
+    "compiler_vm_889": {
+      "source_head": "889643a45508661705052ae7b447aed5f226a885",
+      "ordinary": true,
+      "groups": 16,
+      "PASS": 93,
+      "FAIL": 22,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 431,
+        "warnings": 0,
+        "note": "Build began at6fa; the Rust source bytes match the889 clean capture. No instrumentation."
+      },
+      "scope": "Selected Compiler/VM controls only. Original selectors/assertions remain. No whole-suite, Native provider, issue or gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/compiler-vm-889",
+      "comparison": "experiments/name-handling/results/owner-adoption-20261016/compiler-vm-889/test-comparison.json"
+    },
+    "next_six_adoptions": {
+      "baseline_units": [
+        "lsp-completion-option-form-availability",
+        "lsp-semantic-lexical-math-catalogue",
+        "root:host.actual-browser-authority:241:0",
+        "root:host.environment-presence:220:0",
+        "root:host.source-inventory:148:0",
+        "root:host.source-inventory:8:0"
+      ],
+      "additional_owner_requirements": 0,
+      "status": "integrated_pending_validation",
+      "validation": "Four CLI boundaries + two Core/Registry source metadata boundaries. Unix opaque-dir and real resolver child controls added; current fresh5librarybuild running."
+    },
+    "server_trait_depth_repair": {
+      "status": "build_PASS_after_two_recorded_E0275_failures",
+      "limit": 256,
+      "purpose": "Use existing server library compiler trait depth in reached binary and preview integration crate; no runtime budget/assertion changes.",
+      "selected_controls": "running frozen889+twoattributes"
+    },
+    "cli_mcp_server_889": {
+      "source_head": "889643a45508661705052ae7b447aed5f226a885",
+      "source_diff_sha256": "0ba2defb31b920a637a4dd324fc0f6cdb903b31b063eb6239bd881dec0eb25fb",
+      "ordinary": true,
+      "completed_groups": 5,
+      "PASS": 65,
+      "FAIL": 34,
+      "zero_test_runs": 0,
+      "unaccepted_groups": 1,
+      "preview_group": {
+        "status": "operator_stopped_after_original_failure_and_nonterminating_shutdown",
+        "seconds": 251.50874807299988,
+        "signal": "SIGTERM",
+        "first_original_test": "a_pack_declared_configuration_member_declares_no_method",
+        "observed_failure": "Actual interp.rs4753 native bootstrap panic followed by original preview assertion1436: server never published diagnostics. Test harness did not terminate after original failure.",
+        "remaining_tests_unexecuted": 23,
+        "original_assertions_and_budgets_unchanged": true
+      },
+      "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     }
   }
 }

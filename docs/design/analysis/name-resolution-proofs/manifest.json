@@ -781205,8 +781205,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/core-original-math-function-selection.md",
       "problem_statement": "An expression function identifier is not an original script command head. C 8.4 and Jim select fixed function tables, while later Tcl can select a command-table implementation. Looking up a same-named procedure or constructing a qualified wrapper from the displayed identifier confuses these purposes and loses current source allocation identity.",
       "question": "Does readonly Core math-function selection preserve the original expression producer and its independently selected function-table or command-table target?",
-      "conclusion": "The current-image facade consumes the authentic complete source, full lexer configuration, retained Registry and expression-function inventory. It retains each original identifier and selected dispatch purpose. Procedure metadata is joined only through the independently retained actual implementation allocation; cleared reporting maps and command invocation rows do not erase the original inventory. Missing target remains terminal, and no script-head input, wrapper command, execution or edit authority is issued. Command-function navigation, incoming call edges and reference spans share that canonical procedure allocation under an independently owned current document inventory. Equal-source duplicate provider owners remain ambiguous.",
-      "scope": "Core readonly expression-function selection, including local overrides, independent same-named procedures, missing targets, stale source and fixed-table metadata. Command-table reference and function syntax ownership remain separate from any writable identifier contract.",
+      "conclusion": "The current-image facade consumes the authentic complete source, full lexer configuration, retained Registry and expression-function inventory. It retains each original identifier and selected dispatch purpose. Procedure metadata is joined only through the independently retained actual implementation allocation; cleared reporting maps and command invocation rows do not erase the original inventory. Missing target remains terminal, and no script-head input, wrapper command, execution or edit authority is issued. Command-function navigation, incoming call edges and reference spans share that canonical procedure allocation under an independently owned current document inventory. Equal-source duplicate provider owners remain ambiguous. Lexical expression-function presentation independently reads the actual retained environment core release/build through ResolvedContext::source_math_function. Only known membership supplies defaultLibrary; missing core or unknown build abstains. Declared compatibility targets do not retarget assistance. This source catalogue supplies no current math command, implementation allocation, Native dispatch or edit authority; the independent original selected-function path is unchanged.",
+      "scope": "Core readonly expression-function selection, including local overrides, independent same-named procedures, missing targets, stale source and fixed-table metadata. Command-table reference and function syntax ownership remain separate from any writable identifier contract. Independent lexical source-catalogue presentation under the actual configured environment core selector, with no Native observation or executed software result attached.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -781310,6 +781310,16 @@
           "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
           "symbol": "references",
           "purpose": "Project matching original expression occurrences through the same canonical allocation while preserving independent document owners."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/context.rs",
+          "symbol": "source_math_function",
+          "purpose": "Project readonly lexical function membership from the actual environment core release/build; unknown remains unknown."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "symbol": "collect_expr",
+          "purpose": "Keep lexical catalogue presentation independent of original selected math-function identity."
         }
       ],
       "tests": [
@@ -781336,6 +781346,18 @@
           "selector": "original_call_hierarchy::tests::original_math_navigation_and_reference_edges_share_expression_allocations",
           "assertion": "Four C command-function protocols retain the actual override allocation for definition, prepare, incoming edges and expression-reference spans after reporting maps and invocation rows are cleared; independent duplicate owners and stale source decline.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-registry/src/model/context.rs",
+          "selector": "model::context::tests::source_math_catalogue_retains_core_release_build_and_unknown",
+          "assertion": "Actual core release/build and missing or unknown selection govern membership; compatibility targets do not retarget assistance.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "selector": "semantic_tokens::original_definition_vocabulary_tests::logical_math_default_library_uses_configured_source_catalogue",
+          "assertion": "Only the configured known lexical catalogue marks defaultLibrary, separately from Native target selection.",
+          "status": "linked"
         }
       ],
       "evidence": [
@@ -781352,6 +781374,20 @@
           "path": "rust/tcl-compiler/src/command_binding/original_math_function.rs",
           "sha256": "36dc5cf970e350b7846fe2f337b182830875cf6e8bc1cd2910d3cdacc6aa3d96",
           "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
+        },
+        {
+          "id": "source-catalogue-implementation-0",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/context.rs",
+          "sha256": "ea6d5be15c9c0b92d07d34243950d717ca992e1df2517e6350d17ee0cf322904",
+          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
+        },
+        {
+          "id": "source-catalogue-implementation-1",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "sha256": "81e8ee1afa3697056f2260492bfe21eabf6c6d2ea6688cd8c0c6feaa710f9de8",
+          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
         }
       ],
       "replay": {
@@ -782616,7 +782652,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md",
       "problem_statement": "Nominal command spelling and a source argument count can choose an unrelated completion member when aliases insert operands, expansion changes argv or an inner command is shadowed. A rendered profile does not supply the current full availability context.",
       "question": "How does command-context completion retain current original effective ordinals and its independent hosted source schema?",
-      "conclusion": "The primary context completion selector requires actual whole source/channel/configuration and the retained Registry/ResolvedContext. It consumes the shared original invocation traversal and unanimous effective command/argument origins, preserving captured prefix and expansion ordinals. Hosted completion uses its genuine guarded conditional Registry vector and authored source units independently of C/Jim argv recipes. Member, option and argument suggestions use the selected context query only after that source selection. Known shadowing and stale or unavailable owners remain terminal, and an inner command cannot borrow the outer schema. The output supplies contextual source suggestions only, without handler implementation, effects, Normal, native lookup or runtime/edit authority. Current source completion uses the common complete source receipt and clones the authentic selected per-point descriptor, retaining its effective arguments and original captured/written origins. Actual available package/subcommand/option surfaces govern proposals; an equal command store or stale source cannot donate current options.",
+      "conclusion": "The primary context completion selector requires actual whole source/channel/configuration and the retained Registry/ResolvedContext. It consumes the shared original invocation traversal and unanimous effective command/argument origins, preserving captured prefix and expansion ordinals. Hosted completion uses its genuine guarded conditional Registry vector and authored source units independently of C/Jim argv recipes. Member, option and argument suggestions use the selected context query only after that source selection. Known shadowing and stale or unavailable owners remain terminal, and an inner command cannot borrow the outer schema. The output supplies contextual source suggestions only, without handler implementation, effects, Normal, native lookup or runtime/edit authority. Current source completion uses the common complete source receipt and clones the authentic selected per-point descriptor, retaining its effective arguments and original captured/written origins. Actual available package/subcommand/option surfaces govern proposals; an equal command store or stale source cannot donate current options. Option values consume only the selected available option table after the shared original outer and nested selector path gate. Missing, dynamic or unknown nested selectors cannot borrow sibling-form option unions. Hosted and ordinary source projections retain their existing full input/configuration/context owners; withheld option vocabulary does not suppress unrelated event or subcommand advice.",
       "scope": "Current primary Core command-context completion for native original argv, independent hosted source schema and explicit lexical advice. Fixed controls use actual handler/alias/expansion ordinals, whole-source and Registry counterfactuals, and hosted nested source candidates. No native-provider or passing Rust receipt is attached. Two additional completion controls are unexecuted software contracts. Suggested options/source values do not establish an actual Native command, successful invocation/evaluated argv, table freshness, handler/frame or edit permission.",
       "providers": [
         {
@@ -782690,7 +782726,29 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "source-catalogue-implementation-0",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "sha256": "484c8b72fdfc61c92c5c8789ba6a28b0d68504db3b4f3f4f95375fe2ec734ea7",
+          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
+        },
+        {
+          "id": "source-catalogue-implementation-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/vendor_advice.rs",
+          "sha256": "6f766685dbb0f4d1a3abcb13a86ab5ead5151ad92df040904e8301a393b3e8fb",
+          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
+        },
+        {
+          "id": "source-catalogue-implementation-2",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/completion/original_context.rs",
+          "sha256": "fdee28960bde05334033b086f89f17ad2203d0c391b0ee592b7b84ada5933c0e",
+          "description": "Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -782716,6 +782774,24 @@
           "selector": "completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source",
           "assertion": "Option completion uses the actual current source/context/available option surface; stale owners cannot supply a nominal descriptor.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "selector": "resolved_invocation::tests::source_completion_options_keep_selected_form_and_surface",
+          "assertion": "Sibling forms and unavailable surfaces cannot donate option descriptors.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "selector": "resolved_invocation::tests::source_completion_options_require_actual_nested_selector",
+          "assertion": "Actual namespace ensemble create/configure options remain available; missing, dynamic and unknown nested selectors refuse.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion/original_context.rs",
+          "selector": "completion::original_context::tests::source_option_value_completion_keeps_selected_options_and_currency",
+          "assertion": "Actual selected option values require current full source and retained resolved input.",
+          "status": "linked"
         }
       ],
       "owners": [
@@ -782738,6 +782814,16 @@
           "path": "rust/tcl-lsp-core/src/original_invocation.rs",
           "symbol": "selected_vendor_registry_words_at",
           "purpose": "Use guarded conditional hosted metadata with its own complete vector/policy/context, without a C/Jim source input conversion."
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "symbol": "authored_source_available_options",
+          "purpose": "Project only the original selected outer/nested option surface under its existing availability owner."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/vendor_advice.rs",
+          "symbol": "source_completion_options",
+          "purpose": "Revalidate complete original hosted source/configuration/context/vector before projecting readonly option metadata."
         }
       ],
       "replay": {

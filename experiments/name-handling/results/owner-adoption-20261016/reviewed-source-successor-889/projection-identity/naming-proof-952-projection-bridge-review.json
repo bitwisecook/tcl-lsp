@@ -1,0 +1,154 @@
+{
+  "status": "read-only-source-role-review; no repo changes",
+  "stable_run": {
+    "path": "/tmp/naming-proof-stable-6fa/check.log",
+    "structural_errors": 2033,
+    "census_digest_mismatches": 952,
+    "evidence_digest_mismatches": 1081,
+    "missing_paths": 0
+  },
+  "checksum_bridge": {
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/CURRENT_TRANSPORT_SHA256SUMS",
+    "entries": 952,
+    "exact_current_files_verified": 952,
+    "scope": "All current mismatched paths; current hashes/paths match one-to-one. This identifies current projected bytes only."
+  },
+  "evidence_groups": {
+    "payload_and_projection_files": 940,
+    "appliance_capture_attachment": 431,
+    "other_packet_packaging": 508,
+    "decoded_or_raw_projection": 1,
+    "dated_groups": {
+      "r2286_20261006c": 607,
+      "r2286_20261006m": 111,
+      "r2286_20261006hi": 88,
+      "r2286_20261007vllex": 71,
+      "r2286_20261006de": 41,
+      "r2286_20261006naming": 21,
+      "r2286_20261006l": 1
+    },
+    "explicit_perfile_markers": {
+      "sanitised_provenance": 377,
+      "sanitised_response_provenance": 24
+    },
+    "generic_projection_contract": "scripts/dev/bigip-probes/resolution-2286/evidence/TRANSPORT_PROJECTION.md says summaries, fixture config, raw transcripts, encoded copies, archives were projected; naming payload/completion/results preserved, transport-only values replaced; old execution hashes are not renewed."
+  },
+  "archive_exact_bridge": {
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/resolution-2286-bigip-evidence-20261006.tar.gz",
+    "historical_sha256": "f26d29618f7f7cee4dd5c4b932e84af8792b3c040aa11af5d24712838e025e02",
+    "historical_bytes": 1146774,
+    "current_projection_sha256": "69cb7665f28ffebe591f6a3ccc37ddc6620b5937a1506fbfef59d5233826fc5b",
+    "current_projection_bytes": 1134578,
+    "preserved_historical_digest_sidecar": "scripts/dev/bigip-probes/resolution-2286/evidence/resolution-2286-bigip-evidence-20261006.tar.gz.sha256",
+    "sidecar_matches_historical_sha": true,
+    "current_checksum_entry_verified": true,
+    "role": "Current archive is rebuilt projection; explicitly not byte-identical to historical archive. Preserve old digest as historical identity and current checksum as projection identity; do not restore or call current bytes original."
+  },
+  "maintained_source_and_report_files": [
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md",
+      "frozen_corpus_sha256": "9bb20a639904e1427e4c5cd8ed45dc8808f345fbc96969215eb8fac0f8d3109f",
+      "frozen_corpus_bytes": 33693,
+      "current_sha256": "d487312d4232046446f2fcfee3929130867540bf3942dc90c0fff6efb7e93369",
+      "current_bytes": 33685,
+      "role_group": "authored-result-report"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "frozen_corpus_sha256": "c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7",
+      "frozen_corpus_bytes": 31721,
+      "current_sha256": "08bf650252be6aa5e5c0e9c6710927cea267ae4a333c4309c37884bbd7e250bd",
+      "current_bytes": 31714,
+      "role_group": "authored-result-report"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md",
+      "frozen_corpus_sha256": "9a18aa28aab9211d0c764e20f6145a0ec340702a01359cd36c1518b1cdf7622f",
+      "frozen_corpus_bytes": 23556,
+      "current_sha256": "956554ac57451063c57da8bde9db2ce7a0cced500fe2f3864e7a42e2708b8b5a",
+      "current_bytes": 23552,
+      "role_group": "authored-result-report"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md",
+      "frozen_corpus_sha256": "0f6c9bf0e7b32a5fbcd6faf6669e84f01e4262f7d79e36b2b182a86a8ce7bcba",
+      "frozen_corpus_bytes": 14355,
+      "current_sha256": "cf28d77cabcfd5a33d04718e17a35fa4fb5973ba45333c54fd6b31009c321411",
+      "current_bytes": 14354,
+      "role_group": "authored-result-report"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md",
+      "frozen_corpus_sha256": "5eff5c923f9337b80ced51cfeb8777caf53276b0bdb13a96b0b7966ed6e30ee3",
+      "frozen_corpus_bytes": 12969,
+      "current_sha256": "56d398d124ecf753012f0e89b37d736dbd3efd337cc6af6d403a6ad364c3962d",
+      "current_bytes": 12967,
+      "role_group": "authored-result-report"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/artifacts/run-appliance-matrix.sh",
+      "frozen_corpus_sha256": "2afb789be23d96ddbfdbdec21c038cc6e680ffa41fa464d6955be22af6708b17",
+      "frozen_corpus_bytes": 7041,
+      "current_sha256": "3f932c0e65c2dcc74f8717397fa84605df318558ebd6f58efa87e2fc1f5f6bdc",
+      "current_bytes": 7040,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py",
+      "frozen_corpus_sha256": "58ad19e8d886d86ede1346f594fd780105cc08fb896ea9d7bd451978409a0948",
+      "frozen_corpus_bytes": 29921,
+      "current_sha256": "9be4f909bbfb825c780f6539b5f7992482ceea437176def8aa3fa221d2f9899b",
+      "current_bytes": 29917,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/generate-lexical-byte-class-fixtures.py",
+      "frozen_corpus_sha256": "1784263a2eec0d7750b5e5a385817edc7088f0113b65545181ddb2f5c20a36be",
+      "frozen_corpus_bytes": 6866,
+      "current_sha256": "53be1472fb9a812c11192869941a5819094a2d966f5b07ef2903903f404eacd3",
+      "current_bytes": 6861,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/generate-variable-lifecycle-fixtures.py",
+      "frozen_corpus_sha256": "88dac5c26d8061743c3934da0c863a14efb0fc62b003973e61a42854a97392cc",
+      "frozen_corpus_bytes": 16389,
+      "current_sha256": "e9beb84f254295af1baab7bd37e0df20567c15a480491247872bcd338d271a05",
+      "current_bytes": 16380,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/render-lab.py",
+      "frozen_corpus_sha256": "5f7e45a44a8cd9e9fbdf76b2f3eff6d761145474979d21d52bbc5e44e530dcfe",
+      "frozen_corpus_bytes": 2297,
+      "current_sha256": "5ce93002fc9355ecea0ebcd5b751fc20b27dc1dd1749641f47405c1ab1d45ed6",
+      "current_bytes": 2293,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/render-procedure-scope-labs.py",
+      "frozen_corpus_sha256": "86a22e6b577a1d17eb146653dfb8845a13fe006606b9934870fd754db3d50036",
+      "frozen_corpus_bytes": 3285,
+      "current_sha256": "48a7bff63b539d8668021987edc158e6608a04265359ae4382ce2324c7fd96f6",
+      "current_bytes": 3277,
+      "role_group": "maintained-generator-or-runner"
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/run-appliance-matrix.sh",
+      "frozen_corpus_sha256": "2afb789be23d96ddbfdbdec21c038cc6e680ffa41fa464d6955be22af6708b17",
+      "frozen_corpus_bytes": 7041,
+      "current_sha256": "3f932c0e65c2dcc74f8717397fa84605df318558ebd6f58efa87e2fc1f5f6bdc",
+      "current_bytes": 7040,
+      "role_group": "maintained-generator-or-runner"
+    }
+  ],
+  "recommended_gate_repair": [
+    "For census inventory only, use the verified current sums as exact current-projection identity for the 952 rows, with a dual-hash/path bridge retaining each old corpus SHA+bytes. Do not overwrite original/provider SHA fields or treat this structural repair as semantic acceptance.",
+    "For proof references to the five result reports, retain cited historical report SHA as original provenance and add/point to the exact current projection SHA from CURRENT_TRANSPORT_SHA256SUMS; preserve observation statements only where the projection contract covers them. Current proof digest references must not silently rebind historic report identity.",
+    "For evidence artifacts with per-file sanitized provenance markers, bridge role and scoped preserved fields; retain `response_sha256`/historical values and current `sanitised_response_sha256` separately where present. Do not infer identical transport bytes.",
+    "Keep remaining packet files unresolved at path-specific level unless existing receipts establish their exact original/current relationship. Generic projection note plus checksum proves policy/current integrity, not each packet\u2019s original semantic contents.",
+    "Review the seven maintained generator/runner script contents independently before changing their historical/source digests; checksum list proves current bytes only."
+  ],
+  "rows": [],
+  "companion_path_rows": "/tmp/naming-proof-952-census-digest-classification.json"
+}

@@ -1,0 +1,20 @@
+
+running 4 tests
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry ... 
+thread 'analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry' (115800) panicked at rust/tcl-compiler/src/analyser/param_traits.rs:1866:9:
+assertion `left == right` failed
+  left: [(2, VarWrite)]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application ... ok
+
+failures:
+
+failures:
+    analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 10237 filtered out; finished in 18.75s
+

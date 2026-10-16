@@ -1,0 +1,279 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling pkg-config v0.3.34
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling cmake v0.1.58
+   Compiling fs_extra v1.3.0
+   Compiling dunce v1.0.5
+   Compiling aws-lc-sys v0.45.0
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling log v0.4.34
+   Compiling crc32fast v1.5.2
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling simd-adler32 v0.3.10
+   Compiling aws-lc-rs v1.18.1
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.9.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling zlib-rs v0.6.8
+   Compiling untrusted v0.7.1
+   Compiling flate2 v1.1.10
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling rustix v1.1.5
+   Compiling iana-time-zone v0.1.65
+   Compiling chrono v0.4.45
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling rustls v0.23.45
+   Compiling linux-raw-sys v0.12.1
+   Compiling tokio v1.53.2
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling rustls-webpki v0.103.15
+   Compiling http v1.5.0
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling ureq-proto v0.6.4
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling webpki-roots v1.0.9
+   Compiling strsim v0.11.1
+   Compiling utf8-zero v0.8.1
+   Compiling ureq v3.4.2
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tokio-util v0.7.19
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling semver v1.0.28
+   Compiling utf8parse v0.2.2
+   Compiling anstyle-parse v1.0.0
+   Compiling rustc_version v0.4.1
+   Compiling anstyle-query v1.1.5
+   Compiling openssl-probe v0.2.1
+   Compiling colorchoice v1.0.5
+   Compiling anstyle v1.0.14
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstream v1.0.0
+   Compiling rustls-native-certs v0.8.4
+   Compiling curve25519-dalek v5.0.0
+   Compiling xattr v1.6.1
+   Compiling dns-lookup v4.0.2
+   Compiling filetime v0.2.29
+   Compiling bumpalo v3.20.3
+   Compiling winnow v1.0.4
+   Compiling version_check v0.9.5
+   Compiling cfg_aliases v0.2.2
+   Compiling nix v0.31.3
+   Compiling generic-array v0.14.7
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling zopfli v0.8.3
+   Compiling tar v0.4.46
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling terminal_size v0.4.4
+   Compiling ssh-encoding v0.3.0
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling keccak v0.2.2
+   Compiling wait-timeout v0.2.1
+   Compiling rustversion v1.0.23
+   Compiling typed-path v0.12.3
+   Compiling clap_lex v1.1.1
+   Compiling fnv v1.0.7
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling byteorder v1.5.0
+   Compiling heck v0.5.0
+   Compiling unicode-width v0.2.2
+   Compiling papergrid v0.18.0
+   Compiling clap_derive v4.6.7
+   Compiling blowfish v0.10.0
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling clap_builder v4.6.7
+   Compiling zip v8.6.0
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling ed25519 v3.0.0
+   Compiling poly1305 v0.9.1
+   Compiling blake2 v0.11.0
+   Compiling rtoolbox v0.0.6
+   Compiling anyhow v1.0.104
+   Compiling rpassword v7.5.4
+   Compiling argon2 v0.6.0
+   Compiling ssh-cipher v0.3.0
+   Compiling ed25519-dalek v3.0.0
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling clap v4.6.7
+   Compiling bcrypt-pbkdf v0.11.0
+   Compiling tabled v0.22.0
+   Compiling sha3 v0.11.0
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling p521 v0.14.0
+   Compiling module-lattice v0.2.3
+   Compiling kem v0.3.0
+   Compiling memchr v2.8.3
+   Compiling hex v0.4.3
+   Compiling sponge-cursor v0.1.0
+   Compiling sha3 v0.12.0
+   Compiling ssh-key v0.7.0-rc.11
+   Compiling ml-kem v0.3.2
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling clap_complete v4.6.11
+   Compiling generic-array v1.4.5
+   Compiling russh-cryptovec v0.62.0
+   Compiling russh-util v0.52.0
+   Compiling enum_dispatch v0.3.13
+   Compiling delegate v0.13.5
+   Compiling ripemd v0.2.0
+   Compiling serde_bytes v0.11.19
+   Compiling vcpkg v0.2.15
+   Compiling md5 v0.8.1
+   Compiling hex-literal v1.1.0
+   Compiling russh v0.64.1
+   Compiling libsqlite3-sys v0.38.2
+   Compiling russh-sftp v3.0.1
+   Compiling tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+   Compiling tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+   Compiling tcl-f5mku v0.1.0 (/workspace/tcl-lsp/rust/tcl-f5mku)
+   Compiling f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+   Compiling aho-corasick v1.1.5
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling hashbrown v0.17.1
+   Compiling salsa-macro-rules v0.28.5
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling ident_case v1.0.1
+   Compiling serde_core v1.0.229
+   Compiling fallible-iterator v0.3.0
+   Compiling darling_core v0.24.1
+   Compiling salsa v0.28.5
+   Compiling hashlink v0.12.2
+   Compiling regex-automata v0.4.18
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling smallvec v1.16.2
+   Compiling serde_json v1.0.151
+   Compiling bitflags v2.13.2
+   Compiling rusqlite v0.40.2
+   Compiling tower-lsp-server v0.23.0
+   Compiling regex v1.13.1
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling darling_macro v0.24.1
+   Compiling serde_derive_internals v0.30.0
+   Compiling schemars_derive v1.2.2
+   Compiling darling v0.24.1
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+   Compiling rmcp v3.5.0
+   Compiling dyn-clone v1.0.20
+   Compiling schemars v1.2.2
+   Compiling rmcp-macros v3.5.0
+   Compiling uuid v1.27.0
+   Compiling pastey v0.2.3
+   Compiling tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+error[E0275]: overflow evaluating the requirement `Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>: Sync`
+    |
+    = help: consider increasing the recursion limit by adding a `#![recursion_limit = "256"]` attribute to your crate (`preview_tickets_e2e`)
+note: required because it appears within the type `Option<Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_preflight::SourceNativeCompilationDependency`
+   --> rust/tcl-compiler/src/command_binding/compiled_preflight.rs:57:12
+    |
+ 57 | pub struct SourceNativeCompilationDependency {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::compiled_preflight::SourceNativeCompilationDependency>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_invocation::SourceCompiledInvocationProof`
+   --> rust/tcl-compiler/src/command_binding/compiled_invocation.rs:195:12
+    |
+195 | pub struct SourceCompiledInvocationProof {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Unique<SourceCompiledInvocationProof>` to implement `Sync`
+note: required because it appears within the type `Box<tcl_compiler::command_binding::compiled_invocation::SourceCompiledInvocationProof>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/boxed.rs:236:11
+note: required because it appears within the type `tcl_compiler::command_binding::compiled_invocation::SourceNativeCompilerAdmission`
+   --> rust/tcl-compiler/src/command_binding/compiled_invocation.rs:218:10
+    |
+218 | pub enum SourceNativeCompilerAdmission {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::compiled_invocation::SourceNativeCompilerAdmission>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<SourceNativeCompilerAdmission>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation`
+   --> rust/tcl-compiler/src/command_binding/compiler_inventory.rs:273:19
+    |
+273 | pub(super) struct SourceCompilerInvocation {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::compiler_inventory::SourceCompilerInvocation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+    = note: required for `NodeRef<Owned, CommandAllocationSite, Vec<_>, _>` to implement `Sync`
+note: required because it appears within the type `Option<NodeRef<Owned, CommandAllocationSite, Vec<_>, _>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `BTreeMap<CommandAllocationSite, Vec<SourceCompilerInvocation>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/collections/btree/map.rs:189:11
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::ExpressionScriptCompilerVisit`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:786:8
+    |
+786 | struct ExpressionScriptCompilerVisit {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `PhantomData<ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+note: required because it appears within the type `RawVec<ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+note: required because it appears within the type `Vec<tcl_compiler::command_binding::expression_preparation::ExpressionScriptCompilerVisit>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::SourceExpressionScriptCompilation`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:777:12
+    |
+777 | pub struct SourceExpressionScriptCompilation {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::expression_preparation::SourceExpressionScriptCompilation>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<SourceExpressionScriptCompilation>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+note: required because it appears within the type `tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation`
+   --> rust/tcl-compiler/src/command_binding/expression_preparation.rs:759:12
+    |
+759 | pub struct SourceExpressionPreparation {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>` to implement `Sync`
+note: required because it appears within the type `tcl_compiler::native_numeric::SourceNativeNumericObject`
+   --> rust/tcl-compiler/src/native_numeric.rs:64:12
+    |
+ 64 | pub struct SourceNativeNumericObject {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::native_numeric::SourceNativeNumericObject>` to implement `Send`
+note: required because it appears within the type `tcl_compiler::native_numeric::StoredNativeRepresentation`
+   --> rust/tcl-compiler/src/native_numeric.rs:319:10
+    |
+319 | pub enum StoredNativeRepresentation {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: required because it appears within the type `(VariableCellKey, StoredNativeRepresentation)`
+    = note: required for `RawTable<(VariableCellKey, StoredNativeRepresentation)>` to implement `Send`
+note: required because it appears within the type `HashMap<VariableCellKey, StoredNativeRepresentation, RandomState>`
+   --> /rust/deps/hashbrown-0.17.1/src/map.rs:182:11
+note: required because it appears within the type `HashMap<VariableCellKey, StoredNativeRepresentation>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/collections/hash/map.rs:245:11
+note: required because it appears within the type `VariableCellTable<StoredNativeRepresentation>`
+   --> rust/tcl-compiler/src/var_resolve/cell_key.rs:347:12
+    |
+347 | pub struct VariableCellTable<V>(HashMap<VariableCellKey, V>);
+    |            ^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `tcl_compiler::var_resolve::ResolveContext`
+   --> rust/tcl-compiler/src/var_resolve.rs:512:12
+    |
+512 | pub struct ResolveContext {
+    |            ^^^^^^^^^^^^^^
+    = note: required for `Arc<tcl_compiler::var_resolve::ResolveContext>` to implement `Sync`
+note: required because it appears within the type `Option<Arc<tcl_compiler::var_resolve::ResolveContext>>`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/preview_tickets_e2e-c2624556c8d0c28b.long-type-13433108015789751132.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+For more information about this error, try `rustc --explain E0275`.
+error: could not compile `tcl-lsp-server` (test "preview_tickets_e2e") due to 1 previous error

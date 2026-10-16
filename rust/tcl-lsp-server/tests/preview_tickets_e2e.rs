@@ -35,6 +35,8 @@
 //!
 //! Driven over real JSON-RPC against the `tower-lsp` service.
 
+#![recursion_limit = "256"]
+
 use std::time::Duration;
 
 use tcl_lsp_server::Backend;

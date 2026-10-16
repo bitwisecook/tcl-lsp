@@ -73,7 +73,7 @@ pub fn run_serve(bind: &str, port: u16, open: bool) -> anyhow::Result<u8> {
     let listener = TcpListener::bind((bind, port))
         .map_err(|e| anyhow::anyhow!("cannot bind {bind}:{port}: {e}"))?;
     let local = listener.local_addr()?;
-    let url = format!("http://{bind}:{}", local.port());
+    let url = format!("http://{local}");
     println!("Compiler explorer serving at {url} (Ctrl-C to stop)");
 
     if open {

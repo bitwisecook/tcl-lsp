@@ -35,7 +35,10 @@ use crate::value::Value;
 use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
 
 pub(crate) fn register(vm: &mut Vm) {
-    if let Some(scripted) = vm.native_invocation_dialect().binary_scripted_ingress() {
+    if let Some(scripted) = vm
+        .actual_native_invocation_dialect()
+        .binary_scripted_ingress()
+    {
         // These are actual extension callbacks, not C private worker identities.
         vm.register(scripted.members[0], binary_format);
         vm.register(scripted.members[1], binary_scan);
@@ -43,7 +46,7 @@ pub(crate) fn register(vm: &mut Vm) {
         return;
     }
     let Some(namespace) = vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Binary)
     else {
         vm.register_stock_builtin("binary", cmd_binary);
@@ -89,7 +92,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     }
     register(vm);
     if vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Binary)
         .is_none()
     {

@@ -10,6 +10,7 @@ use tcl_registry::{CommandSpec, Traits};
 
 struct SelectedContext {
     spec: CommandSpec,
+    options: Vec<tcl_registry::hover::OptionSpec>,
     arguments: Vec<Option<String>>,
     active: usize,
 }
@@ -85,7 +86,7 @@ pub(super) fn items(
             }
         }
     }
-    if let Some(items) = option_values(spec, &selected, floor, partial, config) {
+    if let Some(items) = option_values(&selected, floor, partial, config) {
         return Some(items);
     }
     if spec.traits.contains(Traits::IS_EVENT_HANDLER)
@@ -154,7 +155,6 @@ impl SwitchAdvice<'_> {
 }
 
 fn option_values(
-    spec: &CommandSpec,
     selected: &SelectedContext,
     floor: Option<&str>,
     partial: &str,
@@ -167,14 +167,9 @@ fn option_values(
     if !prev.starts_with('-') {
         return None;
     }
-    let option = spec
+    let option = selected
         .options
         .iter()
-        .chain(
-            spec.command_forms
-                .iter()
-                .flat_map(|form| form.options.iter()),
-        )
         .find(|option| option.matches(prev))?;
     let values = option
         .value_values()
@@ -233,7 +228,19 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
                 .map(str::to_owned)
             })
             .collect();
+        let options = shape
+            .source_completion_options(
+                current.registry(),
+                tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+                    current.registry(),
+                    analysis.resolved_input.as_ref()?,
+                    current.config(),
+                    Some(current.profile()),
+                )?,
+            )
+            .unwrap_or_default();
         return Some(SelectedContext {
+            options,
             spec: shape
                 .context()
                 .resolve_spec(current.registry(), shape.command())?
@@ -286,11 +293,20 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
                 .map(str::to_owned)
         })
         .collect();
-    let spec = words.with_source_schema(&current.context(), |schema| {
-        schema.authored_source_descriptors().command.clone()
+    let (spec, options) = words.with_source_schema(&current.context(), |schema| {
+        (
+            schema.authored_source_descriptors().command.clone(),
+            schema
+                .authored_source_available_options()
+                .unwrap_or_default()
+                .into_iter()
+                .cloned()
+                .collect(),
+        )
     })?;
     Some(SelectedContext {
         spec,
+        options,
         arguments,
         active,
     })
@@ -300,6 +316,30 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    // naming.core.original-registry-context-completion
+    // docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md
+    fn source_option_value_completion_keeps_selected_options_and_currency() {
+        let source = "fconfigure stdout -blocking ";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.len()).unwrap();
+        let result = items(source, cursor, 0, cursor, &analysis, "").unwrap();
+        assert!(result.iter().any(|item| item.label == "true"));
+        assert!(
+            items(
+                "fconfigure stderr -blocking ",
+                cursor,
+                0,
+                cursor,
+                &analysis,
+                ""
+            )
+            .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(items(source, cursor, 0, cursor, &analysis, "").is_none());
+    }
 
     #[test]
     // Implementation contract: naming.core.original-registry-context-completion

@@ -1,0 +1,99 @@
+{
+  "kind": "independent_requirement_count_reconciliation",
+  "design_path": "/tmp/sol-mapped-source-continuation/SOURCE-DESIGN.txt",
+  "design_sha256": "45e644fd6d7441542de22282d450389c323b6e8dbd466643002088e860f7556b",
+  "recommendation": {
+    "additional_shared_owner_requirements": 1,
+    "additional_caller_migration_requirements": 0,
+    "implementation_status": "not_implemented_design_only",
+    "verified_complete": false
+  },
+  "proposed_owner_row": {
+    "id": "registry.source.conditional-operation-continuation-effect-coverage-owner",
+    "kind": "shared_owner_extension",
+    "baseline_unit_ids": [
+      "compiler.source.original-word-selected-config:2749"
+    ],
+    "site_anchors": [
+      {
+        "path": "rust/tcl-registry/src/resolved_invocation.rs",
+        "symbol": "ResolvedInvocation::authored_source_effects_and_state_transitions; proposed purpose-specific operation coverage projection"
+      },
+      {
+        "path": "rust/tcl-registry/src/world_effect.rs",
+        "symbol": "ResolvedWorldEffects::resolve_authored_source"
+      },
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/trace.rs",
+        "symbol": "TRACE_ADD_TRANSITIONS; TRACE_EFFECT_COVERAGE; TRACE_ADD_EFFECTS"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "symbol": "original_source_operand_layout_for_declaration; OriginalDeclarationLayout::retains_successor"
+      }
+    ],
+    "rationale": "One missing conditional source-operation coverage/applicability requirement: from an authentic selected descriptor, exact full effective argv and independently retained source dialect, distinguish represented synchronous body/control/lookup effects from registration result transitions and noncovered residual/observer obligations before retaining later source-only mapped diagnostic rows. Existing source effect/transition APIs transport conservative effects but do not certify this continuation facet. Extend those existing owners; do not create a competing resolver. Count once across per-operation cards, prefix transport and compiler adoption, not per trace/helper/caller.",
+    "implementation": {
+      "status": "not_implemented_design_only",
+      "verified_complete": false
+    },
+    "open_boundaries": [
+      "actual immutable descriptor/source availability and complete operand provenance",
+      "synchronous coverage versus uncommitted/result transitions",
+      "noncovered lookup/observer applicability residuals retained chronologically",
+      "later source rows retain current full input/configuration/declaration and genuinely conditional handler selection",
+      "no Native/Normal/read/cell/absence/edit or reached-state grants"
+    ]
+  },
+  "existing_owner_comparisons": [
+    {
+      "id": "db.unit.rust.tcl-registry.src.source_name_ownership.72",
+      "covers": "Per-operand scalar/array/separate-index receiver form in conditional lexical ownership/exclusion.",
+      "does_not_cover": "Chronological complete operation effects or a continuation disposition after a source registration. source_name_ownership.rs explicitly calls ScopeAliasesAndTraceRegistrations a lexical exclusion veto, not an installed observer/read fact.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "compiler.source.original-word-selected-config:mapped-readonly-source-operand-owner",
+      "covers": "Authentic selected-config mapping, original headers/parents/full vectors, sealed cache/currentness and readonly diagnostic operand advice.",
+      "does_not_cover": "A Registry-issued semantic operation coverage/applicability facet. Compiler prefix/card transport is an implementation extension inside this existing adopter owner; no second Compiler owner is proposed.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "compiler.source.logical-parameter-trait-body-owner",
+      "covers": "Actual completed Logical procedure walk/formal/Registry receipts for conditional May parameter reports, retaining unknown/lookup/observer debt.",
+      "does_not_cover": "Mapped transformed procedure source without genuine Logical walk/scope. Prefix capture explicitly stops on trace-domain widening and command-prefix/body roles; no chronology can be fabricated from this other body.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+      "covers": "Actual selected class-definition/private-worker occupancy and observer premises before deferred method storage supplies source effects_complete.",
+      "does_not_cover": "Source trace registration operation/result effect distinction and later mapped source continuation. A shared effect-card representation would not equate these independently missing semantic requirements.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "existing contract: Original source Return effect envelope",
+      "covers": "ResolvedInvocation::authored_source_effects_and_state_transitions transports selected source effect/state facts, registered source resolvers and legacy residuals.",
+      "does_not_cover": "Audited synchronous source-operation coverage/applicability for continuing mapped rows. Existing resolve_authored_source uses source_resolver.or(resolver); missing source_resolver is not missing/empty effects. Reuse this issuer rather than duplicate resolution.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "compiler.source.complete-body-effect-inventory:1868",
+      "covers": "Actual metadata/source/schema body projection in protected-body effect replay.",
+      "does_not_cover": "New Registry trace operation completeness/result/residual disposition. It is a distinct caller/body ownership migration, not a generic operation-coverage issuer.",
+      "additional_for_this_row": 0
+    },
+    {
+      "id": "audit:irules-conditional-action-projection-owner",
+      "covers": "Original iRules event/root/action report projection with explicit applicability and coverage obligations.",
+      "does_not_cover": "Tcl trace synchronous/result effect partition for mapped declaration continuation. No cross-dialect completeness donor.",
+      "additional_for_this_row": 0
+    }
+  ],
+  "counting_rules": [
+    "Requirement is counted even if implementation is withheld or blocked.",
+    "No count per descriptor, release, callback, cache, helper, prefix type, or later mapped row.",
+    "No duplication of baseline2749 caller or already counted mapped-source owner.",
+    "No debt subtraction or ordinary lookup-stability grant follows from this count recommendation."
+  ],
+  "validation": "Read-only source, catalogue and contract inspection only; no implementation/source-clearance/build/test claim."
+}

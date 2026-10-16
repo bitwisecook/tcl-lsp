@@ -1,0 +1,6 @@
+Independent source review: CLEAR exact fixture-only patchaf4a1dd1475ae96a96d4da172342edc196ec99163b77db9b4413fe99b9a4c233.
+One new-test assertion changes from unconditional Folds to the actual selected brace variable; no production or original checkpoint assertion change. Parent verified this fixture is post554. SourceAnalysisOptions::source_invocation_dialect explicitly overlays complete selected lexer config and derives word_values from that grammar. For the Literal authored Standalone ordinary source layout, the retained dialect therefore correctly says Literal; Folds mapped source still requires Folds. The prior frozen889 failure left Literal/right Folds is consistent with that actual producer contract.
+
+This does not reinterpret selected source grammar as the physical Native header/engine. Same full source/config fixture, Fold old-path refusal, Literal ordinary source-layout/name positive, source operand decoding, mapped/currentness/changed-owner controls and all source success assertions stay unchanged. No Native frame/read/body/Normal guard is relaxed and no positive is replaced with a refusal.
+
+No new owner/count; bounded new-fixture premise correction. No source tests/build/main/Git by reviewer; root owns execution acceptance.

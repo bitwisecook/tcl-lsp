@@ -4100,7 +4100,6 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
         }
         return;
     };
-    let math = tcl_lexer::expr_math_functions();
     let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
         inner,
         &ctx.config.grammar_over(ctx.dialect.grammar),
@@ -4139,7 +4138,10 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
                 let pos = line_index
                     .position_at_utf16(u32::try_from(abs_start).unwrap_or(0), full_source);
                 let mods = if ctx.lexical {
-                    u32::from(math.contains(et.text.as_str())) * MOD_DEFAULT_LIBRARY
+                    u32::from(
+                        ctx.context.source_math_function(&et.text)
+                            == tcl_dialect::model::CapabilityAnswer::Yes,
+                    ) * MOD_DEFAULT_LIBRARY
                 } else {
                     ctx.analysis
                         .and_then(|analysis| {
@@ -10554,6 +10556,26 @@ mod original_definition_vocabulary_tests {
             ),
             Some(TokenKind::Method as u32)
         );
+    }
+
+    #[test]
+    // naming.core.original-math-function-selection
+    // docs/design/analysis/name-resolution-proofs/core-original-math-function-selection.md
+    fn logical_math_default_library_uses_configured_source_catalogue() {
+        let source = "expr {sqrt(4) + cbrt(8) + invented(0)}";
+        let tokens = retained_tokens(source, "tcl");
+        for (name, expected) in [("sqrt", MOD_DEFAULT_LIBRARY), ("cbrt", 0), ("invented", 0)] {
+            let start = u32::try_from(source.find(name).unwrap()).unwrap();
+            assert!(
+                tokens.iter().any(|&(line, col, _, kind, modifiers)| {
+                    line == 0
+                        && col == start
+                        && kind == TokenKind::Function as u32
+                        && modifiers == expected
+                }),
+                "{name}: {tokens:?}"
+            );
+        }
     }
 
     fn retained_tokens(source: &str, dialect: &str) -> Vec<(u32, u32, u32, u32, u32)> {

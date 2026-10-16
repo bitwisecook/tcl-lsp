@@ -4359,14 +4359,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )
     }
 
-    /// Declared option diagnostics from the already selected source schema.
-    /// Exact excluded rows remain explainable; prefixes use the actual admitted
-    /// vocabulary. Dynamic selection, unknown widths and reserved data cannot
-    /// be skipped to discover a later option. No execution or edit is implied.
-    #[must_use]
-    pub fn authored_source_diagnostic_options(&self) -> Option<AuthoredSourceOptionScan<'r>> {
-        // naming.diagnostic.registry-source-ownership
-        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+    fn authored_source_option_selector_path(&self) -> Option<Vec<&'static str>> {
         if !matches!(
             self.subcommand,
             SubcommandResolution::NotApplicable
@@ -4394,6 +4387,20 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             )?;
             subcommands.push(nested.name);
         }
+        Some(subcommands)
+    }
+
+    /// Declared option diagnostics from the already selected source schema.
+    /// Exact excluded rows remain explainable; prefixes use the actual admitted
+    /// vocabulary. Dynamic selection, unknown widths and reserved data cannot
+    /// be skipped to discover a later option. No execution or edit is implied.
+    #[must_use]
+    pub fn authored_source_diagnostic_options(&self) -> Option<AuthoredSourceOptionScan<'r>> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let subcommands = self.authored_source_option_selector_path()?;
+        let selected = self.semantics.script_metadata;
+        let options = self.semantics.options;
         let mut scan = options.diagnostic_scan(
             self.words
                 .arguments()
@@ -4998,6 +5005,15 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             command: self.semantics.script_metadata.command,
             subcommand: self.semantics.script_metadata.subcommand,
         }
+    }
+
+    /// Available options of the actual selected source form and selector.
+    /// Unresolved selectors withdraw the vocabulary; this grants no accepted
+    /// operand, handler execution or source edit authority.
+    #[must_use]
+    pub fn authored_source_available_options(&self) -> Option<Vec<&'r OptionSpec>> {
+        self.authored_source_option_selector_path()?;
+        Some(self.semantics.options.available().collect())
     }
 
     /// Exact authored naming layout from the selected descriptors and options.
@@ -6029,6 +6045,151 @@ mod tests {
                 .authored_source_possible_option_arguments()
                 .is_none()
         );
+    }
+
+    #[test]
+    // naming.core.original-registry-context-completion
+    // docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md
+    fn source_completion_options_keep_selected_form_and_surface() {
+        use crate::InvocationWord::Literal;
+        static BASE: &[crate::hover::OptionSpec] = &[crate::hover::OptionSpec {
+            name: "-base",
+            ..crate::hover::OptionSpec::DEFAULT
+        }];
+        static FIRST: &[crate::hover::OptionSpec] = &[
+            crate::hover::OptionSpec {
+                name: "-first",
+                ..crate::hover::OptionSpec::DEFAULT
+            },
+            crate::hover::OptionSpec {
+                name: "-new",
+                surface: Some(SpecSurface::TCL90_PLUS),
+                ..crate::hover::OptionSpec::DEFAULT
+            },
+        ];
+        static SECOND: &[crate::hover::OptionSpec] = &[crate::hover::OptionSpec {
+            name: "-second",
+            ..crate::hover::OptionSpec::DEFAULT
+        }];
+        static FORMS: &[crate::forms::CommandForm] = &[
+            crate::forms::CommandForm {
+                name: "first",
+                arity: crate::Arity::exact(3),
+                literal_argument_prefix: Some(crate::forms::LiteralArgumentPrefix::exact(&[
+                    "first",
+                ])),
+                options: FIRST,
+                ..crate::forms::CommandForm::DEFAULT
+            },
+            crate::forms::CommandForm {
+                name: "second",
+                arity: crate::Arity::exact(3),
+                literal_argument_prefix: Some(crate::forms::LiteralArgumentPrefix::exact(&[
+                    "second",
+                ])),
+                options: SECOND,
+                ..crate::forms::CommandForm::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            name: "source-completion-forms",
+            options: BASE,
+            command_forms: FORMS,
+            ..crate::CommandSpec::DEFAULT
+        });
+        for (selector, version, expected) in [
+            ("first", "8.6", vec!["-base", "-first"]),
+            ("second", "8.6", vec!["-base", "-second"]),
+            ("first", "9.0", vec!["-base", "-first", "-new"]),
+        ] {
+            let arguments = [Literal(selector), Literal("-value"), Literal("")];
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        Literal("source-completion-forms"),
+                        &arguments,
+                    ),
+                    Some(SurfaceQuery::core(Family::Tcl, version)),
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                selected
+                    .authored_source_available_options()
+                    .unwrap()
+                    .into_iter()
+                    .map(|option| option.name)
+                    .collect::<Vec<_>>(),
+                expected,
+            );
+        }
+        for selector in [Literal("missing"), crate::InvocationWord::Dynamic] {
+            let arguments = [selector, Literal("-value"), Literal("")];
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("string"), &arguments),
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+                )
+                .resolved()
+                .unwrap();
+            assert!(selected.authored_source_available_options().is_none());
+        }
+    }
+
+    #[test]
+    // naming.core.original-registry-context-completion
+    // docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md
+    fn source_completion_options_require_actual_nested_selector() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = CommandRegistry::build_default();
+        for operation in [Literal("configure"), Literal("create")] {
+            let arguments = [
+                Literal("ensemble"),
+                operation,
+                Literal("-prefixes"),
+                Literal(""),
+            ];
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("namespace"), &arguments),
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+                )
+                .resolved()
+                .unwrap();
+            assert!(
+                selected
+                    .authored_source_available_options()
+                    .unwrap()
+                    .iter()
+                    .any(|option| option.name == "-prefixes")
+            );
+        }
+        for arguments in [
+            vec![
+                Literal("ensemble"),
+                Dynamic,
+                Literal("-prefixes"),
+                Literal(""),
+            ],
+            vec![
+                Literal("ensemble"),
+                Literal("missing"),
+                Literal("-prefixes"),
+                Literal(""),
+            ],
+            vec![Literal("ensemble")],
+        ] {
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("namespace"), &arguments),
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+                )
+                .resolved()
+                .unwrap();
+            assert!(selected.authored_source_available_options().is_none());
+            assert!(selected.authored_source_diagnostic_options().is_none());
+        }
     }
 
     #[test]

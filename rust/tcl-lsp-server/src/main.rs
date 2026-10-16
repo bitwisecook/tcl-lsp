@@ -36,6 +36,7 @@
 //! `postMessage`.
 
 #![forbid(unsafe_code)]
+#![recursion_limit = "256"]
 
 #[cfg(not(target_family = "wasm"))]
 use tcl_lsp_server::Backend;

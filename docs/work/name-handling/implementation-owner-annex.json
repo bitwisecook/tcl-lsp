@@ -649,6 +649,43 @@
         "default or inherited constructor effects",
         "foreign constructor operand/read observer coverage"
       ]
+    },
+    {
+      "id": "registry.source.conditional-operation-continuation-effect-coverage-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "compiler.source.original-word-selected-config:2749"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "symbol": "ResolvedInvocation::authored_source_effects_and_state_transitions; proposed purpose-specific operation coverage projection"
+        },
+        {
+          "path": "rust/tcl-registry/src/world_effect.rs",
+          "symbol": "ResolvedWorldEffects::resolve_authored_source"
+        },
+        {
+          "path": "rust/tcl-registry/src/commands/tcl/trace.rs",
+          "symbol": "TRACE_ADD_TRANSITIONS; TRACE_EFFECT_COVERAGE; TRACE_ADD_EFFECTS"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+          "symbol": "original_source_operand_layout_for_declaration; OriginalDeclarationLayout::retains_successor"
+        }
+      ],
+      "rationale": "One missing conditional source-operation coverage/applicability requirement: from an authentic selected descriptor, exact full effective argv and independently retained source dialect, distinguish represented synchronous body/control/lookup effects from registration result transitions and noncovered residual/observer obligations before retaining later source-only mapped diagnostic rows. Existing source effect/transition APIs transport conservative effects but do not certify this continuation facet. Extend those existing owners; do not create a competing resolver. Count once across per-operation cards, prefix transport and compiler adoption, not per trace/helper/caller.",
+      "implementation": {
+        "status": "not_implemented_design_only",
+        "verified_complete": false
+      },
+      "open_boundaries": [
+        "actual immutable descriptor/source availability and complete operand provenance",
+        "synchronous coverage versus uncommitted/result transitions",
+        "noncovered lookup/observer applicability residuals retained chronologically",
+        "later source rows retain current full input/configuration/declaration and genuinely conditional handler selection",
+        "no Native/Normal/read/cell/absence/edit or reached-state grants"
+      ]
     }
   ],
   "unverified_or_open": [
@@ -660,28 +697,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T12:13:36.083444+00:00",
+  "utc": "2026-10-16T13:05:52.934278+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 30,
+    "semantic_code_changes": 31,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 30,
+    "all_required_changes": 31,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 13,
+      "shared_owner_extension": 14,
       "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1829,
+    "semantic_code_changes": 1830,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2188
+    "all_required_changes": 2189
   },
   "implementation_progress": {
     "implemented_pending_validation": 29,
-    "not_integrated": 1,
+    "not_integrated": 2,
     "verified_complete": 0
   }
 }

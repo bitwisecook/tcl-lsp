@@ -1,0 +1,20 @@
+INDEPENDENT COUNT REVIEW: +1 SHARED OWNER REQUIREMENT, +0 CALLERS
+
+Design: /tmp/sol-mapped-source-continuation/SOURCE-DESIGN.txt
+Exact design SHA256: 45e644fd6d7441542de22282d450389c323b6e8dbd466643002088e860f7556b
+
+This is one missing Registry conditional source-operation continuation/effect-coverage facet, implemented by extending existing source effect/transition owners. It is not one new owner per Trace variant, card, prefix, caller, helper or release. The compiler mapped-row adopter remains inside existing mapped-readonly-source-operand-owner; baseline2749 remains its existing caller requirement.
+
+Evidence:
+- repository-consumer-audit-final.json db.unit.rust.tcl-registry.src.source_name_ownership.72 requires per-operand receiver form before lexical split/exclusion. source_name_ownership.rs SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations explicitly denies installed-observer/read facts. That lexical veto cannot certify chronological operation effects.
+- implementation-owner-annex.json compiler.source.original-word-selected-config:mapped-readonly-source-operand-owner covers the retained selected-config original operand issuer. Full source/parent/header/currentness and mapping remain its responsibility; this does not already specify a Registry operation coverage/disposition provider.
+- compiler.source.logical-parameter-trait-body-owner requires the actual completed Logical walk/scope. source_parameter_template.rs::capture_prefixes requires that authentic tape and stops on trace-domain widening and command-prefix roles. It cannot donate a synthetic Logical body/prefix to the mapped body.
+- compiler.source.selected-definition-deferred-storage-effect-coverage-owner owns genuine definition-worker occupancy/observer applicability before effects_complete. This independently missing worker closure requirement remains counted even unintegrated. The mapped Trace registration synchronous/result/residual question is distinct; sharing a future card representation would not merge their requirements.
+- shared-utility-contracts-rust.md Original source Return effect envelope records the existing authored_source_effects_and_state_transitions source issuer. resolved_invocation.rs:2538 retains legacy conservative effects using default transition coverage; world_effect.rs:1139 source_resolver.or(resolver) means absence of source_resolver is not an empty-effect proof.
+- trace.rs:189 TRACE_EFFECT_COVERAGE deliberately describes write coverage while retaining legacy InterpState reads; OnOkOnly result transitions and CallbackEffect::NONE do not prove absence of dispatch observers, future callbacks or all lookup/control effects.
+- declaration_preview.rs:981 retains_successor requires genuine lookup stability/no unknown writes/no script flow. This existing Native-oriented sufficient guard remains unchanged. Merely iterating later mapped rows under the entry snapshot would not supply missing chronological applicability.
+- Narrow catalogue comparison found no existing generic source operation continuation/completeness requirement. Protected-body replay migration1868 and the iRules action report owner have different concrete source/body/event purposes; neither is the missing Tcl Trace operation coverage issuer.
+
+Recommendation JSON supplies exact proposed row, existing comparisons and boundaries. Status remains design-only/not implemented/unverified. Conditional handling must retain real descriptor/argv/config/parent/full-input provenance and explicit noncovered residual/observer obligations; no reached state, Native/Normal/read/cell/absence/edit grant follows. This is count reconciliation, not approval of an unimplemented future API or guard.
+
+No main writes, Cargo, Git, builds or test execution.

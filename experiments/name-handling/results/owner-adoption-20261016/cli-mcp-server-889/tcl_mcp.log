@@ -1,0 +1,167 @@
+
+running 48 tests
+test tools::dialect_param_tests::command_info_preserves_exact_literal_names ... ok
+test tools::dialect_param_tests::dialect_enum_lists_canonical_names_only ... ok
+test tools::dialect_param_tests::every_runtime_enumeration_is_the_registry ... ok
+test tools::dialect_param_tests::set_dialect_canonicalises_an_alias ... ok
+test tools::dialect_param_tests::set_dialect_rejects_an_unknown_name_without_changing_the_session ... ok
+test tools::dialect_param_tests::the_dialect_enum_offers_jim_and_tk_but_not_the_sink ... ok
+test tools::docstring_tests::bare_name_without_a_namespace_does_not_choose_an_unrelated_declaration ... ok
+test tools::docstring_tests::original_doc_tools_preserve_opaque_names_and_repeated_declarations ... ok
+test tools::docstring_tests::qualified_name_resolves_to_that_namespace ... ok
+test tools::find_legacy_tests::reports_unbraced_expr_with_its_conversion_hint ... ok
+test tools::format_dialect_tests::the_format_tool_leaves_the_ghost_separator_alone_under_core_tcl ... ok
+test tools::format_dialect_tests::the_format_tool_resolves_the_requested_dialect ... ok
+test tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps ... ok
+test tools::original_refactor_request_tests::original_code_action_responses_retain_disabled_rewrite_obligations ... ok
+test tools::original_refactor_request_tests::original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons ... 
+thread 'tools::original_refactor_request_tests::original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons' (124261) panicked at rust/tcl-mcp/src/tools.rs:3751:14:
+actual authored output and original conditional arm source
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test tools::original_refactor_request_tests::original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners ... 
+thread 'tools::original_refactor_request_tests::original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners' (124262) panicked at rust/tcl-mcp/src/tools.rs:3806:9:
+assertion failed: datagroup_advice(source, 0, "answers", &analysis, &index).is_some()
+FAILED
+test tools::original_refactor_request_tests::original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules ... ok
+test tools::original_refactor_request_tests::original_refactor_requests_use_the_selected_analysis_for_shadowed_heads ... ok
+test tools::policy_tests::a_check_emitted_rewrite_is_suppressed_not_missing ... 
+thread 'tools::policy_tests::a_check_emitted_rewrite_is_suppressed_not_missing' (124311) panicked at rust/tcl-mcp/src/tools.rs:2927:9:
+O100 stands in the report as an `OptimiserOff` suppression: Report { analysis_context_unavailable: None, outcomes: [], skipped: {O101: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O102: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O103: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O104: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O107: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O108: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O109: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O110: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O112: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O113: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O114: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O115: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O116: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O117: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O118: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O119: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O120: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O121: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O122: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O123: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O124: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O125: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O126: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O127: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O128: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O129: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, O130: DeclaredSkip { reason: OptimiserOff, not_run: Some(Optimiser) }, W242: DeclaredSkip { reason: DefaultOff, not_run: None }} }
+FAILED
+test tools::policy_tests::a_lone_cr_source_optimises_and_acts_like_its_lf_twin ... 
+thread 'tools::policy_tests::a_lone_cr_source_optimises_and_acts_like_its_lf_twin' (124312) panicked at rust/tcl-mcp/src/tools.rs:3247:9:
+the `\n` form folds: {"optimizations":[],"total":0,"optimized_source":"proc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n","changed":false,"profile":"full","iterations":1,"multi_pass":false}
+FAILED
+test tools::policy_tests::analyze_honours_an_inline_noqa ... 
+thread 'tools::policy_tests::analyze_honours_an_inline_noqa' (124325) panicked at rust/tcl-mcp/src/tools.rs:2776:9:
+the control reports W210: []
+FAILED
+test tools::policy_tests::analyze_honours_disable_enable_and_the_global_file ... 
+thread 'tools::policy_tests::analyze_honours_disable_enable_and_the_global_file' (124326) panicked at rust/tcl-mcp/src/tools.rs:2804:9:
+`enable` sits above the global file
+FAILED
+test tools::policy_tests::analyze_honours_the_noqa_fixture_as_tcl_diag_does ... 
+thread 'tools::policy_tests::analyze_honours_the_noqa_fixture_as_tcl_diag_does' (124327) panicked at rust/tcl-mcp/src/tools.rs:2888:13:
+reportedWithoutAMarker is reported: []
+FAILED
+test tools::policy_tests::analyze_reports_the_resolved_severity ... 
+thread 'tools::policy_tests::analyze_reports_the_resolved_severity' (124336) panicked at rust/tcl-mcp/src/tools.rs:3040:32:
+no W210 in []
+FAILED
+test tools::policy_tests::analyze_reports_the_source_style_pass ... ok
+test tools::policy_tests::analyze_reports_the_sslictcl_loader ... ok
+test tools::policy_tests::analyze_seeds_the_default_off_codes_and_enable_reaches_them ... 
+thread 'tools::policy_tests::analyze_seeds_the_default_off_codes_and_enable_reaches_them' (124339) panicked at rust/tcl-mcp/src/tools.rs:2820:9:
+`enable: W242` reaches a default-off code: []
+FAILED
+test tools::policy_tests::code_actions_offer_a_shown_rewrite_as_a_quickfix ... 
+thread 'tools::policy_tests::code_actions_offer_a_shown_rewrite_as_a_quickfix' (124340) panicked at rust/tcl-mcp/src/tools.rs:3411:9:
+a shown O101 rewrite is a quick-fix: [Object {"title": String("Extract selection into proc"), "kind": String("refactor.extract"), "disabled": String("the original extraction frame or operand inventory is unavailable")}]
+FAILED
+test tools::policy_tests::code_actions_offer_nothing_for_a_silenced_finding ... ok
+test tools::policy_tests::every_rewrite_row_renders_through_optimize ... 
+thread 'tools::policy_tests::every_rewrite_row_renders_through_optimize' (124355) panicked at rust/tcl-mcp/src/tools.rs:3624:9:
+row `a_rewrite_shows_under_its_profile` on McpRewrite: O101: expected [Expect { code: O101, line: Some(1), want: Applied(true) }] not observed; observed [Observed { code: O101, line: Some(1), state: Applied(false) }] not expected
+FAILED
+test tools::policy_tests::every_row_offers_fixes_for_shown_findings_only ... 
+thread 'tools::policy_tests::every_row_offers_fixes_for_shown_findings_only' (124369) panicked at rust/tcl-mcp/src/tools.rs:3584:9:
+row `an_unrelated_noqa_leaves_a_check` on McpActions: S100: expected [Expect { code: S100, line: Some(3), want: Offered(true) }] not observed; observed [Observed { code: S100, line: Some(3), state: Offered(false) }] not expected
+FAILED
+test tools::policy_tests::every_row_renders_through_analyze ... 
+thread 'tools::policy_tests::every_row_renders_through_analyze' (124383) panicked at rust/tcl-mcp/src/tools.rs:3519:9:
+row `inline_noqa_named` on Mcp: W210: expected [Expect { code: W210, line: Some(2), want: Suppressed(InlineDirective { line: 1 }) }] not observed; observed [] not expected
+row `inline_noqa_bare` on Mcp: W210: expected [Expect { code: W210, line: Some(3), want: Shown }] not observed; observed [] not expected
+row `inline_noqa_star` on Mcp: W210: expected [Expect { code: W210, line: Some(2), want: Suppressed(InlineDirective { line: 1 }) }] not observed; observed [] not expected
+row `file_directive_named` on Mcp: W210: expected [Expect { code: W210, line: Some(3), want: Shown }] not observed; observed [] not expected
+row `file_directive_star` on Mcp: W210: expected [Expect { code: W210, line: Some(3), want: Suppressed(FileDirective) }] not observed; observed [] not expected
+row `inline_noqa_on_a_check` on Mcp: S100: expected [Expect { code: S100, line: Some(3), want: Suppressed(InlineDirective { line: 2 }) }] not observed; observed [] not expected
+row `an_unrelated_noqa_leaves_a_check` on Mcp: S100: expected [Expect { code: S100, line: Some(3), want: Shown }] not observed; observed [] not expected
+row `disabled_at_global` on Mcp: W210: expected [Expect { code: W210, line: Some(2), want: Shown }] not observed; observed [] not expected
+row `default_off_turned_on_at_global` on Mcp: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected
+row `default_off_turned_on_in_the_slot` on Mcp: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected
+row `a_severity_override_relabels_only_its_code` on Mcp: W210: expected [Expect { code: W210, line: Some(2), want: ShownAt(Warning) }] not observed; observed [] not expected
+row `a_tagged_code_carries_its_tag` on Mcp: W211: expected [Expect { code: W211, line: Some(2), want: Shown }] not observed; observed [] not expected
+row `shimmer_off` on Mcp: S100: expected [Expect { code: S100, line: Some(2), want: Suppressed(ShimmerOff) }] not observed; observed [] not expected
+row `a_code_produced_without_the_optimiser_is_no_gap` on Mcp: W210: expected [Expect { code: W210, line: Some(1), want: Shown }] not observed; observed [] not expected
+FAILED
+test tools::policy_tests::optimize_a_named_profile_overrules_the_global_file ... 
+thread 'tools::policy_tests::optimize_a_named_profile_overrules_the_global_file' (124453) panicked at rust/tcl-mcp/src/tools.rs:3171:9:
+assertion `left == right` failed: {"optimizations":[],"total":0,"optimized_source":"set x [expr {1 + 2}]\n","changed":false,"profile":"full","iterations":1,"multi_pass":false}
+  left: String("set x [expr {1 + 2}]\n")
+ right: "set x 3\n"
+FAILED
+test tools::policy_tests::optimize_applies_only_the_rewrites_the_directives_leave_shown ... 
+thread 'tools::policy_tests::optimize_applies_only_the_rewrites_the_directives_leave_shown' (124454) panicked at rust/tcl-mcp/src/tools.rs:3093:9:
+assertion `left == right` failed: {"optimizations":[],"total":0,"optimized_source":"set x [expr {1 + 2}]\n","changed":false,"profile":"full","iterations":1,"multi_pass":false}
+  left: String("set x [expr {1 + 2}]\n")
+ right: "set x 3\n"
+FAILED
+test tools::policy_tests::optimize_honours_the_profile_the_overrides_and_the_global_file ... 
+thread 'tools::policy_tests::optimize_honours_the_profile_the_overrides_and_the_global_file' (124455) panicked at rust/tcl-mcp/src/tools.rs:3136:9:
+assertion `left == right` failed: `enable` overrides the profile: {"optimizations":[],"total":0,"optimized_source":"set x [expr {1 + 2}]\n","changed":false,"profile":"readability","iterations":1,"multi_pass":false}
+  left: String("set x [expr {1 + 2}]\n")
+ right: "set x 3\n"
+FAILED
+test tools::policy_tests::optimize_keeps_a_store_a_noqa_o109_marks ... 
+thread 'tools::policy_tests::optimize_keeps_a_store_a_noqa_o109_marks' (124464) panicked at rust/tcl-mcp/src/tools.rs:3211:9:
+{"optimizations":[],"total":0,"optimized_source":"proc f {} {\n    set x 1\n    set x 2\n    return $x\n}\n","changed":false,"profile":"full","iterations":1,"multi_pass":false}
+FAILED
+test tools::policy_tests::original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners ... 
+thread 'tools::policy_tests::original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners' (124465) panicked at rust/tcl-mcp/src/tools.rs:3284:9:
+actual code-action consumer offers the retained unit's fold: {"actions":[{"title":"Extract selection into proc","kind":"refactor.extract","disabled":"the original extraction frame or operand inventory is unavailable"}]}
+FAILED
+test tools::policy_tests::review_reports_the_compiler_check_families ... 
+thread 'tools::policy_tests::review_reports_the_compiler_check_families' (124474) panicked at rust/tcl-mcp/src/tools.rs:2853:9:
+[]
+FAILED
+test tools::policy_tests::the_diagnostics_tools_collapse_the_optimiser_into_one_entry ... ok
+test tools::policy_tests::the_diagnostics_tools_list_what_the_policy_hides ... 
+thread 'tools::policy_tests::the_diagnostics_tools_list_what_the_policy_hides' (124476) panicked at rust/tcl-mcp/src/tools.rs:2955:32:
+no suppressed W210: [Object {"producer": String("optimiser"), "codes": Array [String("O101"), String("O102"), String("O103"), String("O104"), String("O107"), String("O108"), String("O109"), String("O110"), String("O112"), String("O113"), String("O114"), String("O115"), String("O116"), String("O117"), String("O118"), String("O119"), String("O120"), String("O121"), String("O122"), String("O123"), String("O124"), String("O125"), String("O126"), String("O127"), String("O128"), String("O129"), String("O130")], "range": Null, "reason": String("optimiser-off"), "message": String("optimiser not run on this surface")}]
+FAILED
+test tools::policy_tests::the_features_toggle_is_an_editor_setting ... 
+thread 'tools::policy_tests::the_features_toggle_is_an_editor_setting' (124477) panicked at rust/tcl-mcp/src/tools.rs:2830:9:
+`[features] diagnostics = false` is the editor's alone: []
+FAILED
+test tools::policy_tests::the_grouping_tools_read_the_shown_set ... ok
+test tools::retained_graph_input_tests::memory_alias_tool_keeps_authored_exposure_and_unknown_storage ... ok
+test tools::source_integrity_tests::analyse_reports_bidi_controls_as_security_without_w108_duplication ... ok
+test tools::source_integrity_tests::event_order_deduplicates_repeated_handlers ... ok
+test tools::source_integrity_tests::ordinary_right_to_left_text_is_not_a_w305_finding ... ok
+test tools::source_integrity_tests::validate_and_review_include_w305_in_the_security_group ... ok
+test tools::wasm_pipeline_tests::compile_tool_uses_canonical_semantic_plan_without_backend_parameter ... 
+thread 'tools::wasm_pipeline_tests::compile_tool_uses_canonical_semantic_plan_without_backend_parameter' (124492) panicked at rust/tcl-mcp/src/tools.rs:1076:9:
+assertion `left == right` failed
+  left: String("general")
+ right: "generic-invoke"
+FAILED
+
+failures:
+
+failures:
+    tools::original_refactor_request_tests::original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons
+    tools::original_refactor_request_tests::original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners
+    tools::policy_tests::a_check_emitted_rewrite_is_suppressed_not_missing
+    tools::policy_tests::a_lone_cr_source_optimises_and_acts_like_its_lf_twin
+    tools::policy_tests::analyze_honours_an_inline_noqa
+    tools::policy_tests::analyze_honours_disable_enable_and_the_global_file
+    tools::policy_tests::analyze_honours_the_noqa_fixture_as_tcl_diag_does
+    tools::policy_tests::analyze_reports_the_resolved_severity
+    tools::policy_tests::analyze_seeds_the_default_off_codes_and_enable_reaches_them
+    tools::policy_tests::code_actions_offer_a_shown_rewrite_as_a_quickfix
+    tools::policy_tests::every_rewrite_row_renders_through_optimize
+    tools::policy_tests::every_row_offers_fixes_for_shown_findings_only
+    tools::policy_tests::every_row_renders_through_analyze
+    tools::policy_tests::optimize_a_named_profile_overrules_the_global_file
+    tools::policy_tests::optimize_applies_only_the_rewrites_the_directives_leave_shown
+    tools::policy_tests::optimize_honours_the_profile_the_overrides_and_the_global_file
+    tools::policy_tests::optimize_keeps_a_store_a_noqa_o109_marks
+    tools::policy_tests::original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners
+    tools::policy_tests::review_reports_the_compiler_check_families
+    tools::policy_tests::the_diagnostics_tools_list_what_the_policy_hides
+    tools::policy_tests::the_features_toggle_is_an_editor_setting
+    tools::wasm_pipeline_tests::compile_tool_uses_canonical_semantic_plan_without_backend_parameter
+
+test result: FAILED. 26 passed; 22 failed; 0 ignored; 0 measured; 96 filtered out; finished in 73.83s
+

@@ -1,0 +1,37 @@
+{
+  "supersedes": "e896c8c924319aab3606dc09aaed15828b884c2cab4a977052d1937e7c4ffe70",
+  "patch_sha256": "89c131c72cc458eccb9db3be2c13028f9520d0f69582ff508afca66cae10c165",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/vendor_advice.rs",
+      "before_sha256": "40579076fb3fb98cadf021cd2c62d33d3f462b1f2199ccf2f03039d51ae074a0",
+      "after_sha256": "6f766685dbb0f4d1a3abcb13a86ab5ead5151ad92df040904e8301a393b3e8fb",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion/original_context.rs",
+      "before_sha256": "4bacd4bf0ee5fad850207ec5ee3aeda8e079e6497eab25035e0d15c6e58b36aa",
+      "after_sha256": "042c904d7b95e36a2ade00d7de1c04fd4820623ed0c050ba777f4edd8d29ae7e",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "before_sha256": "5605bd03a0a0305820f710d3cbdfcccd007636546612616ba63020361a91987b",
+      "after_sha256": "ae1f3a523495f28a60d26d01cafa78cf304c45b779ea39f3c5b6585f219e8a44",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-registry/src/model/context.rs",
+      "before_sha256": "9df57ad7a886fa089a367e5dd27e49548a8ef4aeed736ff90c6dc779509ae5a1",
+      "after_sha256": "143c0d4babbc51bf2383ce3d52de6fac46ee2c5767d169bc0efb8597022a7056",
+      "live_matches_before": true
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "before_sha256": "f5635342aa2b79863ddbdb85af2c7505b0930533ba0d03901e243f0893a7d881",
+      "after_sha256": "9b5e9cf573dbcf22889e0eb1e6bb27b2adb33a1841f049ed9b016a8712758454",
+      "live_matches_before": true
+    }
+  ],
+  "checks": "All live beforeimages matched; patch --dry-run passed. No formatting/Cargo/build/tests. Root owns official proof updater after build."
+}

@@ -1,0 +1,15 @@
+{
+  "source_head": "889643a45508661705052ae7b447aed5f226a885",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "binaries": {
+    "tcl_compiler": {
+      "name": "tcl_compiler-3514e553bb759b46",
+      "sha256": "c42bc82b4bf4eb7b3b7dc6e3e1bc5313f2e678fe25be55b0fb269adb31851f7d"
+    },
+    "tcl_vm": {
+      "name": "tcl_vm-ce68d9a3794f2883",
+      "sha256": "bcd905f5cdc70a9724eb57f790ce0a4319dc40f6eae71c294c3c7c519923c841"
+    }
+  }
+}

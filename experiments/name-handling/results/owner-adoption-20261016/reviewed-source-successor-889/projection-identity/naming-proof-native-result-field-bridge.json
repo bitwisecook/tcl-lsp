@@ -1,0 +1,472 @@
+{
+  "status": "read-only field-level source review; no repository changes",
+  "scope": "Six selectors with an existing report-side exact input payload SHA and operation-result SHA, current retained result_hex, matching embedded result SHA and size, and current proof narrative. This is not a claim that original stdout/full HTTP response/request or full archives are reconstructed.",
+  "decoded_results": {
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json",
+    "historical_frozen_whole_file_sha256": "ee533a62089293ff9c10075994ee3fc81fb01402ca978836a95b2a3dff368426",
+    "historical_frozen_whole_file_bytes": 1711344,
+    "current_projection_sha256": "56bb79f46c1ee60997defb60bc3813f00d966cd4c42dc8e0f6c2ffe6c2a83d4b",
+    "current_projection_bytes": 1708272,
+    "current_sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed.",
+    "current_sha256_entry_verified_in": "scripts/dev/bigip-probes/resolution-2286/evidence/CURRENT_TRANSPORT_SHA256SUMS"
+  },
+  "report": {
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+    "historical_frozen_whole_file_sha256": "c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7",
+    "historical_frozen_whole_file_bytes": 31721,
+    "current_projection_sha256": "08bf650252be6aa5e5c0e9c6710927cea267ae4a333c4309c37884bbd7e250bd",
+    "current_projection_bytes": 31714,
+    "current_sha256_entry_verified_in": "scripts/dev/bigip-probes/resolution-2286/evidence/CURRENT_TRANSPORT_SHA256SUMS"
+  },
+  "all_result_hash_pairs_verified": 146,
+  "result_hex_sha_size_validation": "146 of 146 result_hex/result_sha256/result_size objects in decoded-results.json match. Six selectors below also cross-reference existing published result hashes and input payload hash rows.",
+  "selectors": [
+    {
+      "selector": "nul_counted_last",
+      "run": "r2286q",
+      "input_payload_sha256": "c6d687f237c239600f5bd1cf76e16d371f584eea315f1338fceecb14149a64e9",
+      "result_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+      "result_size": 299,
+      "result_pointer": "chunked_events/{CLIENT_ACCEPTED,RULE_INIT}/nul_counted_last/0:0..0:3",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 135,
+      "current_exact_fields": [
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:0",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:1",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:2",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_counted_last/0:3",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_counted_last/0:0",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_counted_last/0:1",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_counted_last/0:2",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_counted_last/0:3",
+          "sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "result_size": 299,
+          "hex_sha256": "85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791",
+          "hex_bytes": 299
+        }
+      ],
+      "verified_field_count": 8,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison.",
+      "cross_transport_event_comparison": {
+        "CLIENT_ACCEPTED": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        },
+        "RULE_INIT": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        }
+      }
+    },
+    {
+      "selector": "nul_array_root",
+      "run": "r2286q",
+      "input_payload_sha256": "1a942ef715ac1b9655a3c34098864fa1f87a9feeb129d9afd95dba545de75fd0",
+      "result_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+      "result_size": 490,
+      "result_pointer": "chunked_events/{CLIENT_ACCEPTED,RULE_INIT}/nul_array_root/0:0..0:3",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 136,
+      "current_exact_fields": [
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_root/0:0",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_root/0:1",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_root/0:2",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_root/0:3",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_root/0:0",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_root/0:1",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_root/0:2",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_root/0:3",
+          "sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "result_size": 490,
+          "hex_sha256": "9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010",
+          "hex_bytes": 490
+        }
+      ],
+      "verified_field_count": 8,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison.",
+      "cross_transport_event_comparison": {
+        "CLIENT_ACCEPTED": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        },
+        "RULE_INIT": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        }
+      }
+    },
+    {
+      "selector": "nul_array_index",
+      "run": "r2286q",
+      "input_payload_sha256": "8e0c4f79d9213ef60f1b8725af64b25ef1cad809a06aa99643290dd04a1d7cf6",
+      "result_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+      "result_size": 503,
+      "result_pointer": "chunked_events/{CLIENT_ACCEPTED,RULE_INIT}/nul_array_index/0:0..0:3",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 137,
+      "current_exact_fields": [
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_index/0:0",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_index/0:1",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_index/0:2",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/nul_array_index/0:3",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_index/0:0",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_index/0:1",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_index/0:2",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/nul_array_index/0:3",
+          "sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "result_size": 503,
+          "hex_sha256": "d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a",
+          "hex_bytes": 503
+        }
+      ],
+      "verified_field_count": 8,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison.",
+      "cross_transport_event_comparison": {
+        "CLIENT_ACCEPTED": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        },
+        "RULE_INIT": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        }
+      }
+    },
+    {
+      "selector": "lexical_clean",
+      "run": "r2286q",
+      "input_payload_sha256": "7a55589049588f9bb5ddbe36b944c41b2294374942c348a969dfa56e65db543f",
+      "result_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+      "result_size": 1843,
+      "result_pointer": "chunked_events/{CLIENT_ACCEPTED,RULE_INIT}/lexical_clean/0:0..0:3",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 138,
+      "current_exact_fields": [
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/lexical_clean/0:0",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/lexical_clean/0:1",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/lexical_clean/0:2",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/CLIENT_ACCEPTED/lexical_clean/0:3",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/lexical_clean/0:0",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/lexical_clean/0:1",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/lexical_clean/0:2",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        },
+        {
+          "pointer": "chunked_events/RULE_INIT/lexical_clean/0:3",
+          "sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "result_size": 1843,
+          "hex_sha256": "2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128",
+          "hex_bytes": 1843
+        }
+      ],
+      "verified_field_count": 8,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison.",
+      "cross_transport_event_comparison": {
+        "CLIENT_ACCEPTED": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        },
+        "RULE_INIT": {
+          "0:0": true,
+          "0:1": true,
+          "0:2": true,
+          "0:3": true
+        }
+      }
+    },
+    {
+      "selector": "nul_array_root_portable",
+      "run": "r2286s",
+      "input_payload_sha256": "8fa234686f7534a4961585b9138d994f1d2016a8a81f6c456bb1f0abd8bc1654",
+      "result_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+      "result_size": 1357,
+      "result_pointer": "portable_array_controls/isolated_root_traffic/.../unique_bodies/0 and non_tmm/*/contexts/*",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 99,
+      "current_exact_fields": [
+        {
+          "pointer": "portable_array_controls/isolated_root_traffic/traffic-http-nul-array-root-portable-rerun/unique_bodies/0",
+          "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "result_size": 1357,
+          "hex_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "hex_bytes": 1357
+        },
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_root_portable/contexts/IAppImplementation",
+          "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "result_size": 1357,
+          "hex_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "hex_bytes": 1357
+        },
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_root_portable/contexts/ICallScript",
+          "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "result_size": 1357,
+          "hex_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "hex_bytes": 1357
+        },
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_root_portable/contexts/TmshCliScript",
+          "sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "result_size": 1357,
+          "hex_sha256": "bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610",
+          "hex_bytes": 1357
+        }
+      ],
+      "verified_field_count": 4,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison."
+    },
+    {
+      "selector": "nul_array_index_portable",
+      "run": "r2286s",
+      "input_payload_sha256": "27444ad7e4c3ffa8e72c8655f4b562a53fc362982b2ae3b41bf35297fc6b014d",
+      "result_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+      "result_size": 1612,
+      "result_pointer": "portable_array_controls/traffic/.../unique_bodies/0 and non_tmm/*/contexts/*",
+      "proof_file": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "proof_table_line": 100,
+      "current_exact_fields": [
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_index_portable/contexts/IAppImplementation",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        },
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_index_portable/contexts/ICallScript",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        },
+        {
+          "pointer": "portable_array_controls/non_tmm/nul_array_index_portable/contexts/TmshCliScript",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        },
+        {
+          "pointer": "portable_array_controls/traffic/traffic-http-nul-array-index-portable/unique_bodies/0",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        },
+        {
+          "pointer": "portable_array_controls/traffic/traffic-http-nul-array-index-portable-rerun/unique_bodies/0",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        },
+        {
+          "pointer": "portable_array_controls/traffic/traffic-http-nul-array-root-portable/unique_bodies/0",
+          "sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "result_size": 1612,
+          "hex_sha256": "8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f",
+          "hex_bytes": 1612
+        }
+      ],
+      "verified_field_count": 6,
+      "all_current_result_hex_match": true,
+      "interpretation": "Preserve this result hash as the historical exact operation-result identity; current hex/size reproduces it. Input payload hash remains provenance from report only; original fixture bytes are not independently present for comparison."
+    }
+  ],
+  "existing_proof_documents": [
+    "docs/design/analysis/name-resolution-proofs/bigip-cross-context-lexical-names.md",
+    "docs/design/analysis/name-resolution-proofs/bigip-cross-context-variable-links-traces.md",
+    "docs/design/analysis/name-resolution-proofs/bigip-counted-key-input-boundaries.md"
+  ],
+  "bridge_proposal": "Keep original input-payload SHA, whole-report/whole-decoded-file historical SHA, and full archive/response hashes as historical IDs. For only these six selector rows, add a scoped field-level relation from the published input-payload SHA and published exact-operation-result SHA to the current decoded JSON pointer(s); current exact result hex verifies against the same result SHA/size. Preserve transport and response envelope as sanitized projection, never claim its full original bytes are recreated. Do not extend to unlisted selectors or all 952 files.",
+  "unresolved": "Original Tcl fixture script bytes are available only through changed/sanitized fixture archives; no independent current raw script bytes were read. Full HTTP stdout/body and original response envelope remain unavailable as exact current bytes. The embedded original payload SHA and report table identify historical input; they do not prove the missing original script bytes are recoverable."
+}
