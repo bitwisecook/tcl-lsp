@@ -1,1 +1,1 @@
-This capture preserves successful ordinary build and actual726 preflight only. Complete replay/postflight is pending at capture; no complete726 PASS count or acceptance is claimed. Five extra controls completed separately, and current generated check passed; owner gate remains red306errors.
+Historical start capture: replay was pending when this file was first committed. Complete execution and exact postflight are now preserved in completed-726/. Result596PASS/127FAIL/3TIMEOUT; no complete acceptance is claimed. Original start invocation remains unchanged.

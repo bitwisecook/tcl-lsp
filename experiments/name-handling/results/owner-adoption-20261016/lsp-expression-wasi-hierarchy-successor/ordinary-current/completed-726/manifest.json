@@ -1,0 +1,8 @@
+{
+  "archive": "raw-results.tar.zst",
+  "sha256": "68ff3d32094f44bb64b0adca0074a7387a7605d6ada52473e36acfd25a2e0d92",
+  "bytes": 403011,
+  "scope": "Exact raw result, singleton listings and all726 logs. No ELFs or full input indexes.",
+  "result_sha256": "5e0833cb65ef4012ea6f8b567587eecffc8f898816d6bf53ed3c9ab24f6a9d94",
+  "all_run_log_hashes_verified": true
+}

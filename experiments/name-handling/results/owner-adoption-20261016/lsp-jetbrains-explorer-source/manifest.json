@@ -1,0 +1,52 @@
+{
+  "patch_sha256": "39e5ef4cf067973cb86053610587dcc83c8a0c3a0c16b0d34d8b523b60dde7f6",
+  "supersedes": "/tmp/lsp-jetbrains-548-v3/repair.patch SHA 7cc8bc301c6c40ea22c12cf9e053e897c7ad37af966d639bdfb857ba9a1db6d0; V3 remains frozen/unadmitted pending peer review.",
+  "parent_owner_patch": "/tmp/lsp-jetbrains-explorer-source-v3/repair.patch",
+  "parent_owner_patch_sha256": "b81c24d537e98a76f5a62c4638d8b5b534269f1094b75c823da79c1b0ef1b9b9",
+  "parent_owner_manifest_sha256": "4241d63accef1e3d752fb973a159e12b1cdb6321a89f655a55ef5a910c6b2bd3",
+  "files": {
+    "docs/design/contracts/naming-consumer-matrix.md": {
+      "before_sha256": "7b0d14c71c9b5e42ccb71ff5407941684dfbcfee28206763923b328f49b66a2d",
+      "after_sha256": "dbc22e8f87e383cb214659a545c943c6cf33b47530a1490ba2e16159e058e4d8",
+      "change": "modified"
+    },
+    "docs/design/contracts/retained-explorer-source-views.md": {
+      "before_sha256": "4ce4e9e98d61ef8b15f1b91b28d82279a8bdaa8673f77211534bae3a063613f6",
+      "after_sha256": "0b1d63992aa8e3ee1bc76add7fd32116e0efe367229b44e68e3d16acadfe6ed7",
+      "change": "modified"
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/CompilerExplorerHtml.kt": {
+      "before_sha256": "b9a1a11a8542a5ace7629aa6093d91373bd964bb5ccd1304422f8d4fd5787b83",
+      "after_sha256": "308bf23304c2990b608cf2f12239021aeeabe71d8a3e6d6f63de6713a0ef2a01",
+      "change": "modified"
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/CompilerExplorerSource.kt": {
+      "before_sha256": null,
+      "after_sha256": "d2d52d23f2ac443a0cf7c6a30109c23cace8b24f39518ba0665e1e10256e8c1c",
+      "change": "added"
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/CompilerExplorerToolWindowFactory.kt": {
+      "before_sha256": "a5e65aa87221dc2917fd98f540b4dc0afd3037327c3b044ee536b2fa6812531e",
+      "after_sha256": "4e1b95564c67b45194b6ac95a788bdbcb2ca0b1c1321dd77c04432fa3beef085",
+      "change": "modified"
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/ExplorerProjections.kt": {
+      "before_sha256": "76ebd39c99a905f6b1224ceb07d79e25b59bdff3322e3edd8996a4bbd4dc1856",
+      "after_sha256": "a30e4f4bf5f0f8d2d2f427177b168c9931fa3c4651407b53def24d18dbc2c92a",
+      "change": "modified"
+    },
+    "editors/jetbrains/src/test/kotlin/com/tcllsp/jetbrains/CompilerExplorerSourceTest.kt": {
+      "before_sha256": null,
+      "after_sha256": "0c047bee2ab04d500ae460bb0f8e114f12ead12f5594e72ade46b63f8fb98d92",
+      "change": "added"
+    }
+  },
+  "units": [
+    "lsp-jetbrains-explorer-source-transport",
+    "lsp-jetbrains-explorer-navigation-currency",
+    "lsp-jetbrains-projection-source-currency"
+  ],
+  "scope": "V3 plus serialization of pane publication with panel disposal and final source selection/scroll with request cancellation. The final mutation checks exact owner+generation under the same request lock used by cancellation; no awaits occur while held.",
+  "verification": "Static only. Source/build/test and host efficacy remain unclaimed. V3 static source checks inherited; V4 awaits independent review.",
+  "counts": "No new owner count asserted."
+}

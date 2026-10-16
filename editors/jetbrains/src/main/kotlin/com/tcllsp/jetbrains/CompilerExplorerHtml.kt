@@ -87,6 +87,19 @@ internal fun adaptHtmlForJcef(html: String): String {
         <script>
         (function() {
             var queue = [];
+            var pendingWasmResult;
+            var lastCompile;
+            var failedRenderToken;
+            window.addEventListener('message', function(event) {
+                var msg = event.data;
+                if (event.origin === '' && msg && msg.type === 'wasmResultReady' && msg.data) {
+                    pendingWasmResult = {
+                        compileToken: msg.compileToken,
+                        sourceToken: msg.sourceToken,
+                        type: msg.data.type
+                    };
+                }
+            });
             function dispatch(msg) {
                 if (typeof window.__tcllspBridge !== 'function') {
                     queue.push(msg);
@@ -94,24 +107,33 @@ internal fun adaptHtmlForJcef(html: String): String {
                 }
                 try {
                     if (!msg || typeof msg.type !== 'string') return;
-                    if (msg.type === 'compile' && typeof msg.source === 'string') {
-                        window.__tcllspBridge('compile:' + msg.source + '\u0000' + (msg.dialect || ''));
-                    } else if (msg.type === 'highlightSource') {
-                        // Six fields: the UTF-16 line/column pair a caret is
-                        // actually placed with, then the byte offsets as a
-                        // fallback for a payload that predates them. An absent
-                        // field rides as an empty string.
-                        var n = function(v) { return v === undefined ? '' : v; };
-                        window.__tcllspBridge('highlightSource:' +
-                            n(msg.startLine) + ',' + n(msg.startCol) + ',' +
-                            n(msg.endLine) + ',' + n(msg.endCol) + ',' +
-                            n(msg.start) + ',' + n(msg.end));
-                    } else if (msg.type === 'clearHighlight') {
-                        window.__tcllspBridge('clearHighlight');
-                    } else if (msg.type === 'openProjection') {
-                        window.__tcllspBridge('openProjection:' + msg.view + '\u0000' +
-                            (msg.label || msg.view) + '\u0000' + (msg.dialect || '') +
-                            '\u0000' + (msg.source || ''));
+                    if (msg.type === 'compile' || msg.type === 'compileStarted' ||
+                        msg.type === 'compileCurrentnessCheck' || msg.type === 'highlightSource' ||
+                        msg.type === 'clearHighlight' || msg.type === 'openProjection' ||
+                        msg.type === 'compileComplete' || msg.type === 'renderError') {
+                        // JSON preserves original NULs and the shared page's request/source tokens.
+                        var transported = Object.assign({}, msg, { purpose: 'standalone-source' });
+                        if (msg.type === 'compileStarted' || msg.type === 'compile') {
+                            if (!lastCompile || lastCompile.compileToken !== msg.compileToken) failedRenderToken = undefined;
+                            lastCompile = msg;
+                        }
+                        if (msg.type === 'renderError') {
+                            if (lastCompile) failedRenderToken = lastCompile.compileToken;
+                            return;
+                        }
+                        if (msg.type === 'compileComplete') {
+                            var matches = lastCompile && lastCompile.compileToken === msg.compileToken;
+                            transported.renderSucceeded = !!matches && failedRenderToken !== msg.compileToken;
+                            if (matches && lastCompile.sourceToken !== undefined) transported.sourceToken = lastCompile.sourceToken;
+                        }
+                        if (msg.type === 'compileStarted') pendingWasmResult = undefined;
+                        if (msg.type === 'compileCurrentnessCheck') {
+                            var result = pendingWasmResult;
+                            if (result && result.compileToken === msg.compileToken &&
+                                result.sourceToken === msg.sourceToken) transported.resultKind = result.type;
+                            pendingWasmResult = undefined;
+                        }
+                        window.__tcllspBridge(JSON.stringify(transported));
                     }
                     // Other types (ready, dialectChange, scriptError, ...)
                     // have no host action in JCEF and are intentionally dropped.

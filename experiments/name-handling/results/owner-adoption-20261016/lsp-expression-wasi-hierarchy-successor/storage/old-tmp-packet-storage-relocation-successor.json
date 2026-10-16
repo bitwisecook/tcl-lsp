@@ -1,0 +1,1760 @@
+{
+  "utc": "2026-10-16T22:41:54.234298+00:00",
+  "scope": "Relocate old immutable source packet storage; everyoriginalpath remains readable and allbytes/targets verified before duplicate removal. No main or evidence bytes changed.",
+  "packets": [
+    {
+      "original_lookup_path": "/tmp/lsp-server-document-path-admission-v2",
+      "destination": "/workspace/naming-validation/agent-work/preserved-tmp-packets/lsp-server-document-path-admission-v2",
+      "original_path_preserved_as_symlink": true,
+      "bytes": 44569569,
+      "verified_members": [
+        {
+          "path": "COUNT-RECONCILIATION.json",
+          "bytes": 3443,
+          "sha256": "e8a19d9be1637e388f60bdb069bc8d927ec81225faeab90670b0532201b4e2cd"
+        },
+        {
+          "path": "REBASE-V3.json",
+          "bytes": 2006,
+          "sha256": "2402ce74c653c068221c059024ffffdf48c615e786d57303346595a5f8bd4212"
+        },
+        {
+          "path": "REBASE.json",
+          "bytes": 1903,
+          "sha256": "9ed23ac71a0b08abfb77c99f566c462caf698800596c7ebcd63c73ddfd3e6825"
+        },
+        {
+          "path": "REVIEW.md",
+          "bytes": 11672,
+          "sha256": "c1b1453a616734b2e25003c343c6d053f7e4631f4294a0db0a2ef385fb339d2d"
+        },
+        {
+          "path": "SOURCE-PATH-ORIGIN-NOTE.md",
+          "bytes": 1256,
+          "sha256": "5bfd00c85b94dd4f7474f944b4e12ac63a73a4496e4fff93874916b226a79935"
+        },
+        {
+          "path": "STATE.md",
+          "bytes": 1525,
+          "sha256": "9fb28ad052a203c2a6899ba066767db7797007c186a937371c8fbd3b7a305912"
+        },
+        {
+          "path": "V1.json",
+          "bytes": 458,
+          "sha256": "ffb7830c6d992644a69e7ae084a455cf976ab62700aa853e84e438607efe8669"
+        },
+        {
+          "path": "VALIDATION-COMMANDS.txt",
+          "bytes": 1578,
+          "sha256": "9a09b4d94d7b93869f61eaa080f448029e5e54a733f371ca0702bc41a6381734"
+        },
+        {
+          "path": "absence-receipt.py",
+          "bytes": 5004,
+          "sha256": "65e456e2e1431836296a275797bdd07d17160c2563bd97f402bf30c6d1cc3efe"
+        },
+        {
+          "path": "base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 21784,
+          "sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 19602,
+          "sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 20621,
+          "sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2630747,
+          "sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 63232,
+          "sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9907,
+          "sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12775,
+          "sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18430,
+          "sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1902,
+          "sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 13823,
+          "sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886"
+        },
+        {
+          "path": "currentness.py",
+          "bytes": 4967,
+          "sha256": "f84105d3b5a64c16a58e34a8f772fc5d5a4b40595cdcd9b66135f72fe51a9115"
+        },
+        {
+          "path": "deep-audit.py",
+          "bytes": 1455,
+          "sha256": "d7f99fcbfd2240e3a891983b55da94852f64c9e55f217ce4d36a301ce2836160"
+        },
+        {
+          "path": "document-path-admission-v2.0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935.patch",
+          "bytes": 589853,
+          "sha256": "0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935"
+        },
+        {
+          "path": "document-path-admission-v2.124b75fd5f228036a655bf4f8aaffcd87aaad856f578cfaf91ad66464cdc155e.patch",
+          "bytes": 546575,
+          "sha256": "124b75fd5f228036a655bf4f8aaffcd87aaad856f578cfaf91ad66464cdc155e"
+        },
+        {
+          "path": "document-path-admission-v2.350f0cdbb0491f3e41c157c80cf71bfe2970f341b4ca6c73d43ee1a362251d51.patch",
+          "bytes": 572359,
+          "sha256": "350f0cdbb0491f3e41c157c80cf71bfe2970f341b4ca6c73d43ee1a362251d51"
+        },
+        {
+          "path": "document-path-admission-v2.558fc3765e2982b17fa27de5157cff419bfea389c9c63688467b827b67e26351.patch",
+          "bytes": 589888,
+          "sha256": "558fc3765e2982b17fa27de5157cff419bfea389c9c63688467b827b67e26351"
+        },
+        {
+          "path": "document-path-admission-v2.6a612334b6f4725eac7471a08d55dcd2660fb0f49f897be9626e67966542139d.patch",
+          "bytes": 573345,
+          "sha256": "6a612334b6f4725eac7471a08d55dcd2660fb0f49f897be9626e67966542139d"
+        },
+        {
+          "path": "document-path-admission-v2.91a2d687f869ad0f6c62a2ef58a83206a3ebaa89eb48c199ed0802d9cc397300.patch",
+          "bytes": 589835,
+          "sha256": "91a2d687f869ad0f6c62a2ef58a83206a3ebaa89eb48c199ed0802d9cc397300"
+        },
+        {
+          "path": "document-path-admission-v2.96dbde48820c1a8fd73d28aac2499d9c1d05d0c8654b168ea7efaf6b91d75cdf.patch",
+          "bytes": 521864,
+          "sha256": "96dbde48820c1a8fd73d28aac2499d9c1d05d0c8654b168ea7efaf6b91d75cdf"
+        },
+        {
+          "path": "document-path-admission-v2.9acc4b304ea1197962fc7f5b0a4db2f802fe8217c2f0138673cd6338926e8c06.patch",
+          "bytes": 570598,
+          "sha256": "9acc4b304ea1197962fc7f5b0a4db2f802fe8217c2f0138673cd6338926e8c06"
+        },
+        {
+          "path": "document-path-admission-v2.a14e15a906d252ef58212f4d4c450e0d08809945e6423abc30d7b71ac4d2048c.patch",
+          "bytes": 3212872,
+          "sha256": "a14e15a906d252ef58212f4d4c450e0d08809945e6423abc30d7b71ac4d2048c"
+        },
+        {
+          "path": "document-path-admission-v2.aed991d5da561566837ba707ba3bac6f98093a25f1bf58d38a75fa6aac187626.patch",
+          "bytes": 571311,
+          "sha256": "aed991d5da561566837ba707ba3bac6f98093a25f1bf58d38a75fa6aac187626"
+        },
+        {
+          "path": "document-path-admission-v2.ec86a98bd174b049dda4eab31201dca16b9d414b214edfa2c1b5b076d846b7c2.patch",
+          "bytes": 589707,
+          "sha256": "ec86a98bd174b049dda4eab31201dca16b9d414b214edfa2c1b5b076d846b7c2"
+        },
+        {
+          "path": "document-path-admission-v2.patch",
+          "bytes": 589853,
+          "sha256": "0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935"
+        },
+        {
+          "path": "edit/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "edit/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "edit-owner.py",
+          "bytes": 12041,
+          "sha256": "a218dacfaf13714cda7875f15f5bf542e007991055e206cbd124a673a60d4f67"
+        },
+        {
+          "path": "edit-server.py",
+          "bytes": 9938,
+          "sha256": "f8d523419d5791591997f8ea185a80fbb4af07e962abe2b0ee942492e6b3ecb5"
+        },
+        {
+          "path": "final-edits.py",
+          "bytes": 4317,
+          "sha256": "474fb1d4a098c05d6d22f6332dc69e10c1bee6190ac81a506b26fb842495eab2"
+        },
+        {
+          "path": "finish-owner.py",
+          "bytes": 2473,
+          "sha256": "a5c891cd8d4e09b47f544cf7264a79c95e130f25443e41f7185f2caf7c7f66d5"
+        },
+        {
+          "path": "finish-publication.py",
+          "bytes": 5625,
+          "sha256": "a361a7df76f01c0293f167e2f7aaefa942e55871ad1dd4e55d9f36cfcb7f0e35"
+        },
+        {
+          "path": "finish-server.py",
+          "bytes": 8917,
+          "sha256": "c7bf1eb1514e4411ce167a4ab6de1727a175bd0556e366787226c4902e449f58"
+        },
+        {
+          "path": "independent-variable-order-review-0fce-CLEAR.txt",
+          "bytes": 4112,
+          "sha256": "bf132834f2e8cda9385197c4c75cae4159194b9078e1cc152606b28e7b015a6d"
+        },
+        {
+          "path": "independent-variable-order-review-124b-HOLD.txt",
+          "bytes": 2281,
+          "sha256": "252a25a7375aa8ab779d52e1c3e6286fc307347f365155e4aa04b02a06e98b3a"
+        },
+        {
+          "path": "independent-variable-order-review-96db-HOLD.txt",
+          "bytes": 2034,
+          "sha256": "7c9db0d793c0efe59d306b3910e3622cc8275a57c1c3a69c299746aef1759583"
+        },
+        {
+          "path": "independent-variable-order-review-9acc-HOLD.txt",
+          "bytes": 1934,
+          "sha256": "296b649170aa1e84c2fc388a504183bc317b2bffeff8fe9af8b248ad2fc35331"
+        },
+        {
+          "path": "lease.py",
+          "bytes": 6828,
+          "sha256": "06b1d46c406a41f7494012aacf22b63fe7f042609a5820474e541986d7b79a7f"
+        },
+        {
+          "path": "ledger.py",
+          "bytes": 7587,
+          "sha256": "bb23714b3884e21a4953c8334a7c8f23576d91c1957bb0ebfb87bc5a44988448"
+        },
+        {
+          "path": "manifest.0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935.json",
+          "bytes": 6331,
+          "sha256": "d3ae22d38cb3145b44b1fc8cd96fe2ec32114556f1b2a86cf034a3ec7a971738"
+        },
+        {
+          "path": "manifest.json",
+          "bytes": 6331,
+          "sha256": "d3ae22d38cb3145b44b1fc8cd96fe2ec32114556f1b2a86cf034a3ec7a971738"
+        },
+        {
+          "path": "notification-leases.py",
+          "bytes": 5405,
+          "sha256": "4a450ea47733ceb273b411c59ba5a150d652368cec61472f7b36ca05941b1bb2"
+        },
+        {
+          "path": "original-test-invariants.json",
+          "bytes": 1560,
+          "sha256": "9d021f8019c4c57bce984099461f4324dbcbe25e86150986dc91ff2a453c20e1"
+        },
+        {
+          "path": "original-test-invariants.py",
+          "bytes": 1478,
+          "sha256": "9962662b3c33955f4edf3464b87ed2ebfd00bf61efeddf9a6cfb9e57d8502418"
+        },
+        {
+          "path": "package.py",
+          "bytes": 1116,
+          "sha256": "59147e55876f09f4cd94b1f9fcf2bca47e155dcd46fe1e7d7adf76609680861d"
+        },
+        {
+          "path": "path-origin.py",
+          "bytes": 12061,
+          "sha256": "975028800afce1075dd2ee8a37a2477650d44ea60c2115a6b2370591ad2aed1a"
+        },
+        {
+          "path": "pre-rebase.patch",
+          "bytes": 518396,
+          "sha256": "37373d129431308191cb1ce00b87ca08f2033708ee4fbf16225d9929eb41e274"
+        },
+        {
+          "path": "pre-v3-base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 21784,
+          "sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 19602,
+          "sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 20621,
+          "sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2630514,
+          "sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 63232,
+          "sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9907,
+          "sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12775,
+          "sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18430,
+          "sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1902,
+          "sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c"
+        },
+        {
+          "path": "pre-v3-base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 13823,
+          "sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886"
+        },
+        {
+          "path": "pre-v3-edit/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47749,
+          "sha256": "50aa33f59dd685962abf4d119d20f02ef1868a1abe87c7101e20fcbffa21f869"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2705834,
+          "sha256": "aaf10a43a940fd41ef358858fc9352ce7ad7a72c960c4c7912d9c6d5eb26b0d3"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "pre-v3-edit/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "previous-base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 21784,
+          "sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 19602,
+          "sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 20621,
+          "sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2625684,
+          "sha256": "d820cd96191a65066400899f30083f2f43022dcec8f84d8ee67f0932b0598609"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 63232,
+          "sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9907,
+          "sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12775,
+          "sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18430,
+          "sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1902,
+          "sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c"
+        },
+        {
+          "path": "previous-base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 13823,
+          "sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886"
+        },
+        {
+          "path": "previous-edit/docs/design/contracts/lsp-source-store.md",
+          "bytes": 24762,
+          "sha256": "5e48bb5311e14cb6b761e1264713f6d66f0e2559fcce8478a063ec5fc4e234d1"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 38315,
+          "sha256": "22fc389cba2e8822374cdd81c1be207373fa862029f814ac244c66caec92f1e7"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2680373,
+          "sha256": "45d786e30c1d79343d3a38401b5b3475548ce4f011f3fbd3eb321f78cd761980"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 19465,
+          "sha256": "280f7f5abd9db69b999c5ccab23cf9eda8e6d2530add0cd971720d13366e91f6"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1973,
+          "sha256": "fadbda8dfbd381a3c30607fe2eea02126dade675e7c6901f4d881df4fdebc431"
+        },
+        {
+          "path": "previous-edit/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "rebase-apply.log",
+          "bytes": 17973,
+          "sha256": "6f4807fe24ed58a1f1765824659f4607ad878abac44cdde77300724591d139fa"
+        },
+        {
+          "path": "rebase-current-v3.py",
+          "bytes": 1471,
+          "sha256": "18437fa49a389a66a678553b5582ec5c0017155ff2657c99870cd60da83a002d"
+        },
+        {
+          "path": "rebase-dry-run.log",
+          "bytes": 17973,
+          "sha256": "c37639e9e2c2723ddb9752fe7c80a99c9bac6027731e71f51ecf3a7679a6c801"
+        },
+        {
+          "path": "rebase-main-lib.rs.orig",
+          "bytes": 2630514,
+          "sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+        },
+        {
+          "path": "rebase-v3-apply.log",
+          "bytes": 13094,
+          "sha256": "d8354ffe350bcf7323955f623012e590d2a12e8f96d98f6f9c9069c5ba1361b8"
+        },
+        {
+          "path": "rebase-v3-dry-run.log",
+          "bytes": 13094,
+          "sha256": "df1a98558d806c837c8789740d5bdb12871719c688fc0cd0cd4bad26e6dbbbfb"
+        },
+        {
+          "path": "rebase.py",
+          "bytes": 1741,
+          "sha256": "9d85f22d2968144bf6f79f4df75e6a9b040d3957ca2cb064c8f29599e2ab5372"
+        },
+        {
+          "path": "rename.py",
+          "bytes": 7982,
+          "sha256": "b1eb9212998bd30ad067ad09249a0ed912df8256fbe6fcdde06ec651e1616329"
+        },
+        {
+          "path": "reopen-folder-fixes.py",
+          "bytes": 3402,
+          "sha256": "3503f05dadfa8f4b9ce3b9b0ad416273530c4851ad034310a1663ddab9dc76c8"
+        },
+        {
+          "path": "return-audit.py",
+          "bytes": 1220,
+          "sha256": "3ece98e287be43959a6a0c975295c4bc14d36d2929df1365d7710d8ff8560a82"
+        },
+        {
+          "path": "return-shapes.json",
+          "bytes": 128,
+          "sha256": "b5b113c244e2382f96a070e3ddabd6a1e555336ce74e0c0935ce5b4d78a709e0"
+        },
+        {
+          "path": "review-124-image/docs/design/contracts/lsp-source-store.md",
+          "bytes": 24762,
+          "sha256": "5e48bb5311e14cb6b761e1264713f6d66f0e2559fcce8478a063ec5fc4e234d1"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 39684,
+          "sha256": "1d233709a4a05cd2321489ffc5ff275fefec10b3d3fbb5657dc78bb6fc94bd2e"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2693477,
+          "sha256": "1e071aaee5d2f9d562b7c173830136cde21de11141ac2b70af9fd955f2179ac9"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 23315,
+          "sha256": "a8488cbf75ee92fedd380cb1c54ecbb72bbdf8c556aae1fd788fc65c4e541831"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1973,
+          "sha256": "fadbda8dfbd381a3c30607fe2eea02126dade675e7c6901f4d881df4fdebc431"
+        },
+        {
+          "path": "review-124-image/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "review-124-to-9acc-server.diff",
+          "bytes": 28001,
+          "sha256": "b34b0cd5dbc3edf4553ae2959faf4dbb1b44016a1ae4c750e65db8d0b3dd5681"
+        },
+        {
+          "path": "review-96-image/docs/design/contracts/lsp-source-store.md",
+          "bytes": 24762,
+          "sha256": "5e48bb5311e14cb6b761e1264713f6d66f0e2559fcce8478a063ec5fc4e234d1"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 38315,
+          "sha256": "22fc389cba2e8822374cdd81c1be207373fa862029f814ac244c66caec92f1e7"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2686230,
+          "sha256": "8975bb19ca29c65f42cd35d55a2fe80adb0874212ac16204cd288d00ef0acde6"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 21561,
+          "sha256": "524ec9004029875978b15cd4de63adf7259a14efc2d7d29daaa26a65510ee2bf"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1973,
+          "sha256": "fadbda8dfbd381a3c30607fe2eea02126dade675e7c6901f4d881df4fdebc431"
+        },
+        {
+          "path": "review-96-image/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "review-96-to-124-server.diff",
+          "bytes": 27483,
+          "sha256": "d65f4358caa5db7b62dc0e50525e77de814f0d464b67b4c538b2a7aeff8ec772"
+        },
+        {
+          "path": "review-9acc-image/docs/design/contracts/lsp-source-store.md",
+          "bytes": 24762,
+          "sha256": "5e48bb5311e14cb6b761e1264713f6d66f0e2559fcce8478a063ec5fc4e234d1"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 39816,
+          "sha256": "93516dd75ebcab6bbbd899a86136485f57f1c4953546e70e938d21d890aaeb4c"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2700360,
+          "sha256": "6509bd1f6f27cfd74f155c7dbc9371396636240d1b3ec9df3f3a4b1db206fe84"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/lib.rs.orig",
+          "bytes": 2630747,
+          "sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 26678,
+          "sha256": "6b42134f32a7af14665146d40d1b6a8ee5bb4ef4188520dd2923bdc2bd1f8046"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1973,
+          "sha256": "fadbda8dfbd381a3c30607fe2eea02126dade675e7c6901f4d881df4fdebc431"
+        },
+        {
+          "path": "review-9acc-image/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "review-ec86-image/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47749,
+          "sha256": "50aa33f59dd685962abf4d119d20f02ef1868a1abe87c7101e20fcbffa21f869"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "review-ec86-image/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "review-fixes.py",
+          "bytes": 6580,
+          "sha256": "8c7d6a1652ae85d7ff8eddf614eab642c7f95b26cc16e7093e9e97609a67b1cf"
+        },
+        {
+          "path": "static-audit.py",
+          "bytes": 906,
+          "sha256": "b02ae23361525cad423d503bbb7acd4d8788dbee88a5fa6f06827585d73e95ac"
+        },
+        {
+          "path": "tests-docs.py",
+          "bytes": 11837,
+          "sha256": "4b44743a65a5957fcae4d6e882f78732f85fbf1a55bb80e6a07721b0cfe1dd42"
+        },
+        {
+          "path": "watched.py",
+          "bytes": 7036,
+          "sha256": "dfe373a3c57ba9d9c9dcfcfc96079c50a2e2177ea44f07ff1dada02eca7f1d09"
+        }
+      ]
+    },
+    {
+      "original_lookup_path": "/tmp/lsp-current-diagnostics-rebase-v6",
+      "destination": "/workspace/naming-validation/agent-work/preserved-tmp-packets/lsp-current-diagnostics-rebase-v6",
+      "original_path_preserved_as_symlink": true,
+      "bytes": 26946644,
+      "verified_members": [
+        {
+          "path": "DEPENDENCY-PENDING.json",
+          "bytes": 614,
+          "sha256": "68a8eb9abd96d1ddcbe812210b2123e8c65843c559eb4b03ebd65901a0a66309"
+        },
+        {
+          "path": "SOURCE-BASIS-v6.md",
+          "bytes": 10662,
+          "sha256": "0e29fb3deb6065850f334e784c92fcca195629820154dbbd9d079363b7313389"
+        },
+        {
+          "path": "adapt.py",
+          "bytes": 4106,
+          "sha256": "e72e3231812de8743ed818d59b5fe7a01ad4f5c05d2e7e97572961751409db56"
+        },
+        {
+          "path": "apply-v6.log",
+          "bytes": 479,
+          "sha256": "fdb5355bdd64263aa4a4fcbd7b87bf20115d9fe6f429573c18d154bfe4ce2613"
+        },
+        {
+          "path": "base/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 9761,
+          "sha256": "e5f81b6f3f9ade2eed197566a0d3fa89ba0beabeb1ba105bc0c93e95edc39462"
+        },
+        {
+          "path": "base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "base/docs/design/contracts/name-handling.md",
+          "bytes": 120734,
+          "sha256": "1d923ae2635f99dff67a83d1499062dfcad57eb13eec641ea2a418d62ef957f2"
+        },
+        {
+          "path": "base/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "base/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 492745,
+          "sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d"
+        },
+        {
+          "path": "base/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11392,
+          "sha256": "2b117d335a19bf23cd5d5007931631080d5a27143a2a71372f817d60221ddcff"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "candidate/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12355,
+          "sha256": "f7a5c880f406c3afb0804c9aac300682544ecb4d3430e4417bf15d9600cde0e7"
+        },
+        {
+          "path": "candidate/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "candidate/docs/design/contracts/name-handling.md",
+          "bytes": 122262,
+          "sha256": "5ecc650666a5404b2e66e62df8dd6c5aae5db7ab9603fc255d5e54cb00309dea"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md.orig",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md.rej",
+          "bytes": 14503,
+          "sha256": "65b503d4094a87d14a500fa31ce09f28c1acbff1118ca8fe969d3e59310e53a5"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 38305,
+          "sha256": "8aabb2d97531f42595d8c5195ea7816c9a4df9fb670c853c0543576e8416b435"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710756,
+          "sha256": "fbb51df8585b6478539fb77774880be4daf77da0d9e05e6a0e9d26e3e0118549"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs.orig",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs.rej",
+          "bytes": 515,
+          "sha256": "94c8eba8fcfb41bca74156939869e2a270008dd677c77fb4ec911e18f1a06878"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_metadata_tests.rs.orig",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "current-diagnostics-v6.patch",
+          "bytes": 85732,
+          "sha256": "79c509b120e38b1d99e3afe346719009acac46c4a7dd0d54f5fbd3ccc9ab0792"
+        },
+        {
+          "path": "finish-adapt.py",
+          "bytes": 2151,
+          "sha256": "9496d5c0b040881d7fa07f676d57c656841857591ecd53370a22a2e775b1b602"
+        },
+        {
+          "path": "independent-next-apply.log",
+          "bytes": 479,
+          "sha256": "fdb5355bdd64263aa4a4fcbd7b87bf20115d9fe6f429573c18d154bfe4ce2613"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12355,
+          "sha256": "f7a5c880f406c3afb0804c9aac300682544ecb4d3430e4417bf15d9600cde0e7"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/name-handling.md",
+          "bytes": 122262,
+          "sha256": "5ecc650666a5404b2e66e62df8dd6c5aae5db7ab9603fc255d5e54cb00309dea"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 38305,
+          "sha256": "8aabb2d97531f42595d8c5195ea7816c9a4df9fb670c853c0543576e8416b435"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710756,
+          "sha256": "fbb51df8585b6478539fb77774880be4daf77da0d9e05e6a0e9d26e3e0118549"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "independent-runtime-next-review-HOLD.txt",
+          "bytes": 2980,
+          "sha256": "e957aac0c3cd77be8a2a021564536fa24ef21c58c9967c57b60340f9037482ea"
+        },
+        {
+          "path": "lib-owner-only.diff",
+          "bytes": 21130,
+          "sha256": "1ba1f0e57ea597c49d7e8a6beaa99362748268fad55df10145f84186c9c4c0b0"
+        },
+        {
+          "path": "manifest-v6.json",
+          "bytes": 7328,
+          "sha256": "d950875dc5cd58a62d0b2daa0c3cb759b74af1cd48ccae4bf33035fabfaadd02"
+        },
+        {
+          "path": "owner-apply.log",
+          "bytes": 2704,
+          "sha256": "76878da74dd7da92ce6bd6e239cc1e84662cec5c22a3d31d07d25fd7c6937e15"
+        },
+        {
+          "path": "package.py",
+          "bytes": 7858,
+          "sha256": "2f62125f8eea004293f9cd5bf6bbef73233879a75312293888f1d570a6582a34"
+        },
+        {
+          "path": "path-apply.log",
+          "bytes": 627,
+          "sha256": "67234db14c1b01fa5d7ae42a92eb68f6ff2a3e1066e0493e348736f1cb5a7ae8"
+        },
+        {
+          "path": "retain-pass.py",
+          "bytes": 2493,
+          "sha256": "d23f35369053eaed07fa4ea36b5f25580f4e2ce62e8968ce1be105fa3cb5ad1f"
+        },
+        {
+          "path": "root-base/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 9761,
+          "sha256": "e5f81b6f3f9ade2eed197566a0d3fa89ba0beabeb1ba105bc0c93e95edc39462"
+        },
+        {
+          "path": "root-base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 21784,
+          "sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65"
+        },
+        {
+          "path": "root-base/docs/design/contracts/name-handling.md",
+          "bytes": 120734,
+          "sha256": "1d923ae2635f99dff67a83d1499062dfcad57eb13eec641ea2a418d62ef957f2"
+        },
+        {
+          "path": "root-base/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 19602,
+          "sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 20621,
+          "sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 492745,
+          "sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11392,
+          "sha256": "2b117d335a19bf23cd5d5007931631080d5a27143a2a71372f817d60221ddcff"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2630747,
+          "sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 63232,
+          "sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9907,
+          "sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12775,
+          "sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18430,
+          "sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1902,
+          "sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 13823,
+          "sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886"
+        },
+        {
+          "path": "verify-v6/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12355,
+          "sha256": "f7a5c880f406c3afb0804c9aac300682544ecb4d3430e4417bf15d9600cde0e7"
+        },
+        {
+          "path": "verify-v6/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "verify-v6/docs/design/contracts/name-handling.md",
+          "bytes": 122262,
+          "sha256": "5ecc650666a5404b2e66e62df8dd6c5aae5db7ab9603fc255d5e54cb00309dea"
+        },
+        {
+          "path": "verify-v6/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 38305,
+          "sha256": "8aabb2d97531f42595d8c5195ea7816c9a4df9fb670c853c0543576e8416b435"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710756,
+          "sha256": "fbb51df8585b6478539fb77774880be4daf77da0d9e05e6a0e9d26e3e0118549"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "verify-v6/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        }
+      ]
+    },
+    {
+      "original_lookup_path": "/tmp/lsp-current-diagnostics-rebase-v7",
+      "destination": "/workspace/naming-validation/agent-work/preserved-tmp-packets/lsp-current-diagnostics-rebase-v7",
+      "original_path_preserved_as_symlink": true,
+      "bytes": 26941942,
+      "verified_members": [
+        {
+          "path": "REVIEW-STATUS.json",
+          "bytes": 779,
+          "sha256": "d838ca1fe73cf475a281a6e32cf9f33346117c6d2207b8cc9aba58bca94c9433"
+        },
+        {
+          "path": "SOURCE-BASIS-v7.md",
+          "bytes": 12361,
+          "sha256": "e341b387c05b3fcd9a302d7f0707a90fe155bac66f9df3bd7c296a2d0f8ab06e"
+        },
+        {
+          "path": "apply-v7.log",
+          "bytes": 479,
+          "sha256": "fdb5355bdd64263aa4a4fcbd7b87bf20115d9fe6f429573c18d154bfe4ce2613"
+        },
+        {
+          "path": "base/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 9761,
+          "sha256": "e5f81b6f3f9ade2eed197566a0d3fa89ba0beabeb1ba105bc0c93e95edc39462"
+        },
+        {
+          "path": "base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "base/docs/design/contracts/name-handling.md",
+          "bytes": 120734,
+          "sha256": "1d923ae2635f99dff67a83d1499062dfcad57eb13eec641ea2a418d62ef957f2"
+        },
+        {
+          "path": "base/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "base/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 492745,
+          "sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d"
+        },
+        {
+          "path": "base/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11392,
+          "sha256": "2b117d335a19bf23cd5d5007931631080d5a27143a2a71372f817d60221ddcff"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "candidate/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12618,
+          "sha256": "170ba30a50221d0021e8de78f416fa460addc9bf170d055e56c6bd076d456923"
+        },
+        {
+          "path": "candidate/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "candidate/docs/design/contracts/name-handling.md",
+          "bytes": 122434,
+          "sha256": "0a65a3d3c68e10a9cf61ef820b1bafb364ca6b765670efbb8deabf0d2766afe2"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md.orig",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "candidate/docs/design/contracts/shared-utility-contracts-rust.md.rej",
+          "bytes": 14503,
+          "sha256": "65b503d4094a87d14a500fa31ce09f28c1acbff1118ca8fe969d3e59310e53a5"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 42832,
+          "sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710608,
+          "sha256": "6f185872f09871665a8aa13e261372fccad289989ef05552289aeee6e1526c40"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs.orig",
+          "bytes": 2706067,
+          "sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/lib.rs.rej",
+          "bytes": 515,
+          "sha256": "94c8eba8fcfb41bca74156939869e2a270008dd677c77fb4ec911e18f1a06878"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_metadata_tests.rs.orig",
+          "bytes": 64055,
+          "sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "candidate/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        },
+        {
+          "path": "current-diagnostics-v7.patch",
+          "bytes": 92264,
+          "sha256": "895dabc1cb98bb7f533fa7d8caf44d7662f5e2d84eba6dfd416d402da39a8c8d"
+        },
+        {
+          "path": "independent-next-apply.log",
+          "bytes": 479,
+          "sha256": "fdb5355bdd64263aa4a4fcbd7b87bf20115d9fe6f429573c18d154bfe4ce2613"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12618,
+          "sha256": "170ba30a50221d0021e8de78f416fa460addc9bf170d055e56c6bd076d456923"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/name-handling.md",
+          "bytes": 122434,
+          "sha256": "0a65a3d3c68e10a9cf61ef820b1bafb364ca6b765670efbb8deabf0d2766afe2"
+        },
+        {
+          "path": "independent-next-verify/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 42832,
+          "sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710608,
+          "sha256": "6f185872f09871665a8aa13e261372fccad289989ef05552289aeee6e1526c40"
+        },
+        {
+          "path": "independent-next-verify/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "independent-runtime-next-review-CLEAR.txt",
+          "bytes": 4082,
+          "sha256": "e7a01206fea75434abc4f363b036eddbd5c3b4a7da1964d7d84e838a9a9e1671"
+        },
+        {
+          "path": "manifest-v7.json",
+          "bytes": 8250,
+          "sha256": "2a4fee76ba4fc4d37d6175a11d0262b282d8ccdba836ebc7aca20568a9fdf254"
+        },
+        {
+          "path": "root-base/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 9761,
+          "sha256": "e5f81b6f3f9ade2eed197566a0d3fa89ba0beabeb1ba105bc0c93e95edc39462"
+        },
+        {
+          "path": "root-base/docs/design/contracts/lsp-source-store.md",
+          "bytes": 21784,
+          "sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65"
+        },
+        {
+          "path": "root-base/docs/design/contracts/name-handling.md",
+          "bytes": 120734,
+          "sha256": "1d923ae2635f99dff67a83d1499062dfcad57eb13eec641ea2a418d62ef957f2"
+        },
+        {
+          "path": "root-base/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1041508,
+          "sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 19602,
+          "sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 20621,
+          "sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 492745,
+          "sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11392,
+          "sha256": "2b117d335a19bf23cd5d5007931631080d5a27143a2a71372f817d60221ddcff"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2630747,
+          "sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 63232,
+          "sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9907,
+          "sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12775,
+          "sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18430,
+          "sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1902,
+          "sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c"
+        },
+        {
+          "path": "root-base/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 13823,
+          "sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886"
+        },
+        {
+          "path": "v6-to-v7.diff",
+          "bytes": 11505,
+          "sha256": "e0a7b3f36ea2487d327d263cf5652ee437ebc64fdf824ff071d432008c2cb054"
+        },
+        {
+          "path": "verify-v7/docs/design/contracts/lsp-diagnostics-publication.md",
+          "bytes": 12618,
+          "sha256": "170ba30a50221d0021e8de78f416fa460addc9bf170d055e56c6bd076d456923"
+        },
+        {
+          "path": "verify-v7/docs/design/contracts/lsp-source-store.md",
+          "bytes": 26489,
+          "sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+        },
+        {
+          "path": "verify-v7/docs/design/contracts/name-handling.md",
+          "bytes": 122434,
+          "sha256": "0a65a3d3c68e10a9cf61ef820b1bafb364ca6b765670efbb8deabf0d2766afe2"
+        },
+        {
+          "path": "verify-v7/docs/design/contracts/shared-utility-contracts-rust.md",
+          "bytes": 1042481,
+          "sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-core/src/file_uri.rs",
+          "bytes": 22225,
+          "sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-core/src/vfs.rs",
+          "bytes": 47890,
+          "sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-db/src/lib.rs",
+          "bytes": 493316,
+          "sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+          "bytes": 11558,
+          "sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "bytes": 42832,
+          "sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/lib.rs",
+          "bytes": 2710608,
+          "sha256": "6f185872f09871665a8aa13e261372fccad289989ef05552289aeee6e1526c40"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "bytes": 64081,
+          "sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "bytes": 29383,
+          "sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "bytes": 9938,
+          "sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "bytes": 12829,
+          "sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "bytes": 18520,
+          "sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server/src/vfs.rs",
+          "bytes": 1991,
+          "sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+        },
+        {
+          "path": "verify-v7/rust/tcl-lsp-server-wasm/src/lib.rs",
+          "bytes": 14097,
+          "sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+        }
+      ]
+    }
+  ]
+}

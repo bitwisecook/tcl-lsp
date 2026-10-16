@@ -143,3 +143,63 @@ or source receipts into that producer. Add a positive current-owner control
 and a control changing exactly the relevant owner axis; record whether the
 assertion establishes source structure, metadata, rendering or actual provider
 execution. Keep later Native admissions and refusal controls independent.
+
+## JetBrains standalone source transport and navigation
+
+The JCEF bridge forwards structured JSON, preserving original NULs, the explicit
+standalone source/dialect purpose and the shared page's source/compile tokens.
+A host-issued source token refers to the actual VirtualFile, Document, full text,
+modification stamp and selected dispatch dialect. Equal text in another file or
+document cannot replace that owner. A compile request retains its exact submitted
+image and explicitly selected dialect; these are standalone compiler inputs,
+not an IDE/project Registry or Native input receipt. Missing or malformed dialect
+and invalid supplied source tokens decline rather than select global defaults.
+An explicitly unbound standalone request receives no editor navigation owner.
+
+Actual request identity, panel generation and source snapshot survive the server
+wait. Only the still-current request can publish status/results or navigate;
+new source, another request, page reload and panel disposal withdraw the old
+projection. The shared WASM path uses the same actual compile-start receipt and
+currentness handshake; the shim carries the real result/error kind so an error
+cannot authenticate old graph geometry under a newer request. Completed source
+result publication remains distinct from the server's own retained analysis
+checks and supplies no Native execution, frame, Normal result or edit grant.
+
+Hover/clear uses the published request's source/compile tokens and actual
+retained Document, full text, modification stamp and VirtualFile mapping. It
+selects only an editor displaying that same Document; a selected unrelated editor
+is never a fallback. UTF-16 positions come from the actual renderer, pass exact
+Document line/end bounds and ordering, and reject a surrogate interior. Missing
+UTF-16 coordinates, byte-only legacy ranges, overflow and clamped positions do
+not supply navigation. Original byte offsets remain independent data.
+
+Navigation additionally waits for the shared page's actual `compileComplete`
+callback after rendering. A posted result is only a candidate; the shim retains
+the real `renderError` outcome and sends a successful-render acknowledgement for
+that exact source/compile token. An error or unacknowledged render cannot attach
+a new request's navigation permission to old pane geometry.
+
+Standalone source, dialect and request strings must be representable by the actual
+JDK UTF-8 encoder used at the LSP Unicode boundary. Unpaired UTF-16 code units
+remain unavailable instead of becoming replacement source; original NUL and
+valid supplementary Unicode remain unchanged. This is a representability check,
+not a new text codec or normalization policy.
+
+## JetBrains rendered pane navigation currency
+
+A rendered pane captures the host's actual source snapshot only when the
+explicit `compilerExplorerView` source equals that snapshot's current Document
+text. The request retains that snapshot and a per-view request generation while
+the server renders. A later request supersedes an older result for the same
+view; panel disposal revokes its outstanding requests. While a newer request is
+pending, the prior pane may remain visible but its source navigation is suspended.
+The source and dialect sent to the server remain standalone inputs and do not
+establish project Registry or resource configuration ownership.
+
+The pane keeps the rendered line map with the exact source snapshot and view
+generation that produced it. Caret navigation requires the same valid
+VirtualFile-to-Document mapping, full text and modification stamp. It checks
+again after opening the source editor and lifts only the server's original
+UTF-16 coordinates through the strict shared Document geometry owner. Missing,
+changed or mismatched source ownership leaves the projection visible without
+source navigation.

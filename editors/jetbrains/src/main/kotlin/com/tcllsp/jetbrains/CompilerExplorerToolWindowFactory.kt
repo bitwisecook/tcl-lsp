@@ -19,10 +19,13 @@
 package com.tcllsp.jetbrains
 
 import com.intellij.openapi.Disposable
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
@@ -66,11 +69,26 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
-    // All four fields are touched only on the EDT (every mutator hops through
-    // invokeLater), so no extra synchronisation is needed.
-    private var lastSource: String = ""
+    // Source and request state is read and changed only on the EDT.
+    private val panelLifetime = Any()
+    private val panelId = java.util.UUID.randomUUID().toString()
+    private var panelGeneration = 0L
+    @Volatile private var panelDisposed = false
+    private var sourceGeneration = 0L
+    private var compileGeneration = 0L
+    private var currentSourceSnapshot: CompilerExplorerSourceSnapshot? = null
+    private var activeCompile: CompileLease? = null
+    private var publishedCompile: CompileLease? = null
+    private var resultCandidate: CompileLease? = null
     private var pageReady = false
-    private var pendingSource: String? = null
+    private var pendingSource: CompilerExplorerSourceSnapshot? = null
+
+    private data class CompileLease(
+        val request: ExplorerCompileRequest,
+        val source: CompilerExplorerSourceSnapshot?,
+        val panelGeneration: Long,
+        val generation: Long,
+    )
 
     /**
      * The file whose source the explorer last compiled — what a hover in the
@@ -117,11 +135,17 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                     // pushFile) was parked in pendingSource; deliver it, else
                     // fall back to the active editor.
                     ApplicationManager.getApplication().invokeLater {
+                        if (panelDisposed || project.isDisposed) return@invokeLater
+                        panelGeneration++
+                        activeCompile = null
+                        publishedCompile = null
+                        resultCandidate = null
                         pageReady = true
                         val pending = pendingSource
                         pendingSource = null
-                        if (pending != null) {
-                            sendSourceUpdate(pending)
+                        currentSourceSnapshot = null
+                        if (pending != null && pending.isCurrent()) {
+                            dispatchSource(pending.file, pending.document, force = true)
                         } else {
                             pushFromActiveEditor(force = true)
                         }
@@ -154,6 +178,10 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
     }
 
     override fun dispose() {
+        synchronized(panelLifetime) {
+            ExplorerProjections.getInstance(project).cancelRequests(this)
+            panelDisposed = true
+        }
         project.service<CompilerExplorerService>().unregister(this)
     }
 
@@ -172,8 +200,9 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
             val editor = manager.selectedTextEditor ?: return@invokeLater
             val file = manager.selectedFiles.firstOrNull() ?: return@invokeLater
             if (!TclFileType.isSupported(file)) return@invokeLater
+            if (FileDocumentManager.getInstance().getFile(editor.document) !== file) return@invokeLater
             sourceFile = file
-            dispatchSource(editor.document.text, force)
+            dispatchSource(file, editor.document, force)
         }
     }
 
@@ -183,134 +212,169 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
             if (!TclFileType.isSupported(file)) return@invokeLater
             val document = FileDocumentManager.getInstance().getDocument(file) ?: return@invokeLater
             sourceFile = file
-            dispatchSource(document.text, force)
+            dispatchSource(file, document, force)
         }
     }
 
-    private fun dispatchSource(source: String, force: Boolean) {
-        if (!force && source == lastSource) return
-        lastSource = source
-
-        // A sourceUpdate dispatched before the page registers its message
-        // listener is silently lost, and lastSource would then suppress the
-        // load-end retry. Park it until onLoadEnd marks the page ready.
+    private fun dispatchSource(file: VirtualFile, document: Document, force: Boolean) {
+        if (panelDisposed || project.isDisposed || !file.isValid ||
+            FileDocumentManager.getInstance().getDocument(file) !== document) return
+        val source = document.text
+        val dialect = TclLspSettings.getInstance().dialect
+        val previous = currentSourceSnapshot
+        if (!force && previous != null && previous.file === file && previous.document === document &&
+            previous.modificationStamp == document.modificationStamp && previous.source == source &&
+            previous.dialect == dialect) return
+        val snapshot = CompilerExplorerSourceSnapshot(
+            "$panelId:$panelGeneration:${++sourceGeneration}", file, document,
+            source, document.modificationStamp, dialect,
+        )
+        currentSourceSnapshot = snapshot
+        compileGeneration++
+        activeCompile = null
+        publishedCompile = null
+        resultCandidate = null
         if (!pageReady) {
-            pendingSource = source
+            pendingSource = snapshot
             return
         }
-        sendSourceUpdate(source)
+        sendSourceUpdate(snapshot)
     }
 
-    private fun sendSourceUpdate(source: String) {
-        val dialect = TclLspSettings.getInstance().dialect
-        val escaped = escapeForJs(source)
-        val dialectEscaped = escapeForJs(dialect)
-        browser.cefBrowser.executeJavaScript(
-            "window.dispatchEvent(new MessageEvent('message', { data: { type: 'sourceUpdate', source: '$escaped', dialect: '$dialectEscaped' } }));",
-            "", 0
-        )
+    private fun sendSourceUpdate(snapshot: CompilerExplorerSourceSnapshot) {
+        if (panelDisposed || currentSourceSnapshot !== snapshot || !snapshot.isCurrent()) return
+        postToWebview(mapOf("type" to "sourceUpdate", "source" to snapshot.source,
+            "dialect" to snapshot.dialect, "sourceToken" to snapshot.token))
+    }
+
+    private fun postToWebview(message: Map<String, Any?>) {
+        synchronized(panelLifetime) {
+            if (panelDisposed || project.isDisposed) return
+            val json = Gson().toJson(message.filterValues { it != null })
+            browser.cefBrowser.executeJavaScript(
+                "window.dispatchEvent(new MessageEvent('message', { data: $json }));", "", 0,
+            )
+        }
     }
 
     private fun handleJsMessage(message: String) {
-        try {
-            // Simple JSON-like parsing for the message types
-            when {
-                message.startsWith("compile:") -> {
-                    val payload = message.removePrefix("compile:")
-                    val parts = payload.split("\u0000", limit = 2)
-                    val source = parts.getOrElse(0) { "" }
-                    val dialect = parts.getOrElse(1) { TclLspSettings.getInstance().dialect }
-                    runCompile(source, dialect)
+        val parsed = runCatching { JsonParser.parseString(message) }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject ?: return
+        ApplicationManager.getApplication().invokeLater {
+            if (panelDisposed || project.isDisposed) return@invokeLater
+            when (parsed.explorerString("type")) {
+                "compileStarted" -> ExplorerCompileRequest.parse(parsed)?.let { request ->
+                    if (activeCompile?.takeIf { it.request == request && compileIsCurrent(it) } == null) beginCompile(request)
                 }
-                message.startsWith("highlightSource:") -> {
-                    // `startLine,startCol,endLine,endCol,startOffset,endOffset`
-                    // — see the shim in CompilerExplorerHtml.kt. The first four
-                    // are UTF-16 and may be empty on an older payload.
-                    val parts = message.removePrefix("highlightSource:").split(",")
-                    if (parts.size == 6) {
-                        highlightSourceRange(
-                            startLine = parts[0].toIntOrNull(),
-                            startCol = parts[1].toIntOrNull(),
-                            endLine = parts[2].toIntOrNull(),
-                            endCol = parts[3].toIntOrNull(),
-                            startOffset = parts[4].toIntOrNull(),
-                            endOffset = parts[5].toIntOrNull(),
-                        )
+                "compile" -> ExplorerCompileRequest.parse(parsed)?.let { request ->
+                    val lease = activeCompile?.takeIf { it.request == request && compileIsCurrent(it) }
+                        ?: beginCompile(request) ?: return@let
+                    runCompile(lease)
+                }
+                "compileCurrentnessCheck" -> {
+                    val lease = activeCompile
+                    val resultKind = parsed.explorerString("resultKind")
+                    val accepted = lease != null && messageMatches(parsed, lease) && compileIsCurrent(lease) &&
+                        (resultKind == "result" || resultKind == "error")
+                    if (accepted) {
+                        resultCandidate = if (resultKind == "result") lease else null
+                        publishedCompile = null
                     }
+                    postToWebview(mapOf("type" to if (accepted) "compileCurrentnessAccepted" else "compileCurrentnessRejected",
+                        "compileToken" to parsed.explorerString("compileToken"),
+                        "sourceToken" to parsed.explorerString("sourceToken")))
                 }
-                message == "clearHighlight" -> {
-                    clearSourceHighlight()
+                "compileComplete" -> {
+                    val lease = activeCompile
+                    val rendered = parsed.get("renderSucceeded")
+                        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == true
+                    if (lease != null && resultCandidate === lease && rendered &&
+                        messageMatches(parsed, lease) && compileIsCurrent(lease)) publishedCompile = lease
                 }
-                message.startsWith("openProjection:") -> {
-                    // `view\u0000label\u0000dialect\u0000source` — the source
-                    // rides last because it is the only field that can contain
-                    // anything, including the separator's neighbours.
-                    val parts = message.removePrefix("openProjection:").split('\u0000', limit = 4)
-                    if (parts.size == 4) {
-                        openProjection(
-                            view = parts[0],
-                            label = parts[1],
-                            dialect = parts[2].ifEmpty { TclLspSettings.getInstance().dialect },
-                            source = parts[3],
-                        )
-                    }
+                "highlightSource" -> ExplorerHighlightRequest.parse(parsed)?.let { highlightSourceRange(it) }
+                "clearHighlight" -> clearSourceHighlight(parsed)
+                "openProjection" -> {
+                    if (parsed.explorerString("purpose") != "standalone-source") return@invokeLater
+                    val source = parsed.explorerString("source") ?: return@invokeLater
+                    val dialect = parsed.explorerString("dialect")?.takeIf { it.isNotEmpty() } ?: return@invokeLater
+                    val token = parsed.explorerString("sourceToken")
+                    val owner = currentSourceSnapshot
+                    if (token != null) {
+                        if (owner == null || owner.token != token || owner.source != source || !owner.isCurrent()) return@invokeLater
+                    } else if (owner != null || parsed.has("sourceToken")) return@invokeLater
+                    openProjection(
+                        view = parsed.explorerString("view") ?: return@invokeLater,
+                        label = parsed.explorerString("label") ?: return@invokeLater,
+                        dialect = dialect,
+                        source = source,
+                    )
                 }
             }
-        } catch (e: Exception) {
-            LOG.warn("Error handling JS message: $message", e)
         }
     }
 
-    private fun runCompile(source: String, dialect: String) {
-        // IntelliJ's pooled executor rather than the FJP common pool: the
-        // awaitRunningTclLspServer wait can block this task for several seconds,
-        // which
-        // would otherwise starve unrelated common-pool work.
+    private fun beginCompile(request: ExplorerCompileRequest): CompileLease? {
+        val source = currentSourceSnapshot
+        if (request.sourceToken != null) {
+            if (source == null || source.token != request.sourceToken || source.source != request.source ||
+                !source.isCurrent()) return null
+        } else if (source != null) return null
+        val lease = CompileLease(request, source, panelGeneration, ++compileGeneration)
+        activeCompile = lease
+        publishedCompile = null
+        resultCandidate = null
+        return lease
+    }
+
+    private fun compileIsCurrent(lease: CompileLease): Boolean =
+        !panelDisposed && !project.isDisposed && activeCompile === lease &&
+            lease.panelGeneration == panelGeneration && lease.generation == compileGeneration &&
+            (if (lease.source != null) currentSourceSnapshot === lease.source && lease.source.isCurrent()
+                else currentSourceSnapshot == null)
+
+    private fun messageMatches(message: JsonObject, lease: CompileLease): Boolean =
+        message.explorerString("purpose") == "standalone-source" &&
+            message.explorerString("compileToken") == lease.request.compileToken &&
+            (if (lease.request.sourceToken != null) message.explorerString("sourceToken") == lease.request.sourceToken
+                else !message.has("sourceToken"))
+
+    private fun publishCompileMessage(lease: CompileLease, type: String, data: Any?) {
+        ApplicationManager.getApplication().invokeLater {
+            if (!compileIsCurrent(lease)) return@invokeLater
+            resultCandidate = if (type == "result") lease else null
+            publishedCompile = null
+            postToWebview(mapOf("type" to type, "data" to data,
+                "compileToken" to lease.request.compileToken, "sourceToken" to lease.request.sourceToken))
+        }
+    }
+
+    private fun runCompile(lease: CompileLease) {
+        sendStatusToWebview("compiling", lease)
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                sendStatusToWebview("compiling")
-
                 val server = awaitRunningTclLspServer(project)
                 if (server == null) {
-                    sendErrorToWebview(
-                        "Tcl LSP server did not become ready within " +
-                            "${TCL_LSP_SERVER_WAIT_TIMEOUT_MS / 1000}s — it may still be " +
-                            "starting up, or be disabled or not installed."
-                    )
+                    publishCompileMessage(lease, "error", mapOf("error" to "Tcl LSP server did not become ready."))
                     return@executeOnPooledThread
                 }
-
-                // Pass the timeout explicitly. Omitting it makes Kotlin emit a
-                // call to the synthetic `LspServer.sendRequestSync$default`
-                // bridge, which is bound to the exact class that declared the
-                // method when we compiled (2025.3). In 2026.1+ `sendRequestSync`
-                // moved up to the `LspClient` super-interface, so that bridge no
-                // longer resolves as `LspServer.sendRequestSync$default` and the
-                // plugin fails verification / throws NoSuchMethodError at runtime.
-                // The default value is a compile-time const (10_000 ms) that
-                // inlines, so behaviour is unchanged and there is no runtime
-                // reference to the constant. Do not "simplify" this back to the
-                // no-timeout form. See the jetbrains-plugin-compat skill.
+                // Explicit timeout avoids the version-specific synthetic LspServer default bridge.
                 val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                     lsp4j.workspaceService.executeCommand(
                         org.eclipse.lsp4j.ExecuteCommandParams(
-                            "tcl-lsp.compilerExplorer",
-                            listOf(source, dialect)
+                            "tcl-lsp.compilerExplorer", listOf(lease.request.source, lease.request.dialect),
                         )
                     )
                 }
-
                 if (result != null) {
-                    val json = com.google.gson.Gson().toJson(result)
-                    val escaped = escapeForJs(json)
-                    browser.cefBrowser.executeJavaScript(
-                        "window.dispatchEvent(new MessageEvent('message', { data: { type: 'result', data: JSON.parse('$escaped') } }));",
-                        "", 0
-                    )
-                }
+                    val json = Gson().toJsonTree(result)
+                    val error = json.takeIf { it.isJsonObject }?.asJsonObject?.get("error")
+                    if (error != null && !error.isJsonNull) {
+                        publishCompileMessage(lease, "error", mapOf("error" to error))
+                    } else publishCompileMessage(lease, "result", result)
+                } else publishCompileMessage(lease, "error", mapOf("error" to "Compiler Explorer returned no result."))
             } catch (e: Exception) {
                 LOG.warn("Compile failed", e)
-                sendErrorToWebview(e.message ?: "Unknown error")
+                publishCompileMessage(lease, "error", mapOf("error" to (e.message ?: "Unknown error")))
             }
         }
     }
@@ -326,16 +390,23 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
      * moving the caret in it navigates back into the source file.
      */
     private fun openProjection(view: String, label: String, dialect: String, source: String) {
-        // Read on the caller's thread, before the request goes out. `sourceFile`
-        // tracks the selected editor, so a user who switches files while the
-        // render is in flight would otherwise have this view's line map paired
-        // with a file it was not rendered from, and every caret move would
-        // reveal an unrelated span there.
-        val origin = sourceFile
+        if (panelDisposed || project.isDisposed) return
+        val projections = ExplorerProjections.getInstance(project)
+        val requestGeneration = projections.beginRequest(view, this)
+        val requestPanelGeneration = panelGeneration
+        val sourceOwner = currentSourceSnapshot?.takeIf {
+            it.source == source && it.isCurrent()
+        }
         ApplicationManager.getApplication().executeOnPooledThread {
             val server = awaitRunningTclLspServer(project)
             if (server == null) {
-                sendErrorToWebview("Tcl LSP server did not become ready — cannot render $label.")
+                ApplicationManager.getApplication().invokeLater {
+                    if (!panelDisposed && !project.isDisposed &&
+                        panelGeneration == requestPanelGeneration &&
+                        projections.isCurrentRequest(view, this, requestGeneration)) {
+                        sendErrorToWebview("Tcl LSP server did not become ready — cannot render $label.")
+                    }
+                }
                 return@executeOnPooledThread
             }
             // The explicit timeout is load-bearing; see the note in runCompile
@@ -351,20 +422,40 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
 
             val rendered = ExplorerProjection.parse(result)
             if (rendered == null) {
-                sendErrorToWebview("Could not render the $label view.")
+                ApplicationManager.getApplication().invokeLater {
+                    if (!panelDisposed && !project.isDisposed &&
+                        panelGeneration == requestPanelGeneration &&
+                        projections.isCurrentRequest(view, this, requestGeneration)) {
+                        sendErrorToWebview("Could not render the $label view.")
+                    }
+                }
                 return@executeOnPooledThread
             }
             ApplicationManager.getApplication().invokeLater {
-                ExplorerProjections.getInstance(project).open(label, view, rendered, origin)
+                synchronized(panelLifetime) {
+                    if (panelDisposed || project.isDisposed ||
+                        panelGeneration != requestPanelGeneration ||
+                        !projections.isCurrentRequest(view, this, requestGeneration)) return@synchronized
+                    val navigationOwner = sourceOwner?.takeIf {
+                        currentSourceSnapshot === it && it.isCurrent()
+                    }
+                    projections.open(
+                        label,
+                        view,
+                        rendered,
+                        navigationOwner,
+                        this,
+                        requestGeneration,
+                    )
+                }
             }
         }
     }
 
-    private fun sendStatusToWebview(status: String) {
-        browser.cefBrowser.executeJavaScript(
-            "window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', text: '$status' } }));",
-            "", 0
-        )
+    private fun sendStatusToWebview(status: String, lease: CompileLease) {
+        if (!compileIsCurrent(lease)) return
+        postToWebview(mapOf("type" to "status", "text" to status,
+            "compileToken" to lease.request.compileToken, "sourceToken" to lease.request.sourceToken))
     }
 
     private fun sendErrorToWebview(error: String) {
@@ -375,73 +466,34 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         )
     }
 
-    /**
-     * Select the source span the webview is hovering, in the file the
-     * explorer actually compiled.
-     *
-     * Two things this gets right that the offset-only version could not.
-     *
-     * The span arrives as a UTF-16 line/column pair, because that is what an
-     * IntelliJ caret is. The explorer's `startOffset`/`endOffset` count
-     * *bytes* — the payload's columns come from `LineIndex::position_at`,
-     * which returns a byte column — so feeding them to `offsetToLogicalPosition`
-     * is right only for ASCII and drifts by one per non-ASCII byte after that.
-     * The offsets remain the fallback for a payload without the UTF-16 pair.
-     *
-     * And it targets [sourceFile] rather than whatever tab happens to be
-     * selected. The explorer compiles one file and keeps showing it while the
-     * user moves around the IDE, so `selectedTextEditor` is simply a different
-     * document as soon as anything else is focused — including any pane the
-     * explorer itself opens.
-     */
-    private fun highlightSourceRange(
-        startLine: Int?,
-        startCol: Int?,
-        endLine: Int?,
-        endCol: Int?,
-        startOffset: Int?,
-        endOffset: Int?,
-    ) {
-        ApplicationManager.getApplication().invokeLater {
-            val editor = editorForCompiledSource() ?: return@invokeLater
-            val document = editor.document
-            val start = if (startLine != null && startCol != null) {
-                editor.logicalPositionToOffset(LogicalPosition(startLine, startCol))
-            } else {
-                startOffset ?: return@invokeLater
-            }
-            val end = if (endLine != null && endCol != null) {
-                editor.logicalPositionToOffset(LogicalPosition(endLine, endCol))
-            } else {
-                endOffset ?: return@invokeLater
-            }
-            if (start < 0 || end > document.textLength || start > end) return@invokeLater
-
+    /** Readonly source navigation belongs to the exact result's still-current editor input. */
+    private fun highlightSourceRange(message: ExplorerHighlightRequest) {
+        val lease = publishedCompile ?: return
+        if (message.compileToken != lease.request.compileToken || message.sourceToken != lease.request.sourceToken ||
+            !compileIsCurrent(lease)) return
+        val editor = editorForCompiledSource(lease) ?: return
+        val (start, end) = strictExplorerSourceOffsets(editor.document, message.range) ?: return
+        synchronized(panelLifetime) {
+            if (!compileIsCurrent(lease)) return
             editor.selectionModel.setSelection(start, end)
-            editor.scrollingModel.scrollTo(
-                editor.offsetToLogicalPosition(start),
-                com.intellij.openapi.editor.ScrollType.CENTER_UP,
-            )
+            editor.scrollingModel.scrollTo(editor.offsetToLogicalPosition(start),
+                com.intellij.openapi.editor.ScrollType.CENTER_UP)
         }
     }
 
-    /**
-     * The open editor for the file the explorer last compiled, or null when
-     * it has been closed. Falls back to the selected editor only when the
-     * explorer has not recorded a file yet.
-     */
-    private fun editorForCompiledSource(): com.intellij.openapi.editor.Editor? {
-        val manager = FileEditorManager.getInstance(project)
-        val file = sourceFile ?: return manager.selectedTextEditor
-        val document = FileDocumentManager.getInstance().getDocument(file) ?: return null
+    private fun editorForCompiledSource(lease: CompileLease): com.intellij.openapi.editor.Editor? {
+        if (!compileIsCurrent(lease)) return null
+        val snapshot = lease.source ?: return null
         return com.intellij.openapi.editor.EditorFactory.getInstance()
-            .getEditors(document, project)
-            .firstOrNull()
+            .getEditors(snapshot.document, project).firstOrNull { it.document === snapshot.document }
     }
 
-    private fun clearSourceHighlight() {
-        ApplicationManager.getApplication().invokeLater {
-            editorForCompiledSource()?.selectionModel?.removeSelection()
+    private fun clearSourceHighlight(message: JsonObject) {
+        val lease = publishedCompile ?: return
+        if (messageMatches(message, lease) && compileIsCurrent(lease)) {
+            synchronized(panelLifetime) {
+                if (compileIsCurrent(lease)) editorForCompiledSource(lease)?.selectionModel?.removeSelection()
+            }
         }
     }
 

@@ -17188,7 +17188,13 @@
       "required_change": [
         "Pane retains VirtualFile only, no source bytes/version/config/context from render request. navigate applies old source spans to current mutable document after edits. Need original snapshot/generation join before source navigation; no Tcl identity or physical edit authority inferred from label."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "JetBrains exact7file union39e5ef4c",
+        "scope": "Actual editor document/file/stamp/fullsource plus standaloneexplicitdialect and panel/request/render leases; JSONJCEF source/projection wire preservesNUL+validUnicode, refusesunrepresentableUTF16; strictactualUTF16range projection and lifetime/request-locked publication/navigation. Separate fouractualadopters, sharedhelpers notadditionalowner. ActualServer716resourceRegistry/projectinput ingress remains open.",
+        "validation": "IndependentwholeSOURCE CLEARbcfb6325 plusseparateparent4990e9bd/548ad722608 reviews. Rootall7exactbefore/after/twoadditions anddisjoint39002Nativeinputs. FourfocusedJVMcontrols unexecuted; Kotlin/Gradle/IDEcompile/runtimependingmissingGradlecache/JVM17/SDK; no source-review efficacyclaim."
+      }
     },
     {
       "area": "lsp",
@@ -17216,7 +17222,13 @@
       "required_change": [
         "compile message encodes source first then NUL delimiter/dialect, so an original source NUL is split as protocol data. Uses global dialect String and loses actual document input/context/URI/version. Needs structured original source snapshot transport; standalone source-only operation can remain separate explicit purpose."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "JetBrains exact7file union39e5ef4c",
+        "scope": "Actual editor document/file/stamp/fullsource plus standaloneexplicitdialect and panel/request/render leases; JSONJCEF source/projection wire preservesNUL+validUnicode, refusesunrepresentableUTF16; strictactualUTF16range projection and lifetime/request-locked publication/navigation. Separate fouractualadopters, sharedhelpers notadditionalowner. ActualServer716resourceRegistry/projectinput ingress remains open.",
+        "validation": "IndependentwholeSOURCE CLEARbcfb6325 plusseparateparent4990e9bd/548ad722608 reviews. Rootall7exactbefore/after/twoadditions anddisjoint39002Nativeinputs. FourfocusedJVMcontrols unexecuted; Kotlin/Gradle/IDEcompile/runtimependingmissingGradlecache/JVM17/SDK; no source-review efficacyclaim."
+      }
     },
     {
       "area": "lsp",
@@ -17244,7 +17256,13 @@
       "required_change": [
         "sourceFile is current selection/push state, not result-owned source snapshot; async compile results no request/source-generation coupling, and current document source not compared. Old/future file results can project labels/spans into unrelated current text; shared snapshot/currentness transport missing."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "JetBrains exact7file union39e5ef4c",
+        "scope": "Actual editor document/file/stamp/fullsource plus standaloneexplicitdialect and panel/request/render leases; JSONJCEF source/projection wire preservesNUL+validUnicode, refusesunrepresentableUTF16; strictactualUTF16range projection and lifetime/request-locked publication/navigation. Separate fouractualadopters, sharedhelpers notadditionalowner. ActualServer716resourceRegistry/projectinput ingress remains open.",
+        "validation": "IndependentwholeSOURCE CLEARbcfb6325 plusseparateparent4990e9bd/548ad722608 reviews. Rootall7exactbefore/after/twoadditions anddisjoint39002Nativeinputs. FourfocusedJVMcontrols unexecuted; Kotlin/Gradle/IDEcompile/runtimependingmissingGradlecache/JVM17/SDK; no source-review efficacyclaim."
+      }
     },
     {
       "area": "lsp",
@@ -19509,7 +19527,13 @@
       "required_change": [
         "Compile uses source+NUL+dialect then host split limit2, which loses embedded NUL source identity. Projection uses delimiter fields likewise. Need structured source/request/config/currentness transport; inherited VSCode webview result-owner gap applies independently. HTML/CSP/bridge queue are UI transport, not Tcl parsing."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "JetBrains exact7file union39e5ef4c",
+        "scope": "Actual editor document/file/stamp/fullsource plus standaloneexplicitdialect and panel/request/render leases; JSONJCEF source/projection wire preservesNUL+validUnicode, refusesunrepresentableUTF16; strictactualUTF16range projection and lifetime/request-locked publication/navigation. Separate fouractualadopters, sharedhelpers notadditionalowner. ActualServer716resourceRegistry/projectinput ingress remains open.",
+        "validation": "IndependentwholeSOURCE CLEARbcfb6325 plusseparateparent4990e9bd/548ad722608 reviews. Rootall7exactbefore/after/twoadditions anddisjoint39002Nativeinputs. FourfocusedJVMcontrols unexecuted; Kotlin/Gradle/IDEcompile/runtimependingmissingGradlecache/JVM17/SDK; no source-review efficacyclaim."
+      }
     },
     {
       "area": "lsp",
@@ -132382,9 +132406,9 @@
     "utc": "2026-10-16T22:00:47.293633+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 295,
+    "implemented_pending_validation": 299,
     "verified_complete": 0,
-    "not_started": 1863,
+    "not_started": 1859,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132643,7 +132667,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2217,
-    "effective_implemented_pending_validation": 353,
+    "effective_implemented_pending_validation": 357,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -132813,7 +132837,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 282,
+    "fully_implemented_pending_validation": 286,
     "partially_implemented_pending_validation": 13,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132979,14 +133003,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 163,
+      "lsp_integrated_pending_validation": 167,
       "lsp_by_kind_integrated": {
-        "semantic": 69,
+        "semantic": 73,
         "validation": 92,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 162,
+      "lsp_without_integrated_implementation": 158,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -133626,24 +133650,48 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T22:06:00Z",
-      "lsp_integrated": 160,
+      "utc": "2026-10-16T22:36:00Z",
+      "lsp_integrated": 163,
       "lsp_required": 325,
-      "lsp_semantic": 67,
-      "lsp_validation": 91,
+      "lsp_semantic": 69,
+      "lsp_validation": 92,
       "lsp_documentation": 2,
-      "lsp_without_integration": 165,
-      "effective_integrated": 350,
+      "lsp_without_integration": 162,
+      "effective_integrated": 353,
       "effective_required": 2217,
       "verified": 0,
-      "next_report_utc": "2026-10-16T22:36:00Z",
+      "next_report_utc": "2026-10-16T23:06:00Z",
       "delta_since_previous_report": {
-        "lsp_integrated": 12,
-        "effective_integrated": 16,
-        "effective_required": 3
+        "lsp_integrated": 3,
+        "effective_integrated": 3,
+        "effective_required": 0
       },
-      "validation": "Completed retained584:505PASS77FAIL2TIMEOUT,all460retained6gains0priorPASSregressions/drops. Actual catalogue generationPASS69.843s aftertwo retainedcompilefailures; editorchecks running at report. Fresh Nativebuild/gates pending. Sourceintegration is not verifiedcompletion.",
-      "scope": "LSP and necessary sharedowners; Runtime/VM/BIG-IP dedicatedwork deferred"
+      "validation": {
+        "ordinary_build": "PASS513.324s39002inputs0drift;1unusedtestimportwarning",
+        "separate_extra_controls": "5PASS/all39002source+3ELFpostflightmatch",
+        "generated_current_drift": "PASS2.097s39002inputs0drift",
+        "editor": "Complete407productioncapturePASS; addedtestnoEmit/formatPASS406editorinputs; hostsunexecuted",
+        "replay726_partial": {
+          "completed": 422,
+          "PASS": 362,
+          "FAIL": 58,
+          "TIMEOUT": 2,
+          "errors": [],
+          "full_postflight": "pending",
+          "gains_observed": [
+            "original232commentcase"
+          ],
+          "prior_PASS_regressions_observed": [
+            "original128siblingdefinition"
+          ],
+          "all584retained": true
+        },
+        "owner_gate": "FAIL306reported/301distinct vs309reported/306distinct;8removed3added;29364inputs0drift63.482s",
+        "other_required_gates": "red/pending; noPR"
+      },
+      "scope": "LSP+necessarysharedowners; Runtime/VM/BIGIP dedicatedworkdeferred",
+      "last_push": "e776c1a24 at22:34UTC",
+      "external_guide": "Userchosechat+repositoryreports; leaveexternalguideunchanged"
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -133960,6 +134008,102 @@
       "validation": "TypeScript/scopedformatPASS406editorinputs0drift22:29UTC; hostunrun",
       "source_review": "RootCLEAR final00e00123; V1deadlineHOLD correctedbyincrementalV2",
       "deferred_multifolder": "FourF5/iRules-relatedunits remainunintegrated by userscope"
+    },
+    "jetbrains_source_explorer": {
+      "baseline_new_full": [
+        "lsp-jb-explorer-bridge-source-framing",
+        "lsp-jetbrains-explorer-navigation-currency",
+        "lsp-jetbrains-explorer-source-transport",
+        "lsp-jetbrains-projection-source-currency"
+      ],
+      "new_owner_or_annex": 0,
+      "patch_sha256": "39e5ef4cf067973cb86053610587dcc83c8a0c3a0c16b0d34d8b523b60dde7f6",
+      "validation": "IndependentwholeSOURCECLR/actualRootintegration, originaltestsunchanged; Kotlin/IDEunexecuted",
+      "scope": "Explicitstandalone source/dialect +readonly snapshot navigation; no actualdocumentRegistry/projectanalysis claim; Server716open"
+    },
+    "ordinary_cumulative726": {
+      "scope": "Complete actual ordinary726; all584 prior rows retained in exact order. Scoped observations, not repository acceptance.",
+      "previous_count": 584,
+      "current_count": 726,
+      "retained": 584,
+      "drops": 0,
+      "previous_outcomes": {
+        "PASS": 505,
+        "FAIL": 77,
+        "TIMEOUT": 2
+      },
+      "current_outcomes": {
+        "PASS": 596,
+        "FAIL": 127,
+        "TIMEOUT": 3
+      },
+      "retained_outcomes": {
+        "PASS": 505,
+        "FAIL": 77,
+        "TIMEOUT": 2
+      },
+      "selected_additions": 142,
+      "addition_outcomes": {
+        "FAIL": 50,
+        "PASS": 91,
+        "TIMEOUT": 1
+      },
+      "gains": 1,
+      "prior_PASS_regressions": 1,
+      "changes": [
+        {
+          "number": 128,
+          "target": "tcl_lsp_server",
+          "selector": "tests::cross_document_definition_resolves_sibling_proc",
+          "before": "PASS",
+          "after": "FAIL"
+        },
+        {
+          "number": 232,
+          "target": "tcl_compiler",
+          "selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+          "before": "FAIL",
+          "after": "PASS"
+        }
+      ],
+      "result_sha256": "5e0833cb65ef4012ea6f8b567587eecffc8f898816d6bf53ed3c9ab24f6a9d94",
+      "manifest_sha256": "237d6e60703bdafb3836a3f1bf8009e578a6da3b9aca367061d0098cde379a80",
+      "all39002_inputs_and_all5_ELFs_postflight_match": true,
+      "unchanged_180s_test_30s_listing_singleton_provider_guards": true,
+      "errors": 0,
+      "artifact_drift": 0,
+      "completed_utc": "2026-10-16T22:47:00.956589+00:00",
+      "timeout_rows": [
+        {
+          "number": 166,
+          "target": "tcl_lsp_server",
+          "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles"
+        },
+        {
+          "number": 329,
+          "target": "tcl_lsp_core",
+          "selector": "package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper"
+        },
+        {
+          "number": 724,
+          "target": "tcl_lsp_server",
+          "selector": "tests::workspace_symbol_caps_its_answer"
+        }
+      ],
+      "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-expression-wasi-hierarchy-successor/ordinary-current/completed-726",
+      "raw_results": {
+        "archive": "raw-results.tar.zst",
+        "sha256": "68ff3d32094f44bb64b0adca0074a7387a7605d6ada52473e36acfd25a2e0d92",
+        "bytes": 403011,
+        "scope": "Exact raw result, singleton listings and all726 logs. No ELFs or full input indexes.",
+        "result_sha256": "5e0833cb65ef4012ea6f8b567587eecffc8f898816d6bf53ed3c9ab24f6a9d94",
+        "all_run_log_hashes_verified": true
+      }
+    },
+    "call_wire_session_collision": {
+      "status": "HOLD_SOURCE_ONLY",
+      "scope": "Schemas3CALL/4Lens per-Backend counters can alias stale handles across Backend sessions; genuine session issuer successor required before union integration. Native1/TYPE2 unchanged.",
+      "old_union_sha256": "0731b9120c10c315894e2bf87a05b2adf1ed9a6b5de4768b7e55d484c7890605"
     }
   }
 }

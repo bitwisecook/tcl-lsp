@@ -647,3 +647,29 @@ child receipt alone cannot classify a compound, dynamic or expanded selector.
 This is partial adoption for `lsp-semantic-logical-receiver-selector`: legacy
 object-collection map occurrence/frame identity remains open. No allocation,
 dispatch, Native name, Normal completion or edit authority is supplied.
+
+### JetBrains explorer source transport
+
+Existing `lsp-jetbrains-explorer-source-transport` and
+`lsp-jetbrains-explorer-navigation-currency` consume structured original source,
+explicit standalone dialect and host-issued source/request/panel receipts.
+The actual VirtualFile/Document/version/full image survives the asynchronous
+compile and is rechecked before publication and readonly UTF-16 navigation.
+The shared page's brokered and WASM paths retain source/compile tokens; errors,
+stale source, replaced requests and disposed/reloaded panels cannot publish a
+navigation owner. Missing renderer UTF-16 positions remain unavailable; byte
+offsets cannot replace them. These two caller migrations do not establish actual
+project Registry input, server analysis currentness, Native entry or edits.
+The existing projection-tab lifecycle/navigation owner is a separate consumer.
+
+Navigation additionally waits for the shared page's actual `compileComplete`
+callback after rendering. A posted result is only a candidate; the shim retains
+the real `renderError` outcome and sends a successful-render acknowledgement for
+that exact source/compile token. An error or unacknowledged render cannot attach
+a new request's navigation permission to old pane geometry.
+
+Standalone source, dialect and request strings must be representable by the actual
+JDK UTF-8 encoder used at the LSP Unicode boundary. Unpaired UTF-16 code units
+remain unavailable instead of becoming replacement source; original NUL and
+valid supplementary Unicode remain unchanged. This is a representability check,
+not a new text codec or normalization policy.

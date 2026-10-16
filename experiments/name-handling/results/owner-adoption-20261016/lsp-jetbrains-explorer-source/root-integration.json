@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-16T22:41:05.192492+00:00",
+  "source_head": "e776c1a24f8dc61b75a58c96bb91be2f6d3e7579",
+  "patch_sha256": "39e5ef4cf067973cb86053610587dcc83c8a0c3a0c16b0d34d8b523b60dde7f6",
+  "exact7_before_after_and_two_additions_verified": true,
+  "disjoint_all39002_live_Native_inputs": true,
+  "whole_peer_sha256": "bcfb632588877a0dc899aa5386563dc8d483a700b7c0d586c4557b1b7dcf4511",
+  "execution": "Kotlin compile/tests/IDE host pending; source-only integration",
+  "actual_environment_read": {
+    "java": "OpenJDK21.0.12.1",
+    "required_jvmToolchain": 17,
+    "jvm17_installed": false,
+    "Gradle98_cache": false,
+    "IntelliJ2025_3_SDK_cache": "absent Gradlecache; provisioningpending",
+    "build_attempted": false
+  }
+}

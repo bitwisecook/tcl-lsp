@@ -1,0 +1,17 @@
+Independent source review: CLEAR
+
+Reviewed artifact: /tmp/lsp-jetbrains-548-v4/repair.patch
+Patch SHA-256: 39e5ef4cf067973cb86053610587dcc83c8a0c3a0c16b0d34d8b523b60dde7f6
+Manifest SHA-256: 4b39e7ac0fcd168f08707f977b4881cab814f92d26c9ec1b31f87febf4f48cc9
+Parent source packet: /tmp/lsp-jetbrains-explorer-source-v3/repair.patch
+Parent patch SHA-256: b81c24d537e98a76f5a62c4638d8b5b534269f1094b75c823da79c1b0ef1b9b9
+
+Verification:
+- All five modified-file before hashes matched /workspace/tcl-lsp; both added files were absent.
+- The patch dry-run and scratch application succeeded. All seven final hashes matched the manifest exactly.
+- The retained VirtualFile/Document/text/modification-stamp/dialect snapshot is connected to source tokens, per-panel compile lease, request generation, brokered or WASM result acknowledgement, and the exact renderer UTF-16 source map. A source change, newer request, panel reload/disposal, failed renderer acknowledgement, malformed coordinate, missing UTF-16 coordinate, invalid source mapping, or surrogate-interior offset declines navigation.
+- JSON framing handles embedded NUL source and rejects unpaired UTF-16 at the JDK UTF-8 boundary. Missing or invalid source ownership cannot fall back to a selected editor or become project/Registry/Native evidence.
+- V4 lifecycle serialization uses panelLifetime for publication/disposal and requestLock for per-view request ownership; final visible projection/navigation mutations occur under the relevant owner guard without awaits. Old result callbacks are filtered by compile token/source token/generation before publication or navigation.
+- Existing test files/assertions are unchanged; one focused CompilerExplorerSourceTest file is added. No Kotlin compile, Gradle build, IDE host, or tests were run.
+
+Count recommendation: in addition to the three manifest units (lsp-jetbrains-explorer-source-transport, lsp-jetbrains-explorer-navigation-currency, lsp-jetbrains-projection-source-currency), the patch also changes the separately audited actual adapter at CompilerExplorerHtml.kt:adaptHtmlForJcef for lsp-jb-explorer-bridge-source-framing. This is a distinct browser-to-JCEF JSON framing adopter, not another helper count; it repairs the actual source+NUL+dialect and projection delimiter boundary, which the host source snapshot adopter alone cannot repair. The audited lsp-server-explorer-source-registry-ingress remains open: the server command still resolves its own registry and this packet transports standalone inputs only.
