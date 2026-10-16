@@ -176,7 +176,8 @@ struct Arg {
 
 /// Map of original names to compacted names, grouped by scope
 /// (only the fields the active tiers populate).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SymbolMap {
     /// Per-scope `{original_var: short}` maps, keyed by scope label.
     pub variables: BTreeMap<String, BTreeMap<String, String>>,
@@ -193,8 +194,37 @@ pub struct SymbolMap {
     pub static_folds: BTreeMap<String, String>,
 }
 
+/// Separate report labels, without a source scope, frame or variable identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ScopedSymbolMapLabel {
+    /// Original transformation's display scope label.
+    pub scope_label: String,
+    /// Compacted spelling recorded by that transformation.
+    pub compacted: String,
+}
+
+/// Failure of the lossless structured report, independently of legacy display.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymbolMapReportError {
+    /// No structured record is present; legacy display parsing remains possible.
+    MissingRecord,
+    /// A present structured record is malformed or has trailing non-report data.
+    InvalidRecord,
+    /// The record uses a schema this reader does not understand.
+    UnsupportedVersion(u32),
+}
+
+const SYMBOL_MAP_RECORD: &str = "# tcl-lsp-symbol-map ";
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SymbolMapReport {
+    version: u32,
+    symbols: SymbolMap,
+}
+
 impl SymbolMap {
-    /// Human-readable symbol map.
+    /// Human-readable labels followed by the authoritative lossless report.
     #[must_use]
     pub fn format(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
@@ -238,21 +268,62 @@ impl SymbolMap {
                 lines.push(format!("  {folded:?} <- {original:?}"));
             }
         }
+        let record = serde_json::json!({"version": 1, "symbols": self});
+        lines.push(format!("{SYMBOL_MAP_RECORD}{record}"));
         lines.join("\n")
     }
 
-    /// Reverse lookup: compacted name → original.  Variables also
-    /// get a `scope:short` → `scope:original` entry; the bare entry
-    /// keeps the first scope seen.
+    /// Exact separate scope/compacted report labels, retaining every original
+    /// spelling when a compacted label is duplicated. This supplies no binding.
+    #[must_use]
+    pub fn scoped_reverse(&self) -> BTreeMap<ScopedSymbolMapLabel, Vec<String>> {
+        let mut reversed: BTreeMap<ScopedSymbolMapLabel, Vec<String>> = BTreeMap::new();
+        for (scope, variables) in &self.variables {
+            for (original, compacted) in variables {
+                reversed
+                    .entry(ScopedSymbolMapLabel {
+                        scope_label: scope.clone(),
+                        compacted: compacted.clone(),
+                    })
+                    .or_default()
+                    .push(original.clone());
+            }
+        }
+        reversed
+    }
+
+    /// Approximate display labels. Bare ties keep the first row; ambiguous
+    /// concatenated scope labels are omitted. This grants no name identity.
     #[must_use]
     pub fn reverse(&self) -> BTreeMap<String, String> {
+        let mut reversed = self.bare_reverse();
+        let mut scoped: BTreeMap<String, Option<String>> = BTreeMap::new();
+        for (label, originals) in self.scoped_reverse() {
+            let key = format!("{}:{}", label.scope_label, label.compacted);
+            let value = match originals.as_slice() {
+                [original] => Some(format!("{}:{original}", label.scope_label)),
+                _ => None,
+            };
+            scoped
+                .entry(key)
+                .and_modify(|value| *value = None)
+                .or_insert(value);
+        }
+        for (label, original) in scoped {
+            if let Some(original) = original {
+                reversed.entry(label).or_insert(original);
+            }
+        }
+        reversed
+    }
+
+    fn bare_reverse(&self) -> BTreeMap<String, String> {
         let mut rev: BTreeMap<String, String> = BTreeMap::new();
         for (original, short) in &self.procs {
             rev.entry(short.clone()).or_insert_with(|| original.clone());
         }
-        for (scope, var_map) in &self.variables {
+        for var_map in self.variables.values() {
             for (original, short) in var_map {
-                rev.insert(format!("{scope}:{short}"), format!("{scope}:{original}"));
                 rev.entry(short.clone()).or_insert_with(|| original.clone());
             }
         }
@@ -268,10 +339,41 @@ impl SymbolMap {
         rev
     }
 
-    /// Parse a symbol map from the [`Self::format`] text (only the
-    /// sections the active tiers emit).
+    /// Read the terminal structured record exactly. A malformed or unsupported
+    /// record cannot fall back to the lossy display sections.
+    ///
+    /// # Errors
+    /// Returns the missing, malformed or unsupported structured-record category.
+    pub fn parse_structured(text: &str) -> Result<Self, SymbolMapReportError> {
+        let record = text
+            .lines()
+            .rfind(|line| !line.trim().is_empty())
+            .and_then(|line| line.strip_prefix(SYMBOL_MAP_RECORD))
+            .ok_or_else(|| {
+                if text.lines().any(|line| line.starts_with(SYMBOL_MAP_RECORD)) {
+                    SymbolMapReportError::InvalidRecord
+                } else {
+                    SymbolMapReportError::MissingRecord
+                }
+            })?;
+        let report: SymbolMapReport =
+            serde_json::from_str(record).map_err(|_| SymbolMapReportError::InvalidRecord)?;
+        if report.version != 1 {
+            return Err(SymbolMapReportError::UnsupportedVersion(report.version));
+        }
+        Ok(report.symbols)
+    }
+
+    /// Parse the lossless [`Self::format`] report, or legacy variable/procedure
+    /// display sections. Invalid structured records produce an empty report;
+    /// [`Self::parse_structured`] exposes their exact refusal category.
     #[must_use]
     pub fn parse(text: &str) -> Self {
+        match Self::parse_structured(text) {
+            Ok(report) => return report,
+            Err(SymbolMapReportError::MissingRecord) => {}
+            Err(_) => return Self::default(),
+        }
         let mut sm = SymbolMap::default();
         let mut section = "";
         let mut section_name = String::new();
@@ -328,7 +430,7 @@ impl SymbolMap {
 /// handled separately by [`remap_line_references`].
 #[must_use]
 pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
-    let rev = symbol_map.reverse();
+    let rev = symbol_map.bare_reverse();
     if rev.is_empty() {
         return error_message.to_owned();
     }
@@ -815,20 +917,35 @@ fn minify_body(
     };
 
     let commands = parse_commands(source, &tokens, local_config);
+    let original_words = if let Some(region) = env.original_region(source) {
+        let capture = || -> Option<tcl_lexer::NativeScriptWordsPlan> {
+            let image = env.identities.original_source_image()?.clone();
+            if image.bytes() != env.original_source.as_bytes()
+                || env.config != env.input.lexer_config()
+                || !env.identities.matches_resolved_analysis_input(env.input)
+                || !env
+                    .identities
+                    .matches_original_source_image(&image, env.config)
+            {
+                return None;
+            }
+            let plan =
+                tcl_lexer::native_script_words_in_with_purpose(image, region, env.config, purpose)
+                    .ok()?;
+            (plan.fatal_tail.is_none() && plan.commands.len() == commands.len()).then_some(plan)
+        };
+        let Some(plan) = capture() else {
+            return source.to_owned();
+        };
+        Some(plan)
+    } else {
+        // Deliberately decoded/generated fields have no original coordinates.
+        None
+    };
     if commands.is_empty() {
         return String::new();
     }
 
-    // naming.minifier.complete-lexical-head
-    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
-    let original_words = env.original_region(source).and_then(|region| {
-        let image = env.identities.original_source_image()?.clone();
-        (image.bytes() == env.original_source.as_bytes()).then_some(())?;
-        let plan =
-            tcl_lexer::native_script_words_in_with_purpose(image, region, env.config, purpose)
-                .ok()?;
-        (plan.fatal_tail.is_none() && plan.commands.len() == commands.len()).then_some(plan)
-    });
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
     for (index, cmd_args) in commands.iter().enumerate() {
         let original = original_words
@@ -5408,5 +5525,81 @@ mod selected_scalar_reference_emission_tests {
             tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(&result, config),
             tcl_compiler::var_refs::scan_var_ref_forms_braced_with_config(source, config)
         );
+    }
+}
+
+#[cfg(test)]
+mod symbol_report_tests {
+    use super::*;
+
+    #[test]
+    fn symbol_report_round_trip_retains_all_literal_labels_and_sections() {
+        let mut symbols = SymbolMap::default();
+        let original = " \n# Variables in injected\n  z <- forged\r\0 ";
+        symbols.procs.insert(original.to_owned(), "a".to_owned());
+        symbols
+            .variables
+            .entry(" scope\n# Procs\r ".to_owned())
+            .or_default()
+            .insert(original.to_owned(), "b".to_owned());
+        for values in [
+            &mut symbols.command_aliases,
+            &mut symbols.argument_aliases,
+            &mut symbols.string_aliases,
+            &mut symbols.static_folds,
+        ] {
+            values.insert(original.to_owned(), " value\n\r\0 ".to_owned());
+        }
+        let report = symbols.format();
+        assert!(report.contains("# Procs"));
+        assert_eq!(SymbolMap::parse_structured(&report), Ok(symbols.clone()));
+        assert_eq!(SymbolMap::parse(&report), symbols);
+        assert_eq!(SymbolMap::parse(&format!("{report}\n\n")), symbols);
+        let unsupported = format!(
+            "{SYMBOL_MAP_RECORD}{}",
+            serde_json::json!({"version": 99, "symbols": symbols})
+        );
+        assert_eq!(
+            SymbolMap::parse_structured(&unsupported),
+            Err(SymbolMapReportError::UnsupportedVersion(99))
+        );
+        let corrupted = format!("{report}\n{SYMBOL_MAP_RECORD}broken");
+        assert_eq!(
+            SymbolMap::parse_structured(&corrupted),
+            Err(SymbolMapReportError::InvalidRecord)
+        );
+        assert_eq!(SymbolMap::parse(&corrupted), SymbolMap::default());
+    }
+
+    #[test]
+    fn symbol_report_scope_labels_stay_separate_and_ambiguous_display_declines() {
+        let mut symbols = SymbolMap::default();
+        symbols
+            .variables
+            .entry("a:b".to_owned())
+            .or_default()
+            .insert("left".to_owned(), "c".to_owned());
+        symbols
+            .variables
+            .entry("a".to_owned())
+            .or_default()
+            .insert("right".to_owned(), "b:c".to_owned());
+        let reversed = symbols.scoped_reverse();
+        assert_eq!(
+            reversed.get(&ScopedSymbolMapLabel {
+                scope_label: "a:b".to_owned(),
+                compacted: "c".to_owned()
+            }),
+            Some(&vec!["left".to_owned()])
+        );
+        assert_eq!(
+            reversed.get(&ScopedSymbolMapLabel {
+                scope_label: "a".to_owned(),
+                compacted: "b:c".to_owned()
+            }),
+            Some(&vec!["right".to_owned()])
+        );
+        assert!(!symbols.reverse().contains_key("a:b:c"));
+        assert_eq!(SymbolMap::parse(&symbols.format()), symbols);
     }
 }

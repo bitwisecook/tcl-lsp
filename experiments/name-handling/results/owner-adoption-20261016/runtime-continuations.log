@@ -1,0 +1,29 @@
+
+running 7 tests
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_children_keeps_selected_target_birth_across_pattern_callback ... ok
+
+thread 'cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler' (39375) panicked at src/cmd_namespace.rs:7536:13:
+assertion `left == right` failed
+  left: []
+ right: [0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler ... FAILED
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_checks_retired_handler_callback_before_new_publication ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_upvar_transports_outer_namespace_check_through_original_target_conversion ... ok
+
+thread 'cmd_namespace::original_namespace_continuation_tests::original_namespace_children_path_unknown_upvar_keep_successful_getter_order_and_objects' (39352) panicked at src/cmd_namespace.rs:7442:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_children_path_unknown_upvar_keep_successful_getter_order_and_objects ... FAILED
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_upvar_checks_namespace_before_target_getter_and_alias_publication ... ok
+test cmd_namespace::original_namespace_continuation_tests::original_namespace_path_checks_prior_targets_and_original_member_backing_before_commit ... ok
+
+failures:
+
+failures:
+    cmd_namespace::original_namespace_continuation_tests::original_namespace_children_path_unknown_upvar_keep_successful_getter_order_and_objects
+    cmd_namespace::original_namespace_continuation_tests::original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 2264 filtered out; finished in 2.23s
+

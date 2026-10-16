@@ -47,13 +47,15 @@ every procedure, plus the `TclOO` method and `apply` / `namespace eval` body
 units `build_extra_call_site_scan_contexts` supplies — and records each
 resolvable call's literal arguments into a `CallSiteEvidence`.
 
-Resolution goes through `interprocedural::resolve_internal_call` (Tcl's real
-existence-checked, namespace-relative order, evaluated in the *calling*
-function's namespace) with a `namespace import` fallback, and recurses into
-`ArgRole::Body` arguments so a call inside `catch { … }` or a literal
-`uplevel { … }` still counts.  Each of those is load-bearing: a call the walk
-does not see is a call site whose literal cannot contradict the others, so the
-seed would be granted on incomplete evidence.
+For an ordinary source call, the scanner uses the retained source binding and
+`NormalUserProcedureInvocation`, then looks up the selected target through the
+source realm (`lookup_command_word`) and records its source procedure/allocation
+receipt. A candidate qualified-name lookup is not enough to establish a
+callable body. The similarly named `interprocedural::resolve_internal_call`
+helper is `#[cfg(test)]` and exercises namespace lookup order only; it is not
+the production call owner. `ArgRole::Body` still drives recursive scanning of
+readable body arguments such as `catch { … }` and literal `uplevel { … }`,
+subject to source and entry evidence.
 
 ### 2. Cross-unit evidence
 

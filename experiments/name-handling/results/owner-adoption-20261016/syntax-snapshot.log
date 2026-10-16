@@ -1,0 +1,25 @@
+   Compiling hybrid-array v0.4.15
+   Compiling cc v1.6.0
+   Compiling syn v3.0.6
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling bitflags v2.13.2
+   Compiling digest v0.11.3
+   Compiling libc v0.2.190
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling thiserror-impl v2.0.21
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling sha2 v0.11.0
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.99s
+     Running tests/namespace_op_conformance.rs (target/debug/deps/namespace_op_conformance-c7441ea2d9eb0042)
+
+running 2 tests
+test namespace_snapshot_refuses_ambiguous_array_roots_before_reading_another_cell ... ok
+test namespace_snapshot_keeps_element_keys_separate_from_the_array_root ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.06s
+

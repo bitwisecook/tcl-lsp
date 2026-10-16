@@ -21,28 +21,27 @@ that single failure, reached through a different kind of caller.
 
 ## Ownership
 
-| Concern | Owner |
+| Concern | Current owner |
 |---|---|
-| Enumerating callers and their literal arguments | `unit_scope.rs::collect_call_site_constants` |
-| Turning that evidence into an SCCP seed | `unit_scope.rs::params_constants_from_call_sites` |
-| Interning the seed into the memo key | `compilation_unit.rs::encode_param_constants` |
-| Which argument is a script / callback / variable name | `tcl-registry` (`ArgRole`, `Traits`) |
-| Namespace-relative command resolution | `interprocedural::resolve_internal_call` |
-| Which command a callback prefix names | `interprocedural::command_prefix_head` |
+| Enumerating source call-site evidence | `unit_scope.rs::collect_call_site_constants` and `record_call_site_evidence` |
+| Turning evidence into an SCCP seed | `unit_scope.rs::params_constants_from_call_sites` |
+| Interning seed and other lattice inputs | `tcl-lsp-db::lattice_request_key` / `FnLatticeKey` |
+| Identifying candidate script/callback argument positions | `tcl-registry` (`ArgRole`, `Traits`) |
+| Resolving an ordinary source call target | retained source binding, `NormalUserProcedureInvocation`, and `lookup_command_word` in the source realm |
+| Callback target evidence | `original_source_callback_targets_for_tokens` and `record_original_callback_callers` |
 | `rename` / `interp alias` trust | `command_binding::ModuleCommandMutations` |
 
-No command name appears in the scan. Script bodies come from
-`ArgRole::Body`, lambdas from `ArgRole::LambdaLiteral`, callbacks from
-`ArgRole::CommandPrefix` (with `Traits::BUILDS_COMMAND_PREFIX` for the
-`[list cb $x]` shape), user-proc invokers from `Traits::INVOKES_USER_PROC`,
-and variable writes from `ArgRole::VarWrite` plus
-`Traits::CREATES_SCOPE_ALIAS`.
-
-The two questions this scan shares with the general call-graph builder —
-"which procedure does this bare name reach" and "which command does this
-callback prefix name" — are answered by `interprocedural`, not re-derived
-here, so the two consumers cannot drift on a shape one of them learns to
-handle (issue #978).
+Registry roles identify where a script or callback may be supplied; they do
+not by themselves prove the runtime target. In particular, parsing the head of
+a `CommandPrefix` value is not evidence that it was registered, invoked, or
+resolved to a callable procedure. The scan uses original-source callback target
+receipts when available and otherwise records the caller as unenumerable, which
+withdraws affected seeds. Likewise, ordinary-call candidate names are not
+callable identities: source-owned target and allocation evidence determine
+which procedure body a caller can reach. `resolve_internal_call` is a test-only name-resolution helper.
+`command_prefix_head` parses a literal Tcl list value, but does not establish
+registration, invocation, target identity, or body entry; neither helper is the
+production owner for these source receipts.
 
 ## The three kinds of caller
 

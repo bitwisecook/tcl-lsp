@@ -7240,10 +7240,14 @@ mod tests {
             let mut analyser = Analyser::new();
             analyser.result = analyser.analyse(source, "tcl");
             let input = analyser.result.resolved_input.clone().unwrap();
-            let token = segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-                .last()
-                .unwrap()
-                .argv[0];
+            let token = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .last()
+            .unwrap()
+            .argv[0];
             assert_eq!(
                 analyser.original_keyword_slot_is_absent("finally", token),
                 absent

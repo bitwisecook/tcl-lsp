@@ -317,3 +317,27 @@ fn original_jim_source_length_requires_its_own_dialect_and_physical_class() {
         );
     }
 }
+
+#[test]
+fn legacy_descriptor_length_route_does_not_issue_stock_cache_evidence() {
+    use NativeStockListInputClass as Class;
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let dialect = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment(profile).unit_profile(),
+        );
+        let engine = dialect.native_object_length_protocol().unwrap();
+        assert_eq!(
+            engine.action(Class::LegacyExtension, false),
+            Some(NativeObjectLengthAction::ConvertToList)
+        );
+        assert_eq!(engine.action(Class::Unknown, false), None);
+        let stock = NativeStockListLengthProtocol {
+            argument: 1,
+            engine,
+        };
+        assert_eq!(
+            stock.normal_cache_disposition(Class::LegacyExtension, Some(b"one two")),
+            None
+        );
+    }
+}

@@ -114,16 +114,16 @@ fn jim_output_names_reach_length_before_message_and_options_production() {
             let message = actual
                 .var_get(b"message")
                 .map(|value| hex(&obj::bytes_of(value)))
-                .unwrap_or_else(|_| "-".into());
+                .unwrap_or_else(|| "-".into());
             let handled = actual
                 .var_get(b"handled")
                 .map(|value| hex(&obj::bytes_of(value)))
-                .unwrap_or_else(|_| "-".into());
+                .unwrap_or_else(|| "-".into());
             let row = format!(
                 "OBS|{is_try}|{mode}|{}|{}|{result}|{message}|{handled}|{}",
                 code.as_int(),
                 GETTERS.with(Cell::get),
-                usize::from(actual.var_get(b"options").is_ok())
+                usize::from(actual.var_get(b"options").is_some())
             );
             assert!(
                 observations.lines().any(|observed| observed == row),

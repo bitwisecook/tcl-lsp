@@ -104,6 +104,17 @@ pub struct TclObjType {
 // to a `'static` NUL-terminated byte string. They are read-only and shared.
 unsafe impl Sync for TclObjType {}
 
+/// Register an actual legacy five-field descriptor without abstract List methods.
+/// Its ordinary String/List conversion remains effectful and independently checked.
+/// Registration grants no stock-hook closure, successful conversion or List cache.
+pub fn register_legacy_extension_type(descriptor: &'static TclObjType) {
+    LEGACY_EXTENSION_TYPES.with(|types| {
+        types
+            .borrow_mut()
+            .insert(descriptor as *const TclObjType as usize);
+    });
+}
+
 /// Jim's native string internal representation retains the prescribed character
 /// count independently of byte length. Bytes always exist for this type.
 pub(crate) static JIM_STRING_TYPE: TclObjType = TclObjType {
@@ -536,6 +547,8 @@ type ObjectScriptLocation =
     tcl_runtime_api::script_source_location::ScriptSourceLocation<Option<std::rc::Rc<[u8]>>>;
 
 thread_local! {
+    static LEGACY_EXTENSION_TYPES: std::cell::RefCell<std::collections::HashSet<usize>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
     // Metadata follows the value object, without changing the public C header.
     // Retiring the header removes its entry before its address can be reused.
     static SCRIPT_LOCATIONS: std::cell::RefCell<std::collections::HashMap<usize, ObjectScriptLocation>> = std::cell::RefCell::new(std::collections::HashMap::new());
@@ -2365,7 +2378,11 @@ pub(crate) fn stock_list_input_class(
     if core::ptr::eq(kind, &crate::bignum::TCL_BIGNUM_TYPE) {
         return Class::Numeric;
     }
-    Class::Unknown
+    if LEGACY_EXTENSION_TYPES.with(|types| types.borrow().contains(&(kind as usize))) {
+        Class::LegacyExtension
+    } else {
+        Class::Unknown
+    }
 }
 
 /// Apply the reached getter's complete cache change to the original object.

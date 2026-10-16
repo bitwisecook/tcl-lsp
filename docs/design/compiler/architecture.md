@@ -677,9 +677,10 @@ flowchart TD
         IM["ir_module: ir::Module"]
         CM["cfg_module: cfg::CfgModule"]
         TL["top_level: FunctionUnit"]
-        PR["procedures: Map&lt;String, FunctionUnit&gt;"]
-        ME["methods: Map&lt;String, FunctionUnit&gt;"]
-        BU["body_units: Map&lt;String, FunctionUnit&gt;"]
+        PR["procedures: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        ME["methods: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        BU["body_units: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        CFGS["prepared source-body CFGs: Map&lt;ProcedureId, CfgFunction&gt;"]
         IP["interproc: Option&lt;InterproceduralAnalysis&gt;"]
         CO["connection_scope: Option&lt;ConnectionScope&gt;"]
         CS2["caller_scope: UnitCallerScope"]
@@ -688,9 +689,14 @@ flowchart TD
     CU --- CompilationUnit
 ```
 
-The three body maps of `ir::Module` are mirrored one-for-one as
-`FunctionUnit` maps, so a `TclOO` method body and an `apply` lambda body each
-get the same CFG → SSA → SCCP → type → taint treatment a `proc` does.
+The `CompilationUnit` procedure, method, and body-unit analysis maps are keyed
+by Module-issued `ProcedureId`s; qualified names are display and lookup data,
+not their body keys. The IR module also retains separate installed-body and
+original-declaration inventories, event-body descriptors, and source
+implementation records. Those source inventories do not by themselves install
+a callable or prove an entered frame. The CU retains prepared child CFGs in a
+separate body-ID map before `FunctionUnit` analysis; do not conflate that
+prepared inventory with authored declarations or runtime installations.
 `interproc` is optional because `build_for` can be asked to defer it, so a
 consumer must handle `None` rather than assume summaries are present.
 `caller_scope` carries what the *workspace* knows about this unit's callers —

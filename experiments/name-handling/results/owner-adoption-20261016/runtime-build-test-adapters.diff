@@ -1,0 +1,37 @@
+diff --git a/runtime/rust/src/cmd_error/tests/jim_capture_prefix.rs b/runtime/rust/src/cmd_error/tests/jim_capture_prefix.rs
+index d0af7b101..2942e4f79 100644
+--- a/runtime/rust/src/cmd_error/tests/jim_capture_prefix.rs
++++ b/runtime/rust/src/cmd_error/tests/jim_capture_prefix.rs
+@@ -146,7 +146,7 @@ fn original_jim_try_prefix_cells_use_bounded_native_getters_and_refuse_unbound_s
+             assert_eq!(actual.result_bytes(), decode(fields[7]), "{row}");
+         }
+         assert_eq!(
+-            actual.var_get(b"message").is_ok(),
++            actual.var_get(b"message").is_some(),
+             fields[8] == "1",
+             "{row}"
+         );
+diff --git a/runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs b/runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs
+index 4c62c0bc5..b7571659a 100644
+--- a/runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs
++++ b/runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs
+@@ -114,16 +114,16 @@ fn jim_output_names_reach_length_before_message_and_options_production() {
+             let message = actual
+                 .var_get(b"message")
+                 .map(|value| hex(&obj::bytes_of(value)))
+-                .unwrap_or_else(|_| "-".into());
++                .unwrap_or_else(|| "-".into());
+             let handled = actual
+                 .var_get(b"handled")
+                 .map(|value| hex(&obj::bytes_of(value)))
+-                .unwrap_or_else(|_| "-".into());
++                .unwrap_or_else(|| "-".into());
+             let row = format!(
+                 "OBS|{is_try}|{mode}|{}|{}|{result}|{message}|{handled}|{}",
+                 code.as_int(),
+                 GETTERS.with(Cell::get),
+-                usize::from(actual.var_get(b"options").is_ok())
++                usize::from(actual.var_get(b"options").is_some())
+             );
+             assert!(
+                 observations.lines().any(|observed| observed == row),

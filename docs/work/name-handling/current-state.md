@@ -1,23 +1,25 @@
 # Current naming state and validation
 
-Implementation has resumed from `554085e`. Forty-seven catalogue units have
-reviewed changes pending complete validation: 22 code units and 25 authored-doc
-units; **zero units are verified complete**. All **2,158** units remain
-unverified or unimplemented (2,111 have no integrated implementation yet).
-Development checkpoint `21110f670` is pushed to `work`. Its broad build reached
-Compiler/Core/VM libraries, then failed a minifier test fixture binding; the
-unchanged fixture is repaired. Compiler `logical_variable_` selected six tests:
-four PASS, two FAIL; two new fixture premises are repaired, retest pending.
-Logs: `/tmp/naming-build-21110f670.log` and
-`/tmp/naming-compiler-logical-variable-21110f670.log`. Earlier two array-snapshot
-regressions passed across all five pinned C releases, and the original
-interpreter/library/Tcltest pairing control passed. The compact durable
-[provider capture](../../../experiments/name-handling/oracles/provider-pairing-20261016/capture.json)
-authenticates all six installed C/Jim pairings and current Jim HEAD; setup only,
-without semantic acceptance. Alias-action drafts remain withheld because their
-source-action owner is missing; new owner-facet/count reconciliation stays open.
-The historical M12 results below are unchanged. Chat reports use 30-minute
-intervals, with implementation and acceptance counted separately.
+Implementation has resumed from `554085e`. Fifty-six catalogue units have
+reviewed changes pending complete validation: 23 code units and 33 authored-doc
+units; **zero units are verified complete**. All **2,158** baseline units remain
+unverified or unimplemented (2,102 have no integrated implementation yet).
+Development checkpoint `52e659ed9` is pushed to `work`. Its Runtime build passes
+with two preserved-assertion fixture API adapters; 13 original/public Jim Import
+controls and three Info-helper controls pass. Continuations were 5 PASS/2 FAIL,
+and older Import fixtures 2 PASS/5 FAIL. Their original failures are retained;
+repaired Length issuance and actual caller/getter fixtures await fresh reruns.
+Compiler Logical variables were 4 PASS/2 FAIL, with repaired new fixture premises
+awaiting retest. Latest workspace test build failed one new W125 test import;
+qualification is repaired and complete build remains pending. Exact selected
+logs/source hashes are in the compact durable
+[control capture](../../../experiments/name-handling/results/owner-adoption-20261016/records.json).
+The [provider capture](../../../experiments/name-handling/oracles/provider-pairing-20261016/capture.json)
+authenticates all six installed C/Jim setup pairings, without semantic acceptance.
+Alias-action drafts remain withheld because the source-action owner is missing.
+Additional owner-facet and baseline test-repair count reconciliation stays open;
+no baseline completion is inferred from it. Historical M12 remains unchanged.
+Chat reports use 30-minute intervals; implementation and acceptance stay separate.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

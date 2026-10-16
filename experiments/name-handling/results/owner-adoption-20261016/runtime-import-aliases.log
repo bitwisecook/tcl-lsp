@@ -1,0 +1,44 @@
+
+running 7 tests
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_refuses_a_pattern_getter_that_switches_the_current_namespace' (39520) panicked at src/cmd_namespace.rs:6974:13:
+assertion `left == right` failed
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cmd_namespace::original_import_alias_tests::original_jim_import_refuses_a_pattern_getter_that_switches_the_current_namespace ... FAILED
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_follows_original_alias_lists_and_refuses_destination_loops' (39517) panicked at src/cmd_namespace.rs:7193:13:
+assertion `left == right` failed
+  left: false
+ right: true
+test cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion ... ok
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions' (39518) panicked at src/cmd_namespace.rs:7234:9:
+assertion failed: interp.namespaces().command_in(GLOBAL, &destination_slot).is_some()
+test cmd_namespace::original_import_alias_tests::original_jim_import_follows_original_alias_lists_and_refuses_destination_loops ... FAILED
+test cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions ... FAILED
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication' (39521) panicked at src/cmd_namespace.rs:7149:13:
+assertion `left == right` failed
+  left: 0x7f30f8017fe0
+ right: 0x7f30f8055eb0
+test cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication ... FAILED
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_uses_the_cached_alias_list_without_member_getters' (39523) panicked at src/cmd_namespace.rs:7107:9:
+assertion failed: matches!(interp.namespaces().command_in(GLOBAL, &destination_slot),
+    Some(Command::Alias { .. }))
+test cmd_namespace::original_import_alias_tests::original_jim_import_uses_the_cached_alias_list_without_member_getters ... FAILED
+test cmd_namespace::original_import_alias_tests::original_jim_import_uses_rooted_hash_key_spelling_in_helper_operations ... ok
+
+failures:
+
+failures:
+    cmd_namespace::original_import_alias_tests::original_jim_import_follows_original_alias_lists_and_refuses_destination_loops
+    cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions
+    cmd_namespace::original_import_alias_tests::original_jim_import_refuses_a_pattern_getter_that_switches_the_current_namespace
+    cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication
+    cmd_namespace::original_import_alias_tests::original_jim_import_uses_the_cached_alias_list_without_member_getters
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 2264 filtered out; finished in 0.43s
+

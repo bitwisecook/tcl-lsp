@@ -1,0 +1,9 @@
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running unittests src/lib.rs (target/debug/deps/tcl_test_support-a2c0b6f88c071520)
+
+running 1 test
+test tests::source_tree_execution_selects_matching_original_init_and_tcltest ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.07s
+

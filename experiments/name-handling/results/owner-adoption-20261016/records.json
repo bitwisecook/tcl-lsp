@@ -1,0 +1,79 @@
+{
+  "records": [
+    {
+      "selector": "namespace_snapshot_",
+      "head": "1b9bc6ea158014961af766dcc3d702e3228333fb",
+      "PASS": 2,
+      "FAIL": 0,
+      "log": "syntax-snapshot.log",
+      "sha256": "3effee7dd31196eb5441b0eb2e3625af4184a5223334b0ad7d91b693c5d83375",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "source_tree_execution_selects_matching_original_init_and_tcltest",
+      "head": "1b9bc6ea158014961af766dcc3d702e3228333fb",
+      "PASS": 1,
+      "FAIL": 0,
+      "log": "provider-library.log",
+      "sha256": "99b9ef65cfb71b5ac9c4991d73e7ad1c885ca0c64e6bf259368ec877db6dfba7",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "logical_variable_",
+      "head": "21110f670fc5d0ae5943d7859e9b6be1b8b86c38",
+      "PASS": 4,
+      "FAIL": 2,
+      "log": "compiler-logical-variable.log",
+      "sha256": "dcea7490987ca980b611ad47f9ba79f0e68369cd1512f06a93fb1695b420aa24",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "original_namespace_continuation_tests",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "PASS": 5,
+      "FAIL": 2,
+      "log": "runtime-continuations.log",
+      "sha256": "efce046e157583b15a09849697e3d0314a19be04ef3b4c0a028d870d9ff69e92",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "variable_helper_head_tests",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "PASS": 3,
+      "FAIL": 0,
+      "log": "runtime-info-helper.log",
+      "sha256": "563e2718fd79a47f49f22d568d1b8cf15dfc134f61de99aa059c0d8f9c187df4",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "original_jim_import",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "PASS": 2,
+      "FAIL": 5,
+      "log": "runtime-import-aliases.log",
+      "sha256": "fd2328d1b006b26866ace98a4dfb12e1ae4b15717492d6bb83341dae2452cc7a",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    },
+    {
+      "selector": "interp::native_jim_import",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "PASS": 13,
+      "FAIL": 0,
+      "log": "runtime-import-source.log",
+      "sha256": "74db820f7d4a9630fd6f9c5994c99b0e558b0f1e92d0c5061cb05f200f2f79c1",
+      "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+    }
+  ],
+  "runtime_binary": {
+    "path": "target/debug/deps/tcl_runtime-61639851635952d4",
+    "sha256": "7cb9d75c6a505df489b956e1b3849d28515a0a4ada8f79d826a2db1c8a373b37",
+    "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+    "test_adapter_overlay": "runtime-build-test-adapters.diff",
+    "overlay_sha256": "124ed44ccb0f76c50a70c8cdee0d618b014c1522844c05f1df096ce3dd21ecc0"
+  },
+  "limitations": [
+    "Original failed results retained; repaired controls require fresh builds/reruns.",
+    "Current gated acceptance, closed-issue regressions and original M12 comparison remain independent.",
+    "No full source afterimages or binaries copied; Git commits retain source."
+  ]
+}

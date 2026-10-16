@@ -13,6 +13,9 @@ use tcl_syntax::native_string::NativeStringProtocol;
 pub enum NativeStockListInputClass {
     /// Stock hooks are sealed, but no current cache class is proved.
     Unknown,
+    /// Actual registered legacy descriptor without an abstract Length method.
+    /// Its conversion hooks can have effects; this is not a sealed stock class.
+    LegacyExtension,
     /// Plain native string object with no intrep.
     String,
     /// Ordinary native List cache.
@@ -219,6 +222,9 @@ impl NativeStockListLengthProtocol {
     ) -> Option<NativeStockListCacheDisposition> {
         use NativeStockListCacheDisposition as Cache;
         use NativeStockListInputClass as Class;
+        if class == Class::LegacyExtension {
+            return None;
+        }
         if class == Class::JimSource && !self.engine.engine.is_jim084() {
             return None;
         }

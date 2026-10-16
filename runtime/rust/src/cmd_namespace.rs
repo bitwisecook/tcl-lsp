@@ -6828,6 +6828,8 @@ mod original_import_alias_tests {
         static READS: Cell<usize> = const { Cell::new(0) };
         static MODE: Cell<u8> = const { Cell::new(0) };
         static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+        static DESTINATION: Cell<NsId> = const { Cell::new(GLOBAL) };
+        static GETTER_RESULT: RefCell<Option<obj::NativeObjectLifetime>> = const { RefCell::new(None) };
     }
 
     extern "C" fn update(original: *mut TclObj) {
@@ -6843,6 +6845,15 @@ mod original_import_alias_tests {
             return;
         }
         let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+        let result = GETTER_RESULT.with(|result| {
+            result
+                .borrow()
+                .as_ref()
+                .map(|original| original.checked_ptr().unwrap())
+        });
+        if let Some(result) = result {
+            interp.set_result(result);
+        }
         match mode {
             1 => {
                 interp.refuse_host_command("original Jim import member first cause");
@@ -6855,7 +6866,11 @@ mod original_import_alias_tests {
                 interp.pin_context(&changed).unwrap();
                 interp.pin_context(&current).unwrap();
             }
-            3 => interp.set_current_ns(GLOBAL),
+            3 => {
+                let destination = DESTINATION.with(Cell::get);
+                assert_ne!(interp.current_ns(), destination);
+                interp.set_current_ns(destination);
+            }
             _ => unreachable!(),
         }
     }
@@ -6873,6 +6888,8 @@ mod original_import_alias_tests {
         READS.with(|reads| reads.set(0));
         MODE.with(|mode| mode.set(0));
         FIRST.with(|first| first.borrow_mut().take());
+        DESTINATION.with(|destination| destination.set(GLOBAL));
+        GETTER_RESULT.with(|result| result.borrow_mut().take());
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
             tcl_registry::model::resolve_environment("jim").unit_profile(),
@@ -6916,7 +6933,25 @@ mod original_import_alias_tests {
         let words = [b"namespace".as_slice(), b"import", pattern]
             .map(|word| Owned::fresh(obj::new_string_bytes(word)));
         let argv = words.each_ref().map(Owned::as_ptr);
-        let code = super::namespace_cmd(interp, &argv);
+        import_arguments(interp, destination, &argv)
+    }
+
+    fn import_arguments(interp: &mut Interp, destination: NsId, argv: &[*mut TclObj]) -> Code {
+        DESTINATION.with(|selected| selected.set(destination));
+        // The original helper reads its caller with uplevel. Enter the retained
+        // namespace token through the existing namespace activation owner.
+        let body = Owned::fresh(interp.new_list_object(argv));
+        let code = interp.ns_eval_in_token(
+            destination,
+            b"",
+            None,
+            false,
+            Some((
+                tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                body.as_ptr(),
+            )),
+            None,
+        );
         assert_eq!(interp.current_ns(), destination);
         assert_eq!(interp.entered_native_operation_count(), 0);
         code
@@ -6965,8 +7000,9 @@ mod original_import_alias_tests {
             let pattern = Owned::fresh(obj::alloc_typed(&TYPE, 0));
             let head = Owned::fresh(obj::new_string_bytes(b"namespace"));
             let selector = Owned::fresh(obj::new_string_bytes(b"import"));
-            let code = super::namespace_cmd(
+            let code = import_arguments(
                 &mut interp,
+                destination,
                 &[head.as_ptr(), selector.as_ptr(), pattern.as_ptr()],
             );
             assert_eq!(code, if change { Code::Error } else { Code::Ok });
@@ -7119,6 +7155,7 @@ mod original_import_alias_tests {
         for mode in [1, 2] {
             let mut interp = native();
             let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+                GETTER_RESULT.with(|result| result.borrow_mut().take());
                 OWNER.with(|owner| owner.borrow_mut().take());
             });
             let target = Owned::fresh(obj::new_string_bytes(b"list"));
@@ -7134,6 +7171,11 @@ mod original_import_alias_tests {
             let destination_slot = destination_slot(&interp, destination);
             let prior = Owned::fresh(obj::new_string_bytes(b"PRIOR\0\xff"));
             interp.set_result(prior.as_ptr());
+            // Successful helper commands precede this List getter. The updater
+            // installs the retained result immediately before its Host effect.
+            GETTER_RESULT.with(|result| {
+                *result.borrow_mut() = Some(obj::NativeObjectLifetime::retain(prior.as_ptr()));
+            });
             let refs = unsafe { (*member.as_ptr()).ref_count };
             let current = interp.runtime_context();
             MODE.with(|selected| selected.set(mode));
@@ -7382,6 +7424,7 @@ mod original_namespace_continuation_tests {
         (interp, Cleanup, tree, dest)
     }
     fn lazy(bytes: &[u8]) -> Owned {
+        obj::register_legacy_extension_type(&LAZY);
         let index = PAYLOADS.with(|payloads| {
             let mut payloads = payloads.borrow_mut();
             let index = payloads.len();

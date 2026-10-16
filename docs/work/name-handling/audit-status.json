@@ -401,23 +401,25 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T08:52:00Z",
+    "utc": "2026-10-16T09:10:00Z",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 47,
+    "implemented_pending_validation": 56,
     "verified_complete": 0,
-    "not_started": 2111,
+    "not_started": 2102,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM no-argument Parent current-holder projection (catalogue mapping pending)",
-      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)"
+      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)",
+      "Baseline Runtime compile adapters in jim_capture_prefix/jim_output_name_stages; mapping/reconciliation pending.",
+      "Legacy Length descriptor issuer and other demonstrated missing shared-owner facets require bounded count reconciliation."
     ],
     "latest_scoped_build": {
-      "status": "FAIL_MINIFIER_TEST_FIXTURE_COMPILE",
-      "head": "21110f670fc5d0ae5943d7859e9b6be1b8b86c38",
-      "log": "/tmp/naming-build-21110f670.log",
+      "status": "FAIL_W125_TEST_IMPORT",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "log": "/tmp/naming-workspace-build-52e659ed9.log",
       "errors": 1,
-      "cause": "One MinifyEnv fixture lacked a binding for its unchanged source input; repaired with identical fixture/assertions. Shared Compiler/Core/VM libraries compiled, complete broad build not accepted."
+      "cause": "One new W125 test omitted segmenter qualification; repaired with unchanged input/assertions. Complete workspace test build pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -450,6 +452,42 @@
         "FAIL": 2,
         "log": "/tmp/naming-compiler-logical-variable-21110f670.log",
         "repairs": "Two newly added fixture premises repaired; retest pending."
+      },
+      {
+        "selector": "original_namespace_continuation_tests",
+        "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+        "PASS": 5,
+        "FAIL": 2,
+        "log": "runtime-continuations.log",
+        "sha256": "efce046e157583b15a09849697e3d0314a19be04ef3b4c0a028d870d9ff69e92",
+        "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+      },
+      {
+        "selector": "variable_helper_head_tests",
+        "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+        "PASS": 3,
+        "FAIL": 0,
+        "log": "runtime-info-helper.log",
+        "sha256": "563e2718fd79a47f49f22d568d1b8cf15dfc134f61de99aa059c0d8f9c187df4",
+        "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+      },
+      {
+        "selector": "original_jim_import",
+        "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+        "PASS": 2,
+        "FAIL": 5,
+        "log": "runtime-import-aliases.log",
+        "sha256": "fd2328d1b006b26866ace98a4dfb12e1ae4b15717492d6bb83341dae2452cc7a",
+        "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+      },
+      {
+        "selector": "interp::native_jim_import",
+        "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+        "PASS": 13,
+        "FAIL": 0,
+        "log": "runtime-import-source.log",
+        "sha256": "74db820f7d4a9630fd6f9c5994c99b0e558b0f1e92d0c5061cb05f200f2f79c1",
+        "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
       }
     ],
     "provider_pairing": {
@@ -463,6 +501,21 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred."
+    "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred.",
+    "runtime_build": {
+      "status": "PASS",
+      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
+      "test_adapter_overlay_sha256": "124ed44ccb0f76c50a70c8cdee0d618b014c1522844c05f1df096ce3dd21ecc0",
+      "log": "/tmp/naming-runtime-build-52e659ed9-adapters.log",
+      "binary_sha256": "7cb9d75c6a505df489b956e1b3849d28515a0a4ada8f79d826a2db1c8a373b37",
+      "warnings": 12
+    },
+    "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
+    "pending_repairs": [
+      "Runtime two old var_get fixture APIs adapted to Option without assertion changes.",
+      "Namespace unknown operational Length gains explicit registered legacy descriptor issuer; generic Unknown remains refused.",
+      "Older Import fixtures reenter genuine namespace caller and test the reached getter result/currentness schedule; assertions retained.",
+      "W125 test segmenter qualification repaired."
+    ]
   }
 }

@@ -1675,6 +1675,62 @@ mod tests {
     }
 
     #[test]
+    fn logical_render_keeps_failed_original_regions_under_the_full_configuration() {
+        let profile = lexical_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        for config in [
+            LexerConfig {
+                strict_quoting: false,
+                ..LexerConfig::for_profile(Some(profile))
+            },
+            LexerConfig {
+                strict_quoting: false,
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                word_separators: tcl_dialect::WordSeparators::Jim,
+                ..LexerConfig::for_profile(Some(profile))
+            },
+        ] {
+            let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+            let source = "puts    before; puts \"unterminated";
+            assert!(
+                tcl_lexer::Lexer::with_config(source, config)
+                    .tokenise_all()
+                    .is_ok()
+            );
+            let plan = tcl_lexer::native_script_words_in_with_purpose(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_some());
+            let analysis = analysis_with_input(source, &input);
+            assert_eq!(
+                super::super::lexical_default(source, &analysis).unwrap(),
+                source
+            );
+            assert_eq!(analysis.body_lexer_config, Some(config));
+        }
+        let source = "list {puts   before; puts \"unterminated}";
+        with_lexical_metadata(source, |env| {
+            let original = super::super::lexical_script_words(source, env.config).unwrap();
+            let content = original.commands[0].words[1].content_span().unwrap();
+            let body = &source[content.as_range()];
+            assert_eq!(env.original_region(body), Some(content));
+            assert_eq!(
+                super::super::minify_body(
+                    body,
+                    env,
+                    1,
+                    tcl_lexer::SourceSegmentationPurpose::NestedScript
+                ),
+                body
+            );
+        });
+    }
+
+    #[test]
     fn logical_keyword_metadata_edits_whole_selected_controls_only() {
         // naming.minifier.complete-logical-metadata
         // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md

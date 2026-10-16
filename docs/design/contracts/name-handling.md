@@ -1330,3 +1330,15 @@ string publication preserves or replaces the actual unshared/shared result
 header without resetting the error episode, while configuration-list members
 are fresh objects. C8.6 returns fresh strings and C9 uses its live namespace
 primary; dying and dead-owner rules remain selected separately.
+
+Lossless minifier symbol reports carry a versioned structured record separately
+from human-readable labels. Scoped reverse reports retain scope and compacted
+spelling as separate fields and preserve ambiguous originals. Bare error-message
+remapping stays approximate display data and supplies no binding or frame.
+
+Operational List Length can select ordinary conversion for an explicitly
+registered legacy five-field object-type descriptor with no abstract Length
+method. Registration authenticates that exact static descriptor layout; raw
+unregistered descriptors remain unknown. Arbitrary conversion callbacks remain
+effectful and independently checked, so this class cannot issue stock-hook
+closure or successful cache evidence.

@@ -146,7 +146,7 @@ fn original_jim_try_prefix_cells_use_bounded_native_getters_and_refuse_unbound_s
             assert_eq!(actual.result_bytes(), decode(fields[7]), "{row}");
         }
         assert_eq!(
-            actual.var_get(b"message").is_ok(),
+            actual.var_get(b"message").is_some(),
             fields[8] == "1",
             "{row}"
         );

@@ -1,0 +1,8 @@
+
+running 3 tests
+test interp::native_jim_lookup::inventory_key_tests::variable_helper_head_tests::selected_namespace_info_helper_descriptor_does_not_revive_a_removed_binding ... ok
+test interp::native_jim_lookup::inventory_key_tests::variable_helper_head_tests::selected_namespace_info_helper_head_keeps_actual_abrupt_first_cause_and_owner_checks ... ok
+test interp::native_jim_lookup::inventory_key_tests::variable_helper_head_tests::selected_namespace_info_helper_head_keeps_original_argv_and_mutable_lookup ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2268 filtered out; finished in 0.40s
+

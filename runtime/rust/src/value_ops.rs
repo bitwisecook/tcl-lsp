@@ -2485,6 +2485,7 @@ mod tests {
                         }
                     }
                     Class::Unknown
+                    | Class::LegacyExtension
                     | Class::PropertyName
                     | Class::MethodName
                     | Class::InstructionName
@@ -3129,5 +3130,59 @@ impl tcl_cmd_core::clock::NativeClockDateOps for RuntimeClockDateOps {
         let result = result.map(obj::Owned::fresh);
         check()?;
         Ok(result?.into_native_unowned())
+    }
+}
+
+#[cfg(test)]
+mod legacy_extension_length_tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
+    thread_local! { static READS: Cell<usize> = const { Cell::new(0) }; }
+    extern "C" fn update(original: *mut TclObj) {
+        READS.with(|reads| reads.set(reads.get() + 1));
+        unsafe { obj::set_native_updater_string_rep(original, b"one two", false) };
+    }
+    static LEGACY: obj::TclObjType = obj::TclObjType {
+        name: c"registeredLegacyLength".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+    static UNREGISTERED: obj::TclObjType = obj::TclObjType {
+        name: c"unregisteredLength".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn registered_legacy_length_converts_original_without_admitting_unknown_descriptors() {
+        obj::register_legacy_extension_type(&LEGACY);
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            READS.with(|reads| reads.set(0));
+            let mut actual = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(profile),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let legacy = obj::Owned::fresh(obj::alloc_typed(&LEGACY, 0));
+            let unknown = obj::Owned::fresh(obj::alloc_typed(&UNREGISTERED, 0));
+            assert_eq!(
+                obj::stock_list_input_class(legacy.as_ptr()),
+                Class::LegacyExtension
+            );
+            assert_eq!(
+                obj::stock_list_input_class(unknown.as_ptr()),
+                Class::Unknown
+            );
+            assert_eq!(actual.list_len(&legacy.as_ptr()).unwrap(), 2, "{profile}");
+            assert_eq!(READS.with(Cell::get), 1);
+            assert!(actual.list_len(&unknown.as_ptr()).is_err());
+            assert_eq!(READS.with(Cell::get), 1);
+            assert!(!obj::has_string_rep(unknown.as_ptr()));
+        }
     }
 }
