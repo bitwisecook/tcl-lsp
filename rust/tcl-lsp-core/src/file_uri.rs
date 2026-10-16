@@ -190,6 +190,42 @@ pub fn to_path(
     Ok(path)
 }
 
+/// The slash namespace selected by an actual source provider.
+/// Neither purpose grants a native host path or file-action capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFileUriNamespace {
+    /// The rooted, counted namespace of a host-filled virtual source store.
+    Virtual,
+    /// The rooted namespace interpreted by actual WASI filesystem/preopen calls.
+    WasiGuest,
+}
+
+/// Strict file-URI data for an explicitly selected virtual or guest source
+/// namespace. Authority is retained as a counted `//authority/path`; there is
+/// no host-OS inference, drive conversion, canonicalisation or existence claim.
+/// The actual SourceStore selects the namespace and owns resource lookup.
+///
+/// # Errors
+/// Returns the same strict URI/data refusals as the native document recipe.
+pub fn to_source_namespace_path(
+    original_uri: &str,
+    namespace: SourceFileUriNamespace,
+) -> Result<std::path::PathBuf, FileUriPathUnavailable> {
+    let uri =
+        fluent_uri::Uri::parse(original_uri).map_err(|_| FileUriPathUnavailable::InvalidUri)?;
+    let spelling = match namespace {
+        SourceFileUriNamespace::Virtual | SourceFileUriNamespace::WasiGuest => {
+            document_file_path_spelling(&uri, false)?
+        }
+    };
+    // Rooted slash data is the declared provider namespace. On a browser
+    // target Path::is_absolute is unavailable even for this rooted spelling.
+    if !spelling.starts_with('/') {
+        return Err(FileUriPathUnavailable::UnsupportedNativeGeometry);
+    }
+    Ok(std::path::PathBuf::from(spelling))
+}
+
 // Pure platform spelling recipe. Only to_path selects the actual
 // host and admits a native Path; foreign-platform tests grant no host access.
 fn document_file_path_spelling(
@@ -514,6 +550,38 @@ mod inverse_parser_tests {
                 Err(FileUriPathUnavailable::InvalidUri),
                 "{original}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_namespace_path_tests {
+    use super::*;
+    use std::path::PathBuf;
+    #[test]
+    fn declared_virtual_and_guest_geometry_is_separate_from_native_host_support() {
+        for namespace in [
+            SourceFileUriNamespace::Virtual,
+            SourceFileUriNamespace::WasiGuest,
+        ] {
+            assert_eq!(
+                to_source_namespace_path("file://Srv/share/%C3%A9%252F.tcl", namespace).unwrap(),
+                PathBuf::from("//Srv/share/é%2F.tcl")
+            );
+            assert_eq!(
+                to_source_namespace_path("file:///workspace/a.tcl", namespace).unwrap(),
+                PathBuf::from("/workspace/a.tcl")
+            );
+            for raw in [
+                "file:a.tcl",
+                "file:///a%FF",
+                "file:///a%00",
+                "file:///a%2Fb",
+                "file://host:42/a",
+                "file:///a#fragment",
+            ] {
+                assert!(to_source_namespace_path(raw, namespace).is_err(), "{raw}");
+            }
         }
     }
 }

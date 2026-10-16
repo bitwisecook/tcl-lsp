@@ -194,7 +194,10 @@ async function handleValidate(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   ctx.response.progress("Running Tcl LSP analysis...");
-  const diagnostics = await waitForDiagnostics(resolved.doc.uri, { timeout: 5000 });
+  const diagnostics = await waitForDiagnostics(resolved.doc.uri, {
+    timeout: 5000,
+    expectedSource: resolved.code,
+  });
   const categorised = categoriseDiagnostics(diagnostics);
 
   ctx.response.markdown("## Tcl Validation Report\n");
@@ -222,7 +225,10 @@ async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult> {
   }
 
   const code = editor.document.getText();
-  const diagnostics = await waitForDiagnostics(editor.document.uri, { timeout: 5000 });
+  const diagnostics = await waitForDiagnostics(editor.document.uri, {
+    timeout: 5000,
+    expectedSource: code,
+  });
   const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
 
   if (actionable.length === 0) {

@@ -1,0 +1,113 @@
+{
+  "receipt": "V8 isolated Node/TypeScript/Prettier validation",
+  "patch": "/tmp/lsp-current-diagnostics-consumer/published/v8/v8.patch",
+  "patch_sha256": "396ae75f7f14896de07a8435eb4f3a81229c77b7e4212a17766f287747b63fcf",
+  "manifest": "/tmp/lsp-current-diagnostics-consumer/published/v8/manifest.json",
+  "manifest_sha256": "46def9ef390a52d06f8e3ad5053b5efe576e7b6b8763328e16dfb379f92298ca",
+  "source_images": {
+    "manifest_base_images_verified_against_main": 12,
+    "manifest_candidate_images_verified_against_overlay": 13,
+    "all_unmodified_editor_source_files_match_main": true,
+    "changed_source_files_and_partition_are_exactly_manifest_declared": true
+  },
+  "source_metadata_sha256": {
+    "tsconfig.json": "753d78ef9f118cb4bdf3ef7ce65060c79e8137d8e0202577741f1f84e28a2f8c",
+    "package.json": "1dc3385e7b9ac02dbeee0d680b4cdf28a493dfb20071fdb465719fc0be12c6c4",
+    "package-lock.json": "2d8d06531bd2ea3f1ad873d7151cc24fba83796673a40fb320885f071d92bf57",
+    ".prettierrc.json": "e67adb3fc01fe9b89e4563605d9a91e2efcc1f02e32fa6b4ec280547a2c1aaaf",
+    ".prettierignore": "1647617fb6347c6698484dfe1bacce77ce69710937b492b6011e867d5245aa3c"
+  },
+  "dependency_binding": {
+    "node_modules_symlink": "/workspace/tcl-lsp/editors/vscode/node_modules",
+    "vscode_languageclient_version": "10.1.1",
+    "typescript_version": "6.0.3",
+    "prettier_version": "3.9.7",
+    "bound_server_protocol_schema_sha256": "bda45ff223320f62b17c2df67c5cfb7326c74939d574d538176f85d69adde3ed",
+    "bound_server_owner_v4_patch_sha256": "4754d0e762ff03a1de6d51d46999ed615acc1eb43125bd8d2da6673eb4197671",
+    "resolved_package_sha256": {
+      "vscode-languageclient/package.json": "218402632ef8f580993ed3f185f82007e03805291d2d7a47c2c731547f748b58",
+      "typescript/package.json": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+      "prettier/package.json": "eb43298640bc96a3d551bc5cfceb211bc5050b6beacfc6dca4b4ce1177d17c6b"
+    }
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "working_directory": "/tmp/lsp-current-diagnostics-v8-tscheck",
+    "platform": "Linux"
+  },
+  "checks": [
+    {
+      "name": "TypeScript noEmit",
+      "argv": [
+        "./node_modules/.bin/tsc",
+        "--project",
+        "./tsconfig.json",
+        "--noEmit"
+      ],
+      "cwd": "/tmp/lsp-current-diagnostics-v8-tscheck",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "Scoped Prettier",
+      "argv": [
+        "./node_modules/.bin/prettier",
+        "--check",
+        "src/chat/diagnosticAccess.ts",
+        "src/extension.ts",
+        "src/extensionBrowser.ts",
+        "src/chat/tclParticipant.ts",
+        "src/chat/contextPack.ts",
+        "src/chat/commands/validate.ts",
+        "src/chat/commands/review.ts",
+        "src/chat/commands/fix.ts",
+        "src/chat/commands/find-legacy.ts",
+        "src/chat/commands/datagroup.ts",
+        "src/chat/agenticLoop.ts",
+        "src/test/currentDiagnostics.test.ts"
+      ],
+      "cwd": "/tmp/lsp-current-diagnostics-v8-tscheck",
+      "exit_code": 0,
+      "stdout": "Checking formatting...\\nAll matched files use Prettier code style!\\n",
+      "stderr": ""
+    }
+  ],
+  "limitations": "VS Code extension-host tests were not run because this check only assembled the compiler overlay; no GUI attempt or Xvfb. No package build, Cargo, or main-checkout writes.",
+  "receipt_version": 3,
+  "version_commands": [
+    {
+      "name": "Node version",
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "cwd": "/tmp/lsp-current-diagnostics-v8-tscheck",
+      "exit_code": 0,
+      "stdout": "v24.19.0\\n",
+      "stderr": ""
+    },
+    {
+      "name": "TypeScript version",
+      "argv": [
+        "./node_modules/.bin/tsc",
+        "--version"
+      ],
+      "cwd": "/tmp/lsp-current-diagnostics-v8-tscheck",
+      "exit_code": 0,
+      "stdout": "Version 6.0.3\\n",
+      "stderr": ""
+    },
+    {
+      "name": "Prettier version",
+      "argv": [
+        "./node_modules/.bin/prettier",
+        "--version"
+      ],
+      "cwd": "/tmp/lsp-current-diagnostics-v8-tscheck",
+      "exit_code": 0,
+      "stdout": "3.9.7\\n",
+      "stderr": ""
+    }
+  ]
+}

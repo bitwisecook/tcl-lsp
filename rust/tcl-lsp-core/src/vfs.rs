@@ -18,9 +18,9 @@
 
 //! Where the server's *closed* files come from.
 //!
-//! Everything the editor has open lives in the server's document store and
-//! never touches this module. What does touch it is the other half of the
-//! picture: the file a `source` edge points at, the sibling the workspace scan
+//! Open buffers retain their text in the server's document store, while this
+//! module selects their actual native, virtual or guest document URI path.
+//! Its raw I/O methods supply the other half of the picture: the file a `source` edge points at, the sibling the workspace scan
 //! indexed, the `config.ini` a session layers under the editor's settings, the
 //! `pkgIndex.tcl` the package database parsed, the `.tclspec` a pack was loaded
 //! from. Natively those are all `std::fs` calls. In a browser worker there is
@@ -32,9 +32,10 @@
 //! * [`NativeStore`] is the native implementation and is a literal delegation
 //!   to `std::fs` — the same calls, in the same order, returning the same
 //!   `io::Error`s a direct call site would. A native server
-//!   built with this module behaves byte-identically to one built without it;
-//!   that is the whole specification of `NativeStore`, and any cleverness
-//!   added to it (caching, path rewriting, normalisation) breaks it.
+//!   retains the raw file-I/O behavior of those direct calls: no caching,
+//!   path rewriting or normalization is inserted into them. Its separate
+//!   document-URI capability selects the checked native path namespace, or
+//!   the actual WASI guest namespace on WASI, before a consumer uses raw I/O.
 //! * [`MemoryStore`] is the browser implementation: a `PathBuf`-keyed byte map
 //!   the host fills in over `postMessage`, plus a URI alias table so a file
 //!   registered under the client's spelling of a URI is still found when the
@@ -93,7 +94,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, Weak};
 
 /// What a directory listing reports about one entry.
 ///
@@ -132,12 +133,274 @@ pub struct Metadata {
     pub len: u64,
 }
 
+/// The actual resource namespace that issued a document path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceUriPathKind {
+    /// A path interpreted by the selected native host filesystem provider.
+    Native,
+    /// A path interpreted in the selected host-filled virtual source store.
+    Virtual,
+    /// A rooted path interpreted by actual WASI filesystem calls and mounts.
+    WasiGuest,
+}
+
+/// A source provider could not admit or retain the selected URI path.
+/// This is distinct from an admitted path whose file is missing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceUriPathUnavailable {
+    /// The strict URI/path protocol refused the original input.
+    Uri(crate::file_uri::FileUriPathUnavailable),
+    /// The actual selected provider or retained issuer is unavailable.
+    ProviderUnavailable,
+    /// The receipt was issued by a different source provider or namespace.
+    ForeignProvider,
+    /// The selected alias was removed, replaced, or superseded by registration.
+    WithdrawnMapping,
+    /// A stronger URI mapping selects a different path from the actual source producer.
+    PathOriginMismatch,
+}
+
+impl std::fmt::Display for SourceUriPathUnavailable {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Uri(cause) => write!(out, "source URI path is unavailable: {cause:?}"),
+            Self::ProviderUnavailable => {
+                out.write_str("the selected source provider has no URI path capability")
+            }
+            Self::ForeignProvider => {
+                out.write_str("the path receipt belongs to another source provider")
+            }
+            Self::WithdrawnMapping => {
+                out.write_str("the selected URI mapping is no longer current")
+            }
+            Self::PathOriginMismatch => {
+                out.write_str("the selected URI mapping does not name the produced source path")
+            }
+        }
+    }
+}
+impl std::error::Error for SourceUriPathUnavailable {}
+impl From<crate::file_uri::FileUriPathUnavailable> for SourceUriPathUnavailable {
+    fn from(cause: crate::file_uri::FileUriPathUnavailable) -> Self {
+        Self::Uri(cause)
+    }
+}
+
+#[derive(Debug)]
+struct UriAliasBinding {
+    path: PathBuf,
+    aliases: Vec<String>,
+}
+type UriAliases = Mutex<HashMap<String, Arc<UriAliasBinding>>>;
+
+#[derive(Debug, Clone)]
+enum SourceUriSelection {
+    Filesystem,
+    Memory {
+        owner: Weak<UriAliases>,
+        binding: Option<Arc<UriAliasBinding>>,
+    },
+}
+
+#[derive(Debug, Clone)]
+enum SourcePathIssuer {
+    Filesystem,
+    Memory { owner: Weak<UriAliases> },
+}
+
+/// The original typed Path selected by an actual source provider's path caller.
+/// This keeps native drive/verbatim spelling separate from a forward URI's
+/// product spelling and from strict incoming URI decoding. It grants no file
+/// identity, existence, freshness, native file action or execution authority.
+#[derive(Debug, Clone)]
+pub struct SourcePathOrigin {
+    path: PathBuf,
+    kind: SourceUriPathKind,
+    issuer: SourcePathIssuer,
+}
+impl PartialEq for SourcePathOrigin {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.as_os_str() == other.path.as_os_str()
+            && self.kind == other.kind
+            && match (&self.issuer, &other.issuer) {
+                (SourcePathIssuer::Filesystem, SourcePathIssuer::Filesystem) => true,
+                (SourcePathIssuer::Memory { owner: a }, SourcePathIssuer::Memory { owner: b }) => {
+                    Weak::ptr_eq(a, b)
+                }
+                _ => false,
+            }
+    }
+}
+impl Eq for SourcePathOrigin {}
+impl SourcePathOrigin {
+    /// The original selected Path spelling, without a URI inverse roundtrip.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+    /// The actual source provider's native, virtual or guest namespace.
+    #[must_use]
+    pub fn kind(&self) -> SourceUriPathKind {
+        self.kind
+    }
+}
+
+/// Immutable original URI/path data selected by an actual SourceStore.
+/// Native, virtual and guest paths remain distinct. Retention grants no file
+/// identity, existence, source freshness or native host file-action authority.
+#[derive(Debug, Clone)]
+pub struct SourceUriPath {
+    original_uri: Arc<str>,
+    path: PathBuf,
+    kind: SourceUriPathKind,
+    selection: SourceUriSelection,
+}
+
+impl PartialEq for SourceUriPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.original_uri == other.original_uri
+            && self.path.as_os_str() == other.path.as_os_str()
+            && self.kind == other.kind
+            && match (&self.selection, &other.selection) {
+                (SourceUriSelection::Filesystem, SourceUriSelection::Filesystem) => true,
+                (
+                    SourceUriSelection::Memory {
+                        owner: a,
+                        binding: x,
+                    },
+                    SourceUriSelection::Memory {
+                        owner: b,
+                        binding: y,
+                    },
+                ) => {
+                    Weak::ptr_eq(a, b)
+                        && match (x, y) {
+                            (None, None) => true,
+                            (Some(x), Some(y)) => Arc::ptr_eq(x, y),
+                            _ => false,
+                        }
+                }
+                _ => false,
+            }
+    }
+}
+impl Eq for SourceUriPath {}
+
+impl SourceUriPath {
+    #[must_use]
+    /// The complete original URI admitted by the actual selected provider.
+    pub fn original_uri(&self) -> &str {
+        &self.original_uri
+    }
+    #[must_use]
+    /// The selected path in this receipt's declared resource namespace.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+    #[must_use]
+    /// The actual provider's path namespace, without a file-action grant.
+    pub fn kind(&self) -> SourceUriPathKind {
+        self.kind
+    }
+
+    /// Recheck the retained issuer/selection, including registration withdrawal
+    /// and replacement. Callers also ask the actual selected store to validate
+    /// provider correspondence before consuming or publishing this path.
+    ///
+    /// # Errors
+    /// Returns `ProviderUnavailable` if the retained issuer has ended, or
+    /// `WithdrawnMapping` if its actual URI registration is no longer selected.
+    pub fn check_current(&self) -> Result<(), SourceUriPathUnavailable> {
+        match &self.selection {
+            SourceUriSelection::Filesystem => Ok(()),
+            SourceUriSelection::Memory { owner, binding } => {
+                let owner = owner
+                    .upgrade()
+                    .ok_or(SourceUriPathUnavailable::ProviderUnavailable)?;
+                let aliases = MemoryStore::lock(&owner);
+                match (aliases.get(self.original_uri()), binding) {
+                    (None, None) => Ok(()),
+                    (Some(current), Some(selected)) if Arc::ptr_eq(current, selected) => Ok(()),
+                    _ => Err(SourceUriPathUnavailable::WithdrawnMapping),
+                }
+            }
+        }
+    }
+}
+
 /// The source of every file the server reads that the editor has not opened.
 ///
 /// Implementations must be cheap to share (`Backend` holds an `Arc<dyn
 /// SourceStore>` and clones it into blocking tasks) and must report a missing
 /// path as [`io::ErrorKind::NotFound`] rather than panicking.
 pub trait SourceStore: std::fmt::Debug + Send + Sync {
+    /// Select the actual document URI path for this provider. The default is
+    /// explicitly unavailable; missing capability is never file absence.
+    ///
+    /// # Errors
+    /// Returns the strict URI refusal or unavailable provider/selection cause.
+    fn document_uri_path(
+        &self,
+        _original_uri: &str,
+    ) -> Result<SourceUriPath, SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
+    /// Retain an original typed Path from this provider's actual source caller.
+    /// This producer does not parse a URI or canonicalize the path. A forward
+    /// URI producer and raw incoming URI admission remain separate operations.
+    ///
+    /// # Errors
+    /// Returns unavailable when the provider cannot issue this path namespace
+    /// or the path has unsupported source geometry.
+    fn source_path_origin(
+        &self,
+        _path: &Path,
+    ) -> Result<SourcePathOrigin, SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
+    /// Authenticate the issuer/namespace of an original source Path. This
+    /// supplies no correspondence to an independently chosen URI.
+    ///
+    /// # Errors
+    /// Refuses an unavailable or foreign source provider/path namespace.
+    fn validate_source_path_origin(
+        &self,
+        _origin: &SourcePathOrigin,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
+    /// Authenticate this retained path against the actual provider and its
+    /// current selected registration/policy. No default grants correspondence.
+    ///
+    /// # Errors
+    /// Refuses a missing capability, foreign provider, or withdrawn mapping.
+    fn validate_document_uri_path(
+        &self,
+        _selected: &SourceUriPath,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
+    /// Validate the complete selected mapping set and invoke one bounded,
+    /// synchronous publication while its provider mapping remains selected.
+    /// The continuation must not await, perform I/O, or reenter this store's
+    /// URI mapping methods. Implementations invoke it exactly once after
+    /// authenticating the complete set. The default supplies no capability.
+    ///
+    /// # Errors
+    /// Refuses before invoking the continuation if any selected provider or
+    /// mapping is unavailable, foreign, or withdrawn.
+    fn with_current_document_paths(
+        &self,
+        _selected: &[&SourceUriPath],
+        _publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
     /// Read a file's bytes.
     ///
     /// # Errors
@@ -230,6 +493,107 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
 pub struct NativeStore;
 
 impl SourceStore for NativeStore {
+    fn document_uri_path(
+        &self,
+        original_uri: &str,
+    ) -> Result<SourceUriPath, SourceUriPathUnavailable> {
+        let (path, kind) = if cfg!(target_os = "wasi") {
+            (
+                crate::file_uri::to_source_namespace_path(
+                    original_uri,
+                    crate::file_uri::SourceFileUriNamespace::WasiGuest,
+                )?,
+                SourceUriPathKind::WasiGuest,
+            )
+        } else {
+            (
+                crate::file_uri::to_path(
+                    original_uri,
+                    crate::file_uri::FileUriPathPurpose::VsCodeDocument,
+                )?,
+                SourceUriPathKind::Native,
+            )
+        };
+        Ok(SourceUriPath {
+            original_uri: Arc::from(original_uri),
+            path,
+            kind,
+            selection: SourceUriSelection::Filesystem,
+        })
+    }
+
+    fn source_path_origin(
+        &self,
+        path: &Path,
+    ) -> Result<SourcePathOrigin, SourceUriPathUnavailable> {
+        let kind = if cfg!(target_os = "wasi") {
+            SourceUriPathKind::WasiGuest
+        } else if cfg!(any(unix, windows)) {
+            SourceUriPathKind::Native
+        } else {
+            return Err(SourceUriPathUnavailable::ProviderUnavailable);
+        };
+        let rooted = if kind == SourceUriPathKind::WasiGuest {
+            path.has_root()
+        } else {
+            path.is_absolute()
+        };
+        if !rooted {
+            return Err(crate::file_uri::FileUriPathUnavailable::UnsupportedNativeGeometry.into());
+        }
+        Ok(SourcePathOrigin {
+            path: path.to_path_buf(),
+            kind,
+            issuer: SourcePathIssuer::Filesystem,
+        })
+    }
+
+    fn validate_source_path_origin(
+        &self,
+        origin: &SourcePathOrigin,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let kind = if cfg!(target_os = "wasi") {
+            SourceUriPathKind::WasiGuest
+        } else if cfg!(any(unix, windows)) {
+            SourceUriPathKind::Native
+        } else {
+            return Err(SourceUriPathUnavailable::ProviderUnavailable);
+        };
+        if origin.kind != kind || !matches!(origin.issuer, SourcePathIssuer::Filesystem) {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        }
+        Ok(())
+    }
+
+    fn validate_document_uri_path(
+        &self,
+        selected: &SourceUriPath,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let kind = if cfg!(target_os = "wasi") {
+            SourceUriPathKind::WasiGuest
+        } else if cfg!(any(unix, windows)) {
+            SourceUriPathKind::Native
+        } else {
+            return Err(SourceUriPathUnavailable::ProviderUnavailable);
+        };
+        if selected.kind != kind || !matches!(selected.selection, SourceUriSelection::Filesystem) {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        }
+        selected.check_current()
+    }
+
+    fn with_current_document_paths(
+        &self,
+        selected: &[&SourceUriPath],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        for path in selected {
+            self.validate_document_uri_path(path)?;
+        }
+        publish();
+        Ok(())
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         std::fs::read(path)
     }
@@ -283,7 +647,7 @@ impl SourceStore for NativeStore {
 #[derive(Debug, Default)]
 pub struct MemoryStore {
     files: Mutex<HashMap<PathBuf, Vec<u8>>>,
-    aliases: Mutex<HashMap<String, PathBuf>>,
+    aliases: Arc<UriAliases>,
 }
 
 impl MemoryStore {
@@ -301,8 +665,54 @@ impl MemoryStore {
 
     /// Add or replace a file's bytes, and record `uri` as another name for it.
     pub fn upsert_uri(&self, uri: &str, path: impl Into<PathBuf>, contents: impl Into<Vec<u8>>) {
+        self.upsert_uri_aliases(&[uri], path, contents);
+    }
+
+    /// Register the actual original and canonical client aliases as one
+    /// immutable path binding. Replacing/withdrawing it retires all its aliases;
+    /// a bytes-only update of the same complete binding preserves its receipt.
+    pub fn upsert_uri_aliases(
+        &self,
+        original_aliases: &[&str],
+        path: impl Into<PathBuf>,
+        contents: impl Into<Vec<u8>>,
+    ) {
         let path = path.into();
-        Self::lock(&self.aliases).insert(uri.to_owned(), path.clone());
+        let mut names: Vec<String> = original_aliases
+            .iter()
+            .map(|uri| (*uri).to_owned())
+            .collect();
+        names.sort();
+        names.dedup();
+        if !names.is_empty() {
+            let mut aliases = Self::lock(&self.aliases);
+            let retained = aliases
+                .get(&names[0])
+                .filter(|binding| {
+                    binding.path.as_os_str() == path.as_os_str()
+                        && binding.aliases == names
+                        && names.iter().all(|name| {
+                            aliases
+                                .get(name)
+                                .is_some_and(|current| Arc::ptr_eq(current, binding))
+                        })
+                })
+                .cloned();
+            let binding = retained.unwrap_or_else(|| {
+                let previous: Vec<_> = names
+                    .iter()
+                    .filter_map(|name| aliases.get(name).cloned())
+                    .collect();
+                aliases.retain(|_, row| !previous.iter().any(|old| Arc::ptr_eq(old, row)));
+                Arc::new(UriAliasBinding {
+                    path: path.clone(),
+                    aliases: names.clone(),
+                })
+            });
+            for name in names {
+                aliases.insert(name, Arc::clone(&binding));
+            }
+        }
         Self::lock(&self.files).insert(path, contents.into());
     }
 
@@ -314,14 +724,27 @@ impl MemoryStore {
     /// Forget the file registered under `uri`, whatever path it was stored at.
     /// Returns whether anything was removed.
     pub fn remove_uri(&self, uri: &str) -> bool {
-        let path = Self::lock(&self.aliases).remove(uri);
-        path.is_some_and(|p| self.remove(&p))
+        let binding = {
+            let mut aliases = Self::lock(&self.aliases);
+            let binding = aliases.remove(uri);
+            if let Some(binding) = &binding {
+                aliases.retain(|_, row| !Arc::ptr_eq(row, binding));
+            }
+            binding
+        };
+        binding.is_some_and(|binding| self.remove(&binding.path))
     }
 
-    /// The path `uri` was registered under, if any.
+    fn registered_uri_binding(&self, uri: &str) -> Option<Arc<UriAliasBinding>> {
+        Self::lock(&self.aliases).get(uri).cloned()
+    }
+
+    /// The exact path the host registered, without deriving URI/path identity.
+    /// The typed SourceStore operation also retains its issuer and current binding.
     #[must_use]
     pub fn path_for_uri(&self, uri: &str) -> Option<PathBuf> {
-        Self::lock(&self.aliases).get(uri).cloned()
+        self.registered_uri_binding(uri)
+            .map(|binding| binding.path.clone())
     }
 
     /// How many files the store holds.
@@ -358,6 +781,102 @@ impl MemoryStore {
 }
 
 impl SourceStore for MemoryStore {
+    fn document_uri_path(
+        &self,
+        original_uri: &str,
+    ) -> Result<SourceUriPath, SourceUriPathUnavailable> {
+        // Strictly validate the entire URI even when an exact registered alias
+        // selects a different virtual path. Raw URI data never receives lossy decoding.
+        let derived = crate::file_uri::to_source_namespace_path(
+            original_uri,
+            crate::file_uri::SourceFileUriNamespace::Virtual,
+        )?;
+        let binding = self.registered_uri_binding(original_uri);
+        let path = binding
+            .as_ref()
+            .map_or(derived, |binding| binding.path.clone());
+        Ok(SourceUriPath {
+            original_uri: Arc::from(original_uri),
+            path,
+            kind: SourceUriPathKind::Virtual,
+            selection: SourceUriSelection::Memory {
+                owner: Arc::downgrade(&self.aliases),
+                binding,
+            },
+        })
+    }
+
+    fn source_path_origin(
+        &self,
+        path: &Path,
+    ) -> Result<SourcePathOrigin, SourceUriPathUnavailable> {
+        Ok(SourcePathOrigin {
+            path: path.to_path_buf(),
+            kind: SourceUriPathKind::Virtual,
+            issuer: SourcePathIssuer::Memory {
+                owner: Arc::downgrade(&self.aliases),
+            },
+        })
+    }
+
+    fn validate_source_path_origin(
+        &self,
+        origin: &SourcePathOrigin,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let SourcePathIssuer::Memory { owner } = &origin.issuer else {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        };
+        if origin.kind != SourceUriPathKind::Virtual
+            || !Weak::ptr_eq(owner, &Arc::downgrade(&self.aliases))
+        {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        }
+        owner
+            .upgrade()
+            .ok_or(SourceUriPathUnavailable::ProviderUnavailable)?;
+        Ok(())
+    }
+
+    fn validate_document_uri_path(
+        &self,
+        selected: &SourceUriPath,
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let SourceUriSelection::Memory { owner, .. } = &selected.selection else {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        };
+        if selected.kind != SourceUriPathKind::Virtual
+            || !Weak::ptr_eq(owner, &Arc::downgrade(&self.aliases))
+        {
+            return Err(SourceUriPathUnavailable::ForeignProvider);
+        }
+        selected.check_current()
+    }
+
+    fn with_current_document_paths(
+        &self,
+        selected: &[&SourceUriPath],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let aliases = Self::lock(&self.aliases);
+        for path in selected {
+            let SourceUriSelection::Memory { owner, binding } = &path.selection else {
+                return Err(SourceUriPathUnavailable::ForeignProvider);
+            };
+            if path.kind != SourceUriPathKind::Virtual
+                || !Weak::ptr_eq(owner, &Arc::downgrade(&self.aliases))
+            {
+                return Err(SourceUriPathUnavailable::ForeignProvider);
+            }
+            match (aliases.get(path.original_uri()), binding) {
+                (None, None) => {}
+                (Some(current), Some(retained)) if Arc::ptr_eq(current, retained) => {}
+                _ => return Err(SourceUriPathUnavailable::WithdrawnMapping),
+            }
+        }
+        publish();
+        Ok(())
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         Self::lock(&self.files)
             .get(path)
@@ -527,5 +1046,211 @@ mod tests {
                 .any(|e| e.path == file)
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod document_uri_path_tests {
+    use super::*;
+
+    #[test]
+    fn virtual_issuer_keeps_authority_counted_data_and_refuses_invalid_uri() {
+        let store = MemoryStore::new();
+        let selected = store
+            .document_uri_path("file://Srv/share/%C3%A9%252F.tcl")
+            .unwrap();
+        assert_eq!(selected.kind(), SourceUriPathKind::Virtual);
+        assert_eq!(selected.path(), Path::new("//Srv/share/é%2F.tcl"));
+        store.validate_document_uri_path(&selected).unwrap();
+        for raw in [
+            "file:///a%FF",
+            "file:///a%00",
+            "file:///a%2Fb",
+            "file://user@host/a",
+            "file:///a?query",
+        ] {
+            store.upsert_uri(raw, "/registered/does-not-forgive.tcl", Vec::new());
+            assert!(store.document_uri_path(raw).is_err(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn registration_is_stronger_and_old_receipt_cannot_revive_or_cross_provider() {
+        let store = MemoryStore::new();
+        let uri = "file:///browser/a.tcl";
+        let derived = store.document_uri_path(uri).unwrap();
+        store.upsert_uri(uri, derived.path(), b"one".to_vec());
+        assert_eq!(
+            store.validate_document_uri_path(&derived),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+        let first = store.document_uri_path(uri).unwrap();
+        store.upsert_uri(uri, first.path(), b"two".to_vec());
+        store.validate_document_uri_path(&first).unwrap();
+        store.upsert_uri(uri, "/different/a.tcl", b"three".to_vec());
+        store.upsert_uri(uri, first.path(), b"four".to_vec());
+        assert_eq!(
+            store.validate_document_uri_path(&first),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+        let foreign = MemoryStore::new();
+        foreign.upsert_uri(uri, first.path(), b"four".to_vec());
+        assert_eq!(
+            foreign.validate_document_uri_path(&first),
+            Err(SourceUriPathUnavailable::ForeignProvider)
+        );
+        let current = store.document_uri_path(uri).unwrap();
+        drop(store);
+        assert_eq!(
+            current.check_current(),
+            Err(SourceUriPathUnavailable::ProviderUnavailable)
+        );
+    }
+
+    #[test]
+    fn original_and_service_aliases_share_actual_row_and_withdraw_together() {
+        let store = MemoryStore::new();
+        let raw = "file:///browser/%61.tcl";
+        let normalized = "file:///browser/a.tcl";
+        store.upsert_uri_aliases(&[raw, normalized], "/actual/mounted.tcl", b"body".to_vec());
+        let first = store.document_uri_path(raw).unwrap();
+        let second = store.document_uri_path(normalized).unwrap();
+        assert_eq!(first.path(), second.path());
+        let mut calls = 0;
+        store
+            .with_current_document_paths(&[&first, &second], &mut || calls += 1)
+            .unwrap();
+        assert_eq!(calls, 1);
+        store.upsert_uri_aliases(&[raw, normalized], first.path(), b"edited".to_vec());
+        store.validate_document_uri_path(&first).unwrap();
+        assert!(store.remove_uri(normalized));
+        assert_eq!(
+            store.validate_document_uri_path(&first),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+        assert!(store.path_for_uri(raw).is_none());
+        assert_eq!(
+            store.with_current_document_paths(&[&first], &mut || calls += 1),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn publication_holds_the_actual_mapping_until_continuation_returns() {
+        let store = Arc::new(MemoryStore::new());
+        let uri = "file:///browser/leased.tcl";
+        store.upsert_uri(uri, "/actual/first.tcl", Vec::new());
+        let selected = store.document_uri_path(uri).unwrap();
+        let (attempt_tx, attempt_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let other = Arc::clone(&store);
+        let mut worker = None;
+        store
+            .with_current_document_paths(&[&selected], &mut || {
+                let other = Arc::clone(&other);
+                let attempt_tx = attempt_tx.clone();
+                let done_tx = done_tx.clone();
+                worker = Some(std::thread::spawn(move || {
+                    attempt_tx.send(()).unwrap();
+                    other.upsert_uri(uri, "/actual/second.tcl", Vec::new());
+                    done_tx.send(()).unwrap();
+                }));
+                attempt_rx.recv().unwrap();
+                assert!(matches!(
+                    done_rx.try_recv(),
+                    Err(std::sync::mpsc::TryRecvError::Empty)
+                ));
+            })
+            .unwrap();
+        worker.take().unwrap().join().unwrap();
+        done_rx.recv().unwrap();
+        assert_eq!(
+            store.validate_document_uri_path(&selected),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn different_counted_path_spelling_is_a_new_registration() {
+        let store = MemoryStore::new();
+        let uri = "file:///browser/counted.tcl";
+        store.upsert_uri(uri, "/actual//counted.tcl", b"one".to_vec());
+        let original = store.document_uri_path(uri).unwrap();
+        assert_eq!(
+            original.path().as_os_str(),
+            std::ffi::OsStr::new("/actual//counted.tcl")
+        );
+        store.upsert_uri(uri, "/actual/counted.tcl", b"two".to_vec());
+        assert_eq!(
+            store.validate_document_uri_path(&original),
+            Err(SourceUriPathUnavailable::WithdrawnMapping)
+        );
+        let current = store.document_uri_path(uri).unwrap();
+        assert_eq!(
+            current.path().as_os_str(),
+            std::ffi::OsStr::new("/actual/counted.tcl")
+        );
+    }
+
+    #[cfg(target_os = "wasi")]
+    #[test]
+    fn actual_wasi_store_issues_guest_path_without_native_host_claim() {
+        let selected = NativeStore
+            .document_uri_path("file:///workspace/a.tcl")
+            .unwrap();
+        assert_eq!(selected.kind(), SourceUriPathKind::WasiGuest);
+        assert_eq!(selected.path(), Path::new("/workspace/a.tcl"));
+        NativeStore.validate_document_uri_path(&selected).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod actual_source_path_origin_tests {
+    use super::*;
+
+    #[test]
+    fn virtual_original_path_is_provider_issued_and_never_a_native_path_grant() {
+        let actual = MemoryStore::new();
+        let path = Path::new("/virtual//MiXeD/source.tcl");
+        let origin = actual.source_path_origin(path).unwrap();
+        assert_eq!(origin.path().as_os_str(), path.as_os_str());
+        assert_eq!(origin.kind(), SourceUriPathKind::Virtual);
+        actual.validate_source_path_origin(&origin).unwrap();
+        assert_eq!(
+            MemoryStore::new().validate_source_path_origin(&origin),
+            Err(SourceUriPathUnavailable::ForeignProvider)
+        );
+        assert!(NativeStore.validate_source_path_origin(&origin).is_err());
+    }
+
+    #[cfg(all(not(target_os = "wasi"), any(unix, windows)))]
+    #[test]
+    fn actual_native_source_path_keeps_original_spelling_without_uri_reconstruction() {
+        let path = std::env::temp_dir().join("MiXeD-source-path.tcl");
+        let origin = NativeStore.source_path_origin(&path).unwrap();
+        assert_eq!(origin.path().as_os_str(), path.as_os_str());
+        assert_eq!(origin.kind(), SourceUriPathKind::Native);
+        NativeStore.validate_source_path_origin(&origin).unwrap();
+        assert_eq!(
+            MemoryStore::new().validate_source_path_origin(&origin),
+            Err(SourceUriPathUnavailable::ForeignProvider)
+        );
+        assert!(
+            NativeStore
+                .source_path_origin(Path::new("relative-source.tcl"))
+                .is_err()
+        );
+    }
+
+    #[cfg(target_os = "wasi")]
+    #[test]
+    fn actual_wasi_source_path_is_a_guest_path_origin() {
+        let path = Path::new("/workspace/MiXeD-source.tcl");
+        let origin = NativeStore.source_path_origin(path).unwrap();
+        assert_eq!(origin.kind(), SourceUriPathKind::WasiGuest);
+        assert_eq!(origin.path().as_os_str(), path.as_os_str());
+        NativeStore.validate_source_path_origin(&origin).unwrap();
     }
 }

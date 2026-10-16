@@ -1,0 +1,100 @@
+{
+  "version": 7,
+  "supersedes": "V6 79c509b120e38b1d99e3afe346719009acac46c4a7dd0d54f5fbd3ccc9ab0792 retained immutable with concrete mutable-cache-ID HOLD. V7 transports actual issued ID and acknowledgement directly.",
+  "baseline_consumer": "lsp-editor-diagnostic-generation",
+  "validation_family": "validation.editor-diagnostic-source-association (03.*)",
+  "count_scope": "Root reconciliation: two distinct new required issuer facets, counted only on reviewed integration. Existing legacy standard cache caller baseline unchanged/unintegrated; existing LSP/validation caller units separate.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac",
+      "after_sha256": "6f185872f09871665a8aa13e261372fccad289989ef05552289aeee6e1526c40"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": null,
+      "after_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989",
+      "after_sha256": "30b507480e38ed156b3e7ba6c805e1ab23f5dbc08447614b95105f2e6555221a"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d",
+      "after_sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+      "before_sha256": "2b117d335a19bf23cd5d5007931631080d5a27143a2a71372f817d60221ddcff",
+      "after_sha256": "5ece71dfbb3df9bbe6c6a885e3c5caf00d733254e5642a2710f38a33d6a44ad1"
+    },
+    {
+      "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+      "before_sha256": "e5f81b6f3f9ade2eed197566a0d3fa89ba0beabeb1ba105bc0c93e95edc39462",
+      "after_sha256": "170ba30a50221d0021e8de78f416fa460addc9bf170d055e56c6bd076d456923"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "563c744eb8da048f42ec903ef5e3a532c3516602fd7b59dfa4ecbc7896bf2261",
+      "after_sha256": "562fce43d8172787cf0735d9cd401dd4c7268bea13adf4f7b1f3026821259b61"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "1d923ae2635f99dff67a83d1499062dfcad57eb13eec641ea2a418d62ef957f2",
+      "after_sha256": "0a65a3d3c68e10a9cf61ef820b1bafb364ca6b765670efbb8deabf0d2766afe2"
+    }
+  ],
+  "patch_sha256": "895dabc1cb98bb7f533fa7d8caf44d7662f5e2d84eba6dfd416d402da39a8c8d",
+  "dependencies": [
+    {
+      "path": "/tmp/lsp-server-document-path-admission-v2/document-path-admission-v2.0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935.patch",
+      "sha256": "0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935",
+      "status": "independent source CLEAR; ordinary Root builds/tests pending",
+      "review_receipt": "/tmp/lsp-server-document-path-admission-v2/independent-variable-order-review-0fce-CLEAR.txt",
+      "review_receipt_sha256": "bf132834f2e8cda9385197c4c75cae4159194b9078e1cc152606b28e7b015a6d"
+    }
+  ],
+  "validation": {
+    "rustfmt": "PASS using /workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt",
+    "independent_TMP_apply_afterhashes": "PASS --fuzz=0 all8 owner hashes; exact SourcePath0f base retained byte-identical from V6",
+    "all_original_lib_tests_assertions": "PASS: byte-identical after no-receipt adapters",
+    "struct_initializer_census": "DiagInputs actual literal1 retains original sidecar; DiagJob literals2+destructuring1; DeliveryCtx production1+existing5+added2 controls. New private issued-publication literal1, used at exactly2 production cache/enqueue callers.",
+    "cargo": "NOT RUN; Root sole owner",
+    "all_original_direct_worker_fixture_assertions": "PASS: byte-identical after Some binding adapter and rustfmt",
+    "all_original_DB_fixture_assertions": "PASS: exact old fixture after removing only two added availability assertions",
+    "sourcepath_original_tests": "All SourcePath test files unchanged except original metadata fixtures existing V5 Some(checks) adapter; all other dependency outputs retained",
+    "rebase_source_review": "PENDING SolRuntime exact V7 review; V6 additional source pass found no blocker apart from repaired actual publication ID transport"
+  },
+  "new_tests": [
+    "current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports",
+    "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+    "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+    "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle",
+    "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+    "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency",
+    "current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context",
+    "original_tracked_metadata_tests::tracked_document_input_refuses_unavailable_generation_before_any_source_walk (two actual checked availability assertions)",
+    "current_diagnostics::tests::current_diagnostics_cannot_reborrow_a_replaced_equal_path_publication (actual MemoryStore A/B/A, same source/version/full input, old receipt refused, actual new provider pass restores completion)",
+    "current_diagnostics::tests::issued_publication_id_cannot_be_replaced_by_the_actual_legacy_pull_handler (actual held mailbox + real legacy cache-miss diagnostic handler replaces report; own ID acknowledged, foreign cache cannot become Complete; actual subsequent provider restores completion)"
+  ],
+  "count_delta_owner_proposal": 2,
+  "count_delta_existing_callers": 0,
+  "registry_guard": "actual DiagInputs.registry immutable RegistrySnapshot retained; complete structural RegistrySemanticKey equality with completed analysis actual resolved Registry, independently from full source/input/epoch equality; no hash/label/Native identity donation",
+  "new_owner_facets": [
+    "lsp.owner.completed-source-diagnostic-publication",
+    "db.owner.checked-compiler-diagnostic-availability"
+  ],
+  "source_admission": "Actual pass retains original PublishedSourcePath admission via DiagInputs sidecar Arc; capture verifies actual SourceFile handle and current provider. Query compares pass/selected admission, actual SourceFile/sidecar/admission/path-hint at capture and final try-only DB guard, then check_for after final await. Completion eviction inside actual current provider publication lease. Missing receipt withholds issuer; no path string identity/Native grant.",
+  "checked_compiler": "Existing actual producer body factored once into checked Option query. Legacy public API preserves empty fallback; actual None reaches server Context unavailability. No replay proxy or Native guard relaxation.",
+  "dependency_API_confirmed": "Final0f DocumentPathAdmission APIs unchanged; actual PublishedSourcePaths sidecar is joined at capture and final report assembly.",
+  "visibility_cleanup": "Generic state and finish mutator private to current_diagnostics; no unused root state import; specific actual provider facades only",
+  "patch": "current-diagnostics-v7.patch",
+  "root_basis": {
+    "server_lib_before_sourcepath_sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849",
+    "server_lib_after_exact_sourcepath_sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac",
+    "sourcepath_all_11_output_hashes": "PASS"
+  },
+  "publication_identity": "Private IssuedDiagnosticPublication couples actual newly generated result_id with exact enqueue receipt from cache_and_enqueue. Both delivered_current_report and deep publish transport this ID through Delivered acknowledgement without rereading mutable cache. Final query still checks owned ID/revision against current cache; independent legacy writes withdraw availability rather than borrowing ack."
+}

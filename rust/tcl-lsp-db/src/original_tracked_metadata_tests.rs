@@ -225,6 +225,7 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
     assert_eq!(*incremental, *file_analysis(&db, file, config));
     let diagnostics = compiler_check_diagnostics(&db, file, config);
     assert!(diagnostics.checks.is_empty() && diagnostics.optimisations.is_empty());
+    assert!(compiler_check_diagnostics_if_available(&db, file, config).is_none());
 
     config.set_spec_pack_key(&mut db).to(0);
     let restored = file_analysis_incremental(&db, file, config);
@@ -232,6 +233,7 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
     assert!(restored.resolved_input.is_some());
     let restored_unit = document_compilation_unit_for(&db, file, config).unwrap();
     assert!(original_fixture_function(&restored_unit, 0).is_some());
+    assert!(compiler_check_diagnostics_if_available(&db, file, config).is_some());
 }
 
 #[test]

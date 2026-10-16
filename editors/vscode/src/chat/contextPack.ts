@@ -274,15 +274,20 @@ async function collectEventMetadata(
 
 async function buildDiagnosticsSection(
   document: vscode.TextDocument | undefined,
+  expectedSource: string | undefined,
   maxDiagnostics: number,
   timeoutMs: number,
 ): Promise<string> {
   if (!document) {
     return "Diagnostics: unavailable (no open Tcl document URI).";
   }
+  if (expectedSource === undefined) {
+    return "Diagnostics: unavailable (no resolved source snapshot).";
+  }
 
   const diagnostics = await waitForDiagnostics(document.uri, {
     timeout: timeoutMs,
+    expectedSource,
   });
 
   const actionable = diagnostics
@@ -387,6 +392,7 @@ export async function buildPromptContextBlock(
     sections.push(
       await buildDiagnosticsSection(
         document,
+        code,
         options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
         options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
       ),

@@ -377,3 +377,76 @@ one file.
 - The native suites are the equivalence proof for everything above:
   `cargo test -p tcl-lsp-server` (unit + the `tests/*_e2e.rs` suites),
   `cargo test -p tcl-lsp-core`, `cargo test -p tcl-spectcl`.
+
+
+## Document URI path admission
+
+`SourceStore::document_uri_path` selects a `SourceUriPath` for the complete
+original document URI. The default is `ProviderUnavailable`; an unavailable
+capability is neither a missing file nor an instruction to omit the analyser
+path. Only the checked URI owner's `NotFile` result denotes an intentional
+non-filesystem document. Strict URI parsing and decoding precede selection,
+including a registered virtual alias. Invalid UTF-8, NUL, encoded separators,
+unsupported authority components and unsupported URI geometry remain typed
+refusals. The path's Unicode analyser spelling is checked separately.
+
+`SourceUriPathKind` preserves three actual resource namespaces. `NativeStore`
+selects the native host recipe on supported native hosts, and the declared
+rooted guest recipe on its actual WASI target, where subsequent `std::fs`
+operations remain governed by the runtime's real preopens and mounts.
+`MemoryStore` selects a virtual path, including an unregistered open document's
+declared rooted URI path. A virtual path is never a claim that the host has a
+native file or that a file action is available. The existing native
+`file_uri::to_path` and server `file_action_path` policies remain independent.
+
+A registered `MemoryStore` alias wins over its unregistered URI-path recipe.
+`upsert_uri_aliases` retains the explicitly supplied original and service URI
+spellings in one actual registration allocation. The browser registers both
+spellings through this owner. Byte updates preserving that complete alias set
+and path preserve its receipt; replacement, removal, a stronger registration,
+or replacement of the selected provider withdraws the old receipt. Equal path
+text in another provider or a later registration cannot revive it. The legacy
+`path_for_uri` data getter grants no receipt or file identity.
+
+`validate_document_uri_path` authenticates the actual provider and current
+registration. Async consumers recheck after awaited reads, analysis and cache
+selection. `with_current_document_paths` validates the complete retained set
+and runs a bounded synchronous publication with its selected mappings held
+stable. MemoryStore holds its actual alias-map guard; the continuation must
+not await, perform I/O, or reenter URI registration/validation. This guard is
+released before any later await. Native and guest filesystem recipes are
+stateless mappings; their publication does not claim filesystem identity,
+existence, or unchanged bytes. Source text, version, full analysis config and
+publication generation remain independently checked by their existing owners.
+
+Source-file hints and fresh analyser paths consume the retained admitted
+spelling. The server retains the original receipt with the actual published
+SourceFile; closed-source/cache reborrows authenticate that same live input,
+its stored path hint and the selected provider. A newly captured mapping,
+even with equal path text after remapping, cannot authenticate older cached
+analysis. Genuine new source publication replaces that retained pair; actual
+source retirement withdraws it. A read's genuine `NotFound` or non-source directory may yield absence;
+other provider/read failures remain unavailable and preserve prior published
+rows. Path admission never supplies Native Tcl authority, source execution,
+lookup absence, an edit grant, or a source freshness proof.
+
+
+`SourceStore::source_path_origin` and `validate_source_path_origin` retain and
+check a separate sealed `SourcePathOrigin` for a Path supplied by an actual
+provider path caller. Native and guest issuers require rooted path geometry;
+MemoryStore retains its actual virtual provider allocation. This is path data,
+not an existence, identity, freshness or native action grant. Missing provider
+support remains explicitly unavailable.
+
+The directory-scan caller constructs its URI once through the existing forward
+`canonical_file_uri` policy, then carries both that URI's strict `SourceUriPath`
+and the actual `SourcePathOrigin`. It never decodes that URI to reconstruct or
+compare the original Path spelling. Windows drive-letter and verbatim path
+spelling therefore remains separate from the product URI spelling. Native raw
+incoming URI decoding is unchanged. SourceFile/analyser hints and actual scan
+reads consume the original selected path; provider currentness authenticates
+both retained purposes. Virtual paths also require exact correspondence to the
+selected URI registration: a stronger alias to another Path is a terminal
+`PathOriginMismatch`. Actual source publication keeps both receipts with the
+same SourceFile, and the existing URI mapping lease remains in force while the
+bounded source/index mutation runs.

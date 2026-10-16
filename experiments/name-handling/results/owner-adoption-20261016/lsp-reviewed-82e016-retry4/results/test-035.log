@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10259 filtered out; finished in 20.60s
+

@@ -81,7 +81,7 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
     }
 
     // Get diagnostics and filter to convertible patterns
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000 });
+    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
     const convertible = diagnostics.filter((d) => CONVERTIBLE_CODES.has(diagnosticCode(d)));
 
     if (convertible.length === 0) {

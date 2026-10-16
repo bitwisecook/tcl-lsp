@@ -63,7 +63,7 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
       doc = await ensureDocumentOpen(code);
     }
 
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000 });
+    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
     const categorised = categoriseDiagnostics(diagnostics);
 
     const securityDiags = [

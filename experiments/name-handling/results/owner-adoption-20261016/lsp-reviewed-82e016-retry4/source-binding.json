@@ -1,0 +1,26 @@
+{
+  "source_head": "82e016bb9eb166a27397e02fda9e2aae3e3a92e8",
+  "rust_diff_sha256": "952bbee1a4a8e86455ff665f345040b49798a818498254583963f36e7526c7dd",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 38995,
+  "utc": "2026-10-16T17:01:46.382785+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Fixture-only repairs: Copy origins, SourceImage borrow, actual Arc CommandRegistry retained by directive tests. All original assertions unchanged. Complete standalone directive input, conditional no-level aliases, authentic Authored SourceMay geometry with scalar/SSA refusal, actual Jim head/argument origins and preserved LSP validation controls. No Runtime/VM/BIGIP migration.",
+  "exit_code": 0,
+  "build_seconds": 352.803,
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T17:07:39.186218+00:00"
+}

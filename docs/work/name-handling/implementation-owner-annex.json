@@ -823,6 +823,95 @@
         "verified_complete": false
       },
       "implementation_scope": "Independently reviewed df14b1a8 source and f5c01317 contract integrated. PrefixEffects/HandlerLookup/ObserverApplicability remain debts; invalid present points terminal; scalar/SSA stronger receipts refuse. Original025/028 and new controls require ordinary execution."
+    },
+    {
+      "id": "lsp.owner.source-store-document-uri-path-admission",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-core-memory-uri-alias-transport",
+        "lsp-server-host-file-path-unicode"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/vfs.rs",
+          "symbol": "SourceStore; SourceUriPath; SourcePathOrigin; with_current_document_paths"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/file_uri.rs",
+          "symbol": "SourceFileUriNamespace; to_source_namespace_path"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "DocumentPathAdmission; PublishedSourcePath"
+        }
+      ],
+      "rationale": "One demonstrated provider-selected Native/Virtual/Guest document path/currentness/publication facet, distinct from baseline alias/hint callers and Native URI inverse. Original URI, actual forward-origin path and provider/alias generation retained separately; immutable SourceFile sidecar and synchronous publication lease preserve currentness. Exact OriginalPath geometry retained; no inverse drive-case reconstruction. No native file identity/action/lookup or Tcl authority. Helpers/platform branches/tests are not additional facets.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared0f/d8 SourceStore and895d V7 completion, actual V8 consumer; ordinary/platform/owner/gate execution pending. Unsupported dyn/cross-crate AST route ceiling explicitly documented."
+    },
+    {
+      "id": "lsp.wasm.vfs-upsert-source-uri-path-adopter",
+      "kind": "caller_migration",
+      "baseline_unit_ids": [
+        "lsp-core-memory-uri-alias-transport"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server-wasm/src/lib.rs",
+          "symbol": "LspWorker::vfs_upsert"
+        }
+      ],
+      "rationale": "Distinct actual browser producer decoder/alias registration absent baseline MemoryStore getter/retention caller. Consumes shared virtual path recipe and registers genuine original/service-canonical aliases in one owned row; no Native platform assumption.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared0f/d8 SourceStore and895d V7 completion, actual V8 consumer; ordinary/platform/owner/gate execution pending. Unsupported dyn/cross-crate AST route ceiling explicitly documented."
+    },
+    {
+      "id": "lsp.owner.completed-source-diagnostic-publication",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-editor-diagnostic-generation"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "symbol": "DiagnosticPass; IssuedDiagnosticPublication; actual delivered provider completion"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cache_and_enqueue; current diagnostics query and actual publisher"
+        }
+      ],
+      "rationale": "Distinct actual delivered diagnostic issuer binds full source/client version/server revision/full analysis input/Registry/epoch/slot/factory generation and original SourceFile/provider publication receipt. Actual generated report ID travels with its own enqueue acknowledgement; mutable legacy cache cannot donate a report. Complete empty requires actual successful compiler/project/lift/delivery; suppression is separate. Does not migrate legacy pull-cache baseline.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared0f/d8 SourceStore and895d V7 completion, actual V8 consumer; ordinary/platform/owner/gate execution pending. Unsupported dyn/cross-crate AST route ceiling explicitly documented."
+    },
+    {
+      "id": "db.owner.checked-compiler-diagnostic-availability",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-editor-diagnostic-generation"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "symbol": "compiler_check_diagnostics_if_available"
+        }
+      ],
+      "rationale": "Distinct checked availability facet factors the actual producer once. None is unavailable, Some(empty) is actual completed zero findings; existing legacy API keeps its fallback and existing shared cache. No duplicate computation, taint proxy or Native guard relaxation.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared0f/d8 SourceStore and895d V7 completion, actual V8 consumer; ordinary/platform/owner/gate execution pending. Unsupported dyn/cross-crate AST route ceiling explicitly documented."
     }
   ],
   "unverified_or_open": [
@@ -834,27 +923,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T16:35:15.844419+00:00",
+  "utc": "2026-10-16T17:16:36.460823+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 37,
+    "semantic_code_changes": 41,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 37,
+    "all_required_changes": 41,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 18,
-      "caller_migration": 9,
+      "shared_owner_extension": 21,
+      "caller_migration": 10,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1836,
+    "semantic_code_changes": 1840,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2195
+    "all_required_changes": 2199
   },
   "implementation_progress": {
-    "implemented_pending_validation": 36,
+    "implemented_pending_validation": 40,
     "not_integrated": 1,
     "verified_complete": 0
   }

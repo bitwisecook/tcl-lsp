@@ -4,12 +4,12 @@ Active priority is **all LSP consumers and their required shared Compiler/DB/Reg
 
 Implementation has resumed from `554085e`. **216 baseline units** have reviewed
 implementation pending validation: 162 code units and all 54 authored-documentation
-units. These include one explicitly partial caller (DB class cards).
+units. Four callers remain explicitly partial: DB class cards, standalone optimiser purpose, editor validation override lifetime and Tcl AI action currency.
 **Zero units are verified complete**. Baseline counts remain **2,158**;
 1,942 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **37 demonstrated
-requirements**, 36 integrated pending validation and one blocked before integration.
-Effective scope is **2,195 obligations**, with **251 integrated pending validation**
+[owner/caller annex](implementation-owner-annex.json) adds **41 demonstrated
+requirements**, 40 integrated pending validation and one blocked before integration.
+Effective scope is **2,199 obligations**, with **251 integrated pending validation**
 and **1,943 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 

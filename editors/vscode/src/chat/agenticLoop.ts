@@ -75,6 +75,7 @@ export async function runAgenticLoop(
       ctx.response.progress(`Iteration ${iteration + 1}/${MAX_ITERATIONS}: analysing with LSP...`);
       const diagnostics = await waitForDiagnostics(doc.uri, {
         timeout: DIAGNOSTIC_WAIT_MS,
+        expectedSource: currentCode,
       });
 
       // Filter to actionable issues (errors and warnings only)
@@ -139,7 +140,10 @@ export async function runAgenticLoop(
   // Final diagnostic check
   if (doc) {
     doc = await ensureDocumentOpen(currentCode, doc);
-    const finalDiags = await waitForDiagnostics(doc.uri, { timeout: DIAGNOSTIC_WAIT_MS });
+    const finalDiags = await waitForDiagnostics(doc.uri, {
+      timeout: DIAGNOSTIC_WAIT_MS,
+      expectedSource: currentCode,
+    });
     const remaining = finalDiags.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
     return {
       finalCode: currentCode,

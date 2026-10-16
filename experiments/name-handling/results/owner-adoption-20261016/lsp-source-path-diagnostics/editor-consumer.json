@@ -1,0 +1,60 @@
+{
+  "candidate": "current diagnostics adapter V8",
+  "supersedes": "V7 immutable; V8 applies repository-configured Prettier to affected additions/test code while retaining V7 behavior/type correction",
+  "baseline_unit_ids": [
+    "lsp-editor-diagnostic-generation",
+    "lsp-editor-ai-iterate-currency",
+    "lsp-editor-ai-clean-claim",
+    "lsp-editor-fix-payload",
+    "lsp-editor-context-availability",
+    "lsp-editor-ai-validate-generation",
+    "lsp-ai-datagroup-source-diagnostic-context",
+    "lsp-ai-review-source-diagnostic-context",
+    "lsp-ai-find-legacy-action-admission",
+    "lsp-ai-tcl-actions-currency"
+  ],
+  "unit_count": 10,
+  "scope_note": "IDs are touched purposes for root reconciliation; broad action/fix/context integration is not claimed closed by diagnostic-source threading alone.",
+  "patch": "/tmp/lsp-current-diagnostics-consumer/published/v8/v8.patch",
+  "patch_sha256": "396ae75f7f14896de07a8435eb4f3a81229c77b7e4212a17766f287747b63fcf",
+  "server_protocol_schema": "/tmp/lsp-current-diagnostics-v2/protocol-schema.json",
+  "server_protocol_schema_sha256": "bda45ff223320f62b17c2df67c5cfb7326c74939d574d538176f85d69adde3ed",
+  "server_owner_patch": "/tmp/lsp-current-diagnostics-v4/current-diagnostics-v4.patch",
+  "server_owner_patch_sha256": "4754d0e762ff03a1de6d51d46999ed615acc1eb43125bd8d2da6673eb4197671",
+  "base_images": {
+    "editors/vscode/src/chat/diagnosticAccess.ts": "fdd600b4262faa2bfa9fd57e00be13cec31eaa15f9f1ae408c9e758ff5e70b41",
+    "editors/vscode/src/extension.ts": "18cbf56f40a4ecdedc656a2c1adb7909874e42e48a8ef7ff7ce4e2f60b444a9f",
+    "editors/vscode/src/extensionBrowser.ts": "e5f07a77a4c4a5644228413980463ff9f7fbcd3c6fe72a2f3f27b4908c9c4d55",
+    "editors/vscode/src/chat/tclParticipant.ts": "1007c6e3a96d62a4dca212f16630eb3dc747cfe15a0a98911b155f301eeb827e",
+    "editors/vscode/src/chat/contextPack.ts": "a5cf67a56c1ccb4d5288f2d32b28dc7a3498bdb3a895f628ab2184493320f39a",
+    "editors/vscode/src/chat/commands/validate.ts": "19a6e71a7daa8313a06935458c08b1ed81a1c90d939d3d0503823317edc8db8f",
+    "editors/vscode/src/chat/commands/review.ts": "0e3c1e50c4d8a49c266a986ff993ae6631f4d8322cfb92a67b0d7b15ae0b8201",
+    "editors/vscode/src/chat/commands/fix.ts": "ad19cdac9dd88aa661fd5c0a4355e4d6c15a7db00387dc5bc0500f617dbe8ae8",
+    "editors/vscode/src/chat/commands/find-legacy.ts": "8771b6ef883c77c59b3d464ce33f124be1fe0690c212360d957234cc3b9e5cf9",
+    "editors/vscode/src/chat/commands/datagroup.ts": "3609d98e30f390db02f6cae8166fc450d54dd7d28bf13cb97a16b3667cfa7e0f",
+    "editors/vscode/src/chat/agenticLoop.ts": "46fbc0d2f2df607f2055a5bcccf7870dae33baff55ca958a6fee92d5ecf8edab",
+    "editors/vscode/src/test/currentDiagnostics.test.ts": null,
+    "editors/vscode/test-partitions.json": "46de6448ec6bf36b023260ec03ce841b68f41b999a9f1f56a4e29e8f59393207"
+  },
+  "candidate_images": {
+    "editors/vscode/src/chat/diagnosticAccess.ts": "e0897b49e1ff7e5d044947a9ae754e1eb1338560e056460ba6a50fd6d9e3ab6c",
+    "editors/vscode/src/extension.ts": "62b2befde143167838e19e61dc4e6c30020ae094341ccc48124647b3140a2e2e",
+    "editors/vscode/src/extensionBrowser.ts": "cf0c644d2c91d6f13e5871d1dbbd46028b8e5ddeb34592f2e170c8fe65ac32a8",
+    "editors/vscode/src/chat/tclParticipant.ts": "bff5774618fd578479fba3816ca75f5dae42fc8f36300b78f1f7c8d6ea109ce5",
+    "editors/vscode/src/chat/contextPack.ts": "163458d99e71130a5bd376b8cd7d9ab5466ca27a5d1c8323c7164aa96ad9e18b",
+    "editors/vscode/src/chat/commands/validate.ts": "491029f3ff3e6a3f8813bf0b00ac776abf54c158e0f909723c4a8baee5e82964",
+    "editors/vscode/src/chat/commands/review.ts": "8d1a64860b4b9837babd7f839e5ddc3a3fbdcb4aa7100252a623e585bd015125",
+    "editors/vscode/src/chat/commands/fix.ts": "3f5fba998f9530477e666c0e11e3686941b29a8f7df1d81dc617368539f8f9eb",
+    "editors/vscode/src/chat/commands/find-legacy.ts": "2229d25de78f6a8c82ed25bcacfa258c951973f53e6472645ad2c18d9a9cba12",
+    "editors/vscode/src/chat/commands/datagroup.ts": "279fb15569f2909c4f857782a3993a04475658f40cfbe3dd63cf18e9273f26df",
+    "editors/vscode/src/chat/agenticLoop.ts": "37aa1e076c366eca0e3fe1268f35f36d2e56ee2d05ac37f39cecd71f388e6a62",
+    "editors/vscode/src/test/currentDiagnostics.test.ts": "99b697f9c2b9096c6d50ccb49583b6bb5f5ce9437da325a7103cee6086ae7289",
+    "editors/vscode/test-partitions.json": "6167e964d9cf618e35fb43ab828b67eaee368bb2259b32726d883ad042836a4c"
+  },
+  "behavior": "Same behavior as V7; only test helper maps the LSP Diagnostic message union to a string for VS Code diagnostic construction.",
+  "tests_added": [
+    "same eight selectors as V6/V7"
+  ],
+  "partition_change": "Same as V6/V7: one new test file in partition 1, +8 identities/passes (981/980, pending1), no old assignment or budget changed.",
+  "validation": "Node 24.19.0, TypeScript 6.0.3 noEmit passed in isolated overlay; repository-configured scoped Prettier verification pending. No VS Code runtime tests/builds or Cargo run."
+}

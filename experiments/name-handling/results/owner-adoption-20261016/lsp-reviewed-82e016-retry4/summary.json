@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-16T17:18:27.067465+00:00",
+  "source_head": "82e016bb9eb166a27397e02fda9e2aae3e3a92e8",
+  "source_diff_sha256": "952bbee1a4a8e86455ff665f345040b49798a818498254583963f36e7526c7dd",
+  "source_equivalent_commit": "994852273",
+  "ordinary": true,
+  "build": "PASS",
+  "build_seconds": 352.803,
+  "warnings": 0,
+  "input_count": 38995,
+  "input_drift": 0,
+  "PASS": 43,
+  "FAIL": 14,
+  "TIMEOUT": 0,
+  "singleton_rejections": 0,
+  "retained_selectors": 43,
+  "gains": [
+    "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+    "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+    "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+    "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening"
+  ],
+  "previous_PASS_regressions": [],
+  "additional": {
+    "PASS": 6,
+    "FAIL": 8
+  },
+  "limits": "Bounded frozen controls only. SourcePath/diagnostic completion/V8 successor is outside these compiled artifacts. Optimiser positive failures expose missing Standalone purpose transport, now an explicit partial integration. No full current source/repository/issue/Native acceptance."
+}

@@ -1,0 +1,27 @@
+{
+  "tcl_compiler": {
+    "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+    "sha256": "c2f091cdd33cc82cf5eac6bd716037405d5b4f7e5ba87aaae9746a9396fd0466",
+    "bytes": 249449888
+  },
+  "tcl_lsp_core": {
+    "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/frozen-binaries/tcl_lsp_core-bdc0b1469d9bdfe9",
+    "sha256": "d66a9cb09f409d97f1818aec25d0063e62267d169bce601bb6247a8a72fc270a",
+    "bytes": 196044952
+  },
+  "tcl_lsp_db": {
+    "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+    "sha256": "6e2e06f4d5328e8a0750bca5bcdb83c196ce557e4a657d2b63e1ce06c88e4b34",
+    "bytes": 213357088
+  },
+  "tcl_lsp_server": {
+    "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/frozen-binaries/tcl_lsp_server-b4a2fc61070099f8",
+    "sha256": "75baf61e0235de43b7c84191ef261ef68f2fb653733ec275d00d5b7625a700b6",
+    "bytes": 329583304
+  },
+  "tcl_registry": {
+    "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+    "sha256": "e0231f3c466bc88810ed5a0a5f49ee0d231a240040f2ea5c78c8d558b5b6a812",
+    "bytes": 61765280
+  }
+}

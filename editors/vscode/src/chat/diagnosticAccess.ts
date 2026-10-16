@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as vscode from "vscode";
+import type { Diagnostic as LspDiagnostic } from "vscode-languageclient";
 import { DiagnosticCategory } from "./types";
 import { CODE_TO_CATEGORY, CATEGORY_PREFIX_RULES, DEFAULT_CATEGORY } from "./canonicalDiagnostics";
 
@@ -111,61 +112,329 @@ export function formatDiagnosticsForLLM(diagnostics: vscode.Diagnostic[], source
 }
 
 /**
- * Poll for diagnostics on the given URI until minCount are available or timeout.
- * Combines event listening with periodic polling for robustness.
+ * A client-neutral transport installed by the Node or browser entrypoint.
+ * The converter is the active LanguageClient's protocol-to-VS Code adapter,
+ * so all standard LSP diagnostic fields keep their normal client semantics.
+ */
+export interface CurrentDiagnosticsTransport {
+  request(params: { uri: string; version: number; source: string }): Promise<unknown>;
+  convert(diagnostics: LspDiagnostic[]): Promise<vscode.Diagnostic[]>;
+  isCurrent(): boolean;
+}
+
+export type CurrentDiagnosticsTransportProvider = () => CurrentDiagnosticsTransport | undefined;
+
+let currentDiagnosticsTransportProvider: CurrentDiagnosticsTransportProvider | undefined;
+
+export function setCurrentDiagnosticsTransportProvider(
+  provider: CurrentDiagnosticsTransportProvider | undefined,
+): vscode.Disposable {
+  const previous = currentDiagnosticsTransportProvider;
+  currentDiagnosticsTransportProvider = provider;
+  return {
+    dispose: () => {
+      if (currentDiagnosticsTransportProvider === provider) {
+        currentDiagnosticsTransportProvider = previous;
+      }
+    },
+  };
+}
+
+export type CurrentDiagnosticsUnavailableReason =
+  | "pending"
+  | "stale"
+  | "context"
+  | "providerError"
+  | "cancelled"
+  | "disabled"
+  | "excluded"
+  | "unsupported"
+  | "notOpen"
+  | "timeout"
+  | "clientUnavailable"
+  | "malformedResponse";
+
+export class CurrentDiagnosticsUnavailableError extends Error {
+  constructor(readonly reason: CurrentDiagnosticsUnavailableReason) {
+    super(`Current diagnostics unavailable: ${reason}`);
+    this.name = "CurrentDiagnosticsUnavailableError";
+  }
+}
+
+export class CurrentDiagnosticsSuppressedError extends Error {
+  constructor(
+    readonly reason: "disabled" | "excluded",
+    readonly receipt: {
+      uri: string;
+      version: number;
+      source: string;
+      revision: string;
+      inputsEpoch: string;
+      resultId: string;
+    },
+  ) {
+    super(`Current diagnostics were published as suppressed: ${reason}`);
+    this.name = "CurrentDiagnosticsSuppressedError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function openedDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  const key = uri.toString();
+  return vscode.workspace.textDocuments.find((document) => document.uri.toString() === key);
+}
+
+function snapshotMatches(
+  uri: vscode.Uri,
+  expectedDocument: vscode.TextDocument,
+  version: number,
+  source: string,
+): boolean {
+  const current = openedDocument(uri);
+  return (
+    current === expectedDocument && current.version === version && current.getText() === source
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withinDeadline<T>(promise: Promise<T>, deadline: number): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    return Promise.reject(new CurrentDiagnosticsUnavailableError("timeout"));
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new CurrentDiagnosticsUnavailableError("timeout")),
+        remaining,
+      );
+    }),
+  ]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
+function isRevision(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9]+$/.test(value);
+}
+
+function isPosition(value: unknown): value is { line: number; character: number } {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.line) &&
+    (value.line as number) >= 0 &&
+    Number.isInteger(value.character) &&
+    (value.character as number) >= 0
+  );
+}
+
+function isRange(value: unknown): boolean {
+  if (!isRecord(value) || !isPosition(value.start) || !isPosition(value.end)) {
+    return false;
+  }
+  const start = value.start as { line: number; character: number };
+  const end = value.end as { line: number; character: number };
+  return start.line < end.line || (start.line === end.line && start.character <= end.character);
+}
+
+function isDiagnostic(value: unknown): value is LspDiagnostic {
+  if (
+    !isRecord(value) ||
+    !isRange(value.range) ||
+    typeof value.message !== "string" ||
+    (value.severity !== undefined &&
+      value.severity !== 1 &&
+      value.severity !== 2 &&
+      value.severity !== 3 &&
+      value.severity !== 4) ||
+    (value.code !== undefined &&
+      typeof value.code !== "string" &&
+      typeof value.code !== "number") ||
+    (value.source !== undefined && typeof value.source !== "string") ||
+    (value.codeDescription !== undefined &&
+      (!isRecord(value.codeDescription) || typeof value.codeDescription.href !== "string")) ||
+    (value.tags !== undefined &&
+      (!Array.isArray(value.tags) || !value.tags.every((tag) => tag === 1 || tag === 2))) ||
+    (value.relatedInformation !== undefined &&
+      (!Array.isArray(value.relatedInformation) ||
+        !value.relatedInformation.every(
+          (item) =>
+            isRecord(item) &&
+            typeof item.message === "string" &&
+            isRecord(item.location) &&
+            typeof item.location.uri === "string" &&
+            isRange(item.location.range),
+        )))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function validDiagnostics(value: unknown): value is LspDiagnostic[] {
+  return Array.isArray(value) && value.every(isDiagnostic);
+}
+
+/**
+ * Read diagnostics for the current open document from the server's completed
+ * push-publication ledger. This request never triggers analysis. Server-reported
+ * pending/stale states are retried within the caller's original budget; a local
+ * document change and all terminal unavailable states remain explicit errors.
  */
 export async function waitForDiagnostics(
   uri: vscode.Uri,
-  opts?: { timeout?: number; minCount?: number },
+  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
 ): Promise<vscode.Diagnostic[]> {
   const timeout = opts?.timeout ?? 5000;
   const minCount = opts?.minCount ?? 0;
+  const deadline = Date.now() + timeout;
+  const document = openedDocument(uri);
+  if (!document) {
+    throw new CurrentDiagnosticsUnavailableError("notOpen");
+  }
+  const source = opts?.expectedSource ?? document.getText();
+  if (document.getText() !== source) {
+    throw new CurrentDiagnosticsUnavailableError("stale");
+  }
+  const request = {
+    uri: document.uri.toString(),
+    version: document.version,
+    source,
+  };
 
-  // Trigger LSP analysis by requesting hover (serialises behind didOpen/didChange)
-  await vscode.commands.executeCommand(
-    "vscode.executeHoverProvider",
-    uri,
-    new vscode.Position(0, 0),
-  );
+  while (Date.now() < deadline) {
+    if (!snapshotMatches(uri, document, request.version, request.source)) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    const transport = currentDiagnosticsTransportProvider?.();
+    if (!transport) {
+      throw new CurrentDiagnosticsUnavailableError("clientUnavailable");
+    }
+    if (!transport.isCurrent()) {
+      await delay(Math.min(20, Math.max(1, deadline - Date.now())));
+      continue;
+    }
 
-  const immediate = vscode.languages.getDiagnostics(uri);
-  if (immediate.length >= minCount && minCount > 0) {
-    return immediate;
+    let raw: unknown;
+    try {
+      raw = await withinDeadline(transport.request(request), deadline);
+    } catch (error) {
+      if (error instanceof CurrentDiagnosticsUnavailableError) throw error;
+      throw new CurrentDiagnosticsUnavailableError("providerError");
+    }
+    if (!transport.isCurrent()) {
+      continue;
+    }
+
+    // A response for an older editor snapshot is never returned or displayed.
+    if (!snapshotMatches(uri, document, request.version, request.source)) {
+      continue;
+    }
+    if (!isRecord(raw)) {
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+    }
+
+    if (raw.status === "suppressed") {
+      const reason = raw.reason;
+      if (
+        (reason !== "disabled" && reason !== "excluded") ||
+        raw.uri !== request.uri ||
+        raw.version !== request.version ||
+        raw.source !== request.source ||
+        !isRevision(raw.revision) ||
+        !isRevision(raw.inputsEpoch) ||
+        typeof raw.resultId !== "string" ||
+        !validDiagnostics(raw.diagnostics)
+      ) {
+        throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+      }
+      if (!snapshotMatches(uri, document, request.version, request.source)) {
+        continue;
+      }
+      throw new CurrentDiagnosticsSuppressedError(reason, {
+        uri: request.uri,
+        version: request.version,
+        source: request.source,
+        revision: raw.revision,
+        inputsEpoch: raw.inputsEpoch,
+        resultId: raw.resultId,
+      });
+    }
+
+    if (raw.status === "unavailable") {
+      const reason = raw.reason;
+      if (
+        reason === "pending" ||
+        reason === "stale" ||
+        reason === "context" ||
+        reason === "providerError" ||
+        reason === "cancelled" ||
+        reason === "disabled" ||
+        reason === "excluded" ||
+        reason === "unsupported" ||
+        reason === "notOpen"
+      ) {
+        if (reason === "pending" || reason === "stale") {
+          await delay(Math.min(100, Math.max(1, deadline - Date.now())));
+          continue;
+        }
+        throw new CurrentDiagnosticsUnavailableError(reason);
+      }
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+    }
+
+    if (
+      raw.status !== "complete" ||
+      raw.uri !== request.uri ||
+      raw.version !== request.version ||
+      raw.source !== request.source ||
+      !isRevision(raw.revision) ||
+      !isRevision(raw.inputsEpoch) ||
+      typeof raw.resultId !== "string" ||
+      !validDiagnostics(raw.diagnostics)
+    ) {
+      throw new CurrentDiagnosticsUnavailableError("malformedResponse");
+    }
+
+    let diagnostics: vscode.Diagnostic[];
+    try {
+      if (Date.now() >= deadline) {
+        throw new CurrentDiagnosticsUnavailableError("timeout");
+      }
+      diagnostics = await withinDeadline(transport.convert(raw.diagnostics), deadline);
+      // A blocked event loop can let both the converter and timeout timer
+      // resume after the deadline; recheck wall-clock time after conversion.
+      if (Date.now() >= deadline) {
+        throw new CurrentDiagnosticsUnavailableError("timeout");
+      }
+    } catch (error) {
+      if (error instanceof CurrentDiagnosticsUnavailableError) throw error;
+      throw new CurrentDiagnosticsUnavailableError("providerError");
+    }
+    if (
+      !transport.isCurrent() ||
+      !snapshotMatches(uri, document, request.version, request.source)
+    ) {
+      continue;
+    }
+    if (diagnostics.length >= minCount) {
+      return diagnostics;
+    }
+
+    // minCount keeps its existing meaning, but only completed results can
+    // satisfy it; a complete empty result is still distinct from unavailable.
+    await delay(Math.min(100, Math.max(1, deadline - Date.now())));
   }
 
-  return new Promise<vscode.Diagnostic[]>((resolve) => {
-    let resolved = false;
-
-    const finish = (diags: vscode.Diagnostic[]) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timer);
-      clearInterval(poller);
-      disposable.dispose();
-      resolve(diags);
-    };
-
-    const timer = setTimeout(() => {
-      finish(vscode.languages.getDiagnostics(uri));
-    }, timeout);
-
-    const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
-      const changed = e.uris.some((u) => u.toString() === uri.toString());
-      if (changed) {
-        const diags = vscode.languages.getDiagnostics(uri);
-        if (minCount === 0 || diags.length >= minCount) {
-          finish(diags);
-        }
-      }
-    });
-
-    const poller = setInterval(() => {
-      const diags = vscode.languages.getDiagnostics(uri);
-      if (minCount === 0 || diags.length >= minCount) {
-        finish(diags);
-      }
-    }, 500);
-  });
+  throw new CurrentDiagnosticsUnavailableError("timeout");
 }
 
 /**

@@ -17,6 +17,31 @@ Missing ownership is terminal for definite identity or mutation. Logical
 candidate helpers provide bounded assistance; their strings cannot manufacture
 native objects, command entries, completed worlds or editable occurrences.
 
+## Source-associated diagnostic completion
+
+A current empty diagnostic report requires the actual completed provider pass,
+not a URI collection, timing message, timeout or cleared display. The push
+publisher retains the original URI, whole source, client version and server
+revision. Analysis completion additionally requires complete resolved analysis input, immutable provider Registry snapshot,
+resource-input epoch, scheduling and class-factory generations, current selected
+SourceStore admission and delivered report ID. Structural metadata equality
+cannot donate Native implementation identity. SourceFile path hints retain the
+same checked provider coordinate and cannot become filesystem identity. The pass
+retains the original SourceFile publication admission; current publication and
+final input reads must reborrow that same receipt. Equal-path replacement or
+provider ABA cannot authenticate an earlier completed pass. The publication
+producer transports its own issued report ID with its actual delivery receipt;
+a later cache writer cannot supply the identity of that acknowledged report.
+
+The checked Compiler diagnostic producer returns no report when actual unit
+preparation or solve ownership is unavailable. Its compatibility empty-fallback
+API grants no completion. A delivered disabled/excluded policy clear is a
+separate suppression receipt and cannot certify clean source analysis. Pending,
+stale, cancelled, degraded, missing-context and failed-provider outcomes remain
+unavailable. This protocol reads the push ledger; diagnostics remain push-only.
+Configured report completion grants no runtime execution, normal completion,
+edit equivalence or absence of unknown effects.
+
 ## Logical variable source scopes
 
 `AnalysisResult::logical_variable_scope_advice` is the shared Compiler entry

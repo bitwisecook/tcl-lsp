@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10259 filtered out; finished in 0.44s
+

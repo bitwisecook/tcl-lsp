@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10259 filtered out; finished in 0.66s
+

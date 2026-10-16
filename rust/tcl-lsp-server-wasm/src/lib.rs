@@ -68,7 +68,7 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use futures::sink::SinkExt as _;
 use tcl_lsp_server::service::{inject_type_hierarchy_provider, normalise_request_uris};
-use tcl_lsp_server::vfs::MemoryStore;
+use tcl_lsp_server::vfs::{MemoryStore, SourceStore as _};
 use tcl_lsp_server::{Backend, vfs};
 use tower::Service as _;
 use tower_lsp_server::LspService;
@@ -171,11 +171,25 @@ impl LspWorker {
     /// Register (or replace) the contents of a file the editor does not have
     /// open, so cross-file navigation and `source` resolution can reach it.
     ///
-    /// `uri` must be a `file:` URI. A URI whose path cannot be recovered is
-    /// ignored — there is nothing the server could key it under.
+    /// `uri` must be admitted by the MemoryStore's strict virtual file-URI
+    /// policy. The original and service-canonical URI select one retained
+    /// registration; invalid data is refused before any map or bytes change.
     pub fn vfs_upsert(&self, uri: &str, text: &str) {
-        if let Some(path) = file_path_of(uri) {
-            self.store.upsert_uri(uri, path, text.as_bytes().to_vec());
+        match self.store.document_uri_path(uri) {
+            Ok(selected) => {
+                // This is the same URI normaliser the service applies to the
+                // client's requests, retained as an explicit alias of this
+                // actual registered virtual path, never decoded back into it.
+                let canonical = tcl_lsp_server::uri_norm::canonical_uri_string(uri);
+                self.store.upsert_uri_aliases(
+                    &[uri, canonical.as_ref()],
+                    selected.path().to_path_buf(),
+                    text.as_bytes().to_vec(),
+                );
+            }
+            Err(error) => web_log(&format!(
+                "tcl-lsp: refused virtual source URI {uri}: {error}"
+            )),
         }
     }
 
@@ -280,17 +294,6 @@ fn post_message<T: serde::Serialize>(post: &js_sys::Function, message: &T) {
     if let Err(err) = post.call1(&JsValue::NULL, &JsValue::from_str(&text)) {
         web_log(&format!("tcl-lsp: the postMessage callback threw: {err:?}"));
     }
-}
-
-/// The filesystem path a `file:` URI names, if it names one.
-///
-/// Deliberately the same conversion the server itself uses (`Uri::to_file_path`
-/// on the parsed URI), so a path the host registers is spelled the way the
-/// server will look it up.
-fn file_path_of(uri: &str) -> Option<std::path::PathBuf> {
-    use std::str::FromStr as _;
-    let parsed = tower_lsp_server::ls_types::Uri::from_str(uri).ok()?;
-    Some(parsed.to_file_path()?.into_owned())
 }
 
 /// Report a message the worker could not make sense of.

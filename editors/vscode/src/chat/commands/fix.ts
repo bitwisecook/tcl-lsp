@@ -34,7 +34,7 @@ export async function handleFix(ctx: CommandContext): Promise<vscode.ChatResult>
 
   // Check current diagnostics
   ctx.response.progress("Checking current diagnostics...");
-  const diagnostics = await waitForDiagnostics(uri, { timeout: 5000 });
+  const diagnostics = await waitForDiagnostics(uri, { timeout: 5000, expectedSource: code });
   const actionable = diagnostics.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
 
   if (actionable.length === 0) {

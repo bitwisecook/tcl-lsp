@@ -1775,6 +1775,16 @@ fn crate_accessible(visibility: &syn::Visibility) -> bool {
 }
 
 fn passive_file_meta(meta: &syn::Meta) -> bool {
+    // The built-in expansion budget changes no declaration or module route.
+    // Recognise its actual literal shape, without accepting arbitrary attributes.
+    if let syn::Meta::NameValue(setting) = meta
+        && setting.path.is_ident("recursion_limit")
+        && let syn::Expr::Lit(value) = &setting.value
+        && let syn::Lit::Str(limit) = &value.lit
+    {
+        let limit = limit.value();
+        return !limit.is_empty() && limit.bytes().all(|byte| byte.is_ascii_digit());
+    }
     ["doc", "allow", "warn", "deny", "forbid", "expect"]
         .iter()
         .any(|name| meta.path().is_ident(name))
@@ -2518,6 +2528,10 @@ mod tests {
             "#![cfg_attr(test, cfg(test))]",
             "#![cfg_attr(test, rewrite_route)]",
             "#![cfg_attr(test, allow(dead_code), cfg(test))]",
+            r#"#![recursion_limit(rewrite_route)]"#,
+            r#"#![recursion_limit = include_str!("limit")]"#,
+            r#"#![recursion_limit = "unknown"]"#,
+            r#"#![cfg_attr(test, recursion_limit = "256", cfg(test))]"#,
         ] {
             let file = syn::parse_file(source).expect("fixed file attributes");
             assert!(!file_attrs_preserve_routes(&file.attrs), "{source}");
@@ -2526,6 +2540,13 @@ mod tests {
             "#![doc = \"crate\"] #![deny(unused)] #![cfg_attr(target_arch = \"wasm32\", allow(dead_code, unused_imports))]",
         ).unwrap();
         assert!(file_attrs_preserve_routes(&file.attrs));
+        for source in [
+            r#"#![recursion_limit = "256"]"#,
+            r#"#![cfg_attr(test, recursion_limit = "512", allow(dead_code))]"#,
+        ] {
+            let file = syn::parse_file(source).expect("literal expansion budget");
+            assert!(file_attrs_preserve_routes(&file.attrs), "{source}");
+        }
     }
 
     #[test]

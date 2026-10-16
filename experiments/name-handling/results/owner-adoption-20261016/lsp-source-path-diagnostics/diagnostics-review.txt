@@ -1,0 +1,60 @@
+Independent source review — CLEAR for stated scope
+Candidate: /tmp/lsp-current-diagnostics-rebase-v7/current-diagnostics-v7.patch
+SHA256: 895dabc1cb98bb7f533fa7d8caf44d7662f5e2d84eba6dfd416d402da39a8c8d
+Reviewer: /root/sol_runtime_next
+Dependency: SourcePath0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935
+
+Exact patch/all8 before-and-after hashes verified. Independent zero-fuzz TMP
+application reproduced all8 candidate afterimages. Inspected complete current
+query/producer module, actual compiler producer refactor, real legacy cache
+writer and V6-to-V7 publication-ID delta. No main writes, Cargo/builds, ordinary
+tests, platform execution, instrumentation or count/gate acceptance performed.
+
+V6 result-ID HOLD is resolved. IssuedDiagnosticPublication is returned by the
+actual cache/mailbox producer. It holds the exact freshly generated ID inserted
+with that assembled diagnostic set and the matching actual enqueue receipt.
+Both delivered clear and deep publication consume this immutable result directly;
+neither rereads the mutable cache to infer the identity of acknowledged output.
+Later legacy cache replacement therefore fails the independent final query's
+ID match instead of borrowing the old provider/delivery completion.
+
+The new deterministic control uses the existing real mailbox hold, obtains an
+actual issued cache/enqueue publication, invokes the genuine legacy diagnostic()
+cache-miss handler to replace the cache, enables the real persistent consumer,
+and requires its actual Delivered acknowledgement. It exercises the actual
+post-ack issuer with the transported ID, asserts current query refuses the foreign
+cache ID, then runs a genuine provider to restore Complete. Its direct issuer
+call explicitly isolates publication identity; it does not claim another full
+provider pass. No new production hook or changed original test assertion is used.
+
+Original SourcePath provenance is sound: pass capture clones the actual retained
+SourceFile publication admission, checks job.file and selected provider currency,
+and does not recapture a new binding as original authority. Final query requires
+pass/request admission equality, actual current SourceFile/path hint/sidecar,
+current full resolved input, server/source/client currency, structural provider
+Registry key, slot/factory generations and actual acknowledged report ID. A/B/A
+and equal-path replacement cannot borrow prior completion. Complete and delivered
+Disabled/Excluded suppression remain different purposes; suppression does not
+claim prepared analysis availability. Actual checked Compiler None and failed or
+cancelled providers cannot become completed empty reports.
+
+Lock/currentness inspection: native sidecar/alias mutexes never cross an await.
+Capture drops its sidecar guard before class/input/slot awaits. Query takes
+input/factory read guards and documents->slots->completion->cache, then only
+try-locks DB/files for the final actual file/input association. Final original
+provider check occurs after its last await. This avoids waiting for DB while
+holding documents against the existing publication order. Eviction uses
+slots->completion, then the existing bounded provider lease; completion removal
+and scheduler eviction remain in the same callback, including missing slots.
+No new alias-lock nesting or source-owner callback was introduced by V7.
+
+Original job.file is checked at pass capture; final CurrentDiagnosticInput holds
+and checks the current file allocation. Pass retains its original admission,
+not the original SourceFile handle itself. No concrete production allocation
+replacement preserving all other guards without existing eviction was found;
+no hypothetical new guard or stronger allocation-continuity claim is made.
+
+Source CLEAR does not assert ordinary tests, supported target execution, complete
+legacy diagnostic cache migration, owner-resolution gate success or annex-count
+acceptance. Root owns those remaining checks and integration. The exact reviewed
+production dependency and eight diagnostic owner files are bound in manifest-v7.

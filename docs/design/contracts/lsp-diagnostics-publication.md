@@ -44,6 +44,51 @@ the deep push and the pull assemble their findings with the same
 `published_findings`, so the two cannot disagree about tags, severity
 overrides, or encoding abstention.
 
+### Current completed source reports
+
+`tcl-lsp.currentDiagnostics` is a read-only workspace command over the push
+publisher's completion ledger. It accepts one `{uri, version, source}` object
+for an open, client-versioned document. It neither schedules a pass nor changes
+the diagnostic delivery model.
+
+A `complete` response retains the exact URI, client version and whole source,
+server revision, input epoch, actual final report ID and raw published findings.
+The cache/mailbox producer transports its own freshly issued report ID together
+with that exact publication acknowledgement; later mutable cache reads cannot
+issue publication identity. The query independently requires the cached report
+to retain that issued ID.
+The publisher issues it only after the final analyser, compiler and applicable
+project pass succeeded and the existing notification delivery was acknowledged.
+The Compiler pass's checked producer preserves unavailable unit preparation or
+solve ownership as `None`; its compatibility empty fallback cannot issue a
+completed report.
+The query rechecks the current document, full resolved analysis input, resource
+configuration epoch, diagnostic scheduling generation, class-factory generation
+and report ID. The captured provider Registry snapshot must additionally have
+the same complete structural semantic key as the completed analysis's actual
+Registry; a foreign metadata store cannot borrow source/input currency. It uses
+the configured report before editor display suppression.
+A completed empty report is different from an unavailable report. The pass
+retains its original SourceFile publication admission. The query joins the
+actual current SourceFile with that retained receipt and checks the selected
+provider after its final await. A newly published equal-path binding cannot
+make an earlier pass current.
+
+`suppressed` is a separate receipt for a disabled or excluded provider, issued
+only after its actual clearing report was delivered. It retains source, version,
+selected resource-policy epoch and report currency, independently of unavailable
+analysis preparation. A dedicated configuration-clear consumer may
+accept that policy outcome; it cannot satisfy a clean-analysis query.
+
+`unavailable` reports a pending or stale generation, missing context, cancellation,
+provider failure, unsupported provider or closed document. Fast-tier output, old cache entries, cleared Problems collections,
+log timing and elapsed waits cannot issue completion. Encoding abstention also
+cannot issue a complete source report. Clients must preserve this distinction;
+a timeout cannot become an empty result. Completion concerns the configured
+analysis report and grants no runtime execution, Native identity, semantic
+equivalence or absence of unknown effects. Diagnostic policy and applicability
+remain independently authoritative.
+
 ### Diagnostic tags (issue #1333)
 
 A diagnostic carries a *presentation tag* — the LSP `DiagnosticTag`

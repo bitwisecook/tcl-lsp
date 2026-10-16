@@ -56,7 +56,7 @@ fn session_layers(row: &Row) -> PolicyLayers {
 /// and the document's text.
 async fn backend_holding(row: &Row, layers: &PolicyLayers) -> (Backend, Uri, String) {
     let backend = test_backend();
-    backend.apply_session_layers(layers).await;
+    backend.apply_session_layers(layers).await.unwrap();
     let uri = Uri::from_str(&format!("file:///truth/{}.tcl", row.name)).expect("a file URI");
     let (text, decode) = row.text();
     let mut doc = DocumentState::new(text.clone(), row.dialect.to_owned());
@@ -103,7 +103,8 @@ async fn every_row_publishes_its_shown_set() {
                 row.dialect.to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         let observed: Vec<Observed> = published
             .iter()
             .filter_map(|diagnostic| {

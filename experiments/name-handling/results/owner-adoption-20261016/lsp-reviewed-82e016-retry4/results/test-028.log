@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission ... 
+thread 'registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission' (188453) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:489:18:
+actual represented authored definition
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10259 filtered out; finished in 0.38s
+

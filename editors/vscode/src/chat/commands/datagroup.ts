@@ -65,7 +65,7 @@ export async function handleDatagroup(ctx: CommandContext): Promise<vscode.ChatR
     }
 
     // Get diagnostics — look for performance-related issues
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000 });
+    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
     const categorised = categoriseDiagnostics(diagnostics);
     const perfDiags = [...categorised.performance, ...categorised.style];
 

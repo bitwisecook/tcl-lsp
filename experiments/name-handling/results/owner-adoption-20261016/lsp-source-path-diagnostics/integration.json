@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-16T17:19:35.582948+00:00",
+  "basis": "994852273",
+  "source_path_patch_sha256": "0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935",
+  "source_path_registration_sha256": "d8e7d278085d67c7e2165869e8e4c8f703a17025e56bb5acbde276a4e6d59598",
+  "diagnostics_owner_patch_sha256": "895dabc1cb98bb7f533fa7d8caf44d7662f5e2d84eba6dfd416d402da39a8c8d",
+  "consumer_patch_sha256": "396ae75f7f14896de07a8435eb4f3a81229c77b7e4212a17766f287747b63fcf",
+  "bounded_gate_patch_sha256": "47c9b4e1f1b8c6498a47ef1598556b59ddd6cd238ed6194d124c51193e2bf831",
+  "baseline_delta": 6,
+  "annex_delta": 4,
+  "verified_complete": 0,
+  "execution": "pending actual native/browser/WASI builds and controls",
+  "receipts": [
+    {
+      "path": "source-path.json",
+      "sha256": "d3ae22d38cb3145b44b1fc8cd96fe2ec32114556f1b2a86cf034a3ec7a971738"
+    },
+    {
+      "path": "source-path-review.txt",
+      "sha256": "bf132834f2e8cda9385197c4c75cae4159194b9078e1cc152606b28e7b015a6d"
+    },
+    {
+      "path": "source-path-gate-review.txt",
+      "sha256": "c925ddc0ab5da569838fccb633443d627a7ba42e425339adba0abc18765122b1"
+    },
+    {
+      "path": "diagnostics-owner.json",
+      "sha256": "2a4fee76ba4fc4d37d6175a11d0262b282d8ccdba836ebc7aca20568a9fdf254"
+    },
+    {
+      "path": "diagnostics-review.txt",
+      "sha256": "e7a01206fea75434abc4f363b036eddbd5c3b4a7da1964d7d84e838a9a9e1671"
+    },
+    {
+      "path": "editor-consumer.json",
+      "sha256": "46def9ef390a52d06f8e3ad5053b5efe576e7b6b8763328e16dfb379f92298ca"
+    },
+    {
+      "path": "editor-review.txt",
+      "sha256": "7e786e592c0437c8a951e57bae68ab14fb385b78a8814707e2c01a7981150701"
+    },
+    {
+      "path": "editor-validation.json",
+      "sha256": "1d5367b2eb3d57e96ffc4a5cea7773e3a6ea3ca5229e251f9ab1a1507aeeec2b"
+    }
+  ]
+}

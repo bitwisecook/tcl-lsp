@@ -1,0 +1,141 @@
+{
+  "patch": "document-path-admission-v2.0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935.patch",
+  "patch_sha256": "0fceb26cc5269af0c8d3fd18a6b50db2a7ef5ec2b902e351962e5dbceba3c935",
+  "bytes": 589853,
+  "files": [
+    {
+      "path": "docs/design/contracts/lsp-source-store.md",
+      "before_sha256": "97124c8ebfbffd691e70a2b4a9354f677a3801044c80924b202080dd3207be65",
+      "after_sha256": "c7e66e746876b25472789644a0775483127684f7d80ac70791a7e4ed19a46a58"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "before_sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08",
+      "after_sha256": "5fde4827f8a9edd9f98d5aad27ff5c2b7d999c43a0c37fa8070c3cbb92e7660e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/vfs.rs",
+      "before_sha256": "9893e0fbee858c16b908dbc12e9ab5b7213da1c9592fa8deb045f03cd23f1f1d",
+      "after_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "c17d5ef5b2953011800cbfb2f3b353976174dd9844ed5e4410a5c14d3b86a849",
+      "after_sha256": "7e00434ecccc8863aac3620485e7b3828fa3132365c235a907adaf47a907f5ac"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1",
+      "after_sha256": "61c36e09800bdb93a6b6b7996c7ac86929061dd07893992dc54fc7ba1a055989"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "before_sha256": null,
+      "after_sha256": "2fcc4dd8523ee1b83bd80f8999901ff7014fffcc12add62a96385ec38f1519db"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+      "before_sha256": "6afc48359899c6c3872ef44d2e14ec771c14ddd0dbb02c1782158f52e4f1a616",
+      "after_sha256": "dfd2bba815bdcd8ac90087c778fe634650a55823931a728460ab07beca229e41"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/provider_source/tests.rs",
+      "before_sha256": "dd0375f891e2aa4fe6ec3cc0dd101d83fdc75da5cb066aad194c8eb2d1686870",
+      "after_sha256": "ecd80c9e6f9046e42facc0d0cdcc7e67b00b87caef35478729fca8bb8b18bc7a"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "before_sha256": "82933e53cf1fc5bd34eaf988e03db81cb1cd932455536c94b21ef3fbc055a098",
+      "after_sha256": "0866c7288e1019ed8b3fc13218cd5ac9ae5d2dc11b1a18acb830880e03a925e7"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/vfs.rs",
+      "before_sha256": "6cc21d91296516767ec037a67036492741a74ae3e04af676ec4154453ed0ad1c",
+      "after_sha256": "306c644d558f011dca2c77b8cf02042ae67eefd56c7f3b7b2a31017dbc2ef174"
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/src/lib.rs",
+      "before_sha256": "1514ab9a517558c8091c7f341e5f41265094405cf9b200831e45e3d34e0ee886",
+      "after_sha256": "6a7e2fe65e594b8543fc8bd0404cacf09ca4749974dd83a6ddff569d265be212"
+    }
+  ],
+  "status": "Independent source CLEAR exact0fce; no main/Cargo/Git/build/execution by author; integration/ordinary/platform validation pending",
+  "baseline_caller_unit": "lsp-server-host-file-path-unicode",
+  "related_baseline_alias_facet": "lsp-core-memory-uri-alias-transport",
+  "count_reconciliation": "COUNT-RECONCILIATION.json: recommend one new shared provider path-admission/currentness/publication facet and one new browser producer caller; two existing baseline caller migrations separate. Parent final count authority.",
+  "original_tests_preserved": [
+    {
+      "path": "rust/tcl-lsp-server-wasm/src/lib.rs",
+      "original_tests": 0,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/vfs.rs",
+      "original_tests": 0,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+      "original_tests": 3,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "original_tests": 22,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "original_tests": 587,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "original_tests": 5,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/provider_source/tests.rs",
+      "original_tests": 3,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/vfs.rs",
+      "original_tests": 7,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "original_tests": 11,
+      "missing_selectors": [],
+      "changed_original_literals_including_budgets": []
+    }
+  ],
+  "new_test_selectors": [
+    "original_document_path_admission_tests",
+    "vfs::document_uri_path_tests",
+    "file_uri::source_namespace_path_tests"
+  ],
+  "paused": "Runtime/VM/BIG-IP",
+  "review_notes": "REVIEW.md",
+  "parent_policy": "Non-NotFound/non-directory actual read errors remain typed Read unavailable, preserving prior source/index. No changed original control.",
+  "held_predecessor": "document-path-admission-v2.96dbde48820c1a8fd73d28aac2499d9c1d05d0c8654b168ea7efaf6b91d75cdf.patch",
+  "held_predecessors": [
+    "96dbde48820c1a8fd73d28aac2499d9c1d05d0c8654b168ea7efaf6b91d75cdf",
+    "124b75fd5f228036a655bf4f8aaffcd87aaad856f578cfaf91ad66464cdc155e",
+    "9acc4b304ea1197962fc7f5b0a4db2f802fe8217c2f0138673cd6338926e8c06"
+  ],
+  "new_server_controls": 17,
+  "new_core_controls": 10,
+  "actual_path_origin": "SourcePathOrigin separately retains actual SourceStore Path producer; raw URI selection unchanged; no inverse equality reconstruction; Native absolute/Guest rooted/Virtual selected alias correspondence",
+  "rebase": "REBASE-V3.json",
+  "independent_review": "independent-variable-order-review-0fce-CLEAR.txt"
+}

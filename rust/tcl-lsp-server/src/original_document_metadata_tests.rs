@@ -103,7 +103,8 @@ async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
     assert!(is_variable(&tokens, source, "retained"));
     let analysis = backend
         .fresh_analysis_for(&uri, Arc::clone(&document.text), document.dialect.clone())
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         analysis
             .resolved_registry()
@@ -331,7 +332,7 @@ async fn unindexed_deep_compiler_checks_borrow_the_shared_base_input() {
         panic!("the original base analysis completed");
     };
     assert!(Arc::ptr_eq(&base_analysis, &analysis));
-    let ControlFlow::Continue(checks) = checks else {
+    let ControlFlow::Continue(Some(checks)) = checks else {
         panic!("the supplied compiler projection completed");
     };
     let diagnostic = checks
@@ -385,12 +386,13 @@ async fn unindexed_deep_compiler_checks_refuse_missing_base_and_preserve_cancell
             std::future::ready(ControlFlow::Continue(Arc::new(refused))),
         )
         .await;
-        let ControlFlow::Continue(checks) = result else {
+        let ControlFlow::Continue(Some(checks)) = result else {
             panic!("refused metadata withholds only compiler advice");
         };
         assert!(checks.checks.is_empty() && checks.optimisations.is_empty());
     }
-    let ControlFlow::Continue(checks) = compute_compiler_diags(&ctx, &registry, None, None).await
+    let ControlFlow::Continue(Some(checks)) =
+        compute_compiler_diags(&ctx, &registry, None, None).await
     else {
         panic!("missing supplied analysis withholds compiler advice");
     };
@@ -415,11 +417,15 @@ async fn workspace_class_analysis_keeps_actual_pack_input_and_reloads_changed_ro
     let (backend, registry) = workspace_pack_backend().await;
     let uri = Uri::from_str("file:///workspace/workspace-class-metadata.tcl").unwrap();
     let source = "unindexed_metadata::read retained";
-    backend.db_set_source(&uri, source, "tcl".to_owned()).await;
+    backend
+        .db_set_source(&uri, source, "tcl".to_owned())
+        .await
+        .unwrap();
     let profile = tcl_lsp_core::profile_for_dialect("tcl");
     let analysis = backend
         .analyse_with_workspace_classes(&uri, source, profile)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         analysis
             .resolved_registry()
@@ -435,13 +441,15 @@ async fn workspace_class_analysis_keeps_actual_pack_input_and_reloads_changed_ro
     ));
     let cached = backend
         .analyse_with_workspace_classes(&uri, source, profile)
-        .await;
+        .await
+        .unwrap();
     assert!(Arc::ptr_eq(&cached, &analysis));
 
     let changed_registry = install_workspace_read_pack(&backend, 2, false).await;
     let changed = backend
         .analyse_with_workspace_classes(&uri, source, profile)
-        .await;
+        .await
+        .unwrap();
     assert!(!Arc::ptr_eq(&changed, &analysis));
     assert_eq!(
         changed
@@ -469,7 +477,8 @@ async fn workspace_class_analysis_refuses_withdrawn_base_before_cached_hints() {
     let profile = tcl_lsp_core::profile_for_dialect("tcl");
     let base = backend
         .fresh_analysis_for(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     let current = backend
         .analyse_with_workspace_classes_from_analysis(&uri, source, profile, Arc::clone(&base))
         .await;
@@ -577,7 +586,7 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
     let source = "unindexed_metadata::read ::retained\n";
     std::fs::write(&file, source).unwrap();
     let uri = Uri::from_file_path(&file).unwrap();
-    backend.reindex_index_from_disk(&uri).await;
+    backend.reindex_index_from_disk(&uri).await.unwrap();
     let reads = index_reads(&backend, "::retained", &uri).await;
     assert_eq!(reads.len(), 1);
     assert_eq!(&source[reads[0].as_range()], "::retained");
@@ -586,7 +595,8 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
     backend.invalidate_diag_inputs();
     backend
         .batch_reindex_from_disk(std::slice::from_ref(&uri))
-        .await;
+        .await
+        .unwrap();
     assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
     std::fs::remove_dir_all(root).unwrap();
 }
@@ -602,7 +612,7 @@ async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
     std::fs::write(&file, source).unwrap();
     let uri = Uri::from_file_path(&file).unwrap();
     *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-    backend.scan_workspace_folders().await;
+    backend.scan_workspace_folders().await.unwrap();
     assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 1);
     let handles = index_evidence_handles(&backend);
     assert!(
@@ -641,7 +651,7 @@ async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
     .unwrap();
     let sourced = Uri::from_file_path(&sourced_path).unwrap();
     *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-    backend.scan_workspace_folders().await;
+    backend.scan_workspace_folders().await.unwrap();
     assert!(
         backend
             .rehomed_source_seeds
@@ -662,7 +672,7 @@ async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
         .lock()
         .await
         .remove(sourced.as_str());
-    backend.refresh_source_rehoming().await;
+    backend.refresh_source_rehoming().await.unwrap();
     let after = index_reads(&backend, "::app::retained", &sourced).await;
     assert!(!after.iter().any(|span| span.start() == read_offset));
     std::fs::remove_dir_all(root).unwrap();
@@ -677,7 +687,8 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
     let source = "unindexed_metadata::read ::retained";
     let current = backend
         .fresh_analysis_seed(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(backend.fresh_index_seed_is_current(source, &current).await);
     let mut missing = current.analysis.as_ref().clone();
     missing.resolved_input = None;
@@ -723,7 +734,8 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
     }
     let unavailable = backend
         .fresh_analysis_seed(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(unavailable.analysis.analysis_context_unavailable.is_some());
     assert!(unavailable.analysis.resolved_input.is_none());
     assert!(unavailable.analysis.command_invocations.is_empty());
@@ -739,7 +751,8 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     let source = "when CLIENTSSL_HANDSHAKE {SSL::c3d cert_lifespan 24}";
     let older = backend
         .fresh_analysis_seed(&uri, Arc::from(source), "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     let older_input = older.analysis.resolved_input.as_ref().unwrap();
     assert!(
         older
@@ -753,7 +766,8 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     backend.invalidate_diag_inputs();
     let current = backend
         .fresh_analysis_seed(&uri, Arc::from(source), "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     let current_input = current.analysis.resolved_input.as_ref().unwrap();
     assert_ne!(current_input, older_input);
     assert!(Arc::ptr_eq(
@@ -788,10 +802,12 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .apply_global_config(&serde_json::json!({
             "optimiser": { "profile": "aggressive" }
         }))
-        .await;
+        .await
+        .unwrap();
     let analysis = backend
         .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(
         analysis
             .qualified_var_refs
@@ -842,7 +858,8 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
     assert!(!rewritten.contains("omitted"));
     let rebuilt = backend
         .fresh_analysis_for(&uri, Arc::from(rewritten), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(
         rebuilt
             .qualified_var_refs
@@ -859,7 +876,8 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
     backend.invalidate_diag_inputs();
     let changed = backend
         .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert_ne!(changed.resolved_input, analysis.resolved_input);
     assert_eq!(
         changed
@@ -889,7 +907,8 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
     backend.invalidate_diag_inputs();
     let unavailable = backend
         .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(unavailable.analysis_context_unavailable.is_some());
     let refused = backend
         .optimise_document_command(&[serde_json::json!(uri.as_str())])
@@ -918,10 +937,12 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
         .await;
     backend
         .db_set_source(&uri, "proc selected_outline {} {}", "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     backend
         .db_set_source(&sibling, "proc sibling_outline {} {}", "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     let resource_config = backend.resolved_db_config(&uri).await;
     let global_config = *backend.db_config.lock().await;
     assert!(resource_config != global_config);
@@ -966,7 +987,8 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
 
     backend
         .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(*backend.db_files.lock().await.get(&uri).unwrap() == file);
     let symbols = backend.db_document_symbols(&uri).await.unwrap();
     assert!(symbols.iter().any(|symbol| symbol.name == "edited_outline"));
@@ -1034,11 +1056,13 @@ async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generat
             "proc ::reader {name} {unindexed_metadata::read $name}",
             "tcl".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     let source = "reader retained";
     backend
         .db_set_source(&caller_uri, source, "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     let folder_config = backend.resolved_db_config(&library_uri).await;
     let global_config = backend.resolved_db_config(&caller_uri).await;
     assert!(folder_config != global_config);
@@ -1107,7 +1131,8 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
     let first_uri = Uri::from_str("file:///project-publication354/first.tcl").unwrap();
     backend
         .db_set_source(&first_uri, "proc first {} {}", "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     let project = backend.db_project.lock().await.unwrap();
     let global = *backend.db_config.lock().await;
     let first = *backend.db_files.lock().await.get(&first_uri).unwrap();
@@ -1170,17 +1195,20 @@ async fn callback_project_worker_uses_each_librarys_published_configuration() {
         .await;
     backend
         .db_set_source(&library_uri, "proc external {one} {}", "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     let source = "lsort -command ::external {2 1}";
     backend
         .db_set_source(&caller_uri, source, "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
     assert!(library_config != caller_config);
     let analysis = backend
         .analysis_for(&caller_uri, Arc::from(source), "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(
         analysis
             .command_invocations
@@ -1263,10 +1291,11 @@ async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavail
         )])
         .await;
     backend.db_set_source(&library_uri,
-        "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}", "tcl".to_owned()).await;
+        "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}", "tcl".to_owned()).await.unwrap();
     backend
         .db_set_source(&caller_uri, "::Meta create ::Made {}", "tcl".to_owned())
-        .await;
+        .await
+        .unwrap();
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
     assert!(library_config != caller_config);
@@ -1335,14 +1364,16 @@ async fn project_evidence_publication_withdraws_incomplete_checked_contributors(
             "proc helper {mode} {return $mode}",
             "tcl".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     backend
         .db_set_source(
             &caller_uri,
             "source ../library.tcl\n::helper kept",
             "tcl".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
     assert!(library_config != caller_config);
@@ -1437,10 +1468,12 @@ required_package Tk
     );
     backend
         .db_set_source(&uri, source, "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     let analysis = backend
         .analysis_for(&uri, Arc::from(source), "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         analysis
             .resolved_registry()
@@ -1535,7 +1568,8 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     );
     backend
         .db_set_source(&uri, source, "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(
         backend
             .apply_global_formatting(&serde_json::json!({
@@ -1546,7 +1580,8 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     );
     let older = backend
         .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     let older_input = older
         .resolved_input
         .as_ref()
@@ -1574,7 +1609,8 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     backend.invalidate_diag_inputs();
     let current = backend
         .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     let current_input = current.resolved_input.as_ref().unwrap();
     assert_ne!(current_input, older_input);
     assert!(Arc::ptr_eq(
@@ -1592,7 +1628,12 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         Some(current_input.lexer_config())
     );
     assert_eq!(
-        backend.read_local_document(&uri).await.unwrap().raw(),
+        backend
+            .read_local_document(&uri)
+            .await
+            .unwrap()
+            .unwrap()
+            .raw(),
         source
     );
     for edits in formatter_request_edits(&backend, &uri).await {
@@ -1610,7 +1651,12 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         assert_formatter_request_edit(edits, "\n");
     }
     assert_eq!(
-        backend.read_local_document(&uri).await.unwrap().raw(),
+        backend
+            .read_local_document(&uri)
+            .await
+            .unwrap()
+            .unwrap()
+            .raw(),
         source
     );
 
@@ -1628,7 +1674,8 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     backend.invalidate_diag_inputs();
     let withdrawn = backend
         .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
-        .await;
+        .await
+        .unwrap();
     assert!(withdrawn.analysis_context_unavailable.is_some());
     assert!(withdrawn.resolved_input.is_none());
     assert!(!current.command_invocations.is_empty());

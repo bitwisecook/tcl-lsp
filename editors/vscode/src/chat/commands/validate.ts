@@ -61,7 +61,7 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
       doc = await ensureDocumentOpen(code);
     }
 
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000 });
+    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
     const categorised = categoriseDiagnostics(diagnostics);
 
     ctx.response.markdown("## iRule Validation Report\n");

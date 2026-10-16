@@ -34,6 +34,10 @@
 /// The INI parse and the three-layer merge, shared with every surface
 /// through `tcl-lsp-core`.
 pub use tcl_lsp_core::config_ini;
+mod current_diagnostics;
+use current_diagnostics::{
+    DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression, DiagnosticUnavailable,
+};
 mod environment_notice;
 /// The exit watchdog that backstops `Server::serve` returning promptly once
 /// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
@@ -42,6 +46,8 @@ mod environment_notice;
 pub mod exit_watchdog;
 #[cfg(test)]
 mod original_document_metadata_tests;
+#[cfg(test)]
+mod original_document_path_admission_tests;
 #[cfg(test)]
 mod original_workspace_diagnostics_tests;
 pub mod path_glob;
@@ -188,6 +194,436 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 type OriginalDocumentSnapshot = (String, Arc<str>, Arc<AnalysisResult>);
 
+/// Checked original URI-to-path data for one source-publication operation.
+/// Non-file documents deliberately have no filesystem path; refused file URIs
+/// never acquire that state. This receipt supplies no source freshness or edit grant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DocumentPathAdmission {
+    NoFilesystemPath {
+        uri: Uri,
+    },
+    Native {
+        uri: Uri,
+        selected: vfs::SourceUriPath,
+        source_origin: Option<vfs::SourcePathOrigin>,
+        analyser_spelling: String,
+    },
+    Virtual {
+        uri: Uri,
+        selected: vfs::SourceUriPath,
+        source_origin: Option<vfs::SourcePathOrigin>,
+        analyser_spelling: String,
+    },
+    WasiGuest {
+        uri: Uri,
+        selected: vfs::SourceUriPath,
+        source_origin: Option<vfs::SourcePathOrigin>,
+        analyser_spelling: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+enum DocumentSourceUnavailable {
+    Path {
+        uri: Uri,
+        cause: uri_norm::DocumentFilePathUnavailable,
+    },
+    ForeignReceipt {
+        expected: Uri,
+        actual: Uri,
+    },
+    Worker {
+        uri: Uri,
+    },
+    Store {
+        uri: Uri,
+        cause: vfs::SourceUriPathUnavailable,
+    },
+    Read {
+        uri: Uri,
+        cause: Arc<std::io::Error>,
+    },
+    ScanWorker {
+        cause: String,
+    },
+    PublishedPathUnavailable {
+        uri: Uri,
+    },
+    InvalidStoredUri {
+        original: String,
+    },
+}
+
+type DocumentSourceResult<T> = Result<T, DocumentSourceUnavailable>;
+
+impl std::fmt::Display for DocumentSourceUnavailable {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Path { uri, cause } => {
+                write!(out, "source URI {} is unavailable: {cause:?}", uri.as_str())
+            }
+            Self::ForeignReceipt { expected, actual } => write!(
+                out,
+                "source path receipt for {} does not belong to {}",
+                actual.as_str(),
+                expected.as_str()
+            ),
+            Self::ScanWorker { cause } => write!(out, "source scan worker is unavailable: {cause}"),
+            Self::PublishedPathUnavailable { uri } => write!(
+                out,
+                "published source path is unavailable for {}",
+                uri.as_str()
+            ),
+            Self::InvalidStoredUri { original } => {
+                write!(out, "stored source URI is invalid: {original}")
+            }
+            Self::Read { uri, cause } => write!(
+                out,
+                "source read for {} is unavailable: {cause}",
+                uri.as_str()
+            ),
+            Self::Store { uri, cause } => {
+                write!(out, "source URI {} is unavailable: {cause}", uri.as_str())
+            }
+            Self::Worker { uri } => write!(
+                out,
+                "source analysis worker for {} is unavailable",
+                uri.as_str()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DocumentSourceUnavailable {}
+
+impl From<DocumentSourceUnavailable> for jsonrpc::Error {
+    fn from(error: DocumentSourceUnavailable) -> Self {
+        Self {
+            code: if matches!(
+                error,
+                DocumentSourceUnavailable::Worker { .. }
+                    | DocumentSourceUnavailable::ScanWorker { .. }
+            ) {
+                jsonrpc::ErrorCode::InternalError
+            } else {
+                jsonrpc::ErrorCode::InvalidParams
+            },
+            message: error.to_string().into(),
+            data: None,
+        }
+    }
+}
+
+impl From<DocumentSourceUnavailable> for core_rename_safety::RenameRefusal {
+    fn from(error: DocumentSourceUnavailable) -> Self {
+        Self {
+            reason: error.to_string(),
+            range: None,
+        }
+    }
+}
+
+impl DocumentPathAdmission {
+    fn capture(uri: &Uri, store: &dyn vfs::SourceStore) -> DocumentSourceResult<Self> {
+        let selected = match store.document_uri_path(uri.as_str()) {
+            Ok(selected) => selected,
+            Err(vfs::SourceUriPathUnavailable::Uri(
+                uri_norm::DocumentFilePathUnavailable::NotFile,
+            )) => return Ok(Self::NoFilesystemPath { uri: uri.clone() }),
+            Err(vfs::SourceUriPathUnavailable::Uri(cause)) => {
+                return Err(DocumentSourceUnavailable::Path {
+                    uri: uri.clone(),
+                    cause,
+                });
+            }
+            Err(cause) => {
+                return Err(DocumentSourceUnavailable::Store {
+                    uri: uri.clone(),
+                    cause,
+                });
+            }
+        };
+        if selected.original_uri() != uri.as_str() {
+            return Err(DocumentSourceUnavailable::Store {
+                uri: uri.clone(),
+                cause: vfs::SourceUriPathUnavailable::ForeignProvider,
+            });
+        }
+        store
+            .validate_document_uri_path(&selected)
+            .map_err(|cause| DocumentSourceUnavailable::Store {
+                uri: uri.clone(),
+                cause,
+            })?;
+        let analyser_spelling = selected
+            .path()
+            .to_str()
+            .ok_or_else(|| DocumentSourceUnavailable::Path {
+                uri: uri.clone(),
+                cause: uri_norm::DocumentFilePathUnavailable::InvalidUnicode,
+            })?
+            .to_owned();
+        Ok(match selected.kind() {
+            vfs::SourceUriPathKind::Native => Self::Native {
+                uri: uri.clone(),
+                selected,
+                source_origin: None,
+                analyser_spelling,
+            },
+            vfs::SourceUriPathKind::Virtual => Self::Virtual {
+                uri: uri.clone(),
+                selected,
+                source_origin: None,
+                analyser_spelling,
+            },
+            vfs::SourceUriPathKind::WasiGuest => Self::WasiGuest {
+                uri: uri.clone(),
+                selected,
+                source_origin: None,
+                analyser_spelling,
+            },
+        })
+    }
+
+    fn from_selected_path(
+        uri: &Uri,
+        path: &Path,
+        store: &dyn vfs::SourceStore,
+    ) -> DocumentSourceResult<Self> {
+        // The only caller supplies this URI directly from the existing forward
+        // canonical_file_uri producer on this actual scan Path. Do not decode
+        // that URI to recover or compare the original Path spelling: Windows
+        // drive/verbatim product spelling deliberately differs.
+        let origin =
+            store
+                .source_path_origin(path)
+                .map_err(|cause| DocumentSourceUnavailable::Store {
+                    uri: uri.clone(),
+                    cause,
+                })?;
+        store
+            .validate_source_path_origin(&origin)
+            .map_err(|cause| DocumentSourceUnavailable::Store {
+                uri: uri.clone(),
+                cause,
+            })?;
+        let mut admission = Self::capture(uri, store)?;
+        match &mut admission {
+            Self::NoFilesystemPath { .. } => {
+                return Err(DocumentSourceUnavailable::Path {
+                    uri: uri.clone(),
+                    cause: uri_norm::DocumentFilePathUnavailable::NotFile,
+                });
+            }
+            Self::Native {
+                selected,
+                source_origin,
+                analyser_spelling,
+                ..
+            }
+            | Self::Virtual {
+                selected,
+                source_origin,
+                analyser_spelling,
+                ..
+            }
+            | Self::WasiGuest {
+                selected,
+                source_origin,
+                analyser_spelling,
+                ..
+            } => {
+                if selected.kind() != origin.kind() {
+                    return Err(DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause: vfs::SourceUriPathUnavailable::ForeignProvider,
+                    });
+                }
+                // An actual registered virtual URI is stronger than a scan's
+                // forward label and must still select this exact produced path.
+                if selected.kind() == vfs::SourceUriPathKind::Virtual
+                    && selected.path().as_os_str() != origin.path().as_os_str()
+                {
+                    return Err(DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause: vfs::SourceUriPathUnavailable::PathOriginMismatch,
+                    });
+                }
+                *analyser_spelling = origin
+                    .path()
+                    .to_str()
+                    .ok_or_else(|| DocumentSourceUnavailable::Path {
+                        uri: uri.clone(),
+                        cause: uri_norm::DocumentFilePathUnavailable::InvalidUnicode,
+                    })?
+                    .to_owned();
+                *source_origin = Some(origin);
+            }
+        }
+        admission.check_for(uri, store)?;
+        Ok(admission)
+    }
+
+    fn uri(&self) -> &Uri {
+        match self {
+            Self::NoFilesystemPath { uri }
+            | Self::Native { uri, .. }
+            | Self::Virtual { uri, .. }
+            | Self::WasiGuest { uri, .. } => uri,
+        }
+    }
+
+    fn check_uri(&self, uri: &Uri) -> DocumentSourceResult<()> {
+        if self.uri() == uri {
+            Ok(())
+        } else {
+            Err(DocumentSourceUnavailable::ForeignReceipt {
+                expected: uri.clone(),
+                actual: self.uri().clone(),
+            })
+        }
+    }
+
+    fn check_current(&self, store: &dyn vfs::SourceStore) -> DocumentSourceResult<()> {
+        match self {
+            Self::NoFilesystemPath { .. } => Ok(()),
+            Self::Native {
+                uri,
+                selected,
+                source_origin,
+                ..
+            }
+            | Self::Virtual {
+                uri,
+                selected,
+                source_origin,
+                ..
+            }
+            | Self::WasiGuest {
+                uri,
+                selected,
+                source_origin,
+                ..
+            } => {
+                if let Some(origin) = source_origin {
+                    store.validate_source_path_origin(origin).map_err(|cause| {
+                        DocumentSourceUnavailable::Store {
+                            uri: uri.clone(),
+                            cause,
+                        }
+                    })?;
+                }
+                store.validate_document_uri_path(selected).map_err(|cause| {
+                    DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause,
+                    }
+                })
+            }
+        }
+    }
+
+    fn check_for(&self, uri: &Uri, store: &dyn vfs::SourceStore) -> DocumentSourceResult<()> {
+        self.check_uri(uri)?;
+        self.check_current(store)
+    }
+
+    fn with_current<T>(
+        admissions: &[&Self],
+        store: &dyn vfs::SourceStore,
+        mut publish: impl FnMut() -> T,
+    ) -> DocumentSourceResult<T> {
+        for admission in admissions {
+            if let Self::Native {
+                uri,
+                source_origin: Some(origin),
+                ..
+            }
+            | Self::Virtual {
+                uri,
+                source_origin: Some(origin),
+                ..
+            }
+            | Self::WasiGuest {
+                uri,
+                source_origin: Some(origin),
+                ..
+            } = admission
+            {
+                store.validate_source_path_origin(origin).map_err(|cause| {
+                    DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause,
+                    }
+                })?;
+            }
+        }
+        let selected = admissions
+            .iter()
+            .filter_map(|admission| match admission {
+                Self::NoFilesystemPath { .. } => None,
+                Self::Native { selected, .. }
+                | Self::Virtual { selected, .. }
+                | Self::WasiGuest { selected, .. } => Some(selected),
+            })
+            .collect::<Vec<_>>();
+        if selected.is_empty() {
+            return Ok(publish());
+        }
+        let mut result = None;
+        store
+            .with_current_document_paths(&selected, &mut || result = Some(publish()))
+            .map_err(|cause| DocumentSourceUnavailable::Store {
+                uri: admissions[0].uri().clone(),
+                cause,
+            })?;
+        result.ok_or_else(|| DocumentSourceUnavailable::Store {
+            uri: admissions[0].uri().clone(),
+            cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+        })
+    }
+
+    fn analyser_path(&self) -> Option<&str> {
+        match self {
+            Self::NoFilesystemPath { .. } => None,
+            Self::Native {
+                analyser_spelling, ..
+            }
+            | Self::Virtual {
+                analyser_spelling, ..
+            }
+            | Self::WasiGuest {
+                analyser_spelling, ..
+            } => Some(analyser_spelling),
+        }
+    }
+
+    fn path(&self) -> Option<&Path> {
+        match self {
+            Self::NoFilesystemPath { .. } => None,
+            Self::Native {
+                selected,
+                source_origin,
+                ..
+            }
+            | Self::Virtual {
+                selected,
+                source_origin,
+                ..
+            }
+            | Self::WasiGuest {
+                selected,
+                source_origin,
+                ..
+            } => Some(
+                source_origin
+                    .as_ref()
+                    .map_or_else(|| selected.path(), vfs::SourcePathOrigin::path),
+            ),
+        }
+    }
+}
+
 /// Document store value: source text + dialect string.
 ///
 /// # Snapshot ownership and revision currency
@@ -216,6 +652,8 @@ type OriginalDocumentSnapshot = (String, Arc<str>, Arc<AnalysisResult>);
 /// strings, and the rest is `Copy`.
 #[derive(Debug, Clone)]
 struct DocumentState {
+    /// URI-bound admission retained by genuine protocol/disk ingress.
+    path_admission: Option<Arc<DocumentPathAdmission>>,
     /// The document's text **as analysis sees it**, behind an [`Arc`] so a
     /// snapshot handed to a request handler ([`Backend::read_document`]) is a
     /// reference-count bump rather than a copy of the whole buffer.
@@ -308,6 +746,7 @@ impl DocumentState {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
+            path_admission: None,
             text: text.into(),
             raw_text: None,
             line_index,
@@ -328,6 +767,7 @@ impl DocumentState {
         let line_index = tcl_lexer::LineIndex::new_lsp(&text);
         let has_bare_cr = tcl_lexer::LineIndex::contains_bare_cr(&text);
         Self {
+            path_admission: None,
             text: text.into(),
             raw_text: None,
             line_index,
@@ -342,6 +782,11 @@ impl DocumentState {
             dialect_resolution_generation: 0,
             resolved_dialect_generation: 0,
         }
+    }
+
+    fn with_path_admission(mut self, admission: Arc<DocumentPathAdmission>) -> Self {
+        self.path_admission = Some(admission);
+        self
     }
 
     /// Record the LSP `languageId` the document was opened with (builder
@@ -496,20 +941,37 @@ impl LibraryPublicationSource {
     }
 }
 
+#[derive(Clone)]
+struct PublishedSourcePath {
+    file: tcl_lsp_db::SourceFile,
+    admission: Arc<DocumentPathAdmission>,
+}
+type PublishedSourcePaths = std::sync::Mutex<HashMap<Uri, PublishedSourcePath>>;
+
 struct FreshAnalysisSeed {
+    path_admission: Arc<DocumentPathAdmission>,
     analysis: Arc<AnalysisResult>,
     analyser_inputs_epoch: u64,
     class_factory_generation: u64,
 }
 
 struct FreshAnalysisDriver {
+    path_admission: Arc<DocumentPathAdmission>,
+    source_store: Arc<dyn vfs::SourceStore>,
     analyser: Analyser,
     analyser_inputs_epoch: u64,
     class_factory_generation: u64,
 }
 
 impl FreshAnalysisDriver {
-    fn analyse(mut self, text: &str, dialect: &str, namespace: Option<&str>) -> FreshAnalysisSeed {
+    fn analyse(
+        mut self,
+        text: &str,
+        dialect: &str,
+        namespace: Option<&str>,
+    ) -> DocumentSourceResult<FreshAnalysisSeed> {
+        self.path_admission
+            .check_current(self.source_store.as_ref())?;
         let text = tcl_lexer::normalise_lone_cr(text);
         let analysis = match namespace {
             Some(namespace) => self
@@ -517,12 +979,28 @@ impl FreshAnalysisDriver {
                 .analyse_with_source_namespace(&text, dialect, namespace),
             None => self.analyser.analyse(&text, dialect),
         };
-        FreshAnalysisSeed {
+        self.path_admission
+            .check_current(self.source_store.as_ref())?;
+        Ok(FreshAnalysisSeed {
+            path_admission: self.path_admission,
             analysis: Arc::new(analysis),
             analyser_inputs_epoch: self.analyser_inputs_epoch,
             class_factory_generation: self.class_factory_generation,
-        }
+        })
     }
+}
+
+enum DiskScanOutcome {
+    Available(ScannedDocument),
+    Absent(Arc<DocumentPathAdmission>),
+    Unavailable(DocumentSourceUnavailable),
+}
+
+#[derive(Default)]
+struct AdmittedDiskBatch {
+    removal_admissions: Vec<Arc<DocumentPathAdmission>>,
+    rows: Vec<(Uri, String, String, AnalysisResult)>,
+    admissions: Vec<Arc<DocumentPathAdmission>>,
 }
 
 struct ScannedDocument {
@@ -2763,6 +3241,7 @@ enum DiagCurrency {
 /// is somehow absent, in which case the run falls back to a direct `analyse`.
 #[derive(Clone)]
 struct DiagJob {
+    diagnostic_pass: Option<Arc<DiagnosticPass>>,
     /// The document snapshot's shared text handle — a reference-count bump, not
     /// a copy of the buffer, so scheduling a diagnostics run for a large file
     /// costs nothing in memory.
@@ -3408,6 +3887,8 @@ struct DiagToggles {
 /// worker can reuse it across successive runs of one document.
 #[derive(Clone)]
 struct DiagInputs {
+    inputs_epoch: Option<u64>,
+    source_path_admissions: Arc<PublishedSourcePaths>,
     client: Client,
     diagnostic_publisher: Arc<DiagnosticPublisher>,
     registry: Arc<CommandRegistry>,
@@ -3546,7 +4027,8 @@ impl DiagInputs {
                 None => *self.db_config.lock().await,
             }
         };
-        Some(DiagJob {
+        let mut job = DiagJob {
+            diagnostic_pass: None,
             text,
             decode_report,
             dialect,
@@ -3555,7 +4037,9 @@ impl DiagInputs {
             version,
             file,
             config,
-        })
+        };
+        job.diagnostic_pass = self.capture_diagnostic_pass(uri, &job).await;
+        Some(job)
     }
 
     /// The folder-scoped salsa [`tcl_lsp_db::AnalyserConfig`] handle for `uri`
@@ -3657,6 +4141,7 @@ struct DiagnosticMailboxState {
 /// finish and the newest queued state follows it.  This gives close/edit
 /// ordering without timeout-and-retry duplicates.
 struct DiagnosticPublisher {
+    completion: Mutex<HashMap<Uri, DiagnosticCompletionEntry>>,
     client: Client,
     state: std::sync::Mutex<DiagnosticMailboxState>,
     /// The pack-load notices standing on each URI, unioned into every set
@@ -3669,6 +4154,7 @@ struct DiagnosticPublisher {
 impl DiagnosticPublisher {
     fn new(client: Client) -> Self {
         Self {
+            completion: Mutex::new(HashMap::new()),
             client,
             state: std::sync::Mutex::new(DiagnosticMailboxState::default()),
             pack_notices: std::sync::Mutex::new(HashMap::new()),
@@ -3856,6 +4342,7 @@ impl DiagnosticPublisher {
 /// one call so the early-return paths and the final publish all deliver through
 /// the same currency-guarded channel.
 struct DeliveryCtx<'a> {
+    diagnostic_pass: Option<&'a Arc<DiagnosticPass>>,
     client: &'a Client,
     diagnostic_publisher: &'a Arc<DiagnosticPublisher>,
     documents: &'a Arc<DocumentStore>,
@@ -3871,6 +4358,12 @@ struct DeliveryCtx<'a> {
     currency: DiagCurrency,
     version: Option<i32>,
     client_supports_pull: bool,
+}
+
+/// Exact cache/mailbox publication identity, transported with its own ack.
+struct IssuedDiagnosticPublication {
+    result_id: String,
+    receipt: tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome>,
 }
 
 impl DeliveryCtx<'_> {
@@ -3916,14 +4409,24 @@ impl DeliveryCtx<'_> {
     /// acknowledgement only after releasing the map. A close or newer edit
     /// therefore orders before or after this commit without a check/send race.
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
-        let receipt = {
+        self.delivered_current_report(diags).await.is_some()
+    }
+
+    async fn delivered_current_report(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    ) -> Option<String> {
+        let publication = {
             let docs = self.documents.lock("deliver_if_current").await;
             if !self.is_current(&docs).await {
-                return false;
+                return None;
             }
             self.cache_and_enqueue(diags).await
         };
-        matches!(receipt.await, Ok(DiagnosticPublishOutcome::Delivered))
+        match publication.receipt.await {
+            Ok(DiagnosticPublishOutcome::Delivered) => Some(publication.result_id),
+            Ok(DiagnosticPublishOutcome::Superseded) | Err(_) => None,
+        }
     }
 
     /// Deliver the progressive **fast tier** — push-only, and only to a
@@ -3973,29 +4476,31 @@ impl DeliveryCtx<'_> {
     async fn cache_and_enqueue(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
-    ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
+    ) -> IssuedDiagnosticPublication {
         // Assemble once, before the cache entry is taken: a pulled report and
         // a pushed one are the same set, so a `.tclspec`'s pack-load notices
         // have to be in the bytes the cache serves as well as in the ones the
         // publisher sends.
         let diags = self.diagnostic_publisher.with_pack_notices(self.uri, diags);
+        let result_id = next_pull_diag_result_id();
         self.documents
             .retag_held("cache_and_enqueue: pull_diag_cache");
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
             PullDiagEntry {
-                result_id: next_pull_diag_result_id(),
+                result_id: result_id.clone(),
                 revision: self.revision_for_cache(),
                 diagnostics: diags.clone(),
             },
         );
-        self.diagnostic_publisher.enqueue_assembled(
+        let receipt = self.diagnostic_publisher.enqueue_assembled(
             self.uri.clone(),
             diags,
             self.version,
             self.client_supports_pull,
             true,
-        )
+        );
+        IssuedDiagnosticPublication { result_id, receipt }
     }
 }
 
@@ -4003,7 +4508,10 @@ impl DeliveryCtx<'_> {
 /// so any existing squiggles clear, then settle — the analyser, compiler
 /// checks, and F5 validators are all skipped.  Always settled (`true`).
 async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
-    if delivery.deliver_if_current(Vec::new()).await {
+    if delivery
+        .deliver_suppressed_if_current(DiagnosticSuppression::Disabled)
+        .await
+    {
         // Observability parity with the deep path's `[timing] deep diagnostics`
         // marker (emitted only after a real publish).  An empty-set publish
         // onto an already-empty collection may fire no client-side
@@ -4032,7 +4540,10 @@ async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
 /// show no diagnostics" is answerable from the log.  The e2e harness'
 /// `await_diagnostics_excluded` keys on this exact line + `uri=`.
 async fn run_diagnostics_excluded(delivery: &DeliveryCtx<'_>) -> bool {
-    if delivery.deliver_if_current(Vec::new()).await {
+    if delivery
+        .deliver_suppressed_if_current(DiagnosticSuppression::Excluded)
+        .await
+    {
         delivery
             .client
             .log_message(
@@ -4466,7 +4977,7 @@ async fn compute_compiler_diags(
     registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
     analysis: Option<&Arc<AnalysisResult>>,
-) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
+) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
     let &SalsaAnalysisCtx {
         db,
         uri,
@@ -4480,7 +4991,7 @@ async fn compute_compiler_diags(
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 let diagnostics = salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::compiler_check_diagnostics(&*snapshot, file, config)
+                    tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
                 })
                 .ok();
                 report_overlay_misses();
@@ -4505,16 +5016,16 @@ async fn compute_compiler_diags(
         }
     } else {
         let Some(c_analysis) = analysis.map(Arc::clone) else {
-            return ControlFlow::Continue(Arc::new(tcl_lsp_db::CompilerDiagnostics {
+            return ControlFlow::Continue(Some(Arc::new(tcl_lsp_db::CompilerDiagnostics {
                 checks: Vec::new(),
                 optimisations: Vec::new(),
                 taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
-            }));
+            })));
         };
         let c_text = text.to_owned();
         let c_registry = Arc::clone(registry);
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
-        ControlFlow::Continue(
+        ControlFlow::Continue(Some(
             crate::rt::spawn_blocking(move || {
                 with_pack_hooks(|| {
                     Arc::new(
@@ -4538,7 +5049,7 @@ async fn compute_compiler_diags(
                     taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
                 })
             }),
-        )
+        ))
     }
 }
 
@@ -4550,7 +5061,7 @@ async fn compute_compiler_diags_after_base(
     registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
-) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
+) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
     if ctx.file.is_some() {
         return compute_compiler_diags(ctx, registry, generic_variable_patterns, None).await;
     }
@@ -5729,6 +6240,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     // carries were already consumed by the worker to capture `job`.
     let toggles = &inputs.toggles;
     let DiagJob {
+        diagnostic_pass,
         text,
         decode_report,
         dialect,
@@ -5749,6 +6261,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
     let delivery = DeliveryCtx {
+        diagnostic_pass: diagnostic_pass.as_ref(),
         client: &inputs.client,
         diagnostic_publisher: &inputs.diagnostic_publisher,
         documents: &inputs.documents,
@@ -5762,6 +6275,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client_supports_pull: inputs.client_supports_pull,
     };
 
+    if let Some(pass) = &diagnostic_pass {
+        let docs = inputs.documents.lock("begin_diagnostic_pass").await;
+        if delivery.is_current(&docs).await {
+            inputs
+                .diagnostic_publisher
+                .begin_diagnostic_pass(uri, pass)
+                .await;
+        }
+    }
     if !toggles.diagnostics_enabled {
         return run_diagnostics_master_off(&delivery).await;
     }
@@ -5781,6 +6303,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     if let Some(settled) =
         run_diagnostics_f5_dialect(&delivery, &lift_inputs, &analysis_text, &language_id).await
     {
+        delivery
+            .diagnostic_pass_unavailable(DiagnosticUnavailable::Unsupported)
+            .await;
         return settled;
     }
 
@@ -5792,7 +6317,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         text: &analysis_text,
         dialect: tcl_lsp_core::profile_for_dialect(&dialect),
     };
-    run_diagnostics_analyser_path(
+    let settled = run_diagnostics_analyser_path(
         &delivery,
         &salsa_ctx,
         &lift_inputs,
@@ -5821,7 +6346,13 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             cross_file_resolution: toggles.xc.cross_file_resolution,
         },
     )
-    .await
+    .await;
+    if !settled {
+        delivery
+            .diagnostic_pass_unavailable(DiagnosticUnavailable::Cancelled)
+            .await;
+    }
+    settled
 }
 
 /// The non-document-buffer handles the analyser/compiler/publish path needs.
@@ -6022,12 +6553,30 @@ async fn run_deep_diagnostics(
         ),
         compute_project_diags(salsa_ctx, project),
     );
+    let provider_completion = if inputs.cross_file_resolution && project.is_none() {
+        Err(DiagnosticUnavailable::Context)
+    } else {
+        match (&compiler_result, &project_result) {
+            (ControlFlow::Continue(None), _) => Err(DiagnosticUnavailable::Context),
+            (ControlFlow::Continue(Some(_)), ControlFlow::Continue(_)) => Ok(()),
+            _ => Err(DiagnosticUnavailable::ProviderError),
+        }
+    };
     let analysis: Arc<AnalysisResult> = match base_result {
         ControlFlow::Continue(a) => a,
-        ControlFlow::Break(settled) => return settled,
+        ControlFlow::Break(settled) => {
+            delivery
+                .diagnostic_pass_unavailable(if settled {
+                    DiagnosticUnavailable::ProviderError
+                } else {
+                    DiagnosticUnavailable::Cancelled
+                })
+                .await;
+            return settled;
+        }
     };
     let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = match compiler_result {
-        ControlFlow::Continue(d) => d,
+        ControlFlow::Continue(Some(d)) => d,
         // Cancellation → retry the latest state.
         ControlFlow::Break(false) => return false,
         // Deterministic worker panic → degrade to no compiler diags but STILL
@@ -6037,11 +6586,13 @@ async fn run_deep_diagnostics(
         // stripping the O1xx/refined-W12x/cross-file findings the user had. The
         // degraded deep publish is still a strict superset of the fast tier, just
         // without the compiler/optimiser hints.
-        ControlFlow::Break(true) => Arc::new(tcl_lsp_db::CompilerDiagnostics {
-            checks: Vec::new(),
-            optimisations: Vec::new(),
-            taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
-        }),
+        ControlFlow::Continue(None) | ControlFlow::Break(true) => {
+            Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                checks: Vec::new(),
+                optimisations: Vec::new(),
+                taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
+            })
+        }
     };
     // `Some` adds the opt-in project callback-arity checks
     // (`crossFileResolution` on, salsa input present). Direct cross-file calls
@@ -6133,7 +6684,7 @@ async fn run_deep_diagnostics(
         inputs.rehomed_source_seeds,
         inputs.rehoming_gate,
         &analysis,
-        result,
+        (provider_completion, result),
         timing,
     )
     .await
@@ -7298,12 +7849,19 @@ async fn publish_diagnostics_result(
     rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
     rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
     analysis: &Arc<AnalysisResult>,
-    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+    result: (
+        Result<(), DiagnosticUnavailable>,
+        Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+    ),
     timing: PublishTiming<'_>,
 ) -> bool {
+    let (provider_completion, result) = result;
     let diags = match result {
         Ok(diags) => diags,
         Err(err) => {
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::ProviderError)
+                .await;
             delivery
                 .client
                 .log_message(
@@ -7315,7 +7873,7 @@ async fn publish_diagnostics_result(
         }
     };
     let diag_count = diags.len();
-    let (peers, delivery_receipt) = {
+    let (peers, publication) = {
         // A workspace query holds this gate from source-site reconciliation
         // through its final index snapshot. Take it before `documents` (the
         // same order as reconciliation's `read_document`) so this standalone
@@ -7435,21 +7993,37 @@ async fn publish_diagnostics_result(
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
         docs.retag("publish_diagnostics_result: cache_and_enqueue");
-        let receipt = delivery.cache_and_enqueue(diags).await;
-        (peers, receipt)
+        let publication = delivery.cache_and_enqueue(diags).await;
+        (peers, publication)
     };
     // Client backpressure is isolated in the persistent publisher. Waiting for
     // the authoritative delivery preserves the timing-marker contract, but the
     // global documents map and rehoming gate have both been released first.
-    match delivery_receipt.await {
+    match publication.receipt.await {
         Ok(DiagnosticPublishOutcome::Delivered) => {}
-        Ok(DiagnosticPublishOutcome::Superseded) => return true,
+        Ok(DiagnosticPublishOutcome::Superseded) => {
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                .await;
+            return true;
+        }
         Err(_) => {
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::ProviderError)
+                .await;
             // The persistent publisher task was lost. Do not claim that this
             // publish reached the client; diagnostics stop, but request-critical
             // state remains live and no unsafe second consumer is spawned.
             return true;
         }
+    }
+    match provider_completion {
+        Ok(()) => {
+            delivery
+                .complete_diagnostic_pass(analysis, publication.result_id)
+                .await;
+        }
+        Err(reason) => delivery.diagnostic_pass_unavailable(reason).await,
     }
     reschedule_peers(delivery.diag_slots, delivery.uri, peers).await;
     log_publish_timing(delivery, timing, diag_count).await;
@@ -7658,6 +8232,9 @@ impl LivePublicationWait {
 /// Whether a disk-side removal is allowed to retire an editor-open URI.
 #[derive(Clone, Copy)]
 enum DiskRemovalPolicy<'a> {
+    /// The actual selected old path from a didRenameFiles notification.
+    /// Its original behavior retires the old source even if its buffer is open.
+    RenamedPath,
     /// Folder removal and stale scans preserve live, possibly-unsaved buffers.
     ClosedOnly,
     /// A filesystem `DELETED` event retires the dead path even if its buffer is
@@ -8073,6 +8650,8 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    /// Original provider receipt paired with the actual published SourceFile.
+    source_path_admissions: Arc<PublishedSourcePaths>,
     /// Retired `SourceFile` handles, keyed by the URI they belonged to.
     ///
     /// Salsa never reclaims an input: `SourceFile::new` only ever allocates, so
@@ -8231,7 +8810,7 @@ pub struct Backend {
     /// request barrier or retaining the document map while Salsa cancels old
     /// snapshots.
     live_publication_gate: Arc<Mutex<()>>,
-    /// Where every *closed* file the server reads comes from — see
+    /// Selected source provider for document URI paths and closed-file I/O — see
     /// [`crate::vfs`]. Natively this is [`vfs::NativeStore`], a direct
     /// delegation to `std::fs`; a browser worker supplies a
     /// [`vfs::MemoryStore`] the host fills in over `postMessage`. `Arc` so a
@@ -8292,9 +8871,14 @@ impl PerUriCaches<'_> {
     ///
     /// Each map is locked on its own, never nested inside another, so this adds
     /// no edge to the server's global lock order.
-    async fn forget(&self, uris: &[Uri]) {
+    async fn forget(
+        &self,
+        uris: &[Uri],
+        admissions: &[&DocumentPathAdmission],
+        store: &dyn vfs::SourceStore,
+    ) -> DocumentSourceResult<()> {
         if uris.is_empty() {
-            return;
+            return Ok(());
         }
         let Self {
             autoloaded_library_uris,
@@ -8305,34 +8889,45 @@ impl PerUriCaches<'_> {
         } = self;
         {
             let mut autoloaded = autoloaded_library_uris.lock().await;
-            for uri in uris {
-                autoloaded.remove(uri.as_str());
-            }
+            DocumentPathAdmission::with_current(admissions, store, || {
+                for uri in uris {
+                    autoloaded.remove(uri.as_str());
+                }
+            })?;
         }
         {
             let mut seeds = rehomed_source_seeds.lock().await;
-            for uri in uris {
-                seeds.remove(uri.as_str());
-            }
+            DocumentPathAdmission::with_current(admissions, store, || {
+                for uri in uris {
+                    seeds.remove(uri.as_str());
+                }
+            })?;
         }
         {
             let mut tokens = last_semantic_tokens.lock().await;
-            for uri in uris {
-                tokens.remove(uri);
-            }
+            DocumentPathAdmission::with_current(admissions, store, || {
+                for uri in uris {
+                    tokens.remove(uri);
+                }
+            })?;
         }
         {
             let mut asked = semantic_tokens_refresh_asked.lock().await;
-            for uri in uris {
-                asked.remove(uri);
-            }
+            DocumentPathAdmission::with_current(admissions, store, || {
+                for uri in uris {
+                    asked.remove(uri);
+                }
+            })?;
         }
         {
             let mut analyses = workspace_class_analyses.lock().await;
-            for uri in uris {
-                analyses.remove(uri);
-            }
+            DocumentPathAdmission::with_current(admissions, store, || {
+                for uri in uris {
+                    analyses.remove(uri);
+                }
+            })?;
         }
+        Ok(())
     }
 }
 
@@ -9468,6 +10063,7 @@ impl Backend {
             style_line_length: Mutex::new(120),
             db: Arc::new(TrackedMutex::new("db", db)),
             db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
+            source_path_admissions: Arc::new(std::sync::Mutex::new(HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
@@ -9504,28 +10100,65 @@ impl Backend {
     /// background disk publication.  Keeping normalisation, tombstone revival
     /// and class-factory seeding here prevents the optimistic background path
     /// from becoming a subtly different salsa writer.
+    #[cfg(test)]
     fn set_db_sources_locked<'a>(
         db: &mut tcl_lsp_db::TclDatabase,
         files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         entries: impl IntoIterator<Item = (&'a Uri, &'a str, &'a str)>,
+        store: &dyn vfs::SourceStore,
+        published_paths: &PublishedSourcePaths,
+    ) -> DocumentSourceResult<bool> {
+        // Admit the complete write set before the first Salsa/tombstone mutation.
+        let entries = entries
+            .into_iter()
+            .map(|(uri, text, dialect)| {
+                Ok((DocumentPathAdmission::capture(uri, store)?, text, dialect))
+            })
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
+        let admissions = entries
+            .iter()
+            .map(|(admission, _, _)| admission)
+            .collect::<Vec<_>>();
+        DocumentPathAdmission::with_current(&admissions, store, || {
+            Self::set_admitted_db_sources_locked(
+                db,
+                files,
+                tombstones,
+                entries
+                    .iter()
+                    .map(|(admission, text, dialect)| (admission, *text, *dialect)),
+                published_paths,
+            )
+        })
+    }
+
+    fn set_admitted_db_sources_locked<'a>(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        entries: impl IntoIterator<Item = (&'a DocumentPathAdmission, &'a str, &'a str)>,
+        published_paths: &PublishedSourcePaths,
     ) -> bool {
         use salsa::Setter as _;
 
         let oracle = Self::published_class_factories(db, files);
         let mut membership_changed = false;
-        for (uri, text, dialect) in entries {
+        for (admission, text, dialect) in entries {
+            let uri = admission.uri();
             // Salsa's `SourceFile.text` is the analyser's input, so it stores
             // the analysis form on every ingress path.
             let text = tcl_lexer::normalise_lone_cr(text).into_owned();
             if let Some(&file) = files.get(uri) {
+                file.set_path(db)
+                    .to(admission.analyser_path().map(str::to_owned));
                 file.set_text(db).to(text);
                 file.set_dialect(db).to(dialect.to_owned());
             } else {
                 let file = Self::revive_or_create_db_source(
                     db,
                     tombstones,
-                    uri,
+                    admission,
                     text,
                     dialect.to_owned(),
                     oracle.clone(),
@@ -9533,6 +10166,17 @@ impl Backend {
                 files.insert(uri.clone(), file);
                 membership_changed = true;
             }
+            let file = *files.get(uri).expect("the source was just published");
+            published_paths
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(
+                    uri.clone(),
+                    PublishedSourcePath {
+                        file,
+                        admission: Arc::new(admission.clone()),
+                    },
+                );
         }
         membership_changed
     }
@@ -9544,13 +10188,15 @@ impl Backend {
         files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         uris: impl IntoIterator<Item = &'a Uri>,
+        published_paths: &PublishedSourcePaths,
     ) -> bool {
         let mut membership_changed = false;
         for uri in uris {
             // Do not short-circuit: every URI must be retired even after the
             // first one proves that the project membership changed.
             membership_changed =
-                Self::retire_db_source(db, files, tombstones, uri) || membership_changed;
+                Self::retire_db_source(db, files, tombstones, uri, published_paths)
+                    || membership_changed;
         }
         membership_changed
     }
@@ -9594,7 +10240,12 @@ impl Backend {
     /// is released the instant the clone is made, so it is invisible to a
     /// lock-guard analysis; it is the *clone* Salsa waits on.
     #[cfg(test)]
-    async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
+    async fn db_set_source(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: String,
+    ) -> DocumentSourceResult<()> {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         let mut tombstones = self.db_tombstones.lock().await;
@@ -9603,11 +10254,13 @@ impl Backend {
             &mut files,
             &mut tombstones,
             std::iter::once((uri, text, dialect.as_str())),
-        );
+            self.store.as_ref(),
+            self.source_path_admissions.as_ref(),
+        )?;
         let mut members = self.db_project_members.lock().await;
         let member_added = members.insert(uri.clone());
         drop(tombstones);
-        if membership_changed || member_added {
+        Ok(if membership_changed || member_added {
             // Membership changed — re-set the `Project` file set. A text-only
             // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
@@ -9621,7 +10274,7 @@ impl Backend {
                 global_config,
                 &folder_configs,
             );
-        }
+        })
     }
 
     /// Invalidate every tracked analysis after a sidecar-stub change. A source
@@ -9656,12 +10309,19 @@ impl Backend {
     /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
     /// order is `db` → `db_files` → `db_tombstones` →
     /// `db_project_members` → `db_project`, matching [`Self::db_set_source`].
+    #[cfg(test)]
     async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         let retired = {
             let mut tombstones = self.db_tombstones.lock().await;
-            Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri)
+            Self::retire_db_source(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                uri,
+                self.source_path_admissions.as_ref(),
+            )
         };
         let mut members = self.db_project_members.lock().await;
         let member_removed = members.remove(uri);
@@ -9695,11 +10355,16 @@ impl Backend {
         files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
         uri: &Uri,
+        published_paths: &PublishedSourcePaths,
     ) -> bool {
         use salsa::Setter as _;
         let Some(file) = files.remove(uri) else {
             return false;
         };
+        published_paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(uri);
         file.set_text(db).to(String::new());
         file.set_external_call_sites(db).to(None);
         tombstones.insert(uri.clone(), file);
@@ -9713,18 +10378,20 @@ impl Backend {
     fn revive_or_create_db_source(
         db: &mut tcl_lsp_db::TclDatabase,
         tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
-        uri: &Uri,
+        admission: &DocumentPathAdmission,
         text: String,
         dialect: String,
         oracle: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ) -> tcl_lsp_db::SourceFile {
         use salsa::Setter as _;
+        let uri = admission.uri();
+        let path = admission.analyser_path().map(str::to_owned);
         let file = if let Some(file) = tombstones.remove(uri) {
+            file.set_path(db).to(path);
             file.set_text(db).to(text);
             file.set_dialect(db).to(dialect);
             file
         } else {
-            let path = uri.to_file_path().map(|p| p.display().to_string());
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
         };
         // Hand the arriving file the workspace class-factory oracle the rest of
@@ -10218,9 +10885,9 @@ impl Backend {
         removals: &[Uri],
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> Vec<Uri> {
+    ) -> DocumentSourceResult<Vec<Uri>> {
         if replacements.is_empty() && removals.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         let disk_publication = self.disk_publication_gate.lock().await;
@@ -10234,8 +10901,43 @@ impl Backend {
                 removal_policy,
                 site,
             )
-            .await;
-        changed
+            .await?;
+        Ok(changed)
+    }
+
+    async fn publish_scanned_disk_results(
+        &self,
+        batch: &AdmittedDiskBatch,
+        removals: &[Uri],
+        removal_policy: DiskRemovalPolicy<'_>,
+        site: &'static str,
+    ) -> DocumentSourceResult<Vec<Uri>> {
+        assert_eq!(batch.rows.len(), batch.admissions.len());
+        for (row, admission) in batch.rows.iter().zip(&batch.admissions) {
+            admission.check_for(&row.0, self.store.as_ref())?;
+        }
+        assert_eq!(removals.len(), batch.removal_admissions.len());
+        for (uri, admission) in removals.iter().zip(&batch.removal_admissions) {
+            admission.check_for(uri, self.store.as_ref())?;
+        }
+        if batch.rows.is_empty() && removals.is_empty() {
+            return Ok(Vec::new());
+        }
+        let disk_publication = self.disk_publication_gate.lock().await;
+        let rehoming = self.rehoming_gate.lock().await;
+        let (changed, _) = self
+            .publish_admitted_disk_results_while_rehoming_locked(
+                &disk_publication,
+                rehoming,
+                &batch.rows,
+                &batch.admissions,
+                removals,
+                &batch.removal_admissions,
+                removal_policy,
+                site,
+            )
+            .await?;
+        Ok(changed)
     }
 
     /// [`Self::publish_disk_results`] with the rehoming gate already held.
@@ -10251,7 +10953,44 @@ impl Backend {
         removals: &[Uri],
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> (Vec<Uri>, tokio::sync::MutexGuard<'a, ()>) {
+    ) -> DocumentSourceResult<(Vec<Uri>, tokio::sync::MutexGuard<'a, ()>)> {
+        let admissions = replacements
+            .iter()
+            .map(|row| DocumentPathAdmission::capture(&row.0, self.store.as_ref()).map(Arc::new))
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
+        let removal_admissions = removals
+            .iter()
+            .map(|uri| DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new))
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
+        Ok(self
+            .publish_admitted_disk_results_while_rehoming_locked(
+                _disk_publication,
+                rehoming_guard,
+                replacements,
+                &admissions,
+                removals,
+                &removal_admissions,
+                removal_policy,
+                site,
+            )
+            .await?)
+    }
+
+    async fn publish_admitted_disk_results_while_rehoming_locked<'a>(
+        &'a self,
+        _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+        rehoming_guard: tokio::sync::MutexGuard<'a, ()>,
+        replacements: &[(Uri, String, String, AnalysisResult)],
+        admissions: &[Arc<DocumentPathAdmission>],
+        removals: &[Uri],
+        removal_admissions: &[Arc<DocumentPathAdmission>],
+        removal_policy: DiskRemovalPolicy<'_>,
+        site: &'static str,
+    ) -> DocumentSourceResult<(Vec<Uri>, tokio::sync::MutexGuard<'a, ()>)> {
+        assert_eq!(removals.len(), removal_admissions.len());
+        for (uri, admission) in removals.iter().zip(removal_admissions) {
+            admission.check_uri(uri)?;
+        }
         // Serialise the final disk commit with live source publication. The
         // document-map check below can then be released before the bounded
         // Salsa setters without a didOpen/didChange source commit landing in
@@ -10313,12 +11052,14 @@ impl Backend {
             };
             let replacements: Vec<_> = replacements
                 .iter()
-                .filter(|(uri, _, _, _)| !docs.contains_key(uri))
+                .zip(admissions)
+                .filter(|(row, _)| !docs.contains_key(&row.0))
                 .collect();
             let mut index_only_removals = Vec::new();
             let removals: Vec<_> = removals
                 .iter()
                 .filter(|uri| match removal_policy {
+                    DiskRemovalPolicy::RenamedPath => true,
                     DiskRemovalPolicy::ClosedOnly => !docs.contains_key(*uri),
                     DiskRemovalPolicy::IncludeOpen(deleted_revisions) => {
                         let Some(doc) = docs.get(*uri) else {
@@ -10344,16 +11085,28 @@ impl Backend {
             drop(docs);
 
             if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
-                return (Vec::new(), rehoming_guard);
+                return Ok((Vec::new(), rehoming_guard));
             }
 
-            Self::apply_disk_publication(locks, &removals, &index_only_removals, &replacements);
+            Self::apply_disk_publication(
+                locks,
+                &removals,
+                &index_only_removals,
+                &replacements,
+                removal_admissions,
+                self.store.as_ref(),
+                self.source_path_admissions.as_ref(),
+            )?;
             drop(snapshot_drain);
 
-            return (
-                Self::changed_disk_uris(removals, index_only_removals, replacements),
+            return Ok((
+                Self::changed_disk_uris(
+                    removals,
+                    index_only_removals,
+                    replacements.into_iter().map(|(row, _)| row).collect(),
+                ),
                 rehoming_guard,
-            );
+            ));
         }
     }
 
@@ -10362,8 +11115,19 @@ impl Backend {
         locks: PublicationLocks<'_>,
         removals: &[&Uri],
         index_only_removals: &[&Uri],
-        replacements: &[&(Uri, String, String, AnalysisResult)],
-    ) {
+        replacements: &[(
+            &(Uri, String, String, AnalysisResult),
+            &Arc<DocumentPathAdmission>,
+        )],
+        removal_admissions: &[Arc<DocumentPathAdmission>],
+        store: &dyn vfs::SourceStore,
+        published_paths: &PublishedSourcePaths,
+    ) -> DocumentSourceResult<()> {
+        let admissions = replacements
+            .iter()
+            .map(|(_, admission)| admission.as_ref())
+            .chain(removal_admissions.iter().map(Arc::as_ref))
+            .collect::<Vec<_>>();
         let PublicationLocks {
             mut db,
             mut files,
@@ -10375,44 +11139,49 @@ impl Backend {
             mut index,
             mut seeds,
         } = locks;
-        let removed_members = Self::remove_db_sources_locked(
-            &mut db,
-            &mut files,
-            &mut tombstones,
-            removals.iter().copied(),
-        );
-        let added_members = Self::set_db_sources_locked(
-            &mut db,
-            &mut files,
-            &mut tombstones,
-            replacements
-                .iter()
-                .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
-        );
-        Self::sync_db_project_membership_with_configurations(
-            &mut db,
-            &files,
-            &mut project_members,
-            &mut project,
-            (*global_config, &folder_configs),
-            (
+        DocumentPathAdmission::with_current(&admissions, store, || {
+            let removed_members = Self::remove_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                removals.iter().copied(),
+                published_paths,
+            );
+            let added_members = Self::set_admitted_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                replacements
+                    .iter()
+                    .map(|(row, admission)| (admission.as_ref(), row.1.as_str(), row.2.as_str())),
+                published_paths,
+            );
+            Self::sync_db_project_membership_with_configurations(
+                &mut db,
+                &files,
+                &mut project_members,
+                &mut project,
+                (*global_config, &folder_configs),
+                (
+                    removals
+                        .iter()
+                        .copied()
+                        .chain(index_only_removals.iter().copied()),
+                    replacements.iter().map(|(row, _)| &row.0),
+                    removed_members || added_members,
+                ),
+            );
+            Self::sync_disk_index(
+                &mut index,
+                &mut seeds,
                 removals
                     .iter()
                     .copied()
                     .chain(index_only_removals.iter().copied()),
-                replacements.iter().map(|entry| &entry.0),
-                removed_members || added_members,
-            ),
-        );
-        Self::sync_disk_index(
-            &mut index,
-            &mut seeds,
-            removals
-                .iter()
-                .copied()
-                .chain(index_only_removals.iter().copied()),
-            replacements.iter().map(|entry| (&entry.0, &entry.3)),
-        );
+                replacements.iter().map(|(row, _)| (&row.0, &row.3)),
+            );
+        })?;
+        Ok(())
     }
 
     /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
@@ -10422,18 +11191,24 @@ impl Backend {
         text: &str,
         dialect: &str,
         version: i32,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         let mut docs = self.documents.lock("did_open_salsa_published").await;
         let Some(doc) = docs.get_mut(uri) else {
-            return false;
+            return Ok(false);
         };
         if !doc.matches_open_publication(text, dialect, version) {
-            return false;
+            return Ok(false);
         }
-        doc.publication = DocumentPublication::Salsa;
+        let admission = doc.path_admission.clone().map(Ok).unwrap_or_else(|| {
+            DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new)
+        })?;
+        admission.check_uri(uri)?;
+        DocumentPathAdmission::with_current(&[admission.as_ref()], self.store.as_ref(), || {
+            doc.publication = DocumentPublication::Salsa;
+        })?;
         drop(docs);
         self.live_publication_advanced.notify_waiters();
-        true
+        Ok(true)
     }
 
     /// Seed the live index and publish full readiness only if this remains the
@@ -10445,7 +11220,8 @@ impl Backend {
         dialect: &str,
         version: i32,
         mut seed: FreshAnalysisSeed,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
+        seed.path_admission.check_for(uri, self.store.as_ref())?;
         let uri_generation = self.live_publication_uri_generation(uri);
         loop {
             let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
@@ -10459,50 +11235,44 @@ impl Backend {
                 drop(analyser_inputs_guard);
                 seed = self
                     .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
-                    .await;
+                    .await?;
                 continue;
             }
-            {
-                let documents = self.documents.lock("did_open_index_currency").await;
-                if !documents
-                    .get(uri)
-                    .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
-                    || self.live_publication_uri_generation(uri) != uri_generation
-                {
-                    return false;
-                }
-            }
-            let mut index = self.workspace_index.write().await;
-            if self.live_publication_uri_generation(uri) != uri_generation {
-                return false;
-            }
-            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
-            drop(index);
-            // This is a standalone replacement. Invalidate any source-site
-            // view marker in the same rehoming transaction so the next
-            // workspace query reapplies its qualified views.
-            self.rehomed_source_seeds.lock().await.remove(uri.as_str());
+            let mut seeds = self.rehomed_source_seeds.lock().await;
             let mut documents = self.documents.lock("did_open_publish_complete").await;
             if !documents
                 .get(uri)
                 .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
                 || self.live_publication_uri_generation(uri) != uri_generation
             {
-                drop(documents);
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document_if_revision(uri.as_str(), index_revision);
-                return false;
+                return Ok(false);
             }
-            documents.retag("did_open_publish_complete: commit");
-            documents
-                .get_mut(uri)
-                .expect("the document cannot disappear while its map is locked")
-                .publication = DocumentPublication::Indexed;
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(documents);
+                drop(seeds);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            // No await separates authenticating the selected provider mapping
+            // from publishing the matching index and document revision.
+            DocumentPathAdmission::with_current(
+                &[seed.path_admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    index.replace_document_with_revision(uri.as_str(), &seed.analysis);
+                    seeds.remove(uri.as_str());
+                    documents.retag("did_open_publish_complete: commit");
+                    documents
+                        .get_mut(uri)
+                        .expect("the document map remains locked")
+                        .publication = DocumentPublication::Indexed;
+                },
+            )?;
+            drop(index);
             drop(documents);
+            drop(seeds);
             self.live_publication_advanced.notify_waiters();
-            return true;
+            return Ok(true);
         }
     }
 
@@ -10515,7 +11285,8 @@ impl Backend {
         dialect: &str,
         revision: u64,
         mut seed: FreshAnalysisSeed,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
+        seed.path_admission.check_for(uri, self.store.as_ref())?;
         let uri_generation = self.live_publication_uri_generation(uri);
         loop {
             let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
@@ -10529,47 +11300,44 @@ impl Backend {
                 drop(analyser_inputs_guard);
                 seed = self
                     .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
-                    .await;
+                    .await?;
                 continue;
             }
-            {
-                let documents = self.documents.lock("did_change_index_currency").await;
-                if !documents
-                    .get(uri)
-                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
-                    || self.live_publication_uri_generation(uri) != uri_generation
-                {
-                    return false;
-                }
-            }
-            let mut index = self.workspace_index.write().await;
-            if self.live_publication_uri_generation(uri) != uri_generation {
-                return false;
-            }
-            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
-            drop(index);
-            self.rehomed_source_seeds.lock().await.remove(uri.as_str());
+            let mut seeds = self.rehomed_source_seeds.lock().await;
             let mut documents = self.documents.lock("did_change_publish_complete").await;
             if !documents
                 .get(uri)
                 .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
                 || self.live_publication_uri_generation(uri) != uri_generation
             {
-                drop(documents);
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document_if_revision(uri.as_str(), index_revision);
-                return false;
+                return Ok(false);
             }
-            documents.retag("did_change_publish_complete: commit");
-            documents
-                .get_mut(uri)
-                .expect("the document cannot disappear while its map is locked")
-                .publication = DocumentPublication::Indexed;
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(documents);
+                drop(seeds);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            // No await separates authenticating the selected provider mapping
+            // from publishing the matching index and document revision.
+            DocumentPathAdmission::with_current(
+                &[seed.path_admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    index.replace_document_with_revision(uri.as_str(), &seed.analysis);
+                    seeds.remove(uri.as_str());
+                    documents.retag("did_change_publish_complete: commit");
+                    documents
+                        .get_mut(uri)
+                        .expect("the document map remains locked")
+                        .publication = DocumentPublication::Indexed;
+                },
+            )?;
+            drop(index);
             drop(documents);
+            drop(seeds);
             self.live_publication_advanced.notify_waiters();
-            return true;
+            return Ok(true);
         }
     }
 
@@ -10582,27 +11350,28 @@ impl Backend {
         dialect: &str,
         revision: u64,
         index_needs_seed: bool,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         if !index_needs_seed {
-            return true;
+            return Ok(true);
         }
         {
             let docs = self.documents.lock("did_change_restore_index").await;
             let Some(doc) = docs.get(uri) else {
-                return false;
+                return Ok(false);
             };
             if !doc.matches_live_source_publication(text, dialect, revision) {
-                return false;
+                return Ok(false);
             }
             if doc.backing_file_deleted {
-                return true;
+                return Ok(true);
             }
         }
         let seed = self
             .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
-            .await;
-        self.publish_live_index_if_current(uri, text, dialect, revision, seed)
-            .await
+            .await?;
+        Ok(self
+            .publish_live_index_if_current(uri, text, dialect, revision, seed)
+            .await?)
     }
 
     /// Publish an edited source and, when it superseded a missing cold-open
@@ -10614,15 +11383,16 @@ impl Backend {
         dialect: &str,
         revision: u64,
         index_needs_seed: bool,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         if !self
             .commit_live_source("did_change", uri, text, dialect, revision, index_needs_seed)
-            .await
+            .await?
         {
-            return false;
+            return Ok(false);
         }
-        self.restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
-            .await
+        Ok(self
+            .restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
+            .await?)
     }
 
     /// Publish one already-visible editor buffer to Salsa and then seed its
@@ -10654,15 +11424,16 @@ impl Backend {
         text: &str,
         dialect: &str,
         version: i32,
-    ) -> bool {
-        self.commit_open_document_with_seed(
-            uri,
-            text,
-            dialect,
-            version,
-            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
-        )
-        .await
+    ) -> DocumentSourceResult<bool> {
+        Ok(self
+            .commit_open_document_with_seed(
+                uri,
+                text,
+                dialect,
+                version,
+                self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
+            )
+            .await?)
     }
 
     /// Commit the source tier, release its serialisation gate, then await the
@@ -10678,10 +11449,11 @@ impl Backend {
         dialect: &str,
         version: i32,
         seed: F,
-    ) -> bool
+    ) -> DocumentSourceResult<bool>
     where
-        F: Future<Output = FreshAnalysisSeed>,
+        F: Future<Output = DocumentSourceResult<FreshAnalysisSeed>>,
     {
+        let admission = self.document_path_admission(uri).await?;
         {
             let mut publication = self.live_publication_gate.lock().await;
             let generation = self
@@ -10696,7 +11468,7 @@ impl Backend {
                         .get(uri)
                         .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
                     {
-                        return false;
+                        return Ok(false);
                     }
                     self.refresh_live_publication_generation(uri, &mut retry);
                 }
@@ -10709,7 +11481,7 @@ impl Backend {
                             .await
                         {
                             Some(publication) => publication,
-                            None => return false,
+                            None => return Ok(false),
                         };
                         continue;
                     }
@@ -10728,7 +11500,7 @@ impl Backend {
                         .await
                     {
                         Some(publication) => publication,
-                        None => return false,
+                        None => return Ok(false),
                     };
                     continue;
                 };
@@ -10737,7 +11509,7 @@ impl Backend {
                     .get(uri)
                     .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
                 if !current {
-                    return false;
+                    return Ok(false);
                 }
                 drop(docs);
 
@@ -10748,10 +11520,20 @@ impl Backend {
                         mut semantic_tokens_refresh_asked,
                         mut workspace_class_analyses,
                     } = locks;
-                    Self::set_live_db_source_locked(source, uri, text, dialect, true);
-                    last_semantic_tokens.remove(uri);
-                    semantic_tokens_refresh_asked.remove(uri);
-                    workspace_class_analyses.remove(uri);
+                    Self::set_live_db_source_locked(
+                        source,
+                        &admission,
+                        text,
+                        dialect,
+                        true,
+                        self.store.as_ref(),
+                        &mut || {
+                            last_semantic_tokens.remove(uri);
+                            semantic_tokens_refresh_asked.remove(uri);
+                            workspace_class_analyses.remove(uri);
+                        },
+                        self.source_path_admissions.as_ref(),
+                    )?;
                 }
                 drop(snapshot_drain.take());
 
@@ -10762,9 +11544,9 @@ impl Backend {
                 // file can paint promptly while its cross-document facts finish.
                 if !self
                     .mark_open_salsa_published_if_current(uri, text, dialect, version)
-                    .await
+                    .await?
                 {
-                    return false;
+                    return Ok(false);
                 }
                 break;
             }
@@ -10777,9 +11559,10 @@ impl Backend {
         // future owns no Salsa snapshot and runs after the publication gate is
         // released, so a newer edit can publish and make this seed obsolete.
         // The diagnostics worker may later replace it with its refined view.
-        let seed = seed.await;
-        self.publish_open_index_if_current(uri, text, dialect, version, seed)
-            .await
+        let seed = seed.await?;
+        Ok(self
+            .publish_open_index_if_current(uri, text, dialect, version, seed)
+            .await?)
     }
 
     /// Publish the Salsa source for one already-visible live revision.
@@ -10797,7 +11580,8 @@ impl Backend {
         dialect: &str,
         revision: u64,
         index_needs_seed: bool,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
+        let admission = self.document_path_admission(uri).await?;
         let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
@@ -10807,14 +11591,14 @@ impl Backend {
             LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
             if self.live_publication_uri_generation(uri) != retry.uri_generation {
-                return false;
+                return Ok(false);
             }
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
                     .get(uri)
                     .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
                 {
-                    return false;
+                    return Ok(false);
                 }
                 self.refresh_live_publication_generation(uri, &mut retry);
             }
@@ -10827,7 +11611,7 @@ impl Backend {
                         .await
                     {
                         Some(publication) => publication,
-                        None => return false,
+                        None => return Ok(false),
                     };
                     continue;
                 }
@@ -10845,7 +11629,7 @@ impl Backend {
                     .await
                 {
                     Some(publication) => publication,
-                    None => return false,
+                    None => return Ok(false),
                 };
                 continue;
             };
@@ -10853,30 +11637,45 @@ impl Backend {
                 doc.matches_live_source_publication(text, dialect, revision)
                     && self.live_publication_uri_generation(uri) == retry.uri_generation
             }) else {
-                return false;
+                return Ok(false);
             };
             let orphaned = current.backing_file_deleted;
             drop(docs);
 
-            Self::set_live_db_source_locked(locks, uri, text, dialect, !orphaned);
+            Self::set_live_db_source_locked(
+                locks,
+                &admission,
+                text,
+                dialect,
+                !orphaned,
+                self.store.as_ref(),
+                &mut || {},
+                self.source_path_admissions.as_ref(),
+            )?;
             drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
-                return false;
+                return Ok(false);
             };
             if !doc.matches_live_source_publication(text, dialect, revision)
                 || self.live_publication_uri_generation(uri) != retry.uri_generation
             {
-                return false;
+                return Ok(false);
             }
-            doc.publication = if index_needs_seed && !doc.backing_file_deleted {
-                DocumentPublication::Salsa
-            } else {
-                DocumentPublication::Indexed
-            };
+            DocumentPathAdmission::with_current(
+                &[admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    doc.publication = if index_needs_seed && !doc.backing_file_deleted {
+                        DocumentPublication::Salsa
+                    } else {
+                        DocumentPublication::Indexed
+                    };
+                },
+            )?;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
-            return true;
+            return Ok(true);
         }
     }
 
@@ -10896,7 +11695,8 @@ impl Backend {
         text: &str,
         dialect: &str,
         revision: u64,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
+        let admission = self.document_path_admission(uri).await?;
         let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
@@ -10906,14 +11706,14 @@ impl Backend {
             LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
             if self.live_publication_uri_generation(uri) != retry.uri_generation {
-                return false;
+                return Ok(false);
             }
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
                     .get(uri)
                     .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
                 {
-                    return false;
+                    return Ok(false);
                 }
                 self.refresh_live_publication_generation(uri, &mut retry);
             }
@@ -10926,7 +11726,7 @@ impl Backend {
                         .await
                     {
                         Some(publication) => publication,
-                        None => return false,
+                        None => return Ok(false),
                     };
                     continue;
                 }
@@ -10944,7 +11744,7 @@ impl Backend {
                     .await
                 {
                     Some(publication) => publication,
-                    None => return false,
+                    None => return Ok(false),
                 };
                 continue;
             };
@@ -10952,38 +11752,54 @@ impl Backend {
                 .get(uri)
                 .filter(|doc| doc.matches_live_source_publication(text, dialect, revision))
             else {
-                return false;
+                return Ok(false);
             };
             let orphaned = current.backing_file_deleted;
             drop(docs);
 
             {
                 let OpenPublicationLocks { source, mut index } = locks;
-                Self::set_live_db_source_locked(source, uri, text, dialect, !orphaned);
-                index.remove_document(uri.as_str());
+                Self::set_live_db_source_locked(
+                    source,
+                    &admission,
+                    text,
+                    dialect,
+                    !orphaned,
+                    self.store.as_ref(),
+                    &mut || {
+                        index.remove_document(uri.as_str());
+                    },
+                    self.source_path_admissions.as_ref(),
+                )?;
             }
             drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
-                return false;
+                return Ok(false);
             };
             if !doc.matches_live_source_publication(text, dialect, revision)
                 || self.live_publication_uri_generation(uri) != retry.uri_generation
             {
-                return false;
+                return Ok(false);
             }
-            doc.publication = if doc.backing_file_deleted {
-                DocumentPublication::Indexed
-            } else {
-                DocumentPublication::Salsa
-            };
+            DocumentPathAdmission::with_current(
+                &[admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    doc.publication = if doc.backing_file_deleted {
+                        DocumentPublication::Indexed
+                    } else {
+                        DocumentPublication::Salsa
+                    };
+                },
+            )?;
             let orphaned = doc.backing_file_deleted;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             if orphaned {
                 drop(snapshot_drain);
                 drop(publication);
-                return true;
+                return Ok(true);
             }
             // Fresh analysis must not retain the live-publication gate: a
             // newer edit is authoritative and must be able to supersede this
@@ -10993,17 +11809,22 @@ impl Backend {
             let text: Arc<str> = Arc::from(text);
             let seed = self
                 .fresh_analysis_seed(uri, Arc::clone(&text), dialect.to_owned())
-                .await;
-            return self
+                .await?;
+            return Ok(self
                 .publish_live_index_if_current(uri, &text, dialect, revision, seed)
-                .await;
+                .await?);
         }
     }
 
     /// Retire a closed URI's live derived state without waiting while holding
     /// either the edit-order turn or a partial lock bundle. A racing re-open
     /// wins the final currency check and keeps all of its newly-armed caches.
-    async fn commit_closed_live_state(&self, uri: &Uri) -> bool {
+    async fn commit_closed_live_state(
+        &self,
+        uri: &Uri,
+        admission: &DocumentPathAdmission,
+    ) -> DocumentSourceResult<bool> {
+        admission.check_uri(uri)?;
         let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
@@ -11013,7 +11834,7 @@ impl Backend {
         loop {
             if let Some(docs) = self.documents.try_lock("did_close_currency") {
                 if docs.contains_key(uri) {
-                    return false;
+                    return Ok(false);
                 }
                 self.refresh_live_publication_generation(uri, &mut retry);
             }
@@ -11025,7 +11846,7 @@ impl Backend {
                         .await
                     {
                         Some(publication) => publication,
-                        None => return false,
+                        None => return Ok(false),
                     };
                     continue;
                 }
@@ -11043,12 +11864,12 @@ impl Backend {
                     .await
                 {
                     Some(publication) => publication,
-                    None => return false,
+                    None => return Ok(false),
                 };
                 continue;
             };
             if docs.contains_key(uri) {
-                return false;
+                return Ok(false);
             }
             let ClosePublicationLocks {
                 mut index,
@@ -11057,20 +11878,22 @@ impl Backend {
                 mut semantic_tokens_refresh_asked,
                 mut workspace_class_analyses,
             } = locks;
-            index.remove_document(uri.as_str());
-            if let Some(slot) = diag_slots.get_mut(uri) {
-                if slot.running {
-                    slot.latest_inputs = None;
-                    slot.dirty = false;
-                } else {
-                    diag_slots.remove(uri);
+            DocumentPathAdmission::with_current(&[admission], self.store.as_ref(), || {
+                index.remove_document(uri.as_str());
+                if let Some(slot) = diag_slots.get_mut(uri) {
+                    if slot.running {
+                        slot.latest_inputs = None;
+                        slot.dirty = false;
+                    } else {
+                        diag_slots.remove(uri);
+                    }
                 }
-            }
-            last_semantic_tokens.remove(uri);
-            semantic_tokens_refresh_asked.remove(uri);
-            workspace_class_analyses.remove(uri);
+                last_semantic_tokens.remove(uri);
+                semantic_tokens_refresh_asked.remove(uri);
+                workspace_class_analyses.remove(uri);
+            })?;
             drop(docs);
-            return true;
+            return Ok(true);
         }
     }
 
@@ -11238,11 +12061,16 @@ impl Backend {
     /// cross-document project membership for edited open orphans.
     fn set_live_db_source_locked(
         locks: LiveSourceLocks<'_>,
-        uri: &Uri,
+        admission: &DocumentPathAdmission,
         text: &str,
         dialect: &str,
         project_member: bool,
-    ) {
+        store: &dyn vfs::SourceStore,
+        publish_derived: &mut dyn FnMut(),
+        published_paths: &PublishedSourcePaths,
+    ) -> DocumentSourceResult<()> {
+        admission.check_current(store)?;
+        let uri = admission.uri();
         let LiveSourceLocks {
             mut db,
             mut files,
@@ -11252,25 +12080,30 @@ impl Backend {
             global_config,
             folder_configs,
         } = locks;
-        let source_membership_changed = Self::set_db_sources_locked(
-            &mut db,
-            &mut files,
-            &mut tombstones,
-            std::iter::once((uri, text, dialect)),
-        );
-        let (removals, additions) = if project_member {
-            (None, Some(uri))
-        } else {
-            (Some(uri), None)
-        };
-        Self::sync_db_project_membership_with_configurations(
-            &mut db,
-            &files,
-            &mut project_members,
-            &mut project,
-            (*global_config, &folder_configs),
-            (removals, additions, source_membership_changed),
-        );
+        DocumentPathAdmission::with_current(&[admission], store, || {
+            let source_membership_changed = Self::set_admitted_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                std::iter::once((admission, text, dialect)),
+                published_paths,
+            );
+            let (removals, additions) = if project_member {
+                (None, Some(uri))
+            } else {
+                (Some(uri), None)
+            };
+            Self::sync_db_project_membership_with_configurations(
+                &mut db,
+                &files,
+                &mut project_members,
+                &mut project,
+                (*global_config, &folder_configs),
+                (removals, additions, source_membership_changed),
+            );
+            publish_derived();
+        })?;
+        Ok(())
     }
 
     /// Apply one closed-file transaction to the workspace index and retire
@@ -11310,15 +12143,20 @@ impl Backend {
     /// an edit or a second configuration change can overtake either phase. The
     /// per-document generation makes that visible: a mismatched snapshot is
     /// retried, and resolving generation N cannot clear generation N+1.
-    async fn resolve_dirty_open_document_dialect(&self, uri: &Uri, operation: &'static str) {
+    async fn resolve_dirty_open_document_dialect(
+        &self,
+        uri: &Uri,
+        operation: &'static str,
+    ) -> DocumentSourceResult<()> {
         loop {
+            let admission = self.document_path_admission(uri).await?;
             let (language_id, old_dialect, text, revision, generation) = {
                 let docs = self.documents.lock(operation).await;
                 let Some(doc) = docs.get(uri) else {
-                    return;
+                    return Ok(());
                 };
                 if !doc.dialect_resolution_pending() {
-                    return;
+                    return Ok(());
                 }
                 (
                     doc.language_id.clone(),
@@ -11332,7 +12170,7 @@ impl Backend {
             let changed = {
                 let mut docs = self.documents.lock(operation).await;
                 let Some(doc) = docs.get_mut(uri) else {
-                    return;
+                    return Ok(());
                 };
                 if doc.revision != revision
                     || doc.text.as_ref() != text.as_ref()
@@ -11341,22 +12179,32 @@ impl Backend {
                 {
                     continue;
                 }
-                doc.resolved_dialect_generation = generation;
-                if new_dialect == old_dialect {
-                    return;
-                }
-                doc.dialect.clone_from(&new_dialect);
-                doc.bump_analysis_generation();
-                (doc.text.clone(), doc.revision)
+                DocumentPathAdmission::with_current(
+                    &[admission.as_ref()],
+                    self.store.as_ref(),
+                    || {
+                        doc.resolved_dialect_generation = generation;
+                        if new_dialect != old_dialect {
+                            doc.dialect.clone_from(&new_dialect);
+                            doc.bump_analysis_generation();
+                            Some((doc.text.clone(), doc.revision))
+                        } else {
+                            None
+                        }
+                    },
+                )?
+            };
+            let Some(changed) = changed else {
+                return Ok(());
             };
             self.invalidate_live_publication(std::iter::once(uri));
             self.notify_environment_kind(&new_dialect);
             if self
                 .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
-                .await
+                .await?
             {
                 self.reschedule_diagnostics(uri.clone(), new_dialect).await;
-                return;
+                return Ok(());
             }
             // A newer edit that overtook publication inherited the resolved
             // dialect above. A newer configuration change advances the dirty
@@ -11368,37 +12216,61 @@ impl Backend {
     /// affect it (a per-document override). Marking just this document keeps a
     /// pinned buffer from disturbing every other one, which is the whole point
     /// of the per-document tier.
-    async fn reresolve_open_document_dialect(&self, uri: &Uri) {
+    async fn reresolve_open_document_dialect(&self, uri: &Uri) -> DocumentSourceResult<()> {
+        let admission = self.document_path_admission(uri).await?;
         {
             let mut docs = self.documents.lock("reresolve_open_document_dialect").await;
             let Some(doc) = docs.get_mut(uri) else {
-                return;
+                return Ok(());
             };
-            doc.mark_dialect_resolution_dirty();
+            DocumentPathAdmission::with_current(
+                &[admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    doc.mark_dialect_resolution_dirty();
+                },
+            )?;
         }
         self.resolve_dirty_open_document_dialect(uri, "reresolve_open_document_dialect")
-            .await;
+            .await?;
+
+        Ok(())
     }
 
     /// Re-resolve every open document's dialect after a session/folder-default
     /// change. Mark all documents first so a concurrent edit carries the work
     /// forward; each resolver then retries until it consumes the exact current
     /// generation or the document closes.
-    async fn reresolve_open_document_dialects(&self) {
+    async fn reresolve_open_document_dialects(&self) -> DocumentSourceResult<()> {
         let uris = {
             let mut docs = self
                 .documents
                 .lock("reresolve_open_document_dialects")
                 .await;
-            for doc in docs.values_mut() {
-                doc.mark_dialect_resolution_dirty();
-            }
+            // Authenticate the complete write set before marking its first row.
+            let admissions = docs
+                .iter()
+                .map(|(uri, doc)| {
+                    let admission = match &doc.path_admission {
+                        Some(retained) => retained.as_ref().clone(),
+                        None => DocumentPathAdmission::capture(uri, self.store.as_ref())?,
+                    };
+                    admission.check_uri(uri)?;
+                    Ok(admission)
+                })
+                .collect::<DocumentSourceResult<Vec<_>>>()?;
+            let retained = admissions.iter().collect::<Vec<_>>();
+            DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
+                for doc in docs.values_mut() {
+                    doc.mark_dialect_resolution_dirty();
+                }
+            })?;
             docs.keys().cloned().collect::<Vec<Uri>>()
         };
-        for uri in uris {
+        Ok(for uri in uris {
             self.resolve_dirty_open_document_dialect(&uri, "reresolve_open_document_dialects")
-                .await;
-        }
+                .await?;
+        })
     }
 
     /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
@@ -11669,6 +12541,62 @@ impl Backend {
         self.db_file_analysis(uri).await
     }
 
+    async fn published_document_path_admission(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<Option<Arc<DocumentPathAdmission>>> {
+        let selected = {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let Some(file) = files.get(uri) else {
+                return Ok(None);
+            };
+            let retained = self
+                .source_path_admissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(uri)
+                .cloned()
+                .ok_or_else(|| DocumentSourceUnavailable::PublishedPathUnavailable {
+                    uri: uri.clone(),
+                })?;
+            if retained.file != *file
+                || file.path(&*db).as_deref() != retained.admission.analyser_path()
+            {
+                return Err(DocumentSourceUnavailable::PublishedPathUnavailable {
+                    uri: uri.clone(),
+                });
+            }
+            retained.admission
+        };
+        selected.check_for(uri, self.store.as_ref())?;
+        Ok(Some(selected))
+    }
+
+    /// Reborrow the URI's retained checked path, validating synthetic inputs
+    /// through the same protocol before any source read or cache access.
+    async fn document_path_admission(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<Arc<DocumentPathAdmission>> {
+        let checked = DocumentPathAdmission::capture(uri, self.store.as_ref())?;
+        let retained = self
+            .documents
+            .lock("source_path_admission")
+            .await
+            .get(uri)
+            .and_then(|state| state.path_admission.clone());
+        if let Some(retained) = retained {
+            retained.check_for(uri, self.store.as_ref())?;
+            return Ok(retained);
+        }
+        if let Some(published) = self.published_document_path_admission(uri).await? {
+            return Ok(published);
+        }
+        checked.check_for(uri, self.store.as_ref())?;
+        Ok(Arc::new(checked))
+    }
+
     /// Resolve an analysis for the document.  Consults the
     /// cache first; computes a fresh analysis when no entry
     /// exists.  Returns a shared `Arc` the caller can move into
@@ -11685,9 +12613,27 @@ impl Backend {
         uri: &Uri,
         text: Arc<str>,
         dialect: String,
-    ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
+    ) -> DocumentSourceResult<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        let admission = self.document_path_admission(uri).await?;
         if let Some(cached) = self.cached_analysis(uri).await {
-            return cached;
+            let published = self
+                .published_document_path_admission(uri)
+                .await?
+                .ok_or_else(|| DocumentSourceUnavailable::PublishedPathUnavailable {
+                    uri: uri.clone(),
+                })?;
+            if published.as_ref() != admission.as_ref() {
+                return Err(DocumentSourceUnavailable::PublishedPathUnavailable {
+                    uri: uri.clone(),
+                });
+            }
+            admission.check_for(uri, self.store.as_ref())?;
+            if cached.analysis_context_unavailable.is_none()
+                && tcl_compiler::source_graph::current_analysis(&text, &cached).is_none()
+            {
+                return self.fresh_analysis_for(uri, text, dialect).await;
+            }
+            return Ok(cached);
         }
         self.fresh_analysis_for(uri, text, dialect).await
     }
@@ -11703,8 +12649,8 @@ impl Backend {
         uri: &Uri,
         text: Arc<str>,
         dialect: String,
-    ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
-        self.fresh_analysis_seed(uri, text, dialect).await.analysis
+    ) -> DocumentSourceResult<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        Ok(self.fresh_analysis_seed(uri, text, dialect).await?.analysis)
     }
 
     async fn fresh_analysis_seed(
@@ -11712,20 +12658,22 @@ impl Backend {
         uri: &Uri,
         text: Arc<str>,
         dialect: String,
-    ) -> FreshAnalysisSeed {
-        let driver = self.fresh_analysis_driver(uri).await;
-        let analyser_inputs_epoch = driver.analyser_inputs_epoch;
-        let class_factory_generation = driver.class_factory_generation;
-        crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
+    ) -> DocumentSourceResult<FreshAnalysisSeed> {
+        let path_admission = self.document_path_admission(uri).await?;
+        let driver = self.fresh_analysis_driver(path_admission).await;
+        let original_uri = uri.clone();
+        let seed = crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
             .await
-            .unwrap_or_else(|_| FreshAnalysisSeed {
-                analysis: Arc::default(),
-                analyser_inputs_epoch,
-                class_factory_generation,
-            })
+            .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??;
+        seed.path_admission.check_for(uri, self.store.as_ref())?;
+        Ok(seed)
     }
 
-    async fn fresh_analysis_driver(&self, uri: &Uri) -> FreshAnalysisDriver {
+    async fn fresh_analysis_driver(
+        &self,
+        path_admission: Arc<DocumentPathAdmission>,
+    ) -> FreshAnalysisDriver {
+        let uri = path_admission.uri();
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
         // suppression and cross-file factory oracle without retaining a
@@ -11769,8 +12717,10 @@ impl Backend {
                 );
             }
         };
-        let file_path = uri.to_file_path().map(|path| path.display().to_string());
+        let file_path = path_admission.analyser_path().map(str::to_owned);
         FreshAnalysisDriver {
+            path_admission,
+            source_store: Arc::clone(&self.store),
             analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
                 .with_workspace_class_factories(workspace_class_factories)
                 .with_file_path(file_path),
@@ -11793,9 +12743,13 @@ impl Backend {
     async fn current_scanned_rows(
         &self,
         scanned: Vec<ScannedDocument>,
-    ) -> Vec<(Uri, String, String, AnalysisResult)> {
-        let mut rows = Vec::with_capacity(scanned.len());
+    ) -> DocumentSourceResult<AdmittedDiskBatch> {
+        let mut rows = AdmittedDiskBatch::default();
         for document in scanned {
+            document
+                .seed
+                .path_admission
+                .check_for(&document.uri, self.store.as_ref())?;
             if self.fresh_index_generation_is_current(&document.seed).await
                 && (document
                     .seed
@@ -11808,10 +12762,12 @@ impl Backend {
                     )
                     .is_some())
             {
-                rows.push(document.into_index_row());
+                rows.admissions
+                    .push(Arc::clone(&document.seed.path_admission));
+                rows.rows.push(document.into_index_row());
             }
         }
-        rows
+        Ok(rows)
     }
 
     /// Return a snapshot of the current workspace folder
@@ -12396,11 +13352,23 @@ impl Backend {
     /// `-translation auto` channel makes a lone `\r` a command terminator.
     /// Only the formatter and the W118 line-ending lint read
     /// [`DocumentState::raw`] instead.
+    fn source_read_is_absent(
+        store: &dyn vfs::SourceStore,
+        path: &Path,
+        cause: &std::io::Error,
+    ) -> bool {
+        cause.kind() == std::io::ErrorKind::NotFound
+            || cause.kind() == std::io::ErrorKind::NotADirectory
+            || cause.kind() == std::io::ErrorKind::IsADirectory
+            || store.metadata(path).is_ok_and(|metadata| metadata.is_dir)
+    }
+
     async fn read_document_at(
         &self,
         url: &Uri,
         readiness: DocumentReadiness,
-    ) -> Option<DocumentState> {
+    ) -> DocumentSourceResult<Option<DocumentState>> {
+        let path_admission = self.document_path_admission(url).await?;
         self.edits_settled().await;
         // A document-sync notification publishes the shadow buffer first and
         // shared derived stores second so it can release the global request
@@ -12417,7 +13385,13 @@ impl Backend {
             };
             match doc {
                 Some(doc) if readiness.is_ready(&doc) => {
-                    return Some(doc.normalised_for_analysis());
+                    let admission = doc.path_admission.as_ref().unwrap_or(&path_admission);
+                    admission.check_for(url, self.store.as_ref())?;
+                    return Ok(Some(
+                        doc.clone()
+                            .with_path_admission(Arc::clone(admission))
+                            .normalised_for_analysis(),
+                    ));
                 }
                 Some(_) => {
                     crate::transport_liveness::await_outside_request_admission(advanced).await;
@@ -12430,29 +13404,49 @@ impl Backend {
         // Read them from disk so cross-document span→range
         // resolution (references / rename / call-hierarchy) can
         // reach their sources.  Non-`file://` URLs and unreadable
-        // paths fall through to `None`.  `to_file_path` yields a borrowed
-        // `Cow<Path>`; take ownership so the path can move into the blocking task.
-        let path = url.to_file_path()?.into_owned();
+        // paths have no fallback read. The actual selected provider path moves
+        // into the worker; URI/provider refusal remains distinct from absence.
+        let Some(path) = path_admission.path().map(Path::to_path_buf) else {
+            return Ok(None);
+        };
         // Through the shared decoder, not `read_to_string`: a closed file with
         // one ill-formed byte must still resolve its spans rather than vanish
         // from cross-document navigation.
         let store = Arc::clone(&self.store);
-        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
-            .await
-            .ok()?
-            .ok()?;
+        let selected_path = path.clone();
+        let (text, _) = match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
+            Ok(Ok(source)) => source,
+            Ok(Err(cause))
+                if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
+            {
+                path_admission.check_for(url, self.store.as_ref())?;
+                return Ok(None);
+            }
+            Ok(Err(cause)) => {
+                return Err(DocumentSourceUnavailable::Read {
+                    uri: url.clone(),
+                    cause: Arc::new(cause),
+                });
+            }
+            Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
+        };
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
             None => self.session_dialect().await,
         };
-        Some(DocumentState::new(text, dialect).normalised_for_analysis())
+        path_admission.check_for(url, self.store.as_ref())?;
+        Ok(Some(
+            DocumentState::new(text, dialect)
+                .with_path_admission(path_admission)
+                .normalised_for_analysis(),
+        ))
     }
 
     /// Read a document only after its Salsa source **and** workspace-index view
     /// are current. This is the ordinary provider boundary: navigation and
     /// workspace-aware analysis must not observe the deliberately empty index
     /// slot between `didOpen` retirement and live re-indexing.
-    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+    async fn read_document(&self, url: &Uri) -> DocumentSourceResult<Option<DocumentState>> {
         self.read_document_at(url, DocumentReadiness::Indexed).await
     }
 
@@ -12462,7 +13456,7 @@ impl Backend {
     /// document-local operations. They must not inherit the independent
     /// workspace-index barrier, which can remain pending while a cold large
     /// file's first index analysis runs.
-    async fn read_local_document(&self, url: &Uri) -> Option<DocumentState> {
+    async fn read_local_document(&self, url: &Uri) -> DocumentSourceResult<Option<DocumentState>> {
         self.read_document_at(url, DocumentReadiness::Salsa).await
     }
 
@@ -12473,7 +13467,10 @@ impl Backend {
     /// lexical tokens over this returned text. Making them wait for the
     /// independent whole-file index seed defeats that fast path on cold large
     /// files.
-    async fn read_document_for_semantic_tokens(&self, url: &Uri) -> Option<DocumentState> {
+    async fn read_document_for_semantic_tokens(
+        &self,
+        url: &Uri,
+    ) -> DocumentSourceResult<Option<DocumentState>> {
         self.read_document_at(url, DocumentReadiness::Salsa).await
     }
 
@@ -12556,12 +13553,12 @@ impl Backend {
     ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
         let uri = item.uri.clone();
         let class_name = item.name.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(Some(Vec::new()));
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             let Some(identity) = self
                 .resolve_original_declaration_data(item.data.as_ref(), &uri, &doc.text, &analysis)
@@ -12569,7 +13566,7 @@ impl Backend {
             else {
                 return Ok(Some(Vec::new()));
             };
-            let documents = self.original_declaration_documents(&uri).await;
+            let documents = self.original_declaration_documents(&uri).await?;
             let items = crate::rt::spawn_blocking(move || {
                 let inventory = documents
                     .iter()
@@ -12589,7 +13586,7 @@ impl Backend {
                 message: format!("type_hierarchy worker panicked: {err}").into(),
                 data: None,
             })?;
-            return Ok(Some(self.lift_original_type_hierarchy_items(items).await));
+            return Ok(Some(self.lift_original_type_hierarchy_items(items).await?));
         }
         let class_name_for_blk = class_name.clone();
         let items = crate::rt::spawn_blocking(move || {
@@ -12636,7 +13633,7 @@ impl Backend {
             let Ok(target_uri) = turi.parse::<Uri>() else {
                 continue;
             };
-            let Some(tdoc) = self.read_document(&target_uri).await else {
+            let Some(tdoc) = self.read_document(&target_uri).await? else {
                 continue;
             };
             let li = tcl_lexer::LineIndex::new_lsp(&tdoc.text);
@@ -12729,11 +13726,13 @@ impl Backend {
     async fn original_declaration_documents(
         &self,
         selected: &Uri,
-    ) -> Vec<(
-        String,
-        Arc<str>,
-        Arc<tcl_compiler::analyser::AnalysisResult>,
-    )> {
+    ) -> DocumentSourceResult<
+        Vec<(
+            String,
+            Arc<str>,
+            Arc<tcl_compiler::analyser::AnalysisResult>,
+        )>,
+    > {
         let mut uris = {
             let index = self.workspace_index.read().await;
             let mut owners = index.document_uris();
@@ -12762,17 +13761,19 @@ impl Backend {
         let mut documents = Vec::new();
         for owner in uris {
             let Ok(uri) = owner.parse::<Uri>() else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
-            let Some(doc) = self.read_document(&uri).await else {
-                return Vec::new();
+            let Some(doc) = self.read_document(&uri).await? else {
+                return Ok(Vec::new());
             };
             match Self::original_declaration_document_participates(&uri, &doc) {
                 Some(true) => {}
                 Some(false) => continue,
-                None => return Vec::new(),
+                None => return Ok(Vec::new()),
             }
-            let analysis = self.analysis_for(&uri, doc.text.clone(), doc.dialect).await;
+            let analysis = self
+                .analysis_for(&uri, doc.text.clone(), doc.dialect)
+                .await?;
             let config = analysis.body_lexer_config;
             if !config.is_some_and(|config| {
                 analysis.matches_original_source_image(
@@ -12780,24 +13781,39 @@ impl Backend {
                     config,
                 )
             }) {
-                return Vec::new();
+                return Ok(Vec::new());
             }
             documents.push((owner, doc.text, analysis));
         }
-        documents
+        Ok(documents)
     }
 
     async fn lift_original_call_item(
         &self,
         item: core_call_hierarchy::CallHierarchyItem,
-    ) -> Option<CallHierarchyItem> {
-        let identity = item.identity.as_ref()?;
-        let uri = identity.uri().parse::<Uri>().ok()?;
-        let doc = self.read_document(&uri).await?;
-        let analysis = self.analysis_for(&uri, doc.text.clone(), doc.dialect).await;
-        let data = self
-            .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
+    ) -> DocumentSourceResult<Option<CallHierarchyItem>> {
+        let identity = (match item.identity.as_ref() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let uri = (match identity.uri().parse::<Uri>().ok() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let doc = (match self.read_document(&uri).await? {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect)
             .await?;
+        let data = (match self
+            .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
+            .await
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let kind = match identity.role() {
             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Class => SymbolKind::CLASS,
             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Method(_) => {
@@ -12805,7 +13821,7 @@ impl Backend {
             }
             _ => SymbolKind::FUNCTION,
         };
-        Some(CallHierarchyItem {
+        Ok(Some(CallHierarchyItem {
             name: item.name,
             kind,
             tags: None,
@@ -12814,7 +13830,7 @@ impl Backend {
             range: lift_lsp_range(item.range),
             selection_range: lift_lsp_range(item.selection_range),
             data: Some(data),
-        })
+        }))
     }
 
     async fn original_declaration_reference_locations(
@@ -12822,9 +13838,9 @@ impl Backend {
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
         selected: &Uri,
         include_declaration: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let inputs_epoch = self.diag_inputs_epoch();
-        let documents = self.original_declaration_documents(selected).await;
+        let documents = self.original_declaration_documents(selected).await?;
         let inventory = documents
             .iter()
             .map(|(uri, source, analysis)| {
@@ -12855,10 +13871,10 @@ impl Backend {
         // can change an owner; no old extent is lifted against new text.
         for (owner, source, analysis) in &documents {
             let Ok(uri) = owner.parse::<Uri>() else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
-            let Some(current) = self.read_document(&uri).await else {
-                return Vec::new();
+            let Some(current) = self.read_document(&uri).await? else {
+                return Ok(Vec::new());
             };
             if current.text != *source
                 || !analysis.body_lexer_config.is_some_and(|config| {
@@ -12868,13 +13884,13 @@ impl Backend {
                     )
                 })
             {
-                return Vec::new();
+                return Ok(Vec::new());
             }
         }
         if self.diag_inputs_epoch() != inputs_epoch {
-            return Vec::new();
+            return Ok(Vec::new());
         }
-        targets
+        Ok(targets
             .into_iter()
             .filter_map(|(owner, span)| {
                 let document = documents.iter().find(|(uri, _, _)| uri == &owner)?;
@@ -12896,7 +13912,7 @@ impl Backend {
                     },
                 })
             })
-            .collect()
+            .collect())
     }
 
     /// Select the same independently owned source identity used by call
@@ -12907,13 +13923,17 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         position: Position,
-    ) -> Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity> {
+    ) -> DocumentSourceResult<Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity>>
+    {
         let inputs_epoch = self.diag_inputs_epoch();
-        let config = analysis.body_lexer_config?;
+        let config = (match analysis.body_lexer_config {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         if !analysis
             .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
         {
-            return None;
+            return Ok(None);
         }
         if core_definition::original_autoload_request_at(
             source,
@@ -12924,16 +13944,17 @@ impl Backend {
         .is_some()
             && !self
                 .ensure_original_library_indexed(uri, source, analysis, position)
-                .await
+                .await?
         {
-            return None;
+            return Ok(None);
         }
-        let documents = self.original_declaration_documents(uri).await;
-        let selected = documents
-            .iter()
-            .find(|(owner, _, _)| owner == uri.as_str())?;
+        let documents = self.original_declaration_documents(uri).await?;
+        let selected = (match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         if selected.1.as_ref() != source || selected.2.body_lexer_config != Some(config) {
-            return None;
+            return Ok(None);
         }
         let inventory = documents
             .iter()
@@ -12954,14 +13975,25 @@ impl Backend {
             Some(&workspace),
         )
         .into_iter();
-        let identity = selected.next()?.identity?;
-        (selected.next().is_none() && self.diag_inputs_epoch() == inputs_epoch).then_some(identity)
+        let identity = (match (match selected.next() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        })
+        .identity
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        Ok(
+            (selected.next().is_none() && self.diag_inputs_epoch() == inputs_epoch)
+                .then_some(identity),
+        )
     }
 
     async fn lift_original_type_hierarchy_items(
         &self,
         items: Vec<core_type_hierarchy::TypeHierarchyItem>,
-    ) -> Vec<TypeHierarchyItem> {
+    ) -> DocumentSourceResult<Vec<TypeHierarchyItem>> {
         let mut lifted = Vec::new();
         for item in items {
             let Some(identity) = item.original_declaration.as_ref() else {
@@ -12970,10 +14002,12 @@ impl Backend {
             let Ok(uri) = identity.uri().parse::<Uri>() else {
                 continue;
             };
-            let Some(doc) = self.read_document(&uri).await else {
+            let Some(doc) = self.read_document(&uri).await? else {
                 continue;
             };
-            let analysis = self.analysis_for(&uri, doc.text.clone(), doc.dialect).await;
+            let analysis = self
+                .analysis_for(&uri, doc.text.clone(), doc.dialect)
+                .await?;
             let Some(data) = self
                 .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
                 .await
@@ -12991,7 +14025,7 @@ impl Backend {
                 data: Some(data),
             });
         }
-        lifted
+        Ok(lifted)
     }
 
     /// Compute the packed semantic-token stream for `uri`, prioritising a
@@ -13094,7 +14128,7 @@ impl Backend {
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
             let analysis = self
                 .fresh_analysis_for(uri, Arc::clone(&doc.text), doc.dialect.clone())
-                .await;
+                .await?;
             let text = Arc::clone(&doc.text);
             // The configured fresh driver retains pack generation, resource
             // availability and grammar. The source unit borrows that same input.
@@ -13301,9 +14335,9 @@ impl Backend {
     /// would leave `last_semantic_tokens`, `semantic_tokens_refresh_asked` and
     /// `workspace_class_analyses` holding entries for files that are no longer
     /// in any workspace folder.
-    async fn drop_index_under_folders(&self, folders: &[Uri]) {
+    async fn drop_index_under_folders(&self, folders: &[Uri]) -> DocumentSourceResult<()> {
         if folders.is_empty() {
-            return;
+            return Ok(());
         }
         let folder_strs: Vec<String> = folders.iter().map(|u| u.as_str().to_owned()).collect();
         // Keep source-site reconciliation/query snapshots atomic with the
@@ -13330,21 +14364,39 @@ impl Backend {
             if candidates.is_empty() {
                 break;
             }
+            let mut admissions = Vec::with_capacity(candidates.len());
+            for uri in &candidates {
+                admissions.push(self.document_path_admission(uri).await?);
+            }
             let (removed, rehoming_guard) = self
-                .publish_disk_results_while_rehoming_locked(
+                .publish_admitted_disk_results_while_rehoming_locked(
                     &disk_publication,
                     rehoming_guard,
                     &[],
+                    &[],
                     &candidates,
+                    &admissions,
                     DiskRemovalPolicy::ClosedOnly,
                     "drop_index_under_folders",
                 )
-                .await;
+                .await?;
+            let removed_admissions = removed
+                .iter()
+                .map(|uri| {
+                    Arc::clone(
+                        &admissions[candidates
+                            .iter()
+                            .position(|candidate| candidate == uri)
+                            .expect("removed rows came from the retained candidates")],
+                    )
+                })
+                .collect::<Vec<_>>();
             // The publication may release and reacquire its outer gates while
             // contended. Re-snapshot until no newly published closed entry
             // remains under the removed folders. Open buffers are preserved;
             // when only those remain, `removed` is empty and the loop settles.
-            self.forget_uri_states(&removed).await;
+            self.forget_uri_states(&removed, &removed_admissions)
+                .await?;
             drop(rehoming_guard);
             if removed.is_empty() {
                 break;
@@ -13354,17 +14406,18 @@ impl Backend {
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
-        for uri in &removed_urls {
+        Ok(for uri in &removed_urls {
             if self.pull_diag_cache.lock().await.contains_key(uri) {
                 self.clear_closed_diagnostics(uri).await;
             }
-        }
+        })
     }
 
     /// Read `uri` from disk, resolve its dialect and run a full uncached
-    /// `Analyser::analyse`, all on one blocking-pool call.  Returns `None`
-    /// when the file no longer reads as one (deleted, or unreadable, since
-    /// the caller queued it) — the caller then routes it through the
+    /// `Analyser::analyse`, all on one blocking-pool call. Returns `Absent`
+    /// for a genuinely missing path or non-source directory. Other read errors
+    /// remain unavailable. The retained absence receipt routes only its actual
+    /// selected mapping through the
     /// tombstone retire path, exactly like a `DELETED` watched-file event.
     /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
     /// by `did_close` / `didRenameFiles`) and the watched-files batch
@@ -13377,10 +14430,33 @@ impl Backend {
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
         driver: FreshAnalysisDriver,
-    ) -> Option<ScannedDocument> {
-        crate::rt::spawn_blocking(move || {
-            let path = uri.to_file_path()?;
-            let (raw, _) = store.read_source(&path).ok()?;
+    ) -> DiskScanOutcome {
+        let original_uri = uri.clone();
+        match crate::rt::spawn_blocking(move || {
+            if let Err(error) = driver
+                .path_admission
+                .check_for(&uri, driver.source_store.as_ref())
+            {
+                return DiskScanOutcome::Unavailable(error);
+            }
+            let Some(path) = driver.path_admission.path() else {
+                return DiskScanOutcome::Absent(Arc::clone(&driver.path_admission));
+            };
+            let (raw, _) = match store.read_source(path) {
+                Ok(source) => source,
+                Err(cause) if Self::source_read_is_absent(store.as_ref(), path, &cause) => {
+                    return match driver.path_admission.check_for(&uri, store.as_ref()) {
+                        Ok(()) => DiskScanOutcome::Absent(Arc::clone(&driver.path_admission)),
+                        Err(error) => DiskScanOutcome::Unavailable(error),
+                    };
+                }
+                Err(cause) => {
+                    return DiskScanOutcome::Unavailable(DocumentSourceUnavailable::Read {
+                        uri,
+                        cause: Arc::new(cause),
+                    });
+                }
+            };
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect = Self::dialect_for_closed_sync(
                 &uri,
@@ -13389,8 +14465,11 @@ impl Backend {
                 &folder_dialects,
                 &default_dialect,
             );
-            let seed = driver.analyse(&text, &dialect, None);
-            Some(ScannedDocument {
+            let seed = match driver.analyse(&text, &dialect, None) {
+                Ok(seed) => seed,
+                Err(error) => return DiskScanOutcome::Unavailable(error),
+            };
+            DiskScanOutcome::Available(ScannedDocument {
                 uri,
                 text,
                 dialect,
@@ -13398,8 +14477,12 @@ impl Backend {
             })
         })
         .await
-        .ok()
-        .flatten()
+        {
+            Ok(outcome) => outcome,
+            Err(_) => DiskScanOutcome::Unavailable(DocumentSourceUnavailable::Worker {
+                uri: original_uri,
+            }),
+        }
     }
 
     /// Batched counterpart of [`Self::reindex_index_from_disk`] for the
@@ -13415,12 +14498,20 @@ impl Backend {
     /// for one of the URIs mid-batch still wins for that URI: its scanned
     /// copy is dropped rather than clobbering the live buffer, exactly as the
     /// single-file path behaves for that same race. An entry that reads as
-    /// unreadable / no-longer-a-file (named by the event but gone by the time
-    /// its read landed) is folded into the same batched retire call a
+    /// genuinely missing / no-longer-a-file (named by the event but gone by
+    /// its read) is folded into the same batched retire call a
     /// `DELETED` entry uses, rather than a separate per-file `db_remove_source`.
-    async fn batch_reindex_from_disk(&self, uris: &[Uri]) {
+    async fn batch_reindex_from_disk(&self, uris: &[Uri]) -> DocumentSourceResult<()> {
+        self.batch_reindex_from_disk_using(uris, None).await
+    }
+
+    async fn batch_reindex_from_disk_using(
+        &self,
+        uris: &[Uri],
+        retained: Option<&HashMap<Uri, Arc<DocumentPathAdmission>>>,
+    ) -> DocumentSourceResult<()> {
         if uris.is_empty() {
-            return;
+            return Ok(());
         }
         let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
@@ -13429,7 +14520,17 @@ impl Backend {
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let mut futures = Vec::with_capacity(uris.len());
         for uri in uris {
-            let driver = self.fresh_analysis_driver(uri).await;
+            let admission = match retained {
+                Some(admissions) => Arc::clone(admissions.get(uri).ok_or_else(|| {
+                    DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+                    }
+                })?),
+                None => Arc::new(DocumentPathAdmission::capture(uri, self.store.as_ref())?),
+            };
+            admission.check_for(uri, self.store.as_ref())?;
+            let driver = self.fresh_analysis_driver(admission).await;
             let uri = uri.clone();
             let document_overrides = Arc::clone(&document_overrides);
             let folder_dialects = Arc::clone(&folder_dialects);
@@ -13452,23 +14553,39 @@ impl Backend {
 
         let mut replacements = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
+        let mut removal_admissions = Vec::new();
         for (uri, scanned) in results {
             match scanned {
-                Some(document) => replacements.push(document),
-                None => to_remove.push(uri),
+                DiskScanOutcome::Available(document) => replacements.push(document),
+                DiskScanOutcome::Absent(admission) => {
+                    to_remove.push(uri);
+                    removal_admissions.push(admission);
+                }
+                DiskScanOutcome::Unavailable(error) => return Err(error),
             }
         }
-        let replacements = self.current_scanned_rows(replacements).await;
-        self.publish_disk_results(
+        let mut replacements = self.current_scanned_rows(replacements).await?;
+        replacements.removal_admissions = removal_admissions;
+        self.publish_scanned_disk_results(
             &replacements,
             &to_remove,
             DiskRemovalPolicy::ClosedOnly,
             "batch_reindex_from_disk",
         )
-        .await;
+        .await?;
+
+        Ok(())
     }
 
-    async fn reindex_index_from_disk(&self, uri: &Uri) {
+    async fn reindex_index_from_disk(&self, uri: &Uri) -> DocumentSourceResult<()> {
+        self.reindex_index_from_disk_using(uri, None).await
+    }
+
+    async fn reindex_index_from_disk_using(
+        &self,
+        uri: &Uri,
+        retained: Option<Arc<DocumentPathAdmission>>,
+    ) -> DocumentSourceResult<()> {
         // Read + analyse off-lock, on the same read-dialect-analyse helper the
         // watched-files batch reindex uses.  Keep the source text +
         // dialect too: the salsa db (cross-file diagnostics) must track the
@@ -13478,7 +14595,12 @@ impl Backend {
         let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let driver = self.fresh_analysis_driver(uri).await;
+        let admission = match retained {
+            Some(admission) => admission,
+            None => Arc::new(DocumentPathAdmission::capture(uri, self.store.as_ref())?),
+        };
+        admission.check_for(uri, self.store.as_ref())?;
+        let driver = self.fresh_analysis_driver(admission).await;
         let scanned = Self::scan_disk_file(
             Arc::clone(&self.store),
             uri.clone(),
@@ -13488,29 +14610,34 @@ impl Backend {
             driver,
         )
         .await;
-        match scanned {
-            Some(scanned) => {
-                let rows = self.current_scanned_rows(vec![scanned]).await;
-                self.publish_disk_results(
+        Ok(match scanned {
+            DiskScanOutcome::Unavailable(error) => return Err(error),
+            DiskScanOutcome::Available(scanned) => {
+                let rows = self.current_scanned_rows(vec![scanned]).await?;
+                self.publish_scanned_disk_results(
                     &rows,
                     &[],
                     DiskRemovalPolicy::ClosedOnly,
                     "reindex_index_from_disk",
                 )
-                .await;
+                .await?;
             }
             // No readable on-disk copy (untitled / deleted) — drop it from the
             // project so a stale definition can't keep resolving cross-file.
-            None => {
-                self.publish_disk_results(
-                    &[],
+            DiskScanOutcome::Absent(admission) => {
+                let batch = AdmittedDiskBatch {
+                    removal_admissions: vec![admission],
+                    ..Default::default()
+                };
+                self.publish_scanned_disk_results(
+                    &batch,
                     std::slice::from_ref(uri),
                     DiskRemovalPolicy::ClosedOnly,
                     "reindex_index_from_disk",
                 )
-                .await;
+                .await?;
             }
-        }
+        })
     }
 
     /// Compute and publish a **closed** workspace file's diagnostics from its
@@ -13569,6 +14696,7 @@ impl Backend {
             .await;
         let config = inputs.closed_file_config(uri).await;
         let job = DiagJob {
+            diagnostic_pass: None,
             // A closed file's text comes from the salsa input, not from an open
             // snapshot, so this is where its shared handle is minted.
             text: Arc::from(text),
@@ -13725,6 +14853,7 @@ impl Backend {
             workspace_index: _,
             original_declaration_registry: _,
             db_files: _,
+            source_path_admissions: _,
             db_tombstones: _,
             db_project_members: _,
             pull_diag_cache: _,
@@ -13825,19 +14954,23 @@ impl Backend {
     /// removal, single for a rename) and the published-diagnostics state
     /// (unconditional for a dead path, badge-carrying files only for a folder
     /// removal).
-    async fn forget_uri_states(&self, uris: &[Uri]) {
-        if uris.is_empty() {
-            return;
+    async fn forget_uri_states(
+        &self,
+        uris: &[Uri],
+        admissions: &[Arc<DocumentPathAdmission>],
+    ) -> DocumentSourceResult<()> {
+        assert_eq!(uris.len(), admissions.len());
+        for (uri, admission) in uris.iter().zip(admissions) {
+            admission.check_uri(uri)?;
         }
-        self.per_uri_caches().forget(uris).await;
-        for uri in uris {
-            self.evict_diag_slot(uri).await;
+        let retained = admissions.iter().map(Arc::as_ref).collect::<Vec<_>>();
+        self.per_uri_caches()
+            .forget(uris, &retained, self.store.as_ref())
+            .await?;
+        for (uri, admission) in uris.iter().zip(admissions) {
+            self.evict_diag_slot(uri, admission).await?;
         }
-    }
-
-    /// Single-URI [`Self::forget_uri_states`].
-    async fn forget_uri_state(&self, uri: &Uri) {
-        self.forget_uri_states(std::slice::from_ref(uri)).await;
+        Ok(())
     }
 
     /// Retire every trace of a path a `workspace/didRenameFiles` moved away
@@ -13863,29 +14996,31 @@ impl Backend {
     /// record.  One rename of a `source`d file would therefore turn an O(1)
     /// early return into a permanent four-round workspace scan on every
     /// navigation request that enters through `rehomed_index_guard`.
-    async fn retire_renamed_uri(&self, uri: &Uri) {
+    async fn retire_renamed_uri(
+        &self,
+        uri: &Uri,
+        admission: Arc<DocumentPathAdmission>,
+    ) -> DocumentSourceResult<()> {
+        admission.check_for(uri, self.store.as_ref())?;
+        let batch = AdmittedDiskBatch {
+            removal_admissions: vec![Arc::clone(&admission)],
+            ..Default::default()
+        };
+        self.publish_scanned_disk_results(
+            &batch,
+            std::slice::from_ref(uri),
+            DiskRemovalPolicy::RenamedPath,
+            "did_rename_files: old path",
+        )
+        .await?;
         {
-            // Serialise the index/salsa removal *and* the cache forget with
-            // source-site reconciliation, as every other retirement path does,
-            // so a `refresh_source_rehoming` pass cannot observe the index entry
-            // gone while the seed record still stands.
             let _rehoming_guard = self.rehoming_gate.lock().await;
-            self.workspace_index
-                .write()
-                .await
-                .remove_document(uri.as_str());
-            self.db_remove_source(uri).await;
-            self.forget_uri_state(uri).await;
+            self.forget_uri_states(std::slice::from_ref(uri), std::slice::from_ref(&admission))
+                .await?;
         }
-        // Rename-specific extra: publishes the empty set and drops the
-        // pull-cache + closed-generation entries, matching the watched-file
-        // DELETED branch's badge clear.  Unconditional — unlike the folder-drop
-        // path, which clears only files that still carry a badge — because this
-        // path is dead and the client must lose its Problems entry either way.
-        // Deliberately outside the gate above: it awaits a client notification,
-        // and holding the rehoming gate across that would stall every
-        // navigation request behind it.
+        admission.check_for(uri, self.store.as_ref())?;
         self.clear_closed_diagnostics(uri).await;
+        Ok(())
     }
 
     /// Release `uri`'s diagnostics slot when its document closes.
@@ -13896,17 +15031,26 @@ impl Backend {
     /// [`retire_slot`] then drops the slot as the worker retires (and a
     /// `did_open` racing in front of that re-arms it before the worker looks,
     /// so nothing is orphaned).
-    async fn evict_diag_slot(&self, uri: &Uri) {
+    async fn evict_diag_slot(
+        &self,
+        uri: &Uri,
+        admission: &DocumentPathAdmission,
+    ) -> DocumentSourceResult<()> {
         let mut slots = self.diag_slots.lock().await;
-        let Some(slot) = slots.get_mut(uri) else {
-            return;
-        };
-        if slot.running {
-            slot.latest_inputs = None;
-            slot.dirty = false;
-        } else {
-            slots.remove(uri);
-        }
+        let mut completion = self.diagnostic_publisher.completion.lock().await;
+        admission.check_uri(uri)?;
+        DocumentPathAdmission::with_current(&[admission], self.store.as_ref(), || {
+            completion.remove(uri);
+            if let Some(slot) = slots.get_mut(uri) {
+                if slot.running {
+                    slot.latest_inputs = None;
+                    slot.dirty = false;
+                } else {
+                    slots.remove(uri);
+                }
+            }
+        })?;
+        Ok(())
     }
 
     /// Record that `uri` now carries a **closed**-file badge and evict the
@@ -14020,11 +15164,16 @@ impl Backend {
         doc: &DocumentState,
         path: &Path,
         pos: Position,
-    ) -> Option<(core_ilx::MethodCall, core_ilx::IlxTarget)> {
+    ) -> DocumentSourceResult<Option<(core_ilx::MethodCall, core_ilx::IlxTarget)>> {
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
-            .await;
-        let registry = analysis.resolved_registry()?.snapshot().shared_registry();
+            .await?;
+        let registry = (match analysis.resolved_registry() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        })
+        .snapshot()
+        .shared_registry();
         let open = self.open_document_texts().await;
         let plugins = self.ilx_plugin_roots(uri).await;
         let document = core_ilx::IlxDocument {
@@ -14035,9 +15184,12 @@ impl Backend {
             .with_analysis(&analysis)
             .with_open_documents(&open)
             .with_plugins(&plugins);
-        let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+        let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let target = core_ilx::definition(document, ctx, &call);
-        Some((call, target))
+        Ok(Some((call, target)))
     }
 
     /// Find-references for the iRulesLX method relation, or `None` when the
@@ -14058,8 +15210,12 @@ impl Backend {
         doc: &DocumentState,
         pos: Position,
         include_decl: bool,
-    ) -> Option<Vec<Location>> {
-        let path = uri.to_file_path()?.into_owned();
+    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        let path = (match uri.to_file_path() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        })
+        .into_owned();
         let document = core_ilx::IlxDocument {
             path: &path,
             text: &doc.text,
@@ -14085,11 +15241,16 @@ impl Backend {
         } else {
             Some(
                 self.analysis_for(uri, doc.text.clone(), doc.dialect.clone())
-                    .await,
+                    .await?,
             )
         };
         let registry = if let Some(analysis) = &analysis {
-            analysis.resolved_registry()?.snapshot().shared_registry()
+            (match analysis.resolved_registry() {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            })
+            .snapshot()
+            .shared_registry()
         } else {
             // This explicit JavaScript/source-only route has no Tcl document
             // input or evaluated handle; identity references do not infer one.
@@ -14103,19 +15264,25 @@ impl Backend {
             plugins: &plugins,
         };
         let found = if js_end {
-            let registration = core_ilx::registration_at(document, pos.line, pos.character)?;
+            let registration = (match core_ilx::registration_at(document, pos.line, pos.character) {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            });
             core_ilx::references_from_registration(document, ctx, &registration)
         } else {
-            let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+            let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            });
             core_ilx::references(document, ctx, &call)
         };
-        Some(
+        Ok(Some(
             found
                 .iter()
                 .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
                 .filter_map(Self::ilx_location)
                 .collect(),
-        )
+        ))
     }
 
     /// `tcl-lsp.ilxReferences` — find-references from a point inside an ILX
@@ -14204,10 +15371,17 @@ impl Backend {
         uri: &Uri,
         doc: &DocumentState,
         pos: Position,
-    ) -> Option<Vec<Location>> {
-        let path = uri.to_file_path()?.into_owned();
-        let (_, target) = self.ilx_method_at(uri, doc, &path, pos).await?;
-        Some(match target {
+    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        let path = (match uri.to_file_path() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        })
+        .into_owned();
+        let (_, target) = (match self.ilx_method_at(uri, doc, &path, pos).await? {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        Ok(Some(match target {
             core_ilx::IlxTarget::Resolved(location) => {
                 Self::ilx_location(&location).into_iter().collect()
             }
@@ -14219,7 +15393,7 @@ impl Backend {
             core_ilx::IlxTarget::Ambiguous { .. } | core_ilx::IlxTarget::Unresolved(_) => {
                 Vec::new()
             }
-        })
+        }))
     }
 
     /// The text the editor currently holds for every open document, by path.
@@ -14264,16 +15438,16 @@ impl Backend {
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
     async fn compute_definition(&self, uri: &Uri, pos: Position) -> jsonrpc::Result<Vec<Location>> {
-        let Some(doc) = self.read_document(uri).await else {
+        let Some(doc) = self.read_document(uri).await? else {
             return Ok(Vec::new());
         };
         // An iRulesLX method word is answered here, in full.
-        if let Some(locations) = self.ilx_definition(uri, &doc, pos).await {
+        if let Some(locations) = self.ilx_definition(uri, &doc, pos).await? {
             return Ok(locations);
         }
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // The cross-document fallback should only fire when the cursor
         // sits on a command head (a call site), matching what the
         // in-document provider resolves.  Compute that here, while
@@ -14292,7 +15466,7 @@ impl Backend {
         if let Some(symbol) = Self::original_namespace_symbol(&doc.text, &analysis, pos) {
             return Ok(self
                 .original_namespace_locations(uri, &doc.text, &analysis, &symbol, true, true)
-                .await);
+                .await?);
         }
         if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos) {
             return Ok(Vec::new());
@@ -14300,7 +15474,7 @@ impl Backend {
         if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
             return Ok(self
                 .namespace_declaration_locations(uri, &doc.text, &analysis, &cell)
-                .await);
+                .await?);
         }
         if let std::ops::ControlFlow::Break(locations) = self
             .original_method_locations_at(
@@ -14310,7 +15484,7 @@ impl Backend {
                 pos,
                 tcl_lsp_core::method_symbol::OriginalMethodNavigation::Declaration,
             )
-            .await
+            .await?
         {
             return Ok(locations);
         }
@@ -14393,11 +15567,11 @@ impl Backend {
                 &analysis,
                 pos,
             )
-            .await
+            .await?
         {
             let method_defs = self
                 .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
-                .await;
+                .await?;
             if !method_defs.is_empty() {
                 return Ok(method_defs);
             }
@@ -14409,7 +15583,7 @@ impl Backend {
         // named exactly, not matched by simple name.
         let cross_var = self
             .cross_document_variable_definition(uri, &doc.text, pos, &analysis)
-            .await;
+            .await?;
         if !cross_var.is_empty() {
             return Ok(cross_var);
         }
@@ -14442,7 +15616,9 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         position: Position,
-    ) -> std::ops::ControlFlow<Option<tcl_lsp_core::method_symbol::OriginalMethodCandidate>> {
+    ) -> DocumentSourceResult<
+        std::ops::ControlFlow<Option<tcl_lsp_core::method_symbol::OriginalMethodCandidate>>,
+    > {
         use std::ops::ControlFlow;
         let query = match tcl_lsp_core::method_symbol::select(
             source,
@@ -14450,13 +15626,17 @@ impl Backend {
             position.line,
             position.character,
         ) {
-            ControlFlow::Continue(()) => return ControlFlow::Continue(()),
-            ControlFlow::Break(None) => return ControlFlow::Break(None),
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
             ControlFlow::Break(Some(query)) => query,
         };
-        let _rehoming = self.rehomed_index_guard().await;
+        let _rehoming = self.rehomed_index_guard().await?;
         let index = self.workspace_index.read().await;
-        tcl_lsp_core::method_symbol::candidate(&index, uri.as_str(), &query)
+        Ok(tcl_lsp_core::method_symbol::candidate(
+            &index,
+            uri.as_str(),
+            &query,
+        ))
     }
 
     async fn original_method_locations_at(
@@ -14466,21 +15646,21 @@ impl Backend {
         analysis: &AnalysisResult,
         position: Position,
         navigation: tcl_lsp_core::method_symbol::OriginalMethodNavigation,
-    ) -> std::ops::ControlFlow<Vec<Location>> {
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Vec<Location>>> {
         use std::ops::ControlFlow;
         let target = match self
             .original_method_candidate_at(uri, source, analysis, position)
-            .await
+            .await?
         {
-            ControlFlow::Continue(()) => return ControlFlow::Continue(()),
-            ControlFlow::Break(None) => return ControlFlow::Break(Vec::new()),
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(Vec::new())),
             ControlFlow::Break(Some(target)) => target,
         };
         let rows = match navigation {
             tcl_lsp_core::method_symbol::OriginalMethodNavigation::References {
                 include_declaration,
             } => {
-                let _rehoming = self.rehomed_index_guard().await;
+                let _rehoming = self.rehomed_index_guard().await?;
                 self.workspace_index
                     .read()
                     .await
@@ -14500,7 +15680,7 @@ impl Backend {
             let Ok(uri) = Uri::from_str(&owner) else {
                 continue;
             };
-            let Some(document) = self.read_document(&uri).await else {
+            let Some(document) = self.read_document(&uri).await? else {
                 continue;
             };
             if image != tcl_lexer::SourceImage::document(&document.text) {
@@ -14508,7 +15688,7 @@ impl Backend {
             }
             let owner_analysis = self
                 .analysis_for(&uri, document.text.clone(), document.dialect.clone())
-                .await;
+                .await?;
             if !owner_analysis.matches_original_source_image(&image, config) {
                 continue;
             }
@@ -14527,7 +15707,7 @@ impl Backend {
             });
         }
         dedup_locations(&mut locations);
-        ControlFlow::Break(locations)
+        Ok(ControlFlow::Break(locations))
     }
 
     async fn original_method_hover_at(
@@ -14536,34 +15716,34 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         position: Position,
-    ) -> std::ops::ControlFlow<Option<CoreHover>> {
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<CoreHover>>> {
         use std::ops::ControlFlow;
         let target = match self
             .original_method_candidate_at(uri, source, analysis, position)
-            .await
+            .await?
         {
-            ControlFlow::Continue(()) => return ControlFlow::Continue(()),
-            ControlFlow::Break(None) => return ControlFlow::Break(None),
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
             ControlFlow::Break(Some(target)) => target,
         };
         let Ok(owner) = Uri::from_str(target.uri()) else {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         };
-        let Some(document) = self.read_document(&owner).await else {
-            return ControlFlow::Break(None);
+        let Some(document) = self.read_document(&owner).await? else {
+            return Ok(ControlFlow::Break(None));
         };
         if target.declaration_image() != &tcl_lexer::SourceImage::document(&document.text) {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         }
         let owner_analysis = self
             .analysis_for(&owner, document.text.clone(), document.dialect.clone())
-            .await;
+            .await?;
         if !owner_analysis
             .matches_original_source_image(target.declaration_image(), target.declaration_config())
         {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         }
-        ControlFlow::Break(target.hover())
+        Ok(ControlFlow::Break(target.hover()))
     }
 
     /// The `::`-rooted namespace-variable cell the cursor names, or `None`
@@ -14642,14 +15822,14 @@ impl Backend {
         symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
         include_declaration: bool,
         declarations_only: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let Some(context) =
             core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)
         else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         if context.image() != &tcl_lexer::SourceImage::document(source) {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let matches = |row: &tcl_compiler::analyser::types::NamespaceRef| {
             row.source_namespace.as_ref() == Some(symbol.scope())
@@ -14678,7 +15858,7 @@ impl Backend {
             })
             .collect::<Vec<_>>();
         {
-            let _rehoming_guard = self.rehomed_index_guard().await;
+            let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
             targets.extend(
                 index
@@ -14707,12 +15887,12 @@ impl Backend {
                 );
             }
         }
-        let locations = self.resolve_original_indexed_locations(targets).await;
-        if declarations_only && locations.is_empty() {
-            self.resolve_original_indexed_locations(parents).await
+        let locations = self.resolve_original_indexed_locations(targets).await?;
+        Ok(if declarations_only && locations.is_empty() {
+            self.resolve_original_indexed_locations(parents).await?
         } else {
             locations
-        }
+        })
     }
 
     async fn original_namespace_hover(
@@ -14720,9 +15900,12 @@ impl Backend {
         uri: &Uri,
         analysis: &AnalysisResult,
         symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
-    ) -> Option<CoreHover> {
+    ) -> DocumentSourceResult<Option<CoreHover>> {
         let context =
-            core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+            (match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            });
         let capture = |owner: &str,
                        context: &core_workspace_index::WorkspaceDiagnosticSourceContext,
                        row: &tcl_compiler::analyser::types::NamespaceRef| {
@@ -14742,7 +15925,7 @@ impl Backend {
             .filter_map(|row| capture(uri.as_str(), &context, row))
             .collect::<Vec<_>>();
         {
-            let _rehoming_guard = self.rehomed_index_guard().await;
+            let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
             targets.extend(
                 index
@@ -14759,7 +15942,7 @@ impl Backend {
         }
         let mut facts = core_namespace_symbol::NamespaceFacts::default();
         let mut documents = HashSet::new();
-        for (target, _) in self.validated_original_indexed_locations(targets).await {
+        for (target, _) in self.validated_original_indexed_locations(targets).await? {
             if target.is_implicit_namespace_parent() {
                 facts.implicit_declarations += 1;
             } else if target.is_declaration() {
@@ -14770,14 +15953,22 @@ impl Backend {
             documents.insert(target.uri().to_owned());
         }
         facts.documents = documents.len();
-        let label = symbol.source_word(
+        let label = (match symbol.source_word(
             tcl_lexer::SourceChannel::Document,
-            analysis.body_lexer_config?,
-        )?;
-        core_namespace_symbol::namespace_hover_markdown(&label, facts).map(|value| CoreHover {
-            value,
-            kind: CoreHoverKind::Markdown,
-        })
+            (match analysis.body_lexer_config {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            }),
+        ) {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        Ok(
+            core_namespace_symbol::namespace_hover_markdown(&label, facts).map(|value| CoreHover {
+                value,
+                kind: CoreHoverKind::Markdown,
+            }),
+        )
     }
 
     /// Every declaring `namespace eval` block of `cell`, local **and**
@@ -14808,8 +15999,8 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         cell: &str,
-    ) -> Vec<Location> {
-        let rehoming_guard = self.rehomed_index_guard().await;
+    ) -> DocumentSourceResult<Vec<Location>> {
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let mut targets: Vec<(String, tcl_lexer::Span)> =
             core_namespace_symbol::namespace_declaration_spans(analysis, cell)
                 .into_iter()
@@ -14846,7 +16037,7 @@ impl Backend {
                 let Ok(parsed) = Uri::from_str(&row_uri) else {
                     continue;
                 };
-                let Some(doc) = self.read_document(&parsed).await else {
+                let Some(doc) = self.read_document(&parsed).await? else {
                     continue;
                 };
                 // The covering prefix is a sub-range of the written word, so
@@ -14864,7 +16055,7 @@ impl Backend {
             }
         }
         dedup_span_targets(&mut targets);
-        self.resolve_target_locations(targets).await
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Hover for the namespace `cell`, counted over the local document **and**
@@ -14891,8 +16082,8 @@ impl Backend {
         uri: &Uri,
         analysis: &AnalysisResult,
         cell: &str,
-    ) -> Option<CoreHover> {
-        let rehoming_guard = self.rehomed_index_guard().await;
+    ) -> DocumentSourceResult<Option<CoreHover>> {
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let local = core_namespace_symbol::namespace_facts(analysis, cell);
         let facts = {
             let index = self.workspace_index.read().await;
@@ -14925,7 +16116,7 @@ impl Backend {
             merged
         };
         drop(rehoming_guard);
-        core_hover::namespace_hover(cell, facts)
+        Ok(core_hover::namespace_hover(cell, facts))
     }
 
     /// Every occurrence of the namespace `cell`, local **and** workspace —
@@ -14943,8 +16134,8 @@ impl Backend {
         analysis: &AnalysisResult,
         cell: &str,
         include_declaration: bool,
-    ) -> Vec<Location> {
-        let rehoming_guard = self.rehomed_index_guard().await;
+    ) -> DocumentSourceResult<Vec<Location>> {
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let mut targets: Vec<(String, tcl_lexer::Span)> =
             core_namespace_symbol::namespace_all_spans(analysis, cell, include_declaration)
                 .into_iter()
@@ -14969,7 +16160,7 @@ impl Backend {
         }
         drop(rehoming_guard);
         dedup_span_targets(&mut targets);
-        self.resolve_target_locations(targets).await
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Cross-document go-to-definition for a namespace variable: the
@@ -14986,11 +16177,11 @@ impl Backend {
         source: &str,
         pos: Position,
         analysis: &AnalysisResult,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         if let std::ops::ControlFlow::Break(Some(occurrence)) =
             tcl_lsp_core::variable_symbol::select(source, analysis, pos.line, pos.character)
         {
-            let rehoming_guard = self.rehomed_index_guard().await;
+            let rehoming_guard = self.rehomed_index_guard().await?;
             let targets = {
                 let index = self.workspace_index.read().await;
                 index
@@ -15006,7 +16197,7 @@ impl Backend {
                     .collect()
             };
             drop(rehoming_guard);
-            return self.resolve_original_indexed_locations(targets).await;
+            return Ok(self.resolve_original_indexed_locations(targets).await?);
         }
         let Some(cell) = Self::qualified_variable_cell(
             source,
@@ -15014,11 +16205,11 @@ impl Backend {
             analysis,
             pos,
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         // The index answers under source-site namespaces too, so
         // reconcile before asking, exactly as the proc/class tier does.
-        let rehoming_guard = self.rehomed_index_guard().await;
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             index
@@ -15028,7 +16219,7 @@ impl Backend {
                 .collect()
         };
         drop(rehoming_guard);
-        self.resolve_target_locations(targets).await
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Autoload-tier go-to-definition: resolve a command head that the
@@ -15072,7 +16263,7 @@ impl Backend {
         };
         let Some(qualified) = self
             .ensure_library_indexed(uri, analysis, &word, &namespace)
-            .await
+            .await?
         else {
             return Ok(Vec::new());
         };
@@ -15090,7 +16281,7 @@ impl Backend {
                 )
                 .collect()
         };
-        Ok(self.resolve_target_locations(targets).await)
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Merge the library file(s) the auto-load / package database says define
@@ -15125,21 +16316,26 @@ impl Backend {
         analysis: &AnalysisResult,
         word: &str,
         namespace: &str,
-    ) -> Option<String> {
-        if let Some(hit) = self.ensure_autoload_indexed(word, namespace).await {
-            return Some(hit);
+    ) -> DocumentSourceResult<Option<String>> {
+        if let Some(hit) = self.ensure_autoload_indexed(word, namespace).await? {
+            return Ok(Some(hit));
         }
-        self.ensure_required_packages_indexed(uri, analysis, word, namespace)
-            .await
+        Ok(self
+            .ensure_required_packages_indexed(uri, analysis, word, namespace)
+            .await?)
     }
 
-    async fn ensure_autoload_indexed(&self, word: &str, namespace: &str) -> Option<String> {
+    async fn ensure_autoload_indexed(
+        &self,
+        word: &str,
+        namespace: &str,
+    ) -> DocumentSourceResult<Option<String>> {
         drop(self.workspace_scan_gate.lock().await);
         let files = {
             let resolver = self.package_resolver.read().await;
             resolver.resolve_auto_command(word, namespace)
         };
-        self.merge_library_files(word, namespace, files).await
+        Ok(self.merge_library_files(word, namespace, files).await?)
     }
 
     /// Package tier: the library files the document's own `package require`s
@@ -15166,9 +16362,9 @@ impl Backend {
         analysis: &AnalysisResult,
         word: &str,
         namespace: &str,
-    ) -> Option<String> {
+    ) -> DocumentSourceResult<Option<String>> {
         let files = self.required_library_files(uri, analysis).await;
-        self.merge_library_files(word, namespace, files).await
+        Ok(self.merge_library_files(word, namespace, files).await?)
     }
 
     async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
@@ -15253,9 +16449,9 @@ impl Backend {
         word: &str,
         namespace: &str,
         files: Vec<PathBuf>,
-    ) -> Option<String> {
+    ) -> DocumentSourceResult<Option<String>> {
         if files.is_empty() {
-            return None;
+            return Ok(None);
         }
         let candidates = tcl_lsp_core::package_resolver::auto_qualify(word, namespace);
         // The index and `all_procs` key absolute (`::`-prefixed) names, while
@@ -15276,7 +16472,7 @@ impl Backend {
                 .iter()
                 .find(|cand| index.workspace_command_exists(cand))
             {
-                return Some(existing.clone());
+                return Ok(Some(existing.clone()));
             }
         }
         let mut resolved = None;
@@ -15285,7 +16481,7 @@ impl Backend {
             let Some(target_uri) = canonical_file_uri(&path) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&target_uri).await else {
+            let Some(target_doc) = self.read_document(&target_uri).await? else {
                 continue;
             };
             let file_analysis = self
@@ -15294,7 +16490,7 @@ impl Backend {
                     target_doc.text.clone(),
                     target_doc.dialect.clone(),
                 )
-                .await;
+                .await?;
             if resolved.is_none() {
                 resolved = absolute
                     .iter()
@@ -15307,11 +16503,11 @@ impl Backend {
             analysed.push((target_uri, file_analysis));
         }
         if analysed.is_empty() {
-            return resolved;
+            return Ok(resolved);
         }
 
         self.publish_library_analyses(&analysed).await;
-        resolved
+        Ok(resolved)
     }
 
     async fn publish_library_analyses(&self, analysed: &[(Uri, Arc<AnalysisResult>)]) {
@@ -15429,14 +16625,14 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         let Some(request) = core_definition::original_autoload_request_at(
             source,
             analysis,
             pos.line,
             pos.character,
         ) else {
-            return false;
+            return Ok(false);
         };
         let epoch = self.diag_inputs_epoch();
         drop(self.workspace_scan_gate.lock().await);
@@ -15449,34 +16645,34 @@ impl Backend {
         let mut analysed = Vec::new();
         for path in files {
             let Some(owner) = canonical_file_uri(&path) else {
-                return false;
+                return Ok(false);
             };
-            let Some(document) = self.read_document(&owner).await else {
-                return false;
+            let Some(document) = self.read_document(&owner).await? else {
+                return Ok(false);
             };
             let current = self
                 .analysis_for(&owner, document.text.clone(), document.dialect.clone())
-                .await;
+                .await?;
             let Some(config) = current.body_lexer_config else {
-                return false;
+                return Ok(false);
             };
             if !current.matches_original_source_image(
                 &tcl_lexer::SourceImage::document(&document.text),
                 config,
             ) {
-                return false;
+                return Ok(false);
             }
             let Some(publication) = self.library_publication_source(&owner, document).await else {
-                return false;
+                return Ok(false);
             };
             analysed.push((publication, current));
         }
-        let Some(document) = self.read_document(uri).await else {
-            return false;
+        let Some(document) = self.read_document(uri).await? else {
+            return Ok(false);
         };
         let current = self
             .analysis_for(uri, document.text.clone(), document.dialect.clone())
-            .await;
+            .await?;
         if document.text.as_ref() != source
             || self.diag_inputs_epoch() != epoch
             || core_definition::original_autoload_request_at(
@@ -15488,36 +16684,43 @@ impl Backend {
             .as_ref()
                 != Some(&request)
         {
-            return false;
+            return Ok(false);
         }
         let Some(caller) = self.library_publication_source(uri, document).await else {
-            return false;
+            return Ok(false);
         };
-        self.publish_original_library_analyses(epoch, &caller, &analysed)
-            .await
+        Ok(self
+            .publish_original_library_analyses(epoch, &caller, &analysed)
+            .await)
     }
 
     async fn hover_for_original_declaration(
         &self,
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
-    ) -> Option<CoreHover> {
-        let owner = identity.uri().parse::<Uri>().ok()?;
-        let document = self.read_document(&owner).await?;
+    ) -> DocumentSourceResult<Option<CoreHover>> {
+        let owner = (match identity.uri().parse::<Uri>().ok() {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let document = (match self.read_document(&owner).await? {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let current = self
             .analysis_for(&owner, document.text.clone(), document.dialect)
-            .await;
+            .await?;
         if !identity.is_current(owner.as_str(), &document.text, &current) {
-            return None;
+            return Ok(None);
         }
         let position = tcl_lexer::LineIndex::new(&document.text)
             .position_at_utf16(identity.span().start(), &document.text);
-        core_hover::hover(
+        Ok(core_hover::hover(
             &document.text,
             position.line,
             position.character.get(),
             &current,
             None,
-        )
+        ))
     }
 
     /// Hover for a command head the current document cannot resolve, using
@@ -15541,21 +16744,25 @@ impl Backend {
         source: &str,
         pos: Position,
         analysis: &AnalysisResult,
-    ) -> Option<CoreHover> {
+    ) -> DocumentSourceResult<Option<CoreHover>> {
         if !analysis.allows_retained_logical_declaration_advice() {
-            let identity = self
+            let identity = (match self
                 .original_declaration_identity_at(uri, source, analysis, pos)
-                .await?;
-            return self.hover_for_original_declaration(&identity).await;
+                .await?
+            {
+                Some(__source_value) => __source_value,
+                None => return Ok(None),
+            });
+            return Ok(self.hover_for_original_declaration(&identity).await?);
         }
         // Cross-document tier: a proc / class defined in a sibling document
         // the workspace index knows about.
         let symbols = self
             .resolve_workspace_symbols(uri, source, analysis, pos)
-            .await;
+            .await?;
         for qualified in &symbols {
-            if let Some(hover) = self.hover_for_indexed_symbol(qualified).await {
-                return Some(hover);
+            if let Some(hover) = self.hover_for_indexed_symbol(qualified).await? {
+                return Ok(Some(hover));
             }
         }
         // Autoload tier, hover's twin of the definition one: the command is
@@ -15564,16 +16771,23 @@ impl Backend {
         // defines it.  `ensure_autoload_indexed`
         // merges that file into the workspace index, so the render below reads
         // it exactly like any other indexed document.
-        let (word, namespace) = core_definition::command_head_and_namespace_at(
+        let (word, namespace) = (match core_definition::command_head_and_namespace_at(
             source,
             analysis,
             pos.line,
             pos.character,
-        )?;
-        let qualified = self
+        ) {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let qualified = (match self
             .ensure_library_indexed(uri, analysis, &word, &namespace)
-            .await?;
-        self.hover_for_indexed_symbol(&qualified).await
+            .await?
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        Ok(self.hover_for_indexed_symbol(&qualified).await?)
     }
 
     /// Render `qualified` from whichever indexed document declares it.
@@ -15592,11 +16806,11 @@ impl Backend {
         source: &str,
         pos: Position,
         analysis: &AnalysisResult,
-    ) -> Option<CoreHover> {
+    ) -> DocumentSourceResult<Option<CoreHover>> {
         if let std::ops::ControlFlow::Break(Some(occurrence)) =
             tcl_lsp_core::variable_symbol::select(source, analysis, pos.line, pos.character)
         {
-            let rehoming_guard = self.rehomed_index_guard().await;
+            let rehoming_guard = self.rehomed_index_guard().await?;
             let targets = {
                 let index = self.workspace_index.read().await;
                 index
@@ -15613,7 +16827,7 @@ impl Backend {
             drop(rehoming_guard);
             let counts = self
                 .validated_original_indexed_locations(targets)
-                .await
+                .await?
                 .into_iter()
                 .fold((0, 0), |(declarations, references), (target, _)| {
                     if target.is_declaration() {
@@ -15623,25 +16837,28 @@ impl Backend {
                     }
                 });
             if counts.0 == 0 {
-                return None;
+                return Ok(None);
             }
             let input = occurrence.original_name_input();
             let label = tcl_syntax::native_string::resident_name_label(input.bytes());
-            return Some(CoreHover {
+            return Ok(Some(CoreHover {
                 kind: CoreHoverKind::Markdown,
                 value: format!(
                     "**Variable** `{label}`\n\n{} declaration(s) and {} reference(s) in other documents",
                     counts.0, counts.1
                 ),
-            });
+            }));
         }
-        let cell = Self::qualified_variable_cell(
+        let cell = (match Self::qualified_variable_cell(
             source,
             tcl_lsp_core::profile_for_dialect(&analysis.dialect),
             analysis,
             pos,
-        )?;
-        let rehoming_guard = self.rehomed_index_guard().await;
+        ) {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
             index
@@ -15655,20 +16872,23 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let target_analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             if let Some(hover) = core_hover::qualified_variable_hover(&target_analysis, &cell) {
-                return Some(hover);
+                return Ok(Some(hover));
             }
         }
-        None
+        Ok(None)
     }
 
-    async fn hover_for_indexed_symbol(&self, qualified: &str) -> Option<CoreHover> {
+    async fn hover_for_indexed_symbol(
+        &self,
+        qualified: &str,
+    ) -> DocumentSourceResult<Option<CoreHover>> {
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
             index
@@ -15687,19 +16907,19 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             // Memoised by `analysis_for`, so a hover over an already-analysed
             // sibling costs a cache hit, not a second whole-file walk.
             let target_analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             if let Some(hover) = core_hover::qualified_symbol_hover(&target_analysis, qualified) {
-                return Some(hover);
+                return Ok(Some(hover));
             }
         }
-        None
+        Ok(None)
     }
 
     /// Resolve the symbol at `pos` against the workspace index
@@ -15717,19 +16937,19 @@ impl Backend {
         if !analysis.allows_lexical_declaration_advice() {
             let Some(identity) = self
                 .original_declaration_identity_at(uri, source, analysis, pos)
-                .await
+                .await?
             else {
                 return Ok(Vec::new());
             };
             let Ok(owner) = identity.uri().parse::<Uri>() else {
                 return Ok(Vec::new());
             };
-            let Some(document) = self.read_document(&owner).await else {
+            let Some(document) = self.read_document(&owner).await? else {
                 return Ok(Vec::new());
             };
             let current = self
                 .analysis_for(&owner, document.text.clone(), document.dialect)
-                .await;
+                .await?;
             if !identity.is_current(owner.as_str(), &document.text, &current) {
                 return Ok(Vec::new());
             }
@@ -15746,7 +16966,7 @@ impl Backend {
         // documents answer under their source-site namespaces.
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
-            .await;
+            .await?;
         // Resolve the call at the cursor to its qualified identity set
         // through the workspace oracle, then jump to *those* symbols'
         // definitions — never every same-simple-name proc/class across the
@@ -15791,7 +17011,7 @@ impl Backend {
             targets
         };
         drop(rehoming_guard);
-        Ok(self.resolve_target_locations(targets).await)
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Revalidate indexed facts in each actual current document before using
@@ -15799,7 +17019,7 @@ impl Backend {
     async fn validated_original_indexed_locations(
         &self,
         targets: Vec<OriginalIndexedSourceLocation>,
-    ) -> Vec<(OriginalIndexedSourceLocation, Location)> {
+    ) -> DocumentSourceResult<Vec<(OriginalIndexedSourceLocation, Location)>> {
         let epoch = self.diag_inputs_epoch();
         let mut documents = HashMap::new();
         for target in &targets {
@@ -15807,10 +17027,10 @@ impl Backend {
                 continue;
             }
             let resolved = if let Ok(uri) = target.uri().parse::<Uri>() {
-                if let Some(document) = self.read_document(&uri).await {
+                if let Some(document) = self.read_document(&uri).await? {
                     let analysis = self
                         .analysis_for(&uri, document.text.clone(), document.dialect.clone())
-                        .await;
+                        .await?;
                     Some((uri, document, analysis))
                 } else {
                     None
@@ -15821,10 +17041,10 @@ impl Backend {
             documents.insert(target.uri().to_owned(), resolved);
         }
         if self.diag_inputs_epoch() != epoch {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut seen = HashSet::new();
-        targets
+        Ok(targets
             .into_iter()
             .filter_map(|target| {
                 let (uri, document, analysis) = documents.get(target.uri())?.as_ref()?;
@@ -15843,18 +17063,19 @@ impl Backend {
                     },
                 ))
             })
-            .collect()
+            .collect())
     }
 
     async fn resolve_original_indexed_locations(
         &self,
         targets: Vec<OriginalIndexedSourceLocation>,
-    ) -> Vec<Location> {
-        self.validated_original_indexed_locations(targets)
-            .await
+    ) -> DocumentSourceResult<Vec<Location>> {
+        Ok(self
+            .validated_original_indexed_locations(targets)
+            .await?
             .into_iter()
             .map(|(_, location)| location)
-            .collect()
+            .collect())
     }
 
     /// Resolve a list of `(target-uri, byte-span)` pairs to LSP
@@ -15878,19 +17099,19 @@ impl Backend {
     async fn resolve_target_locations(
         &self,
         targets: Vec<(String, tcl_lexer::Span)>,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let mut docs: HashMap<&str, Option<(Uri, DocumentState)>> = HashMap::new();
         for (target_uri, _) in &targets {
             if docs.contains_key(target_uri.as_str()) {
                 continue;
             }
             let resolved = match Uri::from_str(target_uri) {
-                Ok(parsed) => self.read_document(&parsed).await.map(|doc| (parsed, doc)),
+                Ok(parsed) => self.read_document(&parsed).await?.map(|doc| (parsed, doc)),
                 Err(_) => None,
             };
             docs.insert(target_uri.as_str(), resolved);
         }
-        targets
+        Ok(targets
             .iter()
             .filter_map(|(target_uri, span)| {
                 let (uri, target_doc) = docs.get(target_uri.as_str())?.as_ref()?;
@@ -15914,7 +17135,7 @@ impl Backend {
                     },
                 })
             })
-            .collect()
+            .collect())
     }
 
     /// Resolve the proc / class symbol at `pos` (a bare command word, not a
@@ -16046,15 +17267,15 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Vec<String> {
+    ) -> DocumentSourceResult<Vec<String>> {
         if !analysis.allows_lexical_declaration_advice() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let indexed = self
             .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
             .await;
         if !indexed.is_empty() {
-            return indexed;
+            return Ok(indexed);
         }
 
         // Autoload tier: the command resolves nowhere in the open
@@ -16067,12 +17288,13 @@ impl Backend {
             pos.line,
             pos.character,
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
-        self.ensure_library_indexed(uri, analysis, &word, &namespace)
-            .await
+        Ok(self
+            .ensure_library_indexed(uri, analysis, &word, &namespace)
+            .await?
             .into_iter()
-            .collect()
+            .collect())
     }
 
     /// Prepare any on-demand library indexing without holding
@@ -16090,16 +17312,16 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> (tokio::sync::MutexGuard<'a, ()>, Vec<String>) {
+    ) -> DocumentSourceResult<(tokio::sync::MutexGuard<'a, ()>, Vec<String>)> {
         let preflight = self
             .resolve_workspace_symbols(uri, source, analysis, pos)
-            .await;
-        let guard = self.rehomed_index_guard().await;
+            .await?;
+        let guard = self.rehomed_index_guard().await?;
         let symbols = self
             .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
             .await;
         if !symbols.is_empty() || preflight.is_empty() {
-            return (guard, symbols);
+            return Ok((guard, symbols));
         }
 
         // The preflight resolved only through a stale standalone view that
@@ -16109,12 +17331,12 @@ impl Backend {
         drop(guard);
         let _ = self
             .resolve_workspace_symbols(uri, source, analysis, pos)
-            .await;
-        let guard = self.rehomed_index_guard().await;
+            .await?;
+        let guard = self.rehomed_index_guard().await?;
         let symbols = self
             .resolve_workspace_symbols_indexed(uri, source, analysis, pos)
             .await;
-        (guard, symbols)
+        Ok((guard, symbols))
     }
 
     /// Cross-document references for the proc / class at `pos`:
@@ -16137,16 +17359,17 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
-    ) -> Vec<Location> {
-        self.gather_reference_targets(
-            uri,
-            source,
-            analysis,
-            pos,
-            include_declaration,
-            uri.as_str(),
-        )
-        .await
+    ) -> DocumentSourceResult<Vec<Location>> {
+        Ok(self
+            .gather_reference_targets(
+                uri,
+                source,
+                analysis,
+                pos,
+                include_declaration,
+                uri.as_str(),
+            )
+            .await?)
     }
 
     /// Consumer-document references fallback, mirroring the autoload-tier
@@ -16167,9 +17390,10 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
-    ) -> Vec<Location> {
-        self.gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
-            .await
+    ) -> DocumentSourceResult<Vec<Location>> {
+        Ok(self
+            .gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
+            .await?)
     }
 
     /// Shared core of [`Self::cross_document_references`] /
@@ -16187,12 +17411,12 @@ impl Backend {
         pos: Position,
         include_declaration: bool,
         exclude_uri: &str,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
-            .await;
+            .await?;
         if symbols.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         // A multi-seeded declaration names several runtime identities —
         // the reference set is the **union over
@@ -16230,7 +17454,7 @@ impl Backend {
             t
         };
         drop(rehoming_guard);
-        self.resolve_target_locations(targets).await
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Resolve the call-site reference [`Location`]s for the symbol whose name
@@ -16248,9 +17472,10 @@ impl Backend {
         doc: &DocumentState,
         analysis: &AnalysisResult,
         position: Position,
-    ) -> Vec<Location> {
-        self.reference_locations(uri, doc, analysis, position, false)
-            .await
+    ) -> DocumentSourceResult<Vec<Location>> {
+        Ok(self
+            .reference_locations(uri, doc, analysis, position, false)
+            .await?)
     }
 
     /// Every reference [`Location`] for the symbol at `position`: the
@@ -16268,7 +17493,7 @@ impl Backend {
         analysis: &AnalysisResult,
         position: Position,
         include_declaration: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         // A namespace-name argument is answered here, in full.  It must not
         // reach the tiers below: the position is definitive, and an *empty*
         // local set — which is what asking for references without
@@ -16276,7 +17501,7 @@ impl Backend {
         // would otherwise route the query to `workspace_resolved_references`,
         // the proc/class tier.
         if let Some(symbol) = Self::original_namespace_symbol(&doc.text, analysis, position) {
-            return self
+            return Ok(self
                 .original_namespace_locations(
                     uri,
                     &doc.text,
@@ -16285,15 +17510,15 @@ impl Backend {
                     include_declaration,
                     false,
                 )
-                .await;
+                .await?);
         }
         if Self::original_namespace_cursor_retained(&doc.text, analysis, position) {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         if let Some(cell) = Self::namespace_cell(&doc.text, analysis, position) {
-            return self
+            return Ok(self
                 .namespace_reference_locations(uri, analysis, &cell, include_declaration)
-                .await;
+                .await?);
         }
         if let std::ops::ControlFlow::Break(locations) = self
             .original_method_locations_at(
@@ -16305,9 +17530,9 @@ impl Backend {
                     include_declaration,
                 },
             )
-            .await
+            .await?
         {
-            return locations;
+            return Ok(locations);
         }
         if !analysis.allows_lexical_declaration_advice() {
             if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
@@ -16317,16 +17542,16 @@ impl Backend {
                 position.character,
             ) {
                 let Some(occurrence) = selected else {
-                    return Vec::new();
+                    return Ok(Vec::new());
                 };
                 let Some(config) = analysis.body_lexer_config else {
-                    return Vec::new();
+                    return Ok(Vec::new());
                 };
                 if !analysis.matches_original_source_image(
                     &tcl_lexer::SourceImage::document(&doc.text),
                     config,
                 ) {
-                    return Vec::new();
+                    return Ok(Vec::new());
                 }
                 let index = tcl_lexer::LineIndex::new(&doc.text);
                 let mut locations = tcl_lsp_core::variable_symbol::reference_spans(
@@ -16347,20 +17572,20 @@ impl Backend {
                         position,
                         include_declaration,
                     )
-                    .await,
+                    .await?,
                 );
                 dedup_locations(&mut locations);
-                return locations;
+                return Ok(locations);
             }
             let Some(identity) = self
                 .original_declaration_identity_at(uri, &doc.text, analysis, position)
-                .await
+                .await?
             else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
-            return self
+            return Ok(self
                 .original_declaration_reference_locations(&identity, uri, include_declaration)
-                .await;
+                .await?);
         }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -16408,10 +17633,10 @@ impl Backend {
                 position,
                 include_declaration,
             )
-            .await
+            .await?
         } else {
             self.cross_document_references(uri, &doc.text, analysis, position, include_declaration)
-                .await
+                .await?
         };
         locations.extend(cross);
         // Cross-document namespace-variable sites: `$::NS::var` consumers in
@@ -16425,7 +17650,7 @@ impl Backend {
                 position,
                 include_declaration,
             )
-            .await,
+            .await?,
         );
         // Cross-document `TclOO` method sites: when the cursor names a method
         // (its declaration inside a class body, or an `$obj method` / `my
@@ -16440,10 +17665,10 @@ impl Backend {
                 position,
                 include_declaration,
             )
-            .await,
+            .await?,
         );
         dedup_locations(&mut locations);
-        locations
+        Ok(locations)
     }
 
     /// Workspace references for the namespace variable at `pos`: every
@@ -16473,11 +17698,11 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_declaration: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         if let std::ops::ControlFlow::Break(Some(occurrence)) =
             tcl_lsp_core::variable_symbol::select(source, analysis, pos.line, pos.character)
         {
-            let rehoming_guard = self.rehomed_index_guard().await;
+            let rehoming_guard = self.rehomed_index_guard().await?;
             let targets = {
                 let index = self.workspace_index.read().await;
                 index
@@ -16493,7 +17718,7 @@ impl Backend {
                     .collect()
             };
             drop(rehoming_guard);
-            return self.resolve_original_indexed_locations(targets).await;
+            return Ok(self.resolve_original_indexed_locations(targets).await?);
         }
         let Some(cell) = Self::qualified_variable_cell(
             source,
@@ -16501,9 +17726,9 @@ impl Backend {
             analysis,
             pos,
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
-        let rehoming_guard = self.rehomed_index_guard().await;
+        let rehoming_guard = self.rehomed_index_guard().await?;
         let targets: Vec<(String, tcl_lexer::Span)> = {
             let index = self.workspace_index.read().await;
             let declarations: Vec<(String, tcl_lexer::Span)> = index
@@ -16525,7 +17750,7 @@ impl Backend {
             t
         };
         drop(rehoming_guard);
-        self.resolve_target_locations(targets).await
+        Ok(self.resolve_target_locations(targets).await?)
     }
 
     /// Analyse current source with workspace class hints and its complete
@@ -16536,12 +17761,13 @@ impl Backend {
         uri: &Uri,
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
-    ) -> Arc<AnalysisResult> {
+    ) -> DocumentSourceResult<Arc<AnalysisResult>> {
         let base = self
             .analysis_for(uri, Arc::from(source), dialect.name.to_owned())
-            .await;
-        self.analyse_with_workspace_classes_from_analysis(uri, source, dialect, base)
-            .await
+            .await?;
+        Ok(self
+            .analyse_with_workspace_classes_from_analysis(uri, source, dialect, base)
+            .await)
     }
 
     async fn analyse_with_workspace_classes_from_analysis(
@@ -16642,16 +17868,17 @@ impl Backend {
         doc: &DocumentState,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String, bool)> {
-        self.resolve_method_target(
-            uri,
-            &doc.text,
-            tcl_lsp_core::profile_for_dialect(&doc.dialect),
-            analysis,
-            pos,
-        )
-        .await
-        .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod))
+    ) -> DocumentSourceResult<Option<(String, String, bool)>> {
+        Ok(self
+            .resolve_method_target(
+                uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                analysis,
+                pos,
+            )
+            .await?
+            .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod)))
     }
 
     /// Whether the cursor sits on a bare `ClassName member` **class-side**
@@ -16693,15 +17920,16 @@ impl Backend {
         dialect: &'static tcl_dialect::DialectProfile,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<(String, String, bool, core_workspace_index::MethodAccess)> {
+    ) -> DocumentSourceResult<Option<(String, String, bool, core_workspace_index::MethodAccess)>>
+    {
         if let Some(target) =
             core_rename::method_target_with_access(source, pos.line, pos.character, analysis)
         {
-            return Some(target);
+            return Ok(Some(target));
         }
         let oracle = self
             .analyse_with_workspace_classes(uri, source, dialect)
-            .await;
+            .await?;
         // Last tier: the workspace index itself.  The oracle reanalysis above
         // widens *instance* inference (it supplies class names, so `[Cls new]`
         // types `$obj`), but a bare `ClassName member` needs the class's
@@ -16709,13 +17937,13 @@ impl Backend {
         // produce — a pure consumer never mentions the class's body.  Handing
         // the index in lets the classmethod arm ask the one tier that knows.
         let index = self.workspace_index.read().await;
-        core_rename::method_target_with_access_in_workspace(
+        Ok(core_rename::method_target_with_access_in_workspace(
             source,
             pos.line,
             pos.character,
             &oracle,
             Some((&index, uri.as_str())),
-        )
+        ))
     }
 
     /// Whether `method` is a `classmethod` on any of `definers`, and — if
@@ -16807,27 +18035,28 @@ impl Backend {
         seed_class: &str,
         method: &str,
         is_classmethod: bool,
-    ) -> Vec<Location> {
-        self.consumer_method_site_ranges(
-            current_uri,
-            current_source,
-            current_dialect,
-            ConsumerTarget {
-                seed_class,
-                method,
-                is_classmethod,
-                coverage: ConsumerCoverage::ConstructorSites,
-            },
-        )
-        .await
-        .into_iter()
-        .flat_map(|(uri, ranges)| {
-            ranges.into_iter().map(move |range| Location {
-                uri: uri.clone(),
-                range,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        Ok(self
+            .consumer_method_site_ranges(
+                current_uri,
+                current_source,
+                current_dialect,
+                ConsumerTarget {
+                    seed_class,
+                    method,
+                    is_classmethod,
+                    coverage: ConsumerCoverage::ConstructorSites,
+                },
+            )
+            .await?
+            .into_iter()
+            .flat_map(|(uri, ranges)| {
+                ranges.into_iter().map(move |range| Location {
+                    uri: uri.clone(),
+                    range,
+                })
             })
-        })
-        .collect()
+            .collect())
     }
 
     /// The pure-consumer `$obj method` / bare classmethod-dispatch sites of
@@ -16845,10 +18074,10 @@ impl Backend {
         current_source: &str,
         current_dialect: &'static tcl_dialect::DialectProfile,
         target: ConsumerTarget<'_>,
-    ) -> Vec<(Uri, Vec<Range>)> {
+    ) -> DocumentSourceResult<Vec<(Uri, Vec<Range>)>> {
         let (method, is_classmethod) = (target.method, target.is_classmethod);
         let Some(plan) = self.consumer_scan_plan(current_dialect, target).await else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let mut out: Vec<(Uri, Vec<Range>)> = Vec::new();
         let mut scanned: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -16874,7 +18103,7 @@ impl Backend {
                 let Ok(parsed) = Uri::from_str(&u) else {
                     continue;
                 };
-                let Some(state) = self.read_document(&parsed).await else {
+                let Some(state) = self.read_document(&parsed).await? else {
                     continue;
                 };
                 ConsumerDoc {
@@ -16886,12 +18115,12 @@ impl Backend {
             };
             let ranges = self
                 .consumer_ranges_in_document(&doc, &plan, method, is_classmethod)
-                .await;
+                .await?;
             if !ranges.is_empty() {
                 out.push((doc.uri, ranges));
             }
         }
-        out
+        Ok(out)
     }
 
     /// The family classes, candidate consumer documents, and classmethod
@@ -16980,14 +18209,14 @@ impl Backend {
         plan: &ConsumerScan,
         method: &str,
         is_classmethod: bool,
-    ) -> Vec<Range> {
+    ) -> DocumentSourceResult<Vec<Range>> {
         let analysis = self
             .analyse_with_workspace_classes(
                 &doc.uri,
                 &doc.text,
                 tcl_lsp_core::profile_for_dialect(&doc.dialect),
             )
-            .await;
+            .await?;
         let source = doc.text.clone();
         let dialect = doc.dialect.clone();
         let family = plan.family.clone();
@@ -17035,7 +18264,7 @@ impl Backend {
         // reproducible across runs.
         ranges.sort_by_key(|r| (r.start.line, r.start.character, r.end.line, r.end.character));
         ranges.dedup();
-        ranges
+        Ok(ranges)
     }
 
     /// The override-family classes of `(seed_class, method)` grouped by the
@@ -17131,19 +18360,23 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         new_name: &str,
-    ) -> Option<std::collections::HashMap<Uri, Vec<TextEdit>>> {
+    ) -> DocumentSourceResult<Option<std::collections::HashMap<Uri, Vec<TextEdit>>>> {
         if !analysis.allows_lexical_declaration_advice()
             || !core_rename::is_safe_symbol_name(new_name)
         {
-            return None;
+            return Ok(None);
         }
-        let (seed_class, method, is_classmethod) = self
+        let (seed_class, method, is_classmethod) = (match self
             .resolve_method_rename_target(uri, doc, analysis, pos)
-            .await?;
+            .await?
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let changes = self
             .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
-            .await;
-        (!changes.is_empty()).then_some(changes)
+            .await?;
+        Ok((!changes.is_empty()).then_some(changes))
     }
 
     /// The two rename tiers that answer *before* the ordinary in-document /
@@ -17221,7 +18454,7 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         new_name: &str,
-    ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
+    ) -> DocumentSourceResult<Option<jsonrpc::Result<Option<WorkspaceEdit>>>> {
         // Namespace tier: the cursor names a namespace, so
         // rename it across the whole workspace or refuse with the reason.
         // Either answer is returned from here and never falls through: an
@@ -17232,7 +18465,7 @@ impl Backend {
         if Self::original_namespace_symbol(&doc.text, analysis, pos).is_some()
             || Self::namespace_cell(&doc.text, analysis, pos).is_some()
         {
-            return Some(
+            return Ok(Some(
                 match self
                     .cross_document_namespace_rename(uri, doc, analysis, pos, new_name)
                     .await
@@ -17245,30 +18478,30 @@ impl Backend {
                         change_annotations: None,
                     })),
                 },
-            );
+            ));
         }
         if Self::original_namespace_cursor_retained(&doc.text, analysis, pos) {
-            return Some(Err(rename_refusal_error(
+            return Ok(Some(Err(rename_refusal_error(
                 &core_rename_safety::RenameRefusal {
                     reason: "cannot prove the original namespace selected by this occurrence"
                         .into(),
                     range: None,
                 },
-            )));
+            ))));
         }
         if let std::ops::ControlFlow::Break(selected) =
             tcl_lsp_core::variable_symbol::select(&doc.text, analysis, pos.line, pos.character)
         {
             let Some(occurrence) = selected else {
-                return Some(Err(rename_refusal_error(
+                return Ok(Some(Err(rename_refusal_error(
                     &core_rename_safety::RenameRefusal {
                         reason: "cannot prove the original variable selected by this occurrence"
                             .into(),
                         range: None,
                     },
-                )));
+                ))));
             };
-            return Some(
+            return Ok(Some(
                 match self
                     .cross_document_original_variable_rename(
                         uri,
@@ -17287,7 +18520,7 @@ impl Backend {
                         change_annotations: None,
                     })),
                 },
-            );
+            ));
         }
         // Safety gate: when the cursor names a `TclOO` member whose dispatch
         // this rename cannot account for anywhere in the workspace, refuse
@@ -17297,14 +18530,14 @@ impl Backend {
             && core_rename::is_safe_symbol_name(new_name)
             && let Some(refusal) = self
                 .method_rename_refusal(uri, doc, analysis, pos, new_name)
-                .await
+                .await?
         {
-            return Some(Err(rename_refusal_error(&refusal)));
+            return Ok(Some(Err(rename_refusal_error(&refusal))));
         }
         // Original variable selection above is terminal. A readonly Logical
         // coordinate without an original cursor symbol cannot issue edits in
         // sibling documents; the local fallback retains its own source gates.
-        None
+        Ok(None)
     }
 
     /// Rename the **namespace** the cursor names, across the whole workspace.
@@ -17361,7 +18594,7 @@ impl Backend {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(&cell);
         let new_cell = tcl_syntax::naming::qualify(holder, new_name);
         let candidates: Vec<String> = {
-            let _rehoming_guard = self.rehomed_index_guard().await;
+            let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
             // Collision gate: renaming onto a namespace that already exists
             // merges two namespaces into one, silently moving every name in
@@ -17391,12 +18624,12 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let target_analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             let edits = core_namespace_rename::namespace_rename_edits(
                 &target_doc.text,
                 tcl_lsp_core::profile_for_dialect(&target_doc.dialect),
@@ -17441,7 +18674,7 @@ impl Backend {
                 range: None,
             })?;
         let candidates = {
-            let _rehoming_guard = self.rehomed_index_guard().await;
+            let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
             let local_facts = core_namespace_symbol::original_namespace_facts(analysis, &proposed);
             let occupied = index
@@ -17474,7 +18707,7 @@ impl Backend {
             let (source, dialect, target_analysis) = if parsed == *uri {
                 (doc.text.clone(), doc.dialect.clone(), None)
             } else {
-                let target_doc = self.read_document(&parsed).await.ok_or_else(|| {
+                let target_doc = self.read_document(&parsed).await?.ok_or_else(|| {
                     core_rename_safety::RenameRefusal {
                         reason: format!("cannot inspect indexed namespace consumer `{owner}`"),
                         range: None,
@@ -17482,7 +18715,7 @@ impl Backend {
                 })?;
                 let target_analysis = self
                     .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                    .await;
+                    .await?;
                 (target_doc.text, target_doc.dialect, Some(target_analysis))
             };
             let target_analysis = target_analysis.as_deref().unwrap_or(analysis);
@@ -17550,10 +18783,14 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         new_name: &str,
-    ) -> Option<core_rename_safety::RenameRefusal> {
-        let (seed_class, method, is_classmethod) = self
+    ) -> DocumentSourceResult<Option<core_rename_safety::RenameRefusal>> {
+        let (seed_class, method, is_classmethod) = (match self
             .resolve_method_rename_target(uri, doc, analysis, pos)
-            .await?;
+            .await?
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let plan = self
             .consumer_scan_plan(
                 tcl_lsp_core::profile_for_dialect(&doc.dialect),
@@ -17584,7 +18821,7 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let target_analysis = self
@@ -17593,7 +18830,7 @@ impl Backend {
                     &target_doc.text,
                     tcl_lsp_core::profile_for_dialect(&target_doc.dialect),
                 )
-                .await;
+                .await?;
             if let Some(refusal) = core_rename_safety::method_rename_hazard(
                 &target_doc.text,
                 tcl_lsp_core::profile_for_dialect(&target_doc.dialect),
@@ -17606,10 +18843,10 @@ impl Backend {
                 },
                 &target_doc.line_index,
             ) {
-                return Some(refusal);
+                return Ok(Some(refusal));
             }
         }
-        None
+        Ok(None)
     }
 
     /// Plan byte-identity variable edits through the shared Core owner. Namespace
@@ -17639,7 +18876,7 @@ impl Backend {
             .renamed(&units)
             .ok_or_else(|| refuse("the replacement must remain one unqualified variable root"))?;
         let candidates = if symbol.is_namespace() {
-            let _rehoming_guard = self.rehomed_index_guard().await;
+            let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
             if proposed != *symbol {
                 let occupied = index
@@ -17682,11 +18919,11 @@ impl Backend {
             } else {
                 let target_doc = self
                     .read_document(&parsed)
-                    .await
+                    .await?
                     .ok_or_else(|| refuse("cannot inspect an indexed variable consumer"))?;
                 let target_analysis = self
                     .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect)
-                    .await;
+                    .await?;
                 (target_doc.text, Some(target_analysis))
             };
             let target_analysis = target_analysis.as_deref().unwrap_or(analysis);
@@ -17741,7 +18978,7 @@ impl Backend {
         method: &str,
         new_name: &str,
         is_classmethod: bool,
-    ) -> std::collections::HashMap<Uri, Vec<TextEdit>> {
+    ) -> DocumentSourceResult<std::collections::HashMap<Uri, Vec<TextEdit>>> {
         let dialect = current_doc.dialect.as_str();
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
@@ -17766,12 +19003,12 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             let src = target_doc.text.clone();
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
@@ -17830,7 +19067,7 @@ impl Backend {
                     coverage: ConsumerCoverage::WholeWorkspace,
                 },
             )
-            .await;
+            .await?;
         for (uri, ranges) in consumer {
             let bucket = changes.entry(uri).or_default();
             for range in ranges {
@@ -17842,7 +19079,7 @@ impl Backend {
                 }
             }
         }
-        changes
+        Ok(changes)
     }
 
     /// Cross-document references for a `TclOO` method across its override
@@ -17865,7 +19102,7 @@ impl Backend {
         include_declaration: bool,
         is_classmethod: bool,
         dialect: &'static tcl_dialect::DialectProfile,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let family = self
             .method_family_by_document(dialect, seed_class, method, is_classmethod)
             .await;
@@ -17886,12 +19123,12 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             let src = target_doc.text.clone();
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
@@ -17939,7 +19176,7 @@ impl Backend {
                 });
             }
         }
-        out
+        Ok(out)
     }
 
     /// The method-dispatch half of [`Self::references`]: resolves the
@@ -17955,7 +19192,7 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         include_decl: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let mut locations = Vec::new();
         if let Some((seed_class, method, is_classmethod, _access)) = self
             .resolve_method_target(
@@ -17965,7 +19202,7 @@ impl Backend {
                 analysis,
                 pos,
             )
-            .await
+            .await?
         {
             locations.extend(
                 self.cross_file_method_references(
@@ -17976,7 +19213,7 @@ impl Backend {
                     is_classmethod,
                     tcl_lsp_core::profile_for_dialect(&doc.dialect),
                 )
-                .await,
+                .await?,
             );
             // Pure-consumer documents (including this one) whose `$obj method`
             // sites neither the single-document provider nor the family pass
@@ -17990,10 +19227,10 @@ impl Backend {
                     &method,
                     is_classmethod,
                 )
-                .await,
+                .await?,
             );
         }
-        locations
+        Ok(locations)
     }
 
     /// Cross-file go-to-definition for a `TclOO` method: the declaration
@@ -18023,7 +19260,7 @@ impl Backend {
         method: &str,
         access: core_workspace_index::MethodAccess,
         is_classmethod: bool,
-    ) -> Vec<Location> {
+    ) -> DocumentSourceResult<Vec<Location>> {
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
             if is_classmethod {
@@ -18042,12 +19279,12 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             // The chain already picked the side; look the declaration up on
             // that side first so a class that legally defines *both* a `method
             // m` and a `self method m` renders the one the cursor's dispatch
@@ -18063,10 +19300,12 @@ impl Backend {
                     a.get(method).or_else(|| b.get(method))
                 }
             {
-                return self.resolve_target_locations(vec![(u, m.name_span)]).await;
+                return Ok(self
+                    .resolve_target_locations(vec![(u, m.name_span)])
+                    .await?);
             }
         }
-        Vec::new()
+        Ok(Vec::new())
     }
 
     /// Cross-file **hover** for a `TclOO` method dispatch: the same dispatch
@@ -18091,8 +19330,8 @@ impl Backend {
         doc: &DocumentState,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> Option<CoreHover> {
-        let (class_q, method, is_classmethod, access) = self
+    ) -> DocumentSourceResult<Option<CoreHover>> {
+        let (class_q, method, is_classmethod, access) = (match self
             .resolve_method_target(
                 uri,
                 &doc.text,
@@ -18100,7 +19339,11 @@ impl Backend {
                 analysis,
                 pos,
             )
-            .await?;
+            .await?
+        {
+            Some(__source_value) => __source_value,
+            None => return Ok(None),
+        });
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
             if is_classmethod {
@@ -18118,12 +19361,12 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&u) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let target_analysis = self
                 .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
+                .await?;
             let Some(class_def) = target_analysis.all_classes.get(&provider_q) else {
                 continue;
             };
@@ -18133,16 +19376,16 @@ impl Backend {
                 (&class_def.methods, &class_def.class_methods)
             };
             if let Some(m) = a.get(&method).or_else(|| b.get(&method)) {
-                return Some(core_hover::cross_document_method_hover(
+                return Ok(Some(core_hover::cross_document_method_hover(
                     &class_q,
                     &provider_q,
                     &m.name,
                     m.params.len(),
                     is_classmethod,
-                ));
+                )));
             }
         }
-        None
+        Ok(None)
     }
 
     /// Add cross-document rename edits for the proc / class at
@@ -18170,14 +19413,14 @@ impl Backend {
         pos: Position,
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
-            .await;
+            .await?;
         let intents = {
             let index = self.workspace_index.read().await;
             if symbols.iter().any(|q| index.rename_blocked(q)) {
-                return true;
+                return Ok(true);
             }
             let mut intents: Vec<core_rename::WorkspaceTextEdit> = Vec::new();
             for qualified in &symbols {
@@ -18191,8 +19434,8 @@ impl Backend {
             intents
         };
         drop(rehoming_guard);
-        self.merge_rename_intents(intents, changes).await;
-        false
+        self.merge_rename_intents(intents, changes).await?;
+        Ok(false)
     }
 
     /// Consumer-document rename: the cursor's command has no local
@@ -18211,12 +19454,12 @@ impl Backend {
         pos: Position,
         new_name: &str,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
-    ) {
+    ) -> DocumentSourceResult<()> {
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
-            .await;
+            .await?;
         if symbols.is_empty() {
-            return;
+            return Ok(());
         }
         // The open document's own call sites are edited from the index here (its
         // in-document rename found nothing local to resolve against), and only
@@ -18242,34 +19485,36 @@ impl Backend {
                 let Some(symbol_intents) =
                     core_rename::workspace_symbol_rename_edits(qualified, new_name, &index)
                 else {
-                    return;
+                    return Ok(());
                 };
                 intents.extend(symbol_intents);
             }
             intents
         };
         drop(rehoming_guard);
-        self.merge_rename_intents(intents, changes).await;
+        self.merge_rename_intents(intents, changes).await?;
+
+        Ok(())
     }
 
     async fn original_rename_documents_are_current(
         &self,
         documents: &[OriginalDocumentSnapshot],
         epoch: u64,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         for (owner, source, analysis) in documents {
             let Ok(uri) = owner.parse::<Uri>() else {
-                return false;
+                return Ok(false);
             };
-            let Some(document) = self.read_document(&uri).await else {
-                return false;
+            let Some(document) = self.read_document(&uri).await? else {
+                return Ok(false);
             };
             if document.text.as_ref() != source.as_ref() {
-                return false;
+                return Ok(false);
             }
             let current = self
                 .analysis_for(&uri, document.text, document.dialect)
-                .await;
+                .await?;
             let context =
                 core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis);
             if context.is_none()
@@ -18278,10 +19523,10 @@ impl Backend {
                         &current,
                     )
             {
-                return false;
+                return Ok(false);
             }
         }
-        self.diag_inputs_epoch() == epoch
+        Ok(self.diag_inputs_epoch() == epoch)
     }
 
     async fn original_command_rename_tier(
@@ -18291,11 +19536,11 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
         new_name: &str,
-    ) -> std::ops::ControlFlow<jsonrpc::Result<Option<WorkspaceEdit>>> {
+    ) -> DocumentSourceResult<std::ops::ControlFlow<jsonrpc::Result<Option<WorkspaceEdit>>>> {
         use std::ops::ControlFlow;
         use tcl_lsp_core::original_command_rename::{self, OriginalCommandRenameRefusal};
         if analysis.allows_lexical_declaration_advice() {
-            return ControlFlow::Continue(());
+            return Ok(ControlFlow::Continue(()));
         }
         let member =
             tcl_lsp_core::method_symbol::select(&doc.text, analysis, pos.line, pos.character)
@@ -18310,7 +19555,7 @@ impl Backend {
             }
         };
         let epoch = self.diag_inputs_epoch();
-        let documents = self.original_declaration_documents(uri).await;
+        let documents = self.original_declaration_documents(uri).await?;
         let context =
             core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis);
         if context.is_none()
@@ -18322,7 +19567,7 @@ impl Backend {
                     ) == context
             })
         {
-            return ControlFlow::Break(Err(stale()));
+            return Ok(ControlFlow::Break(Err(stale())));
         }
         let owners = documents
             .iter()
@@ -18337,7 +19582,7 @@ impl Backend {
         let Some(offset) = line_col_to_byte_offset(&doc.text, pos.line, pos.character)
             .and_then(|offset| u32::try_from(offset).ok())
         else {
-            return ControlFlow::Break(Ok(None));
+            return Ok(ControlFlow::Break(Ok(None)));
         };
         let selected = if member {
             tcl_lsp_core::original_declaration::select_at_offset(
@@ -18350,7 +19595,7 @@ impl Backend {
             original_command_rename::select_in_documents(&owners, uri.as_str(), offset)
         };
         let ControlFlow::Break(Some(identity)) = selected else {
-            return ControlFlow::Break(Ok(None));
+            return Ok(ControlFlow::Break(Ok(None)));
         };
         let planned = if member {
             tcl_lsp_core::original_member_rename::original_member_rename_edits(
@@ -18363,22 +19608,22 @@ impl Backend {
         };
         let intents = match planned {
             Ok(intents) => intents,
-            Err(refusal) => return ControlFlow::Break(Err(refusal)),
+            Err(refusal) => return Ok(ControlFlow::Break(Err(refusal))),
         };
         if !self
             .original_rename_documents_are_current(&documents, epoch)
-            .await
+            .await?
         {
-            return ControlFlow::Break(Err(stale()));
+            return Ok(ControlFlow::Break(Err(stale())));
         }
         let mut changes = HashMap::<Uri, Vec<TextEdit>>::new();
         for intent in intents {
             let Some((_, source, _)) = documents.iter().find(|(owner, _, _)| owner == &intent.uri)
             else {
-                return ControlFlow::Break(Err(stale()));
+                return Ok(ControlFlow::Break(Err(stale())));
             };
             let Ok(target) = intent.uri.parse::<Uri>() else {
-                return ControlFlow::Break(Err(stale()));
+                return Ok(ControlFlow::Break(Err(stale())));
             };
             changes.entry(target).or_default().push(TextEdit {
                 range: lift_lsp_range(core_definition::span_to_range(
@@ -18389,11 +19634,13 @@ impl Backend {
                 new_text: intent.new_text,
             });
         }
-        ControlFlow::Break(Ok((!changes.is_empty()).then_some(WorkspaceEdit {
-            changes: Some(changes),
-            document_changes: None,
-            change_annotations: None,
-        })))
+        Ok(ControlFlow::Break(Ok((!changes.is_empty()).then_some(
+            WorkspaceEdit {
+                changes: Some(changes),
+                document_changes: None,
+                change_annotations: None,
+            },
+        ))))
     }
 
     async fn original_command_prepare_tier(
@@ -18402,7 +19649,7 @@ impl Backend {
         doc: &DocumentState,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> std::ops::ControlFlow<Option<PrepareRenameResponse>> {
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<PrepareRenameResponse>>> {
         use std::ops::ControlFlow;
         use tcl_lsp_core::original_command_rename;
         if analysis.allows_lexical_declaration_advice()
@@ -18410,13 +19657,13 @@ impl Backend {
             || tcl_lsp_core::variable_symbol::select(&doc.text, analysis, pos.line, pos.character)
                 .is_break()
         {
-            return ControlFlow::Continue(());
+            return Ok(ControlFlow::Continue(()));
         }
         let member =
             tcl_lsp_core::method_symbol::select(&doc.text, analysis, pos.line, pos.character)
                 .is_break();
         let epoch = self.diag_inputs_epoch();
-        let documents = self.original_declaration_documents(uri).await;
+        let documents = self.original_declaration_documents(uri).await?;
         let context =
             core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis);
         if context.is_none()
@@ -18428,7 +19675,7 @@ impl Backend {
                     ) == context
             })
         {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         }
         let owners = documents
             .iter()
@@ -18443,7 +19690,7 @@ impl Backend {
         let Some(offset) = line_col_to_byte_offset(&doc.text, pos.line, pos.character)
             .and_then(|offset| u32::try_from(offset).ok())
         else {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         };
         let selected = if member {
             tcl_lsp_core::original_declaration::select_at_offset(
@@ -18456,7 +19703,7 @@ impl Backend {
             original_command_rename::select_in_documents(&owners, uri.as_str(), offset)
         };
         let ControlFlow::Break(Some(identity)) = selected else {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         };
         let planned = if member {
             tcl_lsp_core::original_member_rename::original_member_prepare_span_in(
@@ -18476,25 +19723,27 @@ impl Backend {
             .ok()
         };
         let Some(span) = planned else {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         };
         if !self
             .original_rename_documents_are_current(&documents, epoch)
-            .await
+            .await?
         {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         }
         let Some(placeholder) = doc.text.get(span.as_range()) else {
-            return ControlFlow::Break(None);
+            return Ok(ControlFlow::Break(None));
         };
-        ControlFlow::Break(Some(PrepareRenameResponse::RangeWithPlaceholder {
-            range: lift_lsp_range(core_definition::span_to_range(
-                &doc.text,
-                &doc.line_index,
-                span,
-            )),
-            placeholder: placeholder.to_owned(),
-        }))
+        Ok(ControlFlow::Break(Some(
+            PrepareRenameResponse::RangeWithPlaceholder {
+                range: lift_lsp_range(core_definition::span_to_range(
+                    &doc.text,
+                    &doc.line_index,
+                    span,
+                )),
+                placeholder: placeholder.to_owned(),
+            },
+        )))
     }
 
     /// Expression identifiers and command words have independent edit owners.
@@ -18505,18 +19754,18 @@ impl Backend {
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         if analysis.allows_lexical_declaration_advice() {
-            return true;
+            return Ok(true);
         }
         let epoch = self
             .diag_inputs_epoch
             .load(std::sync::atomic::Ordering::Acquire);
-        let documents = self.original_declaration_documents(uri).await;
+        let documents = self.original_declaration_documents(uri).await?;
         let Some(current_context) =
             core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)
         else {
-            return false;
+            return Ok(false);
         };
         if current_context.image() != &tcl_lexer::SourceImage::document(source)
             || !documents.iter().any(|(owner, text, retained)| {
@@ -18529,7 +19778,7 @@ impl Backend {
                         == Some(&current_context)
             })
         {
-            return false;
+            return Ok(false);
         }
         let owners: Vec<_> = documents
             .iter()
@@ -18556,31 +19805,31 @@ impl Backend {
                 .diag_inputs_epoch
                 .load(std::sync::atomic::Ordering::Acquire)
         {
-            return false;
+            return Ok(false);
         }
         let [item] = items.as_slice() else {
-            return true;
+            return Ok(true);
         };
         let Some(identity) = item.identity.as_ref() else {
-            return false;
+            return Ok(false);
         };
         if identity.role() != tcl_lsp_core::original_declaration::OriginalDeclarationRole::Procedure
         {
-            return true;
+            return Ok(true);
         }
         let Some((declaration_uri, declaration_source, declaration_analysis)) = documents
             .iter()
             .find(|(owner, _, _)| owner == identity.uri())
         else {
-            return false;
+            return Ok(false);
         };
         if !identity.is_current(declaration_uri, declaration_source, declaration_analysis) {
-            return false;
+            return Ok(false);
         }
         let Some(declaration) = identity.procedure_metadata(declaration_analysis) else {
-            return false;
+            return Ok(false);
         };
-        documents
+        Ok(documents
             .iter()
             .all(|(_, consumer_source, consumer_analysis)| {
                 tcl_lsp_core::math_function_symbol::procedure_references_in(
@@ -18592,7 +19841,7 @@ impl Backend {
                     true,
                 )
                 .is_some_and(|references| references.is_empty())
-            })
+            }))
     }
 
     /// Extend `changes` with cross-document rename edits — or resolve
@@ -18614,14 +19863,14 @@ impl Backend {
         ctx: RenameContext<'_>,
         local_rejected: bool,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         let new_name_safe = core_rename::is_safe_symbol_name(ctx.new_name)
             && !core_rename::is_builtin_command_name(ctx.new_name, ctx.registry);
         if !new_name_safe {
-            return false;
+            return Ok(false);
         }
         if !local_rejected {
-            return self
+            return Ok(self
                 .add_cross_document_rename_edits(
                     ctx.uri,
                     ctx.source,
@@ -18630,7 +19879,7 @@ impl Backend {
                     ctx.new_name,
                     changes,
                 )
-                .await;
+                .await?);
         }
         self.add_workspace_resolved_rename_edits(
             ctx.uri,
@@ -18640,8 +19889,8 @@ impl Backend {
             ctx.new_name,
             changes,
         )
-        .await;
-        false
+        .await?;
+        Ok(false)
     }
 
     /// Resolve each byte-span edit intent to an LSP range against its target
@@ -18651,12 +19900,12 @@ impl Backend {
         &self,
         intents: Vec<core_rename::WorkspaceTextEdit>,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
-    ) {
-        for intent in intents {
+    ) -> DocumentSourceResult<()> {
+        Ok(for intent in intents {
             let Ok(parsed) = Uri::from_str(&intent.uri) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             let line_index = target_doc.line_index.clone();
@@ -18679,7 +19928,7 @@ impl Backend {
             if !bucket.iter().any(|e| e.range == edit.range) {
                 bucket.push(edit);
             }
-        }
+        })
     }
 
     /// Conditional incoming source calls in sibling documents. The actual
@@ -18689,7 +19938,7 @@ impl Backend {
         &self,
         current_uri: &Uri,
         target: &core_call_hierarchy::LogicalCallTarget<'_>,
-    ) -> Vec<(Uri, core_call_hierarchy::IncomingCall)> {
+    ) -> DocumentSourceResult<Vec<(Uri, core_call_hierarchy::IncomingCall)>> {
         // Collect (uri, source, dialect) for every document *other
         // than* the current one: first the open buffers, then the
         // indexed-but-unopened files the folder scan discovered
@@ -18717,7 +19966,7 @@ impl Backend {
             if uri == *current_uri || open_uris.contains(&uri) {
                 continue;
             }
-            if let Some(doc) = self.read_document(&uri).await {
+            if let Some(doc) = self.read_document(&uri).await? {
                 docs.push((uri, doc.text, doc.dialect));
             }
         }
@@ -18725,7 +19974,7 @@ impl Backend {
         for (doc_uri, source, dialect) in docs {
             let analysis = self
                 .analysis_for(&doc_uri, Arc::clone(&source), dialect)
-                .await;
+                .await?;
             match target.declaration() {
                 core_call_hierarchy::LogicalCallDeclaration::Member {
                     definition: method,
@@ -18802,7 +20051,7 @@ impl Backend {
                 }
             }
         }
-        out
+        Ok(out)
     }
 
     /// Cross-document outgoing calls from the queried proc /
@@ -18821,7 +20070,7 @@ impl Backend {
         dialect: &'static tcl_dialect::DialectProfile,
         item: &core_call_hierarchy::CallHierarchyItem,
         analysis: &AnalysisResult,
-    ) -> Vec<CallHierarchyOutgoingCall> {
+    ) -> DocumentSourceResult<Vec<CallHierarchyOutgoingCall>> {
         let unresolved = {
             let source = source.to_owned();
             let item = item.clone();
@@ -18873,7 +20122,7 @@ impl Backend {
             let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
             };
-            let Some(target_doc) = self.read_document(&parsed).await else {
+            let Some(target_doc) = self.read_document(&parsed).await? else {
                 continue;
             };
             if !target_image.matches_source(&target_doc.text)
@@ -18920,7 +20169,7 @@ impl Backend {
                 out.push(outgoing);
             }
         }
-        out
+        Ok(out)
     }
 
     /// Handle the `tcl-lsp.minifyDocument` workspace command.
@@ -18940,7 +20189,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let compact = args
@@ -18961,7 +20210,7 @@ impl Backend {
         let text = doc.text.clone();
         let analysis = self
             .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect)
-            .await;
+            .await?;
         let value = crate::rt::spawn_blocking(move || {
             let tier = if aggressive {
                 core_minify::MinifyTier::Aggressive
@@ -19067,7 +20316,7 @@ impl Backend {
                 Some(hash.to_ascii_lowercase())
             }
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         if requested_version.is_some() && requested_version != doc.version {
@@ -19094,7 +20343,7 @@ impl Backend {
         }
         let analysis = self
             .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-            .await;
+            .await?;
         let text = Arc::clone(&doc.text);
         let document_uri = uri_str.to_owned();
         let document_version = doc.version;
@@ -19158,7 +20407,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let requested = args
@@ -19172,7 +20421,7 @@ impl Backend {
         let analysis_text = tcl_lexer::normalise_lone_cr(&doc.text);
         let analysis = self
             .analysis_for(&uri, Arc::from(analysis_text.as_ref()), doc.dialect.clone())
-            .await;
+            .await?;
         let registry = analysis
             .resolved_registry()
             .map(|registry| registry.snapshot().shared_registry());
@@ -19395,7 +20644,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let rules = tcl_bigip::rule_extract::find_embedded_rules(&doc.text);
@@ -19426,7 +20675,7 @@ impl Backend {
         let Some(offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let offset = usize::try_from(offset).unwrap_or(usize::MAX);
@@ -19465,7 +20714,7 @@ impl Backend {
         ) else {
             return Ok(Some(serde_json::json!(false)));
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(Some(serde_json::json!(false)));
         };
 
@@ -19578,7 +20827,7 @@ impl Backend {
             let Ok(uri) = Uri::from_str(uri_str) else {
                 continue;
             };
-            if let Some(doc) = self.read_local_document(&uri).await {
+            if let Some(doc) = self.read_local_document(&uri).await? {
                 sources.push((uri_str.clone(), doc.text.to_string()));
             }
         }
@@ -19811,7 +21060,7 @@ impl Backend {
             let Ok(uri) = Uri::from_str(uri_str) else {
                 continue;
             };
-            if let Some(doc) = self.read_local_document(&uri).await {
+            if let Some(doc) = self.read_local_document(&uri).await? {
                 sources.push((uri_str.to_owned(), doc.text.to_string()));
             }
         }
@@ -19924,7 +21173,7 @@ impl Backend {
         let Some(code) = args.get(1).and_then(serde_json::Value::as_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
 
@@ -19987,7 +21236,7 @@ impl Backend {
                 serde_json::json!({ "success": false, "error": "unreadable document URI" }),
             ));
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(Some(
                 serde_json::json!({ "success": false, "error": "document is not open" }),
             ));
@@ -20166,7 +21415,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let na_mode = *self.non_ascii_mode.lock().await;
@@ -20360,7 +21609,7 @@ impl Backend {
         // back to the session default — never `null`, so a polling client
         // always sees a concrete value.
         let dialect = match &parsed_uri {
-            Some(uri) => match self.read_document(uri).await {
+            Some(uri) => match self.read_document(uri).await? {
                 Some(doc) => doc.dialect,
                 None => match folder_dialect_for(uri, &folder_overrides) {
                     Some(d) => d,
@@ -20518,7 +21767,7 @@ impl Backend {
         }
         *self.default_dialect.lock().await = dialect.to_owned();
         *self.default_dialect_explicit.lock().await = true;
-        self.reresolve_open_document_dialects().await;
+        self.reresolve_open_document_dialects().await?;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": dialect }),
         ))
@@ -20553,7 +21802,7 @@ impl Backend {
             })));
         }
         *self.session_dialect_override.lock().await = requested.map(str::to_owned);
-        self.reresolve_open_document_dialects().await;
+        self.reresolve_open_document_dialects().await?;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": requested }),
         ))
@@ -20612,7 +21861,7 @@ impl Backend {
                 }
             }
         }
-        self.reresolve_open_document_dialect(&uri).await;
+        self.reresolve_open_document_dialect(&uri).await?;
         Ok(Some(serde_json::json!({
             "success": true,
             "uri": uri.as_str(),
@@ -20775,8 +22024,8 @@ impl Backend {
     /// optimiser switch, line length, dialect, and the analyser knobs (W108
     /// mode + disabled diagnostics) — only the keys the reply carries, so
     /// omitted keys keep their last-applied value.
-    async fn pull_and_apply_config(&self) {
-        self.pull_and_apply_config_values().await;
+    async fn pull_and_apply_config(&self) -> DocumentSourceResult<()> {
+        self.pull_and_apply_config_values().await?;
         // Whatever the client answered, the setting that decides whether a
         // notice may be shown is applied as far as it will be, so a notice
         // waiting on the first pull can decide.
@@ -20798,7 +22047,9 @@ impl Backend {
         // the re-resolve, because the inline `didChangeConfiguration` payload it
         // *did* send may have changed the session default — the flat MCP-bridge
         // shape carries the dialect that way and nothing else would apply it.
-        self.reresolve_open_document_dialects().await;
+        self.reresolve_open_document_dialects().await?;
+
+        Ok(())
     }
 
     /// `workspace/configuration`, bounded by [`CLIENT_REQUEST_TIMEOUT`].
@@ -20835,16 +22086,16 @@ impl Backend {
     /// The pull-and-apply body of [`Self::pull_and_apply_config`], without the
     /// trailing dialect re-resolve. Returns early when the client declines the
     /// `workspace/configuration` request, or does not answer it in time.
-    async fn pull_and_apply_config_values(&self) {
+    async fn pull_and_apply_config_values(&self) -> DocumentSourceResult<()> {
         let items = vec![ConfigurationItem {
             scope_uri: None,
             section: Some("tclLsp".to_owned()),
         }];
         let Ok(values) = self.request_configuration(items).await else {
-            return;
+            return Ok(());
         };
         let Some(cfg) = values.into_iter().next() else {
-            return;
+            return Ok(());
         };
         // Accept nested / flat-dotted / unwrapped payload shapes (some clients,
         // e.g. JetBrains, don't send the nested `tclLsp` object).
@@ -20887,13 +22138,13 @@ impl Backend {
             editor: cfg,
             project: primary_project.clone(),
         })
-        .await;
+        .await?;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
         // per scope, so pull each folder's resolved config, layer it between the
         // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
-        if !folders.is_empty() {
+        Ok(if !folders.is_empty() {
             let primary_folder = folders.first().cloned();
             let items: Vec<ConfigurationItem> = folders
                 .iter()
@@ -20946,7 +22197,7 @@ impl Backend {
                 )
                 .await;
             }
-        }
+        })
     }
 
     /// Adopt `layers` as the session's configuration: the diagnostic policy
@@ -20956,12 +22207,14 @@ impl Backend {
     /// signature suppression's fallback at the global and editor layers
     /// alone. What a configuration pull does for the primary root, after it
     /// has collapsed each layer's inlay alias.
-    async fn apply_session_layers(&self, layers: &PolicyLayers) {
+    async fn apply_session_layers(&self, layers: &PolicyLayers) -> DocumentSourceResult<()> {
         let global_editor = config_ini::merge_settings(&layers.global, &layers.editor);
         let merged = config_ini::merge_settings(&global_editor, &layers.project);
         *self.policy_layers.lock().await = layers.clone();
         self.apply_global_config_with_signature_fallback(&merged, &global_editor)
-            .await;
+            .await?;
+
+        Ok(())
     }
 
     /// Preserve the primary project's signature exclusion when a scoped
@@ -21024,7 +22277,7 @@ impl Backend {
     /// watcher, a workspace-folder change) call [`Self::pull_and_apply_config`]
     /// directly — they are one-shot events, not bursts, and start-up must not
     /// pay the window.
-    async fn coalesced_config_reload(&self) {
+    async fn coalesced_config_reload(&self) -> DocumentSourceResult<()> {
         let lead = {
             let mut slot = self.config_reload.lock().await;
             slot.dirty = true;
@@ -21036,7 +22289,7 @@ impl Backend {
             }
         };
         if !lead {
-            return;
+            return Ok(());
         }
         loop {
             crate::rt::sleep(CONFIG_RELOAD_DEBOUNCE).await;
@@ -21044,7 +22297,7 @@ impl Backend {
                 let mut slot = self.config_reload.lock().await;
                 if !slot.dirty {
                     slot.running = false;
-                    return;
+                    return Ok(());
                 }
                 // Cleared *before* the run, so a notification that arrives
                 // while it is in flight is seen as a new generation and gets
@@ -21052,21 +22305,21 @@ impl Backend {
                 // its settings landed.
                 slot.dirty = false;
             }
-            self.run_config_reload().await;
+            self.run_config_reload().await?;
         }
     }
 
     /// One generation of the configuration reload: pull, apply, re-resolve
     /// dialects, re-run diagnostics, and ask the client to refresh the
     /// on-demand providers.
-    async fn run_config_reload(&self) {
-        self.pull_and_apply_config().await;
+    async fn run_config_reload(&self) -> DocumentSourceResult<()> {
+        self.pull_and_apply_config().await?;
         // `tclLsp.specPacks` is part of what was just applied: if it moved, the
         // pack set — and therefore the registry every open document resolves
         // against — moves with it.  The reload is content-keyed, so a settings
         // burst that does not touch `specPacks` costs one discovery walk and
         // nothing else.
-        self.reload_spec_packs(ReloadTrigger::Config).await;
+        self.reload_spec_packs(ReloadTrigger::Config).await?;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -21091,6 +22344,8 @@ impl Backend {
         let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
         let _ = bounded_client_request(self.client.code_lens_refresh()).await;
+
+        Ok(())
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -21105,13 +22360,15 @@ impl Backend {
     /// unit-testable without a live editor client.
     // A long but flat sequence of independent `tclLsp.*` knob applications.
     #[cfg(test)]
-    async fn apply_global_config(&self, cfg: &serde_json::Value) {
+    async fn apply_global_config(&self, cfg: &serde_json::Value) -> DocumentSourceResult<()> {
         *self.policy_layers.lock().await = PolicyLayers {
             editor: cfg.clone(),
             ..PolicyLayers::default()
         };
         self.apply_global_config_with_signature_fallback(cfg, cfg)
-            .await;
+            .await?;
+
+        Ok(())
     }
 
     /// Apply the primary root's merged configuration while keeping signature
@@ -21122,9 +22379,9 @@ impl Backend {
         &self,
         cfg: &serde_json::Value,
         signature_fallback_cfg: &serde_json::Value,
-    ) {
+    ) -> DocumentSourceResult<()> {
         if !cfg.is_object() {
-            return;
+            return Ok(());
         }
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
@@ -21144,9 +22401,9 @@ impl Backend {
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
         self.warn_configured_dialect(dialect_warning).await;
-        if rescan_workspace {
-            self.scan_workspace_folders().await;
-        }
+        Ok(if rescan_workspace {
+            self.scan_workspace_folders().await?;
+        })
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
@@ -22373,6 +23630,7 @@ impl Backend {
         uri: &Uri,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> DiagInputs {
+        let epoch = self.diag_inputs_epoch();
         let (disabled, non_ascii_mode) = self.resolved_analysis_settings(uri).await;
         let policy_layers = self.resolved_policy_layers(uri).await;
         let registry = self.registry_for_dialect(dialect.name).await;
@@ -22388,7 +23646,9 @@ impl Backend {
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         let excluded = self.diagnostics_excluded(uri).await;
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
-        DiagInputs {
+        let mut inputs = DiagInputs {
+            inputs_epoch: None,
+            source_path_admissions: Arc::clone(&self.source_path_admissions),
             client: self.client.clone(),
             diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
             registry,
@@ -22431,7 +23691,11 @@ impl Backend {
                 .client_supports_pull_diagnostics
                 .load(std::sync::atomic::Ordering::Relaxed),
             store: Arc::clone(&self.store),
+        };
+        if self.diag_inputs_epoch() == epoch {
+            inputs.inputs_epoch = Some(epoch);
         }
+        inputs
     }
 
     /// The project entry points and folder root that govern the W120
@@ -22778,11 +24042,11 @@ impl Backend {
         text: Arc<str>,
         dialect: String,
         language_id: &str,
-    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::Diagnostic>> {
         let analysed = self
             .analysed_diagnostics_for(uri, text, dialect, language_id)
-            .await;
-        self.diagnostic_publisher.with_pack_notices(uri, analysed)
+            .await?;
+        Ok(self.diagnostic_publisher.with_pack_notices(uri, analysed))
     }
 
     async fn analysed_diagnostics_for(
@@ -22791,16 +24055,16 @@ impl Backend {
         text: Arc<str>,
         dialect: String,
         language_id: &str,
-    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::Diagnostic>> {
         // Master switch off (`tclLsp.features.diagnostics = false`): the pull
         // path returns an empty report, matching the push path's empty-publish.
         if !self.feature_enabled("diagnostics", uri).await {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         // `tclLsp.diagnostics.exclude`: an excluded file's pull report
         // is empty too, matching the push path's empty publish.
         if self.diagnostics_excluded(uri).await {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let (disabled, _non_ascii_mode) = self.resolved_analysis_settings(uri).await;
         let policy_layers = self.resolved_policy_layers(uri).await;
@@ -22832,7 +24096,7 @@ impl Backend {
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
-            return self
+            return Ok(self
                 .f5_pull_report(
                     uri,
                     &text,
@@ -22844,11 +24108,11 @@ impl Backend {
                         decode_report,
                     },
                 )
-                .await;
+                .await);
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
-            .await;
+            .await?;
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
@@ -22873,7 +24137,7 @@ impl Backend {
             )
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
-        crate::rt::spawn_blocking(move || {
+        Ok(crate::rt::spawn_blocking(move || {
             // The push path's producer set, in the push path's order.
             let produced = published_findings(
                 &analyser_diags,
@@ -22899,7 +24163,7 @@ impl Backend {
             )
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default())
     }
 
     /// Apply the workspace refinements the push path's
@@ -23403,7 +24667,7 @@ impl Backend {
             .await;
     }
 
-    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> bool {
+    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
@@ -23468,7 +24732,7 @@ impl Backend {
                     "SpecTcl pack load failed; keeping the previously loaded packs",
                 )
                 .await;
-            return false;
+            return Ok(false);
         };
 
         // Keep the pack registry and its Salsa key one analyser-input
@@ -23557,9 +24821,9 @@ impl Backend {
         }
         drop(analyser_inputs_guard);
         self.report_pack_reload(&packs, registration.as_ref(), changed)
-            .await;
-        self.settle_pack_reload(changed, trigger).await;
-        changed
+            .await?;
+        self.settle_pack_reload(changed, trigger).await?;
+        Ok(changed)
     }
 
     /// Publish everything a finished reload has to *say*: shipped-command
@@ -23574,7 +24838,7 @@ impl Backend {
         packs: &Arc<tcl_spectcl::PackSet>,
         registration: Option<&tcl_spectcl::PackSetRegistration>,
         changed: bool,
-    ) {
+    ) -> DocumentSourceResult<()> {
         // Shipped-command collisions are not load notices — the loader has no
         // registry to compare against, so `PackSet::notices` cannot carry
         // them. They are computed here, against the session dialect's plain
@@ -23603,9 +24867,9 @@ impl Backend {
         // which rule and which pack rather than "some environments did not
         // load".
         collisions.extend(Self::environment_rejection_notices(packs, registration));
-        self.publish_spec_pack_notices(packs, &collisions).await;
+        self.publish_spec_pack_notices(packs, &collisions).await?;
 
-        if changed {
+        Ok(if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
             let environments = registration.map_or_else(String::new, |r| {
                 format!(
@@ -23628,7 +24892,7 @@ impl Backend {
                     ),
                 )
                 .await;
-        }
+        })
     }
 
     /// A [`tcl_spectcl::PackNotice`] on each pack file whose environments
@@ -23672,7 +24936,11 @@ impl Backend {
     /// Split from [`Backend::reload_spec_packs`] because it is a distinct
     /// phase with a contract of its own: by the time the notification at the
     /// end is sent, every consequence of the reload has already landed.
-    async fn settle_pack_reload(&self, changed: bool, trigger: ReloadTrigger) {
+    async fn settle_pack_reload(
+        &self,
+        changed: bool,
+        trigger: ReloadTrigger,
+    ) -> DocumentSourceResult<()> {
         // Reconciled on **every** reload, not only a `changed` one: `changed`
         // compares the pack *content* key, and a reload leaving content
         // identical can still be the first to reach a client that had not yet
@@ -23685,7 +24953,7 @@ impl Backend {
         // where `initialized` scans immediately after the reload returns and a
         // scan here would be the same walk twice.
         if extensions_changed && trigger != ReloadTrigger::Startup {
-            self.scan_workspace_folders().await;
+            self.scan_workspace_folders().await?;
         }
 
         // Everything a client caches per document and only re-requests on an
@@ -23727,6 +24995,8 @@ impl Backend {
                 "pack_file_extensions": self.pack_file_extension_report().await,
             }))
             .await;
+
+        Ok(())
     }
 
     /// Bring the registrations and the index into line with the extensions
@@ -24059,7 +25329,7 @@ impl Backend {
         &self,
         packs: &tcl_spectcl::PackSet,
         collisions: &[tcl_spectcl::PackNotice],
-    ) {
+    ) -> DocumentSourceResult<()> {
         use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 
         let mut by_uri: HashMap<Uri, Vec<Diagnostic>> = HashMap::new();
@@ -24075,7 +25345,7 @@ impl Backend {
                             source,
                             tcl_lsp_core::profile_for_dialect("spectcl"),
                         )
-                        .await;
+                        .await?;
                     core_code_actions::ContextDiagnosticData::from_spec_pack_notice(
                         subject, &analysis,
                     )
@@ -24143,7 +25413,7 @@ impl Backend {
                 .filter_map(|uri| docs.get(uri).map(|doc| (uri.clone(), doc.dialect.clone())))
                 .collect()
         };
-        for uri in touched {
+        Ok(for uri in touched {
             if let Some(dialect) = open.get(&uri) {
                 self.reschedule_diagnostics(uri, dialect.clone()).await;
                 continue;
@@ -24152,7 +25422,7 @@ impl Backend {
                 .diagnostic_publisher
                 .enqueue(uri, Vec::new(), None, false, false);
             let _ = receipt.await;
-        }
+        })
     }
 
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
@@ -24192,18 +25462,20 @@ impl Backend {
     /// running its own redundant copy of the loop below — the early return a
     /// few lines down then answers "already converged" for every waiter but
     /// whichever caller actually did the work.
-    async fn refresh_source_rehoming(&self) {
-        let _guard = self.rehomed_index_guard().await;
+    async fn refresh_source_rehoming(&self) -> DocumentSourceResult<()> {
+        let _guard = self.rehomed_index_guard().await?;
+
+        Ok(())
     }
 
     /// Reconcile source-site views and keep the transaction gate held for the
     /// caller's subsequent workspace-index snapshot. Standalone publishers use
     /// the same gate, so none can invalidate the freshly re-homed view between
     /// reconciliation and a definition/reference/rename read.
-    async fn rehomed_index_guard(&self) -> tokio::sync::MutexGuard<'_, ()> {
+    async fn rehomed_index_guard(&self) -> DocumentSourceResult<tokio::sync::MutexGuard<'_, ()>> {
         let guard = self.rehoming_gate.lock().await;
-        self.refresh_source_rehoming_locked().await;
-        guard
+        self.refresh_source_rehoming_locked().await?;
+        Ok(guard)
     }
 
     /// The seed standing for "evaluated in the global namespace".
@@ -24216,18 +25488,27 @@ impl Backend {
     /// Capture a source for rehoming without calling [`Self::read_document`].
     /// The latter waits for indexed publication, which would deadlock here: the
     /// pending publisher needs the rehoming gate its caller already owns.
-    async fn rehoming_document_snapshot(&self, uri: &Uri) -> RehomingDocumentSnapshot {
+    async fn rehoming_document_snapshot(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<RehomingDocumentSnapshot> {
+        let admission = self.document_path_admission(uri).await?;
         let docs = self.documents.lock("refresh_source_rehoming").await;
         let live = match docs.get(uri) {
             Some(doc) if doc.publication != DocumentPublication::Indexed => {
-                return RehomingDocumentSnapshot::Pending;
+                return Ok(RehomingDocumentSnapshot::Pending);
             }
-            Some(doc) => Some((doc.clone().normalised_for_analysis(), doc.revision)),
+            Some(doc) => Some((
+                doc.clone()
+                    .with_path_admission(Arc::clone(&admission))
+                    .normalised_for_analysis(),
+                doc.revision,
+            )),
             None => None,
         };
         drop(docs);
         if let Some((doc, revision)) = live {
-            return RehomingDocumentSnapshot::Ready(doc, Some(revision));
+            return Ok(RehomingDocumentSnapshot::Ready(doc, Some(revision)));
         }
 
         let snapshot = {
@@ -24235,21 +25516,24 @@ impl Backend {
             let files = self.db_files.lock().await;
             files.get(uri).copied().map(|file| {
                 DocumentState::new(file.text(&*db).clone(), file.dialect(&*db).clone())
+                    .with_path_admission(Arc::clone(&admission))
                     .normalised_for_analysis()
             })
         };
-        if self
-            .documents
-            .lock("refresh_source_rehoming_currency")
-            .await
-            .contains_key(uri)
-        {
-            RehomingDocumentSnapshot::Pending
-        } else if let Some(snapshot) = snapshot {
-            RehomingDocumentSnapshot::Ready(snapshot, None)
-        } else {
-            RehomingDocumentSnapshot::Missing
-        }
+        Ok(
+            if self
+                .documents
+                .lock("refresh_source_rehoming_currency")
+                .await
+                .contains_key(uri)
+            {
+                RehomingDocumentSnapshot::Pending
+            } else if let Some(snapshot) = snapshot {
+                RehomingDocumentSnapshot::Ready(snapshot, None)
+            } else {
+                RehomingDocumentSnapshot::Missing
+            },
+        )
     }
 
     /// Replace one rehomed index view only if the source snapshot is still the
@@ -24261,7 +25545,7 @@ impl Backend {
         open_revision: Option<u64>,
         source: &str,
         analyses: &[FreshAnalysisSeed],
-    ) -> bool {
+    ) -> DocumentSourceResult<bool> {
         loop {
             for analysis in analyses {
                 if !self.fresh_index_generation_is_current(analysis).await
@@ -24269,7 +25553,7 @@ impl Backend {
                         && tcl_compiler::source_graph::current_analysis(source, &analysis.analysis)
                             .is_none())
                 {
-                    return false;
+                    return Ok(false);
                 }
             }
             let docs = self.documents.lock("refresh_source_rehoming_publish").await;
@@ -24281,7 +25565,7 @@ impl Backend {
                 None => !docs.contains_key(uri),
             };
             if !current {
-                return false;
+                return Ok(false);
             }
             docs.retag("refresh_source_rehoming_publish: workspace_index.try_write");
             let Ok(mut index) = self.workspace_index.try_write() else {
@@ -24289,14 +25573,20 @@ impl Backend {
                 drop(self.workspace_index.write().await);
                 continue;
             };
-            index.retag("refresh_source_rehoming_publish: add_document");
-            index.remove_document(uri.as_str());
-            for analysis in analyses {
-                if analysis.analysis.analysis_context_unavailable.is_none() {
-                    index.add_document(uri.as_str(), &analysis.analysis);
+            let admissions = analyses
+                .iter()
+                .map(|analysis| analysis.path_admission.as_ref())
+                .collect::<Vec<_>>();
+            DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
+                index.retag("refresh_source_rehoming_publish: add_document");
+                index.remove_document(uri.as_str());
+                for analysis in analyses {
+                    if analysis.analysis.analysis_context_unavailable.is_none() {
+                        index.add_document(uri.as_str(), &analysis.analysis);
+                    }
                 }
-            }
-            return true;
+            })?;
+            return Ok(true);
         }
     }
 
@@ -24319,7 +25609,7 @@ impl Backend {
     }
 
     /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
-    async fn refresh_source_rehoming_locked(&self) {
+    async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {
         for _round in 0..4 {
             // One index read per round, scoped to the seed-map fold and
             // released before any other store is awaited: the per-document
@@ -24350,7 +25640,7 @@ impl Backend {
             let recorded = self.rehomed_source_seeds.lock().await.clone();
             let desired = match desired {
                 Some(desired) => desired,
-                None if recorded.is_empty() => return,
+                None if recorded.is_empty() => return Ok(()),
                 None => HashMap::new(),
             };
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
@@ -24371,7 +25661,7 @@ impl Backend {
                 }
             }
             if work.is_empty() {
-                return;
+                return Ok(());
             }
             for (uri_s, seeds) in work {
                 let Ok(uri) = Uri::from_str(&uri_s) else {
@@ -24384,31 +25674,33 @@ impl Backend {
                 // source for a closed document. A pending live revision makes
                 // this pass retire immediately so its publisher can take the
                 // gate; the next query reconciles the newly published view.
-                let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await {
+                let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await? {
                     RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
-                    RehomingDocumentSnapshot::Pending => return,
+                    RehomingDocumentSnapshot::Pending => return Ok(()),
                     RehomingDocumentSnapshot::Missing => continue,
                 };
                 let mut analyses = Vec::with_capacity(seeds.len());
                 for namespace in &seeds {
-                    let driver = self.fresh_analysis_driver(&uri).await;
+                    let admission = self.document_path_admission(&uri).await?;
+                    let driver = self.fresh_analysis_driver(admission).await;
                     let text = Arc::clone(&doc.text);
                     let dialect = doc.dialect.clone();
                     let namespace = namespace.clone();
-                    let Ok(analysis) = crate::rt::spawn_blocking(move || {
+                    let analysis = crate::rt::spawn_blocking(move || {
                         driver.analyse(&text, &dialect, Some(&namespace))
                     })
                     .await
-                    else {
-                        return;
-                    };
+                    .map_err(|_| DocumentSourceUnavailable::Worker { uri: uri.clone() })??;
+                    analysis
+                        .path_admission
+                        .check_for(&uri, self.store.as_ref())?;
                     analyses.push(analysis);
                 }
                 if !self
                     .publish_rehomed_if_current(&uri, open_revision, &doc.text, &analyses)
-                    .await
+                    .await?
                 {
-                    return;
+                    return Ok(());
                 }
                 if Self::is_standalone_view(&seeds) {
                     self.rehomed_source_seeds.lock().await.remove(&uri_s);
@@ -24417,6 +25709,7 @@ impl Backend {
                 }
             }
         }
+        Ok(())
     }
 
     /// Wait (bounded) for the workspace index to reflect a completed folder
@@ -24449,14 +25742,38 @@ impl Backend {
     /// bytes and their line index are consumed. Keeping that unrelated work
     /// out also makes the index-revision revalidation below cover one bounded
     /// source read rather than an arbitrary configuration wait.
-    async fn closed_workspace_symbol_source(&self, uri: &Uri) -> Option<DocumentState> {
-        let path = uri.to_file_path()?.into_owned();
+    async fn closed_workspace_symbol_source(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<Option<DocumentState>> {
+        let admission = self.document_path_admission(uri).await?;
+        let Some(path) = admission.path().map(Path::to_path_buf) else {
+            return Ok(None);
+        };
         let store = Arc::clone(&self.store);
-        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
-            .await
-            .ok()?
-            .ok()?;
-        Some(DocumentState::new(text, String::new()).normalised_for_analysis())
+        let selected_path = path.clone();
+        let (text, _) = match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
+            Ok(Ok(source)) => source,
+            Ok(Err(cause))
+                if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
+            {
+                admission.check_for(uri, self.store.as_ref())?;
+                return Ok(None);
+            }
+            Ok(Err(cause)) => {
+                return Err(DocumentSourceUnavailable::Read {
+                    uri: uri.clone(),
+                    cause: Arc::new(cause),
+                });
+            }
+            Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: uri.clone() }),
+        };
+        admission.check_for(uri, self.store.as_ref())?;
+        Ok(Some(
+            DocumentState::new(text, String::new())
+                .with_path_admission(admission)
+                .normalised_for_analysis(),
+        ))
     }
 
     /// The `workspace/symbol` matches contributed by **open** documents the
@@ -24501,7 +25818,7 @@ impl Backend {
         &self,
         query: &str,
         limit: usize,
-    ) -> WorkspaceSymbolCandidates {
+    ) -> DocumentSourceResult<WorkspaceSymbolCandidates> {
         const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
         for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
             let (unindexed, mut indexed_hits, mut sources, mut closed_revisions) = {
@@ -24569,10 +25886,10 @@ impl Backend {
                 // remains the cheaper fallback for a cancelled read.
                 let analysis = if doc.publication == DocumentPublication::Pending {
                     self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await
+                        .await?
                 } else {
                     self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await
+                        .await?
                 };
                 pending.add_document(uri.as_str(), &analysis);
                 fallback_sources
@@ -24593,7 +25910,7 @@ impl Backend {
 
             for uri_s in closed_revisions.keys() {
                 let loaded = match Uri::from_str(uri_s) {
-                    Ok(uri) => self.closed_workspace_symbol_source(&uri).await,
+                    Ok(uri) => self.closed_workspace_symbol_source(&uri).await?,
                     Err(_) => None,
                 };
                 sources.insert(uri_s.clone(), loaded);
@@ -24621,16 +25938,18 @@ impl Backend {
                 }
             }
             sources.extend(fallback_sources);
-            return WorkspaceSymbolCandidates {
+            return Ok(WorkspaceSymbolCandidates {
                 fallback_hits,
                 indexed_hits,
                 sources,
-            };
+            });
         }
-        unreachable!("the bounded source-snapshot loop always returns")
+        Ok(unreachable!(
+            "the bounded source-snapshot loop always returns"
+        ))
     }
 
-    async fn scan_workspace_folders(&self) {
+    async fn scan_workspace_folders(&self) -> DocumentSourceResult<()> {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate`.
@@ -24669,19 +25988,39 @@ impl Backend {
         // (rare, but possible) a workspace file reachable only via autoload
         // must end up present, not removed, if a later batch re-adds it under
         // its own URI.
-        let stale_library_uris: Vec<String> =
-            self.autoloaded_library_uris.lock().await.drain().collect();
+        let stale_library_uris = self
+            .autoloaded_library_uris
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let admissions = stale_library_uris
+            .iter()
+            .map(|raw| {
+                let uri = Uri::from_str(raw).map_err(|_| {
+                    DocumentSourceUnavailable::InvalidStoredUri {
+                        original: raw.clone(),
+                    }
+                })?;
+                DocumentPathAdmission::capture(&uri, self.store.as_ref())
+            })
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
         if !stale_library_uris.is_empty() {
             let _rehoming_guard = self.rehoming_gate.lock().await;
             let mut index = self.workspace_index.write().await;
-            for uri in &stale_library_uris {
-                index.remove_document(uri);
-            }
-            drop(index);
             let mut seeds = self.rehomed_source_seeds.lock().await;
-            for uri in &stale_library_uris {
-                seeds.remove(uri);
-            }
+            let mut autoloaded = self.autoloaded_library_uris.lock().await;
+            let retained = admissions.iter().collect::<Vec<_>>();
+            DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
+                for uri in &stale_library_uris {
+                    index.remove_document(uri);
+                    seeds.remove(uri);
+                }
+                for uri in &stale_library_uris {
+                    autoloaded.remove(uri);
+                }
+            })?;
         }
 
         // Read and analyse the candidate files across a bounded worker
@@ -24695,13 +26034,13 @@ impl Backend {
                 default_dialect,
                 resolver,
             )
-            .await;
+            .await?;
 
         // Publish the package database for the diagnostics worker now every
         // batch's auto-path contribution has folded in.
         *self.package_resolver.write().await = resolver;
         // Re-home sourced documents under their source-site namespaces.
-        self.refresh_source_rehoming().await;
+        self.refresh_source_rehoming().await?;
         // Warm the deep salsa tier for documents already open so their first
         // hover / semantic-tokens / diagnostics request is a cache hit;
         // unopened files stay at the
@@ -24756,6 +26095,8 @@ impl Backend {
                 ),
             )
             .await;
+
+        Ok(())
     }
 
     /// Builds the package database and walks the workspace trees for
@@ -24843,7 +26184,7 @@ impl Backend {
         folder_dialects: Vec<(Uri, String)>,
         default_dialect: String,
         mut resolver: PackageResolver,
-    ) -> (PackageResolver, usize) {
+    ) -> DocumentSourceResult<(PackageResolver, usize)> {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
         let concurrency =
@@ -24854,7 +26195,12 @@ impl Backend {
             let Some(uri) = canonical_file_uri(&path) else {
                 continue;
             };
-            let driver = self.fresh_analysis_driver(&uri).await;
+            let admission = Arc::new(DocumentPathAdmission::from_selected_path(
+                &uri,
+                &path,
+                self.store.as_ref(),
+            )?);
+            let driver = self.fresh_analysis_driver(admission).await;
             let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
                 break;
             };
@@ -24866,56 +26212,95 @@ impl Backend {
                 let _permit = permit;
                 crate::rt::spawn_blocking(move || {
                     if open.contains(&uri) {
-                        return None;
+                        return Ok(None);
                     }
+                    driver.path_admission.check_for(&uri, store.as_ref())?;
                     // Analysis form, matching `read_document` / `scan_disk_file`.
                     // Shared decoder, for the same reason `scan_disk_file`
                     // uses it: an ill-formed byte must not silently remove the
                     // file from the workspace index.
-                    let (raw, _) = store.read_source(&path).ok()?;
+                    let (raw, _) = match store.read_source(&path) {
+                        Ok(source) => source,
+                        Err(cause)
+                            if Self::source_read_is_absent(store.as_ref(), &path, &cause) =>
+                        {
+                            driver.path_admission.check_for(&uri, store.as_ref())?;
+                            return Ok(None);
+                        }
+                        Err(cause) => {
+                            return Err(DocumentSourceUnavailable::Read {
+                                uri,
+                                cause: Arc::new(cause),
+                            });
+                        }
+                    };
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
-                    let seed = driver.analyse(&text, &dialect, None);
-                    Some(ScannedDocument {
+                    let seed = driver.analyse(&text, &dialect, None)?;
+                    Ok(Some(ScannedDocument {
                         uri,
                         text,
                         dialect,
                         seed,
-                    })
+                    }))
                 })
                 .await
-                .ok()
-                .flatten()
+                .map_err(|error| DocumentSourceUnavailable::ScanWorker {
+                    cause: error.to_string(),
+                })?
             });
         }
         let mut files_count = 0usize;
         let mut batch = Vec::new();
         while let Some(result) = tasks.join_next().await {
-            let Ok(Some(item)) = result else {
+            let item = result.map_err(|error| DocumentSourceUnavailable::ScanWorker {
+                cause: error.to_string(),
+            })??;
+            let Some(item) = item else {
                 continue;
             };
             batch.push(item);
             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
-                let batch = self.current_scanned_rows(std::mem::take(&mut batch)).await;
-                files_count += batch.len();
+                let batch = self
+                    .current_scanned_rows(std::mem::take(&mut batch))
+                    .await?;
+                files_count += batch.rows.len();
                 // Fold in the `auto_path` mutations this batch's own files
                 // install (`lappend auto_path [file dirname …]`) before
                 // merging, so the package database sees them as soon as
                 // their batch lands rather than only at the end of the scan.
-                resolver =
-                    extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
-                self.merge_workspace_scan_results(&batch).await;
+                resolver = extend_resolver_with_document_auto_paths(
+                    self.store.as_ref(),
+                    resolver,
+                    &batch.rows,
+                );
+                self.publish_scanned_disk_results(
+                    &batch,
+                    &[],
+                    DiskRemovalPolicy::ClosedOnly,
+                    "merge_workspace_scan_results",
+                )
+                .await?;
             }
         }
         if !batch.is_empty() {
-            let batch = self.current_scanned_rows(batch).await;
-            files_count += batch.len();
-            resolver =
-                extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
-            self.merge_workspace_scan_results(&batch).await;
+            let batch = self.current_scanned_rows(batch).await?;
+            files_count += batch.rows.len();
+            resolver = extend_resolver_with_document_auto_paths(
+                self.store.as_ref(),
+                resolver,
+                &batch.rows,
+            );
+            self.publish_scanned_disk_results(
+                &batch,
+                &[],
+                DiskRemovalPolicy::ClosedOnly,
+                "merge_workspace_scan_results",
+            )
+            .await?;
         }
-        (resolver, files_count)
+        Ok((resolver, files_count))
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -24930,14 +26315,16 @@ impl Backend {
     async fn merge_workspace_scan_results(
         &self,
         analysed: &[(Uri, String, String, AnalysisResult)],
-    ) {
+    ) -> DocumentSourceResult<()> {
         self.publish_disk_results(
             analysed,
             &[],
             DiskRemovalPolicy::ClosedOnly,
             "merge_workspace_scan_results",
         )
-        .await;
+        .await?;
+
+        Ok(())
     }
 
     /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
@@ -25596,86 +26983,132 @@ impl Backend {
         &self,
         deleted: &HashSet<Uri>,
         revived: &[Uri],
-    ) -> (Vec<(Uri, Arc<str>, String, u64)>, HashMap<Uri, u64>) {
+        event_admissions: &HashMap<Uri, Arc<DocumentPathAdmission>>,
+    ) -> DocumentSourceResult<(Vec<(Uri, Arc<str>, String, u64)>, HashMap<Uri, u64>)> {
         if deleted.is_empty() && revived.is_empty() {
-            return (Vec::new(), HashMap::new());
+            return Ok((Vec::new(), HashMap::new()));
         }
         let mut docs = self.documents.lock("did_change_watched_files").await;
-        let mut publications = Vec::new();
-        let mut deleted_revisions = HashMap::new();
-        for uri in deleted {
-            if let Some(doc) = docs.get_mut(uri) {
-                doc.backing_file_deleted = true;
-                // For an orphan the current cross-document index view is
-                // deliberately absent. A revision that already reached Salsa
-                // can become fully settled immediately; a pending revision
-                // must remain pending until the deletion transaction retires
-                // the preceding Salsa handle, otherwise local providers can
-                // combine these live bytes with stale memoised analysis.
-                if doc.publication != DocumentPublication::Pending {
-                    doc.publication = DocumentPublication::Indexed;
+        let mut admissions = Vec::new();
+        for uri in deleted.iter().chain(revived) {
+            let admission =
+                event_admissions
+                    .get(uri)
+                    .ok_or_else(|| DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+                    })?;
+            admission.check_uri(uri)?;
+            admissions.push(Arc::clone(admission));
+            if let Some(retained) = docs.get(uri).and_then(|doc| doc.path_admission.as_ref()) {
+                retained.check_uri(uri)?;
+                admissions.push(Arc::clone(retained));
+            }
+        }
+        let retained = admissions.iter().map(Arc::as_ref).collect::<Vec<_>>();
+        let result = DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
+            let mut publications = Vec::new();
+            let mut deleted_revisions = HashMap::new();
+            for uri in deleted {
+                if let Some(doc) = docs.get_mut(uri) {
+                    doc.backing_file_deleted = true;
+                    // For an orphan the current cross-document index view is
+                    // deliberately absent. A revision that already reached Salsa
+                    // can become fully settled immediately; a pending revision
+                    // must remain pending until the deletion transaction retires
+                    // the preceding Salsa handle, otherwise local providers can
+                    // combine these live bytes with stale memoised analysis.
+                    if doc.publication != DocumentPublication::Pending {
+                        doc.publication = DocumentPublication::Indexed;
+                    }
+                    deleted_revisions.insert(uri.clone(), doc.revision);
                 }
-                deleted_revisions.insert(uri.clone(), doc.revision);
             }
-        }
-        for uri in revived {
-            if let Some(doc) = docs.get_mut(uri)
-                && doc.backing_file_deleted
-            {
-                doc.backing_file_deleted = false;
-                // Retire every deferred publication captured before the
-                // deletion, then republish this unchanged editor buffer as a
-                // new analysis generation. Merely clearing the orphan flag
-                // would leave the deliberately absent index view marked
-                // settled when diagnostics are disabled/excluded.
-                doc.bump_analysis_generation();
-                publications.push((
-                    uri.clone(),
-                    Arc::clone(&doc.text),
-                    doc.dialect.clone(),
-                    doc.revision,
-                ));
+            for uri in revived {
+                if let Some(doc) = docs.get_mut(uri)
+                    && doc.backing_file_deleted
+                {
+                    doc.backing_file_deleted = false;
+                    // Retire every deferred publication captured before the
+                    // deletion, then republish this unchanged editor buffer as a
+                    // new analysis generation. Merely clearing the orphan flag
+                    // would leave the deliberately absent index view marked
+                    // settled when diagnostics are disabled/excluded.
+                    doc.bump_analysis_generation();
+                    publications.push((
+                        uri.clone(),
+                        Arc::clone(&doc.text),
+                        doc.dialect.clone(),
+                        doc.revision,
+                    ));
+                }
             }
-        }
-        // A normal CREATED/CHANGED notification for an already-live open
-        // buffer changes no authoritative state and starts no replacement
-        // publisher. Invalidating it here would retire a contended didOpen or
-        // didChange forever. Only actual orphan-to-live transitions appear in
-        // `publications`; pair those with the genuine deletions.
-        if !deleted.is_empty() || !publications.is_empty() {
-            self.invalidate_live_publication(
-                deleted
-                    .iter()
-                    .chain(publications.iter().map(|(uri, ..)| uri)),
-            );
-            self.live_publication_advanced.notify_waiters();
-        }
+            // A normal CREATED/CHANGED notification for an already-live open
+            // buffer changes no authoritative state and starts no replacement
+            // publisher. Invalidating it here would retire a contended didOpen or
+            // didChange forever. Only actual orphan-to-live transitions appear in
+            // `publications`; pair those with the genuine deletions.
+            if !deleted.is_empty() || !publications.is_empty() {
+                self.invalidate_live_publication(
+                    deleted
+                        .iter()
+                        .chain(publications.iter().map(|(uri, ..)| uri)),
+                );
+                self.live_publication_advanced.notify_waiters();
+            }
+            (publications, deleted_revisions)
+        });
         drop(docs);
-        (publications, deleted_revisions)
+        result
     }
 
     /// Release pending local readers only after the watched-delete transaction
     /// has retired the stale Salsa handle for the same orphan revision.
-    async fn settle_deleted_open_paths(&self, deleted_revisions: &HashMap<Uri, u64>) {
+    async fn settle_deleted_open_paths(
+        &self,
+        deleted_revisions: &HashMap<Uri, u64>,
+        event_admissions: &HashMap<Uri, Arc<DocumentPathAdmission>>,
+    ) -> DocumentSourceResult<()> {
         let mut docs = self
             .documents
             .lock("did_change_watched_files: settle deleted")
             .await;
-        let mut advanced = false;
-        for (uri, revision) in deleted_revisions {
-            if let Some(doc) = docs.get_mut(uri)
-                && doc.backing_file_deleted
-                && doc.revision == *revision
-                && doc.publication == DocumentPublication::Pending
-            {
-                doc.publication = DocumentPublication::Indexed;
-                advanced = true;
+        let mut admissions = Vec::new();
+        for uri in deleted_revisions.keys() {
+            let admission =
+                event_admissions
+                    .get(uri)
+                    .ok_or_else(|| DocumentSourceUnavailable::Store {
+                        uri: uri.clone(),
+                        cause: vfs::SourceUriPathUnavailable::ProviderUnavailable,
+                    })?;
+            admission.check_uri(uri)?;
+            admissions.push(Arc::clone(admission));
+            if let Some(retained) = docs.get(uri).and_then(|doc| doc.path_admission.as_ref()) {
+                retained.check_uri(uri)?;
+                admissions.push(Arc::clone(retained));
             }
         }
+        let retained = admissions.iter().map(Arc::as_ref).collect::<Vec<_>>();
+        let advanced = DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
+            let mut advanced = false;
+            for (uri, revision) in deleted_revisions {
+                if let Some(doc) = docs.get_mut(uri)
+                    && doc.backing_file_deleted
+                    && doc.revision == *revision
+                    && doc.publication == DocumentPublication::Pending
+                {
+                    doc.publication = DocumentPublication::Indexed;
+                    advanced = true;
+                }
+            }
+            advanced
+        })?;
         drop(docs);
         if advanced {
             self.live_publication_advanced.notify_waiters();
         }
+        Ok(())
     }
 }
 
@@ -25748,7 +27181,15 @@ impl LanguageServer for Backend {
         // Pull the resolved `tclLsp` config once the client is ready so
         // feature toggles / optimiser switch / analyser knobs are in effect
         // before the first request.
-        self.pull_and_apply_config().await;
+        match self.pull_and_apply_config().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         // Ask the client to watch Tcl source files so external edits
         // (`git checkout`, generated files, deletions) reach
         // `did_change_watched_files` and refresh the cross-document index.
@@ -25760,14 +27201,30 @@ impl LanguageServer for Backend {
         // flashing W123 until a reload catches up.  `pull_and_apply_config`
         // above has already applied `tclLsp.specPacks`, so discovery sees the
         // configured paths on this first pass.
-        self.reload_spec_packs(ReloadTrigger::Startup).await;
+        match self.reload_spec_packs(ReloadTrigger::Startup).await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         // Type-hierarchy support is advertised statically by the
         // `inject_type_hierarchy_provider` service layer (see `main.rs`) — a
         // dynamic `client/registerCapability` here would both duplicate it and
         // fail to surface in the client's `initializeResult.capabilities`.
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
-        self.scan_workspace_folders().await;
+        match self.scan_workspace_folders().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         // `initialized` fires concurrently with any `textDocument/didOpen` the
         // client already queued for its restored tabs (`buffer_unordered`, see
         // `edit_serialize`'s doc comment) — a document's first debounced
@@ -25808,6 +27265,17 @@ impl LanguageServer for Backend {
             .edit_order
             .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
+        let path_admission =
+            match DocumentPathAdmission::capture(&params.text_document.uri, self.store.as_ref()) {
+                Ok(admission) => Arc::new(admission),
+                Err(error) => {
+                    drop(turn);
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
         // Phase markers (see `EditTurn::at`): `did_open` is the handler a wedge
         // most often names as the turn holder, so every `await` it reaches
         // inside the turn is marked before it is entered.
@@ -25829,12 +27297,26 @@ impl LanguageServer for Backend {
         // every request in `edits_settled()` even though the transport is
         // still alive.
         let state = DocumentState::with_version(params.text_document.text, dialect, version)
+            .with_path_admission(Arc::clone(&path_admission))
             .with_language_id(params.text_document.language_id.clone())
             .with_publication_pending();
         turn.at("did_open: documents.lock");
         let mut documents = self.documents.lock("did_open").await;
-        documents.insert(uri.clone(), state);
+        let admitted = DocumentPathAdmission::with_current(
+            &[path_admission.as_ref()],
+            self.store.as_ref(),
+            || {
+                documents.insert(uri.clone(), state.clone());
+            },
+        );
         drop(documents);
+        if let Err(error) = admitted {
+            drop(turn);
+            self.client
+                .log_message(MessageType::WARNING, error.to_string())
+                .await;
+            return;
+        }
         self.invalidate_live_publication(std::iter::once(&uri));
 
         // Poll the index writer once while the edit turn still excludes new
@@ -25862,8 +27344,20 @@ impl LanguageServer for Backend {
             Some(guard) => guard,
             None => index_write.await,
         };
-        index.remove_document(uri.as_str());
+        let retired = DocumentPathAdmission::with_current(
+            &[path_admission.as_ref()],
+            self.store.as_ref(),
+            || {
+                index.remove_document(uri.as_str());
+            },
+        );
         drop(index);
+        if let Err(error) = retired {
+            self.client
+                .log_message(MessageType::WARNING, error.to_string())
+                .await;
+            return;
+        }
 
         // Publish the matching Salsa source after the turn is free. The
         // deferred commit re-checks text/dialect/version under the
@@ -25871,10 +27365,18 @@ impl LanguageServer for Backend {
         // wins rather than being overwritten by this open. The ordinary
         // unindexed-open-document fallback covers the short gap until live
         // analysis republishes the buffer.
-        if !self
+        if !(match self
             .commit_open_document(&uri, &text, &dialect_for_diags, version)
             .await
         {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        }) {
             return;
         }
         // If a change lands while the disk read below runs, the version/text
@@ -25922,8 +27424,18 @@ impl LanguageServer for Backend {
         if params.content_changes.is_empty() {
             return;
         }
+        let path_admission = match DocumentPathAdmission::capture(&uri, self.store.as_ref()) {
+            Ok(admission) => Arc::new(admission),
+            Err(error) => {
+                drop(turn);
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         let change_version = params.text_document.version;
-        let (text, dialect, language_id, revision, index_needs_seed) = {
+        let changed = {
             // Phase marker — see `EditTurn::at`.
             turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock("did_change").await;
@@ -25940,59 +27452,94 @@ impl LanguageServer for Backend {
             let Some(entry) = docs.get_mut(&uri) else {
                 return;
             };
-            // Build-and-swap, not mutate-in-place: each splice produces a fresh
-            // buffer and the shared handle is replaced wholesale at the end, so
-            // any snapshot already handed to an in-flight request keeps the
-            // exact revision it was taken at.
-            let mut text: Arc<str> = Arc::clone(&entry.text);
-            // Patch the persisted `LineIndex` alongside each splice instead of
-            // rebuilding it per edit / per position lookup.
-            // Take it out, patch through the edit sequence, put it back.
-            let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
-            let mut has_bare_cr = entry.has_bare_cr;
-            // Only a generically-opened `tcl` buffer re-resolves the in-source
-            // dialect hint below (see the tail block), so only that case is
-            // worth watching the edits for a hint-touching change.
-            let watch_dialect_hint = entry.language_id == "tcl";
-            let mut dialect_hint_may_have_changed = false;
-            for change in &params.content_changes {
-                if watch_dialect_hint
-                    && !dialect_hint_may_have_changed
-                    && change_could_affect_dialect_hint(&text, change.range, &change.text, &index)
-                {
-                    dialect_hint_may_have_changed = true;
+            if let Some(retained) = &entry.path_admission {
+                if let Err(error) = retained.check_for(&uri, self.store.as_ref()) {
+                    drop(docs);
+                    drop(turn);
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
                 }
-                text = apply_content_change_indexed(
-                    &text,
-                    change.range,
-                    &change.text,
-                    &mut index,
-                    &mut has_bare_cr,
-                )
-                .into();
             }
-            // `text` and `line_index` are installed together — the snapshot
-            // invariant on `DocumentState`: no reader may ever pair text from
-            // this revision with an index from the previous one.
-            let index_needs_seed = entry.publication != DocumentPublication::Indexed;
-            entry.text = Arc::clone(&text);
-            entry.line_index = index;
-            entry.has_bare_cr = has_bare_cr;
-            // The client supplied text for this revision, not the on-disk
-            // bytes that established the old report. Do not carry an encoding
-            // verdict across even a no-op-looking edit.
-            entry.decode_report = None;
-            if dialect_hint_may_have_changed {
-                // Persist this across deferred publication. If a later edit
-                // supersedes this handler, that authoritative handler must
-                // still resolve the combined buffer's hint.
-                entry.mark_dialect_resolution_dirty();
+            let retained = entry
+                .path_admission
+                .clone()
+                .unwrap_or_else(|| Arc::clone(&path_admission));
+            DocumentPathAdmission::with_current(&[retained.as_ref()], self.store.as_ref(), || {
+                if entry.path_admission.is_none() {
+                    entry.path_admission = Some(Arc::clone(&path_admission));
+                }
+                // Build-and-swap, not mutate-in-place: each splice produces a fresh
+                // buffer and the shared handle is replaced wholesale at the end, so
+                // any snapshot already handed to an in-flight request keeps the
+                // exact revision it was taken at.
+                let mut text: Arc<str> = Arc::clone(&entry.text);
+                // Patch the persisted `LineIndex` alongside each splice instead of
+                // rebuilding it per edit / per position lookup.
+                // Take it out, patch through the edit sequence, put it back.
+                let mut index =
+                    std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
+                let mut has_bare_cr = entry.has_bare_cr;
+                // Only a generically-opened `tcl` buffer re-resolves the in-source
+                // dialect hint below (see the tail block), so only that case is
+                // worth watching the edits for a hint-touching change.
+                let watch_dialect_hint = entry.language_id == "tcl";
+                let mut dialect_hint_may_have_changed = false;
+                for change in &params.content_changes {
+                    if watch_dialect_hint
+                        && !dialect_hint_may_have_changed
+                        && change_could_affect_dialect_hint(
+                            &text,
+                            change.range,
+                            &change.text,
+                            &index,
+                        )
+                    {
+                        dialect_hint_may_have_changed = true;
+                    }
+                    text = apply_content_change_indexed(
+                        &text,
+                        change.range,
+                        &change.text,
+                        &mut index,
+                        &mut has_bare_cr,
+                    )
+                    .into();
+                }
+                // `text` and `line_index` are installed together — the snapshot
+                // invariant on `DocumentState`: no reader may ever pair text from
+                // this revision with an index from the previous one.
+                let index_needs_seed = entry.publication != DocumentPublication::Indexed;
+                entry.text = Arc::clone(&text);
+                entry.line_index = index;
+                entry.has_bare_cr = has_bare_cr;
+                // The client supplied text for this revision, not the on-disk
+                // bytes that established the old report. Do not carry an encoding
+                // verdict across even a no-op-looking edit.
+                entry.decode_report = None;
+                if dialect_hint_may_have_changed {
+                    // Persist this across deferred publication. If a later edit
+                    // supersedes this handler, that authoritative handler must
+                    // still resolve the combined buffer's hint.
+                    entry.mark_dialect_resolution_dirty();
+                }
+                entry.bump_revision(change_version);
+                let dialect = entry.dialect.clone();
+                let language_id = entry.language_id.clone();
+                let revision = entry.revision;
+                (text, dialect, language_id, revision, index_needs_seed)
+            })
+        };
+        let (text, dialect, language_id, revision, index_needs_seed) = match changed {
+            Ok(changed) => changed,
+            Err(error) => {
+                drop(turn);
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
             }
-            entry.bump_revision(change_version);
-            let dialect = entry.dialect.clone();
-            let language_id = entry.language_id.clone();
-            let revision = entry.revision;
-            (text, dialect, language_id, revision, index_needs_seed)
         };
         self.invalidate_live_publication(std::iter::once(&uri));
         // The ordered operation is the buffer splice. Hand the global turn on
@@ -26002,10 +27549,18 @@ impl LanguageServer for Backend {
         // publication checks revision/text/dialect under the document map, so
         // a newer edit or close wins without being overwritten.
         drop(turn);
-        if !self
+        if !(match self
             .publish_changed_document(&uri, &text, &dialect, revision, index_needs_seed)
             .await
         {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        }) {
             return;
         }
         // An ordinarily indexed document deliberately keeps its previous
@@ -26019,8 +27574,18 @@ impl LanguageServer for Backend {
         // The helper is a no-op when no generation is pending, so the ordinary
         // no-hint keystroke path still avoids a whole-document detector pass.
         if language_id == "tcl" {
-            self.resolve_dirty_open_document_dialect(&uri, "did_change_dialect")
-                .await;
+            match self
+                .resolve_dirty_open_document_dialect(&uri, "did_change_dialect")
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
         }
     }
 
@@ -26095,7 +27660,17 @@ impl LanguageServer for Backend {
         // pack-set key mixes the state, so this reload re-installs with no
         // file moved, and every open document re-analyses against the bodies
         // that now run — or no longer do.
-        if trust_changed && self.reload_spec_packs(ReloadTrigger::Trust).await {
+        if trust_changed
+            && (match self.reload_spec_packs(ReloadTrigger::Trust).await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            })
+        {
             self.reschedule_all_open_documents().await;
         }
         self.warn_configured_dialect(dialect_warning).await;
@@ -26107,7 +27682,15 @@ impl LanguageServer for Backend {
         // flat MCP-bridge shape that carries the values directly.  Coalesced:
         // a settings-editor burst is one pull and one re-analysis, not one per
         // notification.
-        self.coalesced_config_reload().await;
+        match self.coalesced_config_reload().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -26119,13 +27702,38 @@ impl LanguageServer for Backend {
             .take_ticket("didClose", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
+        let admission = match self.document_path_admission(uri).await {
+            Ok(admission) => admission,
+            Err(error) => {
+                drop(turn);
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
+
         {
             // The ordered mutation is removal of the authoritative live
             // buffer. Index/caches are derived publications and happen only
             // after the turn is free.
             turn.at("did_close: documents.lock");
             let mut docs = self.documents.lock("did_close").await;
-            docs.remove(uri);
+            let removed = DocumentPathAdmission::with_current(
+                &[admission.as_ref()],
+                self.store.as_ref(),
+                || {
+                    docs.remove(uri);
+                },
+            );
+            drop(docs);
+            if let Err(error) = removed {
+                drop(turn);
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
         }
         self.invalidate_live_publication(std::iter::once(uri));
         drop(turn);
@@ -26134,8 +27742,15 @@ impl LanguageServer for Backend {
         // Optimistically acquire the index and then currency-check the closed
         // state without ever waiting while holding either lock. A racing open
         // is authoritative and cancels this stale close tail.
-        if !self.commit_closed_live_state(uri).await {
-            return;
+        match self.commit_closed_live_state(uri, &admission).await {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
         }
         // The transaction above also releases the diagnostics slot,
         // semantic-token baseline/refresh marker, and workspace-class memo.
@@ -26161,7 +27776,18 @@ impl LanguageServer for Backend {
         // restart.  The helper rechecks that this URI is still closed, then
         // refreshes both the salsa db source and the disk-backed index entry (or
         // drops both when the URI is not a readable file).
-        self.reindex_index_from_disk(uri).await;
+        match self
+            .reindex_index_from_disk_using(uri, Some(Arc::clone(&admission)))
+            .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         // Keep the file's Problems / File-Explorer badge after its editor tab
         // closes.  An unconditional empty publish would make a
         // closed-but-on-disk workspace file lose its diagnostics until it was
@@ -26225,13 +27851,29 @@ impl LanguageServer for Backend {
         // stop resolving across the workspace.  Open documents are left alone —
         // their live buffer is the source of truth regardless of folder set.
         if !removed.is_empty() {
-            self.drop_index_under_folders(&removed).await;
+            match self.drop_index_under_folders(&removed).await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
         }
         // Pick up files under any newly-added folder.  `scan_workspace_folders`
         // walks the *current* folder list and skips open documents, so it is
         // safe to call here.
         if !params.event.added.is_empty() {
-            self.scan_workspace_folders().await;
+            match self.scan_workspace_folders().await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
         }
         // A folder add/remove shifts the salsa `Project`, `workspace_index` and
         // `package_resolver` (the cross-file resolution domain *and* the
@@ -26248,10 +27890,32 @@ impl LanguageServer for Backend {
         }
         // Per-folder config may differ between roots; re-pull so the resolved
         // settings reflect the new folder set.
-        self.pull_and_apply_config().await;
+        match self.pull_and_apply_config().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        let mut event_admissions = HashMap::new();
+        for event in &params.changes {
+            match self.document_path_admission(&event.uri).await {
+                Ok(admission) => {
+                    event_admissions.insert(event.uri.clone(), admission);
+                }
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            }
+        }
         // tower-lsp-server dispatches notification handlers concurrently.
         // Preserve watched-event transaction order so an older deletion cannot
         // finish its index/Salsa removal after a newer create has revived the
@@ -26276,7 +27940,17 @@ impl LanguageServer for Backend {
         // re-analyse every open document — a command that just became known,
         // or just stopped being known, changes what W123 and hover say about
         // code nobody touched.
-        if spec_pack_changed && self.reload_spec_packs(ReloadTrigger::WatchedFile).await {
+        if spec_pack_changed
+            && (match self.reload_spec_packs(ReloadTrigger::WatchedFile).await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            })
+        {
             self.reschedule_all_open_documents().await;
         }
         // Partition the (deduplicated) event set so the disk-backed work below
@@ -26332,9 +28006,18 @@ impl LanguageServer for Backend {
         // Apply the orphan marks before any re-analysis is scheduled, so the
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
-        let (revived_publications, deleted_revisions) = self
-            .update_watched_open_paths(&deleted_while_open, &revived_while_open)
-            .await;
+        let (revived_publications, deleted_revisions) = match self
+            .update_watched_open_paths(&deleted_while_open, &revived_while_open, &event_admissions)
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         let domain_changed =
             !deleted.is_empty() || !changed.is_empty() || !revived_publications.is_empty();
 
@@ -26366,25 +28049,71 @@ impl LanguageServer for Backend {
         // authoritative even for an open path: the buffer remains usable but
         // its dead filesystem identity must leave cross-file resolution.
         if !deleted.is_empty() {
-            self.publish_disk_results(
-                &[],
-                &deleted,
-                DiskRemovalPolicy::IncludeOpen(&deleted_revisions),
-                "did_change_watched_files: deleted",
-            )
-            .await;
-            self.settle_deleted_open_paths(&deleted_revisions).await;
+            let batch = AdmittedDiskBatch {
+                removal_admissions: deleted
+                    .iter()
+                    .map(|uri| Arc::clone(&event_admissions[uri]))
+                    .collect(),
+                ..Default::default()
+            };
+            match self
+                .publish_scanned_disk_results(
+                    &batch,
+                    &deleted,
+                    DiskRemovalPolicy::IncludeOpen(&deleted_revisions),
+                    "did_change_watched_files: deleted",
+                )
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
+            if let Err(error) = self
+                .settle_deleted_open_paths(&deleted_revisions, &event_admissions)
+                .await
+            {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
-        self.batch_reindex_from_disk(&changed).await;
+        match self
+            .batch_reindex_from_disk_using(&changed, Some(&event_admissions))
+            .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
         // An open buffer whose path was previously orphaned remains the source
         // of truth when that path reappears. Restore both its live Salsa input
         // and standalone index view; a racing edit/close/delete wins through
         // the ordinary revision and orphan currency checks.
         for (uri, text, dialect, revision) in revived_publications {
-            self.publish_changed_document(&uri, &text, &dialect, revision, true)
-                .await;
+            match self
+                .publish_changed_document(&uri, &text, &dialect, revision, true)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
         }
 
         // Refresh/clear the badges of the closed files that changed on disk, now
@@ -26412,11 +28141,35 @@ impl LanguageServer for Backend {
         // then rebuild the package database (libraryPaths may have changed) and
         // re-run open documents so the new settings take effect immediately.
         if config_changed {
-            self.pull_and_apply_config().await;
-            self.scan_workspace_folders().await;
+            match self.pull_and_apply_config().await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
+            match self.scan_workspace_folders().await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
             // `tclLsp.specPacks` is part of what was just re-applied, so the
             // pack set may point somewhere else now.
-            self.reload_spec_packs(ReloadTrigger::Config).await;
+            match self.reload_spec_packs(ReloadTrigger::Config).await {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            };
             self.reschedule_all_open_documents().await;
             // Closed files that carry a badge follow the same reconfigured
             // disabled-code / master-switch state.
@@ -26439,7 +28192,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await? else {
             return Ok(None);
         };
         let analysis = self
@@ -26448,7 +28201,7 @@ impl LanguageServer for Backend {
                 doc.text.clone(),
                 doc.dialect.clone(),
             )
-            .await;
+            .await?;
         // Honour the user's resolved `tclLsp.formatting` settings, exactly as
         // `formatting()` does — otherwise format-on-save re-indents with
         // defaults and fights an explicit Format Document.
@@ -26513,7 +28266,7 @@ impl LanguageServer for Backend {
             // lets sticky scroll fall through to its indentation model.
             return Ok(None);
         }
-        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await? else {
             return Ok(None);
         };
         // BIG-IP config documents fold on their stanza tree rather than the
@@ -26547,7 +28300,7 @@ impl LanguageServer for Backend {
                     doc.text.clone(),
                     doc.dialect.clone(),
                 )
-                .await;
+                .await?;
             crate::rt::spawn_blocking(move || {
                 tcl_lsp_core::folding::folding_ranges_with_analysis(&doc.text, &analysis)
             })
@@ -26574,7 +28327,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await? else {
             return Ok(None);
         };
         // BIG-IP config documents get a `module → kind → object` outline
@@ -26622,7 +28375,7 @@ impl LanguageServer for Backend {
                     doc.text.clone(),
                     doc.dialect.clone(),
                 )
-                .await;
+                .await?;
             let text = doc.text.clone();
             crate::rt::spawn_blocking(move || {
                 core_symbols::document_symbols_from_analysis(&text, &analysis)
@@ -26652,7 +28405,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document_position.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let pos = params.text_document_position.position;
@@ -26665,7 +28418,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // Share the cross-document index with the worker so it can
         // enumerate procs from sibling files.  Move a refcounted
         // handle in and take the read lock inside the blocking
@@ -26747,12 +28500,12 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -26814,27 +28567,27 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             match self
                 .original_method_candidate_at(&uri, &doc.text, &analysis, pos)
-                .await
+                .await?
             {
                 ControlFlow::Break(Some(method)) => {
                     let Ok(owner) = method.uri().parse::<Uri>() else {
                         return Ok(None);
                     };
-                    let Some(target) = self.read_document(&owner).await else {
+                    let Some(target) = self.read_document(&owner).await? else {
                         return Ok(None);
                     };
                     let target_analysis = self
                         .analysis_for(&owner, target.text.clone(), target.dialect)
-                        .await;
+                        .await?;
                     let Some(class) = method.declaring_class_in(&target.text, &target_analysis)
                     else {
                         return Ok(None);
@@ -26842,7 +28595,7 @@ impl LanguageServer for Backend {
                     let span = class.name_input().span();
                     return Ok(Some(GotoTypeDefinitionResponse::Array(
                         self.resolve_target_locations(vec![(owner.to_string(), span)])
-                            .await,
+                            .await?,
                     )));
                 }
                 ControlFlow::Break(None) => return Ok(None),
@@ -26893,12 +28646,12 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             use std::ops::ControlFlow;
             let class = core_type_hierarchy::prepare_for_document(
@@ -26916,13 +28669,13 @@ impl LanguageServer for Backend {
             } else {
                 match self
                     .original_method_candidate_at(&uri, &doc.text, &analysis, pos)
-                    .await
+                    .await?
                 {
                     ControlFlow::Break(Some(method)) => Some(method),
                     ControlFlow::Break(None) | ControlFlow::Continue(()) => return Ok(None),
                 }
             };
-            let documents = self.original_declaration_documents(&uri).await;
+            let documents = self.original_declaration_documents(&uri).await?;
             let targets = crate::rt::spawn_blocking(move || {
                 let inventory = documents
                     .iter()
@@ -26959,12 +28712,12 @@ impl LanguageServer for Backend {
                 let Ok(target_uri) = Uri::from_str(identity.uri()) else {
                     continue;
                 };
-                let Some(target_doc) = self.read_document(&target_uri).await else {
+                let Some(target_doc) = self.read_document(&target_uri).await? else {
                     continue;
                 };
                 let target_analysis = self
                     .analysis_for(&target_uri, target_doc.text.clone(), target_doc.dialect)
-                    .await;
+                    .await?;
                 if identity.is_current(target_uri.as_str(), &target_doc.text, &target_analysis) {
                     locations.push(Location {
                         uri: target_uri,
@@ -27012,7 +28765,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let include_decl = params.context.include_declaration;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         // BIG-IP `.conf`/`.scf`: a reference is every identifier-bounded
@@ -27048,15 +28801,15 @@ impl LanguageServer for Backend {
         // extension's own JavaScript. Answered here, in full — the sites are
         // literal words in two languages, which the Tcl symbol analyser has no
         // way to relate.
-        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await {
+        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await? {
             return Ok((!locations.is_empty()).then_some(locations));
         }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let locations = self
             .reference_locations(&uri, &doc, &analysis, pos, include_decl)
-            .await;
+            .await?;
         if locations.is_empty() {
             return Ok(None);
         }
@@ -27082,12 +28835,12 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // Highlighting is find-references narrowed to one document, so it
         // takes the same whole-program export view —
         // otherwise a `-force`-shadowed call highlights as an occurrence of a
@@ -27155,14 +28908,14 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
-            let documents = self.original_declaration_documents(&uri).await;
+            let documents = self.original_declaration_documents(&uri).await?;
             let workspace = self.workspace_index.read().await;
             let inventory = documents
                 .iter()
@@ -27184,7 +28937,7 @@ impl LanguageServer for Backend {
             drop(workspace);
             let mut lifted = Vec::new();
             for item in items {
-                if let Some(item) = self.lift_original_call_item(item).await {
+                if let Some(item) = self.lift_original_call_item(item).await? {
                     lifted.push(item);
                 }
             }
@@ -27245,12 +28998,12 @@ impl LanguageServer for Backend {
         }
         let item = params.item;
         let uri = item.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             let Some(identity) = self
                 .resolve_original_declaration_data(item.data.as_ref(), &uri, &doc.text, &analysis)
@@ -27258,7 +29011,7 @@ impl LanguageServer for Backend {
             else {
                 return Ok(Some(Vec::new()));
             };
-            let documents = self.original_declaration_documents(&uri).await;
+            let documents = self.original_declaration_documents(&uri).await?;
             let workspace = self.workspace_index.read().await;
             let inventory = documents
                 .iter()
@@ -27278,7 +29031,7 @@ impl LanguageServer for Backend {
             drop(workspace);
             let mut lifted = Vec::new();
             for (_, edge) in edges {
-                if let Some(item) = self.lift_original_call_item(edge.from).await {
+                if let Some(item) = self.lift_original_call_item(edge.from).await? {
                     lifted.push(CallHierarchyIncomingCall {
                         from: item,
                         from_ranges: edge.from_ranges.into_iter().map(lift_lsp_range).collect(),
@@ -27306,7 +29059,7 @@ impl LanguageServer for Backend {
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let Some(target) =
             core_call_hierarchy::LogicalCallTarget::capture(&doc.text, &analysis, &core_item)
         else {
@@ -27343,7 +29096,7 @@ impl LanguageServer for Backend {
             local.into_iter().map(|c| (uri.clone(), c)).collect();
         // Cross-document callers: run the externally-targeted
         // incoming-calls pass over every *other* analysed doc.
-        tagged.extend(self.cross_document_incoming_calls(&uri, &target).await);
+        tagged.extend(self.cross_document_incoming_calls(&uri, &target).await?);
         let lifted = tagged
             .into_iter()
             .map(|(doc_uri, c)| CallHierarchyIncomingCall {
@@ -27375,12 +29128,12 @@ impl LanguageServer for Backend {
         }
         let item = params.item;
         let uri = item.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             let Some(identity) = self
                 .resolve_original_declaration_data(item.data.as_ref(), &uri, &doc.text, &analysis)
@@ -27388,7 +29141,7 @@ impl LanguageServer for Backend {
             else {
                 return Ok(Some(Vec::new()));
             };
-            let documents = self.original_declaration_documents(&uri).await;
+            let documents = self.original_declaration_documents(&uri).await?;
             let workspace = self.workspace_index.read().await;
             let inventory = documents
                 .iter()
@@ -27408,7 +29161,7 @@ impl LanguageServer for Backend {
             drop(workspace);
             let mut lifted = Vec::new();
             for (_, edge) in edges {
-                if let Some(item) = self.lift_original_call_item(edge.to).await {
+                if let Some(item) = self.lift_original_call_item(edge.to).await? {
                     lifted.push(CallHierarchyOutgoingCall {
                         to: item,
                         from_ranges: edge.from_ranges.into_iter().map(lift_lsp_range).collect(),
@@ -27436,7 +29189,7 @@ impl LanguageServer for Backend {
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // Cross-document edges: callees defined in sibling files.
         let cross = self
             .cross_document_outgoing_calls(
@@ -27446,7 +29199,7 @@ impl LanguageServer for Backend {
                 &core_item,
                 &analysis,
             )
-            .await;
+            .await?;
         let local_uri = uri.clone();
         let local_analysis = analysis.clone();
         let exports = self.export_snapshot().await;
@@ -27501,12 +29254,12 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let native = !analysis.allows_lexical_declaration_advice();
         let owner = uri.to_string();
         let items = crate::rt::spawn_blocking(move || {
@@ -27528,7 +29281,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         if native {
-            let lifted = self.lift_original_type_hierarchy_items(items).await;
+            let lifted = self.lift_original_type_hierarchy_items(items).await?;
             return Ok((!lifted.is_empty()).then_some(lifted));
         }
         let lifted = items
@@ -27586,13 +29339,13 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let result = crate::rt::spawn_blocking(move || {
             core_linked_editing_range::linked_editing_ranges(
                 &doc.text,
@@ -27634,7 +29387,7 @@ impl LanguageServer for Backend {
         // never served as current: a pull arriving between `did_change` and the
         // debounced worker's refresh must recompute, not return stale (or worse,
         // `Unchanged`) diagnostics for the edited buffer.
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(empty_diagnostic_report());
         };
         // BIG-IP config / iApp APL documents carry no general Tcl diagnostics
@@ -27685,7 +29438,7 @@ impl LanguageServer for Backend {
                 doc.dialect.clone(),
                 &doc.language_id,
             )
-            .await;
+            .await?;
         let result_id = next_pull_diag_result_id();
         self.pull_diag_cache.lock().await.insert(
             uri.clone(),
@@ -27782,7 +29535,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: real classification, served from the
@@ -27813,7 +29566,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
             return Ok(None);
         };
         let new_data = self.semantic_tokens_core_data(&uri, &doc).await?;
@@ -27876,7 +29629,7 @@ impl LanguageServer for Backend {
         }
         let Some(doc) = self
             .read_document_for_semantic_tokens(&params.text_document.uri)
-            .await
+            .await?
         else {
             return Ok(None);
         };
@@ -27921,7 +29674,7 @@ impl LanguageServer for Backend {
         } else {
             Some(
                 self.fresh_analysis_for(uri, Arc::clone(&doc.text), doc.dialect.clone())
-                    .await,
+                    .await?,
             )
         };
         // Distinguishes the two no-continuation cases for the settled marker
@@ -28066,7 +29819,9 @@ impl LanguageServer for Backend {
             fallback_hits: mut hits,
             indexed_hits,
             mut sources,
-        } = self.open_but_unindexed_symbols(&params.query, limit).await;
+        } = self
+            .open_but_unindexed_symbols(&params.query, limit)
+            .await?;
         if hits.len() < limit {
             let remaining = limit - hits.len();
             hits.extend(indexed_hits.into_iter().take(remaining));
@@ -28082,7 +29837,7 @@ impl LanguageServer for Backend {
         for hit in hits {
             if !sources.contains_key(&hit.uri) {
                 let loaded = match Uri::from_str(&hit.uri) {
-                    Ok(uri) => self.read_document(&uri).await,
+                    Ok(uri) => self.read_document(&uri).await?,
                     Err(_) => None,
                 };
                 sources.insert(hit.uri.clone(), loaded);
@@ -28094,7 +29849,7 @@ impl LanguageServer for Backend {
             if let Some(owner) = hit.original_location.as_ref() {
                 let current = self
                     .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-                    .await;
+                    .await?;
                 if owner.uri() != hit.uri
                     || owner.validated_span(&doc.text, &current) != Some(hit.name_span)
                 {
@@ -28159,7 +29914,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         // BIG-IP `.conf`/`.scf`: links are object references (iRule-body and
@@ -28224,7 +29979,7 @@ impl LanguageServer for Backend {
         // as a JSON-RPC error.
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let text = doc.text.clone();
         let links = crate::rt::spawn_blocking(move || {
             core_document_links::document_links_from_analysis(
@@ -28279,7 +30034,7 @@ impl LanguageServer for Backend {
         if !type_hints && !parameter_hints {
             return Ok(Some(Vec::new()));
         }
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -28290,7 +30045,7 @@ impl LanguageServer for Backend {
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let registry = self.registry_for_dialect(&doc.dialect).await;
         // Build analysis on a worker so the inlay-hints provider can surface
         // inferred-type hints (`inlayTypeHints`) and parameter-name hints at
@@ -28359,12 +30114,12 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             let workspace = self.workspace_index.read().await;
             let lenses = core_code_lens::code_lenses(
@@ -28489,10 +30244,12 @@ impl LanguageServer for Backend {
             else {
                 return Ok(lens);
             };
-            let Some(doc) = self.read_document(&uri).await else {
+            let Some(doc) = self.read_document(&uri).await? else {
                 return Ok(lens);
             };
-            let analysis = self.analysis_for(&uri, doc.text.clone(), doc.dialect).await;
+            let analysis = self
+                .analysis_for(&uri, doc.text.clone(), doc.dialect)
+                .await?;
             let Some(identity) = self
                 .resolve_original_declaration_data(lens.data.as_ref(), &uri, &doc.text, &analysis)
                 .await
@@ -28507,7 +30264,7 @@ impl LanguageServer for Backend {
             };
             let locations = self
                 .original_declaration_reference_locations(&identity, &uri, false)
-                .await;
+                .await?;
             lens.command = Some(tower_lsp_server::ls_types::Command {
                 title: core_code_lens::reference_count_title(locations.len()),
                 command: "tcl-lsp.showReferences".to_owned(),
@@ -28531,12 +30288,12 @@ impl LanguageServer for Backend {
         else {
             return Ok(lens);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(lens);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !analysis.allows_lexical_declaration_advice() {
             let mut lens = lens;
             lens.command = None;
@@ -28562,7 +30319,7 @@ impl LanguageServer for Backend {
             let position = lens.range.start;
             let locations = self
                 .reference_locations_at(&uri, &doc, &analysis, position)
-                .await;
+                .await?;
             let arguments = vec![
                 serde_json::Value::String(uri.to_string()),
                 serde_json::to_value(position).unwrap_or(serde_json::Value::Null),
@@ -28593,7 +30350,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -28604,7 +30361,7 @@ impl LanguageServer for Backend {
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
         // requested range, plus fuzzy `package require`
@@ -28757,6 +30514,9 @@ impl LanguageServer for Backend {
                 self.minimize_diagnostic_command(&params.arguments).await
             }
             "tcl-lsp.renamePartition" => self.rename_partition_command(&params.arguments).await,
+            "tcl-lsp.currentDiagnostics" => {
+                self.current_diagnostics_command(&params.arguments).await
+            }
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -28792,7 +30552,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await? else {
             return Ok(None);
         };
         let analysis = self
@@ -28801,7 +30561,7 @@ impl LanguageServer for Backend {
                 doc.text.clone(),
                 doc.dialect.clone(),
             )
-            .await;
+            .await?;
         // Build from the resolved `tclLsp.formatting` settings; the client's
         // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
         // LSP contract.
@@ -28844,7 +30604,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentRangeFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await? else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -28859,7 +30619,7 @@ impl LanguageServer for Backend {
                 doc.text.clone(),
                 doc.dialect.clone(),
             )
-            .await;
+            .await?;
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
         let config = formatter_config_from(
             &formatting,
@@ -28904,12 +30664,12 @@ impl LanguageServer for Backend {
         }
         let uri = params.text_document.uri.clone();
         let positions = params.positions;
-        let Some(doc) = self.read_local_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         let result = crate::rt::spawn_blocking(move || {
             positions
                 .into_iter()
@@ -28957,16 +30717,16 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let pos = params.position;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if let std::ops::ControlFlow::Break(prepared) = self
             .original_command_prepare_tier(&uri, &doc, &analysis, pos)
-            .await
+            .await?
         {
             return Ok(prepared);
         }
@@ -29024,7 +30784,7 @@ impl LanguageServer for Backend {
         };
         if !self
             .resolve_workspace_symbols(&uri, &doc.text, &analysis, pos)
-            .await
+            .await?
             .is_empty()
         {
             return Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
@@ -29045,7 +30805,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let new_name = params.new_name;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         // Per-dialect cached registry for safety gating — proc renames
@@ -29053,10 +30813,10 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         if !self
             .original_procedure_expression_coverage_is_editable(&uri, &doc.text, &analysis, pos)
-            .await
+            .await?
         {
             return Ok(None);
         }
@@ -29064,20 +30824,20 @@ impl LanguageServer for Backend {
         // member safety gate and the workspace namespace-variable rename.
         if let Some(gated) = self
             .gated_rename_tiers(&uri, &doc, &analysis, pos, &new_name)
-            .await
+            .await?
         {
             return gated;
         }
         if let std::ops::ControlFlow::Break(result) = self
             .original_command_rename_tier(&uri, &doc, &analysis, pos, &new_name)
-            .await
+            .await?
         {
             return result;
         }
         // Method rename → cross-file override-family path.
         if let Some(changes) = self
             .method_family_rename_tier(&uri, &doc, &analysis, pos, &new_name)
-            .await
+            .await?
         {
             return Ok(Some(WorkspaceEdit {
                 changes: Some(changes),
@@ -29125,7 +30885,7 @@ impl LanguageServer for Backend {
                 local_rejected,
                 &mut changes,
             )
-            .await
+            .await?
         {
             return Ok(None);
         }
@@ -29198,12 +30958,12 @@ impl LanguageServer for Backend {
             if uri_norm::file_action_path(&uri).is_none() {
                 continue;
             }
-            let Some(document) = self.read_document(&uri).await else {
+            let Some(document) = self.read_document(&uri).await? else {
                 return Ok(None);
             };
             let analysis = self
                 .analysis_for(&uri, document.text.clone(), document.dialect.clone())
-                .await;
+                .await?;
             let Some(config) = analysis.body_lexer_config else {
                 return Ok(None);
             };
@@ -29213,7 +30973,7 @@ impl LanguageServer for Backend {
             ) {
                 return Ok(None);
             }
-            let Some(current) = self.read_document(&uri).await else {
+            let Some(current) = self.read_document(&uri).await? else {
                 return Ok(None);
             };
             if current.text != document.text
@@ -29300,7 +31060,7 @@ impl LanguageServer for Backend {
         // Closed files have no client version; re-read them before the final
         // open-document/index join rather than publishing stale indexed spans.
         for (uri, document, _, _) in &held {
-            let Some(current) = self.read_document(uri).await else {
+            let Some(current) = self.read_document(uri).await? else {
                 return Ok(None);
             };
             if current.text != document.text
@@ -29373,12 +31133,64 @@ impl LanguageServer for Backend {
         {
             return;
         }
-        for f in &params.files {
-            if let Ok(old_url) = Uri::from_str(&f.old_uri) {
-                self.retire_renamed_uri(&old_url).await;
+        let mut prepared = Vec::with_capacity(params.files.len());
+        for file in &params.files {
+            let mut pair = Vec::with_capacity(2);
+            for raw in [&file.old_uri, &file.new_uri] {
+                let parsed = match Uri::from_str(raw) {
+                    Ok(uri) => uri,
+                    Err(error) => {
+                        self.client
+                            .log_message(
+                                MessageType::WARNING,
+                                format!("file rename URI is unavailable: {error}"),
+                            )
+                            .await;
+                        return;
+                    }
+                };
+                match self.document_path_admission(&parsed).await {
+                    Ok(admission) => pair.push((parsed, admission)),
+                    Err(error) => {
+                        self.client
+                            .log_message(MessageType::WARNING, error.to_string())
+                            .await;
+                        return;
+                    }
+                }
             }
-            if let Ok(new_url) = Uri::from_str(&f.new_uri) {
-                self.reindex_index_from_disk(&new_url).await;
+            prepared.push(pair);
+        }
+        for pair in &prepared {
+            for (uri, admission) in pair {
+                if let Err(error) = admission.check_for(uri, self.store.as_ref()) {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
+            }
+        }
+        for pair in prepared {
+            let mut pair = pair.into_iter();
+            let (old, old_admission) = pair
+                .next()
+                .expect("the prepared pair includes the original URI");
+            let (new, new_admission) = pair.next().expect("the prepared pair includes the new URI");
+            if let Err(error) = self.retire_renamed_uri(&old, old_admission).await {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+            if let Err(error) = self
+                .reindex_index_from_disk_using(&new, Some(new_admission))
+                .await
+            {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
             }
         }
     }
@@ -29401,7 +31213,7 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
@@ -29414,7 +31226,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // Same whole-program view as hover: the signature rendered is the
         // reached proc's parameter list, which a `-force` shadow changes.
         let exports = self.export_snapshot().await;
@@ -29461,7 +31273,7 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
@@ -29472,7 +31284,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await;
+            .await?;
         // `profile_for_dialect`, not `by_name`: this is a dialect ingress, and
         // `by_name` sinks the additive set-only spelling `tk` to the plain
         // fallback. That is not a repair — hover answers a `tk` document
@@ -29497,7 +31309,7 @@ impl LanguageServer for Backend {
         if let Some(symbol) = Self::original_namespace_symbol(&doc.text, &analysis, pos) {
             return Ok(self
                 .original_namespace_hover(&uri, &analysis, &symbol)
-                .await
+                .await?
                 .map(lift_hover));
         }
         if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos) {
@@ -29506,7 +31318,7 @@ impl LanguageServer for Backend {
         if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
             return Ok(self
                 .namespace_hover(&uri, &analysis, &cell)
-                .await
+                .await?
                 .map(lift_hover));
         }
         // An iRulesLX method word names a JavaScript function, not a Tcl one,
@@ -29515,7 +31327,7 @@ impl LanguageServer for Backend {
         // commands reached it — they share the method target but not the
         // semantics — and, when nothing resolved, why.
         if let Some(path) = uri.to_file_path()
-            && let Some((call, target)) = self.ilx_method_at(&uri, &doc, &path, pos).await
+            && let Some((call, target)) = self.ilx_method_at(&uri, &doc, &path, pos).await?
         {
             return Ok(Some(lift_hover(CoreHover {
                 value: core_ilx::hover_markdown(&call, &target),
@@ -29524,7 +31336,7 @@ impl LanguageServer for Backend {
         }
         if let std::ops::ControlFlow::Break(hover) = self
             .original_method_hover_at(&uri, &doc.text, &analysis, pos)
-            .await
+            .await?
         {
             return Ok(hover.map(lift_hover));
         }
@@ -29582,7 +31394,7 @@ impl LanguageServer for Backend {
         // reach any cross-document tier at all.
         if let Some(hover) = self
             .cross_file_method_hover(&uri, &doc, &analysis, pos)
-            .await
+            .await?
         {
             return Ok(Some(lift_hover(hover)));
         }
@@ -29591,7 +31403,7 @@ impl LanguageServer for Backend {
         // would never reach the tiers below.
         if let Some(hover) = self
             .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
-            .await
+            .await?
         {
             return Ok(Some(lift_hover(hover)));
         }
@@ -29603,7 +31415,7 @@ impl LanguageServer for Backend {
         }
         Ok(self
             .cross_document_hover(&uri, &doc.text, pos, &analysis)
-            .await
+            .await?
             .map(lift_hover))
     }
 }
@@ -33627,6 +35439,7 @@ fn build_server_capabilities(
                 "tcl-lsp.bigipCleanup".to_owned(),
                 "tcl-lsp.minimizeDiagnostic".to_owned(),
                 "tcl-lsp.renamePartition".to_owned(),
+                "tcl-lsp.currentDiagnostics".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),
@@ -33896,11 +35709,12 @@ mod tests {
             .as_deref(),
             Some("::N::value")
         );
-        let doc = backend.read_document(&uri).await.unwrap();
+        let doc = backend.read_document(&uri).await.unwrap().unwrap();
         assert!(
             backend
                 .gated_rename_tiers(&uri, &doc, &analysis, position, "changed")
                 .await
+                .unwrap()
                 .is_none()
         );
     }
@@ -34119,7 +35933,7 @@ mod tests {
                     .with_language_id("apl".to_owned()),
             );
         }
-        let documents = backend.original_declaration_documents(&base).await;
+        let documents = backend.original_declaration_documents(&base).await.unwrap();
         assert_eq!(documents.len(), 2);
         assert!(
             documents
@@ -34151,6 +35965,7 @@ mod tests {
             backend
                 .original_declaration_documents(&base)
                 .await
+                .unwrap()
                 .is_empty()
         );
         for dialect in ["tcl8.6", "tcl9.1", "jimtcl", "f5-irules"] {
@@ -34221,10 +36036,11 @@ mod tests {
         let source =
             "proc ::tcl::mathfunc::local {argument} {return $argument}\n::tcl::mathfunc::local 2\n";
         register(&backend, &provider, source).await;
-        let document = backend.read_document(&provider).await.unwrap();
+        let document = backend.read_document(&provider).await.unwrap().unwrap();
         let analysis = backend
             .analysis_for(&provider, document.text.clone(), document.dialect.clone())
-            .await;
+            .await
+            .unwrap();
         let position = Position::new(0, u32::try_from(source.find("local").unwrap()).unwrap());
         assert!(
             backend
@@ -34232,6 +36048,7 @@ mod tests {
                     &provider, source, &analysis, position,
                 )
                 .await
+                .unwrap()
         );
         register(&backend, &consumer, "expr {local(1)}\n").await;
         assert!(
@@ -34240,6 +36057,7 @@ mod tests {
                     &provider, source, &analysis, position,
                 )
                 .await
+                .unwrap()
         );
         let parameters = serde_json::from_value(serde_json::json!({
             "textDocument": {"uri": provider.as_str()},
@@ -34269,11 +36087,12 @@ mod tests {
             r"namespace eval N {proc p\uD800 {} {}; p\uD800}",
         )
         .await;
-        let document = backend.read_document(&consumer).await.unwrap();
+        let document = backend.read_document(&consumer).await.unwrap().unwrap();
         let mut analysis = (*backend
             .analysis_for(&consumer, document.text.clone(), document.dialect.clone())
-            .await)
-            .clone();
+            .await
+            .unwrap())
+        .clone();
         analysis.all_procs.clear();
         let position = Position {
             line: 0,
@@ -34282,11 +36101,13 @@ mod tests {
         let identity = backend
             .original_declaration_identity_at(&consumer, &document.text, &analysis, position)
             .await
+            .unwrap()
             .expect("a pure consumer retains the exact original provider");
         assert_eq!(identity.uri(), provider.as_str());
         let references = backend
             .reference_locations(&consumer, &document, &analysis, position, false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(references.len(), 1);
         assert_eq!(references[0].uri, consumer);
         assert_eq!(
@@ -34294,10 +36115,12 @@ mod tests {
             backend
                 .original_declaration_reference_locations(&identity, &consumer, false)
                 .await
+                .unwrap()
         );
         let references = backend
             .reference_locations(&consumer, &document, &analysis, position, true)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(references.len(), 2);
         assert!(references.iter().any(|location| location.uri == provider));
         assert!(
@@ -34318,6 +36141,7 @@ mod tests {
             backend
                 .reference_locations(&consumer, &document, &analysis, position, false)
                 .await
+                .unwrap()
                 .is_empty()
         );
     }
@@ -34331,15 +36155,17 @@ mod tests {
         let consumer = Uri::from_str("file:///original-reference-missing.tcl").unwrap();
         register(&backend, &provider, "proc real {} {}\nreal").await;
         register(&backend, &consumer, "missing").await;
-        let document = backend.read_document(&consumer).await.unwrap();
+        let document = backend.read_document(&consumer).await.unwrap().unwrap();
         let mut analysis = (*backend
             .analysis_for(&consumer, document.text.clone(), document.dialect.clone())
-            .await)
-            .clone();
-        let provider_doc = backend.read_document(&provider).await.unwrap();
+            .await
+            .unwrap())
+        .clone();
+        let provider_doc = backend.read_document(&provider).await.unwrap().unwrap();
         let provider_analysis = backend
             .analysis_for(&provider, provider_doc.text, provider_doc.dialect)
-            .await;
+            .await
+            .unwrap();
         let mut counterfactual = provider_analysis.all_procs.values().next().unwrap().clone();
         counterfactual.name = "missing".to_owned();
         counterfactual.qualified_name = "::missing".to_owned();
@@ -34354,12 +36180,14 @@ mod tests {
             backend
                 .reference_locations(&consumer, &document, &analysis, position, true)
                 .await
+                .unwrap()
                 .is_empty()
         );
         assert!(
             backend
                 .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)
                 .await
+                .unwrap()
                 .is_empty()
         );
         assert!(
@@ -34378,6 +36206,7 @@ mod tests {
                     position
                 )
                 .await
+                .unwrap()
                 .is_none()
         );
     }
@@ -34465,19 +36294,21 @@ proc p\uD801 {} {}
 p\uD800";
         register(&backend, &first, source).await;
         register(&backend, &peer, "proc unrelated {} {}").await;
-        let doc = backend.read_document(&first).await.unwrap();
+        let doc = backend.read_document(&first).await.unwrap().unwrap();
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_procs.clear();
         let pos = Position::new(0, 7);
         assert!(matches!(
             backend
                 .original_command_prepare_tier(&first, &doc, &analysis, pos,)
-                .await,
+                .await
+                .unwrap(),
             ControlFlow::Break(Some(_))
         ));
         let ControlFlow::Break(Ok(Some(edit))) = backend
             .original_command_rename_tier(&first, &doc, &analysis, pos, "renamed")
             .await
+            .unwrap()
         else {
             panic!("closed current original command owners must permit the edit");
         };
@@ -34505,7 +36336,8 @@ p\uD800";
             matches!(
                 backend
                     .original_command_prepare_tier(&first, &doc, &analysis, pos,)
-                    .await,
+                    .await
+                    .unwrap(),
                 ControlFlow::Break(Some(_))
             ),
             "prepare validates the current unchanged tail"
@@ -34513,6 +36345,7 @@ p\uD800";
         let ControlFlow::Break(Err(error)) = backend
             .original_command_rename_tier(&first, &doc, &analysis, pos, "renamed")
             .await
+            .unwrap()
         else {
             panic!("a current independently owned publication must block all edits");
         };
@@ -34524,12 +36357,14 @@ p\uD800";
         assert!(matches!(
             backend
                 .original_command_prepare_tier(&first, &doc, &analysis, pos,)
-                .await,
+                .await
+                .unwrap(),
             ControlFlow::Break(None)
         ));
         let ControlFlow::Break(Err(error)) = backend
             .original_command_rename_tier(&first, &doc, &analysis, pos, "other")
             .await
+            .unwrap()
         else {
             panic!("a stale complete source owner must withdraw its edit");
         };
@@ -34548,7 +36383,7 @@ p\uD800";
 C create object
 object m\uD800";
         register(&backend, &owner, source).await;
-        let doc = backend.read_document(&owner).await.unwrap();
+        let doc = backend.read_document(&owner).await.unwrap().unwrap();
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         analysis.all_classes.clear();
         analysis.global_scope.classes.clear();
@@ -34557,12 +36392,14 @@ object m\uD800";
         assert!(matches!(
             backend
                 .original_command_prepare_tier(&owner, &doc, &analysis, pos)
-                .await,
+                .await
+                .unwrap(),
             ControlFlow::Break(Some(_))
         ));
         let ControlFlow::Break(Ok(Some(edit))) = backend
             .original_command_rename_tier(&owner, &doc, &analysis, pos, "changed")
             .await
+            .unwrap()
         else {
             panic!("the actual current bounded instance roster must permit both edits");
         };
@@ -34594,6 +36431,7 @@ object m\uD800";
             let ControlFlow::Break(Err(error)) = backend
                 .original_command_rename_tier(&owner, &doc, &analysis, pos, tail)
                 .await
+                .unwrap()
             else {
                 panic!("the shared member planner must return its typed refusal");
             };
@@ -34603,12 +36441,14 @@ object m\uD800";
         assert!(matches!(
             backend
                 .original_command_prepare_tier(&owner, &doc, &analysis, pos)
-                .await,
+                .await
+                .unwrap(),
             ControlFlow::Break(None)
         ));
         let ControlFlow::Break(Err(error)) = backend
             .original_command_rename_tier(&owner, &doc, &analysis, pos, "changed")
             .await
+            .unwrap()
         else {
             panic!("an unclosed workspace family must refuse the whole edit set");
         };
@@ -34623,6 +36463,7 @@ object m\uD800";
         let ControlFlow::Break(Err(error)) = backend
             .original_command_rename_tier(&owner, &doc, &analysis, pos, "changed")
             .await
+            .unwrap()
         else {
             panic!("a stale owner cannot issue member edits");
         };
@@ -34658,7 +36499,8 @@ namespace exists n\uD800";
             .add_document(second.as_str(), &analysis);
         let declarations = backend
             .original_namespace_locations(&first, source, &analysis, &symbol, true, true)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(declarations.len(), 2);
         assert!(
             declarations
@@ -34667,7 +36509,8 @@ namespace exists n\uD800";
         );
         let references = backend
             .original_namespace_locations(&first, source, &analysis, &symbol, false, false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(references.len(), 2);
         assert!(
             references
@@ -34677,6 +36520,7 @@ namespace exists n\uD800";
         let hover = backend
             .original_namespace_hover(&first, &analysis, &symbol)
             .await
+            .unwrap()
             .expect("namespace address renders through its original policy");
         assert!(hover.value.contains(
             "Declared by 2 `namespace eval` blocks across 2 documents; 2 other reference(s)"
@@ -34736,7 +36580,8 @@ info exists ::N::v\uD800";
             );
             let current = backend
                 .analysis_for(&second, std::sync::Arc::from(source), "tcl8.6".to_owned())
-                .await;
+                .await
+                .unwrap();
             let context =
                 core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&analysis)
                     .unwrap();
@@ -34755,6 +36600,7 @@ info exists ::N::v\uD800";
             backend
                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
                 .await
+                .unwrap()
                 .len(),
             2,
             "equal source bytes retain separate URI owners"
@@ -34763,6 +36609,7 @@ info exists ::N::v\uD800";
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
+                .unwrap()
                 .len(),
             1
         );
@@ -34784,6 +36631,7 @@ info exists ::N::v\uD800";
             backend
                 .resolve_original_indexed_locations(vec![retained.clone()])
                 .await
+                .unwrap()
                 .len(),
             1
         );
@@ -34795,29 +36643,34 @@ info exists ::N::v\uD800";
         );
         let declarations = backend
             .original_namespace_locations(&first, source, &analysis, &symbol, true, true)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(declarations.len(), 1);
         assert_eq!(declarations[0].uri, first);
         let references = backend
             .cross_document_variable_references(source, &analysis, position, false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(references.len(), 1);
         assert_eq!(references[0].uri, first);
         assert!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
+                .unwrap()
                 .is_empty()
         );
         assert!(
             backend
                 .cross_document_variable_hover(&first, source, position, &analysis,)
                 .await
+                .unwrap()
                 .is_none()
         );
         let hover = backend
             .original_namespace_hover(&first, &analysis, &symbol)
             .await
+            .unwrap()
             .unwrap();
         assert!(hover.value.contains("1 `namespace eval` block"));
         assert!(hover.value.contains("1 other reference(s)"));
@@ -34825,6 +36678,7 @@ info exists ::N::v\uD800";
             backend
                 .resolve_original_indexed_locations(vec![retained.clone()])
                 .await
+                .unwrap()
                 .is_empty()
         );
 
@@ -34837,18 +36691,21 @@ info exists ::N::v\uD800";
             backend
                 .resolve_original_indexed_locations(vec![retained])
                 .await
+                .unwrap()
                 .is_empty()
         );
         assert!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
+                .unwrap()
                 .is_empty()
         );
         assert_eq!(
             backend
                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
                 .await
+                .unwrap()
                 .len(),
             1
         );
@@ -34883,7 +36740,7 @@ namespace exists n\uD800";
             .write()
             .await
             .add_document(second.as_str(), &analysis);
-        let doc = backend.read_document(&first).await.unwrap();
+        let doc = backend.read_document(&first).await.unwrap().unwrap();
         let changes = backend
             .cross_document_original_namespace_rename(&first, &doc, &analysis, &symbol, "renamed")
             .await
@@ -34935,21 +36792,21 @@ namespace exists n\uD800";
         source: &str,
         analysis: &AnalysisResult,
         position: Position,
-    ) {
+    ) -> DocumentSourceResult<()> {
         let candidate = backend
             .original_method_candidate_at(consumer, source, analysis, position)
-            .await;
+            .await?;
         let std::ops::ControlFlow::Break(Some(candidate)) = candidate else {
             panic!("current original source candidate: {candidate:?}");
         };
-        let document = backend.read_document(provider).await.unwrap();
+        let document = backend.read_document(provider).await?.unwrap();
         assert_eq!(
             candidate.declaration_image(),
             &tcl_lexer::SourceImage::document(&document.text)
         );
         let owner = backend
             .analysis_for(provider, document.text, document.dialect)
-            .await;
+            .await?;
         assert!(
             owner.matches_original_source_image(
                 candidate.declaration_image(),
@@ -34960,6 +36817,8 @@ namespace exists n\uD800";
             owner.body_lexer_config,
             owner.resolved_input,
         );
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -34992,7 +36851,8 @@ namespace exists n\uD800";
             &consumer_analysis,
             position,
         )
-        .await;
+        .await
+        .unwrap();
         let std::ops::ControlFlow::Break(definitions) = backend
             .original_method_locations_at(
                 &consumer,
@@ -35002,6 +36862,7 @@ namespace exists n\uD800";
                 tcl_lsp_core::method_symbol::OriginalMethodNavigation::Declaration,
             )
             .await
+            .unwrap()
         else {
             panic!("original method provider");
         };
@@ -35018,6 +36879,7 @@ namespace exists n\uD800";
                 },
             )
             .await
+            .unwrap()
         else {
             panic!("original references provider");
         };
@@ -35026,6 +36888,7 @@ namespace exists n\uD800";
         let std::ops::ControlFlow::Break(Some(hover)) = backend
             .original_method_hover_at(&consumer, consumer_source, &consumer_analysis, position)
             .await
+            .unwrap()
         else {
             panic!("original method hover");
         };
@@ -35052,7 +36915,8 @@ namespace exists n\uD800";
                     &consumer_analysis,
                     position,
                 )
-                .await,
+                .await
+                .unwrap(),
             std::ops::ControlFlow::Break(None)
         ));
         assert!(
@@ -35070,7 +36934,8 @@ namespace exists n\uD800";
                     &consumer_analysis,
                     position,
                 )
-                .await,
+                .await
+                .unwrap(),
             std::ops::ControlFlow::Break(None)
         ));
     }
@@ -35123,7 +36988,8 @@ namespace exists n\uD800";
             assert!(matches!(
                 backend
                     .original_method_candidate_at(&uri, source, &analysis, position)
-                    .await,
+                    .await
+                    .unwrap(),
                 std::ops::ControlFlow::Continue(())
             ));
             let locations = backend.compute_definition(&uri, position).await.unwrap();
@@ -35134,6 +37000,7 @@ namespace exists n\uD800";
                 backend
                     .original_method_hover_at(&uri, source, &analysis, position)
                     .await
+                    .unwrap()
                     .is_continue()
             );
         }
@@ -35175,13 +37042,15 @@ info exists ::N::v\uD800";
             .add_document(second.as_str(), &analysis);
         let declarations = backend
             .cross_document_variable_definition(&first, source, position, &analysis)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(declarations.len(), 1);
         assert_eq!(declarations[0].uri, second);
         assert_eq!(declarations[0].range.start.line, 0);
         let references = backend
             .cross_document_variable_references(source, &analysis, position, false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(references.len(), 2);
         assert!(
             references
@@ -35191,6 +37060,7 @@ info exists ::N::v\uD800";
         let hover = backend
             .cross_document_variable_hover(&first, source, position, &analysis)
             .await
+            .unwrap()
             .expect("typed variable geometry renders through its retained policy");
         assert!(hover.value.contains("1 declaration(s) and 1 reference(s)"));
         assert_eq!(
@@ -35218,6 +37088,7 @@ info exists ::N::v\uD800";
             backend
                 .cross_document_variable_definition(&first, &stale, position, &analysis)
                 .await
+                .unwrap()
                 .is_empty(),
             "a retained original operand cannot fall back to its reporting spelling"
         );
@@ -35251,7 +37122,7 @@ info exists ::N::v\uD800";
             .write()
             .await
             .add_document(second.as_str(), &analysis);
-        let doc = backend.read_document(&first).await.unwrap();
+        let doc = backend.read_document(&first).await.unwrap().unwrap();
         let changes = backend
             .cross_document_original_variable_rename(&first, &doc, &analysis, &symbol, "changed")
             .await
@@ -35516,7 +37387,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "signatureHelp": { "disabledCommands": [" ::::set ", "incr", "set"] }
             }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             *backend.signature_help_disabled_commands.lock().await,
             vec!["::incr".to_owned(), "::set".to_owned()],
@@ -35524,7 +37396,10 @@ info exists ::N::v\uD800";
 
         // Removing the setting from every merged layer must clear a previously
         // applied list rather than latching stale suppression until restart.
-        backend.apply_global_config(&serde_json::json!({})).await;
+        backend
+            .apply_global_config(&serde_json::json!({}))
+            .await
+            .unwrap();
         assert!(
             backend
                 .signature_help_disabled_commands
@@ -35683,7 +37558,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "diagnostics": { "genericVariablePatterns": ["^myapp_"] }
             }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             *backend.generic_variable_patterns.lock().await,
             Some(vec!["^myapp_".to_owned()]),
@@ -35702,7 +37578,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "diagnostics": { "genericVariablePatterns": [] }
             }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             *backend.generic_variable_patterns.lock().await,
             Some(Vec::new()),
@@ -35722,7 +37599,7 @@ info exists ::N::v\uD800";
         )
         .unwrap();
         let global = read_ini_layer(&vfs::NativeStore, Some(path), config_ini::Layer::Global);
-        backend.apply_global_config(&global).await;
+        backend.apply_global_config(&global).await.unwrap();
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert!(!*backend.optimiser_enabled.lock().await);
     }
@@ -35742,7 +37619,7 @@ info exists ::N::v\uD800";
         );
         let merged =
             config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
-        backend.apply_global_config(&merged).await;
+        backend.apply_global_config(&merged).await.unwrap();
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
     }
 
@@ -37063,7 +38940,8 @@ info exists ::N::v\uD800";
 
         let off = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !off.iter().any(|d| matches!(
                 &d.code,
@@ -37074,10 +38952,12 @@ info exists ::N::v\uD800";
 
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W242": true } }))
-            .await;
+            .await
+            .unwrap();
         let on = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             on.iter().any(|d| matches!(
                 &d.code,
@@ -37481,16 +39361,21 @@ info exists ::N::v\uD800";
             .apply_global_config(
                 &serde_json::json!({ "notifications": { "environmentKind": false } }),
             )
-            .await;
+            .await
+            .unwrap();
         assert!(!backend.environment_notice.enabled());
         // A pull that does not carry the key leaves the last value in force.
-        backend.apply_global_config(&serde_json::json!({})).await;
+        backend
+            .apply_global_config(&serde_json::json!({}))
+            .await
+            .unwrap();
         assert!(!backend.environment_notice.enabled());
         backend
             .apply_global_config(
                 &serde_json::json!({ "notifications": { "environmentKind": true } }),
             )
-            .await;
+            .await
+            .unwrap();
         assert!(backend.environment_notice.enabled());
     }
 
@@ -37844,7 +39729,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, src).await;
         backend
             .apply_global_config(&serde_json::json!({ "optimiser": { "profile": "aggressive" } }))
-            .await;
+            .await
+            .unwrap();
         let baseline = backend
             .optimise_document_command(&[serde_json::json!(uri.as_str())])
             .await
@@ -37873,7 +39759,8 @@ info exists ::N::v\uD800";
         off.apply_global_config(&serde_json::json!({
             "optimiser": { "profile": "aggressive", "enabled": false }
         }))
-        .await;
+        .await
+        .unwrap();
         let out = off
             .optimise_document_command(&[serde_json::json!(uri.as_str())])
             .await
@@ -37900,7 +39787,8 @@ info exists ::N::v\uD800";
         }
         per_code
             .apply_global_config(&serde_json::json!({ "optimiser": optimiser }))
-            .await;
+            .await
+            .unwrap();
         let out = per_code
             .optimise_document_command(&[serde_json::json!(uri.as_str())])
             .await
@@ -37932,7 +39820,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, src).await;
         backend
             .apply_global_config(&serde_json::json!({ "optimiser": { "profile": "aggressive" } }))
-            .await;
+            .await
+            .unwrap();
         let out = backend
             .optimise_document_command(&[serde_json::json!(uri.as_str())])
             .await
@@ -37986,7 +39875,8 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "features": { "diagnostics": false } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///o-features-off.tcl").unwrap();
         register(&backend, &uri, src).await;
         let out = backend
@@ -38078,7 +39968,8 @@ info exists ::N::v\uD800";
                 .apply_global_config(
                     &serde_json::json!({ "optimiser": { "profile": "aggressive" } }),
                 )
-                .await;
+                .await
+                .unwrap();
             backend
                 .optimise_document_command(&[serde_json::json!(uri.as_str())])
                 .await
@@ -38628,7 +40519,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "formatting": { "indentSize": 8, "maxLineLength": 70 }
             }))
-            .await;
+            .await
+            .unwrap();
         let formatting = backend.resolved_formatting(&uri).await;
         assert_eq!(formatting["indentSize"], serde_json::json!(8));
         // With insertSpaces and no explicit tabSize override (tab_size: 0 → the
@@ -38666,7 +40558,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "formatting": { "docstringStyle": "body" }
             }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             backend.resolved_docstring_style(&uri).await,
             core_formatting::DocstringStyle::Body
@@ -39309,7 +41202,8 @@ info exists ::N::v\uD800";
             "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
         let diags = backend
             .full_diagnostics_for(&uri, Arc::from(src), "f5-bigip".to_owned(), "tcl-bigip")
-            .await;
+            .await
+            .unwrap();
         let codes = diag_codes(&diags);
         assert!(
             codes.iter().any(|c| c == "BIGIP6002"),
@@ -39362,7 +41256,7 @@ info exists ::N::v\uD800";
                     dialect.to_owned(),
                     language_id,
                 )
-                .await;
+                .await.unwrap();
             let codes = diag_codes(&diagnostics);
             assert!(codes.iter().any(|c| c == "W107"), "{codes:?}");
             assert!(codes.iter().any(|c| c == "W305"), "{codes:?}");
@@ -39578,7 +41472,8 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let off = backend
             .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&off).iter().any(|c| c.starts_with("XC")),
             "XC diagnostics must be off by default, got: {:?}",
@@ -39594,7 +41489,8 @@ info exists ::N::v\uD800";
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
             let on = backend
                 .full_diagnostics_for(&uri, Arc::from(src), dialect.to_owned(), "tcl-irule")
-                .await;
+                .await
+                .unwrap();
             assert!(
                 diag_codes(&on).iter().any(|c| c == "XC100"),
                 "{dialect}: expected XC100 once xcDiagnostics is enabled, got: {:?}",
@@ -39603,7 +41499,8 @@ info exists ::N::v\uD800";
         }
         let tcl = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl9.0".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&tcl).iter().any(|c| c.starts_with("XC")),
             "plain Tcl must not receive XC diagnostics: {:?}",
@@ -39632,19 +41529,29 @@ info exists ::N::v\uD800";
             .collect()
     }
 
-    async fn register_callback_source(backend: &Backend, uri: &Uri, source: &str) {
+    async fn register_callback_source(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+    ) -> DocumentSourceResult<()> {
         register(backend, uri, source).await;
         backend
             .db_set_source(uri, source, "tcl8.6".to_owned())
-            .await;
+            .await?;
+
+        Ok(())
     }
 
-    async fn callback_pull_report(backend: &Backend, uri: &Uri, source: &str) -> Vec<Diagnostic> {
-        callback_source_wire_diagnostics(
+    async fn callback_pull_report(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+    ) -> DocumentSourceResult<Vec<Diagnostic>> {
+        Ok(callback_source_wire_diagnostics(
             &backend
                 .full_diagnostics_for(uri, Arc::from(source), "tcl8.6".to_owned(), "tcl")
-                .await,
-        )
+                .await?,
+        ))
     }
 
     async fn set_callback_project_advice(backend: &Backend, enabled: bool) {
@@ -39673,8 +41580,11 @@ info exists ::N::v\uD800";
             &provider,
             "proc external {a b c} {}\nproc cb {a b c d} {}",
         )
-        .await;
-        register_callback_source(&backend, &caller, source).await;
+        .await
+        .unwrap();
+        register_callback_source(&backend, &caller, source)
+            .await
+            .unwrap();
         set_callback_project_advice(&backend, true).await;
         backend
             .publish_analyser_diagnostics(
@@ -39689,7 +41599,9 @@ info exists ::N::v\uD800";
             let cache = backend.pull_diag_cache.lock().await;
             callback_source_wire_diagnostics(&cache.get(&caller).unwrap().diagnostics)
         };
-        let pulled = callback_pull_report(&backend, &caller, source).await;
+        let pulled = callback_pull_report(&backend, &caller, source)
+            .await
+            .unwrap();
         assert_eq!(
             pushed.len(),
             1,
@@ -39723,8 +41635,12 @@ info exists ::N::v\uD800";
         let caller = Uri::from_str("file:///callback-current.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-current-provider.tcl").unwrap();
         let source = "lsort -command ::external {2 1}";
-        register_callback_source(&backend, &provider, "proc external {a} {}").await;
-        register_callback_source(&backend, &caller, source).await;
+        register_callback_source(&backend, &provider, "proc external {a} {}")
+            .await
+            .unwrap();
+        register_callback_source(&backend, &caller, source)
+            .await
+            .unwrap();
         set_callback_project_advice(&backend, false).await;
         assert!(
             callback_pull_report(&backend, &caller, source)
@@ -39738,14 +41654,19 @@ info exists ::N::v\uD800";
         );
         let old_analysis = backend
             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
-            .await;
-        register_callback_source(&backend, &provider, "proc external {a b c d} {}").await;
+            .await
+            .unwrap();
+        register_callback_source(&backend, &provider, "proc external {a b c d} {}")
+            .await
+            .unwrap();
         assert_eq!(
             diag_codes(&callback_pull_report(&backend, &caller, source).await),
             ["E002"]
         );
         let current_source = "lsort -command {::external EXTRA MORE} {2 1}";
-        register_callback_source(&backend, &caller, current_source).await;
+        register_callback_source(&backend, &caller, current_source)
+            .await
+            .unwrap();
         assert!(
             callback_pull_report(&backend, &caller, current_source)
                 .await
@@ -39773,10 +41694,14 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let caller = Uri::from_str("file:///callback-deleted.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-deleted-provider.tcl").unwrap();
-        register_callback_source(&backend, &provider, "proc cb {a b c} {}").await;
+        register_callback_source(&backend, &provider, "proc cb {a b c} {}")
+            .await
+            .unwrap();
         set_callback_project_advice(&backend, true).await;
         let source = "proc cb {a b c} {}\nrename cb {}\nlsort -command cb {2 1}";
-        register_callback_source(&backend, &caller, source).await;
+        register_callback_source(&backend, &caller, source)
+            .await
+            .unwrap();
         backend
             .publish_analyser_diagnostics(
                 caller.clone(),
@@ -39798,7 +41723,8 @@ info exists ::N::v\uD800";
         );
         let analysis = backend
             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         assert!(
             analysis.command_invocations.iter().any(|invocation| {
                 invocation
@@ -39829,12 +41755,20 @@ info exists ::N::v\uD800";
         let caller = Uri::from_str("file:///callback-actions.tcl").unwrap();
         let provider = Uri::from_str("file:///callback-actions-provider.tcl").unwrap();
         let source = "interp alias {} cb {} ::external FIXED\nlsort -command {cb BAKED} {2 1}";
-        register_callback_source(&backend, &provider, "proc external {a b c} {}").await;
-        register_callback_source(&backend, &caller, source).await;
+        register_callback_source(&backend, &provider, "proc external {a b c} {}")
+            .await
+            .unwrap();
+        register_callback_source(&backend, &caller, source)
+            .await
+            .unwrap();
         set_callback_project_advice(&backend, true).await;
-        let old_report = callback_pull_report(&backend, &caller, source).await;
+        let old_report = callback_pull_report(&backend, &caller, source)
+            .await
+            .unwrap();
         assert_eq!(diag_codes(&old_report), ["E003"]);
-        register_callback_source(&backend, &provider, "proc external {a b c d e} {}").await;
+        register_callback_source(&backend, &provider, "proc external {a b c d e} {}")
+            .await
+            .unwrap();
         executed.lock().unwrap().clear();
         let actions = backend
             .code_action(CodeActionParams {
@@ -39908,7 +41842,8 @@ info exists ::N::v\uD800";
             ] {
                 let diagnostics = backend
                     .full_diagnostics_for(&a, Arc::from(source), "tcl8.6".to_owned(), "tcl")
-                    .await;
+                    .await
+                    .unwrap();
                 let names: Vec<_> = diagnostics.iter().filter_map(w123_command_name).collect();
                 assert!(
                     names.contains(&expected),
@@ -39949,7 +41884,8 @@ info exists ::N::v\uD800";
             ] {
                 let diagnostics = backend
                     .full_diagnostics_for(&vector, Arc::from(source), "tcl8.6".to_owned(), "tcl")
-                    .await;
+                    .await
+                    .unwrap();
                 let names: Vec<_> = diagnostics
                     .iter()
                     .filter_map(|diagnostic| {
@@ -39989,7 +41925,8 @@ info exists ::N::v\uD800";
 
         let off = backend
             .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let off_names: Vec<&str> = off
             .iter()
             .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
@@ -40008,7 +41945,8 @@ info exists ::N::v\uD800";
         );
         let on = backend
             .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let on_names: Vec<&str> = on
             .iter()
             .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
@@ -40044,7 +41982,8 @@ info exists ::N::v\uD800";
                 "f5-irules".to_owned(),
                 "tcl-irule",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&baseline).iter().any(|c| c == "IRULE4002"),
             "IRULE4002 should fire with the default generic patterns, got: {:?}",
@@ -40065,7 +42004,8 @@ info exists ::N::v\uD800";
         // POSITIVE: a doc *inside* the folder no longer reports IRULE4002.
         let suppressed = backend
             .full_diagnostics_for(&inside, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&suppressed).iter().any(|c| c == "IRULE4002"),
             "folder's empty genericVariablePatterns must disable IRULE4002 on the \
@@ -40082,7 +42022,8 @@ info exists ::N::v\uD800";
                 "f5-irules".to_owned(),
                 "tcl-irule",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&still_fires).iter().any(|c| c == "IRULE4002"),
             "a doc outside the folder must keep the default IRULE4002, got: {:?}",
@@ -40126,7 +42067,8 @@ info exists ::N::v\uD800";
         }
         let unrefined = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W120"),
             "a resolvable wrapper that does NOT provide http must keep the W120, \
@@ -40161,7 +42103,8 @@ info exists ::N::v\uD800";
         }
         let refined = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
             "the pull path must refine away the W120 once the workspace proves \
@@ -40210,7 +42153,8 @@ info exists ::N::v\uD800";
         let ok_src = "Rbc_ActiveLegend .g\nRbc_ZoomStack .g\n";
         let diags = backend
             .full_diagnostics_for(&uri, Arc::from(ok_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&diags).iter().any(|c| c == "W123"),
             "a command the auto_path tclIndex provides must not be W123 (#832), got: {:?}",
@@ -40221,7 +42165,8 @@ info exists ::N::v\uD800";
         let typo_src = "Rbc_ActveLegend .g\n";
         let typo = backend
             .full_diagnostics_for(&uri, Arc::from(typo_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&typo).iter().any(|c| c == "W123"),
             "a command no index provides must still be W123, got: {:?}",
@@ -40233,7 +42178,8 @@ info exists ::N::v\uD800";
         *backend.package_resolver.write().await = PackageResolver::new();
         let empty = backend
             .full_diagnostics_for(&uri, Arc::from(ok_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&empty).iter().any(|c| c == "W123"),
             "with no package database the command is genuinely unknown ⇒ W123, got: {:?}",
@@ -40273,7 +42219,8 @@ info exists ::N::v\uD800";
         // the module inherits nothing, so `draw_widget` is genuinely unknown ⇒ W123.
         let unrefined = backend
             .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W123"),
             "without an inherited require the command is unknown ⇒ W123, got: {:?}",
@@ -40299,7 +42246,8 @@ info exists ::N::v\uD800";
         // package's implementation source ⇒ the W123 is refined away.
         let refined = backend
             .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W123"),
             "an available package's source-defined command must not be W123, got: {:?}",
@@ -40337,7 +42285,8 @@ info exists ::N::v\uD800";
         // the single-file W120 stands.
         let unrefined = backend
             .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&unrefined).iter().any(|c| c == "W120"),
             "without the entry file indexed the W120 must stand, got: {:?}",
@@ -40358,7 +42307,8 @@ info exists ::N::v\uD800";
         }
         let refined = backend
             .full_diagnostics_for(&util, Arc::from(util_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
             "the sourced module must inherit the entry file's `package require http`, got: {:?}",
@@ -40410,7 +42360,8 @@ info exists ::N::v\uD800";
         let other_src = "http::register foo 80 bar\n";
         let refined = backend
             .full_diagnostics_for(&other, Arc::from(other_src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&refined).iter().any(|c| c == "W120"),
             "an explicit entry point's requires must apply project-wide, got: {:?}",
@@ -40447,7 +42398,7 @@ info exists ::N::v\uD800";
                 .to_owned(),
         ];
 
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         assert!(
             backend.package_resolver.read().await.provides("mypkg"),
@@ -40466,7 +42417,7 @@ info exists ::N::v\uD800";
         let backend2 = test_backend();
         let root_uri = Uri::from_file_path(&root_ws.0).unwrap();
         *backend2.workspace_folders.lock().await = vec![root_uri];
-        backend2.scan_workspace_folders().await;
+        backend2.scan_workspace_folders().await.unwrap();
         assert!(
             backend2.package_resolver.read().await.provides("rootpkg"),
             "with a root and no library paths, the tree scan must still populate \
@@ -40506,7 +42457,7 @@ info exists ::N::v\uD800";
         // the recursive tree scan can never reach it.
         let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         assert!(
             backend.package_resolver.read().await.provides("mypix"),
             "the file's own auto_path mutation must put the package directory \
@@ -40529,7 +42480,7 @@ info exists ::N::v\uD800";
         let backend2 = test_backend();
         let bare_root = Uri::from_file_path(bare.0.join("reporoot/examples")).unwrap();
         *backend2.workspace_folders.lock().await = vec![bare_root];
-        backend2.scan_workspace_folders().await;
+        backend2.scan_workspace_folders().await.unwrap();
         assert!(
             !backend2.package_resolver.read().await.provides("mypix2"),
             "without an auto_path mutation a package outside the root must stay \
@@ -40561,7 +42512,7 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
         register(&backend, &user_uri, user_src).await;
@@ -40619,7 +42570,7 @@ info exists ::N::v\uD800";
         // Root is the leaf `demos/` directory — two levels below the package.
         let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples/demos")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         assert!(
             backend.package_resolver.read().await.provides("mypix"),
             "a triple-nested `[file dirname …]` auto_path entry must reach the \
@@ -40750,7 +42701,7 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let root = Uri::from_file_path(ws.0.join("reporoot")).unwrap();
         *backend.workspace_folders.lock().await = vec![root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         assert!(
             backend.package_resolver.read().await.provides("relpix"),
             "the relative auto_path entry must put `reporoot/lib` on the search path",
@@ -40818,7 +42769,7 @@ info exists ::N::v\uD800";
             let backend = test_backend();
             let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
             *backend.workspace_folders.lock().await = vec![narrow_root];
-            backend.scan_workspace_folders().await;
+            backend.scan_workspace_folders().await.unwrap();
 
             let user_uri = Uri::from_file_path(ws.0.join(&name)).unwrap();
             register(&backend, &user_uri, &user_src).await;
@@ -40882,7 +42833,7 @@ info exists ::N::v\uD800";
         // the three package directories.
         let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let resolver = backend.package_resolver.read().await;
         for pkg in ["alpha", "beta"] {
@@ -40938,7 +42889,7 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
         register(&backend, &user_uri, &user_src).await;
@@ -41712,6 +43663,7 @@ info exists ::N::v\uD800";
             style_line_length: Mutex::new(120),
             db: Arc::new(TrackedMutex::new("db", db)),
             db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
+            source_path_admissions: Arc::new(std::sync::Mutex::new(HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
@@ -41755,7 +43707,10 @@ info exists ::N::v\uD800";
         // `y` is set but never read → W211.
         let src = "proc foo {} { set y 1 }\n";
         register(&backend, &uri, src).await;
-        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, src, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -41789,7 +43744,10 @@ info exists ::N::v\uD800";
         let uri = Uri::from_str("file:///oldmac.tcl").unwrap();
         let src = "# note \rset zz 1\nputs $zz\n";
         register(&backend, &uri, src).await;
-        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, src, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -41826,7 +43784,8 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "xcDiagnostics": { "enabled": true } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///oldmac-xc.irul").unwrap();
         let src = "when HTTP_REQUEST {\n    # note \r    pool my_pool\n}\n";
         backend.documents.lock("test").await.insert(
@@ -41836,7 +43795,8 @@ info exists ::N::v\uD800";
         );
         backend
             .db_set_source(&uri, src, "f5-irules".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -41861,7 +43821,8 @@ info exists ::N::v\uD800";
         );
         let pulled = backend
             .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
-            .await;
+            .await
+            .unwrap();
         assert_eq!(pushed, pulled, "the deep push and the pull disagree");
     }
 
@@ -41901,7 +43862,11 @@ info exists ::N::v\uD800";
         let uri = Uri::from_str("file:///oldmac-read.tcl").unwrap();
         let src = "set a 1\rset b 2\r\nset c 3\n";
         register(&backend, &uri, src).await;
-        let doc = backend.read_document(&uri).await.expect("open document");
+        let doc = backend
+            .read_document(&uri)
+            .await
+            .unwrap()
+            .expect("open document");
         // The provider-facing text has the lone `\r` rewritten…
         assert_eq!(&*doc.text, "set a 1\nset b 2\r\nset c 3\n");
         // …the formatter / W118 view keeps the client's exact bytes…
@@ -41922,7 +43887,11 @@ info exists ::N::v\uD800";
         // An LF document is handed out unchanged (and does not allocate).
         let plain = Uri::from_str("file:///plain.tcl").unwrap();
         register(&backend, &plain, "set a 1\n").await;
-        let doc = backend.read_document(&plain).await.expect("open document");
+        let doc = backend
+            .read_document(&plain)
+            .await
+            .unwrap()
+            .expect("open document");
         assert_eq!(&*doc.text, "set a 1\n");
         assert!(doc.raw_text.is_none());
     }
@@ -41953,7 +43922,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "formatting": { "lineEnding": "lf" }
             }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             backend.resolved_edit_line_ending(&uri, "a\r\nb\r\n").await,
             "\n"
@@ -42180,7 +44150,10 @@ info exists ::N::v\uD800";
         }));
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, src).await;
-        backend.db_set_source(&uri, src, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, src, "tcl8.6".to_owned())
+            .await
+            .unwrap();
 
         backend
             .did_close(DidCloseTextDocumentParams {
@@ -42359,7 +44332,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
             .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         backend
             .did_close(DidCloseTextDocumentParams {
@@ -42402,7 +44376,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, "proc foo {} { return 1 }\n").await;
         backend
             .db_set_source(&uri, "proc foo {} { return 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         backend
             .did_close(DidCloseTextDocumentParams {
@@ -42438,7 +44413,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, clean).await;
         backend
             .db_set_source(&uri, clean, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         backend
             .did_close(DidCloseTextDocumentParams {
@@ -42471,7 +44447,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
             .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
@@ -42510,7 +44487,8 @@ info exists ::N::v\uD800";
         register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
         backend
             .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         // A sentinel cache entry standing in for the open buffer's own published
         // set. The closed publish must leave it untouched (the doc is open).
         let sentinel = next_pull_diag_result_id();
@@ -42592,7 +44570,7 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         let uri = Uri::from_file_path(&on_disk).unwrap();
 
-        backend.reindex_index_from_disk(&uri).await;
+        backend.reindex_index_from_disk(&uri).await.unwrap();
 
         let file = backend
             .db_files
@@ -42753,6 +44731,7 @@ info exists ::N::v\uD800";
 
         let diag = vec![tower_lsp_server::ls_types::Diagnostic::default()];
         let ctx = |generation: u64| DeliveryCtx {
+            diagnostic_pass: None,
             client: &backend.client,
             diagnostic_publisher: &backend.diagnostic_publisher,
             documents: &backend.documents,
@@ -42792,7 +44771,8 @@ info exists ::N::v\uD800";
         // Prime the on-disk salsa source + a non-empty badge, as a prior close would.
         backend
             .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
@@ -42837,7 +44817,8 @@ info exists ::N::v\uD800";
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
             .db_set_source(&uri, "set x 1\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
@@ -42882,7 +44863,8 @@ info exists ::N::v\uD800";
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
             .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
@@ -42943,7 +44925,8 @@ info exists ::N::v\uD800";
         ] {
             backend
                 .db_set_source(uri, old_src, "tcl8.6".to_owned())
-                .await;
+                .await
+                .unwrap();
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(old_src, "tcl8.6").clone();
             backend
@@ -43027,7 +45010,8 @@ info exists ::N::v\uD800";
         let uri = Uri::from_str("file:///retired.tcl").unwrap();
         backend
             .db_set_source(&uri, "proc foo {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let first = *backend
             .db_files
             .lock()
@@ -43061,7 +45045,8 @@ info exists ::N::v\uD800";
 
         backend
             .db_set_source(&uri, "proc bar {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let second = *backend
             .db_files
             .lock()
@@ -43109,10 +45094,12 @@ info exists ::N::v\uD800";
                 "proc helper {mode} { return $mode }\n",
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let handles = EvidenceHandles {
             db_config: Arc::clone(&backend.db_config),
             folder_db_configs: Arc::clone(&backend.folder_db_configs),
@@ -43167,10 +45154,12 @@ info exists ::N::v\uD800";
         let target = Uri::from_str("file:///w/target.tcl").unwrap();
         backend
             .db_set_source(&main, "source target.tcl\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let analysis = Analyser::new()
             .analyse("source target.tcl\n", "tcl8.6")
             .clone();
@@ -43236,10 +45225,12 @@ info exists ::N::v\uD800";
                 "source coverage-loss-target-1854.tcl\n",
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let handles = EvidenceHandles {
             db_config: Arc::clone(&backend.db_config),
             folder_db_configs: Arc::clone(&backend.folder_db_configs),
@@ -43288,7 +45279,8 @@ info exists ::N::v\uD800";
         let uri = Uri::from_str("file:///w/evaluator-epoch-d104.tcl").unwrap();
         backend
             .db_set_source(&uri, "proc p {} {return 1}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let taken = || async {
             let db = backend.db.lock().await;
             tcl_lsp_db::EvaluatorEpoch::try_get(&*db).map(|epoch| epoch.generation(&*db))
@@ -43341,10 +45333,12 @@ info exists ::N::v\uD800";
         let orphan = Uri::from_str("file:///w/covered-orphan-1854.tcl").unwrap();
         backend
             .db_set_source(&main, "local\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let handles = EvidenceHandles {
             db_config: Arc::clone(&backend.db_config),
             folder_db_configs: Arc::clone(&backend.folder_db_configs),
@@ -43402,14 +45396,16 @@ info exists ::N::v\uD800";
         let lib = Uri::from_str("file:///w/stale-evidence-lib-1854.tcl").unwrap();
         backend
             .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(
                 &lib,
                 "proc helper {mode} { return $mode }\n",
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
         let handles = EvidenceHandles {
             db_config: Arc::clone(&backend.db_config),
             folder_db_configs: Arc::clone(&backend.folder_db_configs),
@@ -43474,10 +45470,12 @@ info exists ::N::v\uD800";
                 "source membership-orphan-1854.tcl\n",
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let analysis = Analyser::new()
             .analyse("source membership-orphan-1854.tcl\n", "tcl8.6")
             .clone();
@@ -43568,10 +45566,12 @@ info exists ::N::v\uD800";
         let main_text = "source evidence-orphan-1854.tcl\nproc main_proc {} {}\n";
         backend
             .db_set_source(&main, main_text, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend
             .db_set_source(&orphan, "proc orphan_proc {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let analysis = Analyser::new().analyse(main_text, "tcl8.6").clone();
         backend
             .workspace_index
@@ -43654,7 +45654,8 @@ info exists ::N::v\uD800";
         let uri = Uri::from_file_path(&on_disk).unwrap();
         backend
             .db_set_source(&uri, "proc foo {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let before = *backend
             .db_files
             .lock()
@@ -43750,7 +45751,8 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "diagnostics": { "W210": false, "W242": true }
             }))
-            .await;
+            .await
+            .unwrap();
         let skip = backend.disabled_diagnostics.lock().await.clone();
         assert_eq!(
             skip,
@@ -43761,7 +45763,8 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "shimmer": { "enabled": false } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///s.tcl").unwrap();
         let (disabled, ..) = backend.resolved_analysis_settings(&uri).await;
         assert!(
@@ -43876,7 +45879,8 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W112": false } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///any/e.tcl").unwrap();
         assert_eq!(
             backend
@@ -44208,7 +46212,8 @@ info exists ::N::v\uD800";
         // A pulled/pushed `tclLsp.dialect` rewrites the *configured* default …
         backend
             .apply_global_config(&serde_json::json!({ "dialect": "tcl9.0" }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         // … and must leave the override in force.
         assert_eq!(
@@ -44373,7 +46378,7 @@ info exists ::N::v\uD800";
             },
             "workspaceScan": { "maxFiles": 6000 },
         });
-        backend.apply_global_config(&cfg).await;
+        backend.apply_global_config(&cfg).await.unwrap();
         assert!(!backend.feature_toggles.lock().await.is_enabled("hover"));
         assert!(
             backend
@@ -44445,7 +46450,8 @@ info exists ::N::v\uD800";
 
         let before = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !has_tk1002(&before),
             "undeclared ⇒ not a Tk document: {before:?}",
@@ -44455,10 +46461,12 @@ info exists ::N::v\uD800";
             .apply_global_config(&serde_json::json!({
                 "packages": { "provides": { "myExtension": ["Tk"] } },
             }))
-            .await;
+            .await
+            .unwrap();
         let after = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             has_tk1002(&after),
             "declared ⇒ the Tk checks run: {after:?}",
@@ -44504,10 +46512,12 @@ proc p {} {
             .apply_global_config(&serde_json::json!({
                 "packages": { "provides": { "myExtension": ["Tk"] } },
             }))
-            .await;
+            .await
+            .unwrap();
         let diags = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             has_tk1002(&diags),
             "an unclosed brace must not switch Tk off: {diags:?}",
@@ -44529,7 +46539,8 @@ proc p {} {
                 "targets": { "tcl": "8.5-9.0" },
                 "packages": { "provides": { "globalExt": ["Tk"] } },
             }))
-            .await;
+            .await
+            .unwrap();
 
         let root = Uri::from_str("file:///w/").unwrap();
         let other = Uri::from_str("file:///other/").unwrap();
@@ -44619,7 +46630,8 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "bigipVersion": "17.1.0" }))
-            .await;
+            .await
+            .unwrap();
 
         let folder = Uri::from_str("file:///w/").unwrap();
         backend
@@ -44644,7 +46656,8 @@ proc p {} {
         // return without touching the chain at all.
         backend
             .apply_global_config(&serde_json::json!({ "bigipVersion": "16.1.0" }))
-            .await;
+            .await
+            .unwrap();
         let primary = Uri::from_str("file:///primary/").unwrap();
         backend
             .apply_primary_project_signature_fallback(Some(&primary), &serde_json::json!({}))
@@ -44696,7 +46709,8 @@ proc p {} {
             .apply_global_config(&serde_json::json!({
                 "packages": { "provides": { "globalExt": ["Tk"] } },
             }))
-            .await;
+            .await
+            .unwrap();
 
         let root = Uri::from_str("file:///w/").unwrap();
         let other = Uri::from_str("file:///other/").unwrap();
@@ -44759,7 +46773,8 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
-            .await;
+            .await
+            .unwrap();
         assert!(
             !backend.disabled_diagnostics.lock().await.contains("W100"),
             "the analyser computes W100 for O111",
@@ -44811,7 +46826,8 @@ proc p {} {
         let disabled = test_backend();
         disabled
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///fixall-disabled.tcl").unwrap();
         register(&disabled, &uri, "set n [expr abs(-2)]\n").await;
         let out = disabled
@@ -44865,7 +46881,8 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "IRULE2002": false } }))
-            .await;
+            .await
+            .unwrap();
         *backend.folder_configs.lock().await = vec![(
             Uri::from_str("file:///fixall-folder").unwrap(),
             FolderConfig {
@@ -44909,7 +46926,8 @@ proc p {} {
             .apply_global_config(&serde_json::json!({
                 "diagnostics": { "W9999": false, "W210": false }
             }))
-            .await;
+            .await
+            .unwrap();
         let ini = backend.render_config_ini().await;
         let listed: Vec<&str> = ini
             .split("[diagnostics]\n")
@@ -44958,7 +46976,8 @@ proc p {} {
 
         backend
             .apply_global_config(&serde_json::json!({ "features": { "inlayHints": true } }))
-            .await;
+            .await
+            .unwrap();
 
         let after = backend
             .get_effective_config_command(&[serde_json::json!("file:///inlay.tcl")])
@@ -45003,7 +47022,7 @@ proc p {} {
         // An empty config file layer — what an absent `config.ini` parses to —
         // carries no key, so the merged config leaves the default alone.
         let empty = config_ini::settings_from_ini("", config_ini::Layer::Global);
-        backend.apply_global_config(&empty).await;
+        backend.apply_global_config(&empty).await.unwrap();
         assert_eq!(*backend.workspace_scan_max_files.lock().await, 2000);
         let reported = backend
             .get_effective_config_command(&[serde_json::json!("file:///scan.tcl")])
@@ -45033,7 +47052,7 @@ proc p {} {
         );
         let merged =
             config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
-        backend.apply_global_config(&merged).await;
+        backend.apply_global_config(&merged).await.unwrap();
         assert_eq!(*backend.workspace_scan_max_files.lock().await, 9000);
         let reported = backend
             .get_effective_config_command(&[serde_json::json!("file:///scan.tcl")])
@@ -45058,7 +47077,7 @@ proc p {} {
             serde_json::json!({ "workspaceScan": { "maxFiles": "lots" } }),
             serde_json::json!({ "workspaceScan": {} }),
         ] {
-            backend.apply_global_config(&cfg).await;
+            backend.apply_global_config(&cfg).await.unwrap();
             assert_eq!(
                 *backend.workspace_scan_max_files.lock().await,
                 WORKSPACE_SCAN_FILE_CAP,
@@ -45072,7 +47091,10 @@ proc p {} {
         // A non-object config (e.g. a `null` from an editor with no settings)
         // is a no-op — the defaults survive.
         let backend = test_backend();
-        backend.apply_global_config(&serde_json::Value::Null).await;
+        backend
+            .apply_global_config(&serde_json::Value::Null)
+            .await
+            .unwrap();
         assert_eq!(*backend.default_dialect.lock().await, "tcl8.6");
     }
 
@@ -45089,7 +47111,8 @@ proc p {} {
                 "diagnostics": { "W211": false },
                 "optimiser": { "enabled": false, "O100": false }
             }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///settings.tcl").unwrap();
         let (disabled, non_ascii) = backend.resolved_analysis_settings(&uri).await;
         assert!(
@@ -45116,12 +47139,14 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "optimiser": { "profile": "full" } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///pull.tcl").unwrap();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let full = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             has_code(&full, "O100"),
             "pull diagnostics must include the optimiser O100, got {:?}",
@@ -45157,7 +47182,8 @@ proc p {} {
                 "tcl9.0".to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             proven_diags.iter().any(|d| {
                 matches!(
@@ -45179,7 +47205,8 @@ proc p {} {
         );
         let literal_diags = backend
             .full_diagnostics_for(&literal_uri, Arc::from(literal), "tcl9.0".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             literal_diags.iter().all(|d| {
                 !matches!(
@@ -45908,7 +47935,8 @@ proc p {} {
         });
         backend
             .apply_global_config_with_signature_fallback(&primary_merged, &global_editor)
-            .await;
+            .await
+            .unwrap();
         backend
             .apply_folder_configs(vec![
                 (
@@ -46230,7 +48258,8 @@ proc p {} {
         // query database (set via the SourceFile input) and the workspace index.
         backend
             .db_set_source(&uri, current_src, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         {
             let mut doc =
                 DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
@@ -46292,7 +48321,7 @@ proc p {} {
         let root_url = Uri::from_file_path(&root).unwrap();
         *backend.workspace_folders.lock().await = vec![root_url];
 
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let index = backend.workspace_index.read().await;
         let defs = index.proc_definitions("greet", "greet");
@@ -46381,7 +48410,7 @@ proc p {} {
         write_metaclass_workspace(&root);
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let analysis = scanned_analysis(&backend, &root, "iconlist.tcl").await;
         let class = analysis
@@ -46443,7 +48472,7 @@ proc p {} {
         }
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         {
             let index = backend.workspace_index.read().await;
             for name in ["::MetaA", "::MetaB", "::Made", "::Other", "::Retained"] {
@@ -46467,7 +48496,7 @@ proc p {} {
         );
 
         std::fs::write(root.join("maker.tcl"), "# source factory withdrawn\n").unwrap();
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         {
             let index = backend.workspace_index.read().await;
             for name in ["::MetaA", "::MetaB", "::Made"] {
@@ -46512,7 +48541,7 @@ proc p {} {
         .unwrap();
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         // Non-vacuity: the very same scan *does* resolve the provable file, so
         // this abstention is not just "the index never arrived".
@@ -46542,7 +48571,7 @@ proc p {} {
         .unwrap();
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
@@ -46563,7 +48592,7 @@ proc p {} {
         write_metaclass_workspace(&root);
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         assert_eq!(
             backend
                 .workspace_index
@@ -46575,7 +48604,7 @@ proc p {} {
         );
 
         std::fs::write(root.join("megawidget.tcl"), "# factory removed\n").unwrap();
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         assert!(
             backend
@@ -46613,7 +48642,7 @@ proc p {} {
         .unwrap();
         let backend = test_backend();
         *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         {
             let index = backend.workspace_index.read().await;
             assert_eq!(index.classes_named("::IconList").len(), 1);
@@ -46621,7 +48650,7 @@ proc p {} {
         }
 
         std::fs::write(root.join("megawidget.tcl"), "# one factory removed\n").unwrap();
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(index.classes_named("::IconList").is_empty());
@@ -46729,7 +48758,7 @@ proc p {} {
                 .add_document(uri.as_str(), &analysis);
         }
 
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(
@@ -46772,7 +48801,7 @@ proc p {} {
         let root_url = Uri::from_file_path(&root).unwrap();
         *backend.workspace_folders.lock().await = vec![root_url];
 
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
 
         let deep: Vec<String> = executed
             .lock()
@@ -46831,12 +48860,14 @@ proc p {} {
         );
         backend
             .db_set_source(&open_uri, "proc open_proc {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         // Never opened, but present in `db_files` — exactly the state a
         // workspace scan leaves an unopened file in.
         backend
             .db_set_source(&closed_uri, "proc closed_proc {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         Backend::warm_open_documents(
             Arc::clone(&backend.db),
@@ -46886,7 +48917,10 @@ proc p {} {
             stale_analysis,
         )];
 
-        backend.merge_workspace_scan_results(&scan_results).await;
+        backend
+            .merge_workspace_scan_results(&scan_results)
+            .await
+            .unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(
@@ -46920,7 +48954,7 @@ proc p {} {
         }
 
         // What did_close does: refresh from disk instead of removing.
-        backend.reindex_index_from_disk(&uri).await;
+        backend.reindex_index_from_disk(&uri).await.unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(
@@ -46958,7 +48992,7 @@ proc p {} {
                 .add_document(uri.as_str(), &analysis);
         }
 
-        backend.reindex_index_from_disk(&uri).await;
+        backend.reindex_index_from_disk(&uri).await.unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(
@@ -47043,10 +49077,9 @@ proc p {} {
         )
         .await
         .expect("didOpen waiting for Salsa must not retain the request barrier (#1849)");
-        let unrelated = crate::rt::timeout(
-            std::time::Duration::from_millis(500),
-            backend.read_document(&other),
-        )
+        let unrelated = crate::rt::timeout(std::time::Duration::from_millis(500), async {
+            backend.read_document(&other).await.unwrap()
+        })
         .await
         .expect("a request for another document must remain serviceable (#1849)")
         .expect("the unrelated live document must remain readable");
@@ -47189,7 +49222,8 @@ proc p {} {
         let disk_analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
         backend
             .db_set_source(&uri, disk_text, "tcl8.6".into())
-            .await;
+            .await
+            .unwrap();
         let snapshot = backend
             .db
             .snapshot_from(&*backend.db.lock().await, "held-index")
@@ -47346,7 +49380,8 @@ proc p {} {
         );
         backend
             .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let diag_inputs = backend
             .diag_inputs(&uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
             .await;
@@ -47405,7 +49440,7 @@ proc p {} {
         let mut reading_current = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            async move { backend.read_document(&uri).await }
+            async move { backend.read_document(&uri).await.unwrap() }
         });
         assert!(
             crate::rt::timeout(std::time::Duration::from_millis(100), &mut reading_current,)
@@ -47459,7 +49494,8 @@ proc p {} {
         );
         backend
             .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         // Production snapshots are handed directly to a worker. Retaining one
         // here is deliberate: it makes Salsa's setter precondition false until
         // this test says otherwise.
@@ -47553,6 +49589,7 @@ proc p {} {
         crate::rt::spawn(async move {
             let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
             let delivery = DeliveryCtx {
+                diagnostic_pass: None,
                 client: &backend.client,
                 diagnostic_publisher: &backend.diagnostic_publisher,
                 documents: &backend.documents,
@@ -47571,7 +49608,7 @@ proc p {} {
                 &backend.rehomed_source_seeds,
                 &backend.rehoming_gate,
                 &analysis,
-                Ok(Vec::new()),
+                (Err(DiagnosticUnavailable::Context), Ok(Vec::new())),
                 PublishTiming {
                     started: crate::rt::Instant::now(),
                     uri_str: uri.as_str(),
@@ -47839,7 +49876,7 @@ proc p {} {
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            async move { backend.reindex_index_from_disk(&uri).await }
+            async move { backend.reindex_index_from_disk(&uri).await.unwrap() }
         });
 
         // Reaching the transaction includes blocking-pool admission plus the
@@ -47905,7 +49942,7 @@ proc p {} {
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            async move { backend.reindex_index_from_disk(&uri).await }
+            async move { backend.reindex_index_from_disk(&uri).await.unwrap() }
         });
 
         // Match the disk-analysis admission allowance in the index-contention
@@ -47966,7 +50003,7 @@ proc p {} {
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            async move { backend.reindex_index_from_disk(&uri).await }
+            async move { backend.reindex_index_from_disk(&uri).await.unwrap() }
         });
         // This waits through blocking-pool admission and disk analysis before
         // constructing the ordering below; it is not a performance assertion.
@@ -48072,7 +50109,7 @@ proc p {} {
                 .add_document(uri.as_str(), &analysis);
         }
 
-        backend.reindex_index_from_disk(&uri).await;
+        backend.reindex_index_from_disk(&uri).await.unwrap();
 
         let index = backend.workspace_index.read().await;
         assert!(
@@ -48099,7 +50136,7 @@ proc p {} {
 
         // B is on disk but never opened — the did_close / scan path indexes it
         // into both the workspace index and the salsa `Project`.
-        backend.reindex_index_from_disk(&b).await;
+        backend.reindex_index_from_disk(&b).await.unwrap();
         assert!(
             backend.db_project.lock().await.is_some(),
             "a disk-backed file must seed the salsa Project"
@@ -48119,7 +50156,8 @@ proc p {} {
                 "tcl8.6".to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&ok).iter().any(|c| c == "W123"),
             "W123 must be suppressed against a disk-backed (unopened) file, got: {:?}",
@@ -48130,7 +50168,8 @@ proc p {} {
         // disk-backed proc's arity signature.
         let bad = backend
             .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&bad).iter().any(|c| c == "E003"),
             "E003 must fire against a disk-backed proc's arity, got: {:?}",
@@ -48160,7 +50199,7 @@ proc p {} {
         );
 
         // Present on disk → resolves cross-file (no W123).
-        backend.reindex_index_from_disk(&b).await;
+        backend.reindex_index_from_disk(&b).await.unwrap();
         let present = backend
             .full_diagnostics_for(
                 &a,
@@ -48168,7 +50207,8 @@ proc p {} {
                 "tcl8.6".to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diag_codes(&present).iter().any(|c| c == "W123"),
             "precondition: resolves while the file is present, got: {:?}",
@@ -48178,7 +50218,7 @@ proc p {} {
         // Delete the file and reindex — it must leave the Project, so `helper` is
         // unresolved again (W123 returns).
         std::fs::remove_file(&on_disk).unwrap();
-        backend.reindex_index_from_disk(&b).await;
+        backend.reindex_index_from_disk(&b).await.unwrap();
         let gone = backend
             .full_diagnostics_for(
                 &a,
@@ -48186,7 +50226,8 @@ proc p {} {
                 "tcl8.6".to_owned(),
                 "tcl",
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             diag_codes(&gone).iter().any(|c| c == "W123"),
             "W123 must return once the defining file is gone, got: {:?}",
@@ -48205,7 +50246,8 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W123": false } }))
-            .await;
+            .await
+            .unwrap();
         backend.feature_toggles.lock().await.apply(
             serde_json::json!({ "crossFileResolution": true })
                 .as_object()
@@ -48217,7 +50259,8 @@ proc p {} {
         // 3 args to a 2-param cross-file proc → E003, even with W123 disabled.
         let diags = backend
             .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let codes = diag_codes(&diags);
         assert!(
             codes.iter().any(|c| c == "E003"),
@@ -49030,7 +51073,7 @@ proc p {} {
 
         // The user switches the session dialect to tcl9.0.
         *backend.default_dialect.lock().await = "tcl9.0".to_owned();
-        backend.reresolve_open_document_dialects().await;
+        backend.reresolve_open_document_dialects().await.unwrap();
 
         let docs = backend.documents.lock("test").await;
         assert_eq!(
@@ -49482,7 +51525,11 @@ proc p {} {
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             tasks.push(crate::rt::spawn(async move {
-                backend.read_document(&uri).await.expect("open document")
+                backend
+                    .read_document(&uri)
+                    .await
+                    .unwrap()
+                    .expect("open document")
             }));
         }
         let mut snapshots = Vec::new();
@@ -49520,7 +51567,11 @@ proc p {} {
         let uri = Uri::from_str("file:///revisions.tcl").unwrap();
         register(&backend, &uri, "set alpha 1\nset beta 2\n").await;
 
-        let before = backend.read_document(&uri).await.expect("open document");
+        let before = backend
+            .read_document(&uri)
+            .await
+            .unwrap()
+            .expect("open document");
         let before_revision = before.revision;
 
         backend
@@ -49551,7 +51602,11 @@ proc p {} {
         assert_eq!(&before.text[line1..], "set beta 2\n");
 
         // The live document did advance, on both fields together.
-        let after = backend.read_document(&uri).await.expect("open document");
+        let after = backend
+            .read_document(&uri)
+            .await
+            .unwrap()
+            .expect("open document");
         assert!(after.text.starts_with("# a new leading comment line\n"));
         assert!(after.revision > before_revision);
         let after_line1 = after.line_index.line_start(1) as usize;
@@ -49579,14 +51634,22 @@ proc p {} {
         let uri = canonical_file_uri(&path).expect("fixture path has a representable file URI");
 
         assert!(backend.documents.lock("test").await.is_empty());
-        let snap = backend.read_document(&uri).await.expect("disk fallback");
+        let snap = backend
+            .read_document(&uri)
+            .await
+            .unwrap()
+            .expect("disk fallback");
         assert_eq!(&*snap.text, "proc onDisk {} { return 1 }\n");
         assert!(
             backend.documents.lock("test").await.is_empty(),
             "a disk read must not become a permanent open-document entry"
         );
         // Reading again is a fresh read, not a retained snapshot.
-        let again = backend.read_document(&uri).await.expect("disk fallback");
+        let again = backend
+            .read_document(&uri)
+            .await
+            .unwrap()
+            .expect("disk fallback");
         assert!(!Arc::ptr_eq(&snap.text, &again.text));
 
         std::fs::remove_dir_all(&dir).ok();
@@ -49616,7 +51679,7 @@ proc p {} {
         let mut reader = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            async move { backend.read_document(&uri).await.map(|d| d.text) }
+            async move { backend.read_document(&uri).await.unwrap().map(|d| d.text) }
         });
 
         // While the edit is in flight the read must not resolve.
@@ -50083,6 +52146,7 @@ proc p {} {
         let publishing_uri = uri.clone();
         let publish = tokio::spawn(async move {
             DeliveryCtx {
+                diagnostic_pass: None,
                 client: &publishing_backend.client,
                 diagnostic_publisher: &publishing_backend.diagnostic_publisher,
                 documents: &publishing_backend.documents,
@@ -51267,7 +53331,8 @@ proc p {} {
         // command already reports it, but no reschedule has run yet.
         backend
             .apply_global_config(&serde_json::json!({"optimiser": {"enabled": false}}))
-            .await;
+            .await
+            .unwrap();
         assert!(
             !*backend.optimiser_enabled.lock().await,
             "the apply must have landed, or this test proves nothing",
@@ -51547,7 +53612,7 @@ proc p {} {
             (a.to_string(), span_at(0, 3)), // a.tcl line 0: "aaa"
             (a.to_string(), span_at(4, 3)), // a.tcl line 1: "bbb"
         ];
-        let locations = backend.resolve_target_locations(targets).await;
+        let locations = backend.resolve_target_locations(targets).await.unwrap();
         assert_eq!(locations.len(), 5, "{locations:?}");
         let got: Vec<(String, u32)> = locations
             .iter()
@@ -51582,7 +53647,7 @@ proc p {} {
             ),
             (a.to_string(), tcl_lexer::Span::new(4, 7)),
         ];
-        let locations = backend.resolve_target_locations(targets).await;
+        let locations = backend.resolve_target_locations(targets).await.unwrap();
         let got: Vec<u32> = locations.iter().map(|l| l.range.start.line).collect();
         assert_eq!(got, vec![0, 1], "{locations:?}");
     }
@@ -51603,7 +53668,8 @@ proc p {} {
         };
         let cross = backend
             .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 5), false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(cross.len(), 2, "{cross:?}");
         assert!(cross.iter().all(|l| l.uri == consumer));
     }
@@ -51634,7 +53700,8 @@ proc p {} {
         // Cursor on a.tcl's own first `helper` call (line 1).
         let refs = backend
             .workspace_resolved_references(&a, a_src, &analysis, Position::new(1, 3), true)
-            .await;
+            .await
+            .unwrap();
         let a_hits = refs.iter().filter(|l| l.uri == a).count();
         assert_eq!(
             a_hits, 2,
@@ -51723,7 +53790,8 @@ proc p {} {
         // name token (line 0, col 6 — `proc List2array`).
         let cross = backend
             .cross_document_references(&lib, lib_src, &analysis, Position::new(0, 6), false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             cross.len(),
             1,
@@ -51765,7 +53833,8 @@ proc p {} {
                 "ListToArray",
                 &mut changes,
             )
-            .await;
+            .await
+            .unwrap();
         let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
         assert_eq!(
             consumer_edits.len(),
@@ -51827,7 +53896,8 @@ proc p {} {
                     Position::new(line, character),
                     false,
                 )
-                .await;
+                .await
+                .unwrap();
             assert_eq!(
                 cross.len(),
                 2,
@@ -51876,7 +53946,8 @@ proc p {} {
                     "enable",
                     &mut changes,
                 )
-                .await;
+                .await
+                .unwrap();
             let consumer_edits = changes.get(&consumer).cloned().unwrap_or_default();
             assert_eq!(
                 consumer_edits.len(),
@@ -51945,7 +54016,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter()
                 .any(|l| l.uri == lib_uri && l.range.start.line == 0),
@@ -51965,10 +54037,11 @@ proc p {} {
         let app = Uri::from_str("file:///original-autoload-app.tcl").unwrap();
         let source = "Rbc_ActiveLegend .g\n";
         register(&backend, &app, source).await;
-        let document = backend.read_document(&app).await.unwrap();
+        let document = backend.read_document(&app).await.unwrap().unwrap();
         let analysis = backend
             .analysis_for(&app, document.text.clone(), document.dialect)
-            .await;
+            .await
+            .unwrap();
         assert!(!analysis.allows_retained_logical_declaration_advice());
         let position = Position::new(0, 3);
         let locations = backend
@@ -51981,6 +54054,7 @@ proc p {} {
         let hover = backend
             .cross_document_hover(&app, source, position, &analysis)
             .await
+            .unwrap()
             .expect("current original library declaration hover");
         assert!(hover.value.contains("Rbc_ActiveLegend"), "{hover:?}");
         assert!(
@@ -52003,6 +54077,7 @@ proc p {} {
             backend
                 .cross_document_hover(&app, source, position, &missing)
                 .await
+                .unwrap()
                 .is_none()
         );
         assert!(
@@ -52027,19 +54102,20 @@ proc p {} {
                 "proc original_library_target {arg} {}\n",
             )
             .await;
-            let caller_document = backend.read_document(&caller_uri).await.unwrap();
+            let caller_document = backend.read_document(&caller_uri).await.unwrap().unwrap();
             let caller = backend
                 .library_publication_source(&caller_uri, caller_document)
                 .await
                 .unwrap();
-            let provider_document = backend.read_document(&provider_uri).await.unwrap();
+            let provider_document = backend.read_document(&provider_uri).await.unwrap().unwrap();
             let analysis = backend
                 .analysis_for(
                     &provider_uri,
                     provider_document.text.clone(),
                     provider_document.dialect.clone(),
                 )
-                .await;
+                .await
+                .unwrap();
             let provider = backend
                 .library_publication_source(&provider_uri, provider_document)
                 .await
@@ -52133,6 +54209,7 @@ proc p {} {
                     .read_document(&edited_uri)
                     .await
                     .unwrap()
+                    .unwrap()
                     .text
                     .as_ref(),
                 edited_source
@@ -52151,19 +54228,20 @@ proc p {} {
         let library_uri = seed_autoload_library(&backend, "original-library-closed-race").await;
         let caller_uri = Uri::from_str("file:///original-library-closed-caller.tcl").unwrap();
         register(&backend, &caller_uri, "Rbc_ActiveLegend ARG\n").await;
-        let caller_document = backend.read_document(&caller_uri).await.unwrap();
+        let caller_document = backend.read_document(&caller_uri).await.unwrap().unwrap();
         let caller = backend
             .library_publication_source(&caller_uri, caller_document)
             .await
             .unwrap();
-        let library_document = backend.read_document(&library_uri).await.unwrap();
+        let library_document = backend.read_document(&library_uri).await.unwrap().unwrap();
         let analysis = backend
             .analysis_for(
                 &library_uri,
                 library_document.text.clone(),
                 library_document.dialect.clone(),
             )
-            .await;
+            .await
+            .unwrap();
         let library = backend
             .library_publication_source(&library_uri, library_document)
             .await
@@ -52228,7 +54306,8 @@ proc p {} {
                 "Rbc_Shiny",
                 &mut changes,
             )
-            .await;
+            .await
+            .unwrap();
         let lib_edits = changes.get(&lib_uri).cloned().unwrap_or_default();
         assert_eq!(
             lib_edits.len(),
@@ -52257,6 +54336,7 @@ proc p {} {
             query_backend
                 .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
                 .await
+                .unwrap()
         });
         crate::rt::yield_now().await;
         assert!(
@@ -52290,7 +54370,8 @@ proc p {} {
         let query = crate::rt::spawn(async move {
             let (guard, symbols) = query_backend
                 .resolved_symbol_index_snapshot(&query_app, app_src, &analysis, Position::new(0, 3))
-                .await;
+                .await
+                .unwrap();
             drop(guard);
             symbols
         });
@@ -52334,7 +54415,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().all(|l| l.uri != lib_uri),
             "the same-named library must stay unmerged: {refs:?}"
@@ -52363,7 +54445,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&a, a_src, &analysis, Position::new(1, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
             "the sourced declaration must be a reference target: {refs:?}"
@@ -52392,7 +54475,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&a, a_src, &analysis, Position::new(1, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
             "the sourced declaration must be a reference target: {refs:?}"
@@ -52419,14 +54503,15 @@ proc p {} {
         )
         .await;
         // Reconcile, then resolve from b.tcl's declaration.
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         let analysis = {
             let mut an = Analyser::new();
             an.analyse(b_src, "tcl8.6").clone()
         };
         let refs = backend
             .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == a && l.range.start.line == 1),
             "the qualified call in the sourcing document is a reference: {refs:?}"
@@ -52457,7 +54542,7 @@ proc p {} {
         register(&backend, &a, "source b.tcl\nhelper\n").await;
         let before = backend.workspace_index.read().await.generation();
 
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
 
         assert!(
             backend.rehomed_source_seeds.lock().await.is_empty(),
@@ -52469,7 +54554,7 @@ proc p {} {
             before, after_first,
             "there is nothing to re-home, so the pass must not re-index anything",
         );
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             after_first,
             backend.workspace_index.read().await.generation(),
@@ -52494,7 +54579,7 @@ proc p {} {
         register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
         register(&backend, &d, "source c.tcl\n").await;
 
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
 
         assert_eq!(
             backend
@@ -52522,8 +54607,8 @@ proc p {} {
         }
 
         let settled = backend.workspace_index.read().await.generation();
-        backend.refresh_source_rehoming().await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             settled,
             backend.workspace_index.read().await.generation(),
@@ -52543,7 +54628,7 @@ proc p {} {
         let b = Uri::from_str("file:///unwrapped-source/b.tcl").unwrap();
         register(&backend, &b, "proc helper {} {}\n").await;
         register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             backend
                 .rehomed_source_seeds
@@ -52563,7 +54648,7 @@ proc p {} {
             .await
             .remove_document(a.as_str());
         register(&backend, &a, "source b.tcl\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
 
         assert!(
             backend.rehomed_source_seeds.lock().await.is_empty(),
@@ -52581,7 +54666,7 @@ proc p {} {
             );
         }
         let settled = backend.workspace_index.read().await.generation();
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             settled,
             backend.workspace_index.read().await.generation(),
@@ -52608,14 +54693,15 @@ proc p {} {
             "namespace eval ::x { source b.tcl }\nnamespace eval ::y { source b.tcl }\n::x::helper\n::y::helper\n",
         )
         .await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         let analysis = {
             let mut an = Analyser::new();
             an.analyse(b_src, "tcl8.6").clone()
         };
         let refs = backend
             .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
-            .await;
+            .await
+            .unwrap();
         let caller_lines: std::collections::BTreeSet<u32> = refs
             .iter()
             .filter(|l| l.uri == a)
@@ -52640,7 +54726,8 @@ proc p {} {
                 "assist",
                 &mut changes,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(!blocked, "nothing blocks this rename");
         let a_edit_lines: std::collections::BTreeSet<u32> = changes
             .get(&a)
@@ -52694,8 +54781,8 @@ proc p {} {
         let before = backend.workspace_index.read().await.generation();
         let (b1, b2) = (Arc::clone(&backend), Arc::clone(&backend));
         let (r1, r2) = tokio::join!(
-            crate::rt::spawn(async move { b1.refresh_source_rehoming().await }),
-            crate::rt::spawn(async move { b2.refresh_source_rehoming().await }),
+            crate::rt::spawn(async move { b1.refresh_source_rehoming().await.unwrap() }),
+            crate::rt::spawn(async move { b2.refresh_source_rehoming().await.unwrap() }),
         );
         r1.expect("first pass must not panic");
         r2.expect("second pass must not panic");
@@ -52715,7 +54802,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == a),
             "the sourcing document's qualified call must still resolve: {refs:?}"
@@ -52752,7 +54840,8 @@ proc p {} {
             backend.refresh_source_rehoming(),
         )
         .await
-        .expect("rehoming must release its gate instead of waiting for publication");
+        .expect("rehoming must release its gate instead of waiting for publication")
+        .unwrap();
         assert!(
             backend.rehoming_gate.try_lock().is_ok(),
             "the pending publisher must be able to acquire the released gate",
@@ -52774,7 +54863,7 @@ proc p {} {
             .expect("the sourced document remains open")
             .publication = DocumentPublication::Indexed;
         backend.live_publication_advanced.notify_waiters();
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert!(
             backend
                 .workspace_index
@@ -52803,10 +54892,12 @@ proc p {} {
             doc.publication = DocumentPublication::Salsa;
         }
 
-        let token_doc = crate::rt::timeout(
-            std::time::Duration::from_millis(100),
-            backend.read_document_for_semantic_tokens(&uri),
-        )
+        let token_doc = crate::rt::timeout(std::time::Duration::from_millis(100), async {
+            backend
+                .read_document_for_semantic_tokens(&uri)
+                .await
+                .unwrap()
+        })
         .await
         .expect("semantic tokens only wait for the current Salsa source")
         .expect("the live token document exists");
@@ -52830,10 +54921,9 @@ proc p {} {
             .expect("the document remains open")
             .publication = DocumentPublication::Indexed;
         backend.live_publication_advanced.notify_waiters();
-        crate::rt::timeout(
-            std::time::Duration::from_millis(100),
-            backend.read_document(&uri),
-        )
+        crate::rt::timeout(std::time::Duration::from_millis(100), async {
+            backend.read_document(&uri).await.unwrap()
+        })
         .await
         .expect("indexed readiness releases ordinary providers")
         .expect("the live indexed document exists");
@@ -52892,10 +54982,9 @@ proc p {} {
                 .publication = DocumentPublication::Salsa;
         }
 
-        let local = crate::rt::timeout(
-            std::time::Duration::from_secs(5),
-            backend.read_local_document(&uri),
-        )
+        let local = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            backend.read_local_document(&uri).await.unwrap()
+        })
         .await
         .expect("a local provider only waits for the matching Salsa source")
         .expect("the live local document exists");
@@ -53006,7 +55095,8 @@ proc p {} {
         let live_text = "set value current\n";
         backend
             .db_set_source(&uri, old_text, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 2)
@@ -53022,6 +55112,7 @@ proc p {} {
                 backend
                     .commit_live_source("test_snapshot_drain", &uri, live_text, "tcl8.6", 0, false)
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -53114,6 +55205,7 @@ proc p {} {
                         "test_disk_snapshot_drain",
                     )
                     .await
+                    .unwrap()
             }
         });
         wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
@@ -53171,7 +55263,8 @@ proc p {} {
         let live_text = "set live current\n";
         backend
             .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             live_uri.clone(),
             DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
@@ -53197,6 +55290,7 @@ proc p {} {
                         "test_disk_fair_queue",
                     )
                     .await
+                    .unwrap()
             }
         });
 
@@ -53273,6 +55367,7 @@ proc p {} {
                         "test_older_disk_read",
                     )
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -53296,6 +55391,7 @@ proc p {} {
                         "test_newer_disk_read",
                     )
                     .await
+                    .unwrap()
             }
         });
         assert!(
@@ -53345,7 +55441,8 @@ proc p {} {
         let live_text = "set live current\n";
         backend
             .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             live_uri.clone(),
             DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
@@ -53370,6 +55467,7 @@ proc p {} {
                         "test_disk_shared_drain",
                     )
                     .await
+                    .unwrap()
             }
         });
         wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
@@ -53388,6 +55486,7 @@ proc p {} {
                         false,
                     )
                     .await
+                    .unwrap()
             }
         });
         wait_for_publication_intents_1854(
@@ -53460,6 +55559,7 @@ proc p {} {
                         "test_disk_pre_intent",
                     )
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -53528,6 +55628,9 @@ proc p {} {
             Arc::new(analyser.analyse(text, "tcl8.6").clone())
         };
         let seed = FreshAnalysisSeed {
+            path_admission: Arc::new(
+                DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap(),
+            ),
             analysis,
             analyser_inputs_epoch: backend.diag_inputs_epoch(),
             class_factory_generation: 0,
@@ -53540,6 +55643,7 @@ proc p {} {
                 backend
                     .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
+                    .unwrap()
             }
         });
 
@@ -53618,6 +55722,9 @@ proc p {} {
             .expect("the open document exists")
             .publication = DocumentPublication::Salsa;
         let seed = FreshAnalysisSeed {
+            path_admission: Arc::new(
+                DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap(),
+            ),
             analysis: Arc::new(Analyser::new().analyse(text, "tcl8.6").clone()),
             analyser_inputs_epoch: backend.diag_inputs_epoch(),
             class_factory_generation: 0,
@@ -53631,6 +55738,7 @@ proc p {} {
                 backend
                     .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -53696,6 +55804,9 @@ proc p {} {
             .expect("the open document exists")
             .publication = DocumentPublication::Salsa;
         let seed = FreshAnalysisSeed {
+            path_admission: Arc::new(
+                DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap(),
+            ),
             analysis: Arc::new(Analyser::new().analyse(text, "tcl8.6").clone()),
             analyser_inputs_epoch: backend.diag_inputs_epoch(),
             class_factory_generation: 0,
@@ -53709,6 +55820,7 @@ proc p {} {
                 backend
                     .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -53833,10 +55945,9 @@ proc p {} {
             .expect("the watched deletion must finish")
             .expect("the watched deletion must not panic");
 
-        let current = crate::rt::timeout(
-            std::time::Duration::from_millis(500),
-            backend.read_document(uri),
-        )
+        let current = crate::rt::timeout(std::time::Duration::from_millis(500), async {
+            backend.read_document(uri).await.unwrap()
+        })
         .await
         .expect("an orphaned open buffer must not wait for a rejected index seed")
         .expect("the orphaned open buffer remains locally readable");
@@ -53873,7 +55984,8 @@ proc p {} {
         let current = "proc current {} {}\n";
         backend
             .db_set_source(&uri, stale, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(current.to_owned(), "tcl8.6".to_owned(), 1)
@@ -53938,10 +56050,9 @@ proc p {} {
             .expect("the deletion transaction must finish after db is released")
             .expect("the deletion task must not panic");
         assert!(!backend.db_files.lock().await.contains_key(&uri));
-        let readable = crate::rt::timeout(
-            std::time::Duration::from_secs(5),
-            backend.read_local_document(&uri),
-        )
+        let readable = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            backend.read_local_document(&uri).await.unwrap()
+        })
         .await
         .expect("the orphan must become readable after stale Salsa retirement")
         .expect("the orphaned live buffer remains present");
@@ -53963,7 +56074,10 @@ proc p {} {
             let backend = Arc::new(test_backend());
             let uri = Uri::from_str(&format!("file:///deleted-{label}-source-1854.tcl")).unwrap();
             let text = "proc ghost {} {}\n";
-            backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+            backend
+                .db_set_source(&uri, text, "tcl8.6".to_owned())
+                .await
+                .unwrap();
             let analysis = {
                 let mut analyser = Analyser::new();
                 Arc::new(analyser.analyse(text, "tcl8.6").clone())
@@ -53986,33 +56100,29 @@ proc p {} {
                 let uri = uri.clone();
                 let analyser_inputs_epoch = backend.diag_inputs_epoch();
                 let seed = FreshAnalysisSeed {
+                    path_admission: Arc::new(
+                        DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap(),
+                    ),
                     analysis,
                     analyser_inputs_epoch,
                     class_factory_generation: 0,
                 };
                 async move {
                     match kind {
-                        OrphanedPublicationKind::Open => {
-                            backend
-                                .commit_open_document_with_seed(
-                                    &uri,
-                                    text,
-                                    "tcl9.0",
-                                    1,
-                                    async move { seed },
-                                )
-                                .await
-                        }
-                        OrphanedPublicationKind::Change => {
-                            backend
-                                .commit_live_source("test_change", &uri, text, "tcl9.0", 0, true)
-                                .await
-                        }
-                        OrphanedPublicationKind::Dialect => {
-                            backend
-                                .commit_live_dialect("test_dialect", &uri, text, "tcl9.0", 0)
-                                .await
-                        }
+                        OrphanedPublicationKind::Open => backend
+                            .commit_open_document_with_seed(&uri, text, "tcl9.0", 1, async move {
+                                Ok(seed)
+                            })
+                            .await
+                            .unwrap(),
+                        OrphanedPublicationKind::Change => backend
+                            .commit_live_source("test_change", &uri, text, "tcl9.0", 0, true)
+                            .await
+                            .unwrap(),
+                        OrphanedPublicationKind::Dialect => backend
+                            .commit_live_dialect("test_dialect", &uri, text, "tcl9.0", 0)
+                            .await
+                            .unwrap(),
                     }
                 }
             });
@@ -54045,7 +56155,10 @@ proc p {} {
         let backend = Arc::new(test_backend());
         let uri = Uri::from_str("file:///deleted-open-seed-1854.tcl").unwrap();
         let text = "proc ghost {} {}\n";
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
@@ -54059,7 +56172,8 @@ proc p {} {
             .publication = DocumentPublication::Salsa;
         let seed = backend
             .fresh_analysis_seed(&uri, Arc::from(text), "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         let index_reader = backend.workspace_index.read().await;
         let publishing = crate::rt::spawn({
@@ -54069,6 +56183,7 @@ proc p {} {
                 backend
                     .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -54151,7 +56266,10 @@ proc p {} {
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
                 .with_language_id("tcl".to_owned()),
         );
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
         backend
             .workspace_index
@@ -54289,7 +56407,10 @@ proc p {} {
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
                 .with_language_id("tcl".to_owned()),
         );
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
         backend
             .workspace_index
@@ -54314,7 +56435,8 @@ proc p {} {
         );
         let symbols = backend
             .open_but_unindexed_symbols("obsolete_disk_symbol", 10)
-            .await;
+            .await
+            .unwrap();
         assert!(
             symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
             "neither symbol channel may expose the orphan while removal waits",
@@ -54347,7 +56469,8 @@ proc p {} {
         );
         backend
             .db_set_source(&uri, initial, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let analysis = Arc::new(Analyser::new().analyse(initial, "tcl8.6").clone());
         backend
             .workspace_index
@@ -54384,10 +56507,9 @@ proc p {} {
             .expect("the deletion must finish after its disk commit is released")
             .expect("the deletion task must not panic");
 
-        let current = crate::rt::timeout(
-            std::time::Duration::from_millis(500),
-            backend.read_document(&uri),
-        )
+        let current = crate::rt::timeout(std::time::Duration::from_millis(500), async {
+            backend.read_document(&uri).await.unwrap()
+        })
         .await
         .expect("local providers must not wedge after editing an orphan")
         .expect("the orphaned buffer remains open");
@@ -54429,7 +56551,10 @@ proc p {} {
                 .contains_document(uri.as_str()),
             "the edited orphan must not regain a cross-document identity",
         );
-        let symbols = backend.open_but_unindexed_symbols("after_delete", 10).await;
+        let symbols = backend
+            .open_but_unindexed_symbols("after_delete", 10)
+            .await
+            .unwrap();
         assert!(
             symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
             "workspace/symbol fallback must not resurrect an edited orphan",
@@ -54450,7 +56575,10 @@ proc p {} {
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
                 .with_language_id("tcl".to_owned()),
         );
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         backend.feature_toggles.lock().await.apply(
             serde_json::json!({ "diagnostics": false })
                 .as_object()
@@ -54476,12 +56604,12 @@ proc p {} {
             .mark_dialect_resolution_dirty();
         backend
             .resolve_dirty_open_document_dialect(&uri, "test_orphan_dialect")
-            .await;
+            .await
+            .unwrap();
 
-        let current = crate::rt::timeout(
-            std::time::Duration::from_millis(500),
-            backend.read_document(&uri),
-        )
+        let current = crate::rt::timeout(std::time::Duration::from_millis(500), async {
+            backend.read_document(&uri).await.unwrap()
+        })
         .await
         .expect("local readiness must settle after an orphan dialect change")
         .expect("the orphan remains readable");
@@ -54528,7 +56656,8 @@ proc p {} {
         register(&backend, &uri, initial).await;
         backend
             .db_set_source(&uri, initial, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         let rehoming = backend.rehoming_gate.lock().await;
         let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
@@ -54605,6 +56734,7 @@ proc p {} {
         let current = backend
             .read_document(&uri)
             .await
+            .unwrap()
             .expect("the reopened document remains readable");
         assert_eq!(current.text.as_ref(), reopened);
         assert!(!current.backing_file_deleted);
@@ -54640,7 +56770,10 @@ proc p {} {
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
                 .with_language_id("tcl".to_owned()),
         );
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
         backend
             .workspace_index
@@ -54795,17 +56928,21 @@ proc p {} {
             let seed_started = Arc::clone(&seed_started);
             let seed_release = Arc::clone(&seed_release);
             async move {
+                let path_admission =
+                    Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
                 backend
                     .commit_open_document_with_seed(&uri, consumer, "tcl9.0", 1, async move {
                         seed_started.notify_one();
                         seed_release.notified().await;
-                        FreshAnalysisSeed {
+                        Ok(FreshAnalysisSeed {
+                            path_admission,
                             analysis: stale_analysis,
                             analyser_inputs_epoch,
                             class_factory_generation: 0,
-                        }
+                        })
                     })
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
@@ -54862,6 +56999,9 @@ proc p {} {
                 .clone(),
         );
         let seed = FreshAnalysisSeed {
+            path_admission: Arc::new(
+                DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap(),
+            ),
             analysis: stale_analysis,
             analyser_inputs_epoch: backend.diag_inputs_epoch(),
             class_factory_generation: 0,
@@ -54875,6 +57015,7 @@ proc p {} {
                 backend
                     .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
+                    .unwrap()
             }
         });
         assert!(
@@ -54931,6 +57072,7 @@ proc p {} {
                 backend
                     .commit_live_source("test_live_fair_gate", &uri, text, "tcl8.6", 0, false)
                     .await
+                    .unwrap()
             }
         });
 
@@ -55156,7 +57298,8 @@ proc p {} {
                 Arc::from("# note\rproc current {} {}\r"),
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
 
         assert!(
             analysis.all_procs.contains_key("::current"),
@@ -55177,7 +57320,8 @@ proc p {} {
                 Arc::from("set dir first\nset dir second\nputs $dir\n"),
                 "tcl8.6".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
 
         assert!(
             analysis
@@ -55198,7 +57342,8 @@ proc p {} {
         let uri = Uri::from_str("file:///rehoming-snapshot-1854.tcl").unwrap();
         backend
             .db_set_source(&uri, "proc disk {} {}\n", "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
 
         let database = backend.db.lock().await;
         let snapshot = crate::rt::spawn({
@@ -55272,6 +57417,7 @@ proc p {} {
                     }
                 })
                 .await
+                .unwrap()
         );
         assert!(!backend.last_semantic_tokens.lock().await.contains_key(&uri));
         assert!(
@@ -55324,7 +57470,8 @@ proc p {} {
         );
         backend
             .db_set_source(&uri, consumer, "tcl9.0".to_owned())
-            .await;
+            .await
+            .unwrap();
         {
             let mut db = backend.db.lock().await;
             let files = backend.db_files.lock().await;
@@ -55335,7 +57482,8 @@ proc p {} {
 
         let analysis = backend
             .fresh_analysis_for(&uri, Arc::from(consumer), "tcl9.0".to_owned())
-            .await;
+            .await
+            .unwrap();
         let class = analysis
             .all_classes
             .get("::IconList")
@@ -55355,7 +57503,8 @@ proc p {} {
         let live_text = "proc current_live_symbol {} {}\n";
         backend
             .db_set_source(&uri, disk_text, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 1)
@@ -55371,6 +57520,7 @@ proc p {} {
         let current = backend
             .open_but_unindexed_symbols("current_live", 10)
             .await
+            .unwrap()
             .fallback_hits;
         assert_eq!(current.len(), 1, "the live-only proc must be searchable");
         assert_eq!(current[0].name, "current_live_symbol");
@@ -55378,6 +57528,7 @@ proc p {} {
             backend
                 .open_but_unindexed_symbols("obsolete_disk", 10)
                 .await
+                .unwrap()
                 .fallback_hits
                 .is_empty(),
             "the pre-open disk proc must not survive through a Salsa cache hit",
@@ -55468,7 +57619,8 @@ proc p {} {
                 "# published oracle carrier\n",
                 "tcl9.0".to_owned(),
             )
-            .await;
+            .await
+            .unwrap();
         {
             let mut db = backend.db.lock().await;
             let files = backend.db_files.lock().await;
@@ -55723,6 +57875,39 @@ proc p {} {
     }
 
     impl vfs::SourceStore for ClosedSymbolRaceStore {
+        fn document_uri_path(
+            &self,
+            original_uri: &str,
+        ) -> Result<vfs::SourceUriPath, vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::document_uri_path(&vfs::NativeStore, original_uri)
+        }
+        fn source_path_origin(
+            &self,
+            path: &Path,
+        ) -> Result<vfs::SourcePathOrigin, vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::source_path_origin(&vfs::NativeStore, path)
+        }
+        fn validate_source_path_origin(
+            &self,
+            origin: &vfs::SourcePathOrigin,
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::validate_source_path_origin(&vfs::NativeStore, origin)
+        }
+        fn validate_document_uri_path(
+            &self,
+            selected: &vfs::SourceUriPath,
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::validate_document_uri_path(&vfs::NativeStore, selected)
+        }
+
+        fn with_current_document_paths(
+            &self,
+            selected: &[&vfs::SourceUriPath],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            vfs::SourceStore::with_current_document_paths(&vfs::NativeStore, selected, publish)
+        }
+
         fn read(&self, _path: &Path) -> std::io::Result<Vec<u8>> {
             use std::sync::atomic::Ordering;
 
@@ -55820,7 +58005,8 @@ proc p {} {
 
         let candidates = backend
             .open_but_unindexed_symbols("capacity_symbol", 1)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(candidates.fallback_hits.len(), 1);
         assert!(candidates.indexed_hits.is_empty());
         assert_eq!(
@@ -55945,7 +58131,8 @@ proc p {} {
         let initial = "set x 1\n";
         backend
             .db_set_source(&uri, initial, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
@@ -55956,7 +58143,7 @@ proc p {} {
         *default = "tcl9.0".to_owned();
         let resolving = crate::rt::spawn({
             let backend = Arc::clone(&backend);
-            async move { backend.reresolve_open_document_dialects().await }
+            async move { backend.reresolve_open_document_dialects().await.unwrap() }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
@@ -56017,7 +58204,8 @@ proc p {} {
         let initial = "set x 1\n";
         backend
             .db_set_source(&uri, initial, "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
@@ -56117,7 +58305,10 @@ proc p {} {
         let backend = test_backend();
         let uri = Uri::from_str("file:///dialect-diag-generation-1854.tcl").unwrap();
         let text = "proc helper {} {}\n";
-        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&uri, text, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
@@ -56131,6 +58322,7 @@ proc p {} {
             .expect("the document is open")
             .revision;
         let old_delivery = DeliveryCtx {
+            diagnostic_pass: None,
             client: &backend.client,
             diagnostic_publisher: &backend.diagnostic_publisher,
             documents: &backend.documents,
@@ -56145,7 +58337,7 @@ proc p {} {
         };
 
         *backend.default_dialect.lock().await = "tcl9.0".to_owned();
-        backend.reresolve_open_document_dialects().await;
+        backend.reresolve_open_document_dialects().await.unwrap();
 
         let docs = backend.documents.lock("test").await;
         let current = docs.get(&uri).expect("the document remains open");
@@ -56179,7 +58371,8 @@ proc p {} {
         assert!(
             backend
                 .commit_live_dialect("test_dialect_reindex", &uri, text, "tcl9.0", 0)
-                .await,
+                .await
+                .unwrap(),
             "the current dialect revision must publish",
         );
         assert_eq!(
@@ -56214,7 +58407,7 @@ proc p {} {
         let sourced_text = "proc helper {} {}\n";
         register(&backend, &sourced, sourced_text).await;
         register(&backend, &caller, "namespace eval ::ns { source b.tcl }\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             backend
                 .rehomed_source_seeds
@@ -56243,7 +58436,8 @@ proc p {} {
         assert!(
             backend
                 .commit_live_dialect("test_dialect_rehome", &sourced, sourced_text, "tcl9.0", 0,)
-                .await,
+                .await
+                .unwrap(),
             "the current dialect revision must publish",
         );
         assert!(
@@ -56255,7 +58449,7 @@ proc p {} {
             "standalone replacement and seed invalidation are one transaction",
         );
 
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             backend
                 .rehomed_source_seeds
@@ -56314,17 +58508,21 @@ proc p {} {
             let seed_started = Arc::clone(&seed_started);
             let seed_release = Arc::clone(&seed_release);
             async move {
+                let path_admission =
+                    Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
                 backend
                     .commit_open_document_with_seed(&uri, opened_text, "tcl8.6", 1, async move {
                         seed_started.notify_one();
                         seed_release.notified().await;
-                        FreshAnalysisSeed {
+                        Ok(FreshAnalysisSeed {
+                            path_admission,
                             analysis: obsolete_analysis,
                             analyser_inputs_epoch,
                             class_factory_generation: 0,
-                        }
+                        })
                     })
                     .await
+                    .unwrap()
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
@@ -56408,7 +58606,7 @@ proc p {} {
         )
         .await;
 
-        let query_guard = backend.rehomed_index_guard().await;
+        let query_guard = backend.rehomed_index_guard().await.unwrap();
         let query_started = Arc::new(tokio::sync::Notify::new());
         let publish_finished = Arc::new(tokio::sync::Notify::new());
         let publisher_backend = Arc::clone(&backend);
@@ -56426,6 +58624,7 @@ proc p {} {
                 .revision;
             let uri_string = publisher_b.to_string();
             let delivery = DeliveryCtx {
+                diagnostic_pass: None,
                 client: &publisher_backend.client,
                 diagnostic_publisher: &publisher_backend.diagnostic_publisher,
                 documents: &publisher_backend.documents,
@@ -56445,7 +58644,7 @@ proc p {} {
                 &publisher_backend.rehomed_source_seeds,
                 &publisher_backend.rehoming_gate,
                 &standalone,
-                Ok(Vec::new()),
+                (Err(DiagnosticUnavailable::Context), Ok(Vec::new())),
                 PublishTiming {
                     started: crate::rt::Instant::now(),
                     uri_str: &uri_string,
@@ -56490,7 +58689,8 @@ proc p {} {
         let analysis = Analyser::new().analyse(b_src, "tcl8.6").clone();
         let refs = backend
             .cross_document_references(&b, b_src, &analysis, Position::new(0, 6), false)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|location| location.uri == a),
             "the next query must reconcile the standalone publish before reading: {refs:?}",
@@ -56514,7 +58714,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&a, a_src, &analysis, Position::new(3, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == b && l.range.start.line == 0),
             "the folded path re-homes the sourced file: {refs:?}"
@@ -56522,7 +58723,7 @@ proc p {} {
         // Unfoldable: a `$var` path must abstain (no re-homing, no panic).
         let c = Uri::from_str("file:///proj/c.tcl").unwrap();
         register(&backend, &c, "namespace eval ::y { source $dynamic }\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert!(
             !backend
                 .workspace_index
@@ -56542,7 +58743,8 @@ proc p {} {
         seed_autoload_library(&backend, "autoload-rebuild").await;
         let resolved = backend
             .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
-            .await;
+            .await
+            .unwrap();
         assert_eq!(resolved.as_deref(), Some("::Rbc_ActiveLegend"));
         assert!(
             backend
@@ -56552,7 +58754,7 @@ proc p {} {
                 .workspace_command_exists("::Rbc_ActiveLegend")
         );
         // Rebuild with no library paths: the merged entries must be dropped.
-        backend.scan_workspace_folders().await;
+        backend.scan_workspace_folders().await.unwrap();
         assert!(
             !backend
                 .workspace_index
@@ -56608,7 +58810,8 @@ proc p {} {
         // Cursor on `helper` in `::mymod`'s declaration (col 30).
         let refs = backend
             .cross_document_references(&mymod, mymod_src, &analysis, Position::new(0, 32), false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(refs.len(), 1, "{refs:?}");
         assert_eq!(refs[0].uri, app);
     }
@@ -56626,7 +58829,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&other, other_src, &analysis, Position::new(0, 32), false)
-            .await;
+            .await
+            .unwrap();
         assert!(refs.is_empty(), "{refs:?}");
     }
 
@@ -56665,7 +58869,8 @@ proc p {} {
         // Cursor on `helper` in `::mymod`'s declaration (col 32).
         let refs = backend
             .cross_document_references(&mymod, mymod_src, &analysis, Position::new(0, 32), false)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(refs.len(), 2, "imported call + import pattern: {refs:?}");
         assert!(refs.iter().all(|l| l.uri == app));
     }
@@ -56685,7 +58890,8 @@ proc p {} {
         // declaration included.
         let refs = backend
             .cross_document_references(&app, app_src, &analysis, Position::new(2, 20), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == mymod),
             "imported call should reach the source declaration: {refs:?}",
@@ -57436,7 +59642,8 @@ proc p {} {
                 false,
                 tcl_lsp_core::profile_for_dialect("tcl8.6"),
             )
-            .await;
+            .await
+            .unwrap();
         let dog_lines: Vec<u32> = refs
             .iter()
             .filter(|l| l.uri == dog)
@@ -57469,7 +59676,8 @@ proc p {} {
                 false,
                 tcl_lsp_core::profile_for_dialect("tcl8.6"),
             )
-            .await;
+            .await
+            .unwrap();
         let dog_lines: Vec<u32> = refs
             .iter()
             .filter(|l| l.uri == dog)
@@ -57508,7 +59716,8 @@ proc p {} {
                 false,
                 tcl_lsp_core::profile_for_dialect("tcl8.6"),
             )
-            .await;
+            .await
+            .unwrap();
         let dog_lines: Vec<u32> = refs
             .iter()
             .filter(|l| l.uri == dog)
@@ -57551,7 +59760,8 @@ proc p {} {
                 true,
                 tcl_lsp_core::profile_for_dialect("tcl8.6"),
             )
-            .await;
+            .await
+            .unwrap();
         let sub_lines: Vec<u32> = refs
             .iter()
             .filter(|l| l.uri == subfactory)
@@ -57577,7 +59787,8 @@ proc p {} {
                 false,
                 tcl_lsp_core::profile_for_dialect("tcl8.6"),
             )
-            .await;
+            .await
+            .unwrap();
         assert!(refs.is_empty(), "{refs:?}");
     }
 
@@ -57609,7 +59820,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter()
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
@@ -57650,7 +59862,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             !from_a.iter().any(|l| l.uri == consumer),
             "`::b`'s bare dispatch must not count for `::a::Factory`: {from_a:?}"
@@ -57665,7 +59878,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             from_b
                 .iter()
@@ -57694,7 +59908,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter()
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
@@ -57727,7 +59942,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter()
                 .any(|l| l.uri == consumer && l.range.start.line == 0),
@@ -57765,7 +59981,8 @@ proc p {} {
                     coverage: ConsumerCoverage::WholeWorkspace,
                 },
             )
-            .await;
+            .await
+            .unwrap();
         let consumer_ranges: Vec<u32> = ranges
             .iter()
             .filter(|(uri, _)| *uri == consumer)
@@ -57795,7 +60012,8 @@ proc p {} {
                 "get",
                 false,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             !refs.iter().any(|l| l.uri == consumer),
             "a plain method must not gain phantom class-command dispatch: {refs:?}"
@@ -57828,7 +60046,8 @@ proc p {} {
                 "make",
                 true,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             !refs.iter().any(|l| l.uri == consumer),
             "itcl class-proc must not gain phantom two-word dispatch: {refs:?}"
@@ -57898,7 +60117,8 @@ proc p {} {
                 // `$d speak` — an instance dispatch, so the instance-side chain.
                 false,
             )
-            .await;
+            .await
+            .unwrap();
         assert_eq!(defs.len(), 1, "{defs:?}");
         assert_eq!(defs[0].uri, animal);
         assert_eq!(defs[0].range.start.line, 1, "{defs:?}");
@@ -58032,7 +60252,8 @@ proc p {} {
                 "speak",
                 false,
             )
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter()
                 .any(|l| l.uri == main && l.range.start.line == 1),
@@ -58166,7 +60387,10 @@ proc p {} {
         let backend = test_backend();
         let uri = Uri::from_str("file:///indexed.tcl").unwrap();
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
-        backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
+        backend
+            .db_set_source(&uri, src, "tcl9.0".to_owned())
+            .await
+            .unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl9.0".to_owned()),
@@ -58247,7 +60471,10 @@ proc p {} {
 
         let uri = Uri::from_str("file:///workspace/viewport.tcl").unwrap();
         let src = "set pat {^a+$}\nmylib::peek pat\nregexp $pat $s\n";
-        backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
+        backend
+            .db_set_source(&uri, src, "tcl9.0".to_owned())
+            .await
+            .unwrap();
         let profile = tcl_lsp_core::profile_for_dialect("tcl9.0");
         let whole = CoreLspRange {
             start_line: 0,
@@ -59099,7 +61326,8 @@ proc p {} {
 
         let on = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !on.is_empty(),
             "expected at least one diagnostic with the feature on: {on:?}",
@@ -59112,7 +61340,8 @@ proc p {} {
         );
         let off = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             off.is_empty(),
             "diagnostics disabled must yield an empty report: {off:?}",
@@ -59134,26 +61363,33 @@ proc p {} {
 
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "exclude": ["*.ruff"] } }))
-            .await;
+            .await
+            .unwrap();
         let excluded = backend
             .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             excluded.is_empty(),
             "an excluded file must yield an empty report: {excluded:?}",
         );
         let kept = backend
             .full_diagnostics_for(&kept_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !kept.is_empty(),
             "a non-matching sibling must keep its diagnostics",
         );
 
-        backend.apply_global_config(&serde_json::json!({})).await;
+        backend
+            .apply_global_config(&serde_json::json!({}))
+            .await
+            .unwrap();
         let restored = backend
             .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !restored.is_empty(),
             "dropping the exclude key must restore the diagnostics",
@@ -59181,14 +61417,16 @@ proc p {} {
 
         let excluded = backend
             .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             excluded.is_empty(),
             "a folder path glob must exclude its subtree: {excluded:?}",
         );
         let kept = backend
             .full_diagnostics_for(&kept_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !kept.is_empty(),
             "`docs/**` must not match a file outside the folder's docs/ tree",
@@ -59203,7 +61441,8 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "exclude": ["*.ruff"] } }))
-            .await;
+            .await
+            .unwrap();
         let folder = Uri::from_file_path("/w").unwrap();
         let fc = FolderConfig {
             diagnostics_exclude: Some(vec!["docs/**".to_owned()]),
@@ -59216,7 +61455,8 @@ proc p {} {
         register(&backend, &uri, src).await;
         let diags = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !diags.is_empty(),
             "the folder's own list must replace the global `*.ruff` pattern",
@@ -59235,7 +61475,8 @@ proc p {} {
 
         let on = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let codes = |ds: &[tower_lsp_server::ls_types::Diagnostic]| -> Vec<String> {
             ds.iter()
                 .filter_map(|d| match &d.code {
@@ -59257,10 +61498,12 @@ proc p {} {
         // Disabling the optimiser drops the O111 hint but keeps W100.
         backend
             .apply_global_config(&serde_json::json!({ "optimiser": { "enabled": false } }))
-            .await;
+            .await
+            .unwrap();
         let off = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let off_codes = codes(&off);
         assert!(
             off_codes.iter().any(|c| c == "W100"),
@@ -59289,14 +61532,16 @@ proc p {} {
         let backend = test_backend();
         backend
             .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
-            .await;
+            .await
+            .unwrap();
         let uri = Uri::from_str("file:///o111-disabled.tcl").unwrap();
         let src = "set y [expr $a + $b]\n";
         register(&backend, &uri, src).await;
         let disabled = codes(
             &backend
                 .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-                .await,
+                .await
+                .unwrap(),
         );
         assert!(
             disabled.iter().any(|c| c == "O111"),
@@ -59314,7 +61559,8 @@ proc p {} {
         let marked = codes(
             &backend
                 .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-                .await,
+                .await
+                .unwrap(),
         );
         assert!(
             marked.iter().any(|c| c == "O111"),
@@ -59338,7 +61584,8 @@ proc p {} {
 
         let published = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         let published_codes: std::collections::BTreeSet<String> = published
             .iter()
             .filter_map(|d| match &d.code {
@@ -59354,7 +61601,8 @@ proc p {} {
         let dialect = tcl_lsp_core::profile_for_dialect("tcl8.6");
         let analysis = backend
             .analysis_for(&uri, Arc::from(src), "tcl8.6".to_owned())
-            .await;
+            .await
+            .unwrap();
         let registry = backend.registry_for_dialect("tcl8.6").await;
         let (disabled, _) = backend.resolved_analysis_settings(&uri).await;
         let published_diags = backend
@@ -59399,7 +61647,8 @@ proc p {} {
         // Default (120): no W111.
         let none = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             !none
                 .iter()
@@ -59410,11 +61659,13 @@ proc p {} {
         // Lower the style threshold to 8 → the 16-char line now trips W111.
         backend
             .apply_global_config(&serde_json::json!({ "style": { "lineLength": 8 } }))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(*backend.style_line_length.lock().await, 8);
         let some = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-            .await;
+            .await
+            .unwrap();
         assert!(
             some.iter()
                 .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
@@ -59521,10 +61772,11 @@ proc p {} {
         );
         let mut changed = source.to_owned();
         changed.replace_range(start as usize..end as usize, &edit.new_text);
-        let document = backend.read_document(&uri).await.unwrap();
+        let document = backend.read_document(&uri).await.unwrap().unwrap();
         let analysis = backend
             .analysis_for(&uri, document.text, document.dialect)
-            .await;
+            .await
+            .unwrap();
         let config = analysis.body_lexer_config.unwrap();
         let image = tcl_lexer::SourceImage::document(&changed);
         let plan = tcl_lexer::native_script_words_in(
@@ -59574,7 +61826,10 @@ proc p {} {
         // on disk — so drop the live document `register` seeded and stand the
         // rest of the old URI's per-URI state up as a real session would have.
         backend.documents.lock("test").await.remove(&old);
-        backend.db_set_source(&old, src, "tcl8.6".to_owned()).await;
+        backend
+            .db_set_source(&old, src, "tcl8.6".to_owned())
+            .await
+            .unwrap();
         let old_file = *backend
             .db_files
             .lock()
@@ -59757,7 +62012,7 @@ proc p {} {
         let sourced = "proc helper {} {}\n";
         register(&backend, &b, sourced).await;
         register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert_eq!(
             backend
                 .rehomed_source_seeds
@@ -59796,7 +62051,7 @@ proc p {} {
         // seeds and the set the index asks for, so their equality proves the
         // next pass queues nothing and returns in its first round — the O(1)
         // behaviour the leaked record destroyed for the rest of the session.
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         let desired: std::collections::BTreeMap<String, Vec<String>> = backend
             .workspace_index
             .read()
@@ -59845,7 +62100,7 @@ proc p {} {
         let b2 = Uri::from_str("file:///moved/b.tcl").unwrap();
         register(&backend, &b, "proc helper {} {}\n").await;
         register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert!(
             !backend.rehomed_source_seeds.lock().await.is_empty(),
             "precondition: a seed record exists to be leaked",
@@ -59870,7 +62125,7 @@ proc p {} {
              session — the real cost of #1298, far beyond the bytes retained",
         );
         // …and a pass over that state is a no-op, as the early return promises.
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         assert!(backend.rehomed_source_seeds.lock().await.is_empty());
     }
 
@@ -59887,7 +62142,7 @@ proc p {} {
         register(&backend, &b, "proc helper {} {}\n").await;
         register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
         register(&backend, &unrelated, "proc standalone {} {}\n").await;
-        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await.unwrap();
         let before = backend.rehomed_source_seeds.lock().await.clone();
         assert_eq!(
             before.get(b.as_str()).cloned(),
@@ -59925,7 +62180,8 @@ proc p {} {
         };
         let refs = backend
             .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
-            .await;
+            .await
+            .unwrap();
         assert!(
             refs.iter().any(|l| l.uri == lib_uri),
             "precondition: the autoload tier merged the library: {refs:?}",
@@ -59991,10 +62247,11 @@ proc p {} {
         let uri = Uri::from_str("file:///original-wire.tcl").unwrap();
         let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}";
         register(&backend, &uri, source).await;
-        let doc = backend.read_document(&uri).await.unwrap();
+        let doc = backend.read_document(&uri).await.unwrap().unwrap();
         let analysis = backend
             .analysis_for(&uri, doc.text.clone(), doc.dialect)
-            .await;
+            .await
+            .unwrap();
         let identities =
             tcl_lsp_core::original_declaration::declarations(uri.as_str(), source, &analysis)
                 .unwrap();
@@ -60122,7 +62379,10 @@ proc p {} {
             &core_item,
         )
         .expect("current source-advice declaration");
-        let cross = backend.cross_document_incoming_calls(&lib, &target).await;
+        let cross = backend
+            .cross_document_incoming_calls(&lib, &target)
+            .await
+            .unwrap();
         // The only caller is `caller` in consumer.tcl.
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].0, consumer);
@@ -60171,7 +62431,8 @@ proc p {} {
                 &item,
                 &analysis,
             )
-            .await;
+            .await
+            .unwrap();
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].to.name, "::helper");
         assert_eq!(cross[0].to.uri, lib);
@@ -60239,7 +62500,8 @@ proc p {} {
                     .unwrap();
             let cross = backend
                 .cross_document_incoming_calls(&provider_uri, &target)
-                .await;
+                .await
+                .unwrap();
             assert_eq!(cross.len(), 1, "{side:?}/{method}: {cross:?}");
             assert_eq!(cross[0].0, caller_uri);
             assert_eq!(cross[0].1.from.name, expected);
@@ -60260,7 +62522,8 @@ proc p {} {
             core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item).unwrap();
         let cross = backend
             .cross_document_incoming_calls(&provider_uri, &target)
-            .await;
+            .await
+            .unwrap();
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].1.from.name, "procedureCaller");
     }
@@ -60286,6 +62549,7 @@ proc p {} {
             backend
                 .cross_document_incoming_calls(&provider_uri, &target)
                 .await
+                .unwrap()
                 .len(),
             1
         );
@@ -60343,7 +62607,7 @@ proc p {} {
             Backend::namespace_cell(source, &analysis, position).as_deref(),
             Some("::茶:::")
         );
-        let document = backend.read_document(&uri).await.unwrap();
+        let document = backend.read_document(&uri).await.unwrap().unwrap();
         let refusal = backend
             .cross_document_namespace_rename(&uri, &document, &analysis, position, "box")
             .await

@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T16:37:43.834347+00:00",
+    "utc": "2026-10-16T17:16:36.460823+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 227,
+    "implemented_pending_validation": 233,
     "verified_complete": 0,
-    "not_started": 1931,
+    "not_started": 1925,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "37 annex requirements:36 integrated pending validation,1 blocked. New authentic Authored unentered declaration source geometry issuer counted once; conditional alias and original body scope repairs add zero.",
+    "owner_facet_reconciliation": "41 annex requirements:40 integrated pending validation,1blocked. SourceStore provider facet+browser adopter+actual completed-diagnostics issuer+checked DB availability each counted once; no helper/platform/unchanged legacy-cache count.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 37,
-      "implemented_pending_validation": 36,
+      "required": 41,
+      "implemented_pending_validation": 40,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2195,
-    "effective_implemented_pending_validation": 263,
+    "effective_required_units": 2199,
+    "effective_implemented_pending_validation": 273,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
@@ -834,8 +834,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 226,
-    "partially_implemented_pending_validation": 1,
+    "fully_implemented_pending_validation": 229,
+    "partially_implemented_pending_validation": 4,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1000,14 +1000,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 99,
+      "lsp_integrated_pending_validation": 105,
       "lsp_by_kind_integrated": {
-        "semantic": 18,
+        "semantic": 24,
         "validation": 79,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 226,
+      "lsp_without_integrated_implementation": 220,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1114,26 +1114,19 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T16:36:00Z",
-      "next_utc": "2026-10-16T17:06:00Z",
-      "LSP_integrated": 97,
+      "last_utc": "2026-10-16T17:06:00Z",
+      "next_utc": "2026-10-16T17:36:00Z",
+      "LSP_integrated": 99,
       "LSP_required": 325,
       "LSP_semantic_integrated": 18,
-      "LSP_validation_integrated": 77,
+      "LSP_validation_integrated": 79,
       "LSP_documentation_integrated": 2,
-      "LSP_without_integrated": 228,
+      "LSP_without_integrated": 226,
       "verified_complete": 0,
-      "compiler43": {
-        "PASS": 33,
-        "FAIL": 10
-      },
-      "noncompiler120": {
-        "PASS": 102,
-        "FAIL": 17,
-        "TIMEOUT": 1
-      },
-      "owner_resolution": "FAIL725; bounded resolver/manifest repairs pending",
-      "scope": "Source integrations and bounded executed controls are distinct. New reviewed source batch awaits fresh build. RuntimeVM/BIGIP paused."
+      "new_control_results": null,
+      "build": "three actual compile failures in new fixtures retained; one rejected-argument invocation before compilation; repaired retry4 running",
+      "next_batch": "source-cleared SourcePath and gate registration, diagnostic completion V7, member reporting V3, SpecTcl include V2, Zed and other bounded callers remain outside main awaiting current freeze release",
+      "scope": "RuntimeVM/BIGIP deferred; no execution/gate acceptance from source review"
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -1390,9 +1383,64 @@
       "scope": "No executed current controls before fresh complete build.",
       "retry3_status": "FAIL_E0308_E0599_REGISTRY_FIXTURE_OWNERSHIP",
       "rejected_argument_attempt": "retry2 cargo test rejects --keep-going; no compilation or test execution",
-      "current_status": "retry4_running",
+      "current_status": "PASS",
       "current_capture": "/workspace/naming-validation/lsp-reviewed-82e016-retry4",
-      "current_repair": "Three Copy origin fixes, SourceImage borrowed String and real shared Arc<CommandRegistry> in new directive fixtures. All original assertions retained."
+      "current_repair": "Three Copy origin fixes, SourceImage borrowed String and real shared Arc<CommandRegistry> in new directive fixtures. All original assertions retained.",
+      "current_seconds": 352.803,
+      "current_input_drift": 0,
+      "current_warnings": 0
+    },
+    "source_path_diagnostics_batch": {
+      "baseline_full": [
+        "lsp-core-memory-uri-alias-transport",
+        "lsp-editor-ai-clean-claim",
+        "lsp-editor-diagnostic-generation",
+        "lsp-server-host-file-path-unicode"
+      ],
+      "baseline_partial": {
+        "lsp-editor-ai-validate-generation": "Actual current source/version/completed diagnostic receipt adopted. Temporary override lifetime/generation remains open.",
+        "lsp-ai-tcl-actions-currency": "Actual source-associated completed diagnostics adopted, with unavailable distinguished from clean. Action-purpose/NoAction, stale full-source application and actual document context remain separate open requirements."
+      },
+      "new_annex": [
+        "lsp.owner.source-store-document-uri-path-admission",
+        "lsp.wasm.vfs-upsert-source-uri-path-adopter",
+        "lsp.owner.completed-source-diagnostic-publication",
+        "db.owner.checked-compiler-diagnostic-availability"
+      ],
+      "semantic_baseline_delta": 6,
+      "annex_delta": 4,
+      "status": "integrated_pending_validation",
+      "new_BigIP_migrations": 0,
+      "limits": "V8 common helper signature callers in paused product-specific actions are incidental compatibility only, no BIG-IP acceptance/count. Standard legacy diagnostic-cache unit remains untouched."
+    },
+    "lsp_reviewed_82e_selection": {
+      "utc": "2026-10-16T17:18:27.067465+00:00",
+      "source_head": "82e016bb9eb166a27397e02fda9e2aae3e3a92e8",
+      "source_diff_sha256": "952bbee1a4a8e86455ff665f345040b49798a818498254583963f36e7526c7dd",
+      "source_equivalent_commit": "994852273",
+      "ordinary": true,
+      "build": "PASS",
+      "build_seconds": 352.803,
+      "warnings": 0,
+      "input_count": 38995,
+      "input_drift": 0,
+      "PASS": 43,
+      "FAIL": 14,
+      "TIMEOUT": 0,
+      "singleton_rejections": 0,
+      "retained_selectors": 43,
+      "gains": [
+        "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+        "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+        "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+        "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening"
+      ],
+      "previous_PASS_regressions": [],
+      "additional": {
+        "PASS": 6,
+        "FAIL": 8
+      },
+      "limits": "Bounded frozen controls only. SourcePath/diagnostic completion/V8 successor is outside these compiled artifacts. Optimiser positive failures expose missing Standalone purpose transport, now an explicit partial integration. No full current source/repository/issue/Native acceptance."
     }
   }
 }

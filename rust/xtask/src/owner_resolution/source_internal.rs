@@ -3019,6 +3019,62 @@ mod tests {
     }
 
     #[test]
+    fn source_file_module_loader_keeps_expansion_budget_and_route_refusals() {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "tcl-owner-budget-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let crate_root = PathBuf::from("rust/fixture");
+        std::fs::create_dir_all(root.join(&crate_root).join("src/shared")).unwrap();
+        for (file, contents) in [
+            ("Cargo.toml", "[package]\nname = \"fixture\"\n"),
+            ("src/shared/mod.rs", "mod owner; mod caller;"),
+            (
+                "src/shared/owner.rs",
+                "pub(super) struct Ledger; impl Ledger { pub(super) fn capture() {} }",
+            ),
+            (
+                "src/shared/caller.rs",
+                "fn consume() { super::owner::Ledger::capture(); }",
+            ),
+        ] {
+            std::fs::write(root.join(&crate_root).join(file), contents).unwrap();
+        }
+        let (_, row) = fixture("", "", "Ledger::capture", "static");
+        for attribute in [
+            r#"#![recursion_limit = "256"]"#,
+            r#"#![cfg_attr(test, recursion_limit = "512")]"#,
+        ] {
+            std::fs::write(
+                root.join(&crate_root).join("src/lib.rs"),
+                format!("{attribute}\nmod shared;"),
+            )
+            .unwrap();
+            let modules = CrateModules::load_for_route(&root, &crate_root, &row).unwrap();
+            assert!(modules.check_row(&row), "{attribute}");
+        }
+        for attribute in [
+            "#![cfg(any())]",
+            "#![rewrite_route]",
+            r#"#![cfg_attr(test, recursion_limit = "256", cfg(test))]"#,
+        ] {
+            std::fs::write(
+                root.join(&crate_root).join("src/lib.rs"),
+                format!("{attribute}\nmod shared;"),
+            )
+            .unwrap();
+            assert!(
+                CrateModules::load_for_route(&root, &crate_root, &row)
+                    .is_err_and(|error| error == "conditional required module `crate`"),
+                "{attribute}"
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn source_routes_refuse_function_generic_wrappers_and_nested_item_scopes() {
         let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn capture() -> Option<Vec<Self>> { None } pub(super) fn revision(&self) {} }";
         for consumer in [

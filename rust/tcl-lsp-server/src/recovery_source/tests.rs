@@ -26,7 +26,8 @@ async fn recover_for_input(
     );
     backend
         .db_set_source(uri, source, "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     let config = backend.resolved_db_config(uri).await;
     let file = backend.db_files.lock().await[uri];
     let (extra, mode, disabled) = {
@@ -163,7 +164,8 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
             "recovery362::define provided {} {}",
             "tcl".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     register(&backend, "package ifneeded own 1.0 {source owned.tcl}").await;
     let uri = Uri::from_file_path("/caller/incomplete.tcl").unwrap();
     let source = "package require own\nprovided\nproc unfinished {";
@@ -205,7 +207,8 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
             "recovery362::define replacement {} {}",
             "tcl".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     recover(&backend, &uri, source).await;
     let changed = package_names(&backend).await;
     assert!(!Arc::ptr_eq(&first.names, &changed.names));
@@ -345,6 +348,7 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
     foreign.resolved_input = backend
         .fresh_analysis_for(&uri, Arc::from(source), "tcl8.4".to_owned())
         .await
+        .unwrap()
         .resolved_input
         .clone();
     let mut stale = current.as_ref().clone();
@@ -392,7 +396,8 @@ async fn original_base_completeness_retains_indexed_and_untracked_input_owners()
     let source = "set x ${a{}";
     backend
         .db_set_source(&uri, source, "tcl8.6".to_owned())
-        .await;
+        .await
+        .unwrap();
     let config = backend.resolved_db_config(&uri).await;
     let file = backend.db_files.lock().await[&uri];
     let (extra, mode, disabled) = {

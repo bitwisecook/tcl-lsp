@@ -60,6 +60,7 @@ import { escapeTclText, transformSelection, unescapeTclText } from "./selectionT
 import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
+import { setCurrentDiagnosticsTransportProvider } from "./chat/diagnosticAccess";
 import {
   buildRuntimeValidationChecker,
   resolveRuntimeValidationAdapter,
@@ -142,6 +143,8 @@ interface RenamePartitionResult {
 }
 
 let outputChannel: vscode.OutputChannel;
+let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
+let currentDiagnosticsClientGeneration: { client: LanguageClient; value: number } | undefined;
 
 function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
@@ -245,6 +248,35 @@ export async function activate(context: ExtensionContext) {
   }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
+  const diagnosticsGeneration = { client, value: 0 };
+  currentDiagnosticsClientGeneration = diagnosticsGeneration;
+  context.subscriptions.push(
+    client.onDidChangeState(() => {
+      diagnosticsGeneration.value += 1;
+    }),
+  );
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = setCurrentDiagnosticsTransportProvider(() => {
+    const activeClient = client;
+    const generation = currentDiagnosticsClientGeneration;
+    if (!activeClient || generation?.client !== activeClient) return undefined;
+    const generationAtCapture = generation.value;
+    return {
+      request: (params) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.currentDiagnostics",
+          arguments: [params],
+        }),
+      convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+      isCurrent: () =>
+        currentDiagnosticsTransportDisposable !== undefined &&
+        client === activeClient &&
+        currentDiagnosticsClientGeneration === generation &&
+        generation.value === generationAtCapture &&
+        activeClient.isRunning(),
+    };
+  });
+  context.subscriptions.push(currentDiagnosticsTransportDisposable);
   // The server starts with the trust state in its `initializationOptions`; a
   // grant after that is pushed, so a workspace pack's hook bodies start
   // running without a restart.
@@ -505,6 +537,8 @@ export async function activate(context: ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = undefined;
   if (dialectRefreshTimer) {
     clearTimeout(dialectRefreshTimer);
     dialectRefreshTimer = undefined;

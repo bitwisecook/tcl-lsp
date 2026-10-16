@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals ... 
+thread 'registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals' (188571) panicked at rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs:328:14:
+original conditional declaration, not an installed procedure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10259 filtered out; finished in 0.16s
+

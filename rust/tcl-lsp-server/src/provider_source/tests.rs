@@ -93,7 +93,10 @@ async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() 
     let config = folder_configuration(&backend, packs.key).await;
     let uri = Uri::from_file_path("/library/owned.tcl").unwrap();
     let source = "provider360::define provided {one} {}";
-    backend.db_set_source(&uri, source, "tcl".to_owned()).await;
+    backend
+        .db_set_source(&uri, source, "tcl".to_owned())
+        .await
+        .unwrap();
     register_packages(&backend, "package ifneeded own 1.0 {source owned.tcl}").await;
     let (file, expected) = {
         let db = backend.db.lock().await;
@@ -276,7 +279,8 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
             Arc::from(source),
             "tcl8.6".to_owned(),
         )
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         calls
             .diagnostics

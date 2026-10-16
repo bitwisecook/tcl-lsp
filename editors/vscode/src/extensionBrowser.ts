@@ -65,6 +65,7 @@ import {
   workspaceEditFromLsp,
 } from "./clientCore";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
+import { setCurrentDiagnosticsTransportProvider } from "./chat/diagnosticAccess";
 import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
 import { LANGUAGE_ID_DIALECTS, isTclLanguage } from "./languageIds";
 import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
@@ -126,6 +127,7 @@ interface Session {
   worker: Worker;
   sync: WorkspaceStoreSync;
   client: LanguageClient;
+  diagnosticsGeneration: { value: number };
   /** Detach the JSON-RPC port listener — see `./webLspTransport`. */
   disposeTransport: () => void;
   /** Subscriptions bound to *this* server, not to the extension's lifetime. */
@@ -137,6 +139,7 @@ let extensionContext: ExtensionContext | undefined;
 let dialectStatusBarItem: StatusBarItem;
 let versionStatusBarItem: StatusBarItem;
 let outputChannel: vscode.OutputChannel;
+let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
 // The dialects the quick pick offers: the generated catalogue until the server
 // has listed its own.
 let dialectChoices: readonly DialectChoice[] = catalogueChoices();
@@ -166,6 +169,30 @@ function log(message: string): void {
 export async function activate(context: ExtensionContext) {
   const activateStart = Date.now();
   extensionContext = context;
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = setCurrentDiagnosticsTransportProvider(() => {
+    const activeSession = session;
+    const activeClient = activeSession?.client;
+    if (!activeSession || !activeClient) return undefined;
+    const generation = activeSession.diagnosticsGeneration;
+    const generationAtCapture = generation.value;
+    return {
+      request: (params) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.currentDiagnostics",
+          arguments: [params],
+        }),
+      convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+      isCurrent: () =>
+        currentDiagnosticsTransportDisposable !== undefined &&
+        session === activeSession &&
+        activeSession.client === activeClient &&
+        activeSession.diagnosticsGeneration === generation &&
+        generation.value === generationAtCapture &&
+        activeClient.isRunning(),
+    };
+  });
+  context.subscriptions.push(currentDiagnosticsTransportDisposable);
   outputChannel = window.createOutputChannel("Tcl Language Server");
   context.subscriptions.push(outputChannel);
 
@@ -200,6 +227,8 @@ export async function activate(context: ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
+  currentDiagnosticsTransportDisposable?.dispose();
+  currentDiagnosticsTransportDisposable = undefined;
   await stopSession();
 }
 
@@ -273,6 +302,12 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
   );
   // As on the desktop: the trust state rides `initializationOptions`, and a
   // grant after start-up is pushed so a workspace pack's hook bodies run.
+  const diagnosticsGeneration = { value: 0 };
+  disposables.push(
+    client.onDidChangeState(() => {
+      diagnosticsGeneration.value += 1;
+    }),
+  );
   disposables.push(registerWorkspaceTrustGrant(client));
 
   const started = await startWithTimeout(client, workerUri);
@@ -298,6 +333,7 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
     worker,
     sync,
     client,
+    diagnosticsGeneration,
     disposeTransport: () => transport?.dispose(),
     disposables,
   };

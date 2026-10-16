@@ -4262,9 +4262,22 @@ pub fn compiler_check_diagnostics(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
+    compiler_check_diagnostics_if_available(db, file, config).unwrap_or_else(abstain_diagnostics)
+}
+
+/// The actual compiler diagnostic pass, preserving unavailable preparation.
+/// `Some` follows successful checked unit preparation and the real solve/check
+/// producer. `None` carries no completed empty report. This supplies no Native
+/// execution, normal completion or closure of unavailable nested analyses.
+#[salsa::tracked(lru = 64, returns(clone))]
+pub fn compiler_check_diagnostics_if_available(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<CompilerDiagnostics>> {
     let dialect = file.dialect(db).clone();
     let Ok(input) = document_analysis_input(db, file, config) else {
-        return abstain_diagnostics();
+        return None;
     };
     let registry: &CommandRegistry = input.borrowed_context_registry().commands();
     let dialect_opt = Some(input.unit_profile());
@@ -4272,7 +4285,7 @@ pub fn compiler_check_diagnostics(
     // policy key. The supplied input must still pass its exact guard.
     let cfg_key = lexer_cfg_key(db, &dialect);
     let Some(_shared_unit) = compilation_unit_for_config(db, file, cfg_key, config) else {
-        return abstain_diagnostics();
+        return None;
     };
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
@@ -4284,7 +4297,7 @@ pub fn compiler_check_diagnostics(
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
     let Some(solve) = proc_taint_solve_for_config(db, file, cfg_key, config) else {
-        return abstain_diagnostics();
+        return None;
     };
     // Procedure IDs belong to this solve's genuine construction. A separate
     // shared build retains its own source ingress and cannot select these maps.
@@ -4301,11 +4314,11 @@ pub fn compiler_check_diagnostics(
     );
     tcl_compiler::compiler_checks::retain_diagnostic_source_context(cu, registry, &mut checks);
     tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
-    Arc::new(CompilerDiagnostics {
+    Some(Arc::new(CompilerDiagnostics {
         checks,
         optimisations: solve.optimisations.clone(),
         taint_replays,
-    })
+    }))
 }
 
 /// No-salsa-input fallback for [`compiler_check_diagnostics`]: build the unit

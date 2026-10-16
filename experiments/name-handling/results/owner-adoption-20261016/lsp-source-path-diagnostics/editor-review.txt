@@ -1,0 +1,8 @@
+CLEAR — exact V8 source successor review.
+Patch SHA256396ae75f7f14896de07a8435eb4f3a81229c77b7e4212a17766f287747b63fcf.
+Manifest SHA25646def9ef390a52d06f8e3ad5053b5efe576e7b6b8763328e16dfb379f92298ca.
+Independent TMP application verified all13 declared before/afterimages. Compared each resulting full file against independently reconstructed reviewed V6. Production deltas are formatting only. The sole non-formatting delta adds diagnosticMessage in the new test fixture, converting the installed protocol Diagnostic message union to string at VS Code Diagnostic construction. Test payloads remain standard string-message LSP Diagnostics; all eight selectors, sources, expectations, assertions, source/deadline/session guards and partition counts remain identical. No pre-existing tests changed.
+
+All V6 substantive review conclusions remain CLEAR, including both actual client state-event generation hooks, same-client ABA refusal, original contextPack code transport, exact source/version echo, captured converter/client ownership, final elapsed deadline and nonempty NEW diagnostic positives. Receipt: /tmp/lsp-current-diagnostics-consumer/published/v6/independent-review-CLEAR.txt.
+
+No TS/build/runtime tests were run by this reviewer. Author reports isolated TS6.0.3 noEmit and scoped Prettier3.9.7 checks; manifest validation string still labels Prettier pending, so treat actual check artifacts/Root verification as authoritative, not this source receipt. Final SourceStore admission independent approval and ordinary acceptance remain separate.
