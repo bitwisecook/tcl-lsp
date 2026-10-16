@@ -645,7 +645,7 @@ jobs:
         if: env.RUN_EXT == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -659,6 +659,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -824,7 +825,7 @@ jobs:
         if: env.RUN_EXT == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -838,6 +839,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -1049,13 +1051,14 @@ jobs:
         if: env.RUN_EXT_WEB == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         if: env.RUN_EXT_WEB == 'true'
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -1861,7 +1864,7 @@ jobs:
         if: needs.channel.outputs.docs_only != 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
       # wasm objects.  The test finds it at the default /opt/wasi-sdk, so no
@@ -1978,7 +1981,7 @@ jobs:
         if: env.RUN_LSP_WASM == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Build and exercise the browser LSP server
         if: env.RUN_LSP_WASM == 'true'
@@ -2052,7 +2055,7 @@ jobs:
         if: env.RUN_LSP_WASI == 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # binaryen supplies `wasm-opt`, which build-wasi.sh runs (safely — this
       # module has no wasm-bindgen externref table to mis-rebind).  The script
@@ -2067,7 +2070,7 @@ jobs:
         if: env.RUN_LSP_WASI == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Build and exercise the WASI LSP server
         if: env.RUN_LSP_WASI == 'true'
@@ -2641,7 +2644,7 @@ jobs:
         if: env.RUN_WEB_FRONTENDS == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Both front-end package.json files pin the npm CLI through
       # `packageManager`, and this job's entire value is how npm resolves a
@@ -2654,6 +2657,7 @@ jobs:
         run: |
           # `corepack enable` alone only shims pnpm/yarn; npm must be named
           # explicitly or the shim isn't created and the bundled npm wins.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd rust/bigip-report-gen/frontend
           active="$(npm --version)"
@@ -3226,7 +3230,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -3239,6 +3243,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -3405,7 +3410,7 @@ jobs:
           tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Java 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 17
@@ -3421,12 +3426,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       # The plugin's Kotlin suite runs nowhere else — it needs the IntelliJ
       # SDK this job already downloads to build against.
@@ -3712,12 +3719,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       - name: Install vsce from the committed lockfile
         run: cd editors/vscode && npm ci
@@ -3796,12 +3805,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       - name: Install ovsx from the committed lockfile
         run: cd editors/vscode && npm ci

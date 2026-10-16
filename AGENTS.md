@@ -51,8 +51,9 @@ Tiers, policies, and the CI redundancy contract:
 
 ## Environment
 
-- Rust floating `stable` (`rust-toolchain.toml`), Node 24+ with
-  `corepack enable npm`, then `make install-test-deps`. Remote agent sessions
+- Rust floating `stable` (`rust-toolchain.toml`), Node 26+, then
+  `make install-test-deps` (it installs Corepack, which Node no longer bundles,
+  and runs `corepack enable npm`). Remote agent sessions
   get all of it — toolchains, Wasmtime / Binaryen / wasi-sdk, the Tcl 8.4.20
   / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 and Tk trees under `tmp/`, tcllib 2.0 —
   from `.claude/hooks/session-start.sh` before the first instruction; never
