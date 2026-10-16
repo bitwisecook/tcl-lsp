@@ -1089,6 +1089,9 @@ pub struct InterpState {
     proc_body: Cell<bool>,
     /// Whether the next script loop that owns a frame runs a procedure body.
     next_proc_body: Cell<bool>,
+    /// Whether the next script loop that owns a frame runs the script file
+    /// `tclsh` was given, whose commands run with no command active.
+    next_top_level_file: Cell<bool>,
     /// Whether the release compiles the control command whose body
     /// [`Interp::eval_control_body`] runs next, where its caller says.
     compiled_control_body: Cell<Option<bool>>,
@@ -1494,6 +1497,7 @@ impl Interp {
             compiled_literals: RefCell::new(Vec::new()),
             proc_body: Cell::new(false),
             next_proc_body: Cell::new(false),
+            next_top_level_file: Cell::new(false),
             compiled_control_body: Cell::new(None),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
@@ -3678,13 +3682,32 @@ impl Interp {
         result
     }
 
+    /// The script file `tclsh` is given, named `name`, and its owned,
+    /// byte-preserving completion: its commands are evaluated directly with no
+    /// command active, so a completion leaving one is settled as C settles one
+    /// at `numLevels == 0` and an error is logged against the command, before
+    /// the file's own frame is added.
+    pub fn eval_script_file_completion(
+        &mut self,
+        script: &[u8],
+        name: &[u8],
+    ) -> tcl_runtime_api::ScriptCompletion {
+        self.next_top_level_file.set(true);
+        self.eval_sourced_boundary(
+            script,
+            name,
+            CommandEvaluation::Direct,
+            crate::completion::capture_bytes,
+        )
+    }
+
     /// Evaluate a sourced script and return its owned, byte-preserving
     /// completion.
     ///
     /// The source return boundary is settled before the snapshot. An uncaught
     /// error is published to Tcl's globals only after its live options,
     /// including `-during`, have been captured. Each command is evaluated
-    /// directly, as `tclsh` evaluates the script file it is given.
+    /// directly.
     pub fn eval_sourced_completion(
         &mut self,
         script: &[u8],
@@ -7538,22 +7561,53 @@ impl Interp {
         let code = match self.settle_return(code) {
             settled @ (Code::Ok | Code::Error) => settled,
             unexpected => {
-                let message = match unexpected {
-                    Code::Break => b"invoked \"break\" outside of a loop".to_vec(),
-                    Code::Continue => b"invoked \"continue\" outside of a loop".to_vec(),
-                    other => format!("command returned bad code: {}", other.as_int()).into_bytes(),
-                };
-                let error_code = if self.runtime_version().has_unexpected_result_error_codes() {
-                    format!("TCL UNEXPECTED_RESULT_CODE {}", unexpected.as_int()).into_bytes()
-                } else {
-                    b"NONE".to_vec()
-                };
+                let (message, error_code) = self.unexpected_result(unexpected);
                 self.raise_with_info(&message, &message, &error_code)
             }
         };
         let projected = crate::completion::capture_bytes(self, code);
         self.finish_outermost_eval(code);
         projected
+    }
+
+    /// The message and error code C's `ProcessUnexpectedResult` gives a
+    /// completion code no context takes.
+    fn unexpected_result(&self, code: Code) -> (Vec<u8>, Vec<u8>) {
+        let message = match code {
+            Code::Break => b"invoked \"break\" outside of a loop".to_vec(),
+            Code::Continue => b"invoked \"continue\" outside of a loop".to_vec(),
+            other => format!("command returned bad code: {}", other.as_int()).into_bytes(),
+        };
+        let error_code = if self.runtime_version().has_unexpected_result_error_codes() {
+            format!("TCL UNEXPECTED_RESULT_CODE {}", code.as_int()).into_bytes()
+        } else {
+            b"NONE".to_vec()
+        };
+        (message, error_code)
+    }
+
+    /// `code`, which the command `cmd` of the script file `tclsh` was given
+    /// left, settled as C settles a completion with no command active
+    /// (`TclUpdateReturnInfo`, then `ProcessUnexpectedResult`), and an error
+    /// it leaves logged against `cmd` (`TclEvalEx`). From 8.5 a `return`
+    /// carrying `-errorinfo` has logged its error already; 8.4's
+    /// `TclUpdateReturnInfo` leaves the command to log it.
+    fn settle_top_level_command(&mut self, src: &[u8], cmd: &parse::Command, code: Code) -> Code {
+        let returned = code == Code::Return;
+        let code = match self.settle_return(code) {
+            settled @ (Code::Ok | Code::Error) => settled,
+            unexpected => {
+                let (message, error_code) = self.unexpected_result(unexpected);
+                self.error_with_code(&message, &error_code)
+            }
+        };
+        if code == Code::Error {
+            if returned && !self.runtime_version().has_return_options_dictionary() {
+                self.exc.borrow_mut().already_logged = false;
+            }
+            self.log_command_info(src, cmd);
+        }
+        code
     }
 
     /// The commands `tclsh` reads from its stdin `script`: line by line until
@@ -7647,6 +7701,7 @@ impl Interp {
         // bailing out here needs no unwind: `owned` (not yet pushed) simply
         // drops normally.
         let next_proc_body = self.next_proc_body.replace(false);
+        let top_level_file = self.next_top_level_file.replace(false) && owned.is_some();
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
@@ -7689,6 +7744,9 @@ impl Interp {
         for cmd in &commands {
             last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
+                if top_level_file {
+                    last = self.settle_top_level_command(src, cmd, last);
+                }
                 break; // error/return/break/continue propagate up
             }
         }

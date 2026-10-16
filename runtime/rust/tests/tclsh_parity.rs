@@ -20,7 +20,7 @@
 //!
 //! The vectors are tclvm's (`rust/tcl-vm/tests/data/tclsh_parity`): each
 //! script runs as the script file `tclsh` is given
-//! (`Interp::eval_sourced_completion`, its uncaught error reported by its
+//! (`Interp::eval_script_file_completion`, its uncaught error reported by its
 //! `errorInfo`) and on its stdin (`Interp::eval_compiled_completion`, a failed one
 //! reported by its result after the output, as `tclsh` writes it to
 //! stderr), and the output is compared with what tclsh 8.4.20, 8.5.19,
@@ -161,7 +161,7 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
     interp.set_runtime_version(release);
     let tail = match entry {
         Entry::File => {
-            let completion = interp.eval_sourced_completion(script.as_bytes(), b"parity.tcl");
+            let completion = interp.eval_script_file_completion(script.as_bytes(), b"parity.tcl");
             if completion.code == CompletionCode::Ok {
                 String::new()
             } else {

@@ -227,7 +227,7 @@ fn run() -> i32 {
         }
     }
     let completion = match &path {
-        Some(p) => interp.eval_sourced_completion(&src, p.as_bytes()),
+        Some(p) => interp.eval_script_file_completion(&src, p.as_bytes()),
         // As `tclsh` reads its stdin: a chunk that fails prints its message
         // to stderr, and the next runs.
         None => {

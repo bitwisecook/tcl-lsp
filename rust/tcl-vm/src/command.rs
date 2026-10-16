@@ -1778,14 +1778,11 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// is rejected, and a last word alone is the result; those options then
 /// mean what they do from 8.5.
 pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if !vm.runtime_version().has_return_options_dictionary() {
-        for pair in args.as_chunks::<2>().0 {
-            let name = pair[0].to_str();
-            if !matches!(&*name, "-code" | "-errorinfo" | "-errorcode") {
-                return err(format!(
-                    "bad option \"{name}\": must be -code, -errorcode, or -errorinfo"
-                ));
-            }
+    let release = vm.runtime_version();
+    for pair in args.as_chunks::<2>().0 {
+        let name = pair[0].to_str();
+        if let Some(message) = tcl_cmd_core::error::return_option_error(name.as_bytes(), release) {
+            return err(message);
         }
     }
     cmd_return(vm, args)

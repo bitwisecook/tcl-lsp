@@ -26,7 +26,7 @@
 //! body, `eval` and `uplevel` script, `apply` lambda and command its stdin
 //! feeds it, but evaluates the commands of the script file it is given, and a
 //! canonical-list script, without compiling them. The runtime evaluates the
-//! file with `Interp::eval_sourced_completion` and stdin with
+//! file with `Interp::eval_script_file_completion` and stdin with
 //! `Interp::eval_stdin`.
 //!
 //! The same literal shows which scripts 8.6 compiles — a substituted script a
@@ -57,7 +57,7 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
     let mut interp = Interp::new();
     interp.set_runtime_version(release);
     let completion = match entry {
-        Entry::File => interp.eval_sourced_completion(script.as_bytes(), b"literal-index.tcl"),
+        Entry::File => interp.eval_script_file_completion(script.as_bytes(), b"literal-index.tcl"),
         Entry::Stdin => interp.eval_stdin(script.as_bytes(), |_, _| {}),
     };
     let result = String::from_utf8(completion.result).expect("utf-8");
@@ -422,7 +422,9 @@ mod printed {
         }));
         interp.set_runtime_version(release);
         let completion = match entry {
-            Entry::File => interp.eval_sourced_completion(script.as_bytes(), b"literal-index.tcl"),
+            Entry::File => {
+                interp.eval_script_file_completion(script.as_bytes(), b"literal-index.tcl")
+            }
             Entry::Stdin => interp.eval_stdin(script.as_bytes(), |_, _| {}),
         };
         let result = String::from_utf8(completion.result).expect("utf-8");

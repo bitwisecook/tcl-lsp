@@ -2687,8 +2687,16 @@ impl Vm {
         act: &Frame,
         mut c: Completion<Value>,
     ) -> Completion<Value> {
+        // From 8.5 a `return` carrying `-errorinfo` logged its error as it
+        // ran (`TclProcessReturn`), so the trace names no command here.
+        let logged_by_return = c.code == Code::Return
+            && self.runtime_version().has_return_options_dictionary()
+            && crate::command::opt_get(&c.options, "-errorinfo").is_some();
         if c.code == Code::Return {
             self.update_return_info(&mut c);
+        }
+        if c.code == Code::Error && logged_by_return {
+            self.mark_error_logged();
         }
         if !matches!(c.code, Code::Ok | Code::Error) {
             c = self.unexpected_result(c.code);

@@ -505,9 +505,13 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut errorstack: Option<Vec<u8>> = None;
     let mut carried: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
+    let release = interp.runtime_version();
     let mut i = 1;
     while i + 1 < argv.len() {
         let opt = obj_bytes(argv[i]);
+        if let Some(message) = tcl_cmd_core::error::return_option_error(&opt, release) {
+            return interp.set_error(message.as_bytes());
+        }
         match opt.as_slice() {
             b"-code" => code_word = Some(obj_bytes(argv[i + 1])),
             b"-level" => level_word = Some(obj_bytes(argv[i + 1])),
