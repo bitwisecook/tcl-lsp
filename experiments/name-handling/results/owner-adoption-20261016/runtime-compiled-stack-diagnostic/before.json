@@ -1,0 +1,6 @@
+{
+  "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+  "sha256": "e08cead38dbdd0327f949a924601f43b386550773da2249e6b2f64a9cda4afb5",
+  "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+  "scope": "Current working-tree beforeimage; temporary assertion diagnostics only."
+}

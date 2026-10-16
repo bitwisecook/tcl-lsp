@@ -3225,6 +3225,7 @@ mod tests {
         static NAME_FREE_BORROWS_RELEASED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
         static NAME_FREE_CONTEXT_ACCEPTED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
         static NAME_CALLBACK_BOUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        static NAME_CALLBACK_TARGET_BORN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
         static NAME_CALLBACK_CODE: std::cell::Cell<Code> = const { std::cell::Cell::new(Code::Other(37)) };
     }
 
@@ -3295,6 +3296,7 @@ mod tests {
         NAME_FREE_BORROWS_RELEASED.with(|value| value.set(true));
         NAME_FREE_CONTEXT_ACCEPTED.with(|value| value.set(true));
         NAME_CALLBACK_BOUND.with(|value| value.set(false));
+        NAME_CALLBACK_TARGET_BORN.with(|value| value.set(false));
         NAME_CALLBACK_CODE.with(|value| value.set(Code::Other(37)));
     }
 
@@ -3303,6 +3305,13 @@ mod tests {
         let level = Owned::fresh(obj::new_string_bytes(b"#0"));
         let local = Owned::fresh(obj::new_string_bytes(b"callback_local"));
         let code = interp.dispatch(&[command.as_ptr(), level.as_ptr(), argv[1], local.as_ptr()]);
+        let target_born = interp
+            .namespaces
+            .borrow()
+            .var_table(crate::namespace::GLOBAL)
+            .trace_binding_identity(b"callback_target")
+            .is_some();
+        NAME_CALLBACK_TARGET_BORN.with(|value| value.set(target_born));
         let bound = interp
             .frames
             .borrow()
@@ -3391,12 +3400,8 @@ mod tests {
                     assert!(!NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
                     assert!(interp.native_execution_refusal().is_some());
                 }
-                let target_born = interp
-                    .namespaces
-                    .borrow()
-                    .var_table(crate::namespace::GLOBAL)
-                    .trace_binding_identity(b"callback_target")
-                    .is_some();
+                // Frame pop can reclaim the undefined target after its local alias.
+                let target_born = NAME_CALLBACK_TARGET_BORN.with(std::cell::Cell::get);
                 assert_eq!(
                     target_born,
                     mode == 0 || profile.starts_with("tcl9"),
@@ -4371,8 +4376,15 @@ mod tests {
         };
         CACHE_LOOKUP_ROWS.with(|rows| rows.borrow_mut().push(row));
         if case != 4 {
+            // Inspect reached storage without entering another read after refusal.
+            let frames = interp.frames.borrow();
+            let stored = frames.compiled_slot_var(before).unwrap();
+            let crate::frame::Var::Scalar(value) = &*stored else {
+                panic!("actual compiled scalar contents");
+            };
+            assert!(obj::has_string_rep(*value));
             assert_eq!(
-                super::super::obj_bytes(interp.var_get(b"x").unwrap()),
+                obj::bytes_of(*value),
                 if matches!(case, 1 | 3) {
                     b"NEXT".as_slice()
                 } else {

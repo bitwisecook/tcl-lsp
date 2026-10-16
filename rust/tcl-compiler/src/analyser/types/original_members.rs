@@ -636,7 +636,7 @@ impl OriginalSourceMemberLedger {
                     word.image() == image && word.config() == input.lexer_config().nested()
                 })
                 && entry.words.get(entry.name_ordinal).is_some_and(|word| {
-                    tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                    tcl_syntax::word_rules::original_static_word_unicode_value(word)
                         .is_some_and(|name| name == method.name.as_bytes())
                 })
         });

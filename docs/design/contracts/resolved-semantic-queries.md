@@ -27,6 +27,9 @@ discriminating test guidance are in
 | What do a command's words mean? | `CommandRegistry::resolve_structured_invocation`, `command_binding_transitions` | Source-aware `InvocationWords`, selected dialect surface, proved implementation when used to transform source |
 | Which facts and argument indices may an IR statement consumer use together? | `registry_invocation::resolved_statement_invocation` | Retained statement tokens and source binding, registry and selected semantic context |
 | Which command words agree across advisory candidates? | `RegistryInvocationAssistance::unanimous_command_words` | Nonempty closed lookup; every command identity, effective word, origin and frozen prefix agrees; no role or execution authority |
+| Which Logical declaration formals have source usage traits? | `TraitScanEnv::original_logical_body`; `infer_param_traits`; `infer_param_traits_deep`; `caller_frame_upvar_params` | Genuine original procedure/body/formals, exact whole body and full current input/configuration; accepted same-scope named-only source schema; no body entry or Native grant |
+| Which original expression gaps may be removed? | `source_structure::original_expression_gap_compaction` | Current original braced pure finite expression plus independent handler, observer, reflection and token/AST correspondence; issued gap spans only |
+| Which named-instance labels may a report show? | `OriginalProjectClassCards::named_instance_display_reports`; `NamedInstanceMap::report_rows` | Complete current final source catalogue and genuine instance/class owners; private report mode survives aggregation and grants no receiver lookup |
 | Which scripts does a wrapper execute? | `BodyExecutionSpec::select`; `EvaluatedBodyRegion` | Authored registry grammar, literal operands, proved implementation/provider/hook prerequisites |
 | How are frames, package versions, or namespace imports interpreted? | `DialectProfile` policy accessors; `frame_effect`; release-parameterised version helpers | Selected profile, runtime family, independent numeral/word grammar |
 | Can an incremental result reuse this environment? | `DialectProfileKey`; `CommandRegistry::snapshot` | Complete profile value, registry layers and overlay order, grammar, entry and provider dependencies |
@@ -110,6 +113,15 @@ operand retains its full name; namespace `variable` uses Jim's namespace tail.
 Missing native naming policies and non-Unicode projections remain opaque.
 Declaration navigation supplies no successful link, physical variable cell,
 executed body or completed store.
+
+Logical owning-type advice at a member declaration or lexical self selector
+uses `AnalysisResult::logical_source_member_type_at`. The declaration path checks
+its original member word and side. The selector path additionally requires the
+actual positioned original command and `LogicalReceiver` source frame, retained
+from its genuine member/body and parent declaration allocation. Full input,
+configuration, source and direct cursor geometry must remain current. This
+source frame cannot supply receiver namespace, native formals or an entered
+activation; a matching method label is insufficient.
 
 ## Command bindings and source recipes
 
@@ -874,6 +886,21 @@ namespace prefix exception.
 | Executable common analysis, native and WASM selection | `SemanticAnalysisBundle`, dependency proof, prebuilt argv, canonical region graph | Missing dependency declines before emission; substitutions execute once; no wrapper replay |
 | iRules declarations/events | Registry placement and `tcl_irules` contexts | Load-time shape versus runtime aliases; reachable event/procedure activation |
 | VM and runtime live dispatch | Naming/identity primitives and actual live tables | Shared lookup vectors and runtime mutation/trace/alias lifecycle |
+
+Logical parameter-source closure is restricted to the authenticated named
+Logical descriptor within its actual procedure scope. Exact original formal
+names/order and complete body bytes are checked before role application. Nested
+source regions keep their actual absolute base and can donate outer-formal
+traits only when the original body descriptor preserves immediate caller source
+context. `logical_parameter_body_assistance` retains the original Registry argv
+separately from definite/execution fields; neither `closed` nor symbolic alias
+traits prove a live caller cell or completed effect.
+
+Jim object equality also has distinct purposes. `jim_string_object_equality_using`
+models `Jim_StringEqObj` with actual same-header identity or checked left then
+right counted String getters. Its caller supplies original-object and operation
+currentness checks; a missing identity or failed getter is terminal. The generic
+`full_native_equality` and character-ordering preparation remain independent.
 
 Each consumer requires its own purpose-specific projection. A command-owner
 result does not by itself identify an editable source span, establish a runtime

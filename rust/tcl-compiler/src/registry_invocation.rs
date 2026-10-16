@@ -6136,6 +6136,7 @@ pub(crate) struct InvocationBodyAssistance {
     /// Source-only receiver trait recipe. Runtime namespace and entry stay
     /// unavailable, and no definite role or execution projection uses this.
     receiver_trait_invocation: Option<ReceiverTraitInvocation>,
+    logical_trait_invocation: Option<LogicalTraitInvocation>,
     pub declared_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub unknown_residual: bool,
     pub may_be_absent: bool,
@@ -6193,6 +6194,13 @@ struct ReceiverTraitInvocation {
     invocation: ResolvedStatementInvocation,
 }
 
+struct LogicalTraitInvocation {
+    input: crate::analyser::ResolvedAnalysisInput,
+    body: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+    words: source_structure::OriginalRegistryWords,
+    invocation: ResolvedStatementInvocation,
+}
+
 struct ConditionalBodyInvocation {
     entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
     invocation: ResolvedStatementInvocation,
@@ -6216,6 +6224,15 @@ impl InvocationBodyAssistance {
         argument: usize,
     ) -> Option<String> {
         std::ptr::eq(self.caller_name_template_invocation()?, selected).then_some(())?;
+        if let Some(owned) = &self.logical_trait_invocation
+            && std::ptr::eq(&owned.invocation, selected)
+        {
+            let word = owned.words.original_argument_word(argument)?;
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            return (!value.contains(&0))
+                .then(|| String::from_utf8(value).ok())
+                .flatten();
+        }
         let source = self.caller_template_source.as_deref()?;
         (&source.invocation == selected).then_some(())?;
         match selected.effective.origins.get(argument.checked_add(1)?)? {
@@ -6252,6 +6269,32 @@ impl InvocationBodyAssistance {
                     .as_ref()
                     .map(|owned| &owned.invocation)
             })
+            .or_else(|| {
+                self.logical_trait_invocation
+                    .as_ref()
+                    .map(|owned| &owned.invocation)
+            })
+    }
+
+    /// The actual original descriptor decides whether this script operand
+    /// inherits the caller source context. A deferred/fresh-frame body cannot
+    /// donate its locals to the enclosing procedure's parameter template.
+    pub(crate) fn logical_trait_body_inherits_caller(&self, argument: usize) -> Option<bool> {
+        let owned = self.logical_trait_invocation.as_ref()?;
+        let word = owned.words.original_argument_word(argument)?;
+        let context = owned.input.borrowed_context_registry();
+        let bodies = owned
+            .words
+            .source_script_bodies(context)
+            .into_iter()
+            .filter(|body| body.original_container() == word)
+            .collect::<Vec<_>>();
+        (!bodies.is_empty()).then_some(())?;
+        Some(
+            bodies
+                .iter()
+                .all(|body| body.inherits_immediate_caller_source_context(context)),
+        )
     }
 
     /// Symbolic local-copy and alias traits use the declaration's original
@@ -6276,6 +6319,16 @@ impl InvocationBodyAssistance {
                     .entry
                     .matches_trait_parameters(parameters)
                     .then_some(&owned.invocation)
+            })
+            .or_else(|| {
+                let owned = self.logical_trait_invocation.as_ref()?;
+                let formal_names = owned
+                    .body
+                    .parameters()
+                    .iter()
+                    .map(|formal| formal.name.as_str())
+                    .collect::<Vec<_>>();
+                (formal_names == parameters).then_some(&owned.invocation)
             })
     }
 }
@@ -6413,6 +6466,7 @@ fn body_assistance_with_entry<'a>(
         definite_invocation: None,
         conditional_invocation: None,
         receiver_trait_invocation: None,
+        logical_trait_invocation: None,
         declared_roles: Vec::new(),
         unknown_residual: prepared.as_ref().is_none_or(|view| view.unknown_residual),
         may_be_absent: prepared.as_ref().is_none_or(|view| view.may_be_absent),
@@ -6897,6 +6951,107 @@ fn retain_conditional_body_invocation(
 /// Offset-free syntax assistance joins the retained lookup worlds. It has no
 /// original invocation point and therefore never returns definite grammar,
 /// entered scope or state-bearing alias/value-copy evidence.
+pub(crate) fn logical_parameter_body_assistance(
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    realm: &crate::realm::CommandBindingRealm,
+    body: &std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+    source: &str,
+    command: &crate::segmenter::SegmentedCommand,
+    base: u32,
+) -> Option<Box<InvocationBodyAssistance>> {
+    let input = realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()?;
+    let config = input.lexer_config();
+    let image = realm.original_source_image()?;
+    let context = input.borrowed_context_registry();
+    if !realm.matches_resolved_analysis_input(input)
+        || !body.matches_source(image, input)
+        || body.has_earlier_unknown_mutations()
+        || !body
+            .scope()
+            .scope_body()
+            .matches_original_content(source, base, config)
+        || context.commands().snapshot().semantic_key()
+            != surface.commands().snapshot().semantic_key()
+    {
+        return None;
+    }
+    let segment = command.clone().shifted_by(base);
+    let full_source = image.try_text().ok()?;
+    let words =
+        source_structure::logical_source_registry_words(full_source, realm, input, &segment)?;
+    let source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+        return None;
+    };
+    let scope = advice.logical_source_scope()?;
+    if !advice.has_named_only_logical_summary_descriptor()
+        || scope.frame_recipe()
+            != crate::command_binding::OriginalDeclaredSourceBodyFrame::Procedure
+        || scope.scope_body() != body.scope().scope_body()
+    {
+        return None;
+    }
+    let facts = words.with_source_schema(context, |schema| schema.facts().clone())?;
+    if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
+        return None;
+    }
+    let mut tokens =
+        CommandTokens::from_segmented(&tcl_lexer::SourceMap::from_image(image), config, &segment);
+    realm.stamp_original_tokens(&mut tokens);
+    // This named-only source descriptor has no alias or expanded prefix. Its
+    // canonical Registry label selects facts; original Written operands retain
+    // their own geometry and unknown values.
+    if words
+        .origins()
+        .iter()
+        .enumerate()
+        .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
+    {
+        return None;
+    }
+    let effective = compose_original_effective_words(&tokens, words.command(), &[])?;
+    let evaluated_words = words.arguments().to_vec();
+    let invocation = ResolvedStatementInvocation {
+        dialect: words.dialect(),
+        facts: Box::new(facts),
+        arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+        evaluated_arguments: evaluated_words
+            .iter()
+            .map(|word| {
+                word.literal_bytes()
+                    .and_then(|value| String::from_utf8(value.to_vec()).ok())
+            })
+            .collect(),
+        evaluated_words,
+        effective,
+    };
+    let mut view = unpositioned_body_assistance(
+        surface,
+        realm.source_bindings_ref(),
+        source,
+        config,
+        command,
+        Some(context),
+    )?;
+    view.parameter_advice = ParameterRoleAdvice {
+        candidates: vec![RegistryInvocationShape::from_facts(
+            &invocation.facts,
+            invocation.effective.clone(),
+        )],
+        closed: true,
+    };
+    view.logical_trait_invocation = Some(LogicalTraitInvocation {
+        input: input.clone(),
+        body: std::sync::Arc::clone(body),
+        words,
+        invocation,
+    });
+    // Other execution, Native conditional-entry and definite fields retain
+    // their independent meaning; only this authenticated source template is added.
+    Some(view)
+}
+
 pub(crate) fn unpositioned_body_assistance(
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     bindings: &crate::command_binding::SourceCommandBindings,
@@ -6933,6 +7088,7 @@ pub(crate) fn unpositioned_body_assistance(
             definite_invocation: None,
             conditional_invocation: None,
             receiver_trait_invocation: None,
+            logical_trait_invocation: None,
             unknown_residual: true,
             may_be_absent: true,
             parameter_advice: ParameterRoleAdvice::default(),

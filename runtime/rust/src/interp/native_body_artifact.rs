@@ -1818,7 +1818,23 @@ impl Interp {
                 .map(|trace| (trace.token, trace.ops, trace.command.clone()))
                 .collect(),
             borrowed_table: if procedure.is_none() && self.frames.borrow().in_proc() {
-                Some(Rc::as_ptr(self.frames.borrow().native_local_name_table()?) as usize)
+                let frames = self.frames.borrow();
+                match frames.native_local_name_table() {
+                    Some(table) => Some(Rc::as_ptr(table) as usize),
+                    None if self
+                        .native_invocation_dialect()
+                        .native_compiled_variable_protocol()
+                        .is_some_and(|compiler| {
+                            compiler.supports_environment(Environment::BorrowFrameSlots)
+                        }) =>
+                    {
+                        return None;
+                    }
+                    // C8.4/8.5 non-body scripts use original name access and
+                    // have no indexed frame borrowing requirement. Any actual
+                    // table above retains its existing authentication schedule.
+                    None => None,
+                }
             } else {
                 None
             },

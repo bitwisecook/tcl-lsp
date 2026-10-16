@@ -800,12 +800,10 @@ mod tests {
             Code::Error
         );
         assert_eq!(interp.current_ns(), caller);
-        assert!(
-            obj::native_object_snapshot(pointer)
-                .unwrap()
-                .resident
-                .is_none()
-        );
+        assert!(obj::native_object_snapshot(pointer)
+            .unwrap()
+            .resident
+            .is_none());
         assert_eq!(obj::obj_type_ptr(pointer), original_type);
         assert_eq!(unsafe { (*pointer).ref_count }, references);
         assert!(interp.namespaces().native_context_path(namespace).is_none());
@@ -832,12 +830,10 @@ mod tests {
         );
         assert_eq!(interp.result_obj(), value.as_ptr());
         assert_eq!(interp.current_ns(), crate::namespace::GLOBAL);
-        assert!(
-            obj::native_object_snapshot(body.as_ptr())
-                .unwrap()
-                .resident
-                .is_none()
-        );
+        assert!(obj::native_object_snapshot(body.as_ptr())
+            .unwrap()
+            .resident
+            .is_none());
     }
 
     #[test]
@@ -915,11 +911,9 @@ mod tests {
             interp.root_command_context_checked().unwrap(),
             Some(tcl_runtime_api::ROOT_NS)
         );
-        assert!(
-            interp
-                .find_namespace_bytes_checked(tcl_runtime_api::ROOT_NS, b"::")
-                .is_err()
-        );
+        assert!(interp
+            .find_namespace_bytes_checked(tcl_runtime_api::ROOT_NS, b"::")
+            .is_err());
         interp
             .namespaces_mut()
             .adopt_jim_root_namespace(Owned::fresh(obj::new_string_bytes(b"")));
@@ -943,8 +937,12 @@ mod tests {
     fn jim_flat_command_context_and_helper_enumeration_match_native_controls() {
         // Native source question: naming.namespace.jim-flat-command-context-source-controls
         // docs/design/analysis/name-resolution-proofs/jim-flat-command-context-source-controls.md
-        let mut interp = Interp::new();
-        interp.set_dialect_profile(profile());
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
         let script = br#"proc p {} {return ROOT}; namespace eval n {proc p {} {return INNER}; namespace eval child {proc q {} {return CHILD}}}; namespace eval D {namespace import ::n::p}; list [namespace canonical] [namespace eval n {namespace canonical}] [lsort [namespace eval n {info procs *}]] [namespace eval n {info commands p}] [lsort [namespace eval n {info procs ::n::*}]] [namespace eval n {namespace which -variable absent}] [namespace eval n {set value LOCAL; namespace eval child {set value CHILD}; set value}] [D::p] [namespace origin D::p]"#;
         assert_eq!(
             interp.eval_str(script),

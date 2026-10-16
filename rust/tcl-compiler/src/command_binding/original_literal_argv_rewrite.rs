@@ -76,6 +76,109 @@ impl OriginalLiteralExpressionBracing {
     }
 }
 
+/// Purpose-specific whitespace compaction of a pure, finite original expression.
+/// The underlying original bracing receipt retains its complete source, parser,
+/// selected handler, Registry, observer and root-reflection envelope. This is
+/// neither a general word rewrite nor permission for variable or child reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalExpressionGapCompaction {
+    expression: OriginalLiteralExpressionBracing,
+    gaps: Vec<Span>,
+}
+
+impl OriginalExpressionGapCompaction {
+    /// Original source gaps independently verified by this purpose's issuer.
+    #[must_use]
+    pub fn removed_gaps(&self) -> &[Span] {
+        &self.gaps
+    }
+
+    /// Complete unchanged original braced operand and its source configuration.
+    #[must_use]
+    pub fn original_operand(&self) -> &NativeWord {
+        self.expression.original_operand()
+    }
+
+    /// Independently verified whole-word rendering of the approved gap edits.
+    #[must_use]
+    pub fn replacement_source_word(&self) -> &str {
+        self.expression.replacement_source_word()
+    }
+
+    /// Complete source/channel/configuration correspondence retained by issuer.
+    #[must_use]
+    pub fn matches_source(&self, image: &SourceImage, config: LexerConfig) -> bool {
+        self.expression.matches_source(image, config)
+    }
+
+    /// Exact original Registry semantic generation retained by issuer.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.expression.matches_registry(registry)
+    }
+}
+
+struct ExpressionRewriteEnvelope<'a> {
+    site: &'a CommandAllocationSite,
+    config: LexerConfig,
+    target: &'a SourceCommandTarget,
+    state: &'a ModuleCommandBindings,
+}
+
+#[derive(Clone, Copy)]
+enum ExpressionRewrite<'a> {
+    Brace,
+    Gaps(&'a str),
+}
+
+// Both token streams retain the exact selected expression grammar. Only gaps
+// classified by that lexer may disappear; token bytes and the checked Native
+// AST remain exact. Braced decoding correspondence is checked by the caller.
+fn same_expression_gaps(
+    original: &[u8],
+    candidate: &[u8],
+    parser: &ExprParseContext,
+    config: LexerConfig,
+    tree: &ExprNode<Vec<u8>>,
+) -> bool {
+    let signature = |source: &[u8]| {
+        let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+            source,
+            &parser.lexer_grammar,
+            parser.expr_grammar_base,
+            parser.f5_word_grammar,
+        );
+        if unknown || tcl_lexer::expression_terms(source, &tokens, config).is_none() {
+            return None;
+        }
+        Some(
+            tokens
+                .into_iter()
+                .filter(|token| {
+                    !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof
+                })
+                .map(|token| (token.kind, token.text))
+                .collect::<Vec<_>>(),
+        )
+    };
+    if signature(original)
+        .zip(signature(candidate))
+        .is_none_or(|(old, new)| old != new)
+    {
+        return false;
+    }
+    let mut cursor = 0;
+    for &byte in original {
+        if candidate.get(cursor) == Some(&byte) {
+            cursor += 1;
+        } else if !byte.is_ascii_whitespace() {
+            return false;
+        }
+    }
+    cursor == candidate.len()
+        && matches!(tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, parser), CheckedExprParse::Parsed(ref candidate) if candidate == tree)
+}
+
 impl SourceInvocationBinding {
     /// Issue a bounded bracing rewrite for one complete static operand of the
     /// genuinely selected expression handler. Argument evaluation, original
@@ -87,6 +190,52 @@ impl SourceInvocationBinding {
         tokens: &CommandTokens,
         registry: &CommandRegistry,
     ) -> Option<OriginalLiteralExpressionBracing> {
+        let envelope = self.original_expression_rewrite_envelope(tokens, registry)?;
+        original_literal_bracing_operand(self, tokens, registry, envelope, ExpressionRewrite::Brace)
+    }
+
+    /// Remove only verified token gaps from an already braced, pure original
+    /// expression. The existing bracing owner still closes dispatch, observers,
+    /// source reflection and finite Native completion independently.
+    #[must_use]
+    pub fn original_expression_gap_compaction(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        candidate: &str,
+    ) -> Option<OriginalExpressionGapCompaction> {
+        let envelope = self.original_expression_rewrite_envelope(tokens, registry)?;
+        let expression = original_literal_bracing_operand(
+            self,
+            tokens,
+            registry,
+            envelope,
+            ExpressionRewrite::Gaps(candidate),
+        )?;
+        let content = expression.original_operand().content_span().ok()?;
+        let mut cursor = 0;
+        let mut gaps: Vec<Span> = Vec::new();
+        for (index, &byte) in expression.native.iter().enumerate() {
+            if candidate.as_bytes().get(cursor) == Some(&byte) {
+                cursor += 1;
+            } else {
+                let start = content.start().checked_add(u32::try_from(index).ok()?)?;
+                let end = start.checked_add(1)?;
+                if let Some(last) = gaps.last_mut().filter(|gap| gap.end() == start) {
+                    *last = Span::new(last.start(), end);
+                } else {
+                    gaps.push(Span::new(start, end));
+                }
+            }
+        }
+        Some(OriginalExpressionGapCompaction { expression, gaps })
+    }
+
+    fn original_expression_rewrite_envelope(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<ExpressionRewriteEnvelope<'_>> {
         if tokens.source_binding.as_ref() != Some(self)
             || tokens.words().len() != 2
             || !self.unobserved_native_dispatch()
@@ -159,7 +308,12 @@ impl SourceInvocationBinding {
         if !self.original_compiler_names_preserved_for_tokens(tokens) {
             return brace_refusal(tokens, "compiler-name-effects");
         }
-        original_literal_bracing_operand(self, tokens, registry, site, config, target, state)
+        Some(ExpressionRewriteEnvelope {
+            site,
+            config,
+            target,
+            state,
+        })
     }
 }
 
@@ -167,11 +321,15 @@ fn original_literal_bracing_operand(
     binding: &SourceInvocationBinding,
     tokens: &CommandTokens,
     registry: &CommandRegistry,
-    site: &CommandAllocationSite,
-    config: LexerConfig,
-    target: &SourceCommandTarget,
-    state: &ModuleCommandBindings,
+    envelope: ExpressionRewriteEnvelope<'_>,
+    rewrite: ExpressionRewrite<'_>,
 ) -> Option<OriginalLiteralExpressionBracing> {
+    let ExpressionRewriteEnvelope {
+        site,
+        config,
+        target,
+        state,
+    } = envelope;
     let head = brace_required(
         tokens,
         "original-head",
@@ -188,7 +346,10 @@ fn original_literal_bracing_operand(
     if original.len() != 2
         || original.first() != Some(head.original_word())
         || original.iter().any(|word| word.group().expand)
-        || original[1].group().kind == WordKind::Braced
+        || match rewrite {
+            ExpressionRewrite::Brace => original[1].group().kind == WordKind::Braced,
+            ExpressionRewrite::Gaps(_) => original[1].group().kind != WordKind::Braced,
+        }
     {
         return None;
     }
@@ -238,10 +399,27 @@ fn original_literal_bracing_operand(
     {
         return brace_refusal(tokens, "normal-native-evaluation");
     }
+    let replacement_bytes = match rewrite {
+        ExpressionRewrite::Brace => native,
+        ExpressionRewrite::Gaps(candidate) => {
+            let content = original[1].content_span().ok()?;
+            if original[1].image().bytes().get(content.as_range())? != native
+                || !same_expression_gaps(native, candidate.as_bytes(), &parser, config, &tree)
+            {
+                return None;
+            }
+            candidate.as_bytes()
+        }
+    };
     let replacement = brace_required(
         tokens,
         "candidate-roundtrip",
-        braced_source_word(native, site.source.source_image(), config, policy),
+        braced_source_word(
+            replacement_bytes,
+            site.source.source_image(),
+            config,
+            policy,
+        ),
     )?;
     Some(OriginalLiteralExpressionBracing {
         site: site.clone(),
@@ -448,6 +626,67 @@ mod tests {
             .source_binding
             .as_ref()?
             .original_literal_expression_bracing(&tokens, analysis.resolved_registry()?)
+    }
+
+    fn gap_receipt(source: &str, candidate: &str) -> Option<OriginalExpressionGapCompaction> {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        crate::registry_invocation::source_structure::original_expression_gap_compaction(
+            source,
+            &analysis,
+            commands.last()?,
+            candidate,
+        )
+    }
+
+    #[test]
+    fn original_expression_gaps_retain_pure_native_completion_and_exact_input() {
+        let source = "expr { 1 + 2 * 3 }";
+        let proof = gap_receipt(source, "1+2*3").expect("pure original finite expression");
+        assert_eq!(proof.replacement_source_word(), "{1+2*3}");
+        assert_eq!(proof.original_operand().bytes(), b"{ 1 + 2 * 3 }");
+        assert!(!proof.removed_gaps().is_empty());
+        let config = proof.original_operand().config();
+        assert!(proof.matches_source(&SourceImage::document(source), config));
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(!proof.matches_source(&SourceImage::document(source), changed));
+        assert!(!proof.matches_source(&SourceImage::document("expr {1+2*3}"), config));
+        let mut changed_registry = CommandRegistry::build_default();
+        changed_registry.insert_ambient_package("gap-test", "1");
+        assert!(!proof.matches_registry(&changed_registry));
+        for candidate in ["1+3*3", "1 + 2 * 3 + 0", "1+2*"] {
+            assert!(gap_receipt(source, candidate).is_none(), "{candidate}");
+        }
+        // Whitespace within an expression string is token data, never a gap.
+        assert!(gap_receipt("expr {{a  b} eq {a  b}}", "{a b}eq{a b}").is_none());
+    }
+
+    #[test]
+    fn original_expression_gaps_decline_reads_callbacks_errors_and_source_reflection() {
+        for (source, candidate) in [
+            ("expr {$a + 1}", "$a+1"),
+            ("expr {[callback] + 1}", "[callback]+1"),
+            ("expr {abs( 1 )}", "abs(1)"),
+            ("expr {1 / 0}", "1/0"),
+            ("expr {1 +}", "1+"),
+            ("expr {1 + 2}; info frame 0", "1+2"),
+            ("proc p {} {expr {1 + 2}}; p", "1+2"),
+            (
+                "trace add execution expr enter callback; expr {1 + 2}",
+                "1+2",
+            ),
+            ("unknown_mutation; expr {1 + 2}", "1+2"),
+            ("proc expr args {}; expr {1 + 2}", "1+2"),
+            (
+                "expr {1\\
+ + 2}",
+                "1+2",
+            ),
+        ] {
+            assert!(gap_receipt(source, candidate).is_none(), "{source}");
+        }
     }
 
     #[test]

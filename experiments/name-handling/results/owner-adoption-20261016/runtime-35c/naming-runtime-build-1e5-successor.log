@@ -1,0 +1,81 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+error[E0277]: the trait bound `i64: From<isize>` is not satisfied
+   --> src/cmd_var.rs:679:35
+    |
+679 |         let references = unsafe { i64::from((*original).ref_count) };
+    |                                   ^^^ the trait `From<isize>` is not implemented for `i64`
+    |
+    = help: `i64` implements trait `From<T>`:
+              From<bool>
+              From<i16>
+              From<i32>
+              From<i8>
+              From<u16>
+              From<u32>
+              From<u8>
+
+error[E0277]: the trait bound `i64: From<isize>` is not satisfied
+   --> src/cmd_var.rs:687:35
+    |
+687 |         let references = unsafe { i64::from((*original).ref_count) };
+    |                                   ^^^ the trait `From<isize>` is not implemented for `i64`
+    |
+    = help: `i64` implements trait `From<T>`:
+              From<bool>
+              From<i16>
+              From<i32>
+              From<i8>
+              From<u16>
+              From<u32>
+              From<u8>
+
+error[E0599]: no method named `native_string_bytes` found for struct `interp::Interp` in the current scope
+    --> src/cmd_var.rs:1022:22
+     |
+1021 | /                 interp
+1022 | |                     .native_string_bytes(&local.as_ptr())
+     | |_____________________-^^^^^^^^^^^^^^^^^^^
+     |
+    ::: /workspace/tcl-lsp/rust/tcl-syntax/src/value.rs:1047:8
+     |
+1047 |       fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {
+     |          ------------------- the method is available for `interp::Interp` here
+     |
+    ::: src/interp.rs:1276:1
+     |
+1276 |   pub struct Interp(Rc<InterpState>);
+     |   ----------------- method `native_string_bytes` not found for this struct
+     |
+     = help: items from traits can only be used if the trait is in scope
+help: trait `ValueOps` which provides `native_string_bytes` is implemented but not in scope; perhaps you want to import it
+     |
+ 652 +     use tcl_syntax::value::ValueOps;
+     |
+help: there is a method `native_concat_string_bytes` with a similar name
+     |
+1022 |                     .native_concat_string_bytes(&local.as_ptr())
+     |                             +++++++
+
+error[E0282]: type annotations needed for `std::result::Result<ProcBodyBytesQuery, _>`
+   --> src/interp/native_name_queries.rs:385:13
+    |
+385 |         let reached = (|| {
+    |             ^^^^^^^
+...
+408 |             self.retain_name_query_error(error.clone());
+    |                                          ----- type must be known at this point
+    |
+help: consider giving `reached` an explicit type, where the type for type parameter `E` is specified
+    |
+385 |         let reached: std::result::Result<_, E> = (|| {
+    |                    +++++++++++++++++++++++++++
+
+Some errors have detailed explanations: E0277, E0282, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-runtime` (lib test) due to 4 previous errors

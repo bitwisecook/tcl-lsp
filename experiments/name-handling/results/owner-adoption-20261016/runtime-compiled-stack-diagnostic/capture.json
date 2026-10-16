@@ -1,0 +1,14 @@
+{
+  "selector": "interp::native_body_artifact::native_control::compiled_stack_object_tests::compiled_stack_control_sites_compile_the_same_original_list_header",
+  "exit": 101,
+  "instrumented": true,
+  "binary_sha256": "8054dfc4a8fbdd84aedcd960bd47278d7118d89dce7340163a8b85720dc0f21d",
+  "overlay_sha256": "b8cd9b255ca8abdfa94d5a96f434bf6228c8fa00f2098722e67a671b0389dd88",
+  "before": {
+    "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+    "sha256": "e08cead38dbdd0327f949a924601f43b386550773da2249e6b2f64a9cda4afb5",
+    "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+    "scope": "Current working-tree beforeimage; temporary assertion diagnostics only."
+  },
+  "log_sha256": "bf02f39306d39bf1ed9068291e0441831f76c2320821b9d3252e070a34e1ff90"
+}

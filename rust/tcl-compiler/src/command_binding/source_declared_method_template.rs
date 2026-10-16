@@ -422,6 +422,7 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
                 config: analysis.body_lexer_config.unwrap(),
                 identities: realm,
                 executed_source: Some(script),
+                original_logical_body: None,
             };
             let body = script.try_text().unwrap();
             assert_eq!(
@@ -474,6 +475,7 @@ oo::class create C {mixin M; constructor {} {my pick name; puts $name}}";
                     config: analysis.body_lexer_config.unwrap(),
                     identities: analysis.retained_command_realm().unwrap(),
                     executed_source: Some(script),
+                    original_logical_body: None,
                 };
                 assert!(
                     crate::analyser::param_traits::caller_frame_literal_targets(

@@ -779,6 +779,25 @@ not choose an arbitrary file. The target revision and bytes must remain current
 before its original range is converted. These conditional source relationships
 supply no Native lookup, installed command, body entry or edit authority.
 
+Logical member owning-type navigation uses
+`AnalysisResult::logical_source_member_type_at`. Declaration positions retain
+the actual original member name word and side. A lexical self selector requires
+its positioned original command and authentic `LogicalReceiver` source frame.
+That frame retains the original member body and its actual parent declaration
+snapshot under the same origin allocation, full input and configuration. It
+supplies no receiver namespace, native formal topology, entered activation or
+state-bearing frame context. Display names cannot recover any of these owners.
+
+`NamedInstanceMap` transports readonly named-instance reports with private
+conditional and compatibility modes. Conditional rows come from
+`OriginalProjectClassCards::named_instance_display_reports`: the complete current
+final catalogue, authentic instance naming operand, exact surviving slot and
+canonical class metadata precede shared source-spelling rendering. Aggregation
+preserves mode and conflicting labels abstain. Conditional rows never become
+legacy compatibility rows; typed project receiver selection consumes the
+independent original cards. Report labels supply no instance identity, allocation
+or dispatch closure.
+
 ## Rename error names
 
 `report_native_name_bytes` with `RenameCommandError` owns operand presentation
@@ -877,6 +896,18 @@ command-name braces remain data. Method hierarchy display independently uses
 the current original declaration reporting key, with no caller namespace or
 call-target donation.
 
+Readonly Logical parameter traits retain the actual
+`OriginalLogicalProcedureBody` in `TraitScanEnv::original_logical_body`.
+Whole-scan admission requires the current complete input, image, configuration,
+exact body extent and original formal names in order. Positioned source schemas
+must retain that same procedure scope, complete accepted roles and unchanged
+Written origins. The existing named-only Logical descriptor must exclude alias,
+declaration and unknown-mutation debt before `logical_parameter_body_assistance`
+closes its source-only parameter projection. Nested body descent additionally
+requires the actual `OriginalSourceScriptBody` to inherit immediate caller
+source context; a fresh or deferred procedure frame cannot donate its formals.
+This source owner creates no evaluated body, Native entry or Normal completion.
+
 Caller-template name data belongs to the retained actual invocation and its
 original words. Literal Written data and captured-prefix values remain distinct
 from source references; their local-scalar shape uses the held variable policy
@@ -919,6 +950,17 @@ Variable uses shared whole-scalar grammar; typed variable/index components and
 the existing lexical nested-command scanner retain component geometry without
 role projection. Braced or escaped literal data and captured values supply no
 parameter read, caller-frame or Native authority.
+
+`OriginalExpressionGapCompaction` is a bounded action for an already braced,
+pure finite original expression. The existing original literal-expression
+rewrite owner independently closes stock dispatch, compiler-name effects,
+observers and the single root-command reflection envelope. Checked token bytes
+and Native AST agree after removal of lexer-recognised gaps, and the proposed
+whole word is decoded under the same full configuration. Core applies only the
+issued original gap spans after source and Registry currentness checks.
+Variables, child scripts, functions, expansion and procedure-body reflection
+remain outside this action; a known result or a lexical whitespace proposal
+cannot replace its receipt.
 
 Readonly source optimisation certificates retain complete actual unit mutation
 and trace dependencies. With those hazards, per-body reuse requires a nonempty
@@ -1247,6 +1289,16 @@ and selected source class or Registry descriptor. Consumers must independently
 prove closed member-body relations and the actual class association before using
 that parent answer as class metadata. The receipt supplies neither body execution
 nor a substitute for later effects.
+
+`native_equality::jim_string_object_equality_using` represents Jim's original
+`Jim_StringEqObj` purpose. A selected Native Jim issuer and actual original
+header identity precede comparison. Equal headers reach neither String getter;
+distinct headers reach the checked left getter before the checked right getter,
+with both original objects and the caller revalidated around each reached step.
+Failure on the left prevents the right getter. Counted bytes, including NUL,
+remain distinct from character preparation for `Jim_StringCompareObj`. The VM
+import-cycle caller retains its actual operation scope and checked original-name
+getter; the generic native equality worker keeps its separate purpose.
 
 ## Physical command inventories and entered Jim frames
 

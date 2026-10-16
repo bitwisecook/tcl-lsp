@@ -2224,6 +2224,23 @@ impl Analyser {
         // One environment for all four scans, so the traits, the caller-frame
         // params, and the caller-frame literals can never be derived from
         // different views of the proc *or* of the document's command bindings.
+        let input = self.resolved_analysis_input();
+        let original_logical_body = self
+            .head_identities
+            .original_logical_procedure_body_cards(&input)
+            .and_then(|cards| {
+                let mut matching = cards.into_iter().filter(|body| {
+                    body.matches_source(&tcl_lexer::SourceImage::document(&self.source), &input)
+                        && body.scope().scope_body().original_container().group().span == body_span
+                        && body
+                            .parameters()
+                            .iter()
+                            .map(|formal| formal.name.as_str())
+                            .eq(param_names.iter().copied())
+                });
+                let body = matching.next()?;
+                matching.next().is_none().then_some(body)
+            });
         let env = super::param_traits::TraitScanEnv {
             surface: tcl_registry::model::DocumentCommandSurface::new(
                 registry,
@@ -2232,6 +2249,7 @@ impl Analyser {
             config: self.file_lexer_config(),
             identities: &self.head_identities,
             executed_source: self.head_identities.executed_script_for_word(body_span),
+            original_logical_body: original_logical_body.as_ref(),
         };
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {

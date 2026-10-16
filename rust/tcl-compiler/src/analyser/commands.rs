@@ -3840,6 +3840,16 @@ impl Analyser {
                 )
             });
         if let Some(source_aliases) = source_aliases {
+            let input = self.resolved_analysis_input();
+            if let Some(spans) =
+                source_aliases.unresolved_logical_name_spans(&input, &self.head_identities)
+            {
+                for span in spans {
+                    if !self.result.original_variable_name_unknowns.contains(&span) {
+                        self.result.original_variable_name_unknowns.push(span);
+                    }
+                }
+            }
             for &(local, target, purpose) in source_aliases.operands() {
                 let operand = (invocation_offset, local, target, purpose);
                 if !self

@@ -4571,11 +4571,10 @@ pub struct FileTokenFacts {
     pub classes: HashMap<String, ClassDef>,
     /// The file's user-proc parameter roles.
     pub proc_roles: VarNameArgRoles,
-    /// Bareword instance-command names this file binds via `CLASS create
-    /// NAME`, mapped to the (locally-resolved) qualified class name — the
-    /// compatibility display projection. Actual project token retagging uses
-    /// `class_cards`, independently of this report membership.
-    pub named_instances: HashMap<String, String>,
+    /// Readonly named-instance reports with separate existing compatibility
+    /// and conditional source-display modes. Conditional labels supply no
+    /// receiver identity; actual project token selection uses `class_cards`.
+    pub named_instances: tcl_lsp_core::semantic_tokens::NamedInstanceMap,
     /// Genuine original class/factory/instance source-display owners.
     pub class_cards:
         Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards>,
@@ -4616,16 +4615,15 @@ pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts>
 }
 
 fn token_facts_from_analysis(result: AnalysisResult) -> Arc<FileTokenFacts> {
-    let named_instances = result
-        .instance_classes
-        .iter()
-        .filter(|(name, _)| result.created_instance_commands.contains(name.as_str()))
-        .map(|(name, class)| (name.clone(), class.clone()))
-        .collect();
+    let mut named_instances =
+        tcl_lsp_core::semantic_tokens::NamedInstanceMap::from_analysis(&result);
     let class_cards =
         tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(
             &result,
         );
+    if let Some(cards) = &class_cards {
+        named_instances.extend_conditional_source_cards(cards);
+    }
     Arc::new(FileTokenFacts {
         proc_roles: VarNameArgRoles::from_analysis(&result),
         class_cards,
@@ -4720,15 +4718,13 @@ fn merge_project_proc_roles(
     ))
 }
 
-/// The project's workspace-merged `CLASS create NAME` bareword
-/// instance-command index: every file's `named_instances`
-/// unioned into one cross-file map, so `$obj method` on a named object
-/// bound in *another* project file's file resolves too.
+/// Workspace named-instance display reports, preserving each row's existing
+/// compatibility or conditional source-display mode. Conditional labels never
+/// enter legacy classification; actual project receiver selection uses the
+/// independently retained original `FileTokenFacts::class_cards`.
 ///
-/// A name bound to a *different* class in two or more files is genuinely
-/// ambiguous — dropped from the merged index, matching
-/// [`project_class_index`]'s order-independent abstention posture, rather
-/// than depending on `project.files`' unordered enumeration.
+/// Conflicting class labels are omitted from this report in either file order.
+/// Agreement between labels supplies no command or receiver identity.
 ///
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked(returns(clone))]
@@ -4749,25 +4745,9 @@ pub fn project_named_instance_index(
 fn merge_project_named_instances(
     facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
 ) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
-    let mut merged: HashMap<String, String> = HashMap::new();
-    let mut ambiguous: HashSet<String> = HashSet::new();
+    let mut merged = tcl_lsp_core::semantic_tokens::NamedInstanceMap::default();
     for facts in facts {
-        for (name, class) in &facts.named_instances {
-            if ambiguous.contains(name) {
-                continue;
-            }
-            match merged.entry(name.clone()) {
-                std::collections::hash_map::Entry::Occupied(e) => {
-                    if e.get() != class {
-                        e.remove();
-                        ambiguous.insert(name.clone());
-                    }
-                }
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    e.insert(class.clone());
-                }
-            }
-        }
+        merged.merge_reports(&facts.named_instances);
     }
     Arc::new(merged)
 }

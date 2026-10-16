@@ -1362,7 +1362,9 @@ impl VarTable {
             return (removed, old);
         }
         let mut cell = self.cells[slot].contents.borrow_mut();
-        cell.binding_id = None;
+        if !cell.compiled_declaration {
+            cell.binding_id = None;
+        }
         cell.element_ids.clear();
         old.elements(std::mem::take(&mut cell.native_member_keys));
         cell.rmw_member_shells.clear();

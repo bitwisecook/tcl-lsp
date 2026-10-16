@@ -1709,6 +1709,16 @@ Jim Binary reads retain the string representation. The selected UTF8 byte-read d
 
 Jim's string equality and ordering are distinct native operations. Plain case-sensitive `string equal` compares bytes, while `string compare`, limited equality and nocase equality compare decoded numeric units with the retained native character counts. Its simple case tables cover BMP units only and do not expand characters using host Unicode casing. Case conversion stops at the native NUL and creates fresh encoded bytes. These contracts do not license changing expression equality, glob matching, or dictionary-key identity to the same algorithm.
 
+For an actual `Jim_StringEqObj` caller, use
+`native_equality::jim_string_object_equality_using` with the retained original
+objects, actual operation checks and checked String getter. Same-header equality
+reaches no getters. Otherwise preserve left String then right String and
+revalidate both objects and caller after each reached getter, including failure.
+The VM import-cycle caller supplies its existing original operation scope and
+`native_name_operand_bytes_checked_using`; it does not invoke character-count
+preparation. Do not replace the generic `full_native_equality` purpose or use
+resident byte equality to invent physical object identity.
+
 Jim substring searches also retain their distinct native protocols. `first` compares exact needle bytes at decoded character starts, while `last` scans every byte inside its exclusive selected prefix, including continuation bytes. The resulting position counts decoded units preceding the matched byte. Cached character counts control native leading-byte seeks; access beyond owned bytes remains a host refusal. Repeat count conversion is separate from allocation: retain `prepare_repeat_count`, charge the actual byte extent multiplied by its nonnegative value, then call `repeat_with_count` without repeating coercion.
 
 The selected Jim glob owner matches decoded numeric units and uses the same pinned simple uppercase table for nocase comparisons. It retains the native bracket grammar and the order of star continuations. The owned terminating NUL can participate in a native decode, so `?*` matches an empty subject even though `*?` does not. A subsequent decode outside that storage remains a reached host refusal. This operation does not use the existing byte-glob compatibility fallback or plain byte equality.
@@ -2614,6 +2624,22 @@ optimisation permission. `ResolvedStatementInvocation::written_argument_roles`
 uses the same mapping with the selected invocation's existing proof strength;
 consumers that collect executed expression reads must still establish their
 own actual read/body purpose. Syntax assistance is not that proof.
+
+For readonly Logical parameter traits, retain the actual
+`OriginalLogicalProcedureBody` in `TraitScanEnv::original_logical_body` instead of
+constructing an `ExecutedScriptSource` or `SourceConditionalBodyEntry`. Admit only
+the exact whole original body, current complete input/configuration and original
+formal names in order. `logical_parameter_body_assistance` reuses the existing
+positioned source schema owner: the same procedure scope, complete role grammar,
+accepted frozen arity, unchanged Written origins and named-only Logical summary
+descriptor must all agree before source-only parameter advice is closed. Alias,
+declaration or unknown-mutation debt refuses that route. Literal template data
+comes from the retained original words, while definite/execution fields retain
+their independent meaning. Deep body descent must reuse
+`OriginalSourceScriptBody::inherits_immediate_caller_source_context`; do not carry
+outer formals into a fresh or deferred body. Include overlapping/reordered
+formal, body-prefix, stale-config and nested-frame negatives alongside a genuine
+same-frame positive.
 
 ## Keep recursive source-driver construction out of retained frames
 
@@ -7353,6 +7379,18 @@ See the [tool context contract](../analysis/name-resolution-proofs/original-mcp-
 [source rewrite contract](../analysis/name-resolution-proofs/refactor-original-source-rewrite-permissions.md)
 and [literal bracing contract](../analysis/name-resolution-proofs/original-literal-expression-bracing.md).
 
+For whitespace removal inside an already braced pure expression, ask
+`source_structure::original_expression_gap_compaction` for
+`OriginalExpressionGapCompaction`. Its existing literal-expression owner retains
+the exact original handler, compiler-name, observer, configuration and single
+root-command reflection requirements. The selected native evaluator proves
+finite completion, while checked token bytes and AST remain equal and the whole
+proposed word decodes under the same grammar. Core applies only `removed_gaps()`
+after `matches_source` and `matches_registry`. Lexical gap selection is merely a
+candidate: variable expressions such as `$a + 1`, child scripts, functions and
+procedure bodies do not acquire this receipt. No relocation or observer erasure
+follows from a successful pure-expression action.
+
 ### Workspace procedure suggestions and instance member edits
 
 `completion::original_workspace` derives the requesting document's protocol
@@ -7372,6 +7410,28 @@ refuse the complete plan. Server uses the common typed command rename tier and
 revalidates all independent owners before publishing edits.
 See [workspace completion](../analysis/name-resolution-proofs/original-workspace-procedure-completion.md)
 and [instance member rename plans](../analysis/name-resolution-proofs/original-instance-member-rename-plans.md).
+
+For Logical owning-type navigation at a member name or self selector, call
+`AnalysisResult::logical_source_member_type_at` with the current complete image,
+configuration and position. It retains the actual original member word/side;
+self selectors additionally join their positioned command to the genuine
+`LogicalReceiver` source frame. `SourceCommandBindings::logical_source_member_frame_at_offset`
+rechecks the original member body, actual parent declaration snapshot, allocation,
+full input and direct cursor geometry. This diagnostic frame has no receiver
+namespace, native formal topology or entered context. Never substitute a class
+or method report label for those joins.
+
+Named-instance display consumes
+`OriginalProjectClassCards::named_instance_display_reports` through
+`NamedInstanceMap::extend_conditional_source_cards`. Complete current final
+instance slots and their canonical class metadata precede shared label rendering.
+Use `merge_reports` without converting the wrapper to a raw map: conditional
+rows remain display-only, independent existing compatibility rows retain their
+mode, and conflicting labels abstain. `report_rows` and `get` are presentation
+queries. Actual project method colouring keeps its separate typed class-card
+selection and refuses legacy label recovery after a typed refusal. Foreign
+constructor provenance cannot discharge an unknown collection getter's effect
+or lookup obligations.
 
 ### Readonly resident name labels
 

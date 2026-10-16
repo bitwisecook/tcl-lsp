@@ -1,13 +1,13 @@
 # Current naming state and validation
 
-Implementation has resumed from `554085e`. **97 baseline units** have reviewed
-implementation pending validation: 43 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **98 baseline units** have reviewed
+implementation pending validation: 44 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,061 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **19 demonstrated
-requirements**, of which 18 have integrated implementation pending validation.
-Effective scope is **2,177 obligations**, with **115 integrated pending validation**
-and **2,062 not integrated**. These counts establish neither semantic acceptance
+2,060 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **25 demonstrated
+requirements**, of which 24 have integrated implementation pending validation.
+Effective scope is **2,183 obligations**, with **122 integrated pending validation**
+and **2,061 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Development checkpoint `80541dfbc` is pushed to `work`. Its fresh ordinary
@@ -16,18 +16,28 @@ six-package workspace build passed in 9m18s. Selected controls are **164 PASS /
 controls are 92 PASS/50 FAIL and VM namespace controls 44 PASS/12 FAIL; all six
 actual VM report-parts controls and the import cleanup control pass. Exact logs,
 binary hashes and strict original-provider invocation scope are retained.
-The successor seven-package build failed on two new class adapter compile errors;
-reviewed narrow repairs are applied and await rerun.
-The fresh ordinary Runtime successor build passes in 56.11s with zero warnings
-after four narrow compile repairs; current ordinary controls are pending. Jim variable, VM lookup and
-partial class/collection transport are integrated. Foreign constructor collections
-remain open. None of this changes the frozen M12 record or grants issue acceptance.
+The ordinary Runtime build at `35c8ce634` passed; selected controls were
+294 PASS/5 FAIL. In the two broad comparison groups all 197 prior passes were
+retained, with eight gains and zero regressions. Reviewed repairs for the five
+remaining failures are integrated. A fresh ordinary successor build passed in
+57.46s with zero warnings; its selected controls finished at 298 PASS/1 FAIL. The remaining local-cache
+fixture entered a fresh Native read after refusal; its reviewed correction
+inspects the original physical compiled slot and awaits a fresh build. The workspace
+successor encountered 19 missing API docs and one test borrow error, now repaired;
+its seven-package rebuild compiled production libraries but found four
+new test-only scope errors in the instance-report control; moving that control
+to its existing helper module repairs the scope. Another build is pending. Genuine Logical receiver/navigation,
+parameter-trait source transport, pure expression-gap action and mode-preserving
+instance reports are integrated pending validation. Native variable expressions,
+foreign constructor collections and VM physical body transport remain open.
 
 The full proof checker at `2a86f7dfd` reported 3,574 errors. A reviewed repair
 addresses its 17 source/binding/document consistency messages and passes bounded
 108-owner/85-binding checks without changing evidence, result or status digests.
-The full gate has not been rerun. Missing historical payloads and remaining
-census/evidence drift remain explicit.
+The current full rerun reports 3,403 errors. Thirteen small historical files (3,520,174 bytes)
+were restored with Git blob and all 164 retained proof hashes verified. This is
+availability restoration only; 638 native binary references across 470 paths
+remain missing. Census/evidence drift and required acceptance remain open.
 
 Exact selected ordinary results remain in the compact durable
 [control capture](../../../experiments/name-handling/results/owner-adoption-20261016/records.json).

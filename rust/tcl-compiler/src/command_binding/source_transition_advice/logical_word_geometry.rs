@@ -85,6 +85,19 @@ impl OriginalLogicalBodyWords {
         Some(&self.original)
     }
 
+    pub(super) fn original_member_body(
+        &self,
+        origin: &Arc<SourceOriginId>,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>> {
+        self.original_words(origin, input)?;
+        let OriginalSourceCatalogueBody::Member(body) = &self.body else {
+            return None;
+        };
+        body.receiver_grammar(input.borrowed_context_registry())?;
+        Some(Arc::clone(body))
+    }
+
     fn original_word(
         &self,
         origin: &Arc<SourceOriginId>,

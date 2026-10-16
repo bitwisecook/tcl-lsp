@@ -1,0 +1,24 @@
+
+running 8 tests
+test interp::native_jim_namespace::tests::canonical_construction_and_query_use_actual_jim_holder_without_c_tree ... ok
+test interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls ... 
+thread 'interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls' (70361) panicked at src/interp/native_jim_namespace.rs:949:9:
+assertion `left == right` failed: result=[105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 101, 120, 105, 115, 116, 115, 34], native refusal=None, admission=None
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::native_jim_namespace::tests::jim_namespace_error_unwind_does_not_prepare_an_unused_c_namespace_display ... ok
+test interp::native_jim_namespace::tests::jim_root_command_context_requires_its_live_original_top_object ... ok
+test interp::native_jim_namespace::tests::jim_top_namespace_owns_the_original_context_empty_object ... ok
+test interp::native_jim_namespace::tests::namespace_body_dispatch_retains_original_list_members ... ok
+test interp::native_jim_namespace::tests::original_canonical_name_getter_precedes_relative_namespace_and_skips_absolute_namespace ... ok
+test interp::native_jim_namespace::tests::root_relative_canonicalisation_and_activation_retain_original_opaque_object ... ok
+
+failures:
+
+failures:
+    interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 2291 filtered out; finished in 5.53s
+

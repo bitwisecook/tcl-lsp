@@ -13228,8 +13228,18 @@ impl Vm {
                 ));
             }
             alias = next;
-            let equal =
-                tcl_syntax::native_equality::full_native_equality(self, &alias, destination);
+            let equal = tcl_syntax::native_equality::jim_string_object_equality_using(
+                self,
+                &alias,
+                destination,
+                &|vm, original| {
+                    native_numeric_ops::OriginalNumericOps::in_original_scope(vm, operation)?
+                        .current_for_value(original)
+                },
+                &mut |vm, original| {
+                    vm.native_name_operand_bytes_checked_using(original, &|vm| operation.check(vm))
+                },
+            );
             if let Err(error) = operation.check(self) {
                 return Err(crate::command::completion_from_cmd_error(self, error));
             }
@@ -27945,12 +27955,7 @@ impl Namespaces for Vm {
                 .and_then(|parent| u32::try_from(parent).ok())
                 .map(NsId);
         }
-        self.name_world
-            .borrow()
-            .ns_parents
-            .get(ns.0 as usize)
-            .copied()
-            .flatten()
+        self.name_world.borrow().physical_namespace_parent(ns)
     }
 
     fn children(&self, ns: NsId) -> Vec<NsId> {

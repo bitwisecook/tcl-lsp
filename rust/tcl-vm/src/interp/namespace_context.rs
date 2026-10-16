@@ -138,10 +138,6 @@ impl OriginalJimNamespaceContext {
     }
 
     /// A reached original namespace operation owns this getter independently of capture.
-    pub(crate) fn materialize(&self, vm: &mut Vm) -> Result<NsId, CmdError> {
-        self.materialize_using(vm, &|_| Ok(()))
-    }
-
     pub(crate) fn materialize_using(
         &self,
         vm: &mut Vm,

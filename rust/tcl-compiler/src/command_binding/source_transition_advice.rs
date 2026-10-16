@@ -757,6 +757,32 @@ impl OriginalSourceTransitionAdviceTape {
             .collect()
     }
 
+    /// Genuine original receiver-body vectors, without receiver lookup or entry.
+    /// Conflicting source receipts withdraw this catalogue as a whole.
+    pub(super) fn logical_receiver_source_commands(
+        &self,
+        origin: &Arc<super::SourceOriginId>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<
+        Vec<(
+            Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+            Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
+        )>,
+    > {
+        input.has_logical_source_name_context().then_some(())?;
+        let mut commands = Vec::new();
+        for (&offset, receipt) in &self.logical_body_words {
+            let receipt = receipt.as_ref()?;
+            receipt.original_words(origin, input)?;
+            let Some(body) = receipt.original_member_body(origin, input) else {
+                continue;
+            };
+            let original = self.logical_original_command_at(origin, input, offset)?;
+            commands.push((body, original));
+        }
+        Some(commands)
+    }
+
     /// Whole original syntax from independent Logical body/header owners.
     /// The selected command/schema may be unavailable; this grants geometry only.
     pub(crate) fn logical_original_command_at(

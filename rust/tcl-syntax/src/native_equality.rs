@@ -47,6 +47,50 @@ fn backing(snapshot: &NativeObjectSnapshot, version: TclVersion) -> Option<&[u8]
     None
 }
 
+/// Reach Jim_StringEqObj, independently of Jim_StringCompareObj's character
+/// preparation. The caller retains each original header and supplies its checked
+/// String getter; equal physical headers do not reach either String getter.
+///
+/// # Errors
+/// Refuses an unselected Jim recipe, unknown original identity, stale caller or
+/// failed original String getter. The right getter is absent after left failure.
+pub fn jim_string_object_equality_using<O: ValueOps, E: From<ValueError>>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    check: &impl Fn(&mut O, &O::Value) -> Result<(), E>,
+    get_string: &mut impl FnMut(&mut O, &O::Value) -> Result<std::rc::Rc<[u8]>, E>,
+) -> Result<bool, E> {
+    check(ops, left)?;
+    check(ops, right)?;
+    if !ops.name_policy_protocol().is_some_and(|policy| {
+        policy.authority() == crate::naming::NamePolicyAuthority::Native
+            && policy.recipe().is_jim084()
+    }) {
+        return Err(
+            ValueError::CommandProtocolUnavailable("Jim original String equality issuer").into(),
+        );
+    }
+    match ops.same_object(left, right) {
+        Some(true) => return Ok(true),
+        Some(false) => {}
+        None => {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "Jim original String equality identity",
+            )
+            .into());
+        }
+    }
+    let left_bytes = get_string(ops, left);
+    check(ops, left)?;
+    check(ops, right)?;
+    let left_bytes = left_bytes?;
+    let right_bytes = get_string(ops, right);
+    check(ops, left)?;
+    check(ops, right)?;
+    Ok(left_bytes == right_bytes?)
+}
+
 /// Reach native equality on the original objects, preserving each selected
 /// string/count/Unicode preparation in native order.
 ///

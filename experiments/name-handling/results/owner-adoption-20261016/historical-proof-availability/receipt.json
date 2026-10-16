@@ -1,0 +1,141 @@
+{
+  "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json",
+      "git_blob": "c7df4721c409379b096633cb3ff39978f3bdbc30",
+      "bytes": 405497,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json",
+      "expected_sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
+      "proof_reference_count": 51,
+      "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json",
+      "git_blob": "946fd329c9a1569c5508e09c86eb1b6631fb837f",
+      "bytes": 1472747,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json",
+      "expected_sha256": "351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5",
+      "proof_reference_count": 45,
+      "sha256": "351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json",
+      "git_blob": "5bdedc5b397ab8f8c02ebaf624e0dddf535bca9a",
+      "bytes": 8258,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json",
+      "expected_sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+      "proof_reference_count": 1,
+      "sha256": "4b063785f76239f9dc72e36f1b5bb9626acba37e25fba879a7fc44ce0d166cdd",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json",
+      "git_blob": "d447cce030dd21518d1b58717cc62237908e0279",
+      "bytes": 7603,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json",
+      "expected_sha256": "d34d8b9086aff5acec4e2a4cf1261f63aa96b91101a1d1855360e8e9225728cb",
+      "proof_reference_count": 1,
+      "sha256": "d34d8b9086aff5acec4e2a4cf1261f63aa96b91101a1d1855360e8e9225728cb",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen311/integration-maintained-proof-boundaries311/receipt.json.gz",
+      "git_blob": "db7b48f34bae050a866c4b6f5063a0b2333da2c6",
+      "bytes": 1190159,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/frozen311/integration-maintained-proof-boundaries311/receipt.json.gz",
+      "expected_sha256": "415cb0fd8f2775bbbf49c87736341353d06f222a09e951724007b65535c4ef97",
+      "proof_reference_count": 1,
+      "sha256": "415cb0fd8f2775bbbf49c87736341353d06f222a09e951724007b65535c4ef97",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen311/integration-maintained-proof-boundaries311/tests.log",
+      "git_blob": "88cb40ffb1deec93b464a0a95accfcf7bd14d2a2",
+      "bytes": 116,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/frozen311/integration-maintained-proof-boundaries311/tests.log",
+      "expected_sha256": "1e40316a5668dc3d14ead87d86b09ca3c7724fc3e8bf943c9e2682a3c543a6fb",
+      "proof_reference_count": 1,
+      "sha256": "1e40316a5668dc3d14ead87d86b09ca3c7724fc3e8bf943c9e2682a3c543a6fb",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+      "git_blob": "229f1fa592fc54679912df8f7f42c9ee5267c1d8",
+      "bytes": 343565,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json",
+      "expected_sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+      "proof_reference_count": 51,
+      "sha256": "bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json",
+      "git_blob": "471370f1dcace02140c617c8e0fd5714316bb066",
+      "bytes": 15052,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json",
+      "expected_sha256": "4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6",
+      "proof_reference_count": 8,
+      "sha256": "4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/question-body-outcomes.json",
+      "git_blob": "295299de67dea5fe5993d1672e71ce2e68fecb97",
+      "bytes": 1974,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/question-body-outcomes.json",
+      "expected_sha256": "0fea266b1e71b61a465da57e238e5c2d556e2ad7197798c9a0dd11385816c037",
+      "proof_reference_count": 1,
+      "sha256": "0fea266b1e71b61a465da57e238e5c2d556e2ad7197798c9a0dd11385816c037",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-complete-check398/original.log",
+      "git_blob": "4bbc9c15a4665fd7f2e7fd44f488a2fb0125d16a",
+      "bytes": 73508,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/proof-complete-check398/original.log",
+      "expected_sha256": "9993144d66dc343511d608175fab53c93e2ed023525ee381842538709ea105b2",
+      "proof_reference_count": 1,
+      "sha256": "9993144d66dc343511d608175fab53c93e2ed023525ee381842538709ea105b2",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/receipt.json",
+      "git_blob": "6fcc1f44b521e470c5964cac1769119122cc112a",
+      "bytes": 1574,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/receipt.json",
+      "expected_sha256": "d3026c14abd871c714a7694e0929137b8d1e8f8866cde2bfae675276e4f0ab5e",
+      "proof_reference_count": 1,
+      "sha256": "d3026c14abd871c714a7694e0929137b8d1e8f8866cde2bfae675276e4f0ab5e",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stderr",
+      "git_blob": "3b014130574f81c8038088fa8043a2f4a4544f17",
+      "bytes": 121,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stderr",
+      "expected_sha256": "b6fd684e50cea8012f1bd20ae8b8540b0083dec4a6780e32c30f160016d76e4c",
+      "proof_reference_count": 1,
+      "sha256": "b6fd684e50cea8012f1bd20ae8b8540b0083dec4a6780e32c30f160016d76e4c",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stdout",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "url": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/554085e162823ea8bd126898d0c27b7b2a9f8628/docs/design/analysis/name-resolution-proofs/rust-validation/proof-source-geometry/stdout",
+      "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "proof_reference_count": 1,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    }
+  ],
+  "bytes": 3520174,
+  "scope": "Availability restoration only; historical outcomes and full checker acceptance unchanged. No source afterimages/executables restored or executed.",
+  "retained_proof_references_verified": 164,
+  "restored_file_count": 13,
+  "missing_native_binary_references": 638,
+  "missing_native_binary_distinct_paths": 470
+}

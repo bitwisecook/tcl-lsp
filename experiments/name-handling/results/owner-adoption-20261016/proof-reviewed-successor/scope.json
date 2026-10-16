@@ -1,0 +1,11 @@
+{
+  "status": "FAIL",
+  "structural_errors": 3403,
+  "previous_structural_errors": 3574,
+  "candidate_records": 7069,
+  "corpus_files": 31924,
+  "questions": 2606,
+  "unlinked_tests": 0,
+  "restoration": "13 historical files 3520174bytes verified against Git and all164 retained proof hashes; availability only.",
+  "limitations": "Remaining missing original executables, census/evidence drift and three unbound test annotations remain. No digest/status refresh or semantic acceptance."
+}

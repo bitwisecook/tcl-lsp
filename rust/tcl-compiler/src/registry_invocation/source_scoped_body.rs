@@ -422,6 +422,31 @@ impl OriginalSourceScriptBody {
             && self.container.config() == config
     }
 
+    /// Exact contiguous original content inside this retained body. This is
+    /// readonly source geometry, not evaluated-script or entered-frame proof.
+    pub(crate) fn matches_original_content(
+        &self,
+        source: &str,
+        base: u32,
+        config: LexerConfig,
+    ) -> bool {
+        let Ok(length) = u32::try_from(source.len()) else {
+            return false;
+        };
+        let Some(end) = base.checked_add(length) else {
+            return false;
+        };
+        self.matches_source(self.container.image(), config)
+            && self.content.start() <= base
+            && end <= self.content.end()
+            && self
+                .container
+                .image()
+                .bytes()
+                .get(base as usize..end as usize)
+                == Some(source.as_bytes())
+    }
+
     /// Complete lexical command vectors inside this sealed original body.
     /// The full container image, channel, configuration and selected context
     /// stay retained. A fatal tail withdraws the whole inventory. These words
@@ -529,6 +554,13 @@ pub struct OriginalSourceDefinitionMemberScriptBody {
     member_row: Option<tcl_registry::definer::MemberRow>,
 }
 impl OriginalSourceDefinitionMemberScriptBody {
+    /// Actual enclosing declaration body, retained solely as source lineage.
+    /// Callable bodies do not acquire the parent's definition vocabulary,
+    /// receiver namespace, command lookup or entered context from this borrow.
+    pub(crate) const fn original_parent_body(&self) -> &OriginalSourceScriptBody {
+        &self.parent
+    }
+
     /// Complete original member argv, including its genuine source keyword.
     #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {

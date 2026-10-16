@@ -1,0 +1,216 @@
+diff --git a/runtime/rust/src/cmd_namespace/original_argument_tests.rs b/runtime/rust/src/cmd_namespace/original_argument_tests.rs
+index df665266d..670a1b9fc 100644
+--- a/runtime/rust/src/cmd_namespace/original_argument_tests.rs
++++ b/runtime/rust/src/cmd_namespace/original_argument_tests.rs
+@@ -232,11 +232,13 @@ fn capture_namespace(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+     Code::Ok
+ }
+ pub(crate) fn jim_fixture_namespace(interpreter: &mut Interp, name: &[u8]) -> JimFixtureNamespace {
+-    assert!(interpreter
+-        .native_invocation_dialect()
+-        .native_name_protocol()
+-        .unwrap()
+-        .is_jim084());
++    assert!(
++        interpreter
++            .native_invocation_dialect()
++            .native_name_protocol()
++            .unwrap()
++            .is_jim084()
++    );
+     CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());
+     let _cleanup = FixtureCleanup(|| {
+         CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());
+@@ -292,7 +294,24 @@ fn namespace_call_in_fixture(
+     });
+     interpreter.register_builtin(b"consumerFixtureNamespaceCall", fixture_namespace_call);
+     let body = text(b"consumerFixtureNamespaceCall");
+-    namespace_call(interpreter, b"eval", &[namespace.owner.as_ref(), &body])
++    let actual = interpreter
++        .namespaces()
++        .jim_namespace_original_owner(namespace.token)
++        .expect("live captured Jim namespace holder");
++    assert!(Rc::ptr_eq(&actual, &namespace.owner));
++    drop(actual);
++    // Enter the captured holder; public namespace eval constructs another role token.
++    interpreter.ns_eval_in_token(
++        namespace.token,
++        &[],
++        None,
++        true,
++        Some((
++            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
++            body.as_ptr(),
++        )),
++        None,
++    )
+ }
+ 
+ fn namespace_call(interpreter: &mut Interp, sub: &[u8], inputs: &[&obj::Owned]) -> Code {
+diff --git a/runtime/rust/src/frame.rs b/runtime/rust/src/frame.rs
+index cbba0f2de..c9958833c 100644
+--- a/runtime/rust/src/frame.rs
++++ b/runtime/rust/src/frame.rs
+@@ -1362,7 +1362,9 @@ impl VarTable {
+             return (removed, old);
+         }
+         let mut cell = self.cells[slot].contents.borrow_mut();
+-        cell.binding_id = None;
++        if !cell.compiled_declaration {
++            cell.binding_id = None;
++        }
+         cell.element_ids.clear();
+         old.elements(std::mem::take(&mut cell.native_member_keys));
+         cell.rmw_member_shells.clear();
+diff --git a/runtime/rust/src/interp/native_body_artifact.rs b/runtime/rust/src/interp/native_body_artifact.rs
+index 367d3bd83..9ecbcd180 100644
+--- a/runtime/rust/src/interp/native_body_artifact.rs
++++ b/runtime/rust/src/interp/native_body_artifact.rs
+@@ -1818,7 +1818,23 @@ impl Interp {
+                 .map(|trace| (trace.token, trace.ops, trace.command.clone()))
+                 .collect(),
+             borrowed_table: if procedure.is_none() && self.frames.borrow().in_proc() {
+-                Some(Rc::as_ptr(self.frames.borrow().native_local_name_table()?) as usize)
++                let frames = self.frames.borrow();
++                match frames.native_local_name_table() {
++                    Some(table) => Some(Rc::as_ptr(table) as usize),
++                    None if self
++                        .native_invocation_dialect()
++                        .native_compiled_variable_protocol()
++                        .is_some_and(|compiler| {
++                            compiler.supports_environment(Environment::BorrowFrameSlots)
++                        }) =>
++                    {
++                        return None;
++                    }
++                    // C8.4/8.5 non-body scripts use original name access and
++                    // have no indexed frame borrowing requirement. Any actual
++                    // table above retains its existing authentication schedule.
++                    None => None,
++                }
+             } else {
+                 None
+             },
+diff --git a/runtime/rust/src/interp/native_jim_namespace.rs b/runtime/rust/src/interp/native_jim_namespace.rs
+index 1f3c91006..8abe041a1 100644
+--- a/runtime/rust/src/interp/native_jim_namespace.rs
++++ b/runtime/rust/src/interp/native_jim_namespace.rs
+@@ -943,8 +943,12 @@ mod tests {
+     fn jim_flat_command_context_and_helper_enumeration_match_native_controls() {
+         // Native source question: naming.namespace.jim-flat-command-context-source-controls
+         // docs/design/analysis/name-resolution-proofs/jim-flat-command-context-source-controls.md
+-        let mut interp = Interp::new();
+-        interp.set_dialect_profile(profile());
++        let mut interp = Interp::with_native_core(
++            crate::interp::default_host(),
++            crate::environment::profile_for_dialect("jimtcl"),
++            tcl_registry::special_vars::NativeBootstrapInputs::default(),
++        )
++        .unwrap();
+         let script = br#"proc p {} {return ROOT}; namespace eval n {proc p {} {return INNER}; namespace eval child {proc q {} {return CHILD}}}; namespace eval D {namespace import ::n::p}; list [namespace canonical] [namespace eval n {namespace canonical}] [lsort [namespace eval n {info procs *}]] [namespace eval n {info commands p}] [lsort [namespace eval n {info procs ::n::*}]] [namespace eval n {namespace which -variable absent}] [namespace eval n {set value LOCAL; namespace eval child {set value CHILD}; set value}] [D::p] [namespace origin D::p]"#;
+         assert_eq!(
+             interp.eval_str(script),
+diff --git a/runtime/rust/src/interp/native_variable_names.rs b/runtime/rust/src/interp/native_variable_names.rs
+index d1a88ae13..00b4a7697 100644
+--- a/runtime/rust/src/interp/native_variable_names.rs
++++ b/runtime/rust/src/interp/native_variable_names.rs
+@@ -3225,6 +3225,7 @@ mod tests {
+         static NAME_FREE_BORROWS_RELEASED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+         static NAME_FREE_CONTEXT_ACCEPTED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+         static NAME_CALLBACK_BOUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
++        static NAME_CALLBACK_TARGET_BORN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+         static NAME_CALLBACK_CODE: std::cell::Cell<Code> = const { std::cell::Cell::new(Code::Other(37)) };
+     }
+ 
+@@ -3295,6 +3296,7 @@ mod tests {
+         NAME_FREE_BORROWS_RELEASED.with(|value| value.set(true));
+         NAME_FREE_CONTEXT_ACCEPTED.with(|value| value.set(true));
+         NAME_CALLBACK_BOUND.with(|value| value.set(false));
++        NAME_CALLBACK_TARGET_BORN.with(|value| value.set(false));
+         NAME_CALLBACK_CODE.with(|value| value.set(Code::Other(37)));
+     }
+ 
+@@ -3303,6 +3305,13 @@ mod tests {
+         let level = Owned::fresh(obj::new_string_bytes(b"#0"));
+         let local = Owned::fresh(obj::new_string_bytes(b"callback_local"));
+         let code = interp.dispatch(&[command.as_ptr(), level.as_ptr(), argv[1], local.as_ptr()]);
++        let target_born = interp
++            .namespaces
++            .borrow()
++            .var_table(crate::namespace::GLOBAL)
++            .trace_binding_identity(b"callback_target")
++            .is_some();
++        NAME_CALLBACK_TARGET_BORN.with(|value| value.set(target_born));
+         let bound = interp
+             .frames
+             .borrow()
+@@ -3391,12 +3400,8 @@ mod tests {
+                     assert!(!NAME_CALLBACK_BOUND.with(std::cell::Cell::get));
+                     assert!(interp.native_execution_refusal().is_some());
+                 }
+-                let target_born = interp
+-                    .namespaces
+-                    .borrow()
+-                    .var_table(crate::namespace::GLOBAL)
+-                    .trace_binding_identity(b"callback_target")
+-                    .is_some();
++                // Frame pop can reclaim the undefined target after its local alias.
++                let target_born = NAME_CALLBACK_TARGET_BORN.with(std::cell::Cell::get);
+                 assert_eq!(
+                     target_born,
+                     mode == 0 || profile.starts_with("tcl9"),
+diff --git a/rust/tcl-syntax/src/native_equality.rs b/rust/tcl-syntax/src/native_equality.rs
+index 723b7fa46..51810bacd 100644
+--- a/rust/tcl-syntax/src/native_equality.rs
++++ b/rust/tcl-syntax/src/native_equality.rs
+@@ -47,6 +47,50 @@ fn backing(snapshot: &NativeObjectSnapshot, version: TclVersion) -> Option<&[u8]
+     None
+ }
+ 
++/// Reach Jim_StringEqObj, independently of Jim_StringCompareObj's character
++/// preparation. The caller retains each original header and supplies its checked
++/// String getter; equal physical headers do not reach either String getter.
++///
++/// # Errors
++/// Refuses an unselected Jim recipe, unknown original identity, stale caller or
++/// failed original String getter. The right getter is absent after left failure.
++pub fn jim_string_object_equality_using<O: ValueOps, E: From<ValueError>>(
++    ops: &mut O,
++    left: &O::Value,
++    right: &O::Value,
++    check: &impl Fn(&mut O, &O::Value) -> Result<(), E>,
++    get_string: &mut impl FnMut(&mut O, &O::Value) -> Result<std::rc::Rc<[u8]>, E>,
++) -> Result<bool, E> {
++    check(ops, left)?;
++    check(ops, right)?;
++    if !ops.name_policy_protocol().is_some_and(|policy| {
++        policy.authority() == crate::naming::NamePolicyAuthority::Native
++            && policy.recipe().is_jim084()
++    }) {
++        return Err(
++            ValueError::CommandProtocolUnavailable("Jim original String equality issuer").into(),
++        );
++    }
++    match ops.same_object(left, right) {
++        Some(true) => return Ok(true),
++        Some(false) => {}
++        None => {
++            return Err(ValueError::CommandProtocolUnavailable(
++                "Jim original String equality identity",
++            )
++            .into());
++        }
++    }
++    let left_bytes = get_string(ops, left);
++    check(ops, left)?;
++    check(ops, right)?;
++    let left_bytes = left_bytes?;
++    let right_bytes = get_string(ops, right);
++    check(ops, left)?;
++    check(ops, right)?;
++    Ok(left_bytes == right_bytes?)
++}
++
+ /// Reach native equality on the original objects, preserving each selected
+ /// string/count/Unicode preparation in native order.
+ ///

@@ -999,6 +999,37 @@ pub fn original_procedure_arguments<'a>(
     })
 }
 
+/// Pure original expression gap compaction through the existing Native rewrite
+/// owner. Retained source/configuration and binding are checked before its
+/// independent handler, observer, reflection and finite-completion admission.
+#[must_use]
+pub fn original_expression_gap_compaction(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    candidate: &str,
+) -> Option<crate::command_binding::OriginalExpressionGapCompaction> {
+    let config = analysis.body_lexer_config?;
+    let realm = analysis.retained_command_realm()?;
+    let image = retained_document_image(source, realm, config)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_gap_compaction(&tokens, analysis.resolved_registry()?, candidate)
+}
+
 /// Source structure from the selected original argv, or the independently
 /// retained conditional schema. The latter keeps its applicability obligations
 /// and grants no runtime dispatch, entered frame, compiler or edit permission.
@@ -2591,7 +2622,7 @@ pub fn original_logical_registry_words_for_command(
     (advice.original_words() == command.words.as_slice()).then_some(words)
 }
 
-fn logical_source_registry_words(
+pub(super) fn logical_source_registry_words(
     source: &str,
     realm: &crate::realm::CommandBindingRealm,
     input: &crate::analyser::ResolvedAnalysisInput,

@@ -617,6 +617,7 @@ fn scan_self_method_body<'a>(
         config: ctx.config,
         identities: ctx.identities,
         executed_source: Some(script),
+        original_logical_body: None,
     };
     let targets = caller_frame_literal_targets(body, env);
     #[cfg(debug_assertions)]

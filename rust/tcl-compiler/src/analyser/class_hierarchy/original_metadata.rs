@@ -517,6 +517,7 @@ pub struct OriginalInstanceClassMetadata {
     occupied_non_classes: Vec<crate::signature_scan::scope::SignatureSourceCommand>,
 }
 impl OriginalInstanceClassMetadata {
+    /// Capture the actual factory declaration and its retained class-source owner.
     #[must_use]
     pub fn capture(
         analysis: &AnalysisResult,
@@ -550,6 +551,7 @@ impl OriginalInstanceClassMetadata {
                 .collect(),
         })
     }
+    /// The retained original class metadata for readonly display.
     #[must_use]
     pub const fn metadata(&self) -> &ClassDef {
         &self.metadata
@@ -657,6 +659,7 @@ pub struct OriginalInstanceMethodDisplay {
     logical: Option<crate::analyser::types::LogicalSourceMemberDeclaration>,
 }
 impl OriginalInstanceMethodDisplay {
+    /// The exact original member metadata selected for display.
     #[must_use]
     pub const fn metadata(&self) -> &crate::analyser::MethodDef {
         &self.metadata

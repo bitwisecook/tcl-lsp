@@ -2541,6 +2541,8 @@ mod tests {
         let selector = Value::string("code");
         let arguments = [selector.clone(), script.clone()];
         let first = vm.invoke_host_original_object_vector(&head, &arguments);
+        // Public completion transports borrow the result owner until retained.
+        let _retained_first_result = first.result.clone();
         let second = vm.invoke_host_original_object_vector(&head, &arguments);
         assert_eq!(first.code, Code::Ok);
         assert_eq!(second.code, Code::Ok);
@@ -2665,12 +2667,13 @@ mod tests {
 
     #[test]
     fn code_uses_the_explicit_f5_logical_provider() {
-        let mut vm = Vm::with_output(Box::new(std::io::sink()));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(vm.set_native_engine_profile(tcl_dialect::DialectProfile::find("tcl9.0").unwrap()));
         assert!(vm.set_logical_name_provider(
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
         ));
+        assert!(vm.execution_refusal.is_none(), "{:?}", vm.execution_refusal);
         let script = Value::string("namespaceinscopeXX");
         let completion = namespace_code_invocation(
             &mut vm,
@@ -2743,7 +2746,10 @@ mod native_upvar_fixture_tests {
                 assert_eq!(wanted.next().unwrap(), name);
                 let code: i64 = wanted.next().unwrap().parse().unwrap();
                 let result = bytes_from_hex(wanted.next().unwrap());
-                let mut vm = crate::native_fixture::interpreter(profile);
+                let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+                    profile,
+                    &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
+                );
                 let completion = vm
                     .try_eval_source_bytes(&bytes_from_hex(source))
                     .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
@@ -2764,7 +2770,10 @@ mod native_upvar_fixture_tests {
             let fields: Vec<_> = row.split('\t').collect();
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
+            let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+                    profile,
+                    &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
+                );
             assert_eq!(
                 vm.eval_source("namespace eval n {}").unwrap().code,
                 Code::Ok
@@ -2798,7 +2807,10 @@ mod native_upvar_fixture_tests {
     #[test]
     fn jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame() {
         let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+            profile,
+            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
+        );
         let source = include_str!(
             "../../tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl"
         );
@@ -2825,7 +2837,14 @@ mod original_export_tests {
     fn invoke_export(vm: &mut Vm, patterns: &[Value]) -> Completion<Value> {
         let mut arguments = vec![Value::string("export")];
         arguments.extend_from_slice(patterns);
-        vm.invoke_host_original_object_vector(&Value::string("namespace"), &arguments)
+        // Handler getter order ends before the public evaluator logs an Error argv.
+        vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            &Value::string("namespace"),
+            &arguments,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
     }
 
     fn exports(vm: &Vm) -> Vec<Vec<u8>> {
@@ -3546,10 +3565,6 @@ mod original_jim_import_tests {
             collision.native_object_identity()
         );
         assert_eq!(tcl_runtime_api::Namespaces::current(&vm), destination);
-        assert!(
-            Aliases::alias_prefix_original_value_at(&mut vm, NsId(u32::MAX), &original).is_err()
-        );
-        assert_eq!(tcl_runtime_api::Namespaces::current(&vm), destination);
         let imported = ns_import(&mut vm, &[Value::string("::src::branch")]);
         assert_eq!(imported.code, Code::Ok);
         assert!(
@@ -3560,6 +3575,22 @@ mod original_jim_import_tests {
         assert!(vm.execution_refusal.is_none());
         vm.pop_ns();
         vm.pop_call_frame();
+
+        let mut refused_vm = native();
+        let refused_destination = destination_frame(&mut refused_vm);
+        let original = Value::string("src::branch");
+        assert!(
+            Aliases::alias_prefix_original_value_at(&mut refused_vm, NsId(u32::MAX), &original)
+                .is_err()
+        );
+        assert_eq!(
+            tcl_runtime_api::Namespaces::current(&refused_vm),
+            refused_destination
+        );
+        let first = refused_vm.execution_refusal.clone().unwrap();
+        let later = ns_import(&mut refused_vm, &[Value::string("::src::branch")]);
+        assert_eq!(later.code, Code::Error);
+        assert_eq!(refused_vm.execution_refusal.as_ref(), Some(&first));
     }
 
     #[test]
@@ -3573,12 +3604,14 @@ mod original_jim_import_tests {
         assert_eq!(vm.native_string_bytes(&stored).unwrap().as_ref(), b"list 5");
         member.invalidate_native_string_for_test();
         assert!(member.resident_string_bytes().is_none());
+        assert_eq!(stored.native_object_type_name(), "list");
         let refs = member.native_object_reference_count();
         let destination = destination_frame(&mut vm);
         let result = ns_import(&mut vm, &[Value::string("::src::branch")]);
         assert_eq!(result.code, Code::Ok);
         assert!(member.resident_string_bytes().is_none());
         assert_eq!(member.native_object_reference_count(), refs);
+        assert_eq!(stored.native_object_type_name(), "list");
         let queried = prefix(&mut vm, &Value::string("src::branch"), ROOT_NS);
         assert_eq!(
             queried.native_object_identity(),
@@ -3771,22 +3804,46 @@ mod original_c_parent_current_holder_tests {
 
     #[test]
     fn parent_without_operand_uses_the_entered_namespace_incarnation() {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
-        let parent = vm.activate_namespace_operand(b"::outer").unwrap();
-        let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
-        vm.push_ns_token("outer::inner", entered);
-        let arguments = [Value::string("parent")];
-        let result = cmd_namespace(&mut vm, &arguments);
-        assert_eq!(result.code, Code::Ok);
-        assert_eq!(result.result.string_bytes().as_ref(), b"::outer");
-        assert!(vm.native_namespace_token_has_owner(parent));
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(release),
+            );
+            let parent = vm.activate_namespace_operand(b"::outer").unwrap();
+            let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
+            vm.push_ns_token("outer::inner", entered);
+            let arguments = [Value::string("parent")];
+            let result = cmd_namespace(&mut vm, &arguments);
+            assert_eq!(result.code, Code::Ok);
+            assert_eq!(result.result.string_bytes().as_ref(), b"::outer");
+            assert!(vm.native_namespace_token_has_owner(parent));
 
-        assert!(vm.delete_namespace_operand(b"::outer::inner").unwrap());
-        let replacement = vm.activate_namespace_operand(b"::outer::inner").unwrap();
-        assert_ne!(entered, replacement);
-        let result = cmd_namespace(&mut vm, &arguments);
-        assert_eq!(result.code, Code::Error);
+            assert!(vm.delete_namespace_operand(b"::outer::inner").unwrap());
+            let replacement = vm.activate_namespace_operand(b"::outer::inner").unwrap();
+            assert_ne!(entered, replacement);
+            // Tcl_DeleteNamespace detaches an active root's physical parent;
+            // the original frame retains that birth, independently of recreation.
+            let result = cmd_namespace(&mut vm, &arguments);
+            assert_eq!(result.code, Code::Ok);
+            assert_eq!(result.result.string_bytes().as_ref(), b"");
+            assert_eq!(vm.current_ns_id(), entered);
+            vm.pop_ns();
+            assert!(!vm.native_namespace_token_has_owner(entered));
+
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(release),
+            );
+            let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
+            vm.push_ns_token("outer::inner", entered);
+            let original =
+                crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+                    .unwrap();
+            assert!(vm.delete_namespace_operand(b"::outer::inner").unwrap());
+            assert!(original.current_namespace_token(&mut vm).is_err());
+            let first = vm.execution_refusal.clone().unwrap();
+            let result = cmd_namespace(&mut vm, &arguments);
+            assert_eq!(result.code, Code::Error);
+            assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+        }
     }
 }
 
@@ -3929,7 +3986,14 @@ mod original_c_import_tests {
     fn import(vm: &mut Vm, patterns: &[Value]) -> Completion<Value> {
         let mut arguments = vec![Value::string("import")];
         arguments.extend_from_slice(patterns);
-        vm.invoke_host_original_object_vector(&Value::string("namespace"), &arguments)
+        // Handler getter order ends before the public evaluator logs an Error argv.
+        vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            &Value::string("namespace"),
+            &arguments,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
     }
     fn setup(vm: &mut Vm) {
         assert_eq!(vm.eval_source("namespace eval source {proc first {} {return SOURCE}; proc victim {} {return IMPORTED}; namespace export first victim}; namespace eval destination {}").unwrap().code, Code::Ok);
@@ -4295,6 +4359,42 @@ mod original_c_import_tests {
             );
             let first = vm.take_host_boundary_refusal().unwrap();
             assert!(format!("{first:?}").contains("original import publication first cause"));
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_c_namespace_error_log_tests {
+    use super::*;
+
+    #[test]
+    fn public_namespace_error_logging_reaches_later_original_words_after_handler_refusal() {
+        // Tcl_EvalObjv, tclBasic.c:3420 (8.4.20), generates the complete argv
+        // only after TclEvalObjvInternal reports Error; the handler has returned.
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for selector in ["export", "import"] {
+                let mut vm =
+                    crate::native_fixture::core(crate::environment::profile_for_dialect(release));
+                let later = Value::int(42);
+                assert!(later.resident_string_bytes().is_none());
+                let invalid = if selector == "export" {
+                    "::invalid"
+                } else {
+                    "unqualified"
+                };
+                let arguments = [
+                    Value::string(selector),
+                    Value::string(invalid),
+                    later.clone(),
+                ];
+                let result =
+                    vm.invoke_host_original_object_vector(&Value::string("namespace"), &arguments);
+                assert_eq!(result.code, Code::Error, "{release}/{selector}");
+                assert_eq!(later.resident_string_bytes().unwrap().as_ref(), b"42");
+                let info = vm.error_info_value().unwrap();
+                assert!(info.windows(2).any(|part| part == b"42"));
+                assert!(vm.execution_refusal.is_none());
+            }
         }
     }
 }

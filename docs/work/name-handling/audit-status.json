@@ -1,7 +1,7 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
   "current_head": "ffecb525169ff1fab75fb7cc4b801cadde294438",
-  "utc": "2026-10-16T05:05:03.961044+00:00",
+  "utc": "2026-10-16T10:58:06.018204+00:00",
   "status": "FINAL_SOURCE_AUDIT_RECONCILED",
   "counts": {
     "semantic_code_changes": 1799,
@@ -401,25 +401,23 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T09:10:00Z",
+    "utc": "2026-10-16T10:58:06.018204+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 56,
+    "implemented_pending_validation": 98,
     "verified_complete": 0,
-    "not_started": 2102,
+    "not_started": 2060,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
-      "VM no-argument Parent current-holder projection (catalogue mapping pending)",
-      "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)",
-      "Baseline Runtime compile adapters in jim_capture_prefix/jim_output_name_stages; mapping/reconciliation pending.",
-      "Legacy Length descriptor issuer and other demonstrated missing shared-owner facets require bounded count reconciliation."
+      "Physical VM body result caller remains explicit annex obligation; original physical producer exists, stateful capsule transport still required.",
+      "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
+      "Foreign constructor/collection unknown-mutation transport remains open within the existing baseline caller.",
+      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance."
     ],
     "latest_scoped_build": {
-      "status": "FAIL_W125_TEST_IMPORT",
-      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
-      "log": "/tmp/naming-workspace-build-52e659ed9.log",
-      "errors": 1,
-      "cause": "One new W125 test omitted segmenter qualification; repaired with unchanged input/assertions. Complete workspace test build pending."
+      "status": "FAIL4_NEW_TEST_SCOPE_ERRORS",
+      "log": "/tmp/naming-workspace-build-reviewed-successor.log",
+      "repair": "Moved new named-instance report control into its existing module containing Analyser and token_kind_at; unchanged assertions/inputs. Fresh build pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -488,6 +486,66 @@
         "log": "runtime-import-source.log",
         "sha256": "74db820f7d4a9630fd6f9c5994c99b0e558b0f1e92d0c5061cb05f200f2f79c1",
         "scope": "Bounded selected test controls; no whole-repository, Native/provider or issue acceptance beyond actual controls."
+      },
+      {
+        "selector": "original_namespace_continuation_tests",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 7,
+        "FAIL": 0,
+        "log": "runtime-2459-original_namespace_continuation_tests.log",
+        "sha256": "9905f6102bad0316fa7e86f35a0c7183da957de85688ffb26e8c9897aa67d43d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "original_jim_import",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 7,
+        "FAIL": 0,
+        "log": "runtime-2459-original_jim_import.log",
+        "sha256": "386ce318229412e2e03ff62e008bb7dce3bc67ebe8f59ba771f310c328a3911d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "interp::native_jim_import",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 13,
+        "FAIL": 0,
+        "log": "runtime-2459-interp-native_jim_import.log",
+        "sha256": "0087449642499e656c8148ad40333f3c6e893ae3dd17cb61246cef09e80113f8",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "registered_legacy_length_converts_original_without_admitting_unknown_descriptors",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 1,
+        "FAIL": 0,
+        "log": "runtime-2459-registered_legacy_length_converts_original_without_admitting_unknown_descriptors.log",
+        "sha256": "6f508d2dd6930da2c76dd1857be518fb24773eecfdb5ccb482aff38b89c77ddf",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Selected original controls only; no full-group, provider-equivalence or issue acceptance."
+      },
+      {
+        "selector": "cmd_namespace::",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 160,
+        "FAIL": 5,
+        "log": "runtime-2459-cmd_namespace-.log",
+        "sha256": "6c4f3b645d87f07cee856579c21c883f89fbec10f94446fce12af23231c56a01",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
+      },
+      {
+        "selector": "interp::native_variable_names::",
+        "head": "2459c99246751fd7695a585ea1081b43937174fb",
+        "PASS": 37,
+        "FAIL": 6,
+        "log": "runtime-2459-interp-native_variable_names-.log",
+        "sha256": "fe4ced8e024b1bba056b072732a8003b40ea0ed81af496cc6e298ccd8133ee4d",
+        "binary_sha256": "3aab6dfb0a9ca3d7f2244d6ac252dcfd0b693e442a21e6647565804da63bb8cb",
+        "scope": "Broader Runtime controls. Initial invocation omitted explicit provider environment; all eleven failing exact selectors also failed subsequent strict original-provider reruns. Neither run implies full-group acceptance."
       }
     ],
     "provider_pairing": {
@@ -501,21 +559,89 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred.",
+    "owner_facet_reconciliation": "19 additional unverified obligations accepted in separate annex; baseline2158 unchanged;18 additional integrated pending validation. Further demonstrated formatter/preload/Logical source facets still under bounded reconciliation.",
     "runtime_build": {
       "status": "PASS",
-      "head": "52e659ed932a20f8e673b6b748bce4390dad4cc8",
-      "test_adapter_overlay_sha256": "124ed44ccb0f76c50a70c8cdee0d618b014c1522844c05f1df096ce3dd21ecc0",
-      "log": "/tmp/naming-runtime-build-52e659ed9-adapters.log",
-      "binary_sha256": "7cb9d75c6a505df489b956e1b3849d28515a0a4ada8f79d826a2db1c8a373b37",
-      "warnings": 12
+      "seconds": 57.46,
+      "warnings": 0,
+      "log": "/tmp/naming-runtime-build-reviewed-successor-standalone.log",
+      "binary_sha256": "fde4a02f60f004573845d06b168002f7510b7dac85d2a010bfaddd459824b8a9",
+      "ordinary": true,
+      "source_diff_sha256": "ff22a64f8ea075c38d2b7723f310dfe94cd12044ef1ddef85bde129cd5a11ea1",
+      "controls": {
+        "PASS": 298,
+        "FAIL": 1,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-reviewed-successor/records.json",
+        "remaining": "Local-cache fixture fresh Native read after refusal; physical observation repair applied, retest pending."
+      }
     },
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [
-      "Runtime two old var_get fixture APIs adapted to Option without assertion changes.",
-      "Namespace unknown operational Length gains explicit registered legacy descriptor issuer; generic Unknown remains refused.",
-      "Older Import fixtures reenter genuine namespace caller and test the reached getter result/currentness schedule; assertions retained.",
-      "W125 test segmenter qualification repaired."
-    ]
+      "Compiler genuine Logical transition-tape point/vector source transport; genuine conditional receiver source producer; transformed procedure source mapping.",
+      "DB readonly Logical body/formal trait owner and source-only selected argument projection.",
+      "Core minifier expression/source edit producers and remaining alias transformation authority.",
+      "Twelve VM namespace controls; pending0147 successor tests and originalSyntaxforce test now moved to discoverable module scope.",
+      "Historical proof payload availability and reviewed digest/census drift; required gates remain unpassed."
+    ],
+    "proof_check": {
+      "status": "FAIL",
+      "head": "2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
+      "log": "/tmp/naming-proof-check-2a86f7dfd.log",
+      "structural_errors": 3574,
+      "missing_payload_references": 802,
+      "census_path_drift": 729,
+      "census_digest_mismatch": 952,
+      "evidence_digest_mismatch": 1074,
+      "source_binding_document_mismatch": 17,
+      "limits": "Missing references/path drift overlap. No digest or evidence acceptance refreshed.",
+      "reviewed_repair": "17 selected source/binding/document consistency messages repaired without changing evidence/result/status digests. Bounded108owner/85binding checks pass; full gate rerun pending.",
+      "restored_availability": {
+        "files": 13,
+        "bytes": 3520174,
+        "retained_hash_references_verified": 164,
+        "receipt": "experiments/name-handling/results/owner-adoption-20261016/historical-proof-availability/receipt.json",
+        "current_full_rerun": "RUNNING /tmp/naming-proof-check-reviewed-successor.log",
+        "remaining_missing_native_binary_refs": 638,
+        "remaining_distinct_native_binary_paths": 470
+      },
+      "current": {
+        "status": "FAIL",
+        "structural_errors": 3403,
+        "log": "experiments/name-handling/results/owner-adoption-20261016/proof-reviewed-successor/check.log",
+        "scope": "Availability/source consistency improved; required gate still red."
+      }
+    },
+    "additional_facet_review": {
+      "accepted_additional_units": 19,
+      "implemented_pending_validation": 18,
+      "verified_complete": 0,
+      "annex": "implementation-owner-annex.json"
+    },
+    "additional_owner_annex": {
+      "path": "docs/work/name-handling/implementation-owner-annex.json",
+      "required": 25,
+      "implemented_pending_validation": 24,
+      "not_integrated": 1,
+      "verified_complete": 0
+    },
+    "effective_required_units": 2183,
+    "effective_implemented_pending_validation": 122,
+    "effective_verified_complete": 0,
+    "incoming_remote": {
+      "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
+      "issue": 2486,
+      "status": "unmerged_unadmitted",
+      "scope": "Toolchain and cross-project dependency updates; current work toolchain unchanged."
+    },
+    "ordinary_workspace_build": {
+      "status": "PASS",
+      "head": "1e5dfbdb0187f02f85bd114e93d94a4d9a29814b",
+      "seconds": 558,
+      "log": "workspace-1e5/naming-workspace-build-861e-successor-api-docs.log",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/workspace-1e5/records.json",
+      "PASS": 164,
+      "FAIL": 79,
+      "NO_TESTS": 1
+    }
   }
 }

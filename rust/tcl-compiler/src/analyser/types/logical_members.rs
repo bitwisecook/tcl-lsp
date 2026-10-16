@@ -248,6 +248,169 @@ impl AnalysisResult {
         Some(LogicalSourceMemberInsertion { name, word })
     }
 
+    /// Readonly owning-type advice for an original member declaration or a
+    /// positioned lexical self selector. Source membership supplies no dispatch.
+    #[must_use]
+    pub fn logical_source_member_type_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+    ) -> Option<&ClassDef> {
+        let input = self.resolved_input.as_ref()?;
+        if input.lexer_config() != config
+            || !self.matches_original_source_image(image, config)
+            || !self.allows_retained_logical_declaration_advice()
+        {
+            return None;
+        }
+        match self
+            .logical_member_declaration_types(image, input, cursor)
+            .as_slice()
+        {
+            [class] => return Some(*class),
+            [] => {}
+            _ => return None,
+        }
+        self.logical_self_selector_type_at(image, config, cursor, input)
+    }
+
+    fn logical_member_declaration_types(
+        &self,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+        cursor: u32,
+    ) -> Vec<&ClassDef> {
+        let contains =
+            |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
+        let mut selected = Vec::new();
+        for class in self.all_classes.values() {
+            let Some(owner) = self.logical_source_class_declaration(class) else {
+                continue;
+            };
+            for (side, members) in [
+                (MemberSide::Instance, &class.methods),
+                (MemberSide::ClassObject, &class.class_methods),
+            ] {
+                for method in members.values() {
+                    let Some(name) = class
+                        .original_members
+                        .logical_name_operand(side, method, input, image)
+                    else {
+                        continue;
+                    };
+                    if owner.member(side, method).is_none() {
+                        continue;
+                    }
+                    if contains(name) {
+                        selected.push(class);
+                    }
+                }
+            }
+        }
+        selected
+    }
+
+    fn logical_self_selector_type_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<&ClassDef> {
+        let realm = self.retained_command_realm()?;
+        let registry = self.resolved_registry()?;
+        let bindings = realm.source_bindings_ref();
+        let contains =
+            |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
+        let mut selected = None;
+        let frame = bindings.logical_source_member_frame_at_offset(input, image, cursor, config)?;
+        if !matches!(
+            frame.frame().layout(),
+            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        ) {
+            return None;
+        }
+        for invocation in &self.command_invocations {
+            let Some(command) = bindings.original_logical_source_command_at_in_source(
+                input,
+                image,
+                invocation.range.start(),
+                config,
+            ) else {
+                continue;
+            };
+            let Some(selector) = command.native_words().get(1).filter(|word| contains(word)) else {
+                continue;
+            };
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &image.source_map(),
+                config,
+                command.command(),
+            );
+            realm.stamp_original_tokens(&mut tokens);
+            let context =
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )?;
+            let resolved =
+                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                    registry,
+                    context,
+                    &tokens,
+                    Some(bindings),
+                )?;
+            if registry.method_dispatch_keyword(resolved.canonical_command())
+                != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+                || resolved.written_argument(0) != Some(0)
+            {
+                return None;
+            }
+            let selector_value =
+                tcl_syntax::word_rules::original_static_word_unicode_value(selector)?;
+            for class in self.all_classes.values() {
+                let Some(owner) = self.logical_source_class_declaration(class) else {
+                    continue;
+                };
+                for (side, members) in [
+                    (MemberSide::Instance, &class.methods),
+                    (MemberSide::ClassObject, &class.class_methods),
+                ] {
+                    let has_frame = members.values().any(|method| {
+                        method.body_span.start() == frame.source().base()
+                            && image
+                                .try_text()
+                                .ok()
+                                .and_then(|source| source.get(method.body_span.as_range()))
+                                == frame.source().try_text().ok()
+                    });
+                    if !has_frame {
+                        continue;
+                    }
+                    for method in members.values() {
+                        let Some(name) = class
+                            .original_members
+                            .logical_name_operand(side, method, input, image)
+                        else {
+                            continue;
+                        };
+                        if tcl_syntax::word_rules::original_static_word_unicode_value(name).as_ref()
+                            != Some(&selector_value)
+                        {
+                            continue;
+                        }
+                        owner.member(side, method)?;
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some(class);
+                    }
+                }
+            }
+        }
+        selected
+    }
+
     /// A current actual class must still agree with the completed source walk.
     /// Reporting qualified labels are excluded; altered member metadata declines.
     #[must_use]

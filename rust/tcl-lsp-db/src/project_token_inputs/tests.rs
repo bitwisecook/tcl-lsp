@@ -301,6 +301,14 @@ fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
     let facts = file_token_facts_for_config(&db, file, current);
     assert!(facts.classes.contains_key("::ProjectThing"));
     assert!(!facts.named_instances.is_empty());
+    assert_eq!(
+        facts.named_instances.get("::specimen"),
+        Some("::ProjectThing")
+    );
+    assert_eq!(
+        facts.named_instances.report_rows().collect::<Vec<_>>(),
+        vec![("::specimen", "::ProjectThing")]
+    );
     assert!(!facts.proc_roles.is_empty());
     assert!(
         project_class_index_for_inputs(&db, project)

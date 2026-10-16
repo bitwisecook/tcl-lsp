@@ -1,0 +1,24 @@
+--- a/runtime/rust/src/interp/native_body_artifact/native_control.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_control.rs
+@@ -1638,7 +1638,20 @@
+                 ));
+                 let head = obj::Owned::fresh(obj::new_string_bytes(b"p"));
+                 let code = interp.eval_original_object_vector(&[head.as_ptr(), original.as_ptr()]);
+-                assert_eq!(code, Code::Ok, "{profile}: {:?}", interp.result_bytes());
++                assert_eq!(
++                    code,
++                    Code::Ok,
++                    "{profile} catch={catch}: result={:?} refusal={:?} host_pending={} original={:?} original_artifact={} outer_artifact={} entered={}",
++                    interp.result_bytes(),
++                    interp.native_execution_refusal(),
++                    interp.host_refusal_pending(),
++                    obj::native_object_snapshot(original.as_ptr()),
++                    cache(original.as_ptr()).is_some(),
++                    interp
++                        .proc_def(b"p")
++                        .is_some_and(|procedure| cache(procedure.body.as_ptr()).is_some()),
++                    interp.entered_native_operation_count(),
++                );
+                 assert_eq!(interp.result_bytes(), b"VALUE", "{profile}");
+                 assert!(!interp.host_refusal_pending(), "{profile}");
+                 let procedure = interp.proc_def(b"p").unwrap();

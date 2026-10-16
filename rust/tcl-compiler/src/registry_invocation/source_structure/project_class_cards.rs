@@ -102,6 +102,36 @@ impl OriginalProjectClassCards {
         })
     }
 
+    /// Readonly final named-instance labels with their actual retained class
+    /// metadata. These reports cannot be inverted into receiver/source identity.
+    #[must_use]
+    pub fn named_instance_display_reports(&self) -> Vec<(String, &ClassDef)> {
+        if !self.cells.complete || !self.matches_declaring_owner() {
+            return Vec::new();
+        }
+        self.rows
+            .iter()
+            .filter_map(|row| {
+                let instance = row.instance.as_ref()?;
+                (instance.name_input().is_some() && instance.source_slot() == Some(&row.slot))
+                    .then_some(())?;
+                let class = row.class.as_ref()?;
+                let label = if let Some(policy) = self.cells.policy {
+                    tcl_syntax::naming::native_command_source_spelling(policy.recipe(), &row.slot)?
+                } else {
+                    self.cells
+                        .input
+                        .as_ref()?
+                        .has_logical_source_name_context()
+                        .then_some(())?;
+                    tcl_syntax::naming::authored_source_command_spelling(&row.slot)?
+                };
+                Some((label, &class.metadata))
+            })
+            .collect()
+    }
+
+    /// Capture current original class and instance source publications for readonly display.
     #[must_use]
     pub fn capture(analysis: &AnalysisResult) -> Option<Self> {
         let input = analysis.resolved_input.as_ref()?;
@@ -169,14 +199,17 @@ impl OriginalProjectReceiverClass {
     ) -> Option<&crate::object_types::OriginalObjectCollectionSourceCandidates> {
         self.collection.as_ref()
     }
+    /// The actual selected class metadata, independent of its report label.
     #[must_use]
     pub fn metadata(&self) -> &ClassDef {
         &self.class.metadata
     }
+    /// The retained hierarchy used for source member-display selection.
     #[must_use]
     pub fn hierarchy(&self) -> &crate::analyser::ClassHierarchy {
         &self.hierarchy
     }
+    /// The original declaring grammar retained by the selected factory.
     #[must_use]
     pub fn grammar(&self) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
         self.class
@@ -665,6 +698,36 @@ mod tests {
     }
 
     #[test]
+    fn project_named_instance_reports_follow_genuine_final_source_slots_and_lifetime() {
+        for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+            for (tail, expected) in [
+                ("C create obj", Some("::obj")),
+                ("C create obj; rename obj moved", Some("::moved")),
+                ("C create obj; rename obj {}", None),
+                ("C create obj; rename C {}", None),
+                ("C create obj; unknown_effect", None),
+                ("C create obj; proc obj {args} {}", None),
+                ("C create obj; interp alias {} obj {} list", None),
+            ] {
+                let source = format!("oo::class create C {{method ping {{}} {{}}}}; {tail}");
+                let owner = cards(&source, dialect);
+                let rows = owner.named_instance_display_reports();
+                let expected = expected
+                    .map(|label| (label.to_owned(), "::C".to_owned()))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    rows.iter()
+                        .map(|(name, class)| (name.clone(), class.qualified_name.clone()))
+                        .collect::<Vec<_>>(),
+                    expected,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn project_class_display_uses_instance_side_and_inherited_visibility() {
         for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
             let homonym = vec![cards(
@@ -834,7 +897,7 @@ mod tests {
                 let selected = original_project_receiver_class_in_unit(
                     &source,
                     &analysis,
-                    command,
+                    &command,
                     &[],
                     Some(&unit),
                 )

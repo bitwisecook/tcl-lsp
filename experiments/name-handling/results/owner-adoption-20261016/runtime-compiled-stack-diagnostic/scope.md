@@ -1,0 +1,1 @@
+This temporary assertion diagnostic is not an ordinary acceptance run. The overlay was reversed byte-exactly before the successor ordinary build. It identifies the original C 8.4 List body refusal at the compiled-stack artifact boundary. No test selector or assertion was removed. Executables are excluded.

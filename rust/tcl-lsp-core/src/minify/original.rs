@@ -419,7 +419,8 @@ pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -
         .analyse(source, input.analyser_profile().name)
 }
 
-/// Gaps belong to authenticated script regions, never to displayed argument text.
+/// Gaps belong to authenticated script regions or a separately issued original
+/// expression action proof, never to displayed argument text.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct SourceGapEdit {
     span: Span,
@@ -527,6 +528,70 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
         });
         plans.push((region, plan));
     }
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or(MinifyRefusal::MissingAnalysisContext)?;
+    let context = input.context_registry();
+    let env = super::MinifyEnv {
+        original_source: source,
+        input,
+        dialect: input.unit_profile(),
+        config,
+        registry: context.commands(),
+        context: &context,
+        identities: analysis
+            .retained_command_realm()
+            .ok_or(MinifyRefusal::MissingAnalysisContext)?,
+    };
+    let mut expressions = Vec::new();
+    for command in &structure.commands {
+        // Proposals carry no authority. The original rewrite owner accepts only
+        // its independently selected pure, finite, isolated Native expression.
+        let Some(original) = plans
+            .iter()
+            .flat_map(|(_, plan)| &plan.commands)
+            .find(|original| {
+                original.words.first().is_some_and(|word| {
+                    command
+                        .argv
+                        .first()
+                        .is_some_and(|head| head.span.start() == word.span().start())
+                })
+            })
+        else {
+            continue;
+        };
+        let Some(word) = original
+            .words
+            .get(1)
+            .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+        else {
+            continue;
+        };
+        let Ok(content) = word.content_span() else {
+            continue;
+        };
+        let Some(inner) = source.get(content.as_range()) else {
+            continue;
+        };
+        let candidate = super::strip_expr_whitespace(inner, env, 0);
+        let Some(proof) =
+            tcl_compiler::registry_invocation::source_structure::original_expression_gap_compaction(
+                source, analysis, command, &candidate,
+            )
+        else {
+            continue;
+        };
+        if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands()) {
+            return Err(MinifyRefusal::SourceCorrespondenceChanged);
+        }
+        edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
+            span,
+            replacement: "",
+        }));
+        expressions.push(proof);
+    }
     edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement));
     edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
     edits.dedup();
@@ -542,8 +607,20 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     );
     let output = source_gap_output(source, whole, &edits)?;
     let emitted_image = SourceImage::document(&output);
+    // Expression interiors need their own selected action proof. Script word
+    // validation below still checks the entire emitted word after all edits.
+    for proof in expressions {
+        let original = proof.original_operand().span();
+        let emitted = Span::new(
+            emitted_boundary(original.start(), &edits)?,
+            emitted_boundary(original.end(), &edits)?,
+        );
+        if output.get(emitted.as_range()) != Some(proof.replacement_source_word()) {
+            return Err(MinifyRefusal::SourceCorrespondenceChanged);
+        }
+    }
     // Every selected script is checked independently. Parent words may differ
-    // only by the already selected descendant script's separator edits.
+    // only by selected descendant script gaps or the expression proofs above.
     for (region, plan) in plans {
         let emitted_region = Span::new(
             emitted_boundary(region.start(), &edits)?,
@@ -574,6 +651,30 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_syntax_compaction_uses_pure_original_expression_gap_receipt() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for (source, expected) in [
+            ("expr { 1 + 2 * 3 }\n", "expr {1+2*3}"),
+            ("expr {(1 + 2) * 3}\n", "expr {(1+2)*3}"),
+            ("expr {1 / 0}\n", "expr {1 / 0}"),
+            ("expr {1 +}\n", "expr {1 +}"),
+            ("expr {$a + 1}\n", "expr {$a + 1}"),
+            ("expr {abs( 1 )}\n", "expr {abs( 1 )}"),
+            (
+                "trace add execution expr enter callback; expr {1 + 2}\n",
+                "trace add execution expr enter callback;expr {1 + 2}",
+            ),
+        ] {
+            let analysis = super::analysis_for_profile(source, profile, &registry);
+            let result =
+                super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
+            assert_eq!(result.source, expected, "{source}");
+        }
+    }
+
     #[test]
     fn native_compaction_uses_original_local_store_and_complete_edit_coverage() {
         let source = "proc p {} {set longVariable VALUE; return $longVariable}";

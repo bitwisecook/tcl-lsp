@@ -1,0 +1,12 @@
+
+running 7 tests
+test cmd_var::tests::original_jim_alias_getter_and_formatter_refuse_caller_changes_before_publication ... ok
+test cmd_var::tests::original_jim_canonical_producer_keeps_target_unowned_until_namespace_link ... ok
+test cmd_var::tests::original_jim_variable_and_alias_nul_diagnostics_match_original_formatter ... ok
+test cmd_var::tests::original_jim_variable_canonical_name_getter_cannot_keep_retired_namespace_alive ... ok
+test cmd_var::tests::original_jim_variable_formatter_getter_precedes_real_argument_reference_and_publication ... ok
+test cmd_var::tests::original_jim_variable_local_tail_retains_actual_argument_and_ordinal ... ok
+test cmd_var::tests::original_jim_variable_pipeline_matches_original_root_namespace_and_element_cases ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2292 filtered out; finished in 1.10s
+

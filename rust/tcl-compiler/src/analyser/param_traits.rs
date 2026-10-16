@@ -87,7 +87,11 @@ pub fn infer_param_traits(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty() || body_source.trim().is_empty() || !env.matches_source(body_source) {
+    if params.is_empty()
+        || body_source.trim().is_empty()
+        || !env.matches_source(body_source)
+        || !env.matches_parameters(params)
+    {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -102,9 +106,14 @@ pub fn infer_param_traits(
         config: env.config,
         identities: env.identities,
         executed_source: env.executed_source,
+        original_logical_body: env.original_logical_body,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base),
+            .map(crate::command_binding::ExecutedScriptSource::base)
+            .or_else(|| {
+                env.original_logical_body
+                    .map(|body| body.scope().scope_body().content_span().start())
+            }),
     };
     scan_commands(body_source, &ctx, &mut traits, &mut aliases);
 
@@ -160,6 +169,7 @@ fn infer_param_traits_deep_at_depth(
         || body_source.trim().is_empty()
         || depth > MAX_DEPTH
         || !env.matches_source(body_source)
+        || !env.matches_parameters(params)
     {
         return HashMap::new();
     }
@@ -175,9 +185,14 @@ fn infer_param_traits_deep_at_depth(
         config: env.config,
         identities: env.identities,
         executed_source: env.executed_source,
+        original_logical_body: env.original_logical_body,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base),
+            .map(crate::command_binding::ExecutedScriptSource::base)
+            .or_else(|| {
+                env.original_logical_body
+                    .map(|body| body.scope().scope_body().content_span().start())
+            }),
     };
     scan_deep(body_source, &ctx, &mut traits, &mut aliases, depth);
 
@@ -243,6 +258,8 @@ struct ScanCtx<'p, 'r> {
     /// standalone scans require conservative unpositioned identity consensus.
     identities: &'r crate::realm::CommandBindingRealm,
     executed_source: Option<&'r crate::command_binding::ExecutedScriptSource>,
+    original_logical_body:
+        Option<&'r std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>>,
     source_base: Option<u32>,
 }
 
@@ -253,6 +270,16 @@ impl<'p> ScanCtx<'p, '_> {
         command: &crate::segmenter::SegmentedCommand,
     ) -> Option<Box<crate::registry_invocation::InvocationBodyAssistance>> {
         let bindings = self.identities.source_bindings_ref();
+        if let Some(body) = self.original_logical_body {
+            return crate::registry_invocation::logical_parameter_body_assistance(
+                &self.surface,
+                self.identities,
+                body,
+                source,
+                command,
+                self.source_base?,
+            );
+        }
         if self.executed_source.is_none() {
             return crate::registry_invocation::unpositioned_body_assistance(
                 &self.surface,
@@ -437,12 +464,50 @@ pub struct TraitScanEnv<'a> {
     /// Exact evaluated body bytes and origin. Missing carriers use only
     /// conservative unpositioned identity consensus.
     pub executed_source: Option<&'a crate::command_binding::ExecutedScriptSource>,
+    /// Actual original Logical procedure/formal/body owner. This readonly
+    /// source template is independent of evaluated body or Native entry.
+    pub original_logical_body:
+        Option<&'a std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>>,
 }
 
 impl TraitScanEnv<'_> {
+    fn matches_parameters(self, parameters: &[&str]) -> bool {
+        self.original_logical_body.is_none_or(|body| {
+            body.parameters()
+                .iter()
+                .map(|formal| formal.name.as_str())
+                .eq(parameters.iter().copied())
+        })
+    }
+
     fn matches_source(self, text: &str) -> bool {
         self.executed_source
             .is_none_or(|source| source.text.bytes() == text.as_bytes())
+            && self.original_logical_body.is_none_or(|body| {
+                let Some(input) = self
+                    .identities
+                    .source_bindings_ref()
+                    .original_logical_source_name_advice_input()
+                else {
+                    return false;
+                };
+                let Some(image) = self.identities.original_source_image() else {
+                    return false;
+                };
+                self.config == input.lexer_config()
+                    && self.identities.matches_resolved_analysis_input(input)
+                    && body.matches_source(image, input)
+                    && u32::try_from(text.len()).ok()
+                        == Some(
+                            body.scope().scope_body().content_span().end()
+                                - body.scope().scope_body().content_span().start(),
+                        )
+                    && body.scope().scope_body().matches_original_content(
+                        text,
+                        body.scope().scope_body().content_span().start(),
+                        self.config,
+                    )
+            })
     }
 
     #[cfg(test)]
@@ -769,6 +834,14 @@ fn scan_deep<'p>(
             .filter_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
             .collect();
         for idx in body_indices {
+            if ctx.original_logical_body.is_some()
+                && view
+                    .as_ref()
+                    .and_then(|view| view.logical_trait_body_inherits_caller(idx))
+                    != Some(true)
+            {
+                continue;
+            }
             let Some(body_text) = cmd_args.get(idx) else {
                 continue;
             };
@@ -840,6 +913,7 @@ fn scan_deep<'p>(
                     config: ctx.config,
                     identities: ctx.identities,
                     executed_source: lambda_source.as_ref(),
+                    original_logical_body: None,
                 },
                 depth + 1,
             );
@@ -1426,7 +1500,11 @@ pub fn caller_frame_upvar_params(
     env: TraitScanEnv<'_>,
 ) -> HashSet<String> {
     let mut out = HashSet::new();
-    if params.is_empty() || body_source.trim().is_empty() || !env.matches_source(body_source) {
+    if params.is_empty()
+        || body_source.trim().is_empty()
+        || !env.matches_source(body_source)
+        || !env.matches_parameters(params)
+    {
         return out;
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -1437,9 +1515,14 @@ pub fn caller_frame_upvar_params(
         config: env.config,
         identities: env.identities,
         executed_source: env.executed_source,
+        original_logical_body: env.original_logical_body,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base),
+            .map(crate::command_binding::ExecutedScriptSource::base)
+            .or_else(|| {
+                env.original_logical_body
+                    .map(|body| body.scope().scope_body().content_span().start())
+            }),
     };
     for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config.nested()) {
         let Some(view) = ctx.body_assistance(body_source, seg) else {
@@ -1522,9 +1605,14 @@ pub fn caller_frame_literal_targets(
         config: env.config,
         identities: env.identities,
         executed_source: env.executed_source,
+        original_logical_body: env.original_logical_body,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base),
+            .map(crate::command_binding::ExecutedScriptSource::base)
+            .or_else(|| {
+                env.original_logical_body
+                    .map(|body| body.scope().scope_body().content_span().start())
+            }),
     };
     let mut targets = HashMap::new();
     if body_source.trim().is_empty() || !env.matches_source(body_source) {
@@ -1620,11 +1708,174 @@ mod tests {
             config: LexerConfig::default(),
             identities: &identities,
             executed_source: Some(script),
+            original_logical_body: None,
         };
         if deep {
             infer_param_traits_deep(params, body, env)
         } else {
             infer_param_traits(params, body, env)
+        }
+    }
+
+    #[test]
+    fn original_logical_parameter_roles_keep_authored_body_and_formals_without_entry() {
+        let source = "proc reader {name} {upvar 1 $name cell; set cell 1}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+        let [body] = cards.as_slice() else {
+            panic!("one authentic original procedure body");
+        };
+        let original = body.scope().scope_body();
+        let content = original.content_span();
+        let text = &source[content.as_range()];
+        assert!(
+            realm
+                .executed_script_for_word(original.original_container().span())
+                .is_none()
+        );
+        let env = TraitScanEnv {
+            surface: DocumentCommandSurface::new(analysis.resolved_registry().unwrap(), None),
+            config: input.lexer_config(),
+            identities: realm,
+            executed_source: None,
+            original_logical_body: Some(body),
+        };
+        let traits = infer_param_traits(&["name"], text, env);
+        assert!(traits["name"].contains(&ProcArgTrait::VarWrite));
+        assert!(traits["name"].contains(&ProcArgTrait::VarRead));
+        assert_eq!(
+            analysis
+                .original_procedure_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .param_traits,
+            traits
+        );
+        assert!(infer_param_traits(&["other"], text, env).is_empty());
+        assert!(infer_param_traits(&["name", "other"], text, env).is_empty());
+        assert!(infer_param_traits_deep(&["name", "other"], text, env).is_empty());
+        assert!(caller_frame_upvar_params(&["name", "other"], text, env).is_empty());
+        assert!(infer_param_traits(&["name"], &(text.to_owned() + " "), env).is_empty());
+        let prefix = &text[..text.len() - 1];
+        assert!(infer_param_traits(&["name"], prefix, env).is_empty());
+        assert!(infer_param_traits_deep(&["name"], prefix, env).is_empty());
+        assert!(caller_frame_upvar_params(&["name"], prefix, env).is_empty());
+        assert!(caller_frame_literal_targets(prefix, env).is_empty());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(infer_param_traits(&["name"], text, TraitScanEnv { config, ..env }).is_empty());
+        assert!(
+            infer_param_traits(
+                &["name"],
+                text,
+                TraitScanEnv {
+                    original_logical_body: None,
+                    ..env
+                }
+            )
+            .is_empty()
+        );
+        let command =
+            segment_commands_with_offset_and_config(text, 0, input.lexer_config().nested())
+                .remove(0);
+        let view = crate::registry_invocation::logical_parameter_body_assistance(
+            &env.surface,
+            realm,
+            body,
+            text,
+            &command,
+            content.start(),
+        )
+        .unwrap();
+        assert!(view.parameter_role_advice().is_closed());
+        assert!(view.parameter_invocation(&["name"]).is_some());
+        assert!(view.parameter_invocation(&["other"]).is_none());
+        assert!(view.definite_invocation.is_none());
+        assert!(view.definite_roles.is_empty());
+        assert!(view.definite_traits.is_empty());
+    }
+
+    #[test]
+    fn original_logical_parameter_roles_require_original_formal_order_before_role_application() {
+        let source = "proc reader {name spare} {set $name 1}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+        let [body] = cards.as_slice() else {
+            panic!("one original procedure");
+        };
+        let text = &source[body.scope().scope_body().content_span().as_range()];
+        let env = TraitScanEnv {
+            surface: DocumentCommandSurface::new(analysis.resolved_registry().unwrap(), None),
+            config: input.lexer_config(),
+            identities: realm,
+            executed_source: None,
+            original_logical_body: Some(body),
+        };
+        assert!(
+            infer_param_traits(&["name", "spare"], text, env)["name"]
+                .contains(&ProcArgTrait::DynamicNameLocal)
+        );
+        for parameters in [
+            vec!["spare", "name"],
+            vec!["name", "spare", "extra"],
+            vec!["name"],
+        ] {
+            assert!(infer_param_traits(&parameters, text, env).is_empty());
+            assert!(infer_param_traits_deep(&parameters, text, env).is_empty());
+            assert!(caller_frame_upvar_params(&parameters, text, env).is_empty());
+        }
+    }
+
+    #[test]
+    fn original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies() {
+        for (source, expected) in [
+            ("proc outer {name} {proc inner {name} {$name}}", false),
+            ("proc outer {name} {if 1 {$name}}", true),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let realm = analysis.retained_command_realm().unwrap();
+            let cards = realm.original_logical_procedure_body_cards(input).unwrap();
+            let body = cards
+                .iter()
+                .find(|body| body.name() == Some("outer"))
+                .unwrap();
+            let text = &source[body.scope().scope_body().content_span().as_range()];
+            let env = TraitScanEnv {
+                surface: DocumentCommandSurface::new(analysis.resolved_registry().unwrap(), None),
+                config: input.lexer_config(),
+                identities: realm,
+                executed_source: None,
+                original_logical_body: Some(body),
+            };
+            let traits = infer_param_traits_deep(&["name"], text, env);
+            assert_eq!(
+                traits
+                    .get("name")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::Command)),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_parameter_roles_preserve_actual_body_lookup_barriers() {
+        for source in [
+            "proc reader {name} {unknown_effect; set $name 1}",
+            "proc set {args} {}; proc reader {name} {set $name 1}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let record = analysis
+                .original_procedure_declarations()
+                .find(|record| record.metadata().name == "reader")
+                .unwrap();
+            assert!(record.metadata().param_traits.is_empty(), "{source}");
         }
     }
 
@@ -1785,6 +2036,7 @@ mod tests {
             surface: DocumentCommandSurface::new(registry, None),
             config,
             executed_source: None,
+            original_logical_body: None,
             identities: if registry.profile().is_some() {
                 crate::realm::CommandBindingRealm::none()
             } else {
@@ -2518,6 +2770,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
                 executed_source: None,
+                original_logical_body: None,
             },
         );
         assert_trait(&traits, "h", ProcArgTrait::Command);
@@ -2894,6 +3147,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
                 executed_source: None,
+                original_logical_body: None,
             },
         );
         assert_trait(&traits, "script", ProcArgTrait::Body);
@@ -2916,6 +3170,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
                 executed_source: None,
+                original_logical_body: None,
             },
         );
         // A declared `VarWrite` role on a bare `$v` substitution is the same
@@ -2960,6 +3215,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
                 executed_source: None,
+                original_logical_body: None,
             },
         );
         assert_trait(&with_declaration, "script", ProcArgTrait::Eval);
@@ -3034,6 +3290,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: &identities,
                 executed_source: identities.executed_script_for_word(body_span),
+                original_logical_body: None,
             },
         )
     }
@@ -3108,6 +3365,7 @@ mod tests {
                     surface: DocumentCommandSurface::new(&registry, None),
                     config: LexerConfig::default(),
                     executed_source: identities.executed_script_for_word(span),
+                    original_logical_body: None,
                     identities: &identities,
                 },
             )
@@ -3120,6 +3378,7 @@ mod tests {
                     surface: DocumentCommandSurface::new(&registry, None),
                     config: LexerConfig::default(),
                     executed_source: identities.executed_script_for_word(span),
+                    original_logical_body: None,
                     identities: &identities,
                 },
             )
@@ -3157,6 +3416,7 @@ mod tests {
             config: LexerConfig::default(),
             identities: &identities,
             executed_source: Some(script),
+            original_logical_body: None,
         };
         let traits = infer_param_traits(&["body"], script.try_text().unwrap(), env);
         assert_trait(&traits, "body", ProcArgTrait::Eval);
@@ -3197,6 +3457,7 @@ mod tests {
                 config: LexerConfig::default(),
                 identities: &identities,
                 executed_source: Some(script),
+                original_logical_body: None,
             };
             assert!(
                 caller_frame_upvar_params(&["v"], script.try_text().unwrap(), env).contains("v")
@@ -3268,6 +3529,7 @@ mod tests {
                     config: LexerConfig::default(),
                     identities: &identities,
                     executed_source: identities.executed_script_for_word(span),
+                    original_logical_body: None,
                 },
             );
             assert!(

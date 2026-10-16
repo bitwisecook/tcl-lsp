@@ -1,0 +1,143 @@
+{
+  "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+  "ordinary_build": "PASS56.11s zero warnings; no instrumentation",
+  "records": [
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "compiled_stack_",
+      "exit": 101,
+      "seconds": 6.7563119389997155,
+      "log": "compiled_stack_.log",
+      "sha256": "cb446e1044651fb9552587bf7c812340f02b01d3fde77cf37a1388a985d5f0fc",
+      "status": "FAIL",
+      "passed": 2,
+      "failed": 1,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "cmd_var::tests::original_jim_",
+      "exit": 0,
+      "seconds": 1.137662626000747,
+      "log": "cmd_var--tests--original_jim_.log",
+      "sha256": "64e8521db553399d9cf289894b05dd2b8368d457f9846b46c777ad3db1d0225b",
+      "status": "PASS",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "interp::native_name_queries::tests",
+      "exit": 0,
+      "seconds": 10.138222789000793,
+      "log": "interp--native_name_queries--tests.log",
+      "sha256": "066f2dfdb47eb622bff243246ecf70fed4c3ed4e4ad94b96828deb1dccf75631",
+      "status": "PASS",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "interp::native_jim_namespace::tests",
+      "exit": 101,
+      "seconds": 5.545828203999918,
+      "log": "interp--native_jim_namespace--tests.log",
+      "sha256": "62e4cd7363ce35940109be578718ea7b65da65ca7fa138f2df411e3505d4cb18",
+      "status": "FAIL",
+      "passed": 7,
+      "failed": 1,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "cmd_namespace::",
+      "exit": 101,
+      "seconds": 116.39478835800037,
+      "log": "cmd_namespace--.log",
+      "sha256": "09079c9ca202dacf3a78c55b6f84090d432c696a85df863a47205c2e118bffd3",
+      "status": "FAIL",
+      "passed": 164,
+      "failed": 1,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "interp::native_variable_names::",
+      "exit": 101,
+      "seconds": 63.79678127400075,
+      "log": "interp--native_variable_names--.log",
+      "sha256": "da00c22bfc3780c45d84a6cd816c17ad9edbfdac6a764db5c77feb8b1b5f8a9b",
+      "status": "FAIL",
+      "passed": 41,
+      "failed": 2,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "interp::native_jim_import",
+      "exit": 0,
+      "seconds": 1.7391852110013133,
+      "log": "interp--native_jim_import.log",
+      "sha256": "7218144fd1ed82c86edd94fb986513797af23a92bff921012c339cc022e1ba01",
+      "status": "PASS",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "registered_legacy_length_converts_original_without_admitting_unknown_descriptors",
+      "exit": 0,
+      "seconds": 6.6434539269994275,
+      "log": "registered_legacy_length_converts_original_without_admitting_unknown_descriptors.log",
+      "sha256": "3ddbf269c40860a5fc798d14824ea34768182b122ec5679479ca2575ee0bacb6",
+      "status": "PASS",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "source_head": "35c8ce63439d5812f076f81e3bebd09b491cad1f",
+      "binary_sha256": "4b0a241135894f5233ac38606cc790f3d55435db0c59c382fe70f74589d8e43b",
+      "selector": "cmd_info::",
+      "exit": 0,
+      "seconds": 56.79456765699979,
+      "log": "cmd_info--.log",
+      "sha256": "fd586ad944110cf9b473c6e85c805e52fb9d5e424aa8fc5c1f1a73e159b8942d",
+      "status": "PASS",
+      "passed": 44,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "counts": {
+    "PASS": 294,
+    "FAIL": 5
+  },
+  "broader_predecessor_comparison": {
+    "old_head": "2459c99246751fd7695a585ea1081b43937174fb",
+    "groups": [
+      "cmd_namespace::",
+      "interp::native_variable_names::"
+    ],
+    "prior_PASS": 197,
+    "prior_FAIL": 11,
+    "current_PASS": 205,
+    "current_FAIL": 3,
+    "prior_PASS_retained": 197,
+    "gains": 8,
+    "regressions": 0,
+    "scope": "Exact selector comparison including two interleaved Jim PATCHLEVEL stdout lines; historical unsupported setup controls do not grant Jim support."
+  },
+  "limitations": "Selected controls only, not fullproof/gate/provider-equivalence/issue acceptance. Original five failures retained; fixture/production followups remain independently unexecuted."
+}

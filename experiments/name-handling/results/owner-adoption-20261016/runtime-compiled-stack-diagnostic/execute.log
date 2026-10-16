@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_body_artifact::native_control::compiled_stack_object_tests::compiled_stack_control_sites_compile_the_same_original_list_header ... 
+thread 'interp::native_body_artifact::native_control::compiled_stack_object_tests::compiled_stack_control_sites_compile_the_same_original_list_header' (73268) panicked at src/interp/native_body_artifact/native_control.rs:1641:17:
+assertion `left == right` failed: tcl8.4 catch=true: result=[] refusal=Some(ValueAccessRefusal(CommandProtocolUnavailable("native compiled-stack body artifact"))) host_pending=true original=Ok(NativeObjectSnapshot { resident: None, storage: None, cache: List { length: 3, canonical: false } }) original_artifact=false outer_artifact=true entered=0
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_body_artifact::native_control::compiled_stack_object_tests::compiled_stack_control_sites_compile_the_same_original_list_header
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2298 filtered out; finished in 0.74s
+

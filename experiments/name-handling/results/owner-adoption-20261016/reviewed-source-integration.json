@@ -1,0 +1,50 @@
+{
+  "scope": "Reviewed source integrations; none verified complete; required gates remain red or unrun.",
+  "patches": [
+    {
+      "name": "logical-parameter-source-owner.patch",
+      "sha256": "ecef85a3f131b888d7373e999c80a6c09bd21fdb21fdc52e4f4a5485a819b506"
+    },
+    {
+      "name": "namespace-owner-and-fixture-repair.patch",
+      "sha256": "5e94a4590d6a487f15f80adbb09e390ff1e981171495539a63e4abfc5a8daae2"
+    },
+    {
+      "name": "pure-expression-gap-compaction-077adf428d77.patch",
+      "sha256": "077adf428d77a134b29ec53b314e6247e5f6015ecfb14e77b3065b737f118c0f"
+    },
+    {
+      "name": "conditional-named-instance-report.patch",
+      "sha256": "f44d2be948b4bb435a68fd123f81a2488377d1c9709999206c9f9721cb638fe2"
+    },
+    {
+      "name": "compiler-logical-receiver-catalogue.patch",
+      "sha256": "5569e5b1840142c4686a13dd5113c1f4332215c2813b0aa972e0bd5c46a7a9a7"
+    },
+    {
+      "name": "navigation-v2.patch",
+      "sha256": "6f62a4702250d52b1376e03fffdf8d654dcb5fc07be44ddc500d9bb6382c496f"
+    },
+    {
+      "name": "receiver-lifecycle.patch",
+      "sha256": "d33b593156348981fb62783b58117ace2ebf3bf2bf4d48a52e6e5efb74b27809"
+    },
+    {
+      "name": "reviewed-facets-contracts.patch",
+      "sha256": "9527f0e30a89bb887b8b331c51004dc743d6ff2ea17c854c535adfb507ca7046"
+    },
+    {
+      "name": "repair.patch",
+      "sha256": "47440b452339ae442862e79c17309ca6b8a6ca19a840ca0b47185bf17b8d7850"
+    },
+    {
+      "name": "collision-reservations-4ee3043e4969.patch",
+      "sha256": "4ee3043e4969088c5e325f223338cdac6e25df69d5fd489e4a34e91ff16b591a"
+    }
+  ],
+  "root_adjustments": [
+    "Corrected receiver contract caller path to actual type_definition.rs.",
+    "Moved named-instance control to existing original_definition_vocabulary_tests with its existing helpers; assertions/input unchanged.",
+    "Formatted changed modules without traversing child modules."
+  ]
+}

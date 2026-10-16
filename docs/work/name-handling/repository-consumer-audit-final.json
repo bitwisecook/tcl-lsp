@@ -17408,7 +17408,13 @@
       "required_change": [
         "Bare generic source word matching a member report label is treated as method receiver without authentic selected member/call binding. Needs existing shared Logical member/receiver source owner and original word purpose; labels/map membership cannot choose declaration identity."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source": "AnalysisResult::logical_source_member_type_at; retained current Logical receiver/frame/member owner; Native branch unchanged.",
+        "validation": "Reviewed navigation-v2 and compiler receiver producer integrated; ordinary workspace build/test rerun pending."
+      }
     },
     {
       "area": "lsp",
@@ -131313,24 +131319,23 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T10:20:36.727676+00:00",
+    "utc": "2026-10-16T10:58:06.018204+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 97,
+    "implemented_pending_validation": 98,
     "verified_complete": 0,
-    "not_started": 2061,
+    "not_started": 2060,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
-      "VM C import preload selected-dispatch owner facet integrated, bounded additional requirement annex mapping pending.",
-      "Jim Create namespace-variable diagnostic formatting owner facet demonstrated, patch still under review.",
-      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance.",
-      "Baseline runtime compile adapter mapping remains pending."
+      "Physical VM body result caller remains explicit annex obligation; original physical producer exists, stateful capsule transport still required.",
+      "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
+      "Foreign constructor/collection unknown-mutation transport remains open within the existing baseline caller.",
+      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance."
     ],
     "latest_scoped_build": {
-      "status": "FAIL2_CLASS_ADAPTER_ERRORS",
-      "source": "1e5dfbdb successor",
-      "log": "/tmp/naming-workspace-build-1e5-successor.log",
-      "repair": "Added pure genuine Logical declaration source/input correspondence accessor and corrected optional expansion vector guard; rerun pending."
+      "status": "FAIL4_NEW_TEST_SCOPE_ERRORS",
+      "log": "/tmp/naming-workspace-build-reviewed-successor.log",
+      "repair": "Moved new named-instance report control into its existing module containing Analyser and token_kind_at; unchanged assertions/inputs. Fresh build pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -131475,12 +131480,18 @@
     "owner_facet_reconciliation": "19 additional unverified obligations accepted in separate annex; baseline2158 unchanged;18 additional integrated pending validation. Further demonstrated formatter/preload/Logical source facets still under bounded reconciliation.",
     "runtime_build": {
       "status": "PASS",
-      "source": "80541dfbc successor with four Runtime compile repairs and reviewed Logical tape reborrow",
-      "log": "/tmp/naming-runtime-build-80541-successor-fixed.log",
-      "seconds": 56.11,
-      "overlay": null,
+      "seconds": 57.46,
       "warnings": 0,
-      "tests": "Fresh ordinary tests pending; instrumented predecessor binary replaced."
+      "log": "/tmp/naming-runtime-build-reviewed-successor-standalone.log",
+      "binary_sha256": "fde4a02f60f004573845d06b168002f7510b7dac85d2a010bfaddd459824b8a9",
+      "ordinary": true,
+      "source_diff_sha256": "ff22a64f8ea075c38d2b7723f310dfe94cd12044ef1ddef85bde129cd5a11ea1",
+      "controls": {
+        "PASS": 298,
+        "FAIL": 1,
+        "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-reviewed-successor/records.json",
+        "remaining": "Local-cache fixture fresh Native read after refusal; physical observation repair applied, retest pending."
+      }
     },
     "scoped_capture": "experiments/name-handling/results/owner-adoption-20261016/records.json",
     "pending_repairs": [
@@ -131501,7 +131512,22 @@
       "evidence_digest_mismatch": 1074,
       "source_binding_document_mismatch": 17,
       "limits": "Missing references/path drift overlap. No digest or evidence acceptance refreshed.",
-      "reviewed_repair": "17 selected source/binding/document consistency messages repaired without changing evidence/result/status digests. Bounded108owner/85binding checks pass; full gate rerun pending."
+      "reviewed_repair": "17 selected source/binding/document consistency messages repaired without changing evidence/result/status digests. Bounded108owner/85binding checks pass; full gate rerun pending.",
+      "restored_availability": {
+        "files": 13,
+        "bytes": 3520174,
+        "retained_hash_references_verified": 164,
+        "receipt": "experiments/name-handling/results/owner-adoption-20261016/historical-proof-availability/receipt.json",
+        "current_full_rerun": "RUNNING /tmp/naming-proof-check-reviewed-successor.log",
+        "remaining_missing_native_binary_refs": 638,
+        "remaining_distinct_native_binary_paths": 470
+      },
+      "current": {
+        "status": "FAIL",
+        "structural_errors": 3403,
+        "log": "experiments/name-handling/results/owner-adoption-20261016/proof-reviewed-successor/check.log",
+        "scope": "Availability/source consistency improved; required gate still red."
+      }
     },
     "additional_facet_review": {
       "accepted_additional_units": 19,
@@ -131509,9 +131535,15 @@
       "verified_complete": 0,
       "annex": "implementation-owner-annex.json"
     },
-    "additional_owner_annex": "implementation-owner-annex.json",
-    "effective_required_units": 2177,
-    "effective_implemented_pending_validation": 115,
+    "additional_owner_annex": {
+      "path": "docs/work/name-handling/implementation-owner-annex.json",
+      "required": 25,
+      "implemented_pending_validation": 24,
+      "not_integrated": 1,
+      "verified_complete": 0
+    },
+    "effective_required_units": 2183,
+    "effective_implemented_pending_validation": 122,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",

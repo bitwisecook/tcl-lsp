@@ -41,18 +41,22 @@ impl OriginalCollectionElementSource {
     pub const fn source_effect(&self) -> tcl_registry::VarElementsEffect {
         self.effect
     }
+    /// The retained original schema for this collection writer.
     #[must_use]
     pub const fn writer(&self) -> &OriginalRegistryWords {
         &self.writer
     }
+    /// The original container variable occurrence selected by the writer.
     #[must_use]
     pub const fn original_variable(&self) -> &SignatureSourceVariableOccurrence {
         &self.variable
     }
+    /// The original written value operand supplied by the collection writer.
     #[must_use]
     pub const fn original_value(&self) -> &NativeWord {
         &self.value
     }
+    /// The complete original constructor invocation supplying the element.
     #[must_use]
     pub const fn construction(&self) -> &NativeScriptCommandWords {
         &self.construction
@@ -69,18 +73,22 @@ pub struct OriginalObjectCollectionSourceCandidates {
     path: OriginalCollectionReceiverPath,
 }
 impl OriginalObjectCollectionSourceCandidates {
+    /// The retained original extraction schema and complete invocation.
     #[must_use]
     pub const fn extraction(&self) -> &OriginalRegistryWords {
         &self.extraction
     }
+    /// The original container variable occurrence selected by extraction.
     #[must_use]
     pub const fn original_variable(&self) -> &SignatureSourceVariableOccurrence {
         &self.variable
     }
+    /// Represented insertion sources, without claiming complete contents.
     #[must_use]
     pub fn elements(&self) -> &[OriginalCollectionElementSource] {
         &self.elements
     }
+    /// The original receiver association selected for this extraction.
     #[must_use]
     pub const fn receiver_path(&self) -> &OriginalCollectionReceiverPath {
         &self.path
@@ -123,8 +131,11 @@ struct CollectionLoop {
 /// source syntax without claiming an executed assignment or loop iteration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OriginalCollectionReceiverPath {
+    /// A direct original collection-element receiver expression.
     ElementRead,
+    /// A receiver retained through its selected original handle assignment.
     HandleAssignment(crate::registry_invocation::OriginalSourceHandleConstruction),
+    /// A receiver associated with an original loop source, without an entered iteration.
     LoopBinding {
         /// Actual selected loop schema and original full invocation.
         words: OriginalRegistryWords,
@@ -148,6 +159,7 @@ pub struct OriginalObjectCollectionSources {
     places: Vec<(SignatureSourceVariableSymbol, CollectionSourcePlace)>,
 }
 impl OriginalObjectCollectionSources {
+    /// Capture associations from the same original source, analysis and compilation unit.
     #[must_use]
     pub fn capture(
         source: &str,

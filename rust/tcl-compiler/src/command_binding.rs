@@ -171,7 +171,9 @@ pub(crate) use source_transition_advice::{
     OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,
 };
 mod original_literal_argv_rewrite;
-pub use original_literal_argv_rewrite::OriginalLiteralExpressionBracing;
+pub use original_literal_argv_rewrite::{
+    OriginalExpressionGapCompaction, OriginalLiteralExpressionBracing,
+};
 mod expression_operand_advice;
 mod formal_call_advice;
 mod lifecycle_advice;
@@ -6894,6 +6896,7 @@ impl SourceCommandBindings {
         trace_source_lookup(lookup_start, "deferred", source.len());
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
+        bindings.retain_logical_receiver_source_catalogues(config, registry);
         if let Some(key) = memo_key {
             source_analysis_cache::retain(key, &bindings);
         }
@@ -8075,6 +8078,7 @@ impl SourceCommandBindings {
         }
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
+        bindings.retain_logical_receiver_source_catalogues(config, registry);
         Some(bindings)
     }
 

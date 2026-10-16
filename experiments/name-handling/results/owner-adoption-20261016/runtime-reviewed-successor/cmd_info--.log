@@ -1,0 +1,49 @@
+
+running 44 tests
+test cmd_info::literal_script_tests::original_jim_info_literal_scripts_use_actual_mutable_commands_and_caller_namespace ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... ok
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_default_helper_matches_original_namespace_aware_pattern_stages ... ok
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_preflight_preserves_nons_and_worker_arity_namespace_getter_order ... ok
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_reaches_actual_replaced_and_deleted_info_helper ... ok
+test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_stops_after_actual_pattern_getter_withdraws_current_namespace ... ok
+test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_info::native_jim::variable_inventory_tests::original_jim_bootstrap_keys_have_first_native_owners_and_retire_with_their_entries ... ok
+test cmd_info::native_jim::variable_inventory_tests::original_jim_inventory_receipt_does_not_retain_key_or_follow_recreated_slot ... ok
+test cmd_info::native_jim::variable_inventory_tests::original_jim_variable_inventories_keep_raw_and_helper_namespace_frame_stages ... ok
+test cmd_info::native_jim::variable_inventory_tests::original_jim_variable_inventory_returns_same_keys_and_preserves_top_locals_empty ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_info_dispatch_matches_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... ok
+test cmd_info::native_jim_inventory_tests::original_procedure_usage_extents_match_all_24_native_public_windows ... ok
+test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+test cmd_info::original_argument_tests::original_info_default_failed_lookup_leaves_destination_getter_unreached ... ok
+test cmd_info::original_argument_tests::original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_value ... ok
+test cmd_info::original_argument_tests::original_info_direct_name_workers_stop_before_result_after_getter_refusal ... ok
+test cmd_info::original_argument_tests::original_info_exists_public_row_preserves_original_name_on_all_six_providers ... ok
+test cmd_info::original_argument_tests::original_info_getter_first_cause_stops_later_operands_and_result_publication ... ok
+test cmd_info::tests::fresh_interp_exposes_c_create_interp_versions ... ok
+test cmd_info::tests::info_cmdtype_loaded_functions ... ok
+test cmd_info::tests::info_commands_procs_namespaced ... ok
+test cmd_info::tests::info_commands_qualified_pattern ... ok
+test cmd_info::tests::info_complete_balances ... ok
+test cmd_info::tests::info_consts_enumerates_bindings_and_namespace_global_fallback ... ok
+test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... ok
+test cmd_info::tests::info_ensemble_miss_carries_the_full_option_list ... ok
+test cmd_info::tests::info_exists_scalar_and_array ... ok
+test cmd_info::tests::info_frame_stack ... ok
+test cmd_info::tests::info_frame_uplevel_is_eval_typed_without_level ... ok
+test cmd_info::tests::info_level_and_vars ... ok
+test cmd_info::tests::info_level_reports_call_words ... ok
+test cmd_info::tests::info_patchlevel_still_errors_after_global_is_unset ... ok
+test cmd_info::tests::info_proc_introspection_errors ... ok
+test cmd_info::tests::info_procs ... ok
+test cmd_info::tests::info_vars_locals_globals ... ok
+test cmd_info::tests::math_enumeration_tracks_the_registry_selected_runtime_surface ... ok
+test cmd_info::tests::original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar ... ok
+test cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers ... ok
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... ok
+
+test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 2255 filtered out; finished in 57.26s
+

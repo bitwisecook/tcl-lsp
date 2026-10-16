@@ -24,17 +24,15 @@
 //! - **Variable receiver** (`$obj`) — an actual retained object read identifies
 //!   its original class allocation. Nominal type candidates cannot supply a
 //!   local declaration; foreign source requires its own navigation target.
-//! - **Method receiver** — when the cursor sits inside a class body on a
-//!   word that names one of that class's methods, jump to the enclosing
-//!   class's definition (the method's owning *type*).
+//! - **Method receiver** — an original member declaration or authentic
+//!   lexical self selector identifies the method's owning class.
 //!
 //! Returns an empty vector when no class types the symbol.
 
-use tcl_compiler::analyser::{AnalysisResult, ClassDef};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::{LspRange, byte_offset_at, span_to_range};
-use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-type-definition" locations for the symbol at the
 /// cursor.
@@ -88,26 +86,14 @@ pub fn type_definition(
             .unwrap_or_default();
     }
 
-    // 2. Method receiver: a bare word inside a class body that names a
-    //    method of the enclosing class resolves to that class.
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
-        return Vec::new();
-    };
-    let cursor = byte_offset_at(&line_index, source, line, character);
-    if let Some(cd) = innermost_class_containing(analysis, cursor)
-        && (cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word))
-    {
-        return vec![span_to_range(source, &line_index, cd.name_span)];
-    }
-    Vec::new()
-}
-
-/// The innermost class whose body (including any separate `oo::define`
-/// extension) contains the cursor offset.
-fn innermost_class_containing(analysis: &AnalysisResult, cursor: u32) -> Option<&ClassDef> {
     analysis
-        .all_classes
-        .get(crate::definition::enclosing_class_at(analysis, cursor)?)
+        .logical_source_member_type_at(
+            &tcl_lexer::SourceImage::document(source),
+            current.config(),
+            cursor,
+        )
+        .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -240,5 +226,93 @@ mod original_type_tests {
             );
         }
         assert!(type_definition(&format!("# changed\n{source}"), 1, 35, &analysis).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod logical_member_type_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn ranges(source: &str, analysis: &AnalysisResult, needle: &str) -> Vec<LspRange> {
+        let cursor = u32::try_from(source.rfind(needle).unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(cursor, source);
+        type_definition(source, position.line, position.character.get(), analysis)
+    }
+
+    #[test]
+    fn logical_declaration_and_self_selector_keep_the_original_member_owner() {
+        let source = "oo::class create C {method target {} {}; method caller {} {my target}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        for needle in ["target {}", "target}"] {
+            let locations = ranges(source, &analysis, needle);
+            assert_eq!(locations.len(), 1, "{needle}: {locations:?}");
+            assert_eq!(locations[0].start_character, 17);
+        }
+    }
+
+    #[test]
+    fn logical_unicode_member_declaration_and_self_selector_keep_original_values() {
+        for name in ["méthode", "名::méthode", "{名 target}"] {
+            let source = format!(
+                "oo::class create C {{method {name} {{}} {{}}; method caller {{}} {{my {name}}}}}",
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            for needle in [format!("{name} {{}}"), format!("{name}}}")] {
+                let locations = ranges(&source, &analysis, &needle);
+                assert_eq!(locations.len(), 1, "{name}: {needle}: {locations:?}");
+                assert_eq!(locations[0].start_character, 17);
+            }
+        }
+    }
+
+    #[test]
+    fn logical_matching_data_and_nested_procedure_cannot_supply_a_member_selector() {
+        for body in [
+            "puts target",
+            "set target target",
+            "# target\n",
+            "proc nested {} {my target}",
+            "puts {my target}",
+        ] {
+            let source = format!(
+                "oo::class create C {{method target {{}} {{}}; method caller {{}} {{{body}}}}}",
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(ranges(&source, &analysis, "target").is_empty(), "{body}");
+        }
+    }
+
+    #[test]
+    fn logical_member_type_requires_current_source_input_configuration_and_metadata() {
+        let source = "oo::class create C {method target {} {}; method caller {} {my target}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let changed = format!("{source} ");
+        assert!(ranges(&changed, &analysis, "target}").is_empty());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(ranges(source, &changed, "target}").is_empty());
+        let mut changed = analysis.clone();
+        changed.resolved_input = None;
+        assert!(ranges(source, &changed, "target}").is_empty());
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("target")
+            .unwrap()
+            .body_span = tcl_lexer::Span::new(0, 1);
+        assert!(ranges(source, &changed, "target}").is_empty());
+    }
+
+    #[test]
+    fn logical_replaced_self_dispatcher_cannot_borrow_registry_semantics() {
+        let source = "proc my {args} {}; oo::class create C {method target {} {}; method caller {} {my target}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(ranges(source, &analysis, "target}").is_empty());
     }
 }

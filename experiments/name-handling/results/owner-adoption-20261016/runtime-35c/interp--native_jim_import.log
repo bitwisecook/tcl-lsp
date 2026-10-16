@@ -1,0 +1,18 @@
+
+running 13 tests
+test interp::native_jim_import::tests::an_unknown_empty_command_result_cannot_admit_an_inventory ... ok
+test interp::native_jim_import::tests::empty_rest_needs_the_actual_outer_iterator_completion ... ok
+test interp::native_jim_import::tests::genuine_import_source_completes_a_direct_command ... ok
+test interp::native_jim_import::tests::genuine_import_source_completes_an_empty_actual_rest_list ... ok
+test interp::native_jim_import::tests::genuine_import_source_completes_an_observed_empty_inventory ... ok
+test interp::native_jim_import::tests::genuine_import_source_completes_one_original_alias_hop ... ok
+test interp::native_jim_import::tests::genuine_import_source_completes_two_original_alias_hops ... ok
+test interp::native_jim_import::tests::genuine_import_source_declines_a_repeated_original_alias_prefix ... ok
+test interp::native_jim_import::tests::installed_helper_source_selection_requires_the_actual_body_and_live_definition ... ok
+test interp::native_jim_import::tests::public_import_enters_the_original_source_and_publishes_its_alias ... ok
+test interp::native_jim_import::tests::public_import_replacement_receives_the_original_pattern ... ok
+test interp::native_jim_import::tests::reuse::genuine_import_source_cannot_certify_full_traversal_after_a_publishing_break ... ok
+test interp::native_jim_import::tests::reuse::genuine_import_source_reuses_the_body_after_alias_and_namespace_replacement ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 2286 filtered out; finished in 1.73s
+

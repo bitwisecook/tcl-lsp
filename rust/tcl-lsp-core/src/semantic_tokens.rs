@@ -1642,12 +1642,107 @@ fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
 /// [`tcl_compiler::object_types::object_handle_classes`].
 type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSet<String>>;
 
-/// Bareword instance-command name → qualified class name,
-/// built from [`AnalysisResult::instance_classes`] gated on
-/// [`AnalysisResult::created_instance_commands`]. Only positive Logical
-/// classification consumes this compatibility projection. Original source
-/// roles and positioned receiver identity retain their separate owners.
-pub type NamedInstanceMap = std::collections::HashMap<String, String>;
+/// Named-instance display reports with separately retained compatibility mode.
+/// Conditional original source rows never enter legacy label classification.
+/// No report label supplies receiver identity, dispatch or Native authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NamedInstanceMap {
+    rows: std::collections::HashMap<String, NamedInstanceDisplayRow>,
+    ambiguous: std::collections::HashSet<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NamedInstanceDisplayRow {
+    class: String,
+    compatibility: bool,
+}
+impl NamedInstanceMap {
+    /// Preserve the existing analysis-gated compatibility projection. Genuine
+    /// conditional source-card reports are added independently below.
+    #[must_use]
+    pub fn from_analysis(analysis: &AnalysisResult) -> Self {
+        let mut result = Self::default();
+        for (name, class) in &analysis.instance_classes {
+            if analysis.created_instance_commands.contains(name.as_str()) {
+                result.insert_report(name.clone(), class.clone(), true);
+            }
+        }
+        result
+    }
+
+    /// Add display-only labels from genuine final source instance cards.
+    /// This never enables a compatibility row or changes source selection.
+    pub fn extend_conditional_source_cards(
+        &mut self,
+        cards: &tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards,
+    ) {
+        for (name, class) in cards.named_instance_display_reports() {
+            self.insert_report(name, class.qualified_name.clone(), false);
+        }
+    }
+
+    /// Merge report rows without upcasting a conditional row to compatibility.
+    /// Independent compatible rows retain their previous mode; conflicts abstain.
+    pub fn merge_reports(&mut self, other: &Self) {
+        for name in &other.ambiguous {
+            self.rows.remove(name);
+            self.ambiguous.insert(name.clone());
+        }
+        for (name, row) in &other.rows {
+            self.insert_report(name.clone(), row.class.clone(), row.compatibility);
+        }
+    }
+
+    /// Whether the display report contains any represented named instance.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// Display label lookup only; this cannot supply a receiver/source owner.
+    #[must_use]
+    pub fn get(&self, label: &str) -> Option<&str> {
+        self.rows.get(label).map(|row| row.class.as_str())
+    }
+
+    /// Readonly report labels for presentation. Conditional mode is not a
+    /// class/command resolver and no raw-map/Deref conversion is provided.
+    pub fn report_rows(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.rows
+            .iter()
+            .map(|(name, row)| (name.as_str(), row.class.as_str()))
+    }
+
+    fn compatibility_rows(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.rows
+            .iter()
+            .filter(|(_, row)| row.compatibility)
+            .map(|(name, row)| (name, &row.class))
+    }
+
+    fn insert_report(&mut self, name: String, class: String, compatibility: bool) {
+        if self.ambiguous.contains(&name) {
+            return;
+        }
+        match self.rows.entry(name.clone()) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                if entry.get().class != class {
+                    entry.remove();
+                    self.ambiguous.insert(name);
+                } else if compatibility {
+                    // Only an independently retained pre-existing compatible
+                    // row can enable the legacy projection.
+                    entry.get_mut().compatibility = true;
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(NamedInstanceDisplayRow {
+                    class,
+                    compatibility,
+                });
+            }
+        }
+    }
+}
 
 /// The optional workspace-merged facts a semantic-tokens request can enrich
 /// its object-dispatch resolution with — [`ClassHierarchy`] (cross-file
@@ -1679,12 +1774,7 @@ pub struct WorkspaceTokenFacts<'a> {
 /// created no named instances, so the merge in [`collect_entries`] is a
 /// no-op lookup-free skip for the overwhelming majority of documents.
 fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap {
-    analysis
-        .instance_classes
-        .iter()
-        .filter(|(name, _)| analysis.created_instance_commands.contains(name.as_str()))
-        .map(|(name, class)| (name.clone(), class.clone()))
-        .collect()
+    NamedInstanceMap::from_analysis(analysis)
 }
 
 /// Precise `$obj method …` highlighting via the registry's object-class model.
@@ -4672,7 +4762,7 @@ fn collect_entries(
     if project_classes.is_none()
         && let Some(named) = named_instances
     {
-        for (name, class) in named {
+        for (name, class) in named.compatibility_rows() {
             object_classes
                 .entry(name.clone())
                 .or_default()
@@ -10399,6 +10489,72 @@ mod original_realm_consumer_tests {
 mod original_definition_vocabulary_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn conditional_named_instance_reports_cannot_enter_legacy_label_classification() {
+        let library = Analyser::new().analyse(
+            "oo::class create C {method ping {} {}}; C create obj",
+            "tcl",
+        );
+        let cards = tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(&library).unwrap();
+        let mut reports = NamedInstanceMap::default();
+        reports.extend_conditional_source_cards(&cards);
+        assert_eq!(reports.get("::obj"), Some("::C"));
+        assert_eq!(
+            reports.report_rows().collect::<Vec<_>>(),
+            vec![("::obj", "::C")]
+        );
+        assert_eq!(reports.compatibility_rows().count(), 0);
+        let mut merged = NamedInstanceMap::default();
+        merged.merge_reports(&reports);
+        assert_eq!(merged, reports);
+        assert_eq!(merged.compatibility_rows().count(), 0);
+        let source = "obj ping";
+        let caller = Analyser::new().analyse(source, "tcl");
+        let tokens = full_with_cu_and_facts(
+            source,
+            caller.resolved_profile().unwrap(),
+            caller.resolved_registry().unwrap(),
+            None,
+            WorkspaceTokenFacts {
+                classes: Some(library.class_hierarchy()),
+                project_classes: None,
+                proc_roles: None,
+                named_instances: Some(&merged),
+                analysis: Some(&caller),
+            },
+        );
+        assert_ne!(
+            token_kind_at(
+                source,
+                &tests::decode_semantic(&tokens),
+                source.find("ping").unwrap()
+            ),
+            Some(TokenKind::Method as u32)
+        );
+        let providers = [cards];
+        let tokens = full_with_cu_and_facts(
+            source,
+            caller.resolved_profile().unwrap(),
+            caller.resolved_registry().unwrap(),
+            None,
+            WorkspaceTokenFacts {
+                classes: Some(library.class_hierarchy()),
+                project_classes: Some(&providers),
+                proc_roles: None,
+                named_instances: Some(&merged),
+                analysis: Some(&caller),
+            },
+        );
+        assert_eq!(
+            token_kind_at(
+                source,
+                &tests::decode_semantic(&tokens),
+                source.find("ping").unwrap()
+            ),
+            Some(TokenKind::Method as u32)
+        );
+    }
 
     fn retained_tokens(source: &str, dialect: &str) -> Vec<(u32, u32, u32, u32, u32)> {
         let analysis = Analyser::new().analyse(source, dialect);

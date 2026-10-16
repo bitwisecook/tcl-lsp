@@ -1831,7 +1831,8 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 /// analyser's per-scope variable tables (recursively), the SSA
 /// symbol tables of every function unit (which include names only
 /// *read* through name-taking commands, e.g. `[set a]`), and every
-/// textual `$name` / `${name}` reference.  Conservative superset —
+/// textual `$name` / `${name}` reference, plus inert UTF-8 name candidates.
+/// Conservative superset —
 /// an alias name is rejected on any hit.
 fn collect_live_names(
     source: &str,
@@ -1863,6 +1864,13 @@ fn collect_live_names(
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'$' {
+            // Collision reservations may include inert UTF-8 source candidates.
+            // This superset grants no configured reference, lookup or edit.
+            let start = i + 1;
+            let end = tcl_core_types::naming::scan_var_name_end_with(bytes, start, true);
+            if let Some(candidate) = source.get(start..end).filter(|name| !name.is_empty()) {
+                out.insert(candidate.to_owned());
+            }
             if let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, i, input.lexer_config())
                 && let Ok(name) = std::str::from_utf8(reference.name)
             {
@@ -4494,6 +4502,51 @@ mod tests {
         for name in ["a{b}c", "a::value", "a", "Ω"] {
             assert!(names.contains(name), "{name}: {names:?}");
         }
+    }
+
+    #[test]
+    fn conservative_collision_candidates_keep_configured_reads_and_insertion_separate() {
+        let source = "# $Ω $café ${braced name}\nfoo --long-argument;foo --long-argument\n";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(source, input);
+        for name in ["Ω", "caf", "café", "braced name"] {
+            assert!(names.contains(name), "{name}: {names:?}");
+        }
+        // Native Tcl keeps the non-ASCII suffix outside its bare reference.
+        let unicode = source.find("$Ω").unwrap();
+        assert!(
+            tcl_lexer::scan_var_ref(source.as_bytes(), unicode, input.lexer_config())
+                .unwrap()
+                .is_none()
+        );
+        let mixed = source.find("$café").unwrap();
+        assert_eq!(
+            tcl_lexer::scan_var_ref(source.as_bytes(), mixed, input.lexer_config())
+                .unwrap()
+                .unwrap()
+                .name,
+            b"caf"
+        );
+        let result = minify_with_analysis(
+            source,
+            &analysis,
+            MinifyOptions {
+                tier: MinifyTier::Aggressive,
+                isolated: true,
+                abbreviations: true,
+            },
+        );
+        assert!(
+            result
+                .refusals
+                .contains(&MinifyRefusal::MissingAliasInsertionContract)
+        );
+        assert!(result.symbol_map.command_aliases.is_empty());
+        assert!(result.symbol_map.argument_aliases.is_empty());
+        assert_eq!(result.source, "foo --long-argument;foo --long-argument");
     }
 
     #[test]

@@ -292,7 +292,24 @@ fn namespace_call_in_fixture(
     });
     interpreter.register_builtin(b"consumerFixtureNamespaceCall", fixture_namespace_call);
     let body = text(b"consumerFixtureNamespaceCall");
-    namespace_call(interpreter, b"eval", &[namespace.owner.as_ref(), &body])
+    let actual = interpreter
+        .namespaces()
+        .jim_namespace_original_owner(namespace.token)
+        .expect("live captured Jim namespace holder");
+    assert!(Rc::ptr_eq(&actual, &namespace.owner));
+    drop(actual);
+    // Enter the captured holder; public namespace eval constructs another role token.
+    interpreter.ns_eval_in_token(
+        namespace.token,
+        &[],
+        None,
+        true,
+        Some((
+            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            body.as_ptr(),
+        )),
+        None,
+    )
 }
 
 fn namespace_call(interpreter: &mut Interp, sub: &[u8], inputs: &[&obj::Owned]) -> Code {

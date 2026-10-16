@@ -345,6 +345,163 @@
         "status": "not_integrated",
         "verified_complete": false
       }
+    },
+    {
+      "id": "vm.native.c-import-preload-route-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "vm-unit-0127-a",
+        "runtime:native.original-jim-import-completion:59",
+        "runtime:native.original-jim-import-completion:63"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/native_namespace_name.rs",
+          "symbol": "NativeNamespaceNameProtocol::import_preload_route; NativeNamespaceImportPreloadRoute"
+        }
+      ],
+      "rationale": "One release-selected C helper route owner: Tcl 8.4 global direct versus 8.5+ current evaluation. Checkpoint ns_import -force/pattern/alias and Jim Import traversal are distinct callers/purposes; the route is not multiplied by release.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "vm.native.c-import-preload-route-adapter",
+      "kind": "caller_migration",
+      "baseline_unit_ids": [
+        "vm-unit-0127-a",
+        "runtime:native.original-jim-import-completion:59"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "symbol": "InterpState::original_c_import_preload; protocol.import_preload_route()"
+        },
+        {
+          "path": "rust/tcl-vm/src/exec.rs",
+          "symbol": "invoke_original_c_import_preload_direct"
+        }
+      ],
+      "rationale": "The actual VM adapter consuming the selected route is distinct from baseline cmd_namespace::ns_import and runtime Jim Import traversal. Its two route branches are one caller boundary.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.source.logical-parameter-trait-body-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-inlay-logical-procedure-formal-argv-transport"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+          "symbol": "OriginalLogicalProcedureBody"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+          "symbol": "TraitScanEnv::original_logical_body"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+          "symbol": "OriginalSourceScriptBody::matches_original_content"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "logical_source_registry_words"
+        }
+      ],
+      "rationale": "Distinct readonly Logical body/formal/Registry source owner required to infer traits where no executed-source frame exists. It creates no executed body/frame and leaves Native/evaluated paths separate. Do not multiply by scanner entrances.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "lsp.minifier.native-original-expression-gap-action-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-minifier-expression-name-lexing",
+        "lsp-minifier-argument-alias-source-phases",
+        "lsp-minifier-source-census-completeness"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+          "symbol": "SourceInvocationBinding::original_expression_gap_compaction; OriginalExpressionGapCompaction"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "original_expression_gap_compaction"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/original.rs",
+          "symbol": "syntax_compaction consumes original_expression_gap_compaction"
+        }
+      ],
+      "rationale": "One Native source-action permission for exact original expression token gaps, distinct from expression name lexing. It does not provide the missing variable-read/observer/child-body producer; the existing positive remains open.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "db.unit.db.workspace-class-display-cards:named-instance-map-mode-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "db.unit.db.workspace-class-display-cards"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "symbol": "NamedInstanceMap; NamedInstanceDisplayRow.compatibility; merge_reports"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+          "symbol": "OriginalProjectClassCards::named_instance_display_reports"
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "symbol": "FileTokenFacts::named_instances; project_named_instance_index; merge_project_named_instances"
+        }
+      ],
+      "rationale": "One report-transport owner retaining conditional-source versus legacy compatibility mode, so source display rows cannot activate legacy label classification. It is distinct from class/collection/visibility producers already recorded under the same catalogue unit and is not another DB caller.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "lsp.type-definition.logical-member-source-frame-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-type-definition-lexical-method"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+          "symbol": "AnalysisResult::logical_source_member_type_at"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "symbol": "SourceCommandBindings::logical_source_member_frame_at_offset"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+          "symbol": "original_logical_source_command_at_in_source"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "symbol": "logical_structured_invocation_with_metadata_context"
+        }
+      ],
+      "rationale": "One readonly Logical selected-member/source-frame owner; the Core caller is already the baseline lsp-type-definition-lexical-method unit and is not recounted. It grants navigation only, not execution/read/Native/Normal/edit authority.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
     }
   ],
   "unverified_or_open": [
@@ -356,27 +513,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T10:20:36.727676+00:00",
+  "utc": "2026-10-16T10:58:06.018204+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 19,
+    "semantic_code_changes": 25,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 19,
+    "all_required_changes": 25,
     "by_kind": {
       "shared_owner_repair": 7,
-      "shared_owner_extension": 5,
-      "caller_migration": 6,
+      "shared_owner_extension": 10,
+      "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1818,
+    "semantic_code_changes": 1824,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2177
+    "all_required_changes": 2183
   },
   "implementation_progress": {
-    "implemented_pending_validation": 18,
+    "implemented_pending_validation": 24,
     "not_integrated": 1,
     "verified_complete": 0
   }
