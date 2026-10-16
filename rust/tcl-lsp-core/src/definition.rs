@@ -189,19 +189,6 @@ pub fn definition(
     definition_with(source, line, character, analysis, None)
 }
 
-/// The document's own lexing configuration, from the analysis result's
-/// resolved dialect.
-///
-/// The cursor-shape helpers below re-read a slice of the document (a `[…]`
-/// receiver, a dispatch head), and that re-read must draw the word
-/// boundaries the document's grammar draws — `}{` breaks a word under the
-/// iRules grammar and does not under plain Tcl.
-pub(crate) fn dialect_config(analysis: &AnalysisResult) -> tcl_lexer::LexerConfig {
-    analysis.body_lexer_config.unwrap_or_else(|| {
-        tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_analysis(analysis)))
-    })
-}
-
 /// [`definition`] with the caller's whole-program export view attached.
 ///
 /// `program` is `None` for a host with no workspace index (a single-document
@@ -2164,9 +2151,15 @@ pub(crate) fn parameter_list_position_at(
 ) -> ParamListPosition {
     // The parameter-list word divides under the document's own grammar, the
     // same one every other provider in this module reads off the analysis.
-    let config = dialect_config(analysis);
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return ParamListPosition::Outside;
+    };
+    let config = current.config();
     let classify = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
-        param_word_position(source, name_span.end(), body_span.start(), off, config)
+        // A token content span can omit its real name-word closing delimiter.
+        let name = tcl_lexer::word_span_at(source, name_span);
+        param_word_position(source, name.end(), body_span.start(), off, config)
     };
     let routines = analysis
         .all_procs
@@ -2200,29 +2193,44 @@ fn param_word_position(
     if start > end || off < start || off >= end || end > source.len() {
         return ParamListPosition::Outside;
     }
-    // The parameter list is the first word of the region; skip the whitespace
-    // the segmenter left between the name token and it.
-    let bytes = source.as_bytes();
-    let mut word_start = start;
-    while word_start < end && matches!(bytes[word_start], b' ' | b'\t' | b'\r' | b'\n') {
-        word_start += 1;
-    }
-    if word_start >= end {
-        return ParamListPosition::Outside;
-    }
-    let word_end = crate::expr_context::word_end(source, word_start, end);
-    if off < word_start || off >= word_end {
-        return ParamListPosition::Outside;
-    }
-    let Some(word) = source.get(word_start..word_end) else {
+    let image = tcl_lexer::SourceImage::document(source);
+    // Lex the original tail, not a truncated prefix ending at the body opener.
+    // The first grouped word is the candidate; no closer or word is invented.
+    let Some(source_end) = u32::try_from(source.len()).ok() else {
         return ParamListPosition::Outside;
     };
-    // The literalness rule is shared with the analyser and the signature-scan
-    // tier so the three cannot disagree about a word. A local character scan
-    // reads the substitution-free quoted list `proc r "m n" {…}` as computed,
-    // while the analyser — correctly, per the oracle (`info args r` → `m n`) —
-    // treats it as literal.
-    if tcl_compiler::signature_scan::params::param_word_text_is_literal(word, config) {
+    let Ok(tokens) = tcl_lexer::source_region_tokens_in(
+        &image,
+        tcl_lexer::Span::new(region_start, source_end),
+        config,
+    ) else {
+        return ParamListPosition::Outside;
+    };
+    let commands = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+    let Some(word) = commands.first().and_then(|command| command.words.first()) else {
+        return ParamListPosition::Outside;
+    };
+    let Ok(span) =
+        tcl_lexer::NativeWord::written_span_from_group(image.bytes(), config, &tokens, word)
+    else {
+        return ParamListPosition::Outside;
+    };
+    if span.start() < region_start
+        || span.end() > region_end
+        || off < span.start() as usize
+        || off >= span.end() as usize
+    {
+        return ParamListPosition::Outside;
+    }
+    let Some(fragments) = tokens.get(word.tokens.clone()) else {
+        return ParamListPosition::Outside;
+    };
+    let literal = !word.expand
+        && fragments.len() == 1
+        && fragments.first().is_some_and(|token| {
+            tcl_compiler::signature_scan::params::param_word_is_literal(token.kind, true)
+        });
+    if literal {
         ParamListPosition::LiteralData
     } else {
         ParamListPosition::Computed
@@ -9563,5 +9571,62 @@ mod original_document_source_order_tests {
         let order = in_document_source_order(&missing, ctx);
         assert_eq!(order.has_run(point, point), None);
         assert!(order.navigation_precedence(point, point).is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_parameter_word_extent_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn parameter_positions_use_whole_grouped_literal_and_computed_words() {
+        for (source, needle) in [
+            (
+                "proc {p} {mé {option {default with spaces}}} {return 1}",
+                "default",
+            ),
+            ("proc p \"mé option\" {return 1}", "option"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let at = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert_eq!(
+                parameter_list_position_at(&analysis, source, at),
+                ParamListPosition::LiteralData,
+                "{source}"
+            );
+            let body = u32::try_from(source.find("return").unwrap()).unwrap();
+            assert_eq!(
+                parameter_list_position_at(&analysis, source, body),
+                ParamListPosition::Outside
+            );
+        }
+        let source = "proc p \"[list {name with spaces}]\" {return 1}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let at = u32::try_from(source.find("name").unwrap()).unwrap();
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::Computed
+        );
+    }
+
+    #[test]
+    fn parameter_positions_refuse_foreign_source_and_configuration() {
+        let source = "proc p {mé {option default}} {return 1}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let at = u32::try_from(source.find("option").unwrap()).unwrap();
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::LiteralData
+        );
+        assert_eq!(
+            parameter_list_position_at(&analysis, &source.replace("default", "changed"), at),
+            ParamListPosition::Outside
+        );
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert_eq!(
+            parameter_list_position_at(&analysis, source, at),
+            ParamListPosition::Outside
+        );
     }
 }

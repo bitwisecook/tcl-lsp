@@ -49,6 +49,24 @@ impl OriginalLogicalReceiverClass<'_> {
         if hierarchy.classes.get(class) != Some(self.metadata) {
             return;
         }
+        // Reborrow the shared receiver/member owner at this exact original
+        // command. Its full vector check and static operand requirement precede
+        // presentation; the child constructor alone cannot select a method.
+        let Some(analysis) = ctx.analysis else {
+            return;
+        };
+        let Some(receiver) = source_structure::original_project_receiver_class_with_sources(
+            ctx.full_source,
+            analysis,
+            command,
+            &[],
+            ctx.original_collections,
+        ) else {
+            return;
+        };
+        if receiver.metadata() != self.metadata || !receiver.provides_method() {
+            return;
+        }
         let Some(method) = command.texts.get(1) else {
             return;
         };

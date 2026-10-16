@@ -501,3 +501,30 @@ change another file's answer retains the necessary whole-workspace cost.
 - [Design doc index](../README.md)
 - [LSP feature providers](lsp-feature-providers.md)
 - [package loading](package-loading.md)
+
+## Workspace symbol source projection
+
+Logical `workspace/symbol` candidates retain a distinct readonly source owner
+alongside their display row. It binds the actual target URI, complete indexed
+source image, lexer configuration, selected Registry semantic key, advice mode,
+byte span and document-index revision. A label or qualified-name string is
+never used to recreate this owner. Cross-document effective-member candidates
+retain the source context of the arrival document that owns their name span.
+
+The server maps a Logical span only when the captured source image equals the
+source snapshot read for that URI, the candidate span agrees with the owner, the
+index still reports the captured document revision, and the selected
+`DocumentPathAdmission` remains current through synchronous range projection.
+Open-document snapshots are also checked against the live document revision,
+raw source bytes, dialect and any retained provider admission at that final
+boundary. Host-reported file rows require that admission; in-memory URI rows and
+the Native provider keep their existing document-snapshot/index-revision path.
+A missing Logical source owner, changed URI mapping, changed open document or
+changed indexed revision leaves the candidate unavailable instead of applying
+its old span to different bytes. The provider callback protects the selected
+URI/path mapping; it does not lock external filesystem contents after the read.
+
+Native declaration rows keep their existing `OriginalIndexedSourceLocation`
+validation against the actual current analysis. The Logical owner supports only
+readonly report-location projection: it establishes no Native identity, lookup,
+execution, complete-workspace absence or source-edit authority.

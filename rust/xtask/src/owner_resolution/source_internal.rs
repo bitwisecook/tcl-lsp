@@ -3500,4 +3500,48 @@ mod file_route_tests {
             assert!(!problems.is_empty(), "{declaration}");
         }
     }
+
+    #[test]
+    fn registry_public_facade_private_kernel_keeps_real_self_and_static_bounds() {
+        let fixture = root();
+        std::fs::write(
+            fixture.0.join("rust/a/src/shared/owner.rs"),
+            "pub(super) struct Registry; impl Registry { pub(super) fn resolve(&self) { self.resolve_provider(); } fn resolve_provider(&self) { super::caller::build(); } }",
+        ).unwrap();
+        std::fs::write(
+            fixture.0.join("rust/a/src/shared/caller.rs"),
+            "pub(super) fn build() {}",
+        )
+        .unwrap();
+        let mut library = String::from("mod shared;\n");
+        for index in 0..2050 {
+            let module = format!("unrelated{index}");
+            library.push_str(&format!("mod {module};\n"));
+            std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
+        }
+        std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();
+        let private_kernel = "| source | `rust/a/src/shared/owner.rs` | `a` | `crate::shared::owner` | `Registry::resolve_provider` | private | `rust/a/src/shared/owner.rs` | `crate::shared::owner` | `Registry::resolve` | `self` |";
+        let internal_constructor = "| internal dependency | `rust/a/src/shared/caller.rs` | `a` | `crate::shared::caller` | `build` | pub(super) | `rust/a/src/shared/owner.rs` | `crate::shared::owner` | `Registry::resolve_provider` | `static` |";
+        let text = format!("{START}\n{private_kernel}\n{internal_constructor}\n{END}");
+        let (coverage, failures) = validate(&fixture.0, &text);
+        assert_eq!(coverage.len(), 1);
+        assert!(coverage.contains(&(
+            "source".into(),
+            "rust/a/src/shared/owner.rs".into(),
+            "Registry::resolve_provider".into(),
+        )));
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("source module route exceeds bound"));
+        assert!(failures[0].contains("internal dependency"));
+
+        for changed in [
+            private_kernel.replace("| private |", "| pub |"),
+            private_kernel.replace("`Registry::resolve`", "`Other::resolve`"),
+            private_kernel.replace("`Registry::resolve_provider`", "`Registry::absent`"),
+        ] {
+            let (coverage, failures) = validate(&fixture.0, &format!("{START}\n{changed}\n{END}"));
+            assert!(coverage.is_empty());
+            assert!(!failures.is_empty());
+        }
+    }
 }

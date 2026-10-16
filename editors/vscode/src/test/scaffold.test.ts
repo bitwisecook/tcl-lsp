@@ -49,14 +49,8 @@ suite("Package Scaffold", () => {
   });
 
   test("derives namespace and directory names", () => {
-    assert.strictEqual(
-      namespaceFromPackageName("acme::http-utils"),
-      "::acme::http_utils",
-    );
-    assert.strictEqual(
-      packageDirectoryName("acme::http-utils"),
-      "acme__http-utils",
-    );
+    assert.strictEqual(namespaceFromPackageName("acme::http-utils"), "::acme::http_utils");
+    assert.strictEqual(packageDirectoryName("acme::http-utils"), "acme__http-utils");
   });
 
   test("uses the shared namespace construction policy and exposes collisions", () => {
@@ -69,10 +63,7 @@ suite("Package Scaffold", () => {
     }
     assert.strictEqual(namespaceCatalog.policy.inputUnits, "utf16");
     assert.strictEqual(namespaceCatalog.policy.mayCollide, true);
-    assert.strictEqual(
-      namespaceFromPackageName("a-b"),
-      namespaceFromPackageName("a.b"),
-    );
+    assert.strictEqual(namespaceFromPackageName("a-b"), namespaceFromPackageName("a.b"));
     assert.strictEqual(packageScaffoldNamespace("a-b").lossy, true);
     assert.strictEqual(packageScaffoldNamespace("pkg").lossy, false);
   });
@@ -93,15 +84,45 @@ suite("Package Scaffold", () => {
     assert.ok(paths.includes("README.md"));
   });
 
+  test("builder rejects source-injection values even when called without the UI", () => {
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg; exec exploit",
+        version: "1.0",
+        commandName: "hello",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0",
+        commandName: "hello; exec exploit",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0; exec exploit",
+        commandName: "hello",
+      }),
+    );
+    assert.throws(() =>
+      buildPackageScaffold({
+        packageName: "pkg",
+        version: "1.0",
+        commandName: "hello",
+        minimumTclVersion: "8.6; exec exploit",
+      }),
+    );
+  });
+
   test("includes CI test invocation and package metadata", () => {
     const plan = buildPackageScaffold({
       packageName: "acme::tools",
       version: "0.1.0",
       commandName: "hello",
     });
-    const files = new Map(
-      plan.files.map((file) => [file.relativePath, file.content]),
-    );
+    const files = new Map(plan.files.map((file) => [file.relativePath, file.content]));
     const workflow = files.get(".github/workflows/ci.yml");
     const src = files.get("src/acme__tools.tcl");
     assert.ok(workflow && workflow.includes("tclsh tests/run.tcl"));

@@ -38,6 +38,7 @@ pub use logical_object_members::{LogicalSourceObjectMemberState, LogicalSourceOb
 mod logical_members;
 pub use logical_members::{
     LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration, LogicalSourceMemberInsertion,
+    LogicalSourceRelationStatement,
 };
 mod original_member_context;
 mod original_members;

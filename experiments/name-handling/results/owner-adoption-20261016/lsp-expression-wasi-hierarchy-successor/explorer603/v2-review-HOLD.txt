@@ -1,0 +1,14 @@
+Explorer603 V2 independent source review — HOLD
+
+Artifact: /tmp/lsp-explorer603-v2/compiler-explorer-source-currentness-v2.patch
+Patch SHA-256: 2ef1826b8bd08ad1654962886ea5ba1d5ec061d8cf4d77ec85b4d878efa41216
+Manifest: /tmp/lsp-explorer603-v2/manifest-v2.json
+Manifest SHA-256: 64d49bd50ad2c95a1f78cc3f6581017e6f2a7291e0ae91af46da1e0edc85ffaa
+
+The three manifest beforeimages were verified against the current repository source. No repository changes, tests, or builds were made.
+
+V1 panel-origin issue is fixed: the receive callback is registered on `registeredPanel`, captures its `registeredGeneration`, rejects messages unless that panel and generation remain current, and posts `compileCurrentnessCheck` replies to `registeredPanel`. The stale dispose callback is also guarded by the captured panel/generation.
+
+V1 post-show issue remains. In `openProjection`, the lease is checked after `openTextDocument(uri)`, but after `await vscode.window.showTextDocument(document, ...)` there is still no `isCompileLeaseCurrent(lease)` check. A source/panel/newer-compile replacement during that await can leave the stale projection displayed/take focus. Add a post-await lease check and safe stale-display handling before clearing HOLD.
+
+No runtime/build validity claim is made.

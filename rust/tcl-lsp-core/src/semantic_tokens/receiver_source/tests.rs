@@ -246,3 +246,21 @@ fn original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source
         .is_empty()
     );
 }
+
+#[test]
+fn logical_receiver_method_requires_original_static_whole_selector() {
+    for selector in ["ping", "{ping}", "\"ping\""] {
+        let source = format!("oo::class create C {{method ping {{}} {{}}}}; [C new] {selector}");
+        assert!(
+            method_at(&source, &analyse(&source, "tcl8.6"), None, "ping"),
+            "{source}"
+        );
+    }
+    for selector in ["ping$suffix", "ping[set suffix]", "{*}{ping}"] {
+        let source = format!("oo::class create C {{method ping {{}} {{}}}}; [C new] {selector}");
+        assert!(
+            !method_at(&source, &analyse(&source, "tcl8.6"), None, "ping"),
+            "{source}"
+        );
+    }
+}

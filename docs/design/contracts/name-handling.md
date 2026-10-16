@@ -62,6 +62,19 @@ evidence; the independent checked document-write receipt remains the sole
 application authority. This path does not infer resource semantics from the
 active/global dialect hint.
 
+## New package scaffolds
+
+The package scaffold builder applies its existing package, version, command, and
+minimum-runtime validators even when called outside the input-box flow. These
+checks constrain interpolated source values to the scaffold's authored token
+forms. The package namespace continues to come from the generated shared
+scaffold-name policy; that constructor can be lossy and collision-prone, so its
+output is a new namespace spelling, not an identity for the input package.
+Directory and source-file stems are generated separately for paths, while Tcl
+package spelling is retained in the emitted source. The command checks that the
+target directory is unused before writing the plan; it does not establish
+namespace uniqueness in existing Tcl source.
+
 ## Logical variable source scopes
 
 `AnalysisResult::logical_variable_scope_advice` is the shared Compiler entry
@@ -1722,3 +1735,88 @@ the same document, original source/version/language, resource dialect and
 analysis session around the asynchronous editor operation. A refused or failed
 write returns zero applied changes and no successful replacement source. Server
 transformation reports retain their separate source-association obligations.
+
+
+### Logical workspace hierarchy requests
+
+Logical hierarchy preparation retains the actual selected class under its own
+URI, whole source image, complete input and original factory/member snapshot.
+The shared bounded declaration registry transports it through a separate wire
+schema. Client labels, ranges, equal source copies and missing or foreign wire
+data cannot recreate or redirect that source selection.
+
+Cross-document relationships consume the actual Registry class-reference operand
+and whole member vector at the genuine factory parent. The existing Logical
+navigation owner supplies ordered namespace/path/import coordinates and excludes
+known source occupants and deleted alternatives. Native selected-provider queries
+remain separate. SlotSpec folds the same selected Registry slot operations over
+independently joined source targets. Every duplicate class candidate at the first
+occupied conditional coordinate keeps its own URI; nonclass competitors, unknown
+mutations and unavailable targets retain applicability debt. A positive source
+catalogue and a false retained-debt flag prove no complete class census or lookup.
+No runtime class, loading order, method table, MRO, frame or absence follows.
+
+Server publication reuses the readonly reference owner's all-document transaction.
+Every relation consumer and target retains its genuine SourceFile, original full
+input/configuration, producer-issued source/body/namespace and published provider.
+The final document/database/publication snapshot, input and factory generation,
+per-URI invalidation map and SourceStore provider lease enclose range lifting and
+wire-locator issuance. Changed parents cannot donate stale relationships merely
+because their targets remain current. Native reference and hierarchy owners keep
+their independent admission and source predicates.
+
+
+### Positioned original procedure-call source advice
+
+The original call hierarchy's no-resolved-reference branch uses the same
+OriginalCommandLookup::matching_source_advice_publications owner as original
+declaration selection. Genuine publication sites travel with independently
+current headers. Ordered coordinates alone cannot donate a target around an
+actual builtin/local/alias occupant, deletion, unknown entry, observed step or
+opaque source barrier. A source declaration candidate remains readonly source
+advice and grants no Native dispatch, entered call, Normal or edit permission.
+
+The consuming document retains its current complete input/source/configuration
+through FrameWalk and the existing selected-script command inventory. Its actual
+stamped original head, lookup and reference must agree with the reporting
+projection; missing or foreign correspondence declines. Prepare nominates only
+the genuine whole written head under an exact current UTF16 position. Equal text
+in an argument or stale report geometry cannot select the call. Declaring
+sources retain independent full input/currentness, and result spans use the
+shared LSP line index. Existing stronger selected-reference and method/math
+owners stay separate; source syntax grants neither a frame nor a binding.
+
+Readonly local Logical type hierarchy and implementation use the same original
+relation-operand candidate requests and conditional inventory as workspace
+hierarchy. A genuine naming operand or constructor head retains its existing
+owner; a relation cursor must match the actual retained original operand and
+reissue its current receiver/provider snapshots. Report labels never supply a
+lookup operand, including when a qualified display label changes. Earlier
+unknown mutation remains applicability debt. An unavailable unrelated relation
+cannot erase a genuine root's own method, and cannot nominate another class as
+a descendant. Only retained matching relation candidates add source descendant
+advice, folded through the existing Registry slot operation. Current full input,
+image, namespace, factory parent, method side and selected metadata guards stay
+in force. The UI's range vector proves no complete graph, lookup absence,
+exclusion, Native dispatch, runtime MRO or execution; strong selected-provider
+relation APIs remain separate and keep their stronger refusals.
+
+The actual Server retains typed Logical hierarchy and implementation advice
+through the common final readonly source/provider lease. A class selected from
+an original relation operand retains that sealed operand request and receiver
+snapshot alongside the current target declaration; wire revalidation reissues
+both snapshots. Earlier lookup mutation, unavailable relation coverage and
+inherited source applicability remain in the typed reply and issued class
+receipt. Implementation replies retain the selected class/member root and every
+positive target with the exact URI, whole source image and full input. The
+Server revalidates them before projecting possible-positive LSP Locations inside
+the same lease. Locations cannot carry this internal applicability metadata;
+their empty or nonempty projection proves neither absence nor graph closure.
+The legacy vector APIs are compatibility presentation projections, while actual
+Server publication uses the typed preparation/walk/implementation entries.
+
+Relation cursor classification precedes the older strong class selector. That
+selector also recognises relation operands, so only an independently genuine
+original declaration Name word or constructor head may enter its fallback. A
+missing, unknown or ambiguous relation cannot fall through as a declaration or
+constructor selection and lose its original operand/receiver receipt.

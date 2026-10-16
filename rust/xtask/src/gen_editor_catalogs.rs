@@ -158,6 +158,12 @@ fn catalogs() -> Vec<(&'static str, String)> {
     let events = EventRegistry::build();
     vec![
         (
+            "editors/vscode/src/generated/fileUriPathPolicy.json",
+            to_json(&tcl_lsp_core::file_uri::file_uri_path_byte_projection(
+                tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
+            )),
+        ),
+        (
             "editors/vscode/src/generated/iruleEvents.json",
             to_json(&vscode_irule_events_catalog(&events)),
         ),

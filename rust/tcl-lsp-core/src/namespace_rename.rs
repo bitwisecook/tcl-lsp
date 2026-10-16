@@ -546,7 +546,7 @@ fn namespace_rename_hazard(
             }
         }
     };
-    crate::executable_regions::visit_analysis_executable_commands(
+    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
@@ -554,6 +554,16 @@ fn namespace_rename_hazard(
             false
         },
     );
+    if hazard.is_none() && coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+        return Some(RenameRefusal::at(
+            format!(
+                "cannot rename `{cell}`: original potential source coverage is unavailable; an unrepresented region may name this namespace"
+            ),
+            source,
+            line_index,
+            None,
+        ));
+    }
     let (span, kind) = hazard?;
     let written = source
         .get(span.start() as usize..span.end() as usize)
@@ -1420,5 +1430,53 @@ mod tests {
         assert!(namespace_rename_edits(hazardous, profile, &unknown, "::茶", "box").is_err());
         assert_eq!(tcl_syntax::naming::qualify("::茶:::", "*"), "::茶:::::*");
         assert_eq!(tcl_syntax::naming::qualify("::", "*"), "::*");
+    }
+}
+
+#[cfg(test)]
+mod potential_source_coverage_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn namespace_hazard_negative_requires_complete_original_source_coverage() {
+        for source in ["set value 1", "if {1} {set value 2}"] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                namespace_rename_hazard(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    "::kept",
+                    &[],
+                    &LineIndex::new(source),
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+        for source in [
+            "set value 1; $handler {}",
+            "set value 1; if {1} $body",
+            "set value 1; apply $lambda",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let refusal = namespace_rename_hazard(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                "::kept",
+                &[],
+                &LineIndex::new(source),
+            )
+            .expect("an unrepresented source body cannot establish a hazard negative");
+            assert!(
+                refusal
+                    .reason
+                    .contains("potential source coverage is unavailable"),
+                "{source}: {}",
+                refusal.reason
+            );
+        }
     }
 }

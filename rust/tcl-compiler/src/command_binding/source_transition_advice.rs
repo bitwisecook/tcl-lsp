@@ -14,7 +14,9 @@ mod logical_body;
 mod source_parameter_template;
 pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
 mod logical_declaration;
+mod logical_math;
 mod logical_navigation;
+pub use logical_math::OriginalLogicalMathFunctionOccurrence;
 mod logical_word_geometry;
 pub use logical_navigation::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
@@ -37,7 +39,10 @@ mod source_publication_proposal;
 pub use source_publication_proposal::OriginalSourcePublicationProposal;
 mod source_relation_provider;
 pub(crate) use source_relation_provider::LogicalSourceClassRelationProvider;
-pub use source_relation_provider::OriginalSourceClassRelationProvider;
+pub use source_relation_provider::{
+    LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+    OriginalSourceClassRelationProvider,
+};
 mod source_namespace;
 pub use source_callback::{
     OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
@@ -735,6 +740,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     authored_prefixes: BTreeMap<u32, Option<OriginalSourceAuthoredCommandPrefix>>,
     member_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
     body_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
+    conditional_case_syntax: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
     produced_prefixes: BTreeMap<u32, Option<OriginalSourceProducedCommandPrefix>>,
     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
@@ -760,6 +766,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     logical_variable_words: BTreeMap<u32, Option<logical_navigation::OriginalLogicalVariableWords>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
+    logical_math: BTreeMap<u32, Option<OriginalLogicalMathFunctionOccurrence>>,
     logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
     logical_body_words: BTreeMap<u32, Option<logical_word_geometry::OriginalLogicalBodyWords>>,
     logical_callbacks:
@@ -1091,6 +1098,13 @@ impl OriginalSourceTransitionAdviceTape {
         self.body_catalogue.get(&offset)?.as_ref()
     }
 
+    pub(crate) fn conditional_case_syntax(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceCommandTransitionAdvice> {
+        self.conditional_case_syntax.get(&offset)?.as_ref()
+    }
+
     pub(super) fn retain_logical_summary_scope(
         &mut self,
         original: &[NativeWord],
@@ -1138,6 +1152,9 @@ impl OriginalSourceTransitionAdviceTape {
         for (offset, receipt) in other.logical_variable_words {
             source_class::merge_receipt(&mut self.logical_variable_words, offset, receipt);
         }
+        for (offset, occurrence) in other.logical_math {
+            source_class::merge_receipt(&mut self.logical_math, offset, occurrence);
+        }
         for (offset, candidate) in other.logical_navigation {
             self.merge_logical_navigation(offset, candidate);
         }
@@ -1155,6 +1172,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (span, scope) in other.logical_variable_scopes {
             source_class::merge_receipt(&mut self.logical_variable_scopes, span, scope);
+        }
+        for (offset, receipt) in other.conditional_case_syntax {
+            source_class::merge_receipt(&mut self.conditional_case_syntax, offset, receipt);
         }
         for (offset, receipt) in other.body_catalogue {
             source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
@@ -2125,6 +2145,9 @@ struct AdviceTapeInputs<'a> {
 enum SourceAdviceQuery<'a> {
     ClassRelation(source_relation_provider::ClassRelationQuery<'a>),
     LogicalClassRelation(source_relation_provider::LogicalClassRelationQuery<'a>),
+    LogicalClassRelationCandidates(
+        source_relation_provider::LogicalClassRelationCandidatesQuery<'a>,
+    ),
     Publication(source_publication_proposal::PublicationProposalQuery<'a>),
 }
 

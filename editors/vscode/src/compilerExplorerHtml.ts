@@ -109,35 +109,36 @@ export function getWebviewHtml(): string {
     for (var i = 0; i < n; i++) a[i] = bin.charCodeAt(i);
     return a;
   }
-  function emit(type, payload) {
-    window.dispatchEvent(new MessageEvent('message', { data: { type: type, data: payload } }));
+  function emit(type, payload, context) {
+    window.dispatchEvent(new MessageEvent('message', { data: Object.assign({ type: type, data: payload }, context) }));
   }
   try {
     // \`--target no-modules\` glue defines the global \`wasm_bindgen\`.
     window.__wasmReady = wasm_bindgen(toBytes(b64));
-    window.__wasmCompile = function(source, dialect) {
+    window.__wasmCompile = function(source, dialect, compileToken, sourceToken) {
+      var context = { compileToken: compileToken, sourceToken: sourceToken };
       window.__wasmReady.then(function() {
         var json;
         try {
           json = wasm_bindgen.compile(source, dialect);
         } catch (e) {
-          emit('error', { error: 'WASM compile failed: ' + (e && e.message || e) });
+          emit('wasmResultReady', { type: 'error', data: { error: 'WASM compile failed: ' + (e && e.message || e) } }, context);
           return;
         }
         var parsed;
         try {
           parsed = JSON.parse(json);
         } catch (e) {
-          emit('error', { error: 'WASM returned invalid JSON' });
+          emit('wasmResultReady', { type: 'error', data: { error: 'WASM returned invalid JSON' } }, context);
           return;
         }
         if (parsed && parsed.error) {
-          emit('error', { error: parsed.error });
+          emit('wasmResultReady', { type: 'error', data: { error: parsed.error } }, context);
         } else {
-          emit('result', parsed);
+          emit('wasmResultReady', { type: 'result', data: parsed }, context);
         }
       }).catch(function(e) {
-        emit('error', { error: 'WASM init failed: ' + (e && e.message || e) });
+        emit('wasmResultReady', { type: 'error', data: { error: 'WASM init failed: ' + (e && e.message || e) } }, context);
       });
     };
   } catch (e) {
@@ -1182,6 +1183,10 @@ if (vscodeApi && window.__coreLoadError) {
 // Consumer state
 let lastSource = '';
 let lastDialect = '';
+let currentSourceToken;
+let currentCompileToken;
+let compileSequence = 0;
+const pendingWasmResults = new Map();
 
 // Message handler (replaces web worker)
 // The extension host posts through the frame embedding this webview, and that
@@ -1201,13 +1206,54 @@ window.addEventListener('message', function(event) {
   switch (msg.type) {
     case 'sourceUpdate':
       currentSource = msg.source;
+      currentSourceToken = msg.sourceToken;
+      pendingWasmResults.clear();
+      currentCompileToken = msg.compile === false ? msg.compileToken : undefined;
+      lastSource = msg.compile === false ? msg.source : ''; // Rebind even when bytes are unchanged.
+      if (msg.compile === false) lastDialect = msg.dialect || '';
       if (msg.dialect) {
         $('#dialect').value = msg.dialect;
       }
       syncOpenInEditor();
-      compile();
+      if (msg.compile !== false) compile();
+      break;
+    case 'compileFallbackStarted':
+      if (msg.sourceToken === currentSourceToken && msg.source === currentSource) {
+        currentCompileToken = msg.compileToken;
+        lastSource = msg.source;
+        lastDialect = msg.dialect || '';
+      }
+      break;
+    case 'wasmResultReady':
+      if (msg.compileToken !== currentCompileToken ||
+          (msg.sourceToken !== undefined && msg.sourceToken !== currentSourceToken)) return;
+      pendingWasmResults.set(msg.compileToken, {
+        type: msg.data && msg.data.type,
+        data: msg.data && msg.data.data,
+        compileToken: msg.compileToken,
+        sourceToken: msg.sourceToken,
+      });
+      vscode.postMessage({
+        type: 'compileCurrentnessCheck',
+        compileToken: msg.compileToken,
+        sourceToken: msg.sourceToken,
+      });
+      break;
+    case 'compileCurrentnessAccepted': {
+      const pending = pendingWasmResults.get(msg.compileToken);
+      if (pending && msg.compileToken === currentCompileToken &&
+          (pending.sourceToken === undefined || pending.sourceToken === currentSourceToken)) {
+        pendingWasmResults.delete(msg.compileToken);
+        window.dispatchEvent(new MessageEvent('message', { data: pending }));
+      }
+      break;
+    }
+    case 'compileCurrentnessRejected':
+      pendingWasmResults.delete(msg.compileToken);
       break;
     case 'result':
+      if (msg.compileToken !== currentCompileToken ||
+          (msg.sourceToken !== undefined && msg.sourceToken !== currentSourceToken)) return;
       try {
         data = msg.data;
         compiledSource = lastSource;
@@ -1225,14 +1271,23 @@ window.addEventListener('message', function(event) {
         // throbber is indistinguishable from a hung compile.
         $('#spinner').style.display = 'none';
         updateStatusLight();
+        if (msg.hostRequestSeq === undefined) {
+          vscode.postMessage({ type: 'compileComplete', compileToken: msg.compileToken });
+        }
       }
       break;
     case 'error':
+      if (msg.compileToken !== currentCompileToken ||
+          (msg.sourceToken !== undefined && msg.sourceToken !== currentSourceToken)) return;
       showError(msg.data && msg.data.error || 'Unknown error', msg.data && msg.data.traceback);
       $('#spinner').style.display = 'none';
       setStatus('dirty');
+      if (msg.hostRequestSeq === undefined) {
+        vscode.postMessage({ type: 'compileComplete', compileToken: msg.compileToken });
+      }
       break;
     case 'status':
+      if (msg.compileToken !== currentCompileToken) return;
       $('#statusMsg').textContent = msg.text || msg.message || '';
       $('#statusMsg').style.display = '';
       break;
@@ -1294,6 +1349,8 @@ $('#openInEditor').addEventListener('click', () => {
     label: ($('.tab.active') || {}).textContent || view,
     source: currentSource,
     dialect: $('#dialect').value,
+    sourceToken: currentSourceToken,
+    compileToken: currentCompileToken,
   });
 });
 
@@ -1308,12 +1365,16 @@ function compile() {
 
   $('#spinner').style.display = 'block';
   setStatus('compiling');
+  const compileToken = String(currentSourceToken || 'standalone') + ':' + (++compileSequence);
+  currentCompileToken = compileToken;
+  const context = { sourceToken: currentSourceToken, compileToken };
+  vscode.postMessage({ type: 'compileStarted', source, dialect, ...context });
   if (typeof window.__wasmCompile === 'function') {
     // Compile in-webview via the bundled Rust → WASM module (no host roundtrip).
-    window.__wasmCompile(source, dialect);
+    window.__wasmCompile(source, dialect, compileToken, currentSourceToken);
   } else {
     // No WASM bundled — fall back to host-brokered compilation.
-    vscode.postMessage({ type: 'compile', source, dialect });
+    vscode.postMessage({ type: 'compile', source, dialect, ...context });
   }
 }
 
@@ -1400,6 +1461,8 @@ function setupHoverHighlighting(container) {
     // placing a caret, which is what an editor position actually is.
     vscode.postMessage({
       type: 'highlightSource', start, end,
+      sourceToken: currentSourceToken,
+      compileToken: currentCompileToken,
       startLine: el.dataset.sl === undefined ? undefined : parseInt(el.dataset.sl),
       startCol: el.dataset.sc === undefined ? undefined : parseInt(el.dataset.sc),
       endLine: el.dataset.el === undefined ? undefined : parseInt(el.dataset.el),
@@ -1412,7 +1475,7 @@ function setupHoverHighlighting(container) {
     currentHighlighted = el;
   });
   container.addEventListener('mouseleave', () => {
-    vscode.postMessage({ type: 'clearHighlight' });
+    vscode.postMessage({ type: 'clearHighlight', sourceToken: currentSourceToken, compileToken: currentCompileToken });
     if (currentHighlighted) {
       currentHighlighted.classList.remove('highlighted');
       currentHighlighted = null;
@@ -1468,9 +1531,9 @@ function setupOptDiffHover(pane) {
     container.querySelectorAll(\`.opt-replacement[data-opt-group="\${gid}"]\`).forEach(el=>el.classList.add('opt-output-highlight'));
     container.querySelectorAll(\`.opt-bracket[data-opt-group="\${gid}"]\`).forEach(el=>el.classList.add('highlighted'));
     const origEls=container.querySelectorAll(\`.opt-original[data-opt-group="\${gid}"]\`);
-    if(origEls.length){const start=parseInt(origEls[0].dataset.start);const end=parseInt(origEls[origEls.length-1].dataset.end);vscode.postMessage({type:'highlightSource',start,end});}
+    if(origEls.length){const start=parseInt(origEls[0].dataset.start);const end=parseInt(origEls[origEls.length-1].dataset.end);vscode.postMessage({type:'highlightSource',start,end,sourceToken:currentSourceToken,compileToken:currentCompileToken});}
   });
-  container.addEventListener('mouseleave',()=>{clearOptHighlights(container);vscode.postMessage({type:'clearHighlight'});});
+  container.addEventListener('mouseleave',()=>{clearOptHighlights(container);vscode.postMessage({type:'clearHighlight',sourceToken:currentSourceToken,compileToken:currentCompileToken});});
 }
 
 // One warning row, built as DOM rather than an HTML string: the code, message

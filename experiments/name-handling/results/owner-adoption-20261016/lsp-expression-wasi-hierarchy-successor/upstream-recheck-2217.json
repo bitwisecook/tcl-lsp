@@ -1,0 +1,10 @@
+{
+  "checked_utc": "2026-10-16T22:17:44.926154+00:00",
+  "actual_git_ls_remote": {
+    "origin_rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "jimtcl_HEAD": "5bac7c99ad65864c87da513e22e2f01703fa4e03"
+  },
+  "remote_rust_merged_or_admitted": false,
+  "jim_binary_recheck": "required again before actual replay",
+  "execution": "read-only upstream lookup only"
+}

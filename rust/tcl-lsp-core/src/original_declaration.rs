@@ -1005,12 +1005,18 @@ pub struct OriginalDeclarationHandle {
     token: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RetainedDeclaration {
+    Original(OriginalDeclarationIdentity),
+    LogicalClass(crate::type_hierarchy::LogicalHierarchyClass),
+}
+
 /// Bounded session-owned declaration receipt storage. Tokens never alias an
 /// evicted record and full source equality is checked on every resolution.
 #[derive(Debug, Default)]
 pub struct OriginalDeclarationRegistry {
     next: u64,
-    rows: BTreeMap<u64, OriginalDeclarationIdentity>,
+    rows: BTreeMap<u64, RetainedDeclaration>,
     order: VecDeque<u64>,
 }
 
@@ -1021,9 +1027,24 @@ impl OriginalDeclarationRegistry {
         &mut self,
         identity: OriginalDeclarationIdentity,
     ) -> Option<OriginalDeclarationHandle> {
+        self.issue_retained(RetainedDeclaration::Original(identity), 1)
+    }
+    /// Retain a sealed Logical class selection under a separate wire schema.
+    #[must_use]
+    pub fn issue_logical_class(
+        &mut self,
+        identity: crate::type_hierarchy::LogicalHierarchyClass,
+    ) -> Option<OriginalDeclarationHandle> {
+        self.issue_retained(RetainedDeclaration::LogicalClass(identity), 2)
+    }
+    fn issue_retained(
+        &mut self,
+        identity: RetainedDeclaration,
+        schema: u8,
+    ) -> Option<OriginalDeclarationHandle> {
         if let Some((token, _)) = self.rows.iter().find(|(_, row)| *row == &identity) {
             return Some(OriginalDeclarationHandle {
-                schema: 1,
+                schema,
                 token: *token,
             });
         }
@@ -1034,7 +1055,7 @@ impl OriginalDeclarationRegistry {
         }
         self.rows.insert(token, identity);
         self.order.push_back(token);
-        Some(OriginalDeclarationHandle { schema: 1, token })
+        Some(OriginalDeclarationHandle { schema, token })
     }
     /// Reselect the authentic current metadata by its retained full receipt.
     #[must_use]
@@ -1048,10 +1069,31 @@ impl OriginalDeclarationRegistry {
         if handle.schema != 1 {
             return None;
         }
-        self.rows
-            .get(&handle.token)
-            .filter(|row| row.is_current(uri, source, analysis))
-            .cloned()
+        let RetainedDeclaration::Original(identity) = self.rows.get(&handle.token)? else {
+            return None;
+        };
+        identity
+            .is_current(uri, source, analysis)
+            .then(|| identity.clone())
+    }
+    /// Reselect one current Logical class; Native and forged wire schemas refuse.
+    #[must_use]
+    pub fn resolve_logical_class(
+        &self,
+        handle: OriginalDeclarationHandle,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<crate::type_hierarchy::LogicalHierarchyClass> {
+        if handle.schema != 2 {
+            return None;
+        }
+        let RetainedDeclaration::LogicalClass(identity) = self.rows.get(&handle.token)? else {
+            return None;
+        };
+        identity
+            .is_current(uri, source, analysis)
+            .then(|| identity.clone())
     }
 }
 

@@ -1,0 +1,20 @@
+Explorer603 V1 independent source review — HOLD
+
+Artifact: /tmp/lsp-explorer603-v1/compiler-explorer-source-currentness.patch
+Patch SHA-256: b68e7e8990d2806bff76cfba07580807be0570dece67ea834b908e57167ab8ff
+Manifest: /tmp/lsp-explorer603-v1/manifest.json
+Manifest SHA-256: 95b33e497b6e3fe97e6cd3c35d519b01d104953fdf4d8bd3ee823ce1916e2e12
+
+Scope: source-only review of the host TypeScript, embedded webview protocol, and wasm-explorer-view contract. No repository edits, tests, or builds were performed.
+
+Positive findings:
+- `ExplorerSourceBinding` retains a `DocumentSourceSnapshot`, whose currentness check verifies the same open document URI, version, full bytes, and language ID.
+- Compile requests/results are associated with source binding, panel generation, compile token, and request sequence. Host-brokered results are discarded after the awaited request if the lease is stale. WASM results wait for the host `compileCurrentnessCheck` response before rendering.
+- Navigation requires the renderer's explicit `startColUtf16`/`endColUtf16` fields and validates the coordinates against the bound document. Byte offsets are bounds-checked only and are never converted through `positionAt`. The Rust `range_dict` producer emits both byte and UTF-16 coordinates; its existing tests cover non-ASCII and surrogate-pair cases.
+- Existing source test files/assertions/selectors are not changed by this patch.
+
+HOLD findings:
+1. `openProjection` checks `isCompileLeaseCurrent(lease)` after `openTextDocument(uri)`, then awaits `showTextDocument(document, ...)` without another lease check. A source/panel/newer-compile replacement during that await can still show a stale projection and take focus. Recheck the lease after the await before any subsequent action; define safe stale-display handling.
+2. Each panel's `onDidReceiveMessage` handler uses mutable global `panel`/lease state without retaining and checking the originating panel and generation. In particular, the unbound branch accepts `compileStarted` with no `sourceToken`; a delayed message from a disposed webview can therefore act on a replacement panel. `compileCurrentnessCheck` also posts its reply through global `panel?.webview`. Capture the registering panel and generation, reject callbacks unless both are still current, and reply to that captured panel.
+
+No claim is made about runtime behavior or build validity.

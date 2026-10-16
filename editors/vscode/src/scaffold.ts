@@ -84,14 +84,28 @@ export function packageFileStem(packageName: string): string {
   return packageName.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
-export function buildPackageScaffold(
-  options: PackageScaffoldOptions,
-): PackageScaffoldPlan {
+export function buildPackageScaffold(options: PackageScaffoldOptions): PackageScaffoldPlan {
+  const invalidPackage = validatePackageName(options.packageName);
+  if (invalidPackage) {
+    throw new TypeError(`Invalid package name: ${invalidPackage}`);
+  }
+  const invalidVersion = validateVersion(options.version);
+  if (invalidVersion) {
+    throw new TypeError(`Invalid version: ${invalidVersion}`);
+  }
+  const invalidCommand = validateCommandName(options.commandName);
+  if (invalidCommand) {
+    throw new TypeError(`Invalid command name: ${invalidCommand}`);
+  }
+
   const packageName = options.packageName.trim();
   const version = options.version.trim();
   const commandName = options.commandName.trim();
-  const minimumTclVersion =
-    options.minimumTclVersion?.trim() || DEFAULT_TCL_VERSION;
+  const minimumTclVersion = options.minimumTclVersion?.trim() || DEFAULT_TCL_VERSION;
+  const invalidMinimumVersion = validateVersion(minimumTclVersion);
+  if (invalidMinimumVersion) {
+    throw new TypeError(`Invalid minimum Tcl version: ${invalidMinimumVersion}`);
+  }
   const namespaceName = namespaceFromPackageName(packageName);
   const dirName = packageDirectoryName(packageName);
   const stem = packageFileStem(packageName);

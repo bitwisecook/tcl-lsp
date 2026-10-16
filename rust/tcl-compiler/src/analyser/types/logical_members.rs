@@ -44,6 +44,32 @@ pub struct LogicalSourceMemberDeclaration {
     method: MethodDef,
 }
 
+/// One actual Registry relation slot operation with independently selected operands.
+/// The carrier preserves source order and grants no executed member-table effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalSourceRelationStatement<T> {
+    relation: tcl_registry::definer::RelationSlot,
+    slot: tcl_registry::definer::SlotSpec,
+    operation: tcl_registry::definer::SlotOp,
+    operands: Vec<T>,
+}
+impl<T> LogicalSourceRelationStatement<T> {
+    /// Actual selected Registry relation family, independently of spelling.
+    #[must_use]
+    pub const fn relation(&self) -> tcl_registry::definer::RelationSlot {
+        self.relation
+    }
+    /// Retained whole-operand selections under this original member statement.
+    #[must_use]
+    pub fn operands(&self) -> &[T] {
+        &self.operands
+    }
+    /// Delegate typed values to the same authored Registry slot operation.
+    pub fn apply_values<V: Clone + PartialEq>(&self, current: &mut Vec<V>, values: &[V]) {
+        self.slot.apply_values(current, self.operation, values);
+    }
+}
+
 /// Original static member-name data and its independently quoted source word.
 /// This readonly suggestion supplies no method dispatch or editing permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,28 +243,7 @@ impl AnalysisResult {
                         source.matches_source_input(&declaration.image, &declaration.input)
                     })
                     .map(|source| source.body_word().clone());
-                let source_text = declaration.image.try_text().ok()?;
-                let offset = class.body_span.start();
-                let factory = self.command_invocations.iter().find_map(|invocation| {
-                    if invocation.range.start() >= offset {
-                        return None;
-                    }
-                    let factory =
-                        crate::registry_invocation::source_structure::source_class_declaration_at(
-                            source_text,
-                            self,
-                            invocation.range.start(),
-                        )?;
-                    std::ptr::eq(factory.logical_source_class(self)?, class).then_some(())?;
-                    let original = factory.name_input().logical_input()?;
-                    (tcl_syntax::word_rules::original_static_word_unicode_value(
-                        original.original_word(),
-                    )
-                    .as_deref()
-                        == Some(original.bytes()))
-                    .then_some(())?;
-                    Some(factory)
-                });
+                let factory = self.logical_class_factory(class, &declaration.image);
                 let coordinate = factory
                     .as_ref()
                     .map(|factory| factory.source_slot().clone());
@@ -487,80 +492,30 @@ impl AnalysisResult {
         factory: &crate::command_binding::OriginalSourceClassDeclaration,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Vec<crate::command_binding::LogicalSourceClassRelationProvider>> {
-        if class.member_set_incomplete
-            || !class.original_members.logical_relation_coverage_available()
-        {
-            return None;
-        }
         let input = self.resolved_input.as_ref()?;
-        let context = input.context_registry();
-        let source = self
-            .retained_command_realm()?
-            .original_source_image()?
-            .try_text()
-            .ok()?;
-        let words = crate::registry_invocation::source_structure::source_registry_words_at(
-            source,
-            self,
-            factory.factory().site().offset,
-        )?;
-        let mut bodies = words.source_script_bodies(&context).into_iter();
-        let body = bodies.find(|body| {
-            body.original_container()
-                .tokens()
-                .first()
-                .is_some_and(|token| token.span == class.body_span)
-        })?;
-        let region = body.definition_member_region(&context, body.content_span())?;
-        region.complete_original_commands()?;
-        for words in region.original_commands() {
-            region.checked_references(words)?;
-        }
         let bindings = self.retained_command_realm()?.source_bindings_ref();
-        let mut commands = class
-            .original_members
-            .logical_relation_commands()
-            .iter()
-            .collect::<Vec<_>>();
-        commands.sort_by_key(|command| command.words.first().map(|word| word.span().start()));
+        let statements =
+            self.logical_relation_statements(class, factory, |body, words, operand| {
+                let provider = bindings
+                    .logical_class_relation_provider(body, words, operand, input, registry)?;
+                provider.matches_receiver(self, class).then_some(provider)
+            })?;
         let mut supers = Vec::<tcl_core_types::ByteCommandSlot>::new();
         let mut mixins = Vec::<tcl_core_types::ByteCommandSlot>::new();
         let mut providers = Vec::new();
-        for command in commands {
-            if command.input != *input {
-                return None;
-            }
-            if command.relation == tcl_registry::definer::RelationSlot::Filter {
-                continue;
-            }
-            if command.side? != MemberSide::Instance {
-                continue;
-            }
-            let current = match command.relation {
+        for statement in statements {
+            let current = match statement.relation {
                 tcl_registry::definer::RelationSlot::Superclass => &mut supers,
                 tcl_registry::definer::RelationSlot::Mixin => &mut mixins,
                 tcl_registry::definer::RelationSlot::Filter => continue,
             };
-            let operation = command.operation?;
-            let mut slots = Vec::new();
-            for reference in region.checked_references(&command.words)? {
-                if reference.kind() != tcl_registry::definer::MemberRefKind::Class {
-                    return None;
-                }
-                let provider = bindings.logical_class_relation_provider(
-                    &body,
-                    &command.words,
-                    reference.original_word(),
-                    input,
-                    registry,
-                )?;
-                if !provider.matches_receiver(self, class) {
-                    return None;
-                }
-                slots.push(provider.source_slot().clone());
-                providers.push(provider);
-            }
-            command.slot?.apply_values(current, operation, &slots);
+            let slots = statement
+                .operands
+                .iter()
+                .map(|provider| provider.source_slot().clone())
+                .collect::<Vec<_>>();
+            statement.apply_values(current, &slots);
+            providers.extend(statement.operands);
         }
         supers.extend(mixins);
         let mut selected = Vec::new();
@@ -578,6 +533,131 @@ impl AnalysisResult {
             }
         }
         Some(selected.into_iter().cloned().collect())
+    }
+
+    fn logical_class_factory(
+        &self,
+        class: &ClassDef,
+        image: &SourceImage,
+    ) -> Option<crate::command_binding::OriginalSourceClassDeclaration> {
+        let source = image.try_text().ok()?;
+        self.command_invocations.iter().find_map(|invocation| {
+            if invocation.range.start() >= class.body_span.start() {
+                return None;
+            }
+            let factory =
+                crate::registry_invocation::source_structure::source_class_declaration_at(
+                    source,
+                    self,
+                    invocation.range.start(),
+                )?;
+            std::ptr::eq(factory.logical_source_class(self)?, class).then_some(())?;
+            let original = factory.name_input().logical_input()?;
+            (tcl_syntax::word_rules::original_static_word_unicode_value(original.original_word())
+                .as_deref()
+                == Some(original.bytes()))
+            .then_some(())?;
+            Some(factory)
+        })
+    }
+
+    fn logical_relation_statements<T>(
+        &self,
+        class: &ClassDef,
+        factory: &crate::command_binding::OriginalSourceClassDeclaration,
+        resolve: impl Fn(
+            &crate::registry_invocation::OriginalSourceScriptBody,
+            &[tcl_lexer::NativeWord],
+            &tcl_lexer::NativeWord,
+        ) -> Option<T>,
+    ) -> Option<Vec<LogicalSourceRelationStatement<T>>> {
+        if class.member_set_incomplete
+            || !class.original_members.logical_relation_coverage_available()
+        {
+            return None;
+        }
+        let input = self.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        let source = self
+            .retained_command_realm()?
+            .original_source_image()?
+            .try_text()
+            .ok()?;
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            source,
+            self,
+            factory.factory().site().offset,
+        )?;
+        let body = words
+            .source_script_bodies(&context)
+            .into_iter()
+            .find(|body| {
+                body.original_container()
+                    .tokens()
+                    .first()
+                    .is_some_and(|token| token.span == class.body_span)
+            })?;
+        let region = body.definition_member_region(&context, body.content_span())?;
+        region.complete_original_commands()?;
+        for words in region.original_commands() {
+            region.checked_references(words)?;
+        }
+        let mut commands = class
+            .original_members
+            .logical_relation_commands()
+            .iter()
+            .collect::<Vec<_>>();
+        commands.sort_by_key(|command| command.words.first().map(|word| word.span().start()));
+        let mut statements = Vec::new();
+        for command in commands {
+            if command.input != *input {
+                return None;
+            }
+            if command.relation == tcl_registry::definer::RelationSlot::Filter
+                || command.side? != MemberSide::Instance
+            {
+                continue;
+            }
+            let mut operands = Vec::new();
+            for reference in region.checked_references(&command.words)? {
+                if reference.kind() != tcl_registry::definer::MemberRefKind::Class {
+                    return None;
+                }
+                operands.push(resolve(&body, &command.words, reference.original_word())?);
+            }
+            statements.push(LogicalSourceRelationStatement {
+                relation: command.relation,
+                slot: command.slot?,
+                operation: command.operation?,
+                operands,
+            });
+        }
+        Some(statements)
+    }
+
+    /// Complete original relation statements retain conditional external lookup
+    /// candidates without supplying loaded classes or a native relation table.
+    #[must_use]
+    pub fn logical_source_class_relation_candidates(
+        &self,
+        class: &ClassDef,
+    ) -> Option<
+        Vec<
+            LogicalSourceRelationStatement<
+                crate::command_binding::LogicalSourceClassRelationCandidates,
+            >,
+        >,
+    > {
+        let owner = self.logical_source_class_declaration(class)?;
+        let factory = self.logical_class_factory(class, &owner.image)?;
+        let bindings = self.retained_command_realm()?.source_bindings_ref();
+        let input = self.resolved_input.as_ref()?;
+        let registry = self.resolved_registry()?;
+        self.logical_relation_statements(class, &factory, |body, words, operand| {
+            crate::command_binding::SourceCommandBindings::logical_class_relation_candidates(
+                bindings, body, words, operand, input, registry,
+            )
+        })
     }
 
     /// Reborrow the actual current class behind a selected readonly member.
@@ -679,6 +759,27 @@ impl AnalysisResult {
             }
         }
         Some(selected)
+    }
+
+    /// Every retained completed Logical class snapshot must reborrow uniquely.
+    /// This checks that transport only; dynamic/unrepresented classes remain
+    /// outside its positive source catalogue, never a class-absence census.
+    #[must_use]
+    pub fn checked_logical_source_class_declarations(&self) -> Option<Vec<&ClassDef>> {
+        self.allows_retained_logical_declaration_advice()
+            .then_some(())?;
+        let mut classes = Vec::new();
+        for declaration in &self.logical_class_declarations {
+            let mut current = self
+                .all_classes
+                .values()
+                .filter(|class| declaration.matches(self, class));
+            let class = current.next()?;
+            current.next().is_none().then_some(())?;
+            self.logical_source_class_declaration(class)?;
+            classes.push(class);
+        }
+        (classes.len() == self.all_classes.len()).then_some(classes)
     }
 
     /// A current actual class must still agree with the completed source walk.
@@ -1040,5 +1141,93 @@ mod logical_navigation_receipt_tests {
                 .logical_source_direct_classes(&analysis.all_classes["::Child"])
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod logical_relation_navigation_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::command_binding::LogicalSourceClassRelationTarget;
+
+    #[test]
+    fn relation_navigation_retains_original_external_namespace_coordinates() {
+        let source = "namespace eval N {oo::class create Child {superclass Base}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let child = &analysis.all_classes["::N::Child"];
+        assert!(analysis.logical_source_direct_classes(child).is_none());
+        let statements = analysis
+            .logical_source_class_relation_candidates(child)
+            .unwrap();
+        let operand = &statements[0].operands()[0];
+        assert_eq!(
+            operand.operand().span().start() as usize,
+            source.rfind("Base").unwrap()
+        );
+        let LogicalSourceClassRelationTarget::External(coordinates) =
+            operand.target(&analysis, child).unwrap()
+        else {
+            panic!("missing local class must retain conditional external candidates");
+        };
+        assert_eq!(
+            coordinates
+                .iter()
+                .map(tcl_syntax::naming::authored_source_command_spelling)
+                .collect::<Option<Vec<_>>>()
+                .unwrap(),
+            vec!["::N::Base", "::Base"]
+        );
+        assert!(!operand.has_earlier_unknown_mutations());
+    }
+
+    #[test]
+    fn relation_navigation_preserves_known_occupants_and_current_input_refusal() {
+        let source = "namespace eval N {proc Base {} {}; oo::class create Child {superclass Base}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .logical_source_class_relation_candidates(&analysis.all_classes["::N::Child"])
+                .is_none()
+        );
+        let source = "oo::class create Child {superclass Base}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let statements = analysis
+            .logical_source_class_relation_candidates(&analysis.all_classes["::Child"])
+            .unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(
+            statements[0].operands()[0]
+                .target(&analysis, &analysis.all_classes["::Child"])
+                .is_none()
+        );
+        assert!(
+            analysis
+                .logical_source_class_relation_candidates(&analysis.all_classes["::Child"])
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_relation_navigation_debt_tests {
+    use crate::analyser::Analyser;
+    use crate::command_binding::LogicalSourceClassRelationTarget;
+
+    #[test]
+    fn relation_navigation_retains_unknown_prefix_as_conditional_applicability() {
+        let source = "mystery; oo::class create Child {superclass Base}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let child = &analysis.all_classes["::Child"];
+        let statements = analysis
+            .logical_source_class_relation_candidates(child)
+            .unwrap();
+        let operand = &statements[0].operands()[0];
+        assert!(operand.has_earlier_unknown_mutations());
+        assert!(matches!(
+            operand.target(&analysis, child),
+            Some(LogicalSourceClassRelationTarget::External(_))
+        ));
+        assert!(analysis.logical_source_direct_classes(child).is_none());
     }
 }

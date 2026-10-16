@@ -288,6 +288,10 @@ pub enum OriginalRegistrySource {
 pub struct OriginalNativeSourceApplicability {
     unknown_residual: bool,
     may_be_absent: bool,
+    source_advice: Option<(
+        crate::analyser::ResolvedAnalysisInput,
+        std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>,
+    )>,
 }
 impl OriginalNativeSourceApplicability {
     /// An unresolved or non-Registry lookup alternative remains possible.
@@ -299,6 +303,20 @@ impl OriginalNativeSourceApplicability {
     #[must_use]
     pub const fn may_be_absent(&self) -> bool {
         self.may_be_absent
+    }
+
+    fn matches_source_context(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        self.source_advice.as_ref().is_none_or(|(input, advice)| {
+            input.lexer_config() == config
+                && std::ptr::eq(input.borrowed_context_registry(), context)
+                && advice.matches_context(context)
+                && advice.matches_source(image, config)
+        })
     }
 }
 
@@ -699,6 +717,7 @@ impl OriginalRegistryWords {
             || self.context.as_ref() != Some(context.context())
             || matches!(&self.source, OriginalRegistrySource::SourceTransitions(advice) if !advice.matches_context(context))
             || matches!(&self.source, OriginalRegistrySource::ProducedPrefix(prefix) if !prefix.matches_source_context(&self.image, self.config, context))
+            || matches!(&self.source, OriginalRegistrySource::ConditionalNativeSource(applicability) if !applicability.matches_source_context(&self.image, self.config, context))
         {
             return None;
         }
@@ -1077,6 +1096,23 @@ fn conditional_native_case_source_words(
         context.commands(),
         input,
     )?;
+    if let Some(advice) = realm.original_conditional_case_syntax_advice(input, &tokens) {
+        let mut words =
+            source_transition_words_with_segment(source, config, context, segment, advice)?;
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source else {
+            return None;
+        };
+        words.roles = None;
+        words.source = OriginalRegistrySource::ConditionalNativeSource(std::sync::Arc::new(
+            OriginalNativeSourceApplicability {
+                // This source issuer has no reached lookup or absence proof.
+                unknown_residual: true,
+                may_be_absent: true,
+                source_advice: Some((input.clone(), advice)),
+            },
+        ));
+        return Some(words);
+    }
     let assistance =
         crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
             context.commands(),
@@ -1131,6 +1167,7 @@ fn conditional_native_case_source_words(
             OriginalNativeSourceApplicability {
                 unknown_residual: assistance.unknown_residual,
                 may_be_absent: assistance.may_be_absent,
+                source_advice: None,
             },
         )),
         captured_values: None,
@@ -5860,5 +5897,163 @@ mod original_logical_operand_prefix_tests {
                 "{source}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod conditional_native_case_receipt_tests {
+    use super::*;
+
+    fn source_context(source: &str) -> OriginalSourceRegistryContext {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let generation = crate::environment_ingress::context_for_profile(profile);
+        let context = std::sync::Arc::new(
+            generation.with_command_store(registry.snapshot().shared_registry()),
+        );
+        OriginalSourceRegistryContext::capture(
+            source,
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            ),
+        )
+    }
+
+    fn child_command(syntax: &OriginalSourceRegistryContext) -> crate::segmenter::SegmentedCommand {
+        let source = syntax.source_image().try_text().unwrap();
+        let config = syntax.editing_input().lexer_config();
+        let plan = tcl_lexer::native_script_words_in(
+            syntax.source_image().clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let parent = plan.commands.last().unwrap();
+        let child =
+            original_single_source_command_substitution(parent.words.last().unwrap()).unwrap();
+        let original = &child.command().words;
+        let start = original.first().unwrap().span().start();
+        let end = original.last().unwrap().span().end();
+        let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[usize::try_from(start).unwrap()..usize::try_from(end).unwrap()],
+            start,
+            config,
+        );
+        assert_eq!(commands.len(), 1);
+        commands.remove(0)
+    }
+
+    #[test]
+    fn nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts() {
+        let source = "mystery; set result [switch $kind {alpha {# first\nputs first} beta {# second\nputs second}}]";
+        let syntax = source_context(source);
+        let command = child_command(&syntax);
+        let context = syntax.editing_input().context_registry();
+        let words = syntax.conditional_native_case_words(&command).unwrap();
+        let OriginalRegistrySource::ConditionalNativeSource(applicability) = words.source() else {
+            panic!("case syntax cannot borrow ordinary invocation selection");
+        };
+        let (input, advice) = applicability.source_advice.as_ref().unwrap();
+        assert_eq!(input, syntax.editing_input());
+        assert!(applicability.has_unknown_residual());
+        assert!(applicability.may_be_absent());
+        assert!(words.roles().is_none());
+        assert!(!words.operands_preserve_source_lookup());
+        assert!(matches!(
+            words.arguments().first(),
+            Some(crate::registry_invocation::EffectiveInvocationWord::Dynamic)
+        ));
+        assert_eq!(advice.original_words().len(), command.argv.len());
+        assert!(advice.obligations().contains(
+            &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
+        ));
+        assert!(advice.obligations().contains(
+            &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation
+        ));
+        assert!(!advice.uncertain_operations().is_empty());
+        let candidates = words.conditional_source_case_bodies(&context).unwrap();
+        assert!(candidates.selection_unknown());
+        assert!(candidates.matches_source(syntax.source_image(), input.lexer_config()));
+        assert_eq!(
+            candidates
+                .bodies()
+                .iter()
+                .map(|body| &source[body.content_span().as_range()])
+                .collect::<Vec<_>>(),
+            vec!["# first\nputs first", "# second\nputs second"]
+        );
+        assert!(
+            super::super::source_scoped_body::source_script_bodies_for_mutation_coverage(
+                &words, &context
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn nested_native_case_receipt_refuses_changed_input_vector_and_actual_replacement() {
+        let source = "set result [switch $kind {alpha {# child\nputs child}}]";
+        let syntax = source_context(source);
+        let command = child_command(&syntax);
+        let input = syntax.editing_input();
+        let context = input.context_registry();
+        assert!(syntax.conditional_native_case_words(&command).is_some());
+        assert!(
+            conditional_native_case_source_words(
+                &format!("{source}\n"),
+                input.lexer_config(),
+                syntax.retained_source_realm(),
+                input,
+                &context,
+                &command
+            )
+            .is_none()
+        );
+        let mut changed = input.lexer_config();
+        changed.leading_bom = tcl_lexer::LeadingBom::Content;
+        if changed == input.lexer_config() {
+            changed.leading_bom = tcl_lexer::LeadingBom::Skip;
+        }
+        assert!(
+            conditional_native_case_source_words(
+                source,
+                changed,
+                syntax.retained_source_realm(),
+                input,
+                &context,
+                &command
+            )
+            .is_none()
+        );
+        let foreign = source_context(source);
+        assert!(
+            conditional_native_case_source_words(
+                source,
+                input.lexer_config(),
+                syntax.retained_source_realm(),
+                foreign.editing_input(),
+                &foreign.editing_input().context_registry(),
+                &command
+            )
+            .is_none()
+        );
+        let mut cut = command;
+        let _ = cut.argv.pop();
+        let _ = cut.word_fragments.pop();
+        let _ = cut.texts.pop();
+        let _ = cut.single_token_word.pop();
+        assert!(syntax.conditional_native_case_words(&cut).is_none());
+        let replaced = source_context(
+            "proc switch args {return other}; set result [switch $kind {alpha {# data\nputs data}}]",
+        );
+        assert!(
+            replaced
+                .conditional_native_case_words(&child_command(&replaced))
+                .is_none()
+        );
     }
 }

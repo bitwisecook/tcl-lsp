@@ -30,6 +30,7 @@
 
 import { existsSync } from "fs";
 import * as path from "path";
+import fileUriPathPolicy from "./generated/fileUriPathPolicy.json";
 
 /** The native server filename for the current OS. */
 export const RUST_SERVER_EXE =
@@ -336,4 +337,130 @@ export function wasiRuntimeAction(installed: boolean, dismissed: boolean): WasiR
     return "start";
   }
   return dismissed ? "declined" : "prompt";
+}
+
+/** Actual URI view supplied by the VS Code provider, never a display label. */
+export interface WasiMountUri {
+  readonly scheme: string;
+  readonly authority: string;
+  readonly path: string;
+  readonly query: string;
+  readonly fragment: string;
+  toString(): string;
+  with(change: { path: string }): WasiMountUri;
+}
+
+export interface WasiAllocatedMount {
+  readonly editor: WasiMountUri;
+  readonly guestPath: string;
+}
+
+/** A current process's provider-verified explicit mount allocation. */
+export function allocatedWasiUriMapping(
+  mounts: readonly WasiAllocatedMount[],
+  parse: (value: string) => WasiMountUri,
+  isCurrent: () => boolean,
+): { toGuest(value: WasiMountUri): string; toEditor(value: string): WasiMountUri } {
+  const selected = [...mounts];
+  const validPath = (path: string): boolean =>
+    path.startsWith("/") &&
+    !path.includes("\0") &&
+    !path.split("/").some((part) => part === "." || part === "..");
+  const components = (path: string): string[] => {
+    const parts = path.split("/");
+    if (parts.length > 1 && parts[parts.length - 1] === "") parts.pop();
+    return parts;
+  };
+  const suffix = (path: string, root: string): string[] | undefined => {
+    const all = components(path),
+      base = components(root);
+    return base.every((part, i) => all[i] === part) ? all.slice(base.length) : undefined;
+  };
+  const join = (root: string, tail: readonly string[]): string =>
+    tail.length ? `${root.endsWith("/") ? root.slice(0, -1) : root}/${tail.join("/")}` : root;
+  for (const [index, mount] of selected.entries()) {
+    if (
+      !validPath(mount.guestPath) ||
+      !validPath(mount.editor.path) ||
+      mount.editor.query ||
+      mount.editor.fragment ||
+      selected.some(
+        (other, otherIndex) =>
+          otherIndex !== index &&
+          (other.guestPath === mount.guestPath ||
+            (other.editor.scheme === mount.editor.scheme &&
+              other.editor.authority === mount.editor.authority &&
+              components(other.editor.path).join("/") === components(mount.editor.path).join("/"))),
+      )
+    ) {
+      throw new Error("WASI mount allocation is ambiguous or unavailable");
+    }
+  }
+  const current = (): void => {
+    if (!isCurrent()) throw new Error("WASI mount session is no longer current");
+  };
+  return {
+    toGuest(value) {
+      current();
+      if (!validPath(value.path) || value.query || value.fragment) {
+        if (value.scheme !== "file") return value.toString();
+        throw new Error("WASI document URI has unsupported path geometry");
+      }
+      const candidates = selected
+        .flatMap((mount) => {
+          if (value.scheme !== mount.editor.scheme || value.authority !== mount.editor.authority)
+            return [];
+          const tail = suffix(value.path, mount.editor.path);
+          return tail ? [{ mount, tail }] : [];
+        })
+        .sort(
+          (a, b) => components(b.mount.editor.path).length - components(a.mount.editor.path).length,
+        );
+      const found = candidates[0];
+      if (!found) {
+        if (value.scheme !== "file") return value.toString();
+        throw new Error("Document is outside the current WASI mounts");
+      }
+      const guest = join(found.mount.guestPath, found.tail);
+      let encoded = "";
+      const bytes = new TextEncoder().encode(guest);
+      if (new TextDecoder("utf-8", { fatal: true }).decode(bytes) !== guest) {
+        throw new Error("WASI guest path is not lossless Unicode");
+      }
+      for (const byte of bytes) encoded += fileUriPathPolicy[byte];
+      current();
+      return `file://${encoded}`;
+    },
+    toEditor(value) {
+      current();
+      const parsed = parse(value);
+      if (parsed.scheme !== "file") return parsed;
+      if (parsed.authority || parsed.query || parsed.fragment || !validPath(parsed.path)) {
+        throw new Error("Guest URI has unsupported path geometry");
+      }
+      // Only the Core producer's exact forward spelling is admitted. Parsing
+      // cannot donate encoded separators or another spelling to a mount.
+      let encoded = "";
+      const bytes = new TextEncoder().encode(parsed.path);
+      if (new TextDecoder("utf-8", { fatal: true }).decode(bytes) !== parsed.path) {
+        throw new Error("Guest URI path is not lossless Unicode");
+      }
+      for (const byte of bytes) encoded += fileUriPathPolicy[byte];
+      if (value !== `file://${encoded}`)
+        throw new Error("Guest URI is not a selected forward spelling");
+      const candidates = selected
+        .flatMap((mount) => {
+          const tail = suffix(parsed.path, mount.guestPath);
+          return tail ? [{ mount, tail }] : [];
+        })
+        .sort(
+          (a, b) => components(b.mount.guestPath).length - components(a.mount.guestPath).length,
+        );
+      const found = candidates[0];
+      if (!found) throw new Error("Guest URI is outside the current WASI mounts");
+      const result = found.mount.editor.with({ path: join(found.mount.editor.path, found.tail) });
+      current();
+      return result;
+    },
+  };
 }

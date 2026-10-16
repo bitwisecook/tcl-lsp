@@ -21,32 +21,19 @@
 //! completion, and through [`crate::definition::resolve_proc_target_at`] also
 //! references / rename / call-hierarchy / linked-editing) asks that question.
 //!
-//! Two distinct mechanisms, because the two callers have different inputs:
+//! Complete-source Logical math targets consume the Compiler's checked
+//! expression occurrence and original declaration cards. Analyser invocation
+//! rows remain reporting/span metadata and cannot recover target identity.
+//! Native math functions retain their separate fixed-table/command-table owner.
 //!
-//! * [`mathfunc_call_at`] — for a cursor in **complete** source. It reads the
-//!   analyser's own record of the expression: `record_expr_function_invocations`
-//!   already walks every [`ArgRole::Expr`] argument, parses the expression
-//!   grammar, and pushes one [`SignatureCommandInvocation`] per `NAME(` call
-//!   with `is_mathfunc_call = true`, the bare word's exact span, and a
-//!   `resolved_qualified_name` already settled by
-//!   `finalise_invocation_resolutions` against C Tcl's two-candidate mathfunc
-//!   rule (the caller's own `tcl::mathfunc`, honouring its `namespace path`,
-//!   else the global one). Nothing here re-sniffs text or re-derives a
-//!   namespace: the analyser is the authority, this is a span lookup over its
-//!   output.
+//! Actual completion uses [`source_expr_arg_context_at`]: it retains the current
+//! original Expr operand and asks the configured shared expression lexer about
+//! its real source prefix. Literal/comment/script positions cannot borrow
+//! expression-space completion. No missing closer is added.
 //!
-//! * [`expr_arg_context_at`] — for **completion**, where the source is
-//!   mid-typing (`set a [expr {si`) and therefore unbalanced, so no
-//!   invocation record exists yet and the segmenter has nothing to segment.
-//!   It walks the byte prefix before the cursor to find the innermost
-//!   enclosing command's word list, then asks the **registry** whether the
-//!   cursor's word carries [`ArgRole::Expr`]. No command name appears here —
-//!   `expr` / `if` / `while` / `for` / an iRules `when` condition are all just
-//!   whatever `arg_indices_for_role` says.
-//!
-//! The bare ⇄ `::tcl::mathfunc::NAME` mapping, and both availability axes,
-//! live in [`tcl_registry::mathfunc`] — see its module docs for the C Tcl
-//! oracle behind the resolution order.
+//! The nominal [`expr_arg_context_at`] helper supports unpositioned compatibility
+//! callers. Neither source geometry route grants evaluation, Native dispatch or
+//! edit authority.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
@@ -70,57 +57,30 @@ pub(crate) fn mathfunc_call_at(
     })
 }
 
-/// What an `expr` math-function call at the cursor resolves to.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum MathFuncTarget<'a> {
-    /// A user-defined override — `proc ::tcl::mathfunc::f` (global) or a
-    /// namespace-local `namespace eval ns { namespace eval tcl::mathfunc {
-    /// proc f … } }`. Always wins: it is a real command, installed in the
-    /// table C Tcl dispatches through.
-    UserProc(&'a tcl_compiler::analyser::ProcDef),
-    /// The built-in function, rendered from its registry spec.
-    Builtin {
-        /// The bare function word as written (`sin`).
-        bare: &'a str,
-        /// The qualified command name it dispatches to.
-        qualified: &'a str,
-        /// The registry spec carrying the hover / synopsis data.
-        spec: &'a tcl_registry::CommandSpec,
-    },
+/// Conditional metadata from the original Logical expression owner. Every
+/// declaration remains a distinct source allocation; no runtime winner is chosen.
+pub(crate) struct MathFuncTarget<'a> {
+    pub(crate) occurrence: tcl_compiler::command_binding::OriginalLogicalMathFunctionOccurrence,
+    pub(crate) declarations:
+        Option<Vec<&'a tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>>,
+    pub(crate) builtin: Option<&'a tcl_registry::CommandSpec>,
 }
 
-/// Resolve the math-function call at `cursor_off` to its target, applying C
-/// Tcl's own precedence: the resolved command-table entry first (a user
-/// `proc` in the winning `tcl::mathfunc` namespace), else the built-in the
-/// registry has data for under `profile`.
-///
-/// `None` when the cursor is not on a math-function call, or when it is but
-/// the function does not exist in this dialect *and* no user proc provides it
-/// — the deliberate abstention that keeps `expr {gamma(1)}` under 9.0 from
-/// rendering a 9.1-only function.
+/// Original Logical math-function source candidates. The actual expression,
+/// parent schema and original header cards supply identity; analyser report
+/// names and command-table displays never select a declaration.
 pub(crate) fn math_function_target_at<'a>(
+    source: &str,
     analysis: &'a AnalysisResult,
-    registry: Option<&'a CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
     cursor_off: u32,
 ) -> Option<MathFuncTarget<'a>> {
-    let inv = mathfunc_call_at(analysis, cursor_off)?;
-    if !analysis.allows_lexical_declaration_advice() {
-        // Expression function identifiers have their own native producer and
-        // lookup purpose; a command-head display name cannot supply it.
-        return None;
-    }
-    let resolved = inv.resolved_qualified_name.as_deref()?;
-    // A user-defined override is a real command in the resolved namespace —
-    // it wins over the built-in, exactly as it does at runtime.
-    if let Some(proc_def) = analysis.all_procs.get(resolved) {
-        return Some(MathFuncTarget::UserProc(proc_def));
-    }
-    let spec = registry?.math_function_spec(&inv.name, profile)?;
-    Some(MathFuncTarget::Builtin {
-        bare: &inv.name,
-        qualified: resolved,
-        spec,
+    let occurrence = analysis.logical_math_function_at(source, cursor_off)?;
+    let declarations = occurrence.source_declarations(analysis);
+    let builtin = occurrence.builtin_metadata(analysis);
+    Some(MathFuncTarget {
+        occurrence,
+        declarations,
+        builtin,
     })
 }
 
@@ -195,9 +155,9 @@ fn command_words_at(source: &str, probe: usize) -> Option<(Vec<String>, usize)> 
 /// unclosed one returns `limit`, which is how the caller learns the cursor is
 /// inside it.
 ///
-/// The one place a single Tcl word is measured off raw source, shared with
-/// [`crate::definition::offset_is_in_parameter_list`] so both agree on where a
-/// braced word ends.
+/// Legacy nominal authoring geometry only. Current expression completion uses
+/// the configured expression lexer; parameter-list extents use the original
+/// token grouper and NativeWord geometry rather than this compatibility scan.
 pub(crate) fn word_end(source: &str, start: usize, limit: usize) -> usize {
     let bytes = source.as_bytes();
     let (open, close) = match bytes[start] {
@@ -465,20 +425,44 @@ pub(crate) fn source_expr_arg_context_at(
     character: u32,
     line_index: &tcl_lexer::LineIndex,
 ) -> bool {
-    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let Some(position) =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+    else {
+        return false;
+    };
+    let offset = position.offset();
+    // The actual source-position owner validates UTF-16 rather than clamping
+    // a foreign/out-of-range coordinate through a supplied display index.
+    let _ = line_index;
     let Some(operand) = source_expression_operand_at(source, analysis, offset) else {
         return false;
     };
     let Some(span) = operand.content_span() else {
         return false;
     };
-    let Some(content) = source.get(span.start() as usize..span.end() as usize) else {
+    let current = position.context();
+    if operand.word.image().bytes() != source.as_bytes()
+        || operand.word.config() != current.config()
+    {
+        return false;
+    }
+    let profile = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.unit_profile());
+    let Some(profile) = profile else {
         return false;
     };
-    !matches!(
-        innermost_unclosed_opener(content, offset.saturating_sub(span.start()) as usize),
-        Some((_, '['))
-    )
+    let grammar = tcl_lexer::ExpressionCursorGrammar {
+        config: current.config(),
+        grammar: profile.grammar,
+        expr_grammar_base: profile.expr_grammar_base,
+        f5_word_grammar: profile.f5_core_expr_grammar(),
+    };
+    tcl_lexer::original_expression_cursor_in(operand.word.image(), span, offset, grammar)
+        .is_some_and(|cursor| {
+            cursor.matches_source(operand.word.image(), grammar) && cursor.is_expression_position()
+        })
 }
 
 #[cfg(test)]
@@ -599,5 +583,91 @@ mod original_expression_position_tests {
             "1 == 1"
         );
         assert!(source_expression_operand_at(&format!("#{source}"), &analysis, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_expression_cursor_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(source: &str, analysis: &AnalysisResult, needle: &str) -> bool {
+        let offset = u32::try_from(source.find(needle).unwrap() + needle.len()).unwrap();
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let position = index.position_at_utf16(offset, source);
+        source_expr_arg_context_at(
+            source,
+            analysis,
+            position.line,
+            position.character.get(),
+            &index,
+        )
+    }
+
+    #[test]
+    fn original_expression_cursor_uses_configured_literal_and_comment_grammar() {
+        for source in [
+            "expr {{[} eq {[} ? sin(1) : 0}",
+            "expr {1 # [ inert\n + sin(1)}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl9.0");
+            assert!(at(source, &analysis, "sin"), "{source}");
+        }
+        for (source, needle) in [
+            ("expr {[set value sin]}", "sin"),
+            ("expr {\"literal sin\"}", "sin"),
+            ("expr {1 # sin\n+2}", "sin"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl9.0");
+            assert!(!at(source, &analysis, needle), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_expression_cursor_keeps_whole_source_input_and_utf16_currency() {
+        let source = "expr {\"😀\" eq \"😀\" ? sin(1) : 0}";
+        let mut analysis = Analyser::new().analyse(source, "tcl9.0");
+        assert!(at(source, &analysis, "sin"));
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        assert!(!source_expr_arg_context_at(
+            source, &analysis, 0, 500, &index
+        ));
+        assert!(!source_expr_arg_context_at(source, &analysis, 0, 8, &index));
+        assert!(!at(&source.replace("sin", "cos"), &analysis, "cos"));
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(!at(source, &analysis, "sin"));
+    }
+}
+
+#[cfg(test)]
+mod logical_math_source_target_tests {
+    use super::*;
+
+    #[test]
+    fn logical_math_targets_keep_authentic_expression_and_header_allocations() {
+        let source = "namespace eval ::tcl::mathfunc {proc special {root} {return $root}}; namespace eval N {namespace eval tcl::mathfunc {proc special {local} {return $local}}; proc caller {n} {expr {special($n)}}}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.rfind("special(").unwrap()).unwrap();
+        let selected = math_function_target_at(source, &analysis, offset)
+            .expect("typed original Logical math occurrence");
+        let names: Vec<_> = selected
+            .declarations
+            .unwrap()
+            .into_iter()
+            .map(|row| row.metadata().params[0].name.as_str())
+            .collect();
+        assert_eq!(names, ["local", "root"]);
+        assert!(selected.occurrence.has_opaque_or_substitution_operands());
+        analysis.all_procs.clear();
+        assert_eq!(
+            math_function_target_at(source, &analysis, offset)
+                .unwrap()
+                .declarations
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(math_function_target_at(&format!("{source} "), &analysis, offset).is_none());
+        assert!(math_function_target_at(source, &analysis, offset + 7).is_none());
     }
 }

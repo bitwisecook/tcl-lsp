@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-16T22:09:19.350806+00:00",
+  "reason": "Only exact old owned test ELF cache copies already retained in hash-verified frozen archives; no live Cargo process, source or current frozen artifact touched. Fresh builds regenerate target binaries.",
+  "removed": [
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_compiler-8207aa965502e4cf",
+      "sha256": "e126b79051345847a910d0a826789a5b76caf0b15a5b749414c6165a2aa8e21e",
+      "bytes": 250471304,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-browser-logical-resource-successor-repair6-frozen.tar.zst"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_core-c99aeb680176971a",
+      "sha256": "57c046b0adbb0558ab231c4464d9699836657a507dfcf8064cabf2b4f8eee1f3",
+      "bytes": 198440064,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-browser-logical-resource-successor-repair6-frozen.tar.zst"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-c55af6efd9493cee",
+      "sha256": "8c15d5a73d1dc85396efb626be099feef7a55674858fafbc4b0ad5f76fceb171",
+      "bytes": 214011312,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-browser-logical-resource-successor-repair6-frozen.tar.zst"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-f29bc34dc668f467",
+      "sha256": "cbc1ca4afffd97d01d50266c539d1ec3a52a168c67a8f28068c46865e58b9a4f",
+      "bytes": 335360464,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-browser-logical-resource-successor-repair6-frozen.tar.zst"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_registry-cd1f97b64f8e3752",
+      "sha256": "a11e2cb0eaa1b8c95c7405bbebeab6cba84676ddf2d63421de81c7cad4225db9",
+      "bytes": 61921912,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-browser-logical-resource-successor-repair6-frozen.tar.zst"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/tcl_compiler-baa5681bd4f4c453",
+      "sha256": "312a64045e37bee3607cef82f3ea6db1319cdcc7136cb174b188611070990ae2",
+      "bytes": 250509784,
+      "verified_frozen_archive": "/workspace/naming-validation/archives/lsp-comment232-conditional-gate-diagnostic-v3-frozen.tar.zst"
+    }
+  ],
+  "bytes": 1310714840
+}

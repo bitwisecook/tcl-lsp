@@ -732,14 +732,13 @@ fn lexical_aggressive(
     let (renamed, mut symbol_map) = compact_names(&folded, input, isolated);
     symbol_map.static_folds = static_folds;
 
-    // Alias repeated commands, arguments and strings.  Seed claimed names
-    // with every compacted short so aliases never shadow a local variable, and
-    // with every live name the compiler can see in the renamed
-    // source (analysed scopes, SSA symbol tables, textual `$refs`)
-    // so a preamble `set alias …` never clobbers a variable the
-    // script reads through a name-taking command like `[set a]`.
+    // Keep observed collision candidates separate from the source/body gaps
+    // that remain unresolved. This preserves the existing aggressive
+    // authoring policy; it is not a completeness or absence certificate.
+    let live_names = collect_live_names(&renamed, input);
+    let _unresolved_collision_debt = &live_names.gaps;
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
-    claimed_names.extend(collect_live_names(&renamed, input));
+    claimed_names.extend(live_names.names.iter().cloned());
     let (renamed, cmd_aliases) =
         alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
     symbol_map.command_aliases = cmd_aliases;
@@ -1759,12 +1758,26 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 /// symbol tables of every function unit (which include names only
 /// *read* through name-taking commands, e.g. `[set a]`), and every
 /// textual `$name` / `${name}` reference, plus inert UTF-8 name candidates.
-/// Conservative superset —
-/// an alias name is rejected on any hit.
+/// Conservative observed candidate set; misses remain explicit debts and
+/// do not establish source or physical-name absence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LiveNameInventoryGap {
+    VariableNameCoverage,
+    CompilationUnit,
+    ComplexityGuardedBody,
+    SourceSyntaxCoverage,
+}
+
+#[derive(Debug)]
+struct LiveNameInventory {
+    names: HashSet<String>,
+    gaps: Vec<LiveNameInventoryGap>,
+}
+
 fn collect_live_names(
     source: &str,
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
-) -> HashSet<String> {
+) -> LiveNameInventory {
     let mut out: HashSet<String> = HashSet::new();
 
     // Analyser scope tables.
@@ -1775,12 +1788,15 @@ fn collect_live_names(
         stack.extend(scope.children.iter());
     }
 
-    // SSA symbol tables (per function unit).
-    if let Some(cu) = crate::original_invocation::source_compilation_unit(
+    // SSA symbol tables (per function unit). Guarded units retain only a
+    // deliberately incomplete trivial report; their names are candidates,
+    // while their omitted names remain an explicit collision gap.
+    let compilation_unit = crate::original_invocation::source_compilation_unit(
         source,
         &analysis,
         input.context_registry().commands(),
-    ) {
+    );
+    if let Some(cu) = &compilation_unit {
         for fu in cu.all_body_function_units() {
             out.extend(fu.ssa.var_names().iter().cloned());
         }
@@ -1810,7 +1826,28 @@ fn collect_live_names(
         }
         i += 1;
     }
-    out
+    let mut gaps = Vec::new();
+    let syntax_complete = crate::SourceSyntaxCoverage::capture(source, &analysis)
+        .and_then(|coverage| coverage.applicability(source, &analysis))
+        == Some(crate::SourceSyntaxCoverageApplicability::Complete);
+    if !syntax_complete {
+        gaps.push(LiveNameInventoryGap::SourceSyntaxCoverage);
+    }
+    if !analysis.original_variable_alias_source_is_complete(
+        &tcl_lexer::SourceImage::document(source),
+        input.lexer_config(),
+    ) {
+        gaps.push(LiveNameInventoryGap::VariableNameCoverage);
+    }
+    match &compilation_unit {
+        None => gaps.push(LiveNameInventoryGap::CompilationUnit),
+        Some(cu) if cu.all_body_function_units().any(|fu| fu.complexity_guarded) => {
+            gaps.push(LiveNameInventoryGap::ComplexityGuardedBody);
+        }
+        Some(_) => {}
+    }
+
+    LiveNameInventory { names: out, gaps }
 }
 
 /// Shared cost-benefit + apply for command / argument aliasing:
@@ -4430,8 +4467,38 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let names = collect_live_names(source, input);
         for name in ["a{b}c", "a::value", "a", "Ω"] {
-            assert!(names.contains(name), "{name}: {names:?}");
+            assert!(names.names.contains(name), "{name}: {names:?}");
         }
+    }
+
+    #[test]
+    fn guarded_body_keeps_collision_candidates_but_not_absence_authority() {
+        let body = format!(
+            "# $retained_candidate {}\nmystery {{set a 1}}\n",
+            "x".repeat(270_000)
+        );
+        let command = "repeatedlyLongCommandName";
+        let source = format!("proc p {{}} {{{body}}}\n{command} x;{command} x;{command} x\n");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(&source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(&source, input);
+        assert!(names.names.contains("retained_candidate"));
+        assert!(
+            names
+                .gaps
+                .contains(&LiveNameInventoryGap::ComplexityGuardedBody)
+        );
+        assert!(
+            names
+                .gaps
+                .contains(&LiveNameInventoryGap::SourceSyntaxCoverage)
+        );
+        // These debts remain explicit, while this patch leaves the existing
+        // aggressive authoring policy and its alias output unchanged.
+        let result = lexical_aggressive(&source, input, false, false).unwrap();
+        assert!(result.source.contains(command));
     }
 
     #[test]
@@ -4443,7 +4510,7 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let names = collect_live_names(source, input);
         for name in ["Ω", "caf", "café", "braced name"] {
-            assert!(names.contains(name), "{name}: {names:?}");
+            assert!(names.names.contains(name), "{name}: {names:?}");
         }
         // Native Tcl keeps the non-ASCII suffix outside its bare reference.
         let unicode = source.find("$Ω").unwrap();

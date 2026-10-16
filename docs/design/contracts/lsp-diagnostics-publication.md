@@ -308,3 +308,18 @@ production waiter are reused, not replaced or recounted as new owners. It
 establishes evidence for this exact source/configuration report, not future
 source quiescence, program execution, name absence or edit authority. Actual
 extension-host validation remains required.
+
+
+The native e2e imported-constant negative W120 control uses the same current
+publisher owner through `Lsp::current_complete_diagnostics`, retaining the exact
+reader text and client version sent by its original `open_ready` call. Pending
+or stale results may retry only within its original single load-scaled 20-second
+deadline. Exact URI/version/full-source echo, report identity, revision/input epoch
+and a well-formed actual findings array are required before absence is asserted.
+Suppressed, provider-error, unsupported, malformed or missing results fail rather
+than becoming empty findings. The existing JSON-RPC response waiter supplies one
+shared absolute deadline across all queries; repeated pending replies do not
+restart or double-scale the budget. This read-only validation route creates no
+new endpoint, schedules no analysis and treats notification delivery as distinct
+from complete configured diagnostic evidence. Legacy pull helpers remain separate
+and supply no completion through a missing-items empty fallback on this route.

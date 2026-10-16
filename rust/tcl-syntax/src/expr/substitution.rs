@@ -64,6 +64,66 @@ pub fn checked_expression_substitutions(
     substitutions_from_parsed(source, &parsed, context)
 }
 
+/// Complete checked source expression, without a selected Native parser or evaluator.
+/// The source bytes, full grammar and immutable tree remain one lexical receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceExpression {
+    source: String,
+    context: ExprParseContext,
+    tree: ExprNode,
+    config: LexerConfig,
+}
+impl OriginalSourceExpression {
+    /// Parse complete original bytes with the existing source-only grammar owner.
+    /// Recovery trees and incomplete or unavailable grammar return no receipt.
+    #[must_use]
+    pub fn capture(source: &str, context: &ExprParseContext, config: LexerConfig) -> Option<Self> {
+        let tree =
+            super::parser::parse_source_expression_checked_with_config(source, context, config)?;
+        Some(Self {
+            source: source.to_owned(),
+            context: *context,
+            tree,
+            config,
+        })
+    }
+    /// Complete original expression bytes, without cooking or trimming.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+    /// All retained parser axes; source recognition grants no Native policy.
+    #[must_use]
+    pub const fn context(&self) -> &ExprParseContext {
+        &self.context
+    }
+    /// Checked function identifiers in immutable tree order, including nested calls.
+    #[must_use]
+    pub fn function_calls(&self) -> Vec<(&str, super::ExprOffset, usize)> {
+        self.tree.function_calls()
+    }
+    /// Complete original script/word configuration, including caller knobs.
+    #[must_use]
+    pub const fn lexer_config(&self) -> LexerConfig {
+        self.config
+    }
+    /// Conservative opaque/string or substitution operands in the original tree.
+    /// A string may contain inert bytes; this supplies no effect closure or read.
+    #[must_use]
+    pub fn has_opaque_or_substitution_operands(&self) -> bool {
+        self.tree.evaluation_nodes().into_iter().any(|node| {
+            matches!(
+                node,
+                ExprNode::Var { .. }
+                    | ExprNode::Command { .. }
+                    | ExprNode::String { .. }
+                    | ExprNode::CompiledWord { .. }
+                    | ExprNode::Raw { .. }
+            )
+        })
+    }
+}
+
 /// Complete original source substitution topology under the retained grammar.
 ///
 /// The caller must separately retain its source input, configured original
@@ -891,5 +951,28 @@ mod original_source_topology_tests {
         context.native_syntax = NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_4);
         assert!(checked_expression_substitutions("[complete] ** 2", &context).is_none());
         assert!(checked_source_expression_substitutions("[complete] ** 2", &context).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_source_expression_tests {
+    use super::*;
+
+    #[test]
+    fn original_source_expression_retains_complete_configuration_and_untrimmed_offsets() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = ExprParseContext::for_profile(profile);
+        let mut config = LexerConfig::from_grammar(context.lexer_grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let expression =
+            OriginalSourceExpression::capture("  max(abs($x), 2)  ", &context, config).unwrap();
+        assert_eq!(expression.source(), "  max(abs($x), 2)  ");
+        assert_eq!(expression.lexer_config(), config);
+        assert_eq!(expression.function_calls(), [("max", 2, 2), ("abs", 6, 1)]);
+        assert!(expression.has_opaque_or_substitution_operands());
+        let mut foreign = config;
+        foreign.expand_syntax = !foreign.expand_syntax;
+        assert!(OriginalSourceExpression::capture("max(1,2)", &context, foreign).is_none());
+        assert!(OriginalSourceExpression::capture("max(1,2) tail", &context, config).is_none());
     }
 }

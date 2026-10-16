@@ -638,3 +638,12 @@ entry/routing excerpts remain distinct from the Rust recipe controls.
 Project direct diagnostics retain positive Logical tape occurrences independently of W123, consume graph-selected external-header coordinates and preserve stronger source occupants, deleted alternatives, unknown effects and original Native terminal ownership. Readonly Authored analysis separately validates every actual Installed body through its issued FunctionUnit/prepared-CFG/source owners.
 
 Logical variable occurrences retain genuine source scope witnesses and independent rename coverage. Runtime namespace descriptor abbreviation uses separate original exact/prefix extents; physical table/cache ownership remains separate. VM canonical consumers preserve actual held values, caller checks during getters and both original headers through publication. Studio previews retain encoding provenance and cannot establish a release inventory when source is unavailable.
+
+The local Logical semantic receiver presentation reborrows
+`original_project_receiver_class_with_sources` for the actual full recorded
+command and its original static method operand before member highlighting.
+The independent same-class hierarchy check remains required. A constructor
+child receipt alone cannot classify a compound, dynamic or expanded selector.
+This is partial adoption for `lsp-semantic-logical-receiver-selector`: legacy
+object-collection map occurrence/frame identity remains open. No allocation,
+dispatch, Native name, Normal completion or edit authority is supplied.

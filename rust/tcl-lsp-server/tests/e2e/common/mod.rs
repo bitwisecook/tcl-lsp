@@ -885,6 +885,17 @@ impl Lsp {
     /// Wait for a previously-sent request id.
     pub fn await_response(&self, id: i64, method: &str, timeout: Duration) -> Value {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.await_response_before(id, method, timeout, deadline)
+    }
+
+    /// Reuse one actual response owner without restarting a caller's deadline.
+    fn await_response_before(
+        &self,
+        id: i64,
+        method: &str,
+        timeout: Duration,
+        deadline: Instant,
+    ) -> Value {
         loop {
             {
                 let mut responses = self.shared.responses.lock().unwrap();
@@ -1037,6 +1048,94 @@ impl Lsp {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// Query the existing publisher owner for this exact client-authored source.
+    /// Only an actual complete report can support a negative assertion. Pending
+    /// work retries inside one load-scaled deadline; unavailable/suppressed or
+    /// malformed replies never become empty findings. This does not schedule
+    /// analysis or infer completion from a diagnostic count/delivery event.
+    pub fn current_complete_diagnostics(
+        &mut self,
+        uri: &str,
+        version: i64,
+        source: &str,
+        timeout: Duration,
+    ) -> Vec<Value> {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        let method = "workspace/executeCommand";
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "current diagnostics exceeded {timeout:?}: {uri}"
+            );
+            let id = self.send_request_no_wait(
+                method,
+                json!({
+                    "command": "tcl-lsp.currentDiagnostics",
+                    "arguments": [{ "uri": uri, "version": version, "source": source }],
+                }),
+            );
+            let response = self.await_response_before(id, method, timeout, deadline);
+            assert!(
+                Instant::now() < deadline,
+                "current diagnostics exceeded {timeout:?}: {uri}"
+            );
+            assert!(
+                response.get("error").is_none(),
+                "current diagnostics failed: {response}"
+            );
+            let report = response
+                .get("result")
+                .expect("current diagnostics response has a result");
+            match report.get("status").and_then(Value::as_str) {
+                Some("complete") => {
+                    assert_eq!(report.get("uri").and_then(Value::as_str), Some(uri));
+                    assert_eq!(report.get("version").and_then(Value::as_i64), Some(version));
+                    assert_eq!(report.get("source").and_then(Value::as_str), Some(source));
+                    for field in ["revision", "inputsEpoch"] {
+                        assert!(
+                            report
+                                .get(field)
+                                .and_then(Value::as_str)
+                                .is_some_and(|value| {
+                                    !value.is_empty()
+                                        && value.bytes().all(|byte| byte.is_ascii_digit())
+                                }),
+                            "current diagnostics has invalid {field}: {report}"
+                        );
+                    }
+                    assert!(
+                        report
+                            .get("resultId")
+                            .and_then(Value::as_str)
+                            .is_some_and(|value| !value.is_empty()),
+                        "current diagnostics lacks report identity: {report}"
+                    );
+                    let findings = report
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .expect("complete diagnostics must contain the actual findings array");
+                    let _: Vec<tower_lsp_server::ls_types::Diagnostic> =
+                        serde_json::from_value(Value::Array(findings.clone()))
+                            .expect("completed findings must be valid LSP diagnostics");
+                    assert!(
+                        Instant::now() < deadline,
+                        "current diagnostics exceeded {timeout:?}: {uri}"
+                    );
+                    return findings.clone();
+                }
+                Some("unavailable")
+                    if matches!(
+                        report.get("reason").and_then(Value::as_str),
+                        Some("pending" | "stale")
+                    ) => {}
+                _ => panic!("current diagnostics is not complete for {uri}: {report}"),
+            }
+            std::thread::sleep(
+                Duration::from_millis(2).min(deadline.saturating_duration_since(Instant::now())),
+            );
+        }
     }
 
     /// A marker into the notification log for `await_log(..., since)`.

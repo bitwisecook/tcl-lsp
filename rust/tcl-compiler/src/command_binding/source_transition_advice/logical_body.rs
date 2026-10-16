@@ -938,6 +938,8 @@ impl LogicalBodyWalk<'_, '_> {
             .retain_authored_command_prefix(tape, invocation, graph, schema, Some(&advice));
         self.retain_advice(tape, &advice);
         self.context
+            .retain_logical_math_functions(tape, graph, &advice, schema);
+        self.context
             .retain_source_callback_targets(tape, invocation, graph, schema);
         self.context.retain_logical_callback_candidates(
             tape,

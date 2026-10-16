@@ -835,6 +835,33 @@ impl super::CommandBindingRealm {
 
     /// Reborrow one exact Logical source occurrence from the immutable syntax catalogue.
     /// The retained candidate coordinates cannot supply an installed target or call edge.
+    pub(crate) fn original_logical_math_function_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<crate::command_binding::OriginalLogicalMathFunctionOccurrence> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        OriginalSourceTransitionAdviceTape::logical_math_at(
+            prepared.as_ref().as_ref()?,
+            input,
+            image,
+            offset,
+        )
+    }
+
     pub(crate) fn original_logical_navigation_candidates(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -1116,6 +1143,61 @@ impl super::CommandBindingRealm {
         .as_slice()
             == advice.original_words())
         .then_some(segment)
+    }
+
+    /// Possible original case syntax retains source uncertainty rather than
+    /// borrowing a reached handler or an ordinary invocation word vector.
+    pub(crate) fn original_conditional_case_syntax_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        if tokens.synthetic.is_some()
+            || input.has_hosted_source_name_context()
+            || input.has_logical_source_name_context()
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let binding = tokens.source_binding.as_ref()?;
+        if binding.lookup_state.is_some() && !binding.unknown && binding.targets.is_empty() {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let original = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            offset,
+            config,
+        )?;
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        let tape = prepared.as_ref().as_ref()?;
+        if tape.blocks_registry_source(offset) {
+            return None;
+        }
+        let advice = tape.conditional_case_syntax(offset)?;
+        if !advice.matches_context(context)
+            || !advice.matches_source(image, config)
+            || original.as_slice() != advice.original_words()
+        {
+            return None;
+        }
+        if binding.lookup_state.is_some() {
+            binding
+                .original_invocation_metadata_at_point(tokens, context.commands())
+                .ok()?;
+        }
+        crate::command_binding::source_targets_match_advice(context, binding, advice)
+            .then(|| advice.clone())
     }
 
     fn original_catalogue_advice(

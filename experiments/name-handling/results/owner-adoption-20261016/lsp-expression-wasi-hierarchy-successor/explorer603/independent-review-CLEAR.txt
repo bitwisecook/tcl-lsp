@@ -1,0 +1,12 @@
+Explorer603 V5 independent source review — CLEAR
+
+Source patch: /tmp/lsp-explorer603-v4/compiler-explorer-source-currentness-v4.patch
+Patch SHA-256: 6ac65df73e24866893dbfcfea2f79b2073d095e67b459d0b78c8e80d16b98866
+V5 manifest: /tmp/lsp-explorer603-v5/manifest-v5.json
+Manifest SHA-256: 9549e97954099e94de965479a0f3f2556a889b562b4646779539ebc08ebd35df
+
+The three source beforeimages and afterimages in the manifest match the reviewed candidate/current repository. The V5 manifest is metadata-only relative to V4; V4 source patch bytes are unchanged.
+
+The per-panel callback repair is sound: each handler retains the registering panel and generation, rejects callbacks after replacement, and posts responses to the registered webview. The projection path checks the lease after the language-server response and after opening the projection document; an already in-flight `showTextDocument` may finish after lease expiry, as the contract now says. Its binding remains tied to the old source; subsequent source navigation/highlighting checks reject it. The wire carries explicit source and dialect only and claims no Registry/project-input analysis. UTF-16 navigation consumes the renderer's explicit UTF-16 fields and does not translate byte offsets into editor positions.
+
+No tests/builds/runtime execution were performed. Existing test files/selectors/assertions are unchanged by the patch. This receipt is a source review only.

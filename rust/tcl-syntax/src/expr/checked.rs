@@ -748,6 +748,36 @@ pub(crate) fn parse_source_expression_checked(
     if !failures.is_empty() {
         return None;
     }
+    source_expression_from_tokens(raw, context)
+}
+
+/// Configured source topology uses the same checked parser and purpose, while
+/// retaining the caller's actual variable, quote and nested-script configuration.
+pub(crate) fn parse_source_expression_checked_with_config(
+    source: &str,
+    context: &ExprParseContext,
+    config: tcl_lexer::LexerConfig,
+) -> Option<ExprNode> {
+    if config.grammar_over(context.lexer_grammar) != context.lexer_grammar {
+        return None;
+    }
+    let (raw, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+        source.as_bytes(),
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
+        config,
+    );
+    if !failures.is_empty() {
+        return None;
+    }
+    source_expression_from_tokens(raw, context)
+}
+
+fn source_expression_from_tokens(
+    raw: Vec<tcl_lexer::ExprToken<Vec<u8>>>,
+    context: &ExprParseContext,
+) -> Option<ExprNode> {
     match parse_checked_tokens_using(raw, false, context, CheckedParsePurpose::SourceTopology) {
         CheckedExprParse::Parsed(node) => Some(
             node.map_text(|text| String::from_utf8(text).expect("Unicode original source leaves")),

@@ -158,27 +158,47 @@ fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) ->
     Some(result)
 }
 
+/// Exact byte projection for generated host path URI consumers.
+/// Entries are literal ASCII or uppercase percent escapes, under the same
+/// forward owner as `from_path`; they supply no inverse or path admission.
+#[must_use]
+pub fn file_uri_path_byte_projection(escaping: FileUriEscaping) -> Vec<String> {
+    (0..=u8::MAX)
+        .map(|byte| {
+            if path_byte_is_literal(byte, escaping) {
+                char::from(byte).to_string()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect()
+}
+
+fn path_byte_is_literal(byte: u8, escaping: FileUriEscaping) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/')
+        || escaping == FileUriEscaping::PathCharacters
+            && matches!(
+                byte,
+                b'!' | b'$'
+                    | b'&'
+                    | b'\''
+                    | b'('
+                    | b')'
+                    | b'*'
+                    | b'+'
+                    | b','
+                    | b';'
+                    | b'='
+                    | b':'
+                    | b'@'
+            )
+}
+
 pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
     let mut out = String::with_capacity(path.len());
     for &byte in path.as_bytes() {
-        let literal = byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/')
-            || escaping == FileUriEscaping::PathCharacters
-                && matches!(
-                    byte,
-                    b'!' | b'$'
-                        | b'&'
-                        | b'\''
-                        | b'('
-                        | b')'
-                        | b'*'
-                        | b'+'
-                        | b','
-                        | b';'
-                        | b'='
-                        | b':'
-                        | b'@'
-                );
+        let literal = path_byte_is_literal(byte, escaping);
         if literal {
             out.push(char::from(byte));
         } else {

@@ -9239,7 +9239,13 @@
       ],
       "api": "Existing authentic selected source/lexical owner; exact required same-purpose facet absent",
       "required_change": "Existing full-expression terms/tokenization and command WordCursorPrefix do not issue an authentic selected partial expression/current source cursor receipt. Add narrow partial-expression facet at existing lexical expression owner, preserving actual full source/config/expression role/position/lexical failure and genuine prefix/extent. No fakecloser, default math roster, source action or Native function dispatch authority.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Existing configured expression lexer issues original full-source/partial-prefix geometry with complete config/grammar/failure, no fabricated closer.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "compiler",
@@ -16787,7 +16793,13 @@
       "required_change": [
         "Public builder does not itself retain/apply validation or configured exact source-word/list/reference constructors; call boundaries need authenticated new-name/source-purpose admission, not label/source interpolation. Caller-specific UI validation remains separate and still requires audit."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual existing builder validates package/version/command/minimum-version before source/file construction; broader collision, path lifecycle and namespace intent remain open.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -17891,7 +17903,13 @@
       "required_change": [
         "Partial/failing SSA or scope inventories collapse to a smaller HashSet, no complete source occupancy/new-name intent owner. Needs typed source collision inventory/unknown obligations; source-only SSA labels are collision hints, never locations/absence. Aggressive insertion remains observable authoring."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Typed observed collision candidate inventory retains explicit source/SSA/complexity gaps. Alias generation stays unchanged; unknown custom bodies and downstream debt-aware authoring remain open.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18169,7 +18187,13 @@
       "required_change": [
         "Method selector lacks original wholeword/static/effective-argv role proof; report String/hierarchy map can classify a compound/dynamic first fragment. Needs shared source member/receiver method operand owner. Object collections lookup similarly uses scalar source name text\u2192ObjectClassMap without typed frame/source occurrence key; actual map producer scope pending main semantic audit. No Native identity grant claimed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual full recorded command/static selector reborrows shared original receiver/member owner before highlighting. Legacy collection map occurrence/frame identity remains open.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18354,7 +18378,13 @@
       "required_change": [
         "Current mapping is local duplicated codec/string prefix owner in serverResolution, frozen once while serverOptions may restart against current workspace folders. Need authentic mount roster/generation/unique guest correspondence under shared host mapping policy; not generic native URI/action receipt. Existing pinned provider comments are bounded prior evidence, no current host execution."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual installed provider explicit root descriptors, bidirectional checked correspondence, same filesystem passed to process, generation/lifecycle revocation.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18382,7 +18412,13 @@
       "required_change": [
         "Independent copy of Rust URI escaping rule and rendered URI prefixes are mapping keys. Duplicate folder display names yield equal guest mount spelling without uniqueness refusal; mapping lacks actual host mount allocation/generation. Need existing shared/generated host path URI policy plus actual unique mount roster; no Native pathname identity recovery from UI label. Native binary resolution uses actual Node path/process platform separately and is out of Tcl resolver scope."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Shared actual Core forward URI byte policy projected through existing generator; component/longest-root typed URI mapping, no display label/path inverse. Generated output and actual host execution pending.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18702,7 +18738,13 @@
       "required_change": [
         "Positive regions are authentic but missing role/body/Expr/lambda/depth/parse phases silently return false/continue. API void/bool does not distinguish unrepresented regions from admitted empty complete inventory. Consumers requiring negative source coverage (namespace rename hazard) must get explicit complete census/refusal from existing owner. analysisNone lexical branch currently no production constructor (both walkers set Some), so dormant nominal code not counted executed migration."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Existing potential region inventory returns authentic whole traversal completeness; namespace hazard negative consumer requires complete checked coverage.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18820,7 +18862,13 @@
       "required_change": [
         "No exact document version/source/input/config receipt retained with result/spans; compile seq never rejects an older result, global panel can be replaced, projection lines/reveal use latest document and global explorerEditor. highlight fallback feeds byte offsets into UTF16 positionAt for older payload explicitly. Need source snapshot/actual input+request/panel generation and strict source-range join; standalone source/dialect compilation itself legitimate and must be distinguished from current document advice."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Explorer reviewed V5 6ac65df7",
+        "scope": "Actual standalone explicit source/dialect compilation and readonly editor navigation only: exact document URI/version/full source/language snapshot, panel/request/compile leases, real UTF16 renderer geometry. Host/WASM result handshake rejects superseded results; no resource Registry/project input claim; Server716 remains open. Already-inflight readonly show may finish as historical display with source navigation revoked.",
+        "validation": "Independent sourceCLEAR ffd7ebb3. Root exact3before/after and disjoint39002Nativeinputs. Actual TypeScript/scopedPrettier/worker syntax/Node+browserbundlesPASS407inputs0drift22:16UTC. Extension/WASMhost unexecuted; no verifiedcompletion."
+      }
     },
     {
       "area": "lsp",
@@ -18966,7 +19014,13 @@
       "required_change": [
         "Manual brace/bracket/escape scanner is quote/comment/dialect blind and remains used by production source_expr_arg_context_at478. word_end manual quoted/braced/bare scan also production definition::offset_is_in_parameter_list2208. Need existing configured source/Expr partial owner preserving actual word/body/fullinput, no fabricated closing. expr_arg_context_at old nominal path currently only tests in Core, keep dormant purpose distinct."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual Core math completion and parameter extent use original configured expression cursor/word owners; legacy nominal probe stays separate.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -18994,7 +19048,13 @@
       "required_change": [
         "UserProc selected by report resolved String\u2192final all_procs, no genuine current selected source declaration/ordered alternatives/earlier occupant receipt; docs say installed/wins runtime although lexical source advice. Need shared typed math-function occurrence/source candidate owner for Logical navigation/hover, not slot identity from report label."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual Logical hover consumes genuine original expression/function occurrence and source declaration candidates; report labels cannot select target. Native math remains terminal and separate.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -19146,7 +19206,13 @@
       "required_change": [
         "matching_publications is explicitly only ordered geometry and grants no selected publication/liveness; ignores actual positioned snapshot/occupants/unknown source barriers. Existing matching_source_advice_publications(registry,header sites) purpose validates those and is already used original_declaration::select. Migrate this remaining caller through authentic graph-selected source facet, preserve stronger builtin/local/alias/deletion and unknowns; no header-only call edges from missing reference."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Actual original procedure advice uses positioned source publication facet and full current command/token/source reborrow; geometry alone does not select publication.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -19381,7 +19447,13 @@
         "Result carries no source/request generation; handler assigns newest lastSource/lastDialect to possibly older result, so spans/diff/source-selected names can be attributed to another source. WASM completion posts same unowned result. Highlight requests omit analyzed source/document version. Need actual result source/config/request owner through shared renderer and host currentness joins; fixed CSS/display IDs are not Tcl identities. Existing empty warning text is display only and must not become closure evidence.",
         "Result lacks request/source/config receipt; result listener associates it with current lastSource/lastDialect and hover/projection uses current editor. Carry and rejoin original request/document/version/input owner before source navigation."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Explorer reviewed V5 6ac65df7",
+        "scope": "Actual standalone explicit source/dialect compilation and readonly editor navigation only: exact document URI/version/full source/language snapshot, panel/request/compile leases, real UTF16 renderer geometry. Host/WASM result handshake rejects superseded results; no resource Registry/project input claim; Server716 remains open. Already-inflight readonly show may finish as historical display with source navigation revoked.",
+        "validation": "Independent sourceCLEAR ffd7ebb3. Root exact3before/after and disjoint39002Nativeinputs. Actual TypeScript/scopedPrettier/worker syntax/Node+browserbundlesPASS407inputs0drift22:16UTC. Extension/WASMhost unexecuted; no verifiedcompletion."
+      }
     },
     {
       "area": "lsp",
@@ -22234,7 +22306,13 @@
       "required_change": [
         "Final symbol handler28076\u201328084 DOES revalidate every hit with original_location against actual current analysis; preserve that strong owner. Remaining legacy hit.original_location=None spans rely only index revision/open current snapshot, which cannot authenticate unreported disk content changes or intentionally retained pre-edit index rows. Retain actual source-location owner for those residual report/Logical rows; picker text remains display, not identity."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Per-row Logical source image/config/Registry/span/index revision retained through actual final document/index/provider currentness; raw lone-CR and authentic pathless buffers preserved.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -65981,6 +66059,12 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed successor ofa2ef3c739",
+        "scope": "Existing exact cross-file regression waits for authentic complete current diagnostics using original source/version and one unchanged20s deadline; original W120 assertion unchanged.",
+        "validation": "Exact ingredient and composition SOURCE CLEAR d7542a23; Root verified all39001 restored inputs/all56 before+after hashes; scopedformattersPASS. Actual catalogue generation firstFAIL73.761s one badimport/all39002inputs0drift; import9a3007 fixed, repair1running. Native/portable/editor-host/extra-unit execution pending."
       }
     },
     {
@@ -132289,12 +132373,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T21:37:26.161690+00:00",
+    "utc": "2026-10-16T22:00:47.293633+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 280,
+    "implemented_pending_validation": 294,
     "verified_complete": 0,
-    "not_started": 1878,
+    "not_started": 1864,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132454,7 +132538,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "56annex requirements:55integrated pending validation,1blocked. Logical relation horizon and current host source census distinct owner facets counted once; original selected member/frame/URI/proposal owners not recounted.",
+    "owner_facet_reconciliation": "59annex purposes:58integrated pendingvalidation,1blocked; new Logicalmath target owner and two distinct actual Server TYPE/implementation callers. Existing shared leases and workspace-symbol source wrapper not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -132547,13 +132631,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 56,
-      "implemented_pending_validation": 55,
+      "required": 59,
+      "implemented_pending_validation": 58,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2214,
-    "effective_implemented_pending_validation": 335,
+    "effective_required_units": 2217,
+    "effective_implemented_pending_validation": 352,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -132723,8 +132807,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 270,
-    "partially_implemented_pending_validation": 10,
+    "fully_implemented_pending_validation": 281,
+    "partially_implemented_pending_validation": 13,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -132889,14 +132973,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 149,
+      "lsp_integrated_pending_validation": 162,
       "lsp_by_kind_integrated": {
-        "semantic": 57,
-        "validation": 90,
+        "semantic": 69,
+        "validation": 91,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 176,
+      "lsp_without_integrated_implementation": 163,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -133536,23 +133620,24 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T21:36:00Z",
-      "lsp_integrated": 148,
+      "utc": "2026-10-16T22:06:00Z",
+      "lsp_integrated": 160,
       "lsp_required": 325,
-      "lsp_semantic": 56,
-      "lsp_validation": 90,
+      "lsp_semantic": 67,
+      "lsp_validation": 91,
       "lsp_documentation": 2,
-      "lsp_without_integration": 177,
-      "effective_integrated": 334,
-      "effective_required": 2214,
+      "lsp_without_integration": 165,
+      "effective_integrated": 350,
+      "effective_required": 2217,
       "verified": 0,
-      "next_report_utc": "2026-10-16T22:06:00Z",
-      "validation": "Native6buildPASS350.661s0warnings39001inputs0drift. Currenttargeted12=9PASS3FAIL0TIMEOUT/errors/drift. Full584running, source/ELFs frozen. ContinuationeditorTS/format/workersyntax/Node+browserbundlesPASS406inputs0drift; hostunrun. Freshactualownergate309reportederrors270.651s29363inputs0drift; globalrequiredgatesred/pending.",
-      "scope": "LSP and necessary sharedowners; Runtime/VM/BIG-IP dedicatedworkdeferred",
+      "next_report_utc": "2026-10-16T22:36:00Z",
       "delta_since_previous_report": {
-        "lsp_integrated": 5,
-        "effective_integrated": 5
-      }
+        "lsp_integrated": 12,
+        "effective_integrated": 16,
+        "effective_required": 3
+      },
+      "validation": "Completed retained584:505PASS77FAIL2TIMEOUT,all460retained6gains0priorPASSregressions/drops. Actual catalogue generationPASS69.843s aftertwo retainedcompilefailures; editorchecks running at report. Fresh Nativebuild/gates pending. Sourceintegration is not verifiedcompletion.",
+      "scope": "LSP and necessary sharedowners; Runtime/VM/BIG-IP dedicatedwork deferred"
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -133801,6 +133886,57 @@
       "result_sha256": "582b4d545f1860491735828f4e43a20ec813c621b19147f2a635217f01e5175f",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-browser-logical-resource-successor/ordinary-repair6/completed-584",
       "frozen_storage_archive_sha256": "79082356744f93f6b2b7b0b03a3ca938042d73181260a875c52936e5941e6322"
+    },
+    "reviewed_56_successor": {
+      "baseline_new_full": [
+        "lsp-editor-wasi-host-mount-transport",
+        "lsp-editor-wasi-uri-owner",
+        "lsp-potential-source-region-walker",
+        "compiler.owner.source.configured-partial-expression-cursor:449",
+        "lsp-expression-partial-cursor-grammar",
+        "lsp-expression-logical-math-target",
+        "lsp-original-call-hierarchy-geometric-fallback",
+        "lsp-server-workspace-symbol-source-snapshot",
+        "lsp.validation.13.00.fn0"
+      ],
+      "baseline_new_partial": [
+        "lsp-editor-scaffold-source-construction",
+        "lsp-minifier-claimed-name-inventory",
+        "lsp-semantic-logical-receiver-selector"
+      ],
+      "annex_new": [
+        "compiler.source.logical-expression-function-target-owner",
+        "lsp.server.logical-type-hierarchy-wire-adopter",
+        "lsp.server.logical-implementation-wire-adopter"
+      ],
+      "count0_existing_extensions": [
+        "Core TYPE582 and implementation583",
+        "Actual Registry producer-route gate repair",
+        "Seven truthful owner registration corrections",
+        "TS expected test metadata"
+      ],
+      "source_packet_sha256": "d7542a23898b222a3a892705bc702ca8d9fab83b83e905acb4276fcd63865fcf",
+      "import_repair_sha256": "9a3007cfcaaa9a71f300a3b907f42d005d5115ae933343869e21598a9a5f696c",
+      "metadata": "999sourceexpectedidentities/998requiredpasses/1pending; notobservedPASS",
+      "validation": "ScopedformatPASS; firstgeneratorcompileFAIL73.761s39002inputs0drift, actualpublicimportrepair integrated, repair1running; generatedURIpolicyunissued; freshNative/extra-unit/editor-host/portable/gatespending",
+      "new_source_count_basis": "12baseline purposes (11LSP,1Compiler),3annex. Lexer289owner and Core608adopter separate. Minifier572notalreadycounted579; potential599notuntouchedCompiler6; CALL642notTYPE. Workspace719wrappernotnewowner."
+    },
+    "current_expression_wasi_hierarchy_validation": {
+      "status": "pending",
+      "generator": "repair2PASS69.843s39002inputs0drift; actualownerissuedgeneratedpolicy and existingeventmetadata",
+      "ordinary_build": "five-library testbuild running;39002inputs frozen",
+      "editor": "PASS complete407inputs0drift22:13UTC; Explorer successorPASS407inputs0drift22:16UTC; actualhosts unexecuted",
+      "host_and_gates": "unrun"
+    },
+    "explorer_readonly_source_adoption": {
+      "baseline_new_full": [
+        "lsp-editor-explorer-source-currentness",
+        "lsp-editor-explorer-webview-result-owner"
+      ],
+      "new_annex": 0,
+      "patch_sha256": "6ac65df73e24866893dbfcfea2f79b2073d095e67b459d0b78c8e80d16b98866",
+      "server716": "OPEN actual Registry/project ingress; standalone snapshot doesnotbind it",
+      "validation": "Actual editor compilation/format/syntax/bundlesPASS407inputs0drift; hosts unexecuted"
     }
   }
 }

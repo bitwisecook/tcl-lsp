@@ -264,6 +264,7 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) {
         self.retain_requested_logical_class_relation(invocation, graph, schema);
+        self.retain_requested_logical_class_relation_candidates(invocation, graph, schema);
         let Some(super::SourceAdviceQuery::ClassRelation(query)) = self.query else {
             return;
         };
@@ -429,6 +430,7 @@ impl LogicalSourceClassRelationProvider {
         }
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct LogicalClassRelationRequest {
     body: OriginalSourceScriptBody,
     parent: Arc<OriginalSourceCommandTransitionAdvice>,
@@ -567,6 +569,194 @@ impl AdviceInvocationContext<'_> {
                 slot,
                 provider,
                 receiver,
+            })
+        })();
+        let mut reply = query.reply.borrow_mut();
+        match &*reply {
+            None => *reply = Some(receipt),
+            Some(previous) if previous != &receipt => *reply = Some(None),
+            _ => {}
+        }
+    }
+}
+
+/// Conditional class-reference navigation at its genuine factory parent.
+/// Source debts remain attached; external coordinates prove no loaded class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalSourceClassRelationCandidates {
+    request: LogicalClassRelationRequest,
+    namespace: tcl_core_types::ByteNamespacePath,
+    provider: Option<ClassProvider>,
+    external: Option<Vec<ByteCommandSlot>>,
+    receiver: Arc<OriginalSourceClassDeclaration>,
+    earlier_unknown_mutations: bool,
+}
+
+/// Source-only alternatives retained by the original relation lookup owner.
+#[derive(Debug, Clone, Copy)]
+pub enum LogicalSourceClassRelationTarget<'a> {
+    /// One actual current source declaration selected in the parent document.
+    Source(&'a crate::analyser::ClassDef),
+    /// The genuine Registry class root has no source declaration target.
+    Registry,
+    /// Ordered external header coordinates, without source-loading authority.
+    External(&'a [ByteCommandSlot]),
+}
+
+impl LogicalSourceClassRelationCandidates {
+    /// Exact original Registry-class operand, independently of its display label.
+    #[must_use]
+    pub fn operand(&self) -> &NativeWord {
+        &self.request.operand
+    }
+
+    /// Earlier unknown operations remain conditional source applicability debt.
+    #[must_use]
+    pub const fn has_earlier_unknown_mutations(&self) -> bool {
+        self.earlier_unknown_mutations
+    }
+
+    /// Reissue the original lookup and reborrow its actual receiver/provider.
+    /// A missing external inventory cannot become a known absent class.
+    #[must_use]
+    pub fn target<'a>(
+        &'a self,
+        analysis: &'a crate::analyser::AnalysisResult,
+        receiver: &crate::analyser::ClassDef,
+    ) -> Option<LogicalSourceClassRelationTarget<'a>> {
+        analysis.logical_source_class_declaration(receiver)?;
+        let realm = analysis.retained_command_realm()?;
+        let registry = analysis.resolved_registry()?;
+        let current =
+            crate::command_binding::SourceCommandBindings::logical_class_relation_candidates(
+                realm.source_bindings_ref(),
+                &self.request.body,
+                &self.request.member,
+                &self.request.operand,
+                &self.request.input,
+                registry,
+            )?;
+        if current != *self
+            || analysis.resolved_input.as_ref() != Some(&self.request.input)
+            || !analysis.matches_original_source_image(
+                self.request.operand.image(),
+                self.request.input.lexer_config(),
+            )
+            || !self
+                .receiver
+                .logical_source_class(analysis)
+                .is_some_and(|class| std::ptr::eq(class, receiver))
+        {
+            return None;
+        }
+        match &self.provider {
+            Some(ClassProvider::Source(class)) => {
+                let class = class.logical_source_class(analysis)?;
+                analysis.logical_source_class_declaration(class)?;
+                Some(LogicalSourceClassRelationTarget::Source(class))
+            }
+            Some(ClassProvider::Registry(_)) => Some(LogicalSourceClassRelationTarget::Registry),
+            None => self
+                .external
+                .as_deref()
+                .map(LogicalSourceClassRelationTarget::External),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct LogicalClassRelationCandidatesQuery<'a> {
+    request: &'a LogicalClassRelationRequest,
+    reply: &'a RefCell<Option<Option<LogicalSourceClassRelationCandidates>>>,
+}
+
+impl super::super::SourceCommandBindings {
+    pub(crate) fn logical_class_relation_candidates(
+        &self,
+        body: &OriginalSourceScriptBody,
+        member: &[NativeWord],
+        operand: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<LogicalSourceClassRelationCandidates> {
+        let seed = self.original_source_transition_seed()?;
+        let context = seed.source_context(registry)?;
+        let request = LogicalClassRelationRequest::capture(body, member, operand, input)?;
+        if request.parent.site().source != seed.origin || request.parent.config != seed.config {
+            return None;
+        }
+        let reply = RefCell::new(None);
+        seed.prepare_for_query(
+            &context,
+            OriginalSourceCataloguePurpose::CompletePrefix,
+            Some(super::SourceAdviceQuery::LogicalClassRelationCandidates(
+                LogicalClassRelationCandidatesQuery {
+                    request: &request,
+                    reply: &reply,
+                },
+            )),
+        )?;
+        reply.into_inner().flatten()
+    }
+}
+
+impl AdviceInvocationContext<'_> {
+    fn retain_requested_logical_class_relation_candidates(
+        &self,
+        invocation: AdviceInvocation<'_>,
+        graph: &AdviceGraph,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let Some(super::SourceAdviceQuery::LogicalClassRelationCandidates(query)) = self.query
+        else {
+            return;
+        };
+        if invocation
+            .native
+            .first()
+            .map(NativeWord::span)
+            .map(|span| span.start())
+            != Some(query.request.parent.site().offset)
+        {
+            return;
+        }
+        let receipt = (|| {
+            let current = self.schema_advice(invocation, graph, schema)?;
+            if current != *query.request.parent
+                || !super::body_effects::original_operand_effects(invocation.native).is_empty()
+            {
+                return None;
+            }
+            let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+                return None;
+            };
+            if input != &query.request.input {
+                return None;
+            }
+            let namespace = graph.logical_namespace.clone()?;
+            let slot = graph.lookup_head_key(&query.request.value)?;
+            let provider = self.class_relation_provider_at(graph, &slot);
+            let external = if provider.is_none() {
+                let coordinates = super::logical_navigation::logical_coordinates(
+                    graph,
+                    &namespace,
+                    &query.request.value,
+                )?;
+                Some(super::logical_navigation::external_header_candidates(
+                    graph,
+                    &query.request.value,
+                    &coordinates,
+                )?)
+            } else {
+                None
+            };
+            Some(LogicalSourceClassRelationCandidates {
+                request: query.request.clone(),
+                namespace,
+                provider,
+                external,
+                receiver: self.source_class_declaration(graph, invocation, schema)?,
+                earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
             })
         })();
         let mut reply = query.reply.borrow_mut();
@@ -774,5 +964,88 @@ mod tests {
         ] {
             assert!(query(source).is_none(), "{source}");
         }
+    }
+}
+
+#[cfg(test)]
+mod logical_relation_candidate_currency_tests {
+    use crate::analyser::{Analyser, AnalysisResult};
+    use crate::command_binding::{
+        LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+    };
+
+    fn retained() -> (AnalysisResult, LogicalSourceClassRelationCandidates) {
+        let source = "oo::class create Base {method work {} {}}; oo::class create Child {superclass Base; method run {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let child = &analysis.all_classes["::Child"];
+        let statements = analysis
+            .logical_source_class_relation_candidates(child)
+            .unwrap();
+        let candidate = statements[0].operands()[0].clone();
+        assert!(
+            matches!(candidate.target(&analysis, child), Some(LogicalSourceClassRelationTarget::Source(base)) if std::ptr::eq(base, &analysis.all_classes["::Base"]))
+        );
+        (analysis, candidate)
+    }
+
+    #[test]
+    fn logical_relation_candidate_rejects_changed_completed_receiver_metadata() {
+        let (analysis, candidate) = retained();
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::Child")
+            .unwrap()
+            .superclasses
+            .push("untrusted report".into());
+        assert!(
+            candidate
+                .target(&changed, &changed.all_classes["::Child"])
+                .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::Child")
+            .unwrap()
+            .methods
+            .get_mut("run")
+            .unwrap()
+            .visibility
+            .push_str("-changed");
+        assert!(
+            candidate
+                .target(&changed, &changed.all_classes["::Child"])
+                .is_none()
+        );
+        assert!(
+            candidate
+                .target(&analysis, &analysis.all_classes["::Child"])
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn logical_relation_candidate_rejects_changed_completed_source_provider_metadata() {
+        let (analysis, candidate) = retained();
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::Base")
+            .unwrap()
+            .methods
+            .get_mut("work")
+            .unwrap()
+            .visibility
+            .push_str("-changed");
+        assert!(
+            candidate
+                .target(&changed, &changed.all_classes["::Child"])
+                .is_none()
+        );
+        assert!(matches!(
+            candidate.target(&analysis, &analysis.all_classes["::Child"]),
+            Some(LogicalSourceClassRelationTarget::Source(_))
+        ));
     }
 }

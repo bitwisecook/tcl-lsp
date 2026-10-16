@@ -1,0 +1,481 @@
+{
+  "archive": {
+    "bytes": 301289,
+    "name": "expression-batch-preservation.tar.zst",
+    "sha256": "0109a96ea5c185d445f9954af05562c78c04ec53eb3e348ba8b4f476f66b7cfe",
+    "uncompressed_tar_bytes": 2867200,
+    "uncompressed_tar_sha256": "5870966bd577c6d8d7022054ca7570508c2194cf69843cd476330354bae6dfc8"
+  },
+  "excluded_reference_count": 8,
+  "member_bytes": 2794079,
+  "member_count": 92,
+  "members": {
+    "README.md": {
+      "bytes": 1582,
+      "sha256": "3013141fc2d8c5d462c6f43e4dfdbe7a9aad766ce8733e755b35d1538495d1df",
+      "source": null
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/binding.json": {
+      "bytes": 2870,
+      "sha256": "63c7cd55d7ca53871509f61640ddfb839c74a0bb0b3a390ace340621e37c8712",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/binding.json"
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/build.log": {
+      "bytes": 722,
+      "sha256": "efba383521e3a6fad431a1c95a7393a5425951b1982b84f222bca9cfcfc69abb",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/build.log"
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/compiler.list": {
+      "bytes": 119,
+      "sha256": "953f7a5b30a90948b2b9f2cb6f1254023d81354fcf6b0be3dc6cfb8aecff3245",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/compiler.list"
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/frozen-storage-archive.json": {
+      "bytes": 691,
+      "sha256": "60e0d92c5d0f578103cff8869d757dd8d5bca036c0742b922fd773bc9e1693b6",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/frozen-storage-archive.json"
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/source.diff": {
+      "bytes": 7030,
+      "sha256": "078bef193a60dc4d42cf40bd6db38eeb4312c34f32cba2f92a9ccc6b98fd9257",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/source.diff"
+    },
+    "captures/lsp-comment232-conditional-gate-diagnostic-v3/test-232.log": {
+      "bytes": 1045,
+      "sha256": "124a51272c8e69eedcd9df993f942be1e24d65cb3cd2796d499459704cd99a62",
+      "source": "/workspace/naming-validation/lsp-comment232-conditional-gate-diagnostic-v3/test-232.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/binding.json": {
+      "bytes": 1922,
+      "sha256": "221319a7b414e681a67947eeaa8917b06de23cb68c27b32f2cc16536d1fae41e",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/binding.json"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/check-0.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/check-0.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/check-1.log": {
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/check-1.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/check-2.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/check-2.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/check-3.log": {
+      "bytes": 334,
+      "sha256": "e6bffbe1104534a9448ae811107e9852d86ce728ec97f9666475f97d3745498d",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/check-3.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor-repair1/check-4.log": {
+      "bytes": 341,
+      "sha256": "53a4067c3dcc7875a23a024e4a8b1af7d79f73d315a1b857a7458674a6ef2836",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor-repair1/check-4.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/binding.json": {
+      "bytes": 1921,
+      "sha256": "294e3ad200afac37a5cabcc4a8109fce642545ec4e26511413164000fa6b93bc",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/binding.json"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/check-0.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/check-0.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/check-1.log": {
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/check-1.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/check-2.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/check-2.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/check-3.log": {
+      "bytes": 334,
+      "sha256": "d077c262d91c87a881bbe39869c18418ebad3d6493b258712ed5697da3d5584f",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/check-3.log"
+    },
+    "captures/lsp-expression-wasi-hierarchy-editor/check-4.log": {
+      "bytes": 341,
+      "sha256": "9492eb2e11728993653b2b14da2f7911d8dcfffebf2ef8f7049a7422fb16aa9f",
+      "source": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-editor/check-4.log"
+    },
+    "captures/next-lsp-catalog-generation-repair1/binding.json": {
+      "bytes": 722,
+      "sha256": "ed0153367d28d9cd24cbff16b55592cdcbb6bb6cd92736c35b3868c9791940e3",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair1/binding.json"
+    },
+    "captures/next-lsp-catalog-generation-repair1/generation.log": {
+      "bytes": 1557,
+      "sha256": "4b07bf6c90b864d86c70d9ced84e223d4d176119483449cc6cae946187ea0c5d",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair1/generation.log"
+    },
+    "captures/next-lsp-catalog-generation-repair1/source.diff": {
+      "bytes": 470166,
+      "sha256": "0bf0300c623c0e5a360d66f8d03e8726dd908d23dff6f0f7c6ce2b566d02f93a",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair1/source.diff"
+    },
+    "captures/next-lsp-catalog-generation-repair2/binding.json": {
+      "bytes": 1100,
+      "sha256": "75dfb9567beaa158861bfa28c5b98d98c8aa945da94a3afcdae17584702b4f49",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair2/binding.json"
+    },
+    "captures/next-lsp-catalog-generation-repair2/generation.log": {
+      "bytes": 4834,
+      "sha256": "9f8e6992ff7bc7014719a38312867e0b6f003fc616a48ad176d594afe5f276bd",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair2/generation.log"
+    },
+    "captures/next-lsp-catalog-generation-repair2/source.diff": {
+      "bytes": 470448,
+      "sha256": "dd239d8f998bcf455fd3ebec91b0d4720cef77e7f7817326284b429214b864d0",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation-repair2/source.diff"
+    },
+    "captures/next-lsp-catalog-generation/binding.json": {
+      "bytes": 721,
+      "sha256": "511c2051cac9b40953752d0c78e7a6193b217e12b30e962c942522f2c4823c2c",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation/binding.json"
+    },
+    "captures/next-lsp-catalog-generation/generation.log": {
+      "bytes": 1272,
+      "sha256": "89b43c7ef4fe9fa35ddbba08f55e8d9adeb3f439a698f486fc7673e2421644b2",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation/generation.log"
+    },
+    "captures/next-lsp-catalog-generation/source.diff": {
+      "bytes": 470137,
+      "sha256": "f7b7f7f3e46a35e491ee5692eabb11328f54a3e342d0a526a881239311d8dea9",
+      "source": "/workspace/naming-validation/next-lsp-catalog-generation/source.diff"
+    },
+    "captures/next-lsp-catalog-wrapper-setup-correction.json": {
+      "bytes": 437,
+      "sha256": "5f9df6b10a3406973cfb5fcfa413b8d76675966cca3e9a2cb74139c9f165aae5",
+      "source": "/workspace/naming-validation/next-lsp-catalog-wrapper-setup-correction.json"
+    },
+    "composition-ancestry/parent52/manifest-peer-cleared.json": {
+      "bytes": 22916,
+      "sha256": "125c163ba89fb36e929c2051bc6e337817b132dee0eb8d20b80e46bc93437061",
+      "source": "/workspace/naming-validation/next-lsp-source-integration/with-pending-metadata-v2/manifest-peer-cleared.json"
+    },
+    "composition-ancestry/parent52/manifest.json": {
+      "bytes": 22494,
+      "sha256": "738f4c5c6175adbcd9a2df7e8d0b1c85d36e6fce3a620028513946bdf2fc735e",
+      "source": "/workspace/naming-validation/next-lsp-source-integration/with-pending-metadata-v2/manifest.json"
+    },
+    "composition-ancestry/type-v6/independent-review-CLEAR.txt": {
+      "bytes": 2457,
+      "sha256": "fce8bb54a52803f5a6f59081abbed3ae7d1dba9429674724ccac0356a8102420",
+      "source": "/tmp/lsp-logical-workspace-hierarchy-v6/independent-review-CLEAR.txt"
+    },
+    "composition-ancestry/type-v6/manifest.json": {
+      "bytes": 6018,
+      "sha256": "051d89cdde14416b841e0dc68937303ba17638821b71221d85da9a299b51258e",
+      "source": "/tmp/lsp-logical-workspace-hierarchy-v6/manifest.json"
+    },
+    "composition-ancestry/workspace719-v3/independent-variable-order-review-CLEAR.txt": {
+      "bytes": 2577,
+      "sha256": "ade2b723e566c4862e76999eef1ce0457803e12c29fa88d4d6c2f71dee558bc9",
+      "source": "/tmp/luna-workspace719-v3/independent-variable-order-review-CLEAR.txt"
+    },
+    "composition-ancestry/workspace719-v3/manifest-v3.json": {
+      "bytes": 4013,
+      "sha256": "ffd335caf091b36b57f696c9e490b94b1a52ee965af48253d775528676943787",
+      "source": "/tmp/luna-workspace719-v3/manifest-v3.json"
+    },
+    "diagnostic-lineage/held-v1/diagnostic.patch": {
+      "bytes": 6598,
+      "sha256": "f082e0d9da575aa73a719a42bcf5ac217badfc6dee0745ae0140632a342367dd",
+      "source": "/tmp/luna-comment232-gate-diagnostic-v1/diagnostic.patch"
+    },
+    "diagnostic-lineage/held-v1/manifest.json": {
+      "bytes": 2332,
+      "sha256": "c11a4a33aeaa24e8ffb0c051f33b428ba4e75aeb201f6ae50735259ab13f2cfb",
+      "source": "/tmp/luna-comment232-gate-diagnostic-v1/manifest.json"
+    },
+    "diagnostic-lineage/published-v3/diagnostic-v3.patch": {
+      "bytes": 6775,
+      "sha256": "7e445891f6549846c6fc84b49c51fb1def615441bac61774a60639747537f7ed",
+      "source": "/tmp/luna-comment232-gate-diagnostic-v3/diagnostic-v3.patch"
+    },
+    "diagnostic-lineage/published-v3/independent-db-owner-review-CLEAR.txt": {
+      "bytes": 2464,
+      "sha256": "6e783428847efa9da527e0904a787107193a58a9b1c9adf6ab8d687579cfbcd5",
+      "source": "/tmp/luna-comment232-gate-diagnostic-v3/independent-db-owner-review-CLEAR.txt"
+    },
+    "diagnostic-lineage/published-v3/manifest.json": {
+      "bytes": 1395,
+      "sha256": "ec15b410595eb7e1ad45c034dfc4d64cf4a4889da93709af68daf19ce2798a86",
+      "source": "/tmp/luna-comment232-gate-diagnostic-v3/manifest.json"
+    },
+    "diagnostic-lineage/retained-reviewed-v2/diagnostic-v2.patch": {
+      "bytes": 6775,
+      "sha256": "7e445891f6549846c6fc84b49c51fb1def615441bac61774a60639747537f7ed",
+      "source": "/tmp/db-reviewed-comment232-7e445891/diagnostic-v2.patch"
+    },
+    "diagnostic-lineage/retained-reviewed-v2/independent-db-owner-review-CLEAR.txt": {
+      "bytes": 2464,
+      "sha256": "6e783428847efa9da527e0904a787107193a58a9b1c9adf6ab8d687579cfbcd5",
+      "source": "/tmp/db-reviewed-comment232-7e445891/independent-db-owner-review-CLEAR.txt"
+    },
+    "diagnostic-lineage/retained-reviewed-v2/independent-db-owner-verification.json": {
+      "bytes": 849,
+      "sha256": "c0fd8b4cdb6415c5b1f5d2d3e8e2c419143c81eff3aad81a086a2c2c2a35da73",
+      "source": "/tmp/db-reviewed-comment232-7e445891/independent-db-owner-verification.json"
+    },
+    "diagnostic-lineage/retained-reviewed-v2/manifest.json": {
+      "bytes": 3135,
+      "sha256": "b287c9baf630659a356f50581f8ff1a638741104cdf330db7a634a7f373d0396",
+      "source": "/tmp/db-reviewed-comment232-7e445891/manifest.json"
+    },
+    "issued-output/editors/vscode/src/generated/fileUriPathPolicy.json": {
+      "bytes": 2173,
+      "sha256": "55206a06d3442f0726c5de1ae113bfd79e87d9294f707da967b3bb290b9f7fc9",
+      "source": "/workspace/tcl-lsp/editors/vscode/src/generated/fileUriPathPolicy.json"
+    },
+    "packets/compiler-import-fix/independent-db-owner-review-CLEAR.txt": {
+      "bytes": 591,
+      "sha256": "4ccbeda754d74b7909a26a0dca1bc3d7aa8902d77b7a07f0451c9d0485f6c4bc",
+      "source": "/tmp/lsp-logical-math-actual-import-repair-v1/independent-db-owner-review-CLEAR.txt"
+    },
+    "packets/compiler-import-fix/manifest.json": {
+      "bytes": 641,
+      "sha256": "1a56a9997f72179cccf04e09e79a3e6b8afd73fc589cd7a29807419b60de1272",
+      "source": "/tmp/lsp-logical-math-actual-import-repair-v1/manifest.json"
+    },
+    "packets/compiler-import-fix/repair.patch": {
+      "bytes": 699,
+      "sha256": "9a3007cfcaaa9a71f300a3b907f42d005d5115ae933343869e21598a9a5f696c",
+      "source": "/tmp/lsp-logical-math-actual-import-repair-v1/repair.patch"
+    },
+    "packets/conditional-case/DOWNSTREAM-SOURCE-AUDIT.txt": {
+      "bytes": 543,
+      "sha256": "6cb920627eade821a382834d815b24de4912253e069b767399636121da09ce18",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/DOWNSTREAM-SOURCE-AUDIT.txt"
+    },
+    "packets/conditional-case/SOURCE-BASIS.md": {
+      "bytes": 4711,
+      "sha256": "2002bc0df76733cc350d7cb68ad62a1879d4db78769dd4a75dc6d3b807436a08",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/SOURCE-BASIS.md"
+    },
+    "packets/conditional-case/add_tests.py": {
+      "bytes": 5840,
+      "sha256": "318da902ee32fb88812912e63c28f43424bf043cf1f603706302c21152f06bb0",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/add_tests.py"
+    },
+    "packets/conditional-case/controls.json": {
+      "bytes": 525,
+      "sha256": "89cb8894100c8f9bb27dcb3baa0b9806708a0925a557f138ab5cc3751e51ed8d",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/controls.json"
+    },
+    "packets/conditional-case/independent-variable-order-review-CLEAR.txt": {
+      "bytes": 3108,
+      "sha256": "f715deac3043218644d9b944902fec1a9a742022b03b9efcaba2bab6a42db274",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/independent-variable-order-review-CLEAR.txt"
+    },
+    "packets/conditional-case/manifest.json": {
+      "bytes": 2234,
+      "sha256": "21fa8785a70b66252c213650339e578afdcbee3579cf2e1a2da6ca36954a1109",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/manifest.json"
+    },
+    "packets/conditional-case/old-function-preservation.json": {
+      "bytes": 894,
+      "sha256": "a0012b73ddc770353f7eda72e2f82af8a455a81f00ebce78cf17a2815f4c694e",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/old-function-preservation.json"
+    },
+    "packets/conditional-case/prepare.py": {
+      "bytes": 8078,
+      "sha256": "e198bff865c05fb4f37f12948eb048e0de6a9b4ed207902757c1e17d00e79347",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/prepare.py"
+    },
+    "packets/conditional-case/repair.patch": {
+      "bytes": 36999,
+      "sha256": "fcd57b4ae942556bda63fb85ca66ed214dbd6c317e193844b3d44344394495e2",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/repair.patch"
+    },
+    "packets/conditional-case/self-apply.log": {
+      "bytes": 972,
+      "sha256": "8ceec2b56dca4c4d0aee1730df00a775a330e8734c67e5d9b430c5d9e167f938",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/self-apply.log"
+    },
+    "packets/conditional-case/verify.py": {
+      "bytes": 3650,
+      "sha256": "0492ef881a3a39f456caf61a5f4b722e1fd4fcb2eed6b99ab7e9af307117464e",
+      "source": "/tmp/lsp-conditional-native-case-receipt-v1/verify.py"
+    },
+    "packets/core-api-fix/independent-review-CLEAR.txt": {
+      "bytes": 1567,
+      "sha256": "e67e3902dd891acd3aec5c471145b9986b7203938f41cbde4c6dad6815efa352",
+      "source": "/tmp/lsp-core-actual-api-compile-repair-v1/independent-review-CLEAR.txt"
+    },
+    "packets/core-api-fix/manifest.json": {
+      "bytes": 786,
+      "sha256": "4d5d69be8db2d6df42ec8352621763222f537644be34a06d5ffb1aaa154373f5",
+      "source": "/tmp/lsp-core-actual-api-compile-repair-v1/manifest.json"
+    },
+    "packets/core-api-fix/repair.patch": {
+      "bytes": 861,
+      "sha256": "408e2c38af2e00ac75616dfbc5ecb059a48435dd897b6ff187f33f646ccaea41",
+      "source": "/tmp/lsp-core-actual-api-compile-repair-v1/repair.patch"
+    },
+    "packets/integration56/COMPOSITION-REVIEW.md": {
+      "bytes": 4514,
+      "sha256": "f211daa8aa283a8995048eba8f8eace0ddc32eecae23e61ecb28c8b85e7d75c1",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/COMPOSITION-REVIEW.md"
+    },
+    "packets/integration56/cleared-type-v6.json": {
+      "bytes": 451,
+      "sha256": "3e5221c61b44cdfdc82e23858f980b059ed28d101b28a74a1f6a383c07748aef",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/cleared-type-v6.json"
+    },
+    "packets/integration56/compose.py": {
+      "bytes": 4593,
+      "sha256": "77d6b6cbb58c53bed172bd6331e6f42a378b8f41b3ecf3db72bc131d9fb18acf",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/compose.py"
+    },
+    "packets/integration56/independent-composition-review-CLEAR.txt": {
+      "bytes": 2993,
+      "sha256": "de85c98513a23ab1d076e1906ffbef0bfe6744ccd8e316bc11a8bb912aa60abe",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/independent-composition-review-CLEAR.txt"
+    },
+    "packets/integration56/manifest.json": {
+      "bytes": 18551,
+      "sha256": "8807a40ca5d6fc4d4c1497472904a164c98b893516b57b01c86767e657ecaa5b",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/manifest.json"
+    },
+    "packets/integration56/next-lsp-source-integration-successor.d7542a23898b222a3a892705bc702ca8d9fab83b83e905acb4276fcd63865fcf.patch": {
+      "bytes": 452693,
+      "sha256": "d7542a23898b222a3a892705bc702ca8d9fab83b83e905acb4276fcd63865fcf",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/next-lsp-source-integration-successor.d7542a23898b222a3a892705bc702ca8d9fab83b83e905acb4276fcd63865fcf.patch"
+    },
+    "packets/integration56/original-test-preservation.json": {
+      "bytes": 564078,
+      "sha256": "277a48bb2bb647c23cd135155e28a687af844c6419a5922a8b568046990e30b4",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/original-test-preservation.json"
+    },
+    "packets/integration56/progress.json": {
+      "bytes": 7154,
+      "sha256": "41daf678840211b460565697c8077d0577c78e9609e393d6aa914214d7ff58ac",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/progress.json"
+    },
+    "packets/integration56/root-formatting.json": {
+      "bytes": 1217,
+      "sha256": "3938c20809c231a7a9ce5cff3d7618df51a8b0f5348812f42f2bd249e004d2d8",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/root-formatting.json"
+    },
+    "packets/integration56/root-integration.json": {
+      "bytes": 763,
+      "sha256": "85b75e85eef1564d2a6d6951f8bf0b5840145435876a5bbbeae26e8097dbca1c",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/root-integration.json"
+    },
+    "packets/integration56/root-prettier.log": {
+      "bytes": 193,
+      "sha256": "fedd6972488cfe9c4cd5ca688eba1497291acfb2d06e61ec1116383454c0a223",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/root-prettier.log"
+    },
+    "packets/integration56/root-rustfmt.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/root-rustfmt.log"
+    },
+    "packets/integration56/semantic-node-preservation.json": {
+      "bytes": 13968,
+      "sha256": "004e285db7251aaa73104cedabc9af8c49640cf7f4bc39f410c53c8a78bf0fb4",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/semantic-node-preservation.json"
+    },
+    "packets/integration56/staged-inputs.json": {
+      "bytes": 1132,
+      "sha256": "db7c13dc8b845dface885e4fb0d55d0540e0482069d39ae2ba39c76bb7ee2ce9",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/staged-inputs.json"
+    },
+    "packets/integration56/verification.json": {
+      "bytes": 28868,
+      "sha256": "1be89e98f31dd8342e134321df789bdd40b19c33882be5e43eb5645fec568733",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/verification.json"
+    },
+    "packets/integration56/verify.py": {
+      "bytes": 9615,
+      "sha256": "f935393d8a58e2f2508697626e6b5da725216dd88d8fd1965ebf6e2fcbc6af76",
+      "source": "/workspace/naming-validation/next-lsp-source-integration-successor-v3/verify.py"
+    },
+    "packets/obsolete-helper-cleanup/manifest.json": {
+      "bytes": 479,
+      "sha256": "438bd982b64bbe7b400b121cca17b18a7fcffa185e9deb338ac7c83530f5dd21",
+      "source": "/tmp/lsp-obsolete-definition-config-cleanup-v1/manifest.json"
+    },
+    "packets/obsolete-helper-cleanup/repair.patch": {
+      "bytes": 917,
+      "sha256": "51b75e47e73f501cfd528740abf99620055f73a5a28e4403f66bb2527fa95f86",
+      "source": "/tmp/lsp-obsolete-definition-config-cleanup-v1/repair.patch"
+    },
+    "preservation-scope.json": {
+      "bytes": 3085,
+      "sha256": "b20ec6383f673aa4cb50c6c505924fbfee250c4ca2e41268665bb66ef17af818",
+      "source": null
+    },
+    "references/excluded-large-inputs.json": {
+      "bytes": 2473,
+      "sha256": "899d1e3b6430844994030b15975ad51b889afe2d9f94100a97ba426d27e65c1e",
+      "source": null
+    },
+    "tools/capture-inputs.json": {
+      "bytes": 32088,
+      "sha256": "9befe4f3b13925dcd0c4f054b28d877cd6647ae82d6c76254ce0e280ad038d15",
+      "source": "/workspace/naming-validation/agent-work/preserve-expression-batch/capture-inputs.json"
+    },
+    "tools/capture.py": {
+      "bytes": 4070,
+      "sha256": "72a809835fa64adc895af4b89ee3754904f4af082c82e13fbf592bc97b5401bf",
+      "source": "/workspace/naming-validation/agent-work/preserve-expression-batch/capture.py"
+    },
+    "tools/root-capture/naming-apply-reviewed-56.py": {
+      "bytes": 2468,
+      "sha256": "bd5a80d47da6682735faf67a33ef38b6b10ed4ec62eeb513a2e292af1a8f9c66",
+      "source": "/tmp/naming-apply-reviewed-56.py"
+    },
+    "tools/root-capture/naming-comment232-gate-diagnostic-v3.py": {
+      "bytes": 5958,
+      "sha256": "b8db5eab2fca11de6433dfe404f49b34f9a7bb9c6f2e61ca34301c3a804325a2",
+      "source": "/tmp/naming-comment232-gate-diagnostic-v3.py"
+    },
+    "tools/root-capture/naming-editor-expression-wasi-hierarchy-repair1.py": {
+      "bytes": 2256,
+      "sha256": "294ab6a5aa1171f53aebca118050be214e9bd4b184f51f94b935ea6cd1c5d4dd",
+      "source": "/tmp/naming-editor-expression-wasi-hierarchy-repair1.py"
+    },
+    "tools/root-capture/naming-editor-expression-wasi-hierarchy.py": {
+      "bytes": 2248,
+      "sha256": "b61834b0bc43cc055b44768531cb6f937452c769913cc3455aa80f56a8e6a060",
+      "source": "/tmp/naming-editor-expression-wasi-hierarchy.py"
+    },
+    "tools/root-capture/naming-next-lsp-catalog-generation-repair1.py": {
+      "bytes": 2586,
+      "sha256": "8234f373ea6dfd2bf37bab7e892d72600b6e46f074bdbb06bbf430f54ddf1df0",
+      "source": "/tmp/naming-next-lsp-catalog-generation-repair1.py"
+    },
+    "tools/root-capture/naming-next-lsp-catalog-generation-repair2.py": {
+      "bytes": 2586,
+      "sha256": "6b99fe9249b10f3de3aed0ccb9c22473fccaa6f71c095a4f617f38b248db28fc",
+      "source": "/tmp/naming-next-lsp-catalog-generation-repair2.py"
+    },
+    "tools/root-capture/naming-next-lsp-catalog-generation.py": {
+      "bytes": 2578,
+      "sha256": "db49ddb6615e76d38bb610a6dc57f5a346304c78c303b9e408979112ed149fcf",
+      "source": "/tmp/naming-next-lsp-catalog-generation.py"
+    },
+    "tools/root-capture/naming-reconcile-lsp-56.py": {
+      "bytes": 10592,
+      "sha256": "735034dd47d219a131a31f7b78277e5c0b206a0f700d9fe3b64897a3f01326e7",
+      "source": "/tmp/naming-reconcile-lsp-56.py"
+    }
+  },
+  "missing_or_unrecovered": [
+    "Prior reported diagnostic V2 49e9f2f... patch and 098fa371... afterimage unavailable; only the explicit mismatch record and retained reviewed7e445891 are preserved.",
+    "No separate independent review or Root integration receipt exists in obsolete-helper-cleanup packet; manifest states Root-authored source-only deletion.",
+    "No separate Root integration/replay receipt exists in conditional-case packet at preservation time; source peer CLEAR only.",
+    "Original pre-correction generator wrapper bytes3f31915e... are not retained separately; correction receipt preserves the prior hash and no-execution setup failure."
+  ],
+  "status": "COMPACT_PRESERVATION_ONLY_NO_NEW_EXECUTION_OR_ACCEPTANCE"
+}

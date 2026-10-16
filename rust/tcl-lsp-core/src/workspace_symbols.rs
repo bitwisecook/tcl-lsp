@@ -32,6 +32,8 @@
 
 use tcl_lexer::Span;
 
+use crate::workspace_index::WorkspaceDiagnosticSourceContext;
+
 /// The most symbols one `workspace/symbol` answer carries.
 ///
 /// VS Code re-issues the request on every keystroke in its Ctrl+T box, and a
@@ -78,12 +80,78 @@ impl From<tcl_registry::DefinedSymbolKind> for WorkspaceSymbolKind {
     }
 }
 
+/// Source-owned location for a Logical workspace-symbol report candidate.
+///
+/// The query label remains presentation only. This receipt retains the exact
+/// indexed document image/configuration/Registry context and original span so
+/// the server can refuse to map that span through different source bytes. It
+/// grants no Native identity, lookup, execution or edit authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalWorkspaceSymbolSource {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    span: Span,
+    document_revision: u64,
+}
+
+impl LogicalWorkspaceSymbolSource {
+    /// Capture one report span from the selected Logical document context.
+    #[must_use]
+    pub(crate) fn capture(
+        uri: impl Into<String>,
+        context: &WorkspaceDiagnosticSourceContext,
+        span: Span,
+        document_revision: u64,
+    ) -> Option<Self> {
+        let uri = uri.into();
+        let image = context.image();
+        (!uri.is_empty()
+            && !context.uses_original_names()
+            && span.start() <= span.end()
+            && (span.end() as usize) <= image.bytes().len())
+        .then_some(Self {
+            uri,
+            context: context.clone(),
+            span,
+            document_revision,
+        })
+    }
+
+    /// Independent URI owner; equal bytes never merge different documents.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Exact indexed byte span owned by the retained report source.
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// Index revision captured with this report source.
+    #[must_use]
+    pub const fn document_revision(&self) -> u64 {
+        self.document_revision
+    }
+
+    /// Whether the source read still names this exact retained Logical image.
+    #[must_use]
+    pub fn matches_source(&self, uri: &str, source: &str) -> bool {
+        self.uri == uri
+            && !self.context.uses_original_names()
+            && self.context.image() == &tcl_lexer::SourceImage::document(source)
+            && (self.span.end() as usize) <= source.len()
+    }
+}
+
 /// One entry in a `workspace/symbol` response.
 ///
 /// The location is a byte [`Span`] in `uri`'s source, not an LSP range: a
-/// range needs the target document's text, which the index does not hold, so
-/// the server resolves it at delivery time — the rule every other
-/// cross-document index answer follows.
+/// range is computed only at delivery time against the target document's
+/// checked current source snapshot. Typed source owners may retain the exact
+/// original image for validation, but they do not supply a mutable display
+/// buffer or replace the independent URI/provider read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedWorkspaceSymbol {
     /// Document the definition is in.
@@ -100,6 +168,8 @@ pub struct IndexedWorkspaceSymbol {
     /// Original source ownership to revalidate before projecting navigation.
     /// None belongs to explicitly logical compatibility records only.
     pub original_location: Option<crate::original_indexed_location::OriginalIndexedSourceLocation>,
+    /// Source-owned Logical compatibility location, distinct from Native facts.
+    pub logical_source: Option<LogicalWorkspaceSymbolSource>,
 }
 
 pub(crate) fn original_symbols(
@@ -138,6 +208,7 @@ pub(crate) fn original_symbols(
                 kind,
                 name_span: card.span(),
                 original_location: Some(location),
+                logical_source: None,
             });
         }
         return symbols;
@@ -193,6 +264,7 @@ pub(crate) fn original_symbols(
             kind,
             name_span: identity.span(),
             original_location: Some(location),
+            logical_source: None,
         });
     }
     if let Some(registry) = analysis.resolved_registry() {
@@ -218,6 +290,7 @@ pub(crate) fn original_symbols(
                 kind: WorkspaceSymbolKind::from(declaration.descriptor().kind),
                 name_span: declaration.span(),
                 original_location: Some(location),
+                logical_source: None,
             });
         }
     }

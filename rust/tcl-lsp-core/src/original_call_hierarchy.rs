@@ -23,7 +23,7 @@ pub fn item(
         return None;
     }
     let body = body_span(identity, document.analysis).unwrap_or(identity.span());
-    let index = LineIndex::new(document.source);
+    let index = LineIndex::new_lsp(document.source);
     Some(CallHierarchyItem {
         name: if matches!(identity.role(), OriginalDeclarationRole::Method(_)) {
             identity
@@ -59,8 +59,15 @@ pub fn prepare(
     let Some(document) = documents.iter().find(|doc| doc.uri == uri) else {
         return Vec::new();
     };
-    let position = LineIndex::new(document.source);
-    let offset = crate::definition::byte_offset_at(&position, document.source, line, character);
+    let Some(position) = crate::original_context::CurrentSourcePosition::capture(
+        document.source,
+        document.analysis,
+        line,
+        character,
+    ) else {
+        return Vec::new();
+    };
+    let offset = position.offset();
     if crate::definition::original_variable_cursor_retained(
         document.source,
         document.analysis,
@@ -151,15 +158,24 @@ pub fn prepare(
             .into_iter()
             .collect();
     }
-    let Some(invocation) = document
+    let Some(calls) = OriginalProcedureCalls::capture(*document) else {
+        return Vec::new();
+    };
+    let Some(command) = calls.at_cursor(offset) else {
+        return Vec::new();
+    };
+    let mut invocations = document
         .analysis
         .command_invocations
         .iter()
-        .find(|inv| inv.range.start() <= offset && offset < inv.range.end())
-    else {
+        .filter(|invocation| invocation.range == command.span);
+    let Some(invocation) = invocations.next() else {
         return Vec::new();
     };
-    let Some(target) = procedure_target(documents, document, invocation) else {
+    if invocations.next().is_some() {
+        return Vec::new();
+    }
+    let Some(target) = procedure_target(documents, &calls, invocation) else {
         return Vec::new();
     };
     documents
@@ -211,11 +227,74 @@ fn enclosing(
         })
 }
 
+struct OriginalProcedureCalls<'a> {
+    document: OriginalCallDocument<'a>,
+    walk: crate::refactor::FrameWalk<'a>,
+    commands: Vec<tcl_compiler::segmenter::SegmentedCommand>,
+}
+impl<'a> OriginalProcedureCalls<'a> {
+    fn capture(document: OriginalCallDocument<'a>) -> Option<Self> {
+        let walk = crate::refactor::FrameWalk::new(document.source, document.analysis)?;
+        let commands = crate::source_structure::SourceSyntaxStructure::capture_commands(
+            document.source,
+            document.analysis,
+        )?;
+        Some(Self {
+            document,
+            walk,
+            commands,
+        })
+    }
+    fn at_cursor(&self, cursor: u32) -> Option<&tcl_compiler::segmenter::SegmentedCommand> {
+        let mut selected = self.commands.iter().filter(|command| {
+            crate::refactor::FrameWalk::native_words(&self.walk, self.document.source, command)
+                .and_then(|words| words.first().map(|word| word.span()))
+                .is_some_and(|span| span.start() <= cursor && cursor < span.end())
+        });
+        let command = selected.next()?;
+        selected.all(|other| other == command).then_some(command)
+    }
+    fn tokens(
+        &self,
+        invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    ) -> Option<tcl_compiler::ir::CommandTokens> {
+        let lookup = invocation.original_lookup.as_ref()?;
+        let mut commands = self.commands.iter().filter(|command| {
+            command.span == invocation.range
+                && command
+                    .argv
+                    .first()
+                    .is_some_and(|head| head.span.start() == lookup.site().offset)
+        });
+        let command = commands.next()?;
+        commands.all(|other| other == command).then_some(())?;
+        Some(crate::refactor::FrameWalk::tokens(
+            &self.walk,
+            self.document.source,
+            command,
+        ))
+    }
+}
+
 fn procedure_target(
     documents: &[OriginalCallDocument<'_>],
-    consumer: &OriginalCallDocument<'_>,
+    calls: &OriginalProcedureCalls<'_>,
     invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
 ) -> Option<OriginalDeclarationIdentity> {
+    let consumer = &calls.document;
+    let tokens = calls.tokens(invocation)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let actual_input = binding.original_head_name_input(&tokens)?;
+    let actual_lookup = binding.original_command_lookup(&tokens, &actual_input)?;
+    if invocation.original_name_input.as_ref() != Some(&actual_input)
+        || invocation.original_lookup.as_ref() != Some(&actual_lookup)
+        || invocation.resolved_command_reference != binding.original_command_reference(&tokens)
+    {
+        return None;
+    }
+    for document in documents {
+        crate::original_context::CurrentSourceContext::capture(document.source, document.analysis)?;
+    }
     let (Some(input), Some(lookup)) =
         (&invocation.original_name_input, &invocation.original_lookup)
     else {
@@ -255,9 +334,9 @@ fn procedure_target(
         let first = matches.next()?;
         return matches.next().is_none().then_some(first);
     }
-    // A reached original lookup may offer a source declaration candidate.
-    // Every class header occupies its slot too; ambiguous/earlier non-procedure
-    // publication is terminal and never becomes a call to a later procedure.
+    // Positioned source advice preserves occupants and unknown observations.
+    // Header coordinates alone cannot supply the missing reference.
+    let registry = consumer.analysis.resolved_registry()?;
     let headers = documents.iter().flat_map(|document| {
         document
             .analysis
@@ -269,7 +348,7 @@ fn procedure_target(
                     document.analysis,
                     row,
                 )
-                .map(|identity| (row.name(), identity))
+                .map(|identity| (row.name(), row.declaration_site(), identity))
             })
             .chain(
                 document
@@ -282,11 +361,11 @@ fn procedure_target(
                             document.analysis,
                             row,
                         )
-                        .map(|identity| (row.name(), identity))
+                        .map(|identity| (row.name(), row.declaration_site(), identity))
                     }),
             )
     });
-    let selected = lookup.matching_publications(headers)?;
+    let selected = lookup.matching_source_advice_publications(registry, headers)?;
     match selected.as_slice() {
         [one] if one.role() == OriginalDeclarationRole::Procedure => Some(one.clone()),
         _ => None,
@@ -342,11 +421,15 @@ fn edges(
         {
             continue;
         }
+        let calls = OriginalProcedureCalls::capture(*document);
         for invocation in &document.analysis.command_invocations {
+            let Some(calls) = calls.as_ref() else {
+                continue;
+            };
             if !invocation.lookup.is_execution_site() {
                 continue;
             }
-            let Some(target) = procedure_target(documents, document, invocation) else {
+            let Some(target) = procedure_target(documents, calls, invocation) else {
                 continue;
             };
             let Some(caller) = enclosing(document, invocation.range) else {
@@ -445,7 +528,7 @@ pub fn incoming(
             let document = documents.iter().find(|doc| doc.uri == caller.uri())?;
             spans.sort_by_key(|span| (span.start(), span.end()));
             spans.dedup();
-            let index = LineIndex::new(document.source);
+            let index = LineIndex::new_lsp(document.source);
             Some((
                 caller.uri().to_owned(),
                 IncomingCall {
@@ -490,7 +573,7 @@ pub fn outgoing(
             let document = documents.iter().find(|doc| doc.uri == target.uri())?;
             spans.sort_by_key(|span| (span.start(), span.end()));
             spans.dedup();
-            let index = LineIndex::new(consumer.source);
+            let index = LineIndex::new_lsp(consumer.source);
             Some((
                 target.uri().to_owned(),
                 OutgoingCall {
@@ -548,9 +631,12 @@ pub fn references(
                 return Vec::new();
             }
             for document in documents {
+                let calls = OriginalProcedureCalls::capture(*document);
                 for invocation in &document.analysis.command_invocations {
-                    if procedure_target(documents, document, invocation).as_ref() == Some(identity)
-                    {
+                    let Some(calls) = calls.as_ref() else {
+                        continue;
+                    };
+                    if procedure_target(documents, calls, invocation).as_ref() == Some(identity) {
                         locations.push((document.uri.to_owned(), invocation.range));
                     }
                 }
@@ -767,5 +853,241 @@ mod own_object_call_tests {
             analysis: &analysis,
         }];
         assert!(incoming(identity, &stale, None).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod positioned_procedure_advice_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn call<'a>(
+        analysis: &'a AnalysisResult,
+        source: &str,
+        written: &str,
+    ) -> &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation {
+        let offset = u32::try_from(source.rfind(written).unwrap()).unwrap();
+        analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == offset)
+            .unwrap()
+    }
+
+    #[test]
+    fn original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers() {
+        let source = "proc caller {} {target value}";
+        let provider_source = "proc target {value} {}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let provider = Analyser::new().analyse(provider_source, "tcl8.6");
+        let documents = [
+            OriginalCallDocument {
+                uri: "file:///caller.tcl",
+                source,
+                analysis: &analysis,
+            },
+            OriginalCallDocument {
+                uri: "file:///target.tcl",
+                source: provider_source,
+                analysis: &provider,
+            },
+        ];
+        let invocation = call(&analysis, source, "target value");
+        assert!(invocation.resolved_command_reference.is_none());
+        assert!(invocation.original_lookup.is_some());
+        let calls = OriginalProcedureCalls::capture(documents[0]).unwrap();
+        let selected = procedure_target(&documents, &calls, invocation).unwrap();
+        assert_eq!(selected.uri(), "file:///target.tcl");
+        assert_eq!(selected.role(), OriginalDeclarationRole::Procedure);
+        assert_eq!(selected.input().unwrap().bytes(), b"target");
+        let mut presentation = invocation.clone();
+        presentation.name = "untrusted report".into();
+        presentation.resolved_qualified_name = Some("::different".into());
+        assert_eq!(
+            procedure_target(&documents, &calls, &presentation),
+            Some(selected)
+        );
+    }
+
+    #[test]
+    fn original_call_fallback_does_not_restore_deleted_or_unknown_occupied_headers() {
+        for source in [
+            "proc ::target args {}; rename ::target {}; proc caller {} {::target value}",
+            "proc ::target args {}; proc caller {} {mystery; ::target value}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let documents = [OriginalCallDocument {
+                uri: "file:///caller.tcl",
+                source,
+                analysis: &analysis,
+            }];
+            let invocation = call(&analysis, source, "::target value");
+            assert!(invocation.resolved_command_reference.is_none(), "{source}");
+            let lookup = invocation.original_lookup.as_ref().unwrap();
+            let geometric = lookup
+                .matching_publications(
+                    analysis
+                        .original_procedure_declarations()
+                        .map(|row| (row.name(), row.declaration_site().clone())),
+                )
+                .unwrap();
+            assert!(
+                !geometric.is_empty(),
+                "the old geometric fallback could nominate this header: {source}"
+            );
+            let calls = OriginalProcedureCalls::capture(documents[0]).unwrap();
+            assert!(
+                procedure_target(&documents, &calls, invocation).is_none(),
+                "{source}"
+            );
+            let target = analysis
+                .original_procedure_declarations()
+                .find(|row| row.name().slot().simple.as_bytes() == b"target")
+                .unwrap();
+            let identity = OriginalDeclarationIdentity::for_procedure(
+                documents[0].uri,
+                source,
+                &analysis,
+                target,
+            )
+            .unwrap();
+            assert!(incoming(&identity, &documents, None).is_empty(), "{source}");
+            assert!(
+                references(&identity, &documents, None).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_call_prepare_requires_written_head_and_strict_current_position() {
+        let source = "proc target {value} {}; target target";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let documents = [OriginalCallDocument {
+            uri: "file:///calls.tcl",
+            source,
+            analysis: &analysis,
+        }];
+        let head = u32::try_from(source.find("target target").unwrap()).unwrap();
+        assert_eq!(
+            prepare(documents[0].uri, 0, head, &documents, None).len(),
+            1
+        );
+        let argument = u32::try_from(source.rfind("target").unwrap()).unwrap();
+        assert!(prepare(documents[0].uri, 0, argument, &documents, None).is_empty());
+        assert!(prepare(documents[0].uri, u32::MAX, 0, &documents, None).is_empty());
+        let stale = [OriginalCallDocument {
+            source: "proc changed {} {}",
+            ..documents[0]
+        }];
+        assert!(prepare(documents[0].uri, 0, head, &stale, None).is_empty());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let missing = [OriginalCallDocument {
+            analysis: &missing,
+            ..documents[0]
+        }];
+        assert!(prepare(documents[0].uri, 0, head, &missing, None).is_empty());
+    }
+
+    #[test]
+    fn original_call_lookup_projection_must_match_the_genuine_current_call() {
+        let source = "proc target {} {}; target";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let foreign = Analyser::new().analyse(source, "tcl9.0");
+        let documents = [OriginalCallDocument {
+            uri: "file:///calls.tcl",
+            source,
+            analysis: &analysis,
+        }];
+        let invocation = call(&analysis, source, "target").clone();
+        let calls = OriginalProcedureCalls::capture(documents[0]).unwrap();
+        assert!(procedure_target(&documents, &calls, &invocation).is_some());
+        let mut changed = invocation.clone();
+        let foreign_call = foreign.command_invocations.last().unwrap();
+        changed
+            .original_name_input
+            .clone_from(&foreign_call.original_name_input);
+        changed
+            .original_lookup
+            .clone_from(&foreign_call.original_lookup);
+        changed
+            .resolved_command_reference
+            .clone_from(&foreign_call.resolved_command_reference);
+        assert!(procedure_target(&documents, &calls, &changed).is_none());
+        let mut missing = invocation;
+        missing.original_lookup = None;
+        assert!(procedure_target(&documents, &calls, &missing).is_none());
+    }
+
+    #[test]
+    fn original_call_ranges_follow_lsp_lone_cr_positions_after_exact_selection() {
+        let source = "proc target {} {};\rtarget";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let documents = [OriginalCallDocument {
+            uri: "file:///calls.tcl",
+            source,
+            analysis: &analysis,
+        }];
+        let selected = prepare(documents[0].uri, 1, 0, &documents, None);
+        assert_eq!(selected.len(), 1);
+        let identity = selected[0].identity.as_ref().unwrap();
+        let incoming = incoming(identity, &documents, None);
+        assert_eq!(incoming.len(), 1);
+        assert_eq!(incoming[0].1.from_ranges[0].start_line, 1);
+        assert_eq!(incoming[0].1.from_ranges[0].end_line, 1);
+    }
+}
+
+#[cfg(test)]
+mod positioned_procedure_strong_reference_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal() {
+        for (source, header, selected) in [
+            (
+                "proc local args {}; interp alias {} forwarded {} local; forwarded value",
+                "proc forwarded args {}",
+                Some(b"local".as_slice()),
+            ),
+            (
+                "proc target args {}; target value",
+                "proc target args {}",
+                Some(b"target".as_slice()),
+            ),
+            ("puts value", "proc puts args {}", None),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let provider = Analyser::new().analyse(header, "tcl8.6");
+            let documents = [
+                OriginalCallDocument {
+                    uri: "file:///caller.tcl",
+                    source,
+                    analysis: &analysis,
+                },
+                OriginalCallDocument {
+                    uri: "file:///foreign.tcl",
+                    source: header,
+                    analysis: &provider,
+                },
+            ];
+            let invocation = analysis.command_invocations.last().unwrap();
+            assert!(invocation.resolved_command_reference.is_some(), "{source}");
+            let calls = OriginalProcedureCalls::capture(documents[0]).unwrap();
+            let actual = procedure_target(&documents, &calls, invocation);
+            assert_eq!(
+                actual
+                    .as_ref()
+                    .and_then(|identity| identity.input())
+                    .map(|input| input.bytes()),
+                selected,
+                "{source}"
+            );
+            if let Some(identity) = actual {
+                assert_eq!(identity.uri(), documents[0].uri);
+            }
+        }
     }
 }

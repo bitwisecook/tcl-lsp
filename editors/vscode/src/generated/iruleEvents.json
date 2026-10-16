@@ -318,7 +318,8 @@
       "name": "HTTP_REQUEST",
       "description": "Fires when request headers are fully parsed (pre-LB). On keep-alive connections, fires once per HTTP transaction. Pipeline: L7 iRules layer.",
       "common": true,
-      "hot": true
+      "hot": true,
+      "introducedVersion": "9.0.0"
     },
     {
       "name": "HTTP_REQUEST_DATA",

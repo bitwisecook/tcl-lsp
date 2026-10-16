@@ -1754,6 +1754,7 @@ impl DocumentRecords {
                     kind: WorkspaceSymbolKind::Function,
                     name_span: proc_def.name_span,
                     original_location: None,
+                    logical_source: None,
                 });
             }
         }
@@ -1774,6 +1775,7 @@ impl DocumentRecords {
                     kind: WorkspaceSymbolKind::Class,
                     name_span: class_def.name_span,
                     original_location: None,
+                    logical_source: None,
                 });
             }
             // Members carry the class's qualified name as their container, so
@@ -1801,6 +1803,7 @@ impl DocumentRecords {
                         kind: WorkspaceSymbolKind::Method,
                         name_span: em.name_span,
                         original_location: None,
+                        logical_source: None,
                     });
                 }
             }
@@ -1816,6 +1819,7 @@ impl DocumentRecords {
                         kind: WorkspaceSymbolKind::Constructor,
                         name_span,
                         original_location: None,
+                        logical_source: None,
                     });
                 }
             }
@@ -1834,6 +1838,7 @@ impl DocumentRecords {
                     kind: WorkspaceSymbolKind::from(sym.kind),
                     name_span: sym.name_span,
                     original_location: None,
+                    logical_source: None,
                 });
             }
         }
@@ -4414,6 +4419,30 @@ impl WorkspaceIndex {
                 continue;
             }
             doc.collect_symbols_matching(&lower_query, limit, &retractions, &mut out);
+        }
+        // Logical compatibility rows are report candidates, not source facts.
+        // Reattach the actual target document's retained source/config/Registry
+        // context so the server can map their original spans only against that
+        // exact image. Cross-document effective-member rows use the arrival
+        // document's own context, not the class record that contributed them.
+        for symbol in &mut out {
+            if symbol.original_location.is_some() {
+                continue;
+            }
+            let Some(slot) = self.slots.get(&symbol.uri) else {
+                continue;
+            };
+            let Some(document) = self.docs.get(*slot) else {
+                continue;
+            };
+            symbol.logical_source = document.diagnostic_source.as_ref().and_then(|context| {
+                crate::workspace_symbols::LogicalWorkspaceSymbolSource::capture(
+                    symbol.uri.clone(),
+                    context,
+                    symbol.name_span,
+                    document.revision,
+                )
+            });
         }
         out
     }
@@ -14244,11 +14273,25 @@ mod original_settlement_transport_tests {
         let symbols = index.symbols_matching("visible", 100);
         assert_eq!(symbols.len(), 1);
         assert!(symbols[0].original_location.is_none());
+        let logical_source = symbols[0]
+            .logical_source
+            .as_ref()
+            .expect("Logical report candidate retains its source image and config");
+        assert_eq!(logical_source.uri(), uri);
+        assert_eq!(logical_source.span(), symbols[0].name_span);
+        assert_eq!(
+            logical_source.document_revision(),
+            index.document_revision(uri).unwrap()
+        );
+        assert!(logical_source.matches_source(uri, source));
+        assert!(!logical_source.matches_source(uri, "proc other {} {}"));
+        assert!(!logical_source.matches_source("file:///other.tcl", source));
         let native = Analyser::new().analyse(source, "tcl8.6");
         index.replace_document(uri, &native);
         let symbols = index.symbols_matching("visible", 100);
         assert_eq!(symbols.len(), 1);
         assert!(symbols[0].original_location.is_some());
+        assert!(symbols[0].logical_source.is_none());
         for mut refused in [logical, native] {
             assert!(!refused.all_procs.is_empty());
             refused.resolved_input = None;

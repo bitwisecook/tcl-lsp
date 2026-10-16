@@ -1,0 +1,32 @@
+{
+  "purpose": "lsp-editor-explorer-source-currentness",
+  "version": 5,
+  "status": "source-candidate; independent source review clear; metadata corrected; no build/test/execution claim",
+  "supersedes": "V4 source patch bytes unchanged; metadata wording corrected to match documented in-flight readonly projection display behavior",
+  "files": [
+    {
+      "path": "editors/vscode/src/compilerExplorer.ts",
+      "before_sha256": "5d8800fc7381601b193748ecae11a3e6bdcb68223c8589e2d619ad7e70c677c1",
+      "after_sha256": "32a0592c36b5b4d27617e000e20e450b4c1d10e905a39c56a6edbe35b7765af3"
+    },
+    {
+      "path": "editors/vscode/src/compilerExplorerHtml.ts",
+      "before_sha256": "0c467a4074b41be838d86b7518bd21e9193ca71ab89b12c7085cf40996d969d6",
+      "after_sha256": "45a3af0492ab2041726e99e0f855ba552ed35068d3b8bcefd95f12077116962f"
+    },
+    {
+      "path": "docs/design/contracts/wasm-explorer-view.md",
+      "before_sha256": "a6314d6d3a49bc93c0e328e8ee53bff628fde6c673d5ceea074e6000cb648407",
+      "after_sha256": "833c78540cf1ad32f6dbd849b309ef8de3e4713eef7026c7bfda94eab8f94d55"
+    }
+  ],
+  "reviewed_constraints": [
+    "explicit source+dialect compilation remains standalone; no Registry/project-input claim",
+    "exact current editor snapshot is a readonly navigation witness only",
+    "superseded compile results are rejected; stale projection/highlight navigation is rejected by source/panel/compile leases",
+    "UTF-16 renderer coordinates only; byte offsets remain bounds-only",
+    "old webview callbacks are bound to registering panel and generation",
+    "an already-in-flight readonly VS Code show operation may finish after lease expiry; source navigation remains revoked",
+    "no main-repository edits; no build/tests run"
+  ]
+}

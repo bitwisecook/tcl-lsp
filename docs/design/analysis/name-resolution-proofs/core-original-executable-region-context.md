@@ -119,3 +119,24 @@ These results belong only to the retained source347 body/question pairs and thei
 The owning Core image executes 1 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
 
 [Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.
+
+
+## Checked potential-source coverage
+
+`visit_checked_analysis_executable_commands` keeps the ordinary positive PotentialEvaluation traversal and adds an independently retained `SourceSyntaxCoverage` receipt under the same whole original source, complete resolved input, full configuration, actual Registry and Realm. Complete requires the shared source-syntax coverage to be complete, every checked script region with its original depth to have been visited, and every checked original command's complete token vector at its original span to have been observed. These coordinate/vector joins establish source inventory coverage only; no reported head string supplies identity or source boundaries. They do not establish command dispatch, an entered body/frame, a callable result, a complete runtime reference inventory, Native authority or an edit recipe.
+
+The checked outcome distinguishes Complete, Incomplete, Stopped and Unavailable. Positive observations survive unrelated unavailable roles/body geometry, expression/lambda representation, parse tails or depth debt as Incomplete; missing whole-source/input ownership is Unavailable and consumer early exit is Stopped. Shared syntax may contain more regions than potential evaluation, particularly ReferenceOnly bodies. Such syntax never becomes potential evaluation by borrowing coverage: an unvisited region, even an empty body, makes checked potential coverage Incomplete. The original positive visitor and innermost cursor selector keep their original source purposes.
+
+`namespace_rename_hazard` uses this checked traversal. A discovered source hazard retains its existing reason. A hazard negative requires Complete; Incomplete, Stopped or Unavailable withholds rename with a source-coverage refusal. No missing phase is treated as an empty inventory, and none of these source-only conditions proves runtime completeness or authorises an edit independently of the existing rename gates. Previously unproved source coverage may therefore expose an original rename expectation; its assertion remains unchanged and requires an actual ordinary result rather than a weaker predicate.
+
+Additional fixed source controls (not executed here):
+
+- `executable_regions::checked_potential_source_tests::checked_potential_source_retains_complete_nested_and_empty_inventories`: genuine empty/direct/substitution/body source inventory under actual Tcl8.6/9.0 inputs.
+- `executable_regions::checked_potential_source_tests::checked_potential_source_keeps_positives_with_unknown_body_and_parse_debt`: unknown handler, dynamic body/lambda and parse debt retain a prior authentic positive and cannot issue Complete.
+- `executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete`: a fixed 258-level selected-body input retains depth debt and positive outer observations.
+- `executable_regions::checked_potential_source_tests::checked_potential_source_stops_without_issuing_complete_coverage`: a real early visitor stop remains Stopped.
+- `executable_regions::checked_potential_source_tests::checked_potential_source_refuses_foreign_source_input_and_full_configuration`: changed source, full configuration and missing/foreign input refuse before observations.
+- `executable_regions::checked_potential_source_tests::checked_potential_source_cannot_borrow_reference_only_even_empty_regions`: an actual configured ReferenceOnly descriptor retains syntax coverage separately from potential evaluation, including an empty body.
+- `namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage`: actual negative hazard callers retain simple complete positives and refuse unrepresented source/body/lambda coverage.
+
+All original test fixtures, selectors, assertions and budgets remain byte-identical. This implements the existing `lsp-potential-source-region-walker` shared-owner requirement and its negative-coverage adopter; it does not implement the separate partial expression cursor grammar or Logical math target requirements, create a new per-helper work item, or attach current execution results to the historical evidence above.

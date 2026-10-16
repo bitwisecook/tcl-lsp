@@ -536,7 +536,9 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
 #[path = "checked.rs"]
 mod checked;
 
-pub(super) use checked::parse_source_expression_checked;
+pub(super) use checked::{
+    parse_source_expression_checked, parse_source_expression_checked_with_config,
+};
 
 pub use checked::{
     CheckedExprParse, ExprParseContext, ExprParseUnsupported, ExprSyntaxFailure,

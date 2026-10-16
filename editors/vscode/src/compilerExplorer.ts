@@ -21,22 +21,26 @@ import * as fs from "fs";
 import * as path from "path";
 import { LanguageClient } from "vscode-languageclient/node";
 import { getWebviewHtml } from "./compilerExplorerHtml";
+import {
+  snapshotDocumentSource,
+  isDocumentSourceSnapshotCurrent,
+  type DocumentSourceSnapshot,
+} from "./chat/codeUtils";
 import { getActiveDialect, getClient, isTclLanguage } from "./extension";
 
 let panel: vscode.WebviewPanel | undefined;
+let panelGeneration = 0;
+let nextPanelGeneration = 0;
+let nextSourceBinding = 0;
+let nextCompileToken = 0;
+let currentSourceBinding: ExplorerSourceBinding | undefined;
+let latestCompileToken: string | undefined;
+let activeCompile: CompileLease | undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-
-/** Track which editor's document we last compiled so we can highlight in it. */
-let explorerEditor: vscode.TextEditor | undefined;
 
 /** Webview readiness handshake to avoid dropping sourceUpdate during startup. */
 let webviewReady = false;
-let pendingSourceUpdate:
-  | {
-      source: string;
-      dialect: string;
-    }
-  | undefined;
+let pendingSourceUpdate: SourceUpdate | undefined;
 let compileFallbackTimer: ReturnType<typeof setTimeout> | undefined;
 let compileRequestSeq = 0;
 let compileCompletedSeq = 0;
@@ -74,11 +78,34 @@ const PROJECTION_SCHEME = "tcl-explorer";
  * replaced whenever the view is re-opened, which is what makes a re-open pick
  * up an edited source.
  */
+interface ExplorerSourceBinding {
+  readonly id: string;
+  readonly panelGeneration: number;
+  readonly snapshot: DocumentSourceSnapshot;
+}
+
+interface SourceUpdate {
+  readonly source: string;
+  readonly dialect: string;
+  readonly binding: ExplorerSourceBinding;
+  readonly compile: boolean;
+  readonly compileToken?: string;
+}
+
+interface CompileLease {
+  readonly token: string;
+  readonly panelGeneration: number;
+  readonly requestSeq: number;
+  readonly source: string;
+  readonly dialect: string;
+  readonly binding?: ExplorerSourceBinding;
+}
+
 interface Projection {
   text: string;
   lines: (ExplorerRange | null)[];
-  /** The file the projection was rendered from. */
-  source: vscode.Uri | undefined;
+  /** Present only when exact current editor bytes own the mapped ranges. */
+  binding?: ExplorerSourceBinding;
 }
 
 /** A span in the two coordinate systems `range_dict` emits. */
@@ -92,6 +119,101 @@ interface ExplorerRange {
 }
 
 const projections = new Map<string, Projection>();
+
+function createSourceUpdate(
+  editor: vscode.TextEditor,
+  compile = true,
+  compileToken?: string,
+): SourceUpdate {
+  const snapshot = snapshotDocumentSource(editor.document);
+  const binding: ExplorerSourceBinding = {
+    id: `${panelGeneration}:${++nextSourceBinding}`,
+    panelGeneration,
+    snapshot,
+  };
+  currentSourceBinding = binding;
+  latestCompileToken = compileToken;
+  activeCompile = undefined;
+  ++compileRequestSeq;
+  return {
+    source: snapshot.fullSource,
+    dialect: getActiveDialect(),
+    binding,
+    compile,
+    compileToken,
+  };
+}
+
+function isSourceBindingCurrent(binding: ExplorerSourceBinding): boolean {
+  const snapshot = binding.snapshot;
+  return (
+    panel !== undefined &&
+    binding.panelGeneration === panelGeneration &&
+    currentSourceBinding === binding &&
+    isDocumentSourceSnapshotCurrent(snapshot)
+  );
+}
+
+function bindingForMessage(
+  sourceToken: unknown,
+  source: string,
+): ExplorerSourceBinding | undefined {
+  const binding = currentSourceBinding;
+  return binding &&
+    typeof sourceToken === "string" &&
+    sourceToken === binding.id &&
+    source === binding.snapshot.fullSource
+    ? binding
+    : undefined;
+}
+
+function sameUri(left: vscode.Uri, right: vscode.Uri): boolean {
+  return left.toString() === right.toString();
+}
+
+function isExplorerRange(value: unknown): value is ExplorerRange {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const range = value as Record<string, unknown>;
+  return ["startLine", "startColUtf16", "endLine", "endColUtf16", "startOffset", "endOffset"].every(
+    (key) => typeof range[key] === "number" && Number.isSafeInteger(range[key]),
+  );
+}
+
+function beginCompile(
+  token: string,
+  source: string,
+  dialect: string,
+  binding?: ExplorerSourceBinding,
+): CompileLease {
+  const lease: CompileLease = {
+    token,
+    panelGeneration,
+    requestSeq: ++compileRequestSeq,
+    source,
+    dialect,
+    binding,
+  };
+  latestCompileToken = token;
+  activeCompile = lease;
+  return lease;
+}
+
+function isCompileLeaseCurrent(lease: CompileLease): boolean {
+  return (
+    panel !== undefined &&
+    lease.panelGeneration === panelGeneration &&
+    activeCompile === lease &&
+    lease.requestSeq === compileRequestSeq &&
+    latestCompileToken === lease.token &&
+    (!lease.binding || isSourceBindingCurrent(lease.binding))
+  );
+}
+
+function isCurrentProjectionBinding(binding: ExplorerSourceBinding | undefined): boolean {
+  return binding !== undefined && isSourceBindingCurrent(binding);
+}
 
 /**
  * Serves the projection panes.
@@ -142,14 +264,25 @@ export function registerCompilerExplorerProjections(context: vscode.ExtensionCon
 async function revealFromProjection(uri: vscode.Uri, line: number): Promise<void> {
   const projection = projections.get(uri.toString());
   const range = projection?.lines[line];
-  if (!projection?.source || !range) {
+  const binding = projection?.binding;
+  if (!binding || !range || !isCurrentProjectionBinding(binding)) {
     return;
   }
-  const document = await vscode.workspace.openTextDocument(projection.source);
-  const target = new vscode.Range(
-    new vscode.Position(range.startLine, range.startColUtf16),
-    new vscode.Position(range.endLine, range.endColUtf16),
-  );
+  const snapshot = binding.snapshot;
+  const sourceDocument = snapshot.document;
+  const target = explorerRangeToRange(range, sourceDocument);
+  if (!target) {
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(snapshot.uri);
+  if (
+    !isCurrentProjectionBinding(binding) ||
+    !sameUri(document.uri, snapshot.uri) ||
+    document.version !== snapshot.version ||
+    document.getText() !== snapshot.fullSource
+  ) {
+    return;
+  }
   // `preserveFocus` so the caret stays in the projection the user is reading:
   // arrowing down a projection should walk the source alongside it, not tear
   // focus away on every keypress.
@@ -157,8 +290,47 @@ async function revealFromProjection(uri: vscode.Uri, line: number): Promise<void
     viewColumn: vscode.ViewColumn.One,
     preserveFocus: true,
   });
+  if (!isCurrentProjectionBinding(binding) || editor.document !== document) {
+    return;
+  }
   editor.setDecorations(highlightDecoration, [target]);
   editor.revealRange(target, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+function explorerRangeToRange(
+  range: ExplorerRange,
+  document: vscode.TextDocument,
+): vscode.Range | undefined {
+  const coordinates = [range.startLine, range.startColUtf16, range.endLine, range.endColUtf16];
+  if (
+    !coordinates.every(Number.isSafeInteger) ||
+    range.startOffset < 0 ||
+    range.endOffset < range.startOffset ||
+    range.endOffset > Buffer.byteLength(document.getText(), "utf8")
+  ) {
+    return undefined;
+  }
+  if (
+    range.startLine < 0 ||
+    range.endLine < range.startLine ||
+    range.endLine >= document.lineCount
+  ) {
+    return undefined;
+  }
+  const start = new vscode.Position(range.startLine, range.startColUtf16);
+  const end = new vscode.Position(range.endLine, range.endColUtf16);
+  const startLine = document.lineAt(start.line);
+  const endLine = document.lineAt(end.line);
+  if (
+    start.character < 0 ||
+    end.character < 0 ||
+    start.character > startLine.text.length ||
+    end.character > endLine.text.length ||
+    document.offsetAt(end) < document.offsetAt(start)
+  ) {
+    return undefined;
+  }
+  return new vscode.Range(start, end);
 }
 
 /**
@@ -169,24 +341,38 @@ async function openProjection(
   label: string,
   source: string,
   dialect: string,
+  sourceToken: unknown,
+  compileToken: unknown,
 ): Promise<void> {
   const client = getClient();
-  if (!client) {
-    void vscode.window.showWarningMessage(
-      "Tcl LSP: the language server is not running, so the view cannot be rendered.",
-    );
+  const lease = activeCompile;
+  if (
+    !client ||
+    !lease ||
+    typeof compileToken !== "string" ||
+    lease.token !== compileToken ||
+    !isCompileLeaseCurrent(lease) ||
+    source !== lease.source ||
+    dialect !== lease.dialect
+  ) {
     return;
   }
-  // Captured before the await: `explorerEditor` follows the active editor, so
-  // switching files while the render is in flight would otherwise pair this
-  // view's line map with a document it was not rendered from, and every caret
-  // move in the projection would reveal an unrelated span there.
-  const origin = explorerEditor?.document.uri;
+  const binding = lease.binding;
+  const exactBinding =
+    binding &&
+    sourceToken === binding.id &&
+    source === binding.snapshot.fullSource &&
+    isCurrentProjectionBinding(binding)
+      ? binding
+      : undefined;
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.compilerExplorerView",
     arguments: [source, dialect, view],
   })) as { text?: string; lines?: (ExplorerRange | null)[]; error?: string };
 
+  if (!isCompileLeaseCurrent(lease)) {
+    return;
+  }
   if (!result || result.error || typeof result.text !== "string") {
     void vscode.window.showWarningMessage(
       `Tcl LSP: could not render the ${label} view${result?.error ? `: ${result.error}` : ""}.`,
@@ -194,20 +380,31 @@ async function openProjection(
     return;
   }
 
-  // One stable URI per view, so re-opening replaces the pane's contents
-  // instead of stacking tabs. The label rides in the path because that is what
-  // the tab shows.
   const uri = vscode.Uri.parse(
     `${PROJECTION_SCHEME}:${view}.tcl-explorer?${encodeURIComponent(label)}`,
   );
+  const lines = Array.isArray(result.lines) ? result.lines : [];
+  const safeLines =
+    exactBinding && lines.length === result.text.split("\n").length
+      ? lines.map((range) =>
+          range === null
+            ? null
+            : isExplorerRange(range) && explorerRangeToRange(range, exactBinding.snapshot.document)
+              ? range
+              : null,
+        )
+      : [];
   projections.set(uri.toString(), {
     text: result.text,
-    lines: result.lines ?? [],
-    source: origin,
+    lines: safeLines,
+    binding: exactBinding,
   });
   projectionProvider.refresh(uri);
 
   const document = await vscode.workspace.openTextDocument(uri);
+  if (!isCompileLeaseCurrent(lease)) {
+    return;
+  }
   await vscode.window.showTextDocument(document, {
     viewColumn: vscode.ViewColumn.Beside,
     preview: false,
@@ -226,17 +423,23 @@ export function openCompilerExplorer(): void {
     return;
   }
 
-  panel = vscode.window.createWebviewPanel(
+  const registeredPanel = vscode.window.createWebviewPanel(
     "tclCompilerExplorer",
     "Tcl Compiler Explorer",
     { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
     { enableScripts: true, retainContextWhenHidden: true },
   );
+  panel = registeredPanel;
+  const registeredGeneration = ++nextPanelGeneration;
+  panelGeneration = registeredGeneration;
+  currentSourceBinding = undefined;
+  latestCompileToken = undefined;
+  activeCompile = undefined;
 
   webviewReady = false;
   pendingSourceUpdate = undefined;
 
-  panel.webview.onDidReceiveMessage(
+  registeredPanel.webview.onDidReceiveMessage(
     async (msg: {
       type: string;
       source?: string;
@@ -255,7 +458,14 @@ export function openCompilerExplorer(): void {
       lineno?: number;
       colno?: number;
       panes?: string[];
+      sourceToken?: string;
+      compileToken?: string;
+      compile?: boolean;
+      hostRequestSeq?: number;
     }) => {
+      if (panel !== registeredPanel || panelGeneration !== registeredGeneration) {
+        return;
+      }
       console.log(`[compiler-explorer] webview message: ${msg.type}`);
       if (msg.type === "ready") {
         // Webview JS has loaded and is ready to receive messages.
@@ -265,18 +475,62 @@ export function openCompilerExplorer(): void {
         } else {
           pushSourceFromActiveEditor();
         }
-      } else if (msg.type === "compile" && msg.source) {
+      } else if (msg.type === "compileCurrentnessCheck" && typeof msg.compileToken === "string") {
+        const lease = activeCompile;
+        const sourceTokenMatches = lease?.binding
+          ? msg.sourceToken === lease.binding.id
+          : msg.sourceToken === undefined;
+        const accepted =
+          lease !== undefined &&
+          lease.token === msg.compileToken &&
+          sourceTokenMatches &&
+          isCompileLeaseCurrent(lease);
+        void registeredPanel.webview.postMessage({
+          type: accepted ? "compileCurrentnessAccepted" : "compileCurrentnessRejected",
+          compileToken: msg.compileToken,
+          hostRequestSeq: lease?.requestSeq,
+        });
+      } else if (msg.type === "compileStarted" && typeof msg.source === "string") {
+        const sourceBinding = currentSourceBinding;
+        if (
+          (sourceBinding &&
+            (msg.sourceToken !== sourceBinding.id ||
+              msg.source !== sourceBinding.snapshot.fullSource)) ||
+          (!sourceBinding && msg.sourceToken !== undefined)
+        ) {
+          return;
+        }
+        if (typeof msg.compileToken !== "string") {
+          return;
+        }
         if (compileFallbackTimer) {
           clearTimeout(compileFallbackTimer);
           compileFallbackTimer = undefined;
         }
-        const requestSeq = ++compileRequestSeq;
-        await runCompile(msg.source, msg.dialect ?? getActiveDialect(), requestSeq);
-      } else if (
-        msg.type === "highlightSource" &&
-        msg.start !== undefined &&
-        msg.end !== undefined
-      ) {
+        beginCompile(
+          msg.compileToken,
+          msg.source,
+          msg.dialect ?? getActiveDialect(),
+          bindingForMessage(msg.sourceToken, msg.source),
+        );
+      } else if (msg.type === "compile" && typeof msg.source === "string") {
+        const lease = activeCompile;
+        if (
+          !lease ||
+          lease.token !== msg.compileToken ||
+          lease.source !== msg.source ||
+          lease.dialect !== (msg.dialect ?? getActiveDialect()) ||
+          !isCompileLeaseCurrent(lease)
+        ) {
+          return;
+        }
+        await runCompile(lease);
+      } else if (msg.type === "compileComplete" && typeof msg.compileToken === "string") {
+        const lease = activeCompile;
+        if (lease?.token === msg.compileToken && isCompileLeaseCurrent(lease)) {
+          finishCompile(lease, true);
+        }
+      } else if (msg.type === "highlightSource") {
         highlightSourceRange(msg);
       } else if (
         msg.type === "openProjection" &&
@@ -288,9 +542,11 @@ export function openCompilerExplorer(): void {
           typeof msg.label === "string" ? msg.label : msg.view,
           msg.source,
           typeof msg.dialect === "string" ? msg.dialect : getActiveDialect(),
+          msg.sourceToken,
+          msg.compileToken,
         );
       } else if (msg.type === "clearHighlight") {
-        clearSourceHighlight();
+        clearSourceHighlight(msg.sourceToken, msg.compileToken);
       } else if (msg.type === "coreError") {
         console.error(`[compiler-explorer] core load error: ${msg.message ?? "unknown"}`);
         if (msg.stack) {
@@ -319,9 +575,15 @@ export function openCompilerExplorer(): void {
     },
   );
 
-  panel.onDidDispose(() => {
+  registeredPanel.onDidDispose(() => {
+    if (panel !== registeredPanel || panelGeneration !== registeredGeneration) {
+      return;
+    }
     panel = undefined;
-    explorerEditor = undefined;
+    currentSourceBinding = undefined;
+    latestCompileToken = undefined;
+    activeCompile = undefined;
+    projections.clear();
     if (debounceTimer) {
       clearTimeout(debounceTimer);
       debounceTimer = undefined;
@@ -351,7 +613,7 @@ export function openCompilerExplorer(): void {
       console.error("[compiler-explorer] Failed to write debug HTML:", err);
     }
   }
-  panel.webview.html = html;
+  registeredPanel.webview.html = html;
 }
 
 /** Switch the compiler explorer webview to a specific tab. */
@@ -386,21 +648,31 @@ export async function forceCompileFromActiveEditor(): Promise<boolean> {
     return false;
   }
 
-  const update = {
-    source: editor.document.getText(),
-    dialect: getActiveDialect(),
-  };
-  explorerEditor = editor;
+  const compilePanel = panel;
+  const compileGeneration = panelGeneration;
+  const compileToken = `force:${panelGeneration}:${++nextCompileToken}`;
+  const update = createSourceUpdate(editor, false, compileToken);
   pendingSourceUpdate = update;
-
-  const delivered = await panel.webview.postMessage({
+  const delivered = await compilePanel.webview.postMessage({
     type: "sourceUpdate",
     source: update.source,
     dialect: update.dialect,
+    sourceToken: update.binding.id,
+    compile: false,
+    compileToken,
   });
-  const requestSeq = ++compileRequestSeq;
-  await runCompile(update.source, update.dialect, requestSeq);
-  pendingSourceUpdate = undefined;
+  if (
+    panel !== compilePanel ||
+    panelGeneration !== compileGeneration ||
+    currentSourceBinding !== update.binding
+  ) {
+    return delivered;
+  }
+  const lease = beginCompile(compileToken, update.source, update.dialect, update.binding);
+  await runCompile(lease);
+  if (pendingSourceUpdate === update) {
+    pendingSourceUpdate = undefined;
+  }
   return delivered;
 }
 
@@ -434,73 +706,108 @@ function pushSourceFromActiveEditor(): void {
   if (!editor || !panel) {
     return;
   }
-  explorerEditor = editor;
-  postSourceUpdate({
-    source: editor.document.getText(),
-    dialect: getActiveDialect(),
-  });
+  postSourceUpdate(createSourceUpdate(editor));
 }
 
-function postSourceUpdate(update: { source: string; dialect: string }): void {
+function postSourceUpdate(update: SourceUpdate): void {
   if (!panel) {
     return;
   }
   pendingSourceUpdate = update;
-  if (!webviewReady) {
-    // Optimistically send once before ready — some webview loads accept this
-    // early. Keep `pendingSourceUpdate` intact so ready-time replay still
-    // happens if this message is dropped.
-    const requestSeq = ++compileRequestSeq;
+  const send = (keepPending: boolean) => {
+    if (!panel || currentSourceBinding !== update.binding) {
+      return;
+    }
+    void panel.webview
+      .postMessage({
+        type: "sourceUpdate",
+        source: update.source,
+        dialect: update.dialect,
+        sourceToken: update.binding.id,
+        compile: update.compile,
+        compileToken: update.compileToken,
+      })
+      .then((delivered) => {
+        if (delivered && !keepPending && pendingSourceUpdate === update) {
+          pendingSourceUpdate = undefined;
+        }
+      });
+  };
+  const scheduleFallback = (delay: number) => {
     if (compileFallbackTimer) {
       clearTimeout(compileFallbackTimer);
     }
     compileFallbackTimer = setTimeout(() => {
-      if (!panel || compileCompletedSeq >= requestSeq) {
+      compileFallbackTimer = undefined;
+      if (!panel || currentSourceBinding !== update.binding || latestCompileToken !== undefined) {
         return;
       }
-      console.log("[compiler-explorer] Forcing compile fallback before webview ready");
-      void runCompile(update.source, update.dialect, requestSeq);
-    }, 1_200);
-    void panel.webview.postMessage({
-      type: "sourceUpdate",
-      source: update.source,
-      dialect: update.dialect,
-    });
+      const token = `fallback:${update.binding.id}:${++nextCompileToken}`;
+      const lease = beginCompile(token, update.source, update.dialect, update.binding);
+      const targetPanel = panel;
+      if (!targetPanel) return;
+      void targetPanel.webview
+        .postMessage({
+          type: "compileFallbackStarted",
+          source: update.source,
+          dialect: update.dialect,
+          sourceToken: update.binding.id,
+          compileToken: token,
+        })
+        .then(() => {
+          if (isCompileLeaseCurrent(lease)) void runCompile(lease);
+        });
+    }, delay);
+  };
+
+  if (!webviewReady) {
+    // Keep the captured source and binding for the ready-time replay if the
+    // optimistic message is dropped during startup.
+    send(true);
+    if (update.compile) scheduleFallback(1_200);
     return;
   }
-  if (compileFallbackTimer) {
-    clearTimeout(compileFallbackTimer);
-  }
-  const requestSeq = ++compileRequestSeq;
-  compileFallbackTimer = setTimeout(() => {
-    // Some webview boots never emit compile after sourceUpdate; force one so
-    // the explorer cannot stay stuck on "Waiting for source from editor...".
-    if (!panel || compileCompletedSeq >= requestSeq) {
-      return;
-    }
-    console.log("[compiler-explorer] Forcing compile fallback after sourceUpdate");
-    void runCompile(update.source, update.dialect, requestSeq);
-  }, 900);
-  void panel.webview
-    .postMessage({ type: "sourceUpdate", source: update.source, dialect: update.dialect })
-    .then((delivered) => {
-      if (delivered && pendingSourceUpdate === update) {
-        pendingSourceUpdate = undefined;
-      }
-    });
+
+  if (update.compile) scheduleFallback(900);
+  send(false);
 }
 
 /**
- * Highlight the source span the webview is hovering.
- *
- * The explorer's `startOffset`/`endOffset` count **bytes** (the payload's
- * columns come from `LineIndex::position_at`, which returns a byte column),
- * while `Position` and `positionAt` are UTF-16. Feeding one to the other is
- * correct only for ASCII and drifts by one position per non-ASCII byte
- * thereafter, so prefer the UTF-16 line/column pair the payload now carries
- * and keep the offsets as the fallback for an older payload.
+ * Accept only the renderer's paired UTF-16 coordinates. Byte offsets are
+ * bounded against the exact source snapshot separately and are never lifted
+ * into VS Code positions locally.
  */
+function utf16Range(
+  document: vscode.TextDocument,
+  startLine: unknown,
+  startCol: unknown,
+  endLine: unknown,
+  endCol: unknown,
+): vscode.Range | undefined {
+  const coordinates = [startLine, startCol, endLine, endCol];
+  if (!coordinates.every((value) => typeof value === "number" && Number.isSafeInteger(value))) {
+    return undefined;
+  }
+  const start = new vscode.Position(startLine as number, startCol as number);
+  const end = new vscode.Position(endLine as number, endCol as number);
+  if (
+    start.line < 0 ||
+    end.line < start.line ||
+    end.line >= document.lineCount ||
+    start.character < 0 ||
+    end.character < 0 ||
+    start.character > document.lineAt(start.line).text.length ||
+    end.character > document.lineAt(end.line).text.length ||
+    document.offsetAt(end) < document.offsetAt(start)
+  ) {
+    return undefined;
+  }
+  return new vscode.Range(start, end);
+}
+
 function highlightSourceRange(msg: {
+  sourceToken?: string;
+  compileToken?: string;
   start?: number;
   end?: number;
   startLine?: number;
@@ -508,67 +815,112 @@ function highlightSourceRange(msg: {
   endLine?: number;
   endCol?: number;
 }): void {
-  const editor = explorerEditor;
+  const binding = currentSourceBinding;
+  const lease = activeCompile;
+  if (
+    !binding ||
+    !lease ||
+    lease.binding !== binding ||
+    msg.sourceToken !== binding.id ||
+    msg.compileToken !== latestCompileToken ||
+    !isCompileLeaseCurrent(lease) ||
+    !isSourceBindingCurrent(binding)
+  ) {
+    return;
+  }
+  const document = binding.snapshot.document;
+  if (
+    !Number.isSafeInteger(msg.start) ||
+    !Number.isSafeInteger(msg.end) ||
+    (msg.start as number) < 0 ||
+    (msg.end as number) < (msg.start as number) ||
+    (msg.end as number) > Buffer.byteLength(binding.snapshot.fullSource, "utf8")
+  ) {
+    return;
+  }
+  const editor = vscode.window.visibleTextEditors.find(
+    (candidate) => candidate.document === document,
+  );
   if (!editor) {
     return;
   }
-  const doc = editor.document;
-  const range =
-    msg.startLine !== undefined &&
-    msg.startCol !== undefined &&
-    msg.endLine !== undefined &&
-    msg.endCol !== undefined
-      ? new vscode.Range(
-          new vscode.Position(msg.startLine, msg.startCol),
-          new vscode.Position(msg.endLine, msg.endCol),
-        )
-      : new vscode.Range(doc.positionAt(msg.start ?? 0), doc.positionAt(msg.end ?? 0));
+  const range = utf16Range(document, msg.startLine, msg.startCol, msg.endLine, msg.endCol);
+  if (!range) {
+    return;
+  }
   editor.setDecorations(highlightDecoration, [range]);
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
-function clearSourceHighlight(): void {
-  if (explorerEditor) {
-    explorerEditor.setDecorations(highlightDecoration, []);
+function clearSourceHighlight(sourceToken: unknown, compileToken: unknown): void {
+  const binding = currentSourceBinding;
+  const lease = activeCompile;
+  if (
+    !binding ||
+    !lease ||
+    lease.binding !== binding ||
+    sourceToken !== binding.id ||
+    compileToken !== latestCompileToken ||
+    !isCompileLeaseCurrent(lease)
+  ) {
+    return;
+  }
+  const editor = vscode.window.visibleTextEditors.find(
+    (candidate) => candidate.document === binding.snapshot.document,
+  );
+  editor?.setDecorations(highlightDecoration, []);
+}
+
+function finishCompile(lease: CompileLease, compiled: boolean): void {
+  if (!isCompileLeaseCurrent(lease)) {
+    return;
+  }
+  compileCompletedSeq = Math.max(compileCompletedSeq, lease.requestSeq);
+  if (compileResolver) {
+    const resolve = compileResolver;
+    compileResolver = undefined;
+    resolve(compiled);
   }
 }
 
-// Host-brokered compile via the LSP `tcl-lsp.compilerExplorer` command: the
-// fallback path for when the webview does not bundle the Rust → WASM module.
-// A bundled module compiles in-process and never posts `{type:"compile"}`, so
-// this only runs in dev builds without `make explorer-wasm`.
-async function runCompile(source: string, dialect: string, requestSeq: number): Promise<void> {
-  const client: LanguageClient = getClient();
-  if (!client || !panel) {
-    compileCompletedSeq = Math.max(compileCompletedSeq, requestSeq);
-    if (compileResolver) {
-      const resolve = compileResolver;
-      compileResolver = undefined;
-      resolve(false);
-    }
+async function runCompile(lease: CompileLease): Promise<void> {
+  const client: LanguageClient | undefined = getClient();
+  const currentPanel = panel;
+  if (!client || !currentPanel || !isCompileLeaseCurrent(lease)) {
+    finishCompile(lease, false);
     return;
   }
 
+  const messageContext = {
+    compileToken: lease.token,
+    sourceToken: lease.binding?.id,
+    hostRequestSeq: lease.requestSeq,
+  };
   try {
-    void panel.webview.postMessage({ type: "status", text: "Compiling..." });
+    void currentPanel.webview.postMessage({
+      type: "status",
+      text: "Compiling...",
+      ...messageContext,
+    });
 
     const result = await client.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.compilerExplorer",
-      arguments: [source, dialect],
+      arguments: [lease.source, lease.dialect],
     });
 
-    if (!panel) {
+    if (!isCompileLeaseCurrent(lease)) {
       return;
     }
 
     if (!result || typeof result !== "object") {
-      void panel.webview.postMessage({
+      void currentPanel.webview.postMessage({
         type: "error",
         data: {
           error:
             "Compiler explorer did not receive a structured result. " +
             "Check for source script issues in the active editor.",
         },
+        ...messageContext,
       });
       return;
     }
@@ -596,30 +948,26 @@ async function runCompile(source: string, dialect: string, requestSeq: number): 
             .join("\n")
         : "";
       const errorText = [baseError, details, diagnosticsText].filter((part) => part).join("\n\n");
-      void panel.webview.postMessage({
+      void currentPanel.webview.postMessage({
         type: "error",
-        data: {
-          error: errorText,
-          traceback,
-        },
+        data: { error: errorText, traceback },
+        ...messageContext,
       });
       return;
     }
 
-    void panel.webview.postMessage({ type: "result", data: result });
+    void currentPanel.webview.postMessage({ type: "result", data: result, ...messageContext });
   } catch (err) {
-    if (!panel) {
+    if (!isCompileLeaseCurrent(lease)) {
       return;
     }
     const message = err instanceof Error ? err.message : String(err);
-    void panel.webview.postMessage({ type: "error", data: { error: message } });
+    void currentPanel.webview.postMessage({
+      type: "error",
+      data: { error: message },
+      ...messageContext,
+    });
   } finally {
-    compileCompletedSeq = Math.max(compileCompletedSeq, requestSeq);
-    // Signal any waiters that compilation is done (screenshot mode).
-    if (compileResolver) {
-      const resolve = compileResolver;
-      compileResolver = undefined;
-      resolve(true);
-    }
+    finishCompile(lease, true);
   }
 }

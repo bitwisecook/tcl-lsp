@@ -486,6 +486,7 @@ impl AdviceInvocationContext<'_> {
         let Some(advice) = self.schema_advice(invocation, graph, schema) else {
             return;
         };
+        self.retain_logical_math_functions(tape, graph, &advice, schema);
         let mut branch = graph.clone();
         let mut walk = BodyWalk {
             context: self,
@@ -1362,6 +1363,26 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        // Retain possible case syntax from the actual operand walk separately
+        // from an ordinary invocation or any entered-body inventory.
+        if matches!(self.context.policy, AdviceNamingPolicy::Native(_))
+            && self.source_body.is_none()
+            && self.catalogue_body.is_none()
+            && self.member_catalogue_body.is_none()
+            && schema.authored_source_case_invocation().is_some()
+        {
+            let offset = invocation.native.first()?.span().start();
+            if self.authored_prefixes.conditional_case_syntax.len() < MAX_COMMANDS {
+                let receipt = (!graph.blocks_registry_source(invocation.head))
+                    .then(|| self.context.schema_advice(invocation, graph, schema))
+                    .flatten();
+                super::source_class::merge_receipt(
+                    &mut self.authored_prefixes.conditional_case_syntax,
+                    offset,
+                    receipt,
+                );
+            }
+        }
         if let Some(body) = &self.catalogue_body {
             let offset = invocation.native.first()?.span().start();
             if self.authored_prefixes.body_catalogue.len() < MAX_COMMANDS {

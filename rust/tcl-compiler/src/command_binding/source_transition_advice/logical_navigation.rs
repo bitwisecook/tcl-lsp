@@ -127,6 +127,10 @@ pub struct OriginalLogicalCommandCandidates {
 }
 
 impl OriginalLogicalCommandCandidates {
+    pub(super) fn is_original_document_scope(&self) -> bool {
+        matches!(self.scope, LogicalNavigationScope::Document(_))
+    }
+
     fn capture(
         graph: &AdviceGraph,
         original: &[NativeWord],
@@ -275,7 +279,7 @@ impl OriginalLogicalCommandCandidates {
     }
 }
 
-fn external_header_candidates(
+pub(super) fn external_header_candidates(
     graph: &AdviceGraph,
     written: &[u8],
     candidates: &[ByteCommandSlot],
@@ -409,7 +413,7 @@ impl OriginalSourceTransitionAdviceTape {
     }
 }
 
-fn logical_coordinates(
+pub(super) fn logical_coordinates(
     graph: &AdviceGraph,
     namespace: &tcl_core_types::ByteNamespacePath,
     written: &[u8],

@@ -1203,6 +1203,67 @@
         "verified_complete": false
       },
       "implementation_scope": "BrowserV10 whole source/contract CLEAR; original references/source-order/hash helpers retained. Host complete marker alone cannot grant absence or rename authority. Fresh native/WASM/host tests pending."
+    },
+    {
+      "id": "compiler.source.logical-expression-function-target-owner",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-expression-logical-math-target"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs",
+          "symbol": "OriginalLogicalMathFunctionOccurrence; AnalysisResult::logical_math_function_at"
+        }
+      ],
+      "rationale": "One genuinely missing original Logical expression/function occurrence and source-target query facet retaining whole original Expr role/argv, configured AST ordinal, actual parent/input/Realm and source declaration horizon. Existing expression name token descriptor does not issue this semantic target receipt. Count once, not per Lexer/Syntax/Registry/helper/forwarding method. SourceMay supplies no Native dispatch or runtime winner.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Exact source/contract and composition peerCLEAR, actual Root integration; build/test/host/gates pending, no execution/absence/edit/Normal authority."
+    },
+    {
+      "id": "lsp.server.logical-type-hierarchy-wire-adopter",
+      "kind": "caller_migration",
+      "baseline_unit_ids": [
+        "lsp-type-hierarchy-logical-report-selection"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "Backend::readonly_logical_hierarchy_prepare; Backend::readonly_logical_hierarchy_walk"
+        }
+      ],
+      "rationale": "Distinct actual Server TYPE prepare/follow-up adopter retains opaque actual class/operand identity and conditional applicability through final document/index/provider reborrow and strict UTF16 projection. Core selection unit and reference/lens wire annex do not cover this caller. CALL incoming/outgoing baseline642 remains open; shared lease helper not counted again.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Exact source/contract and composition peerCLEAR, actual Root integration; build/test/host/gates pending, no execution/absence/edit/Normal authority."
+    },
+    {
+      "id": "lsp.server.logical-implementation-wire-adopter",
+      "kind": "caller_migration",
+      "baseline_unit_ids": [
+        "lsp-implementation-logical-bare-method"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "Backend::readonly_logical_implementation; Backend::finish_logical_implementation_advice"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::goto_implementation"
+        }
+      ],
+      "rationale": "Distinct actual Server implementation response consumes typed genuine member/class advice with unknown applicability retained through final original document/input/provider transaction before positive Location projection. Core root selector and TYPE follow-up caller are separate purposes; existing shared readonly lease owner is reused.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Exact source/contract and composition peerCLEAR, actual Root integration; build/test/host/gates pending, no execution/absence/edit/Normal authority."
     }
   ],
   "unverified_or_open": [
@@ -1214,28 +1275,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T20:47:45.059680+00:00",
+  "utc": "2026-10-16T22:00:47.293633+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 55,
+    "semantic_code_changes": 58,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 56,
+    "all_required_changes": 59,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 31,
-      "caller_migration": 14,
+      "shared_owner_extension": 32,
+      "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1854,
+    "semantic_code_changes": 1857,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2214
+    "all_required_changes": 2217
   },
   "implementation_progress": {
-    "implemented_pending_validation": 55,
+    "implemented_pending_validation": 58,
     "not_integrated": 1,
     "verified_complete": 0
   }

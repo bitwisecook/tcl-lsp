@@ -276,47 +276,50 @@ fn ensemble_subcommand_hover(
     Some(Hover::markdown(text))
 }
 
-/// `expr` math-function hover — the **bare** in-expression spelling
-/// `sin(1.0)` / `max($a, $b)`, which renders from the same registry spec the
-/// qualified `::tcl::mathfunc::sin` spelling reads.  Both spellings must be
-/// registered: with only the qualified ones, a bare call draws nothing at any
-/// column.
-///
-/// Definitive: once the cursor is on a recorded math-function call, this is
-/// what the call reaches — a user override, the built-in, or (when the
-/// function does not exist in this dialect) nothing at all. The caller must
-/// not fall through to ordinary command resolution, which would let a
-/// coincidentally same-named proc in an unrelated namespace hijack the hover.
-///
-/// See [`crate::expr_context`] for the resolution rule and its C Tcl oracle.
+/// Conditional Logical function documentation from the genuine checked
+/// expression, original source scope and independently retained header cards.
+/// Native function/table selection remains a separate terminal path.
 fn math_function_hover(
+    source: &str,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
     cursor_offset: u32,
 ) -> Option<Hover> {
-    use crate::expr_context::MathFuncTarget;
-    match crate::expr_context::math_function_target_at(analysis, registry, profile, cursor_offset)?
-    {
-        MathFuncTarget::UserProc(proc_def) => Some(Hover::markdown(proc_hover_text(proc_def))),
-        MathFuncTarget::Builtin {
-            bare,
-            qualified,
-            spec,
-        } => {
-            use std::fmt::Write;
-            let hover = spec.hover.as_ref()?;
-            let mut out = format!("**`{bare}`** — `expr` math function\n");
-            if !hover.summary.is_empty() {
-                let _ = write!(out, "\n{}\n", hover.summary);
-            }
-            if let Some(synopsis) = hover.synopsis.first() {
-                let _ = write!(out, "\n```tcl\n{synopsis}\n```\n");
-            }
-            let _ = write!(out, "\nDispatches to `{qualified}`.\n");
-            Some(Hover::markdown(out))
+    use std::fmt::Write;
+    let selected = crate::expr_context::math_function_target_at(source, analysis, cursor_offset)?;
+    let mut text = format!(
+        "**`{}`** — `expr` math function\n",
+        selected.occurrence.function()
+    );
+    let mut rendered = false;
+    if let Some(declarations) = &selected.declarations {
+        for declaration in declarations {
+            text.push_str("\n**Conditional source declaration**\n\n");
+            text.push_str(&proc_hover_text(declaration.metadata()));
+            text.push('\n');
+            rendered = true;
         }
     }
+    if let Some(metadata) = selected.builtin.and_then(|spec| spec.hover.as_ref()) {
+        text.push_str("\n**Built-in expression metadata**\n");
+        if !metadata.summary.is_empty() {
+            let _ = writeln!(text, "\n{}", metadata.summary);
+        }
+        if let Some(synopsis) = metadata.synopsis.first() {
+            let _ = write!(text, "\n```tcl\n{synopsis}\n```\n");
+        }
+        rendered = true;
+    }
+    if !rendered {
+        return None;
+    }
+    text.push_str("\nSource candidates are conditional; function lookup, operand evaluation and observers remain unresolved.\n");
+    if selected.occurrence.has_earlier_unknown_mutations() {
+        text.push_str("Earlier source effects may change these candidates.\n");
+    }
+    if selected.declarations.is_none() {
+        text.push_str("The source declaration inventory or lookup path is unavailable.\n");
+    }
+    Some(Hover::markdown(text))
 }
 
 /// Render only metadata independently selected by the original expression
@@ -869,8 +872,15 @@ fn hover_impl(
     // remaining path: inside an expression a `NAME(` word is a function-call
     // production, not a command lookup, so nothing else may claim it.  See
     // `math_function_hover`.
-    if let Some(hover) = math_function_hover(analysis, registry, profile, cursor_offset) {
-        return Some(hover);
+    if analysis
+        .logical_math_function_at(source, cursor_offset)
+        .is_some()
+        || (analysis.allows_lexical_declaration_advice()
+            && crate::expr_context::mathfunc_call_at(analysis, cursor_offset).is_some())
+    {
+        // An unavailable Logical receipt cannot borrow an ordinary head or the
+        // analyser's resolved display. Native selection above remains terminal.
+        return math_function_hover(source, analysis, cursor_offset);
     }
 
     // A word inside an enclosing proc/method's own *literal* parameter list is
@@ -6673,5 +6683,27 @@ mod original_special_variable_context_tests {
                 answer.value
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod logical_math_source_hover_tests {
+    use super::*;
+
+    #[test]
+    fn logical_math_hover_reports_conditional_headers_without_runtime_dispatch() {
+        let source = "namespace eval ::tcl::mathfunc {proc custom {first} {return $first}; proc custom {second} {return $second}}; expr {custom([unknown])}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.rfind("custom(").unwrap()).unwrap();
+        let answer = math_function_hover(source, &analysis, offset)
+            .expect("actual original source function metadata");
+        assert!(answer.value.contains("first"));
+        assert!(answer.value.contains("second"));
+        assert!(answer.value.contains("Conditional source declaration"));
+        assert!(answer.value.contains("observers remain unresolved"));
+        assert!(!answer.value.contains("Dispatches to"));
+        assert!(math_function_hover(&format!("{source} "), &analysis, offset).is_none());
+        let native = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(math_function_hover(source, &native, offset).is_none());
     }
 }

@@ -148,8 +148,13 @@ pub use source_catalogue_advice::{
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
+    LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+    OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
+};
+pub use source_transition_advice::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
-    OriginalLogicalCommandCandidates, OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
+    OriginalLogicalCommandCandidates, OriginalLogicalMathFunctionOccurrence,
+    OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
     OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
     OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
@@ -168,9 +173,6 @@ pub use source_transition_advice::{
 };
 pub(crate) use source_transition_advice::{
     OriginalNativeSourceBodyChildren, OriginalSourceCataloguePurpose,
-};
-pub use source_transition_advice::{
-    OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
 };
 pub(crate) use source_transition_advice::{
     OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,

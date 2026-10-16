@@ -499,6 +499,125 @@ pub enum ExprLexicalFailureKind {
     MissingBrace,
 }
 
+/// Complete lexical and expression axes retained by an authoring cursor.
+/// This selects source grammar only, never a Native expression policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExpressionCursorGrammar {
+    /// Full original word configuration, including caller overrides and bases.
+    pub config: crate::LexerConfig,
+    /// Independently selected expression comments and numeral grammar.
+    pub grammar: tcl_dialect::LexerGrammar,
+    /// Actual source release for expression operators.
+    pub expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    /// Independently selected host expression word operators, when present.
+    pub f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+}
+
+/// Original expression-prefix geometry at a cursor. Incomplete source stays
+/// incomplete; this supplies no parsed AST, result, evaluation or edit grant.
+#[derive(Debug, Clone)]
+pub struct OriginalExpressionCursor {
+    image: crate::SourceImage,
+    grammar: ExpressionCursorGrammar,
+    region: crate::Span,
+    prefix: crate::Span,
+    expression_position: bool,
+    failures: Vec<ExprLexicalFailure>,
+}
+
+impl OriginalExpressionCursor {
+    /// Exact complete image/channel and all original configured grammar axes.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &crate::SourceImage,
+        grammar: ExpressionCursorGrammar,
+    ) -> bool {
+        self.image == *image && self.grammar == grammar
+    }
+
+    /// Original selected expression operand content, including its real suffix.
+    #[must_use]
+    pub const fn region_span(&self) -> crate::Span {
+        self.region
+    }
+
+    /// Actual source through the cursor; no closing delimiter is inserted.
+    #[must_use]
+    pub const fn prefix_span(&self) -> crate::Span {
+        self.prefix
+    }
+
+    /// Whether this lexical prefix ends in expression space rather than inside
+    /// a quoted/braced operand, script substitution, comment or rejected token.
+    /// This proves no complete expression or actual function-call production.
+    #[must_use]
+    pub const fn is_expression_position(&self) -> bool {
+        self.expression_position
+    }
+
+    /// Actual incomplete lexical issues, with offsets relative to the region.
+    /// They are source observations, never a proved Native syntax failure.
+    #[must_use]
+    pub fn lexical_failures(&self) -> &[ExprLexicalFailure] {
+        &self.failures
+    }
+}
+
+/// Inspect one genuine expression region's original prefix with the same
+/// configured lexer that owns complete expression tokens. Quotes, braces,
+/// expression comments, nested scripts and variable syntax use its existing
+/// scanners. Unknown characters and malformed variables withhold a receipt;
+/// unfinished quote/brace/script tokens retain their real failure coordinates.
+/// The caller independently owns the outer Expr role and original word.
+#[must_use]
+pub fn original_expression_cursor_in(
+    image: &crate::SourceImage,
+    region: crate::Span,
+    cursor: u32,
+    grammar: ExpressionCursorGrammar,
+) -> Option<OriginalExpressionCursor> {
+    if region.start() > cursor || cursor > region.end() {
+        return None;
+    }
+    image.bytes().get(region.as_range())?;
+    let prefix = crate::Span::new(region.start(), cursor);
+    let source = image.bytes().get(prefix.as_range())?;
+    let lexical = grammar.config.grammar_over(grammar.grammar);
+    let mut lexer = Inner::from_grammar(
+        source,
+        &lexical,
+        grammar.expr_grammar_base,
+        grammar.f5_word_grammar,
+    );
+    // Preserve caller configuration for the existing variable, quote and
+    // bracket scanners instead of reconstructing it from a profile label.
+    lexer.variable_config = grammar.config;
+    let tokens = lexer.run();
+    if lexer.failures.iter().any(|failure| {
+        !matches!(
+            failure.kind,
+            ExprLexicalFailureKind::MissingBracket
+                | ExprLexicalFailureKind::MissingQuote
+                | ExprLexicalFailureKind::MissingBrace
+        )
+    }) {
+        return None;
+    }
+    let expression_position = lexer.failures.is_empty()
+        && tokens
+            .last()
+            .is_none_or(|token| token.kind != ExprTokenType::Comment);
+    Some(OriginalExpressionCursor {
+        image: image.clone(),
+        grammar,
+        region,
+        prefix,
+        expression_position,
+        failures: lexer.failures,
+    })
+}
+
 /// Scan original byte source and retain every rejected component in source order.
 #[must_use]
 pub fn tokenise_expr_bytes_with_failures(
@@ -508,6 +627,28 @@ pub fn tokenise_expr_bytes_with_failures(
     f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
 ) -> (Vec<ExprToken<Vec<u8>>>, Vec<ExprLexicalFailure>) {
     let mut lexer = Inner::from_grammar(source, grammar, expr_grammar_base, f5_word_grammar);
+    let tokens = lexer.run();
+    (tokens, lexer.failures)
+}
+
+/// Scan original expression bytes with the complete retained script configuration.
+/// Comment/numeral/operator axes remain selected by the supplied expression
+/// grammar; nested variables, quotes and scripts receive every caller knob.
+#[must_use]
+pub fn tokenise_expr_bytes_with_config_and_failures(
+    source: &[u8],
+    grammar: &tcl_dialect::LexerGrammar,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+    config: crate::LexerConfig,
+) -> (Vec<ExprToken<Vec<u8>>>, Vec<ExprLexicalFailure>) {
+    let mut lexer = Inner::from_grammar(
+        source,
+        &config.grammar_over(*grammar),
+        expr_grammar_base,
+        f5_word_grammar,
+    );
+    lexer.variable_config = config;
     let tokens = lexer.run();
     (tokens, lexer.failures)
 }
@@ -1957,5 +2098,94 @@ mod separator_boundary_tests {
         // is one bareword there and a number + operator after.
         assert_eq!(tokenise_expr("1lt 2", Some("tcl8.6"))[0].text, "1lt");
         assert_eq!(tokenise_expr("1lt 2", Some("tcl9.0"))[0].text, "1");
+    }
+}
+
+#[cfg(test)]
+mod original_expression_cursor_tests {
+    use super::*;
+    use crate::{LexerConfig, SourceImage, Span};
+
+    fn at(marked: &str, dialect: &str) -> Option<OriginalExpressionCursor> {
+        let offset = u32::try_from(marked.find('|')?).ok()?;
+        let source = marked.replacen('|', "", 1);
+        let profile = tcl_dialect::DialectProfile::find(dialect)?;
+        let grammar = ExpressionCursorGrammar {
+            config: LexerConfig::for_profile(Some(profile)),
+            grammar: profile.grammar,
+            expr_grammar_base: profile.expr_grammar_base,
+            f5_word_grammar: profile.f5_core_expr_grammar(),
+        };
+        let image = SourceImage::document(&source);
+        original_expression_cursor_in(
+            &image,
+            Span::new(0, u32::try_from(source.len()).ok()?),
+            offset,
+            grammar,
+        )
+    }
+
+    #[test]
+    fn original_expression_cursor_keeps_literal_comment_and_script_phases() {
+        for source in ["si|", "{[} eq {[} ? si|", "1 # [ inert\n + si|"] {
+            assert!(
+                at(source, "tcl9.0").unwrap().is_expression_position(),
+                "{source}"
+            );
+        }
+        for source in [
+            "[puts si|",
+            "\"literal si|",
+            "{literal si|",
+            "1 # [ inert|\n+2",
+        ] {
+            assert!(
+                !at(source, "tcl9.0").unwrap().is_expression_position(),
+                "{source}"
+            );
+        }
+        assert!(at("1 # inert|", "tcl8.6").is_none());
+        assert!(at("${unfinished|", "tcl9.0").is_none());
+    }
+
+    #[test]
+    fn original_expression_cursor_retains_unfinished_bytes_without_a_closer() {
+        let cursor = at("[puts si|", "tcl8.6").unwrap();
+        assert_eq!(cursor.prefix_span(), Span::new(0, 8));
+        assert_eq!(cursor.region_span(), Span::new(0, 8));
+        assert_eq!(
+            cursor.lexical_failures()[0].kind,
+            ExprLexicalFailureKind::MissingBracket
+        );
+        assert_eq!(cursor.image.bytes(), b"[puts si");
+        assert!(!cursor.is_expression_position());
+    }
+
+    #[test]
+    fn original_expression_cursor_refuses_foreign_image_configuration_and_geometry() {
+        let cursor = at("si|", "tcl9.0").unwrap();
+        assert!(cursor.matches_source(&SourceImage::document("si"), cursor.grammar));
+        assert!(!cursor.matches_source(&SourceImage::document("so"), cursor.grammar));
+        let mut changed = cursor.grammar;
+        changed.config.strict_quoting ^= true;
+        assert!(!cursor.matches_source(&SourceImage::document("si"), changed));
+        assert!(
+            original_expression_cursor_in(
+                &SourceImage::document("si"),
+                Span::new(0, 3),
+                2,
+                cursor.grammar
+            )
+            .is_none()
+        );
+        assert!(
+            original_expression_cursor_in(
+                &SourceImage::document("si"),
+                Span::new(1, 2),
+                0,
+                cursor.grammar
+            )
+            .is_none()
+        );
     }
 }

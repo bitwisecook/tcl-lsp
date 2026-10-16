@@ -31,14 +31,11 @@
  * `docs/design/rust/lsp-runtime-and-transports.md`.  This module's job is to
  * satisfy it with the WASM WASI Core extension's API:
  *
- * - **Preopens.** `{ kind: 'workspaceFolder' }` maps the editor's workspace
- *   folders into the guest, which is what makes `vfs::NativeStore` — a literal
- *   `std::fs` delegation — see real files.  `uriConvertersForWindow()` is its
- *   other half: it rewrites `file://` URIs between the editor's real paths and
- *   the guest's mount points, so nothing outside this module has to know the
- *   server is sandboxed.  The two are a pair and must agree exactly — which is
- *   why the converters are ours and not `@vscode/wasm-wasi-lsp`'s, whose
- *   multi-root spelling does not match the host's.
+ * - **Preopens.** Each process creates one actual RootFileSystem from explicit
+ *   `vscodeFileSystem` mounts. Provider round trips authenticate the selected
+ *   roots, and the same filesystem is passed to the process. Unique per-session
+ *   mount paths are unrelated to folder display names. Stable client converter
+ *   callbacks reborrow only the current process's retained typed URI roster.
  * - **Spec packs.** The native rung finds its `.tclspec` loadables in a
  *   `specs/` directory beside the executable.  A guest has no executable
  *   path, so the staged directory is mounted read-only and named explicitly
@@ -63,7 +60,7 @@ import {
   WASI_SPECS_RELATIVE_PATH,
   WASM_WASI_CORE_EXTENSION_ID,
   wasiRuntimeAction,
-  wasiUriMapping,
+  allocatedWasiUriMapping,
 } from "./serverResolution";
 
 /**
@@ -88,30 +85,6 @@ interface UriConverters {
 export interface WasiServerSetup {
   readonly serverOptions: ServerOptions;
   readonly uriConverters: UriConverters | undefined;
-}
-
-/**
- * URI converters for the current window's workspace folders.
- *
- * Deliberately **not** `@vscode/wasm-wasi-lsp`'s `createUriConverters()`: that
- * one maps multi-root folders to `file:///workspace/<name>` while the host
- * mounts them at `file:///workspaces/<name>`. See `wasiUriMapping` in
- * `./serverResolution` for the evidence and the pinned versions it was checked
- * against; the mapping itself lives there because it is a pure string
- * translation and is unit-tested as one.
- */
-function uriConvertersForWindow(): UriConverters | undefined {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  const mapping = wasiUriMapping(
-    folders.map((folder) => ({ uri: folder.uri.toString(), name: folder.name })),
-  );
-  if (!mapping) {
-    return undefined;
-  }
-  return {
-    code2Protocol: (value) => mapping.toGuest(value.toString()),
-    protocol2Code: (value) => vscode.Uri.parse(mapping.toEditor(value)),
-  };
 }
 
 /**
@@ -233,36 +206,138 @@ export async function startWasiServer(
     }
   };
 
-  const mountPoints: MountPointDescriptor[] = [
-    // Preopen the workspace — contract point 1.  Paired with
-    // `uriConvertersForWindow()` below, which maps between these mounts and the
-    // editor's real URIs.  A window with no workspace folder mounts nothing,
-    // and every path outside a mount answers `NotFound` — the source store's
-    // documented behaviour for a file it cannot see.
-    { kind: "workspaceFolder" },
-    {
-      kind: "extensionLocation",
-      extension: context,
-      path: WASI_SPECS_RELATIVE_PATH,
-      mountPoint: GUEST_SPEC_PACK_DIR,
+  // The converter functions are stable, but their receipt is installed only
+  // for the actual process/filesystem generation that has finished admission.
+  let generation = 0;
+  let workspaceEpoch = 0;
+  let active: ReturnType<typeof allocatedWasiUriMapping> | undefined;
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      workspaceEpoch += 1;
+      active = undefined;
+    }),
+  );
+  const uriConverters: UriConverters = {
+    code2Protocol(value) {
+      if (!active) throw new Error("WASI mount session is unavailable");
+      return active.toGuest(value);
     },
-  ];
-
-  const serverOptions: ServerOptions = async (): Promise<MessageTransports> => {
-    const process: WasmProcess = await wasm.createProcess(
-      "tcl-lsp-server-wasi",
-      await compileModule(),
-      {
-        stdio: createStdioOptions(),
-        mountPoints,
-        env: { [SPEC_PACK_DIR_ENV]: GUEST_SPEC_PACK_DIR },
-      },
-    );
-    drainStderr(process, channel);
-    return startServer(process);
+    protocol2Code(value) {
+      if (!active) throw new Error("WASI mount session is unavailable");
+      return active.toEditor(value) as vscode.Uri;
+    },
   };
 
-  return { serverOptions, uriConverters: uriConvertersForWindow() };
+  const serverOptions: ServerOptions = async (): Promise<MessageTransports> => {
+    active = undefined;
+    const selectedGeneration = ++generation;
+    const selectedEpoch = workspaceEpoch;
+    const folders = [...(vscode.workspace.workspaceFolders ?? [])];
+    const allocations = folders.map((folder, index) => ({
+      editor: folder.uri,
+      guestPath: `/tcl-lsp/workspaces/${selectedGeneration}/${index}`,
+    }));
+    let live = true;
+    const current = (): boolean =>
+      live &&
+      generation === selectedGeneration &&
+      workspaceEpoch === selectedEpoch &&
+      folders.length === (vscode.workspace.workspaceFolders ?? []).length &&
+      folders.every((folder, index) => vscode.workspace.workspaceFolders?.[index] === folder);
+    const revoke = (): void => {
+      live = false;
+      if (generation === selectedGeneration) active = undefined;
+    };
+    let process: WasmProcess | undefined;
+    try {
+      const module = await compileModule();
+      if (!current()) throw new Error("Workspace changed while preparing WASI mounts");
+      const mountPoints: MountPointDescriptor[] = [
+        ...allocations.map((mount): MountPointDescriptor => ({
+          kind: "vscodeFileSystem",
+          uri: mount.editor,
+          mountPoint: mount.guestPath,
+        })),
+        {
+          kind: "extensionLocation",
+          extension: context,
+          path: WASI_SPECS_RELATIVE_PATH,
+          mountPoint: GUEST_SPEC_PACK_DIR,
+        },
+      ];
+      const fileSystem = await wasm.createRootFileSystem(mountPoints);
+      if (!current()) throw new Error("Workspace changed while allocating WASI mounts");
+      for (const mount of allocations) {
+        const path = await fileSystem.toWasm(mount.editor);
+        if (!current() || path !== mount.guestPath) throw new Error("WASI provider mount mismatch");
+        const uri = await fileSystem.toVSCode(mount.guestPath);
+        if (!current() || !uri || uri.toString() !== mount.editor.toString()) {
+          throw new Error("WASI provider reverse mount mismatch");
+        }
+      }
+      const mapping = allocatedWasiUriMapping(
+        allocations,
+        (value) => vscode.Uri.parse(value, true),
+        current,
+      );
+      process = await wasm.createProcess("tcl-lsp-server-wasi", module, {
+        stdio: createStdioOptions(),
+        rootFileSystem: fileSystem,
+        env: { [SPEC_PACK_DIR_ENV]: GUEST_SPEC_PACK_DIR },
+      });
+      if (!current()) throw new Error("Workspace changed while creating WASI process");
+      const actualProcess = process;
+      drainStderr(actualProcess, channel);
+      const trackedProcess: WasmProcess = {
+        stdin: actualProcess.stdin,
+        stdout: actualProcess.stdout,
+        stderr: actualProcess.stderr,
+        run: () => actualProcess.run().finally(revoke),
+        terminate: () => {
+          revoke();
+          return actualProcess.terminate();
+        },
+      };
+      const transports = await startServer(trackedProcess);
+      if (!current()) throw new Error("WASI process ended before mount publication");
+      const write = transports.writer.write.bind(transports.writer);
+      transports.writer.write = (message) => {
+        try {
+          if ("method" in message && (message.method === "shutdown" || message.method === "exit"))
+            revoke();
+          return write(message).catch((error) => {
+            revoke();
+            throw error;
+          });
+        } catch (error) {
+          revoke();
+          throw error;
+        }
+      };
+      transports.reader.onError(revoke);
+      transports.reader.onClose(revoke);
+      transports.writer.onError(revoke);
+      transports.writer.onClose(revoke);
+      const disposeReader = transports.reader.dispose.bind(transports.reader);
+      transports.reader.dispose = () => {
+        revoke();
+        disposeReader();
+      };
+      const disposeWriter = transports.writer.dispose.bind(transports.writer);
+      transports.writer.dispose = () => {
+        revoke();
+        disposeWriter();
+      };
+      active = mapping;
+      return transports;
+    } catch (error) {
+      revoke();
+      if (process) await process.terminate();
+      throw error;
+    }
+  };
+
+  return { serverOptions, uriConverters };
 }
 
 /**

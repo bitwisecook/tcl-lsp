@@ -1,16 +1,12 @@
 {
   "version": 1,
   "canonical_glob": "**/*.test.js",
-  "exclude": [
-    "multiFolder/**"
-  ],
-  "multi_folder_files": [
-    "multiFolderConfig.test.js"
-  ],
+  "exclude": ["multiFolder/**"],
+  "multi_folder_files": ["multiFolderConfig.test.js"],
   "expected_tests": {
     "single_root": {
-      "identities": 985,
-      "passed": 984,
+      "identities": 999,
+      "passed": 998,
       "pending": 1
     },
     "multi_folder": {
@@ -30,16 +26,8 @@
         "2": 102366472969,
         "3": 102366473057
       },
-      "before_partition_ms": [
-        28817,
-        63001,
-        94948
-      ],
-      "projected_partition_ms": [
-        62255,
-        62256,
-        62255
-      ]
+      "before_partition_ms": [28817, 63001, 94948],
+      "projected_partition_ms": [62255, 62256, 62255]
     },
     "measurement_field": "fileDurationsMs"
   },

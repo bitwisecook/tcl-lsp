@@ -82,8 +82,10 @@ pub mod word_parts;
 
 pub use expr_lexer::{
     ExprLexicalFailure, ExprLexicalFailureKind, ExprTerm, ExprTermKind, ExprToken, ExprTokenType,
-    expression_term, expression_terms, math_functions as expr_math_functions, tokenise_expr,
-    tokenise_expr_bytes_checked_with_expression_grammar, tokenise_expr_bytes_with_failures,
+    ExpressionCursorGrammar, OriginalExpressionCursor, expression_term, expression_terms,
+    math_functions as expr_math_functions, original_expression_cursor_in, tokenise_expr,
+    tokenise_expr_bytes_checked_with_expression_grammar,
+    tokenise_expr_bytes_with_config_and_failures, tokenise_expr_bytes_with_failures,
     tokenise_expr_checked, tokenise_expr_checked_for_profile,
     tokenise_expr_checked_with_expression_grammar, tokenise_expr_checked_with_grammar,
     tokenise_expr_for_profile,

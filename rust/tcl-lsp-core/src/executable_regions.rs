@@ -88,10 +88,107 @@ pub(crate) fn visit_analysis_executable_commands(
         identities,
         visitor,
         region_probe: None,
+        coverage_regions: None,
         analysis: Some(analysis),
         definition_parent: None,
     };
     let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+}
+
+/// Outcome of a checked potential-source traversal. A complete inventory
+/// covers original source syntax only, never execution, frames or completion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PotentialSourceVisit {
+    /// Every independently checked region and command was visited.
+    Complete,
+    /// Positive observations survive an unrepresented or unchecked phase.
+    Incomplete,
+    /// The consumer stopped before a complete inventory was produced.
+    Stopped,
+    /// The actual source/input/configuration correspondence is unavailable.
+    Unavailable,
+}
+
+/// Visit the existing potential-source owner while retaining independent
+/// shared syntax coverage. Missing roles, bodies, parse/depth phases or source
+/// regions cannot turn a partial positive traversal into a complete negative.
+/// Reference-only syntax cannot donate a potential-evaluation region: if the
+/// shared syntax inventory contains one this traversal excludes, coverage is
+/// conservatively incomplete even when its body is empty.
+#[must_use]
+pub(crate) fn visit_checked_analysis_executable_commands(
+    source: &str,
+    analysis: &AnalysisResult,
+    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
+) -> PotentialSourceVisit {
+    let Some((config, registry, identities)) = analysis_walk_inputs(source, analysis) else {
+        return PotentialSourceVisit::Unavailable;
+    };
+    let Some(coverage) = crate::SourceSyntaxCoverage::capture(source, analysis) else {
+        return PotentialSourceVisit::Unavailable;
+    };
+    let Some(expected) = coverage.commands(source, analysis) else {
+        return PotentialSourceVisit::Unavailable;
+    };
+    let mut expected_at = std::collections::BTreeMap::<_, Vec<usize>>::new();
+    for (index, command) in expected.iter().enumerate() {
+        expected_at
+            .entry((command.span.start(), command.span.end()))
+            .or_default()
+            .push(index);
+    }
+    let mut observed = vec![false; expected.len()];
+    let mut regions = Vec::new();
+    let mut checked_visitor =
+        |command: &SegmentedCommand, head: HeadWords<'_>, context: ExecutableContext| {
+            if let Some(indices) = expected_at.get(&(command.span.start(), command.span.end())) {
+                for &index in indices {
+                    if expected[index].all_tokens == command.all_tokens {
+                        observed[index] = true;
+                    }
+                }
+            }
+            visitor(command, head, context)
+        };
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .expect("validated original input");
+    let mut walk = ExecutableWalker {
+        source,
+        config,
+        registry,
+        availability: Some(input.availability_context().authoring_query()),
+        identities,
+        visitor: &mut checked_visitor,
+        region_probe: None,
+        coverage_regions: Some(&mut regions),
+        analysis: Some(analysis),
+        definition_parent: None,
+    };
+    if walk.region(0, source.len(), 0, None, ExecutableContext::Direct) {
+        return PotentialSourceVisit::Stopped;
+    }
+    let regions = regions
+        .into_iter()
+        .map(|(span, depth)| (span.start(), span.end(), depth))
+        .collect::<std::collections::BTreeSet<_>>();
+    let all_regions = coverage
+        .script_regions(source, analysis)
+        .is_some_and(|expected| {
+            expected
+                .iter()
+                .all(|(span, depth)| regions.contains(&(span.start(), span.end(), *depth)))
+        });
+    if coverage.applicability(source, analysis)
+        == Some(crate::SourceSyntaxCoverageApplicability::Complete)
+        && all_regions
+        && observed.iter().all(|seen| *seen)
+    {
+        PotentialSourceVisit::Complete
+    } else {
+        PotentialSourceVisit::Incomplete
+    }
 }
 
 /// Innermost original source region under the actual complete input/Registry.
@@ -119,6 +216,7 @@ pub(crate) fn innermost_analysis_executable_region_at(
         identities,
         visitor: &mut visitor,
         region_probe: Some(&mut probe),
+        coverage_regions: None,
         analysis: Some(analysis),
         definition_parent: None,
     };
@@ -159,6 +257,7 @@ struct ExecutableWalker<'a, F> {
     identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
     region_probe: Option<&'a mut RegionProbe>,
+    coverage_regions: Option<&'a mut Vec<(tcl_lexer::Span, u32)>>,
     analysis: Option<&'a AnalysisResult>,
     definition_parent: Option<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
 }
@@ -172,6 +271,12 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         }
         if let Some(probe) = self.region_probe.as_deref_mut() {
             probe.consider(start, end, depth);
+        }
+        if let Some(regions) = self.coverage_regions.as_deref_mut() {
+            let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+                return false;
+            };
+            regions.push((tcl_lexer::Span::new(start, end), depth));
         }
         start < end
     }
@@ -1164,5 +1269,171 @@ mod original_compound_region_parser_purpose_tests {
         foreign.span = tcl_lexer::Span::new(0, u32::try_from(source.len() + 1).unwrap());
         assert!(command_substitution_regions(source, config, foreign).is_empty());
         assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+    }
+}
+
+#[cfg(test)]
+mod checked_potential_source_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    #[test]
+    fn checked_potential_source_retains_complete_nested_and_empty_inventories() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for source in [
+                "",
+                "set first 1; set second [list value]",
+                "if {1} {set nested 2}; set last 3",
+            ] {
+                let analysis = Analyser::new().analyse(source, dialect);
+                let mut visited = Vec::new();
+                let status = visit_checked_analysis_executable_commands(
+                    source,
+                    &analysis,
+                    &mut |command, _, _| {
+                        visited.push(command.span);
+                        false
+                    },
+                );
+                assert_eq!(
+                    status,
+                    PotentialSourceVisit::Complete,
+                    "{dialect}: {source}"
+                );
+                let coverage = crate::SourceSyntaxCoverage::capture(source, &analysis).unwrap();
+                assert_eq!(
+                    coverage.commands(source, &analysis).unwrap().len(),
+                    visited.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn checked_potential_source_keeps_positives_with_unknown_body_and_parse_debt() {
+        for source in [
+            "set before 1; $handler {set hidden 2}; set after 3",
+            "set before 1; if {1} $body; set after 3",
+            "set before 1; apply $lambda; set after 3",
+            "set before 1; if {1} {set unfinished",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let mut before = false;
+            let status = visit_checked_analysis_executable_commands(
+                source,
+                &analysis,
+                &mut |command, _, _| {
+                    before |= command.span.start() == 0 && command.name() == "set";
+                    false
+                },
+            );
+            assert!(before, "{source}");
+            assert_eq!(status, PotentialSourceVisit::Incomplete, "{source}");
+        }
+    }
+
+    #[test]
+    fn checked_potential_source_retains_depth_exhaustion_as_incomplete() {
+        let source = format!("{}set leaf 1{}", "if {1} {".repeat(258), "}".repeat(258));
+        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        let mut visited = 0;
+        let status =
+            visit_checked_analysis_executable_commands(&source, &analysis, &mut |_, _, _| {
+                visited += 1;
+                false
+            });
+        assert!(visited > 0);
+        assert_eq!(status, PotentialSourceVisit::Incomplete);
+    }
+
+    #[test]
+    fn checked_potential_source_stops_without_issuing_complete_coverage() {
+        let source = "set first 1; set second 2";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut visited = 0;
+        assert_eq!(
+            visit_checked_analysis_executable_commands(source, &analysis, &mut |_, _, _| {
+                visited += 1;
+                true
+            }),
+            PotentialSourceVisit::Stopped
+        );
+        assert_eq!(visited, 1);
+    }
+
+    #[test]
+    fn checked_potential_source_refuses_foreign_source_input_and_full_configuration() {
+        let source = "set first 1";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut changed_config = analysis.clone();
+        changed_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting ^= true;
+        let mut missing_input = analysis.clone();
+        missing_input.resolved_input = None;
+        let mut foreign_input = analysis.clone();
+        foreign_input.resolved_input = Analyser::new()
+            .analyse("puts foreign", "tcl9.0")
+            .resolved_input;
+        for (text, current) in [
+            ("set other 1", &analysis),
+            (source, &changed_config),
+            (source, &missing_input),
+            (source, &foreign_input),
+        ] {
+            let mut called = false;
+            assert_eq!(
+                visit_checked_analysis_executable_commands(text, current, &mut |_, _, _| {
+                    called = true;
+                    false
+                }),
+                PotentialSourceVisit::Unavailable
+            );
+            assert!(!called);
+        }
+    }
+
+    #[test]
+    fn checked_potential_source_cannot_borrow_reference_only_even_empty_regions() {
+        fn reference_only(_: tcl_registry::InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+            vec![(0, ScriptTiming::ReferenceOnly)]
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "held-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, ArgRole::Body)],
+            script_timing_resolver: Some(reference_only),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context = std::sync::Arc::new(
+            tcl_registry::model::context_for_profile(profile)
+                .with_command_store(std::sync::Arc::new(registry)),
+        );
+        let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+        for source in [
+            "held-script {set hidden 1}; set visible 2",
+            "held-script {}; set visible 2",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let mut hidden = false;
+            let status = visit_checked_analysis_executable_commands(
+                source,
+                &analysis,
+                &mut |command, _, _| {
+                    hidden |= command.name() == "set"
+                        && command.args().first().is_some_and(|word| word == "hidden");
+                    false
+                },
+            );
+            assert_eq!(status, PotentialSourceVisit::Incomplete, "{source}");
+            assert!(!hidden);
+        }
     }
 }

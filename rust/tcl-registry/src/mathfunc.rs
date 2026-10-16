@@ -92,6 +92,80 @@ const INFO_FUNCTIONS_SCRIPT: &[u8] = b"\t    ::apply [::list {{pattern *}} {\n\t
 /// the suffix a caller-relative candidate carries.
 pub const MATHFUNC_NAMESPACE_RELATIVE: &str = "tcl::mathfunc";
 
+/// A Logical source naming intention from a checked original function identifier.
+/// This is not the selected engine's function dispatch, a written command head,
+/// a command registration, a value object or a Native naming policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceFunctionName {
+    expression: std::sync::Arc<tcl_syntax::expr::OriginalSourceExpression>,
+    ordinal: usize,
+    offset: u32,
+    function: String,
+    arity: usize,
+    relative: Vec<u8>,
+}
+impl OriginalSourceFunctionName {
+    /// Retain one complete checked expression and its actual function ordinal.
+    /// The namespace convention is source navigation data, not engine dispatch.
+    #[must_use]
+    pub fn capture(
+        expression: std::sync::Arc<tcl_syntax::expr::OriginalSourceExpression>,
+        ordinal: usize,
+    ) -> Option<Self> {
+        let (function, offset, arity) = expression.function_calls().into_iter().nth(ordinal)?;
+        let start = usize::try_from(offset).ok()?;
+        let end = start.checked_add(function.len())?;
+        if function.is_empty()
+            || !function.is_ascii()
+            || expression.source().as_bytes().get(start..end) != Some(function.as_bytes())
+        {
+            return None;
+        }
+        let function = function.to_owned();
+        let mut relative = MATHFUNC_NAMESPACE_RELATIVE.as_bytes().to_vec();
+        relative.extend_from_slice(b"::");
+        relative.extend_from_slice(function.as_bytes());
+        Some(Self {
+            expression,
+            ordinal,
+            offset,
+            function,
+            arity,
+            relative,
+        })
+    }
+    /// Genuine checked complete source expression, not a reconstructed script head.
+    #[must_use]
+    pub fn expression(&self) -> &tcl_syntax::expr::OriginalSourceExpression {
+        &self.expression
+    }
+    /// Immutable function traversal ordinal within that expression.
+    #[must_use]
+    pub const fn ordinal(&self) -> usize {
+        self.ordinal
+    }
+    /// Exact original identifier byte offset in the untrimmed expression.
+    #[must_use]
+    pub const fn offset(&self) -> u32 {
+        self.offset
+    }
+    /// Original case-sensitive identifier bytes, for presentation.
+    #[must_use]
+    pub fn function(&self) -> &str {
+        &self.function
+    }
+    /// Checked argument topology, without binding or completion authority.
+    #[must_use]
+    pub const fn argument_count(&self) -> usize {
+        self.arity
+    }
+    /// Relative source naming intention derived from this actual identifier.
+    #[must_use]
+    pub fn relative_source_name(&self) -> &[u8] {
+        &self.relative
+    }
+}
+
 /// A command-name value constructed from one checked original expression
 /// identifier under the selected modern C function lookup purpose. This is
 /// neither a written command word nor a function registration or dispatch.
@@ -1023,5 +1097,40 @@ mod tests {
         let names84 = reg.math_function_names(profile("tcl8.4"));
         assert!(names84.contains(&"sin"));
         assert!(!names84.contains(&"max"), "8.5-only: {names84:?}");
+    }
+}
+
+#[cfg(test)]
+mod original_source_function_name_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn original_source_function_names_keep_whole_tree_and_exact_ordinals() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+        let expression = Arc::new(
+            tcl_syntax::expr::OriginalSourceExpression::capture(
+                "max(abs($x), 2)",
+                &context,
+                tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar),
+            )
+            .unwrap(),
+        );
+        let name = OriginalSourceFunctionName::capture(Arc::clone(&expression), 1).unwrap();
+        assert_eq!(name.function(), "abs");
+        assert_eq!(name.offset(), 4);
+        assert_eq!(name.relative_source_name(), b"tcl::mathfunc::abs");
+        assert_eq!(name.expression().source(), "max(abs($x), 2)");
+        assert_eq!(name.expression().context(), &context);
+        assert!(OriginalSourceFunctionName::capture(expression, 2).is_none());
+        assert!(
+            tcl_syntax::expr::OriginalSourceExpression::capture(
+                "max(1,",
+                &context,
+                tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar)
+            )
+            .is_none()
+        );
     }
 }

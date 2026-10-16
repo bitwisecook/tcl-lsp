@@ -166,6 +166,24 @@ impl Backend {
         inputs_epoch: u64,
         factory_generation: u64,
     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
+        self.with_current_readonly_documents(documents, inputs_epoch, factory_generation, || {
+            lift_readonly_reference_targets(&targets, documents).map(|locations| {
+                OriginalReadonlyReferenceReport {
+                    locations,
+                    coverage,
+                }
+            })
+        })
+        .await
+    }
+
+    async fn with_current_readonly_documents<T>(
+        &self,
+        documents: &[OriginalReadonlyReferenceDocument],
+        inputs_epoch: u64,
+        factory_generation: u64,
+        mut publish: impl FnMut() -> Option<T>,
+    ) -> DocumentSourceResult<Option<T>> {
         let _inputs = self.analyser_inputs_gate.read().await;
         let generation = self.class_factory_generation.read().await;
         let open = self
@@ -198,14 +216,243 @@ impl Backend {
             .iter()
             .map(|document| document.admission.as_ref())
             .collect::<Vec<_>>();
-        DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
-            lift_readonly_reference_targets(&targets, documents).map(|locations| {
-                OriginalReadonlyReferenceReport {
-                    locations,
-                    coverage,
-                }
-            })
+        DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), &mut publish)
+    }
+
+    async fn finish_logical_hierarchy_projection<'a>(
+        &self,
+        documents: &[OriginalReadonlyReferenceDocument],
+        projection: impl Fn() -> &'a [tcl_lsp_core::type_hierarchy::TypeHierarchyItem],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        let mut registry = self.original_declaration_registry.lock().await;
+        self.with_current_readonly_documents(documents, inputs_epoch, factory_generation, || {
+            projection()
+                .iter()
+                .map(|item| {
+                    let identity = item.logical_declaration.as_ref()?;
+                    let document = documents
+                        .iter()
+                        .find(|document| document.uri.as_str() == identity.uri())?;
+                    if !identity.is_current(identity.uri(), &document.source, &document.analysis) {
+                        return None;
+                    }
+                    let handle = registry.issue_logical_class(identity.clone())?;
+                    Some(tower_lsp_server::ls_types::TypeHierarchyItem {
+                        name: item.name.clone(),
+                        kind: tower_lsp_server::ls_types::SymbolKind::CLASS,
+                        tags: None,
+                        detail: item.detail.clone(),
+                        uri: document.uri.clone(),
+                        range: super::lift_lsp_range(item.range),
+                        selection_range: super::lift_lsp_range(item.selection_range),
+                        data: Some(serde_json::json!({ "logicalHierarchy": handle })),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
         })
+        .await
+        .map(Option::unwrap_or_default)
+    }
+
+    async fn finish_logical_hierarchy_advice(
+        &self,
+        documents: &[OriginalReadonlyReferenceDocument],
+        advice: &tcl_lsp_core::type_hierarchy::LogicalHierarchyAdvice,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        self.finish_logical_hierarchy_projection(
+            documents,
+            || advice.possible_source_items(),
+            inputs_epoch,
+            factory_generation,
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    async fn finish_logical_hierarchy_items(
+        &self,
+        documents: &[OriginalReadonlyReferenceDocument],
+        items: &[tcl_lsp_core::type_hierarchy::TypeHierarchyItem],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        self.finish_logical_hierarchy_projection(
+            documents,
+            || items,
+            inputs_epoch,
+            factory_generation,
+        )
+        .await
+    }
+
+    pub(super) async fn readonly_logical_hierarchy_prepare(
+        &self,
+        selected: &Uri,
+        position: Position,
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        let epoch = self.diag_inputs_epoch();
+        let generation = *self.class_factory_generation.read().await;
+        let Some(current) = self.read_document(selected).await? else {
+            return Ok(Vec::new());
+        };
+        let Some(document) = self
+            .capture_readonly_reference_document(selected.as_str(), current.text)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
+        let (document, advice) = crate::rt::spawn_blocking(move || {
+            let advice = tcl_lsp_core::type_hierarchy::prepare_logical_advice_for_document(
+                document.uri.as_str(),
+                &document.source,
+                position.line,
+                position.character,
+                &document.analysis,
+            );
+            (document, advice)
+        })
+        .await
+        .map_err(|_| super::DocumentSourceUnavailable::Worker {
+            uri: selected.clone(),
+        })?;
+        let Some(advice) = advice else {
+            return Ok(Vec::new());
+        };
+        self.finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
+            .await
+    }
+
+    pub(super) async fn readonly_logical_hierarchy_walk(
+        &self,
+        item: &tower_lsp_server::ls_types::TypeHierarchyItem,
+        subtypes: bool,
+    ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::TypeHierarchyItem>> {
+        let Some(handle) = item
+            .data
+            .as_ref()
+            .and_then(|data| data.get("logicalHierarchy"))
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+        else {
+            return Ok(Vec::new());
+        };
+        let epoch = self.diag_inputs_epoch();
+        let generation = *self.class_factory_generation.read().await;
+        let documents = self.original_declaration_documents(&item.uri).await?;
+        let mut retained = Vec::with_capacity(documents.len());
+        for (uri, source, _) in documents {
+            let Some(document) = self
+                .capture_readonly_reference_document(&uri, source)
+                .await?
+            else {
+                return Ok(Vec::new());
+            };
+            retained.push(document);
+        }
+        let Some(owner) = retained.iter().find(|document| document.uri == item.uri) else {
+            return Ok(Vec::new());
+        };
+        let Some(identity) = self
+            .original_declaration_registry
+            .lock()
+            .await
+            .resolve_logical_class(handle, item.uri.as_str(), &owner.source, &owner.analysis)
+        else {
+            return Ok(Vec::new());
+        };
+        let (retained, advice) = crate::rt::spawn_blocking(move || {
+            let inventory = retained
+                .iter()
+                .map(
+                    |document| tcl_lsp_core::type_hierarchy::OriginalHierarchyDocument {
+                        uri: document.uri.as_str(),
+                        source: &document.source,
+                        analysis: &document.analysis,
+                    },
+                )
+                .collect::<Vec<_>>();
+            let advice = tcl_lsp_core::type_hierarchy::related_logical_from_inventory(
+                &identity, &inventory, subtypes,
+            );
+            (retained, advice)
+        })
+        .await
+        .map_err(|_| super::DocumentSourceUnavailable::Worker {
+            uri: item.uri.clone(),
+        })?;
+        let Some(advice) = advice else {
+            return Ok(Vec::new());
+        };
+        self.finish_logical_hierarchy_advice(&retained, &advice, epoch, generation)
+            .await
+    }
+
+    pub(super) async fn readonly_logical_implementation(
+        &self,
+        selected: &Uri,
+        position: Position,
+    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        let epoch = self.diag_inputs_epoch();
+        let generation = *self.class_factory_generation.read().await;
+        let Some(current) = self.read_document(selected).await? else {
+            return Ok(None);
+        };
+        let Some(document) = self
+            .capture_readonly_reference_document(selected.as_str(), current.text)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let (document, advice) = crate::rt::spawn_blocking(move || {
+            let advice = tcl_lsp_core::implementation::logical_implementation_advice(
+                document.uri.as_str(),
+                &document.source,
+                position.line,
+                position.character,
+                &document.analysis,
+            );
+            (document, advice)
+        })
+        .await
+        .map_err(|_| super::DocumentSourceUnavailable::Worker {
+            uri: selected.clone(),
+        })?;
+        let Some(advice) = advice else {
+            return Ok(None);
+        };
+        self.finish_logical_implementation_advice(&[document], &advice, epoch, generation)
+            .await
+    }
+
+    async fn finish_logical_implementation_advice(
+        &self,
+        documents: &[OriginalReadonlyReferenceDocument],
+        advice: &tcl_lsp_core::implementation::LogicalImplementationAdvice,
+        epoch: u64,
+        generation: u64,
+    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        self.with_current_readonly_documents(documents, epoch, generation, || {
+            let owner = documents.first()?;
+            if !advice.is_current(owner.uri.as_str(), &owner.source, &owner.analysis) {
+                return None;
+            }
+            // Standard Locations carry possible positives only; the typed
+            // source result and its debt stay held through this final lease.
+            Some(
+                advice
+                    .possible_source_ranges()
+                    .iter()
+                    .map(|range| Location {
+                        uri: owner.uri.clone(),
+                        range: super::lift_lsp_range(*range),
+                    })
+                    .collect(),
+            )
+        })
+        .await
     }
 
     /// Source-only occurrences join the original declaration in its real URI.
@@ -688,5 +935,288 @@ mod tests {
         );
         assert_eq!(command.title, "0 references");
         assert_eq!(command.command, "tcl-lsp.showReferences");
+    }
+}
+
+#[cfg(test)]
+mod logical_hierarchy_tests {
+    use super::*;
+    use crate::DocumentState;
+
+    async fn register(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .documents
+            .lock("logical hierarchy test")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(source.to_owned(), "tcl".to_owned()),
+            );
+        backend
+            .db_set_source(uri, source, "tcl".to_owned())
+            .await
+            .unwrap();
+        let analysis = backend
+            .analysis_for(uri, Arc::from(source), "tcl".to_owned())
+            .await
+            .unwrap();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    #[tokio::test]
+    async fn logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners() {
+        let backend = crate::tests::test_backend();
+        let base: Uri = "file:///tmp/logical-hierarchy-base.tcl".parse().unwrap();
+        let child: Uri = "file:///tmp/logical-hierarchy-child.tcl".parse().unwrap();
+        let base_source = "namespace eval N {oo::class create Base {}}";
+        let child_source = "namespace eval N {oo::class create Child {superclass Base}}";
+        register(&backend, &base, base_source).await;
+        register(&backend, &child, child_source).await;
+        let offset = u32::try_from(child_source.find("Child").unwrap()).unwrap();
+        let mut items = backend
+            .readonly_logical_hierarchy_prepare(&child, Position::new(0, offset))
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        let mut item = items.remove(0);
+        assert!(item.data.is_some());
+        item.name = "untrusted label".into();
+        item.selection_range = Range::default();
+        let parents = backend
+            .type_hierarchy_walk(item.clone(), false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(parents.len(), 1);
+        assert_eq!(parents[0].name, "::N::Base");
+        assert_eq!(parents[0].uri, base);
+        assert!(parents[0].data.is_some());
+        let children = backend
+            .type_hierarchy_walk(parents[0].clone(), true)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].uri, child);
+        let mut unissued = item.clone();
+        unissued.data = None;
+        assert!(
+            backend
+                .type_hierarchy_walk(unissued, false)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+        let mut foreign = item.clone();
+        foreign.uri = base.clone();
+        assert!(
+            backend
+                .type_hierarchy_walk(foreign, false)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+        register(&backend, &child, &format!("{child_source}\n# changed")).await;
+        assert!(
+            backend
+                .type_hierarchy_walk(item, false)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target()
+    {
+        let backend = crate::tests::test_backend();
+        let base: Uri = "file:///tmp/logical-hierarchy-final-base.tcl"
+            .parse()
+            .unwrap();
+        let child: Uri = "file:///tmp/logical-hierarchy-final-child.tcl"
+            .parse()
+            .unwrap();
+        let base_source = "oo::class create Base {}";
+        let child_source = "oo::class create Child {superclass Base}";
+        register(&backend, &base, base_source).await;
+        register(&backend, &child, child_source).await;
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        let documents = vec![
+            backend
+                .capture_readonly_reference_document(base.as_str(), Arc::from(base_source))
+                .await
+                .unwrap()
+                .unwrap(),
+            backend
+                .capture_readonly_reference_document(child.as_str(), Arc::from(child_source))
+                .await
+                .unwrap()
+                .unwrap(),
+        ];
+        let position = u32::try_from(child_source.find("Child").unwrap()).unwrap();
+        let root = tcl_lsp_core::type_hierarchy::prepare_for_document(
+            child.as_str(),
+            child_source,
+            0,
+            position,
+            &documents[1].analysis,
+        )
+        .remove(0)
+        .logical_declaration
+        .unwrap();
+        let inventory = documents
+            .iter()
+            .map(
+                |document| tcl_lsp_core::type_hierarchy::OriginalHierarchyDocument {
+                    uri: document.uri.as_str(),
+                    source: &document.source,
+                    analysis: &document.analysis,
+                },
+            )
+            .collect::<Vec<_>>();
+        let items =
+            tcl_lsp_core::type_hierarchy::related_logical_from_inventory(&root, &inventory, false)
+                .unwrap()
+                .into_items();
+        assert_eq!(items.len(), 1);
+        register(&backend, &child, "oo::class create Child {}").await;
+        assert!(
+            backend
+                .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod conditional_navigation_publication_tests {
+    use super::*;
+    use crate::DocumentState;
+
+    async fn register(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .documents
+            .lock("conditional_navigation_test")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(source.to_owned(), "tcl".to_owned()),
+            );
+        backend
+            .db_set_source(uri, source, "tcl".to_owned())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn typed_hierarchy_debt_survives_wire_publication_and_parent_currentness() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/conditional-hierarchy-debt.tcl"
+            .parse()
+            .unwrap();
+        let source = "oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
+        register(&backend, &uri, source).await;
+        let offset = u32::try_from(source.rfind("Base").unwrap()).unwrap();
+        let items = backend
+            .readonly_logical_hierarchy_prepare(&uri, Position::new(0, offset))
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        let document = backend
+            .capture_readonly_reference_document(uri.as_str(), Arc::from(source))
+            .await
+            .unwrap()
+            .unwrap();
+        let handle =
+            serde_json::from_value(items[0].data.as_ref().unwrap()["logicalHierarchy"].clone())
+                .unwrap();
+        let identity = backend
+            .original_declaration_registry
+            .lock()
+            .await
+            .resolve_logical_class(handle, uri.as_str(), &document.source, &document.analysis)
+            .unwrap();
+        assert!(identity.has_unresolved_applicability());
+        let advice = tcl_lsp_core::type_hierarchy::prepare_logical_advice_for_document(
+            uri.as_str(),
+            source,
+            0,
+            offset,
+            &document.analysis,
+        )
+        .unwrap();
+        assert!(advice.has_unresolved_applicability());
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        register(
+            &backend,
+            &uri,
+            "oo::class create Base {}; oo::class create Child {}",
+        )
+        .await;
+        assert!(
+            backend
+                .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn implementation_possible_locations_keep_typed_debt_until_final_source_lease() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/conditional-implementation-debt.tcl"
+            .parse()
+            .unwrap();
+        let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
+        register(&backend, &uri, source).await;
+        let offset = u32::try_from(source.find("run").unwrap()).unwrap();
+        let locations = backend
+            .readonly_logical_implementation(&uri, Position::new(0, offset))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            locations
+                .iter()
+                .map(|location| location.range.start.line)
+                .collect::<Vec<_>>(),
+            vec![0, 2]
+        );
+        let document = backend
+            .capture_readonly_reference_document(uri.as_str(), Arc::from(source))
+            .await
+            .unwrap()
+            .unwrap();
+        let advice = tcl_lsp_core::implementation::logical_implementation_advice(
+            uri.as_str(),
+            source,
+            0,
+            offset,
+            &document.analysis,
+        )
+        .unwrap();
+        assert!(advice.has_unresolved_applicability());
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        register(&backend, &uri, &format!("{source}\n# changed")).await;
+        assert!(
+            backend
+                .finish_logical_implementation_advice(&[document], &advice, epoch, generation)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

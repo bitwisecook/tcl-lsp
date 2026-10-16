@@ -1,0 +1,76 @@
+{
+  "utc": "2026-10-16T22:16:17.772325+00:00",
+  "source_head": "a2ef3c7396c63fdecb400f2699d3b1a7d57f2585",
+  "editor_diff_sha256": "26db9720b985ac3a2acb1eb67db396a2af23d65d9d7819479a21e3ea84c46aab",
+  "input_count": 407,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.841,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/compilerExplorer.ts",
+        "src/compilerExplorerHtml.ts",
+        "src/scaffold.ts",
+        "src/serverResolution.ts",
+        "src/test/scaffold.test.ts",
+        "src/test/serverResolution.test.ts",
+        "src/wasiServer.ts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.978,
+      "log": "check-1.log",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "../../rust/tcl-lsp-server-wasm/worker.js"
+      ],
+      "exit_code": 0,
+      "seconds": 0.026,
+      "log": "check-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.411,
+      "log": "check-3.log",
+      "log_sha256": "7d1a13e7f107d0006fec1dc14204c0c01cec53382c3efbc401a999628ff692d1"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.363,
+      "log": "check-4.log",
+      "log_sha256": "fdc0942c2f667bd7078784073cc4930a72855b05ee15ba3bc7ff38f419cfe74d"
+    }
+  ],
+  "status": "PASS",
+  "input_drift": [],
+  "completed_utc": "2026-10-16T22:16:23.506869+00:00",
+  "host_execution": "Compilation, worker syntax and bundle only; actual extension host unexecuted"
+}

@@ -4902,6 +4902,16 @@ impl CommandRegistry {
         words: InvocationWords<'w>,
         context: &'w crate::model::ContextRegistry,
     ) -> Result<Option<ResolvedInvocation<'r, 'w>>, InstanceMethodContextUnavailable> {
+        self.resolve_structured_instance_with_method_provider(class_spec, words, context)
+    }
+
+    // The selected provider, receiver axes and constructor remain one producer.
+    fn resolve_structured_instance_with_method_provider<'r, 'w>(
+        &'r self,
+        class_spec: &'r CommandSpec,
+        words: InvocationWords<'w>,
+        context: &'w crate::model::ContextRegistry,
+    ) -> Result<Option<ResolvedInvocation<'r, 'w>>, InstanceMethodContextUnavailable> {
         let words = words.with_profile(self.profile());
         let arguments = words.arguments();
         let providers =

@@ -45,7 +45,7 @@ pub use mathfunc::{MathFuncSpec, MathResultClass};
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;
 pub use substitution::{
-    LiveExpressionSubstitutions, checked_expression_substitutions,
+    LiveExpressionSubstitutions, OriginalSourceExpression, checked_expression_substitutions,
     checked_source_expression_substitutions, command_substitution_spans,
     command_substitutions_in_checked_expression, expression_span, live_expression_substitutions,
 };

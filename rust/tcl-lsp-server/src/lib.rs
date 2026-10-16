@@ -878,6 +878,7 @@ impl DocumentState {
 struct WorkspaceSymbolCandidates {
     fallback_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
     indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    indexed_revisions: HashMap<String, u64>,
     sources: HashMap<String, Option<DocumentState>>,
 }
 
@@ -13572,43 +13573,6 @@ impl Backend {
     /// an unrelated file can't contribute its own parents and the result is
     /// deterministic; the union over every homonym is used only as a fallback
     /// when the selected document isn't indexed.
-    async fn cross_hierarchy_targets(
-        &self,
-        subtypes: bool,
-        class_name: &str,
-        selected_uri: &str,
-    ) -> Vec<(String, String, tcl_lexer::Span)> {
-        let index = self.workspace_index.read().await;
-        let list = if subtypes {
-            index.subclasses_of(class_name)
-        } else {
-            let selected: Vec<&core_workspace_index::WorkspaceClass> = index
-                .classes_named(class_name)
-                .into_iter()
-                .filter(|c| c.uri == selected_uri)
-                .collect();
-            let definitions = if selected.is_empty() {
-                index.classes_named(class_name)
-            } else {
-                selected
-            };
-            let mut acc: Vec<&core_workspace_index::WorkspaceClass> = Vec::new();
-            let mut seen_super: std::collections::HashSet<String> =
-                std::collections::HashSet::new();
-            for c in definitions {
-                for s in index.supertype_classes(c) {
-                    if seen_super.insert(s.qualified_name.clone()) {
-                        acc.push(s);
-                    }
-                }
-            }
-            acc
-        };
-        list.into_iter()
-            .map(|c| (c.uri.clone(), c.qualified_name.clone(), c.name_span))
-            .collect()
-    }
-
     /// Shared supertype (`subtypes = false`) / subtype (`subtypes = true`)
     /// walk for one type-hierarchy item, resolving against the item's
     /// document.  Returns an empty list (not an error) when the document or
@@ -13620,7 +13584,6 @@ impl Backend {
         subtypes: bool,
     ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
         let uri = item.uri.clone();
-        let class_name = item.name.clone();
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(Some(Vec::new()));
         };
@@ -13656,79 +13619,10 @@ impl Backend {
             })?;
             return Ok(Some(self.lift_original_type_hierarchy_items(items).await?));
         }
-        let class_name_for_blk = class_name.clone();
-        let items = crate::rt::spawn_blocking(move || {
-            if subtypes {
-                core_type_hierarchy::subtypes(&class_name_for_blk, &doc.text, &analysis)
-            } else {
-                core_type_hierarchy::supertypes(&class_name_for_blk, &doc.text, &analysis)
-            }
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("type_hierarchy worker panicked: {err}").into(),
-            data: None,
-        })?;
-        let mut lifted: Vec<TypeHierarchyItem> = items
-            .into_iter()
-            .map(|i| TypeHierarchyItem {
-                name: i.name,
-                kind: SymbolKind::CLASS,
-                tags: None,
-                detail: i.detail,
-                uri: uri.clone(),
-                range: lift_lsp_range(i.range),
-                selection_range: lift_lsp_range(i.selection_range),
-                data: None,
-            })
-            .collect();
-
-        // Cross-file: resolve super/subtypes defined in *other* workspace
-        // documents via the class index, converting each target's name span
-        // in its own source.  De-duplicated against the same-document
-        // results by qualified name.
-        let mut seen: std::collections::HashSet<String> =
-            lifted.iter().map(|i| i.name.clone()).collect();
-        seen.insert(class_name.clone());
-        let targets = self
-            .cross_hierarchy_targets(subtypes, &class_name, uri.as_str())
-            .await;
-        for (turi, qname, name_span) in targets {
-            if !seen.insert(qname.clone()) {
-                continue;
-            }
-            let Ok(target_uri) = turi.parse::<Uri>() else {
-                continue;
-            };
-            let Some(tdoc) = self.read_document(&target_uri).await? else {
-                continue;
-            };
-            let li = tcl_lexer::LineIndex::new_lsp(&tdoc.text);
-            let start = li.position_at_utf16(name_span.start(), &tdoc.text);
-            let end = li.position_at_utf16(name_span.end(), &tdoc.text);
-            let range = Range {
-                start: Position {
-                    line: start.line,
-                    character: start.character.get(),
-                },
-                end: Position {
-                    line: end.line,
-                    character: end.character.get(),
-                },
-            };
-            lifted.push(TypeHierarchyItem {
-                name: qname,
-                kind: SymbolKind::CLASS,
-                tags: None,
-                detail: None,
-                uri: target_uri,
-                range,
-                selection_range: range,
-                data: None,
-            });
-        }
-        Ok(Some(lifted))
+        Ok(Some(
+            self.readonly_logical_hierarchy_walk(&item, subtypes)
+                .await?,
+        ))
     }
 
     async fn retain_original_declaration_data(
@@ -25915,7 +25809,13 @@ impl Backend {
     ) -> DocumentSourceResult<WorkspaceSymbolCandidates> {
         const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
         for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
-            let (unindexed, mut indexed_hits, mut sources, mut closed_revisions) = {
+            let (
+                unindexed,
+                mut indexed_hits,
+                mut indexed_revisions,
+                mut sources,
+                mut closed_revisions,
+            ) = {
                 // `documents` → `workspace_index`, the lock order `did_open`
                 // establishes.
                 let docs = self.documents.lock("open_but_unindexed_symbols").await;
@@ -25950,16 +25850,26 @@ impl Backend {
                             .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
                     })
                     .collect();
-                let closed_revisions: HashMap<String, u64> = indexed_hits
+                let indexed_revisions: HashMap<String, u64> = indexed_hits
                     .iter()
-                    .filter(|hit| !sources.contains_key(&hit.uri))
                     .filter_map(|hit| {
                         index
                             .document_revision(&hit.uri)
                             .map(|revision| (hit.uri.clone(), revision))
                     })
                     .collect();
-                (unindexed, indexed_hits, sources, closed_revisions)
+                let closed_revisions: HashMap<String, u64> = indexed_revisions
+                    .iter()
+                    .filter(|(uri, _)| !sources.contains_key(*uri))
+                    .map(|(uri, revision)| (uri.clone(), *revision))
+                    .collect();
+                (
+                    unindexed,
+                    indexed_hits,
+                    indexed_revisions,
+                    sources,
+                    closed_revisions,
+                )
             };
 
             let mut pending = new_workspace_index();
@@ -26001,6 +25911,7 @@ impl Backend {
                 indexed_hits.iter().map(|hit| hit.uri.clone()).collect();
             sources.retain(|uri, _| selected_indexed_uris.contains(uri));
             closed_revisions.retain(|uri, _| selected_indexed_uris.contains(uri));
+            indexed_revisions.retain(|uri, _| selected_indexed_uris.contains(uri));
 
             for uri_s in closed_revisions.keys() {
                 let loaded = match Uri::from_str(uri_s) {
@@ -26035,6 +25946,7 @@ impl Backend {
             return Ok(WorkspaceSymbolCandidates {
                 fallback_hits,
                 indexed_hits,
+                indexed_revisions,
                 sources,
             });
         }
@@ -28926,27 +28838,10 @@ impl LanguageServer for Backend {
                 (!locations.is_empty()).then_some(GotoImplementationResponse::Array(locations))
             );
         }
-        let text = doc.text.clone();
-        let ranges = crate::rt::spawn_blocking(move || {
-            core_implementation::implementation(&text, pos.line, pos.character, &analysis)
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("implementation worker panicked: {err}").into(),
-            data: None,
-        })?;
-        if ranges.is_empty() {
-            return Ok(None);
-        }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
-        Ok(Some(GotoImplementationResponse::Array(locations)))
+        let locations = self.readonly_logical_implementation(&uri, pos).await?;
+        Ok(locations
+            .filter(|locations| !locations.is_empty())
+            .map(GotoImplementationResponse::Array))
     }
 
     async fn references(&self, params: ReferenceParams) -> jsonrpc::Result<Option<Vec<Location>>> {
@@ -29457,7 +29352,10 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await?;
-        let native = !analysis.allows_lexical_declaration_advice();
+        if analysis.allows_lexical_declaration_advice() {
+            let lifted = self.readonly_logical_hierarchy_prepare(&uri, pos).await?;
+            return Ok((!lifted.is_empty()).then_some(lifted));
+        }
         let owner = uri.to_string();
         let items = crate::rt::spawn_blocking(move || {
             core_type_hierarchy::prepare_for_document(
@@ -29477,24 +29375,8 @@ impl LanguageServer for Backend {
         if items.is_empty() {
             return Ok(None);
         }
-        if native {
-            let lifted = self.lift_original_type_hierarchy_items(items).await?;
-            return Ok((!lifted.is_empty()).then_some(lifted));
-        }
-        let lifted = items
-            .into_iter()
-            .map(|i| TypeHierarchyItem {
-                name: i.name,
-                kind: SymbolKind::CLASS,
-                tags: None,
-                detail: i.detail,
-                uri: uri.clone(),
-                range: lift_lsp_range(i.range),
-                selection_range: lift_lsp_range(i.selection_range),
-                data: None,
-            })
-            .collect();
-        Ok(Some(lifted))
+        let lifted = self.lift_original_type_hierarchy_items(items).await?;
+        Ok((!lifted.is_empty()).then_some(lifted))
     }
 
     async fn supertypes(
@@ -29947,6 +29829,7 @@ impl LanguageServer for Backend {
         let WorkspaceSymbolCandidates {
             fallback_hits: mut hits,
             indexed_hits,
+            indexed_revisions,
             mut sources,
         } = self
             .open_but_unindexed_symbols(&params.query, limit)
@@ -29958,11 +29841,13 @@ impl LanguageServer for Backend {
         if hits.is_empty() {
             return Ok(None);
         }
-        // A name span becomes an LSP range only against its own document's
-        // source, which the index deliberately does not hold.  `hits` arrives
-        // grouped by URI, so each document is resolved once — from the open
-        // buffer when there is one, else from disk.
-        let mut all: Vec<SymbolInformation> = Vec::with_capacity(hits.len());
+        // A name span becomes an LSP range only against a checked source
+        // snapshot for its own URI. The index retains immutable validation
+        // context, not a mutable current buffer. `hits` arrives grouped by
+        // URI, so each document is resolved once — from the open buffer when
+        // there is one, else from disk.
+        let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
+            Vec::with_capacity(hits.len());
         for hit in hits {
             if !sources.contains_key(&hit.uri) {
                 let loaded = match Uri::from_str(&hit.uri) {
@@ -29984,6 +29869,21 @@ impl LanguageServer for Backend {
                 {
                     continue;
                 }
+            } else {
+                let Some(owner) = hit.logical_source.as_ref() else {
+                    // No latest-source span inverse: a logical report row
+                    // without its own retained source view is unavailable.
+                    continue;
+                };
+                if owner.uri() != hit.uri
+                    || owner.span() != hit.name_span
+                    || !owner.matches_source(&hit.uri, &doc.text)
+                    || indexed_revisions
+                        .get(&hit.uri)
+                        .is_some_and(|revision| owner.document_revision() != *revision)
+                {
+                    continue;
+                }
             }
             let start = doc
                 .line_index
@@ -29992,7 +29892,7 @@ impl LanguageServer for Backend {
                 .line_index
                 .position_at_utf16(hit.name_span.end(), &doc.text);
             #[allow(deprecated)]
-            all.push(SymbolInformation {
+            let symbol = SymbolInformation {
                 name: hit.name,
                 kind: match hit.kind {
                     // A tcltest case has no dedicated LSP kind; it lists as
@@ -30011,7 +29911,7 @@ impl LanguageServer for Backend {
                 tags: None,
                 deprecated: None,
                 location: Location {
-                    uri,
+                    uri: uri.clone(),
                     range: Range {
                         start: Position {
                             line: start.line,
@@ -30024,12 +29924,73 @@ impl LanguageServer for Backend {
                     },
                 },
                 container_name: hit.container_name,
-            });
+            };
+            all.push((
+                symbol,
+                uri.clone(),
+                (*doc).clone(),
+                indexed_revisions.get(&hit.uri).copied(),
+            ));
         }
         if all.is_empty() {
             return Ok(None);
         }
-        Ok(Some(WorkspaceSymbolResponse::Flat(all)))
+
+        // Close the request over the exact open snapshot, index revision and
+        // selected provider mapping used above. The synchronous continuation
+        // performs the final URI-range projection without yielding while those
+        // owners remain current. This is a readonly report boundary; it grants
+        // no rename/edit or project-absence authority.
+        let mut admissions = Vec::with_capacity(all.len());
+        for (_, uri, snapshot, _) in &all {
+            if let Some(admission) = snapshot.path_admission.as_deref() {
+                if admission.uri() != uri {
+                    return Ok(None);
+                }
+                admissions.push(admission);
+            } else if self.store.workspace_source_inventory_provider()
+                == vfs::WorkspaceSourceInventoryProvider::HostReported
+                && uri.scheme().as_str() == "file"
+            {
+                // Host-backed file rows need their actual selected-path lease.
+                // In-memory URIs and the Native provider keep their existing
+                // document-snapshot/index-revision currency path.
+                return Ok(None);
+            }
+        }
+        let documents = self.documents.lock("workspace_symbol_publish").await;
+        let index = self.workspace_index.read().await;
+        let response =
+            DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
+                let mut current = Vec::with_capacity(all.len());
+                for (symbol, uri, snapshot, indexed_revision) in &all {
+                    if let Some(live) = documents.get(uri) {
+                        if live.backing_file_deleted
+                            || live.revision != snapshot.revision
+                            || live.version != snapshot.version
+                            || live.raw() != snapshot.raw()
+                            || live.dialect != snapshot.dialect
+                            || live.path_admission != snapshot.path_admission
+                        {
+                            continue;
+                        }
+                    } else if snapshot.version.is_some() {
+                        // An open document captured for this response has
+                        // closed since its source snapshot was taken.
+                        continue;
+                    }
+                    match indexed_revision {
+                        Some(revision)
+                            if index.document_revision(uri.as_str()) == Some(*revision) => {}
+                        Some(_) => continue,
+                        None if index.contains_document(uri.as_str()) => continue,
+                        None => {}
+                    }
+                    current.push(symbol.clone());
+                }
+                (!current.is_empty()).then_some(WorkspaceSymbolResponse::Flat(current))
+            })?;
+        Ok(response)
     }
 
     async fn document_link(
