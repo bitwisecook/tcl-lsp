@@ -330,12 +330,33 @@ pub const DIVZERO_CODE: &str = "ARITH DIVZERO {divide by zero}";
 /// too large, where later releases keep it. `None` where it is kept.
 #[must_use]
 pub fn float_result_error(value: f64, release: TclVersion) -> Option<(&'static str, &'static str)> {
-    if release != TclVersion::V8_4 || value.is_finite() {
+    if !checks_float_range(release) || value.is_finite() {
         None
     } else if value.is_nan() {
         Some((DOMAIN_MESSAGE, DOMAIN_CODE))
     } else {
-        Some((FLOAT_OVERFLOW_MESSAGE, FLOAT_OVERFLOW_CODE))
+        Some(float_range_error(value))
+    }
+}
+
+/// Whether `release` checks each double an operator, a math function or a
+/// numeral produces (`TclExprFloatError`): 8.4 does, later releases keep an
+/// infinity, a NaN or an underflow.
+#[must_use]
+pub fn checks_float_range(release: TclVersion) -> bool {
+    release == TclVersion::V8_4
+}
+
+/// The message and `-errorcode` 8.4 gives a double C reported with `ERANGE`
+/// (`TclExprFloatError`): too small where it came back zero, too large
+/// otherwise, a subnormal included (tclsh 8.4.20: `expr {1e-320}` is
+/// `floating-point value too large to represent`).
+#[must_use]
+pub fn float_range_error(value: f64) -> (&'static str, &'static str) {
+    if value == 0.0 {
+        (FLOAT_UNDERFLOW_MESSAGE, FLOAT_UNDERFLOW_CODE)
+    } else {
+        (FLOAT_OVERFLOW_MESSAGE, FLOAT_OVERFLOW_CODE)
     }
 }
 

@@ -33,7 +33,7 @@
 //! are handled here directly rather than via the pure shared dispatch.
 
 use tcl_syntax::expr::mathfunc::{
-    integer_conversion, try_dispatch_with_backend_int_width, IntWidth, IntegerConversion, NumValue,
+    integer_conversion, try_dispatch_for_release, IntWidth, IntegerConversion, NumValue,
 };
 use tcl_syntax::naming::qualifier_segments;
 
@@ -190,7 +190,7 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // an integer conversion as `ARITH IOVERFLOW`, a NaN operand as `TCL VALUE
     // DOUBLE NAN`, and only a genuine out-of-range argument as `ARITH DOMAIN` —
     // rather than the generic domain error for all three.
-    match try_dispatch_with_backend_int_width(&lname, &nums, int_width) {
+    match try_dispatch_for_release(&lname, &nums, interp.runtime_version()) {
         Ok(num) => {
             interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok

@@ -494,23 +494,13 @@ fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
             format!("expected integer but got \"{text}\" (looks like invalid octal number)"),
             None,
         )),
-        // `strtod` reads `inf` without `ERANGE`; only an overflowing numeral
-        // fails the parse.
+        // `strtod`'s `ERANGE`: an overflow, or a non-zero numeral that reads
+        // as zero or a subnormal (`inf` reads without it).
         Some(crate::number::Number::Double(value))
-            if value.is_infinite() && !text.to_ascii_lowercase().contains("inf") =>
+            if crate::number::is_out_of_range_double(text, tcl_dialect::NumberSyntax::Tcl84) =>
         {
-            coded(errors::FLOAT_OVERFLOW_MESSAGE, errors::FLOAT_OVERFLOW_CODE)
-        }
-        Some(crate::number::Number::Double(value))
-            if value == 0.0
-                && text.split(['e', 'E']).next().is_some_and(|mantissa| {
-                    mantissa.bytes().any(|byte| (b'1'..=b'9').contains(&byte))
-                }) =>
-        {
-            coded(
-                errors::FLOAT_UNDERFLOW_MESSAGE,
-                errors::FLOAT_UNDERFLOW_CODE,
-            )
+            let (message, code) = errors::float_range_error(value);
+            coded(message, code)
         }
         _ => Ok(()),
     }
