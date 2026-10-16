@@ -1,0 +1,15 @@
+
+running 10 tests
+test grep_both ... ok
+test grep_cidr ... ok
+test grep_forward ... ok
+test grep_include_body ... ok
+test grep_json ... ok
+test grep_literal ... ok
+test grep_max_depth ... ok
+test grep_no_match ... ok
+test grep_regex ... ok
+test grep_reverse ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.89s
+

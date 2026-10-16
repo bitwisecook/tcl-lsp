@@ -1,0 +1,51 @@
+   Compiling bitflags v2.13.2
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling serde_core v1.0.229
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling serde_json v1.0.151
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde v1.0.229
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling rustix v1.1.5
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling rustls v0.23.45
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling rustls-webpki v0.103.15
+   Compiling xattr v1.6.1
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling filetime v0.2.29
+   Compiling wait-timeout v0.2.1
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling zip v8.6.0
+   Compiling chrono v0.4.45
+   Compiling ureq v3.4.2
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling tar v0.4.46
+   Compiling ls-types v0.0.6
+   Compiling rtoolbox v0.0.6
+   Compiling rpassword v7.5.4
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10m 00s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_cli_support-c4c3631427c24177)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-d8de6991bbca4c93)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_core-a667c600751d0109)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_registry-b16ebab44352cebb)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_vm-80b96b754505a5a3)

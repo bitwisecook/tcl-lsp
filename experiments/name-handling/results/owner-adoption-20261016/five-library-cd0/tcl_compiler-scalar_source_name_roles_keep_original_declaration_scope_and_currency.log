@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency ... 
+thread 'registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency' (128749) panicked at rust/tcl-compiler/src/registry_invocation/source_name_roles.rs:997:13:
+assertion failed: binding.has_original_source_layout_owner()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10241 filtered out; finished in 0.34s
+

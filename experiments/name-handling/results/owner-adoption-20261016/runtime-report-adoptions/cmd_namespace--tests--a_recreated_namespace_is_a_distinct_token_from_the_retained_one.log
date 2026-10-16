@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_namespace::tests::a_recreated_namespace_is_a_distinct_token_from_the_retained_one ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2299 filtered out; finished in 1.76s
+

@@ -1,0 +1,9 @@
+
+running 4 tests
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers ... ok
+test analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10238 filtered out; finished in 24.22s
+

@@ -1,0 +1,14 @@
+{
+  "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+  "ordinary": true,
+  "cohorts": 24,
+  "PASS": 123,
+  "FAIL": 26,
+  "zero_test_runs": 0,
+  "build": {
+    "status": "PASS",
+    "seconds": 600,
+    "warnings": 0
+  },
+  "scope": "Selected controls only, no whole-suite/issue/Native provider/repository gate acceptance. Fixed original selectors/budgets preserved."
+}

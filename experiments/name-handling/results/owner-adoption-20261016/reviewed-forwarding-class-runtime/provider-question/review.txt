@@ -1,0 +1,1 @@
+Root reviewed this exact provenance question. Prepared for the separate BIG-IP chat; NOT sent. It requests original independent grounding, not a hash refresh or admission of current sanitised containers. Fresh replay must have a new capture identity. No original bytes or field digest have been recovered.

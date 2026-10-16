@@ -12,17 +12,20 @@ use crate::resolved_invocation::{AuthoredSourceOptionBoundary, ResolvedInvocatio
 pub enum SourceConfigurationReferenceLayout {
     /// A three-word item/operator/data-group tail after the declared options.
     DataGroupComparison,
+    /// The final data-group operand of `class lookup <key> <data-group>`.
+    DataGroupLookup,
 }
 
 impl SourceConfigurationReferenceLayout {
     /// Complete declarative authoring vocabulary.
-    pub const ALL: &'static [Self] = &[Self::DataGroupComparison];
+    pub const ALL: &'static [Self] = &[Self::DataGroupComparison, Self::DataGroupLookup];
 
     /// Exact declarative spelling used by native and loadable metadata.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::DataGroupComparison => "DataGroupComparison",
+            Self::DataGroupLookup => "DataGroupLookup",
         }
     }
 }
@@ -127,6 +130,29 @@ impl ResolvedInvocation<'_, '_> {
                     selection_unknown,
                 })
             }
+            SourceConfigurationReferenceLayout::DataGroupLookup => {
+                let arguments = self.words.arguments();
+                let count = arguments.exact_argv_len()?;
+                let key = self.semantics.argument_offset;
+                let argument = key.checked_add(1)?;
+                if count != self.semantics.argument_offset.checked_add(2)?
+                    || !self
+                        .semantics
+                        .arity
+                        .accepts(self.argument_count_for_arity()?)
+                    || !arguments.get(key)?.has_exactly_one_argv_entry()
+                {
+                    return None;
+                }
+                if arguments.literal_at(argument)?.contains('\0') {
+                    return None;
+                }
+                Some(AuthoredSourceConfigurationReference {
+                    argument,
+                    family: ConfigurationObjectFamily::DataGroup,
+                    selection_unknown: false,
+                })
+            }
         }
     }
 }
@@ -211,6 +237,44 @@ mod tests {
                 project(&[Literal("match"), Dynamic, Literal(operator), Literal("dg")]).is_some()
             );
         }
+    }
+
+    #[test]
+    fn lookup_layout_keeps_literal_group_after_dynamic_key() {
+        use InvocationWord::{Dynamic, Literal};
+        assert_eq!(
+            project(&[Literal("lookup"), Dynamic, Literal("uri_redirect_map")]),
+            Some(AuthoredSourceConfigurationReference {
+                argument: 2,
+                family: ConfigurationObjectFamily::DataGroup,
+                selection_unknown: false,
+            })
+        );
+        assert_eq!(
+            project(&[Literal("lookup"), Dynamic, Dynamic]),
+            None,
+            "a dynamic data-group operand is not a literal source candidate"
+        );
+        assert_eq!(project(&[Literal("lookup"), Dynamic]), None);
+        assert_eq!(
+            project(&[
+                Literal("lookup"),
+                Dynamic,
+                Literal("uri_redirect_map"),
+                Literal("extra")
+            ]),
+            None,
+            "extra lookup arguments are outside the selected exact schema"
+        );
+        assert_eq!(
+            project(&[
+                Literal("lookup"),
+                InvocationWord::Opaque,
+                Literal("uri_redirect_map")
+            ]),
+            None,
+            "an opaque key without exactly one argv entry cannot anchor the target"
+        );
     }
 
     #[test]

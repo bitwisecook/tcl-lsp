@@ -104,6 +104,22 @@ impl OriginalAuthoredProcedureBody {
     pub(crate) fn parameters_text(&self) -> &str {
         &self.parameters_text
     }
+    /// Descriptive source arity from this unchanged original header/formals.
+    /// This supplies no Native formal slots, activation or accepted call.
+    pub(crate) fn original_argument_count_shape(
+        &self,
+        module: &Module,
+        procedure: &Procedure,
+    ) -> Option<tcl_syntax::formal_params::FormalArgumentCountShape> {
+        self.matches_procedure(module, procedure).then_some(())?;
+        Some(tcl_syntax::formal_params::formal_argument_count_shape(
+            self.parameters
+                .iter()
+                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            module.parameter_grammar()?,
+        ))
+    }
+
     pub(crate) fn parameter_names(&self) -> impl Iterator<Item = &str> {
         self.parameters
             .iter()

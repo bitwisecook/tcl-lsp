@@ -237,10 +237,16 @@ pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
 )];
 
 /// [`tcl_registry::SourceConfigurationReferenceLayout`] conditional source object references.
-pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[v(
-    "DataGroupComparison",
-    "data-group operand after a comparison item and operator",
-)];
+pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[
+    v(
+        "DataGroupComparison",
+        "data-group operand after a comparison item and operator",
+    ),
+    v(
+        "DataGroupLookup",
+        "data-group operand after a literal or dynamic lookup key",
+    ),
+];
 
 /// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
 pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
@@ -1280,7 +1286,8 @@ mod tests {
         descriptor: tcl_registry::SourceConfigurationReferenceLayout,
     ) -> bool {
         match descriptor {
-            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison => true,
+            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison
+            | tcl_registry::SourceConfigurationReferenceLayout::DataGroupLookup => true,
         }
     }
 

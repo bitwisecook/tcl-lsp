@@ -1,0 +1,57 @@
+
+running 24 tests
+test cmd_info::literal_script_tests::original_jim_info_literal_scripts_use_actual_mutable_commands_and_caller_namespace ... ok
+test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... ok
+test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_info_dispatch_matches_all_12_native_public_windows ... ok
+test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... ok
+test cmd_info::native_jim_inventory_tests::original_procedure_usage_extents_match_all_24_native_public_windows ... ok
+test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+test cmd_info::native_oo::tests::specialized_object_info_executes_original_operand_before_native_getter ... ok
+test cmd_info::native_oo::tests::specialized_object_info_keeps_original_cache_and_result_owners ... native-string-unavailable reason=primary-has-no-updater protocol=C(V8_6) primary=cmdName live=true references=1 resident=false
+native-string-unavailable reason=primary-has-no-updater protocol=C(V9_0) primary=cmdName live=true references=1 resident=false
+native-string-unavailable reason=primary-has-no-updater protocol=C(V9_1) primary=cmdName live=true references=1 resident=false
+ok
+test cmd_info::native_oo::tests::string_nested_operand_geometry_preserves_quoted_options_and_repeated_calls ... ok
+test cmd_info::tests::actual_jim_version_report_does_not_read_tcl_bootstrap_globals ... ok
+test cmd_info::tests::errorstack_surface_follows_the_selected_runtime_release ... 
+thread 'cmd_info::tests::errorstack_surface_follows_the_selected_runtime_release' (128527) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_info::tests::math_enumeration_follows_the_registry_selected_surface ... 
+thread 'cmd_info::tests::math_enumeration_follows_the_registry_selected_surface' (128528) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+FAILED
+test cmd_info::tests::original_info_complete_keeps_string_worker_and_document_source_configuration_separate ... ok
+test cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers ... ok
+test cmd_info::tests::original_info_loaded_empty_result_uses_actual_c_constructor_without_list_cache ... ok
+test cmd_info::tests::original_info_loaded_inventory_follows_selected_child_and_refuses_retired_id ... ok
+test cmd_info::tests::original_info_loaded_keeps_physical_result_owner_separate_from_source_labels ... 
+thread 'cmd_info::tests::original_info_loaded_keeps_physical_result_owner_separate_from_source_labels' (128549) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+FAILED
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... ok
+test cmd_info::tests::release_info_reads_the_selected_runtime_globals ... 
+thread 'cmd_info::tests::release_info_reads_the_selected_runtime_globals' (128551) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+FAILED
+test cmd_info::tests::shared_library_extension_comes_from_the_platform_owner ... 
+thread 'cmd_info::tests::shared_library_extension_comes_from_the_platform_owner' (128552) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+FAILED
+
+failures:
+
+failures:
+    cmd_info::tests::errorstack_surface_follows_the_selected_runtime_release
+    cmd_info::tests::math_enumeration_follows_the_registry_selected_surface
+    cmd_info::tests::original_info_loaded_keeps_physical_result_owner_separate_from_source_labels
+    cmd_info::tests::release_info_reads_the_selected_runtime_globals
+    cmd_info::tests::shared_library_extension_comes_from_the_platform_owner
+
+test result: FAILED. 19 passed; 5 failed; 0 ignored; 0 measured; 1360 filtered out; finished in 138.65s
+

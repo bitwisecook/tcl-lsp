@@ -1,0 +1,7 @@
+
+running 2 tests
+test command_binding::declaration_layout::tests::declaration_variable_operands_preserve_decoded_name_and_decline_aliases ... ok
+test command_binding::declaration_layout::tests::declaration_variable_operands_use_the_original_selected_word_configuration ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10240 filtered out; finished in 0.67s
+

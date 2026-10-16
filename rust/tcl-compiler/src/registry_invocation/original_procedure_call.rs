@@ -121,6 +121,125 @@ pub(crate) fn original_authored_procedure_calls_for_module<'a>(
     })
 }
 
+/// Unproved runtime applicability retained by the source calling template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OriginalAuthoredBodyCallObligation {
+    BodyEntry,
+    ActualLookup,
+    ObserverApplicability,
+}
+
+/// The source-only call set retains obligations independently of its original
+/// declaration/formal correspondence. It grants no successful runtime action.
+pub(crate) struct OriginalAuthoredBodyProcedureCalls<'a> {
+    calls: Vec<OriginalSourceProcedureCall<'a>>,
+    obligations: [OriginalAuthoredBodyCallObligation; 3],
+}
+impl<'a> OriginalAuthoredBodyProcedureCalls<'a> {
+    pub(crate) fn calls(&self) -> &[OriginalSourceProcedureCall<'a>] {
+        &self.calls
+    }
+    pub(crate) fn obligations(&self) -> &[OriginalAuthoredBodyCallObligation] {
+        &self.obligations
+    }
+}
+
+/// Report-only calling template inside an authentic readonly Authored body.
+/// The exact retained declaration row supplies conditional source targets; its
+/// original source formals supply arity independently of Native formal slots.
+/// No reached lookup, successful activation, frame or observer closure follows.
+pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
+    tokens: &CommandTokens,
+    module: &'a Module,
+    registry: &CommandRegistry,
+) -> Option<OriginalAuthoredBodyProcedureCalls<'a>> {
+    use tcl_syntax::naming::NamePolicyAuthority;
+    if module.source_entry.native_entry.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module
+            .source_entry
+            .options()
+            .execution_name_policy()?
+            .native_recipe()?
+            .authority()
+            != NamePolicyAuthority::AuthoredSimulation
+    {
+        return None;
+    }
+    let retained = module.retained_source_bindings.as_deref()?;
+    let positioned = retained.positioned_for_module(module, registry)?;
+    retained
+        .owns_original_analysis_attachment(tokens)
+        .then_some(())?;
+    let binding = tokens.source_binding.as_ref()?;
+    // A stronger retained point/declaration owner keeps its terminal purpose.
+    if binding.has_original_source_layout_owner() {
+        return None;
+    }
+    let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+    scope.matches_module(module).then_some(())?;
+    let original = scope.original_words(tokens, registry)?;
+    if original.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let mut owners = module
+        .original_authored_declaration_body_units
+        .iter()
+        .filter(|(id, card)| {
+            let Some(procedure) = module.body_units.get(*id) else {
+                return false;
+            };
+            if !module.procedure_ids.owns(**id)
+                || !card.matches_procedure(module, procedure)
+                || !card.owns_original_source_scope(scope)
+                || !retained.matches_original_procedure_summary(**id, procedure)
+            {
+                return false;
+            }
+            let mut held = false;
+            crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+                held |= statement
+                    .tokens()
+                    .is_some_and(|actual| std::ptr::eq(actual, tokens));
+            });
+            held
+        });
+    owners.next()?;
+    owners.next().is_none().then_some(())?;
+    // Reborrow the already retained actual source row, exactly as the scalar
+    // source producer does. This clone is private to this readonly call receipt.
+    let mut declared = tokens.clone();
+    positioned.stamp_original_tokens(&mut declared);
+    let advice = declared
+        .source_binding
+        .as_ref()?
+        .declaration_call_layout_advice(&declared)?;
+    let targets = advice.original_authored_source_targets(&declared, registry)?;
+    if targets.is_empty() {
+        return None;
+    }
+    let calls = original_procedure_calls_for_targets(&declared, module, targets, |procedure| {
+        let mut originals = module
+            .original_authored_declaration_body_units
+            .iter()
+            .filter_map(|(id, card)| {
+                let actual = module.body_units.get(id)?;
+                std::ptr::eq(actual, procedure).then_some(card)
+            });
+        let card = originals.next()?;
+        originals.next().is_none().then_some(())?;
+        card.original_argument_count_shape(module, procedure)
+    })?;
+    Some(OriginalAuthoredBodyProcedureCalls {
+        calls,
+        obligations: [
+            OriginalAuthoredBodyCallObligation::BodyEntry,
+            OriginalAuthoredBodyCallObligation::ActualLookup,
+            OriginalAuthoredBodyCallObligation::ObserverApplicability,
+        ],
+    })
+}
+
 /// Possible body identities from the original invocation's checked source lookup.
 /// This supplies source reachability only, never dispatch, argument or Native grants.
 pub(crate) fn original_source_procedure_ids_for_word_for_module(

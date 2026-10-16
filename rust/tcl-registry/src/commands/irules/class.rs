@@ -193,6 +193,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lookup",
+        source_configuration_reference: Some(SourceConfigurationReferenceLayout::DataGroupLookup),
         arity: Arity::exact(2),
         detail: "Return the value paired with a name.",
         synopsis: "class lookup <name> <class>",

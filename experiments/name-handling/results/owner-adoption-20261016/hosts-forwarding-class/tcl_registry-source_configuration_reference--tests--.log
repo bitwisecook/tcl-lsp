@@ -1,0 +1,8 @@
+
+running 3 tests
+test source_configuration_reference::tests::lookup_layout_keeps_literal_group_after_dynamic_key ... ok
+test source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality ... ok
+test source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1832 filtered out; finished in 0.07s
+

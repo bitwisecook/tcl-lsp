@@ -1,0 +1,642 @@
+diff --git a/runtime/rust/src/namespace.rs b/runtime/rust/src/namespace.rs
+index db21b5432..cf31bfbd1 100644
+--- a/runtime/rust/src/namespace.rs
++++ b/runtime/rust/src/namespace.rs
+@@ -1603,12 +1603,18 @@ impl Namespaces {
+                 },
+             );
+         }
+-        let mut fqn = self.qualified_name(ns);
+-        if fqn != b"::" {
+-            fqn.extend_from_slice(b"::");
+-        }
+-        fqn.extend_from_slice(simple);
+-        fqn
++        let namespace = if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
++            tcl_syntax::naming::NativeNamespaceReportParts::JimFlat(
++                self.jim_namespace_bytes(ns)
++                    .expect("Jim namespace reporting requires an already reached namespace getter")
++                    .into(),
++            )
++        } else {
++            tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(
++                self.arena[ns].constructed_path.clone(),
++            )
++        };
++        tcl_syntax::naming::native_qualified_inventory_report_bytes(&namespace, simple)
+     }
+ 
+     /// Install one real command binding. Replacement deletes the displaced
+@@ -3356,26 +3362,7 @@ impl Namespaces {
+             rooted.extend_from_slice(namespace);
+             return rooted;
+         }
+-        let mut parts: Vec<&[u8]> = Vec::new();
+-        let mut cur = ns;
+-        let mut out = loop {
+-            if let Some(fqn) = self.arena[cur].retained_fqn.as_deref() {
+-                break fqn.to_vec();
+-            }
+-            let Some(parent) = self.arena[cur].parent else {
+-                break Vec::new();
+-            };
+-            parts.push(&self.arena[cur].name);
+-            cur = parent;
+-        };
+-        if out.is_empty() && parts.is_empty() {
+-            return b"::".to_vec();
+-        }
+-        for part in parts.iter().rev() {
+-            out.extend_from_slice(b"::");
+-            out.extend_from_slice(part);
+-        }
+-        out
++        tcl_syntax::naming::native_namespace_full_name_bytes(&self.arena[ns].constructed_path)
+     }
+ 
+     /// C command-table components under the same selected command recipe.
+diff --git a/runtime/rust/src/state_traits.rs b/runtime/rust/src/state_traits.rs
+index 07d0fc4af..71089eee5 100644
+--- a/runtime/rust/src/state_traits.rs
++++ b/runtime/rust/src/state_traits.rs
+@@ -1457,12 +1457,17 @@ impl Namespaces for Interp {
+             if !ns.var_table(owner).has_native_namespace_cell(&simple) {
+                 continue;
+             }
+-            let mut qualified = ns.qualified_name(owner);
+-            if owner != crate::namespace::GLOBAL {
+-                qualified.extend_from_slice(b"::");
+-            }
+-            qualified.extend_from_slice(&simple);
+-            return Ok(Some(qualified));
++            let path =
++                ns.native_context_path(owner)
++                    .ok_or(ValueError::CommandProtocolUnavailable(
++                        "namespace variable report context",
++                    ))?;
++            return Ok(Some(
++                tcl_syntax::naming::native_qualified_inventory_report_bytes(
++                    &tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(path),
++                    &simple,
++                ),
++            ));
+         }
+         if let Some(refusal) = self.native_access_refusal() {
+             return Err(refusal.into());
+diff --git a/rust/f5-cli/src/commands/merge.rs b/rust/f5-cli/src/commands/merge.rs
+index 6bcdcfdeb..7a7493bf4 100644
+--- a/rust/f5-cli/src/commands/merge.rs
++++ b/rust/f5-cli/src/commands/merge.rs
+@@ -44,7 +44,7 @@ pub fn run_merge(
+             let mut confs: Vec<PathBuf> = std::fs::read_dir(raw)
+                 .with_context(|| format!("failed to read directory {}", raw.display()))?
+                 .map(|entry| entry.map(|entry| entry.path()))
+-                .collect::<std::io::Result<_>>()
++                .collect::<std::io::Result<Vec<_>>>()
+                 .with_context(|| format!("failed to enumerate directory {}", raw.display()))?
+                 .into_iter()
+                 .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("conf"))
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index acfa06ec6..98f05f790 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -1627,6 +1627,27 @@ impl OriginalDeclarationCallLayoutAdvice {
+         self.layout.dialect()
+     }
+ 
++    /// Original Standalone declaration targets for a conditional source report.
++    /// This reborrows the retained row's metadata, never actual point metadata.
++    /// Observer applicability, successful lookup and body entry stay separate.
++    pub(crate) fn original_authored_source_targets(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<&[super::SourceCommandTarget]> {
++        if !self.layout.is_authored_standalone_source() || !self.source_targets_are_closed() {
++            return None;
++        }
++        let metadata = self
++            .layout
++            .original_declaration_metadata_context(registry, tokens)
++            .ok()?;
++        if metadata.is_some_and(|metadata| !metadata.is_standalone()) {
++            return None;
++        }
++        Some(self.targets())
++    }
++
+     /// Readonly closure of the original source candidates. This never closes
+     /// actual handler, operand, provider or activation alternatives.
+     pub(crate) fn source_targets_are_closed(&self) -> bool {
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 0d0903ca4..0090e28c9 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -2397,6 +2397,33 @@ fn note_original_command_params(ctx: ScanCtx<'_>, kind: ProcArgTrait, facts: &mu
+     }
+ }
+ 
++/// Conditional source forwarding reports do not close the later Native
++/// invocation/effect scan or its unknown observer/lookup alternatives.
++fn note_original_authored_body_call_parameters(ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
++    if ctx.parameter_body.is_none() {
++        return;
++    }
++    let Some(calls) = ctx.current_tokens.and_then(|tokens| {
++        crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++            tokens,
++            ctx.source_module,
++            ctx.registry,
++        )
++    }) else {
++        return;
++    };
++    // Source correspondence leaves entry, lookup and observers unproved.
++    facts.param_observations_incomplete |= !calls.obligations().is_empty();
++    if !calls.calls().is_empty()
++        && calls
++            .calls()
++            .iter()
++            .all(|call| call.accepts_arguments() && ctx.known.contains(&call.id()))
++    {
++        note_original_command_params(ctx, ProcArgTrait::ForwardedToCallee, facts);
++    }
++}
++
+ fn original_parameter_expression_config(
+     expression: &crate::expr_ast::ExprNode,
+     base: Option<u32>,
+@@ -3695,6 +3722,7 @@ fn scan_statement(
+         ..ctx
+     };
+     note_original_command_references(ctx, facts);
++    note_original_authored_body_call_parameters(ctx, facts);
+     let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
+     if let Some(tokens) = retained_tokens {
+         scan_original_variable_read_effects(tokens, ctx, facts);
+@@ -6996,6 +7024,145 @@ mod tests {
+         )
+     }
+ 
++    #[test]
++    fn original_authored_call_reports_keep_actual_source_target_formals_and_debts() {
++        let source = "proc ::helper {v} {return $v}\nproc ::f {x spare} {::helper $x}";
++        let (context, unit) = original_reference_unit(source);
++        let registry = context.commands();
++        let module = &unit.ir_module;
++        let (&id, _) = module
++            .original_authored_declaration_body_units
++            .iter()
++            .find(|(_, card)| card.name() == "::f")
++            .unwrap();
++        let procedure = &module.body_units[&id];
++        let [statement] = procedure.body.statements.as_slice() else {
++            panic!("one actual source call");
++        };
++        assert!(matches!(statement, crate::ir::Statement::Call { .. }));
++        let tokens = procedure
++            .body
++            .retained_source_tokens_for_statement(statement)
++            .unwrap();
++        let binding = tokens.source_binding.as_ref().unwrap();
++        assert!(!binding.has_original_source_layout_owner());
++        assert!(binding.proved_execution_target().is_none());
++        assert!(
++            crate::registry_invocation::original_authored_procedure_calls_for_module(
++                tokens, module, registry
++            )
++            .is_none()
++        );
++        let calls = crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++            tokens, module, registry,
++        )
++        .expect("actual retained source calling template");
++        assert_eq!(calls.obligations().len(), 3);
++        let [call] = calls.calls() else {
++            panic!("one actual original callee allocation");
++        };
++        assert!(call.accepts_arguments());
++        assert_eq!(call.argument_count(), Some(1));
++        assert!(std::ptr::eq(
++            call.procedure(),
++            &module.body_units[&call.id()]
++        ));
++        assert_eq!(
++            module.original_authored_declaration_body_units[&call.id()].name(),
++            "::helper"
++        );
++        assert!(
++            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
++                module,
++                call.procedure()
++            )
++            .is_none()
++        );
++        assert!(
++            !tokens
++                .source_binding
++                .as_ref()
++                .unwrap()
++                .has_original_source_layout_owner()
++        );
++        let observed = original_reference_facts(&unit, registry);
++        assert!(observed[&id].param_trait_flags["x"].contains(&ProcArgTrait::ForwardedToCallee));
++        assert!(observed[&id].param_observations_incomplete);
++        assert!(observed[&id].has_unknown_calls);
++        assert!(
++            observed[&id]
++                .effect_writes
++                .intersects(crate::side_effects::EffectRegion::UNKNOWN_STATE)
++        );
++        let mut changed = module.clone();
++        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
++        assert!(
++            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++                tokens, &changed, registry
++            )
++            .is_none()
++        );
++        let mut changed = module.clone();
++        changed.body_units.get_mut(&call.id()).unwrap().params_raw = "other".to_owned();
++        assert!(
++            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++                tokens, &changed, registry
++            )
++            .is_none()
++        );
++        let cloned = tokens.clone();
++        assert!(
++            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++                &cloned, module, registry
++            )
++            .is_none()
++        );
++        assert!(
++            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++                tokens,
++                module,
++                tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
++            )
++            .is_none()
++        );
++
++        for body in ["unknownCommand; ::helper $x", "$name $x", "::helper"] {
++            let source =
++                format!("proc ::helper {{v}} {{return $v}}\nproc ::f {{x name}} {{{body}}}");
++            let (context, unit) = original_reference_unit(&source);
++            let module = &unit.ir_module;
++            let (&id, _) = module
++                .original_authored_declaration_body_units
++                .iter()
++                .find(|(_, card)| card.name() == "::f")
++                .unwrap();
++            let procedure = &module.body_units[&id];
++            let statement = procedure.body.statements.last().unwrap();
++            let tokens = procedure
++                .body
++                .retained_source_tokens_for_statement(statement)
++                .unwrap();
++            let calls =
++                crate::registry_invocation::original_authored_body_procedure_calls_for_module(
++                    tokens,
++                    module,
++                    context.commands(),
++                );
++            assert!(
++                !calls.is_some_and(|calls| !calls.calls().is_empty()
++                    && calls.calls().iter().all(|call| call.accepts_arguments())),
++                "{body}"
++            );
++            assert!(
++                !original_reference_facts(&unit, context.commands())[&id]
++                    .param_trait_flags
++                    .values()
++                    .any(|traits| traits.contains(&ProcArgTrait::ForwardedToCallee)),
++                "{body}"
++            );
++        }
++    }
++
+     #[test]
+     fn original_formal_reference_traits_keep_actual_body_function_and_cfg_owners() {
+         let (context, unit) = original_reference_unit("proc p {used spare} {return $used}");
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 5d3ea0c24..f81863b03 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -27,8 +27,8 @@
+ 
+ mod original_procedure_call;
+ pub(crate) use original_procedure_call::{
+-    OriginalProcedureMayDependencies, original_authored_procedure_calls_for_module,
+-    original_logical_procedure_calls_for_module,
++    OriginalProcedureMayDependencies, original_authored_body_procedure_calls_for_module,
++    original_authored_procedure_calls_for_module, original_logical_procedure_calls_for_module,
+     original_logical_procedure_may_dependencies_for_module, original_procedure_formal_count_shape,
+     original_procedure_may_dependencies_for_word_for_module, original_procedure_parameters,
+     original_procedure_scalar_bindings, original_source_procedure_calls_for_word_for_module,
+diff --git a/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs b/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
+index cd4f45f16..d59274566 100644
+--- a/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
++++ b/rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs
+@@ -104,6 +104,22 @@ impl OriginalAuthoredProcedureBody {
+     pub(crate) fn parameters_text(&self) -> &str {
+         &self.parameters_text
+     }
++    /// Descriptive source arity from this unchanged original header/formals.
++    /// This supplies no Native formal slots, activation or accepted call.
++    pub(crate) fn original_argument_count_shape(
++        &self,
++        module: &Module,
++        procedure: &Procedure,
++    ) -> Option<tcl_syntax::formal_params::FormalArgumentCountShape> {
++        self.matches_procedure(module, procedure).then_some(())?;
++        Some(tcl_syntax::formal_params::formal_argument_count_shape(
++            self.parameters
++                .iter()
++                .map(|formal| (formal.name == "args", formal.default.is_some())),
++            module.parameter_grammar()?,
++        ))
++    }
++
+     pub(crate) fn parameter_names(&self) -> impl Iterator<Item = &str> {
+         self.parameters
+             .iter()
+diff --git a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+index 7c2fe1361..17fded7ff 100644
+--- a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
++++ b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+@@ -121,6 +121,125 @@ pub(crate) fn original_authored_procedure_calls_for_module<'a>(
+     })
+ }
+ 
++/// Unproved runtime applicability retained by the source calling template.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum OriginalAuthoredBodyCallObligation {
++    BodyEntry,
++    ActualLookup,
++    ObserverApplicability,
++}
++
++/// The source-only call set retains obligations independently of its original
++/// declaration/formal correspondence. It grants no successful runtime action.
++pub(crate) struct OriginalAuthoredBodyProcedureCalls<'a> {
++    calls: Vec<OriginalSourceProcedureCall<'a>>,
++    obligations: [OriginalAuthoredBodyCallObligation; 3],
++}
++impl<'a> OriginalAuthoredBodyProcedureCalls<'a> {
++    pub(crate) fn calls(&self) -> &[OriginalSourceProcedureCall<'a>] {
++        &self.calls
++    }
++    pub(crate) fn obligations(&self) -> &[OriginalAuthoredBodyCallObligation] {
++        &self.obligations
++    }
++}
++
++/// Report-only calling template inside an authentic readonly Authored body.
++/// The exact retained declaration row supplies conditional source targets; its
++/// original source formals supply arity independently of Native formal slots.
++/// No reached lookup, successful activation, frame or observer closure follows.
++pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
++    tokens: &CommandTokens,
++    module: &'a Module,
++    registry: &CommandRegistry,
++) -> Option<OriginalAuthoredBodyProcedureCalls<'a>> {
++    use tcl_syntax::naming::NamePolicyAuthority;
++    if module.source_entry.native_entry.is_some()
++        || module.source_entry.hosted_execution_context.is_some()
++        || module
++            .source_entry
++            .options()
++            .execution_name_policy()?
++            .native_recipe()?
++            .authority()
++            != NamePolicyAuthority::AuthoredSimulation
++    {
++        return None;
++    }
++    let retained = module.retained_source_bindings.as_deref()?;
++    let positioned = retained.positioned_for_module(module, registry)?;
++    retained
++        .owns_original_analysis_attachment(tokens)
++        .then_some(())?;
++    let binding = tokens.source_binding.as_ref()?;
++    // A stronger retained point/declaration owner keeps its terminal purpose.
++    if binding.has_original_source_layout_owner() {
++        return None;
++    }
++    let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
++    scope.matches_module(module).then_some(())?;
++    let original = scope.original_words(tokens, registry)?;
++    if original.iter().any(|word| word.group().expand) {
++        return None;
++    }
++    let mut owners = module
++        .original_authored_declaration_body_units
++        .iter()
++        .filter(|(id, card)| {
++            let Some(procedure) = module.body_units.get(*id) else {
++                return false;
++            };
++            if !module.procedure_ids.owns(**id)
++                || !card.matches_procedure(module, procedure)
++                || !card.owns_original_source_scope(scope)
++                || !retained.matches_original_procedure_summary(**id, procedure)
++            {
++                return false;
++            }
++            let mut held = false;
++            crate::ir::for_each_statement(&procedure.body, &mut |statement| {
++                held |= statement
++                    .tokens()
++                    .is_some_and(|actual| std::ptr::eq(actual, tokens));
++            });
++            held
++        });
++    owners.next()?;
++    owners.next().is_none().then_some(())?;
++    // Reborrow the already retained actual source row, exactly as the scalar
++    // source producer does. This clone is private to this readonly call receipt.
++    let mut declared = tokens.clone();
++    positioned.stamp_original_tokens(&mut declared);
++    let advice = declared
++        .source_binding
++        .as_ref()?
++        .declaration_call_layout_advice(&declared)?;
++    let targets = advice.original_authored_source_targets(&declared, registry)?;
++    if targets.is_empty() {
++        return None;
++    }
++    let calls = original_procedure_calls_for_targets(&declared, module, targets, |procedure| {
++        let mut originals = module
++            .original_authored_declaration_body_units
++            .iter()
++            .filter_map(|(id, card)| {
++                let actual = module.body_units.get(id)?;
++                std::ptr::eq(actual, procedure).then_some(card)
++            });
++        let card = originals.next()?;
++        originals.next().is_none().then_some(())?;
++        card.original_argument_count_shape(module, procedure)
++    })?;
++    Some(OriginalAuthoredBodyProcedureCalls {
++        calls,
++        obligations: [
++            OriginalAuthoredBodyCallObligation::BodyEntry,
++            OriginalAuthoredBodyCallObligation::ActualLookup,
++            OriginalAuthoredBodyCallObligation::ObserverApplicability,
++        ],
++    })
++}
++
+ /// Possible body identities from the original invocation's checked source lookup.
+ /// This supplies source reachability only, never dispatch, argument or Native grants.
+ pub(crate) fn original_source_procedure_ids_for_word_for_module(
+diff --git a/rust/tcl-registry/src/commands/irules/class.rs b/rust/tcl-registry/src/commands/irules/class.rs
+index 8dd9cc94a..a8bf2091d 100644
+--- a/rust/tcl-registry/src/commands/irules/class.rs
++++ b/rust/tcl-registry/src/commands/irules/class.rs
+@@ -193,6 +193,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "lookup",
++        source_configuration_reference: Some(SourceConfigurationReferenceLayout::DataGroupLookup),
+         arity: Arity::exact(2),
+         detail: "Return the value paired with a name.",
+         synopsis: "class lookup <name> <class>",
+diff --git a/rust/tcl-registry/src/source_configuration_reference.rs b/rust/tcl-registry/src/source_configuration_reference.rs
+index 0f182135d..b15a5240d 100644
+--- a/rust/tcl-registry/src/source_configuration_reference.rs
++++ b/rust/tcl-registry/src/source_configuration_reference.rs
+@@ -12,17 +12,20 @@ use crate::resolved_invocation::{AuthoredSourceOptionBoundary, ResolvedInvocatio
+ pub enum SourceConfigurationReferenceLayout {
+     /// A three-word item/operator/data-group tail after the declared options.
+     DataGroupComparison,
++    /// The final data-group operand of `class lookup <key> <data-group>`.
++    DataGroupLookup,
+ }
+ 
+ impl SourceConfigurationReferenceLayout {
+     /// Complete declarative authoring vocabulary.
+-    pub const ALL: &'static [Self] = &[Self::DataGroupComparison];
++    pub const ALL: &'static [Self] = &[Self::DataGroupComparison, Self::DataGroupLookup];
+ 
+     /// Exact declarative spelling used by native and loadable metadata.
+     #[must_use]
+     pub const fn as_str(self) -> &'static str {
+         match self {
+             Self::DataGroupComparison => "DataGroupComparison",
++            Self::DataGroupLookup => "DataGroupLookup",
+         }
+     }
+ }
+@@ -127,6 +130,29 @@ impl ResolvedInvocation<'_, '_> {
+                     selection_unknown,
+                 })
+             }
++            SourceConfigurationReferenceLayout::DataGroupLookup => {
++                let arguments = self.words.arguments();
++                let count = arguments.exact_argv_len()?;
++                let key = self.semantics.argument_offset;
++                let argument = key.checked_add(1)?;
++                if count != self.semantics.argument_offset.checked_add(2)?
++                    || !self
++                        .semantics
++                        .arity
++                        .accepts(self.argument_count_for_arity()?)
++                    || !arguments.get(key)?.has_exactly_one_argv_entry()
++                {
++                    return None;
++                }
++                if arguments.literal_at(argument)?.contains('\0') {
++                    return None;
++                }
++                Some(AuthoredSourceConfigurationReference {
++                    argument,
++                    family: ConfigurationObjectFamily::DataGroup,
++                    selection_unknown: false,
++                })
++            }
+         }
+     }
+ }
+@@ -213,6 +239,44 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn lookup_layout_keeps_literal_group_after_dynamic_key() {
++        use InvocationWord::{Dynamic, Literal};
++        assert_eq!(
++            project(&[Literal("lookup"), Dynamic, Literal("uri_redirect_map")]),
++            Some(AuthoredSourceConfigurationReference {
++                argument: 2,
++                family: ConfigurationObjectFamily::DataGroup,
++                selection_unknown: false,
++            })
++        );
++        assert_eq!(
++            project(&[Literal("lookup"), Dynamic, Dynamic]),
++            None,
++            "a dynamic data-group operand is not a literal source candidate"
++        );
++        assert_eq!(project(&[Literal("lookup"), Dynamic]), None);
++        assert_eq!(
++            project(&[
++                Literal("lookup"),
++                Dynamic,
++                Literal("uri_redirect_map"),
++                Literal("extra")
++            ]),
++            None,
++            "extra lookup arguments are outside the selected exact schema"
++        );
++        assert_eq!(
++            project(&[
++                Literal("lookup"),
++                InvocationWord::Opaque,
++                Literal("uri_redirect_map")
++            ]),
++            None,
++            "an opaque key without exactly one argv entry cannot anchor the target"
++        );
++    }
++
+     #[test]
+     fn selected_configuration_layout_declines_unknown_control_and_cardinality() {
+         use InvocationWord::{Dynamic, Expanded, Literal, Opaque};
+diff --git a/rust/tcl-spectcl/src/catalogue.rs b/rust/tcl-spectcl/src/catalogue.rs
+index 553683c32..93b57b867 100644
+--- a/rust/tcl-spectcl/src/catalogue.rs
++++ b/rust/tcl-spectcl/src/catalogue.rs
+@@ -237,10 +237,16 @@ pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
+ )];
+ 
+ /// [`tcl_registry::SourceConfigurationReferenceLayout`] conditional source object references.
+-pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[v(
+-    "DataGroupComparison",
+-    "data-group operand after a comparison item and operator",
+-)];
++pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[
++    v(
++        "DataGroupComparison",
++        "data-group operand after a comparison item and operator",
++    ),
++    v(
++        "DataGroupLookup",
++        "data-group operand after a literal or dynamic lookup key",
++    ),
++];
+ 
+ /// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
+ pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
+@@ -1280,7 +1286,8 @@ mod tests {
+         descriptor: tcl_registry::SourceConfigurationReferenceLayout,
+     ) -> bool {
+         match descriptor {
+-            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison => true,
++            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison
++            | tcl_registry::SourceConfigurationReferenceLayout::DataGroupLookup => true,
+         }
+     }
+ 

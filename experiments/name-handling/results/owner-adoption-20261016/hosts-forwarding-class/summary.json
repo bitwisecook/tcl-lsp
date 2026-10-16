@@ -1,0 +1,15 @@
+{
+  "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+  "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+  "ordinary": true,
+  "groups": 12,
+  "PASS": 95,
+  "FAIL": 29,
+  "zero_test_runs": 0,
+  "build": {
+    "status": "PASS",
+    "seconds": 443,
+    "warnings": 0
+  },
+  "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance."
+}

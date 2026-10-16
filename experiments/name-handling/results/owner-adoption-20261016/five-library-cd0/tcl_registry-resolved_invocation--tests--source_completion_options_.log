@@ -1,0 +1,7 @@
+
+running 2 tests
+test resolved_invocation::tests::source_completion_options_keep_selected_form_and_surface ... ok
+test resolved_invocation::tests::source_completion_options_require_actual_nested_selector ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1832 filtered out; finished in 0.01s
+

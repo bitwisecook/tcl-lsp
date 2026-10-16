@@ -1,0 +1,20 @@
+
+running 2 tests
+test interprocedural::tests::call_by_name_param_traits_inferred ... 
+thread 'interprocedural::tests::call_by_name_param_traits_inferred' (128754) panicked at rust/tcl-compiler/src/interprocedural.rs:7290:9:
+expected VarWrite for n (write through upvar alias), got {Passthrough}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interprocedural::tests::param_traits_inferred ... 
+thread 'interprocedural::tests::param_traits_inferred' (128755) panicked at rust/tcl-compiler/src/interprocedural.rs:7277:9:
+expected Unused for y, got {}
+FAILED
+
+failures:
+
+failures:
+    interprocedural::tests::call_by_name_param_traits_inferred
+    interprocedural::tests::param_traits_inferred
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 10240 filtered out; finished in 0.70s
+

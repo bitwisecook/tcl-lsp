@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T13:10:25.495579+00:00",
+    "utc": "2026-10-16T13:24:11.505667+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 130,
+    "implemented_pending_validation": 133,
     "verified_complete": 0,
-    "not_started": 2028,
+    "not_started": 2025,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "31 additional unverified requirements accepted;29 integrated pending validation,2 not integrated. Definition worker/observer coverage and conditional source-operation continuation are distinct once-counted requirements. Existing callers are not recounted.",
+    "owner_facet_reconciliation": "32 additional unverified requirements:30 integrated pending validation,2 not integrated. The newly demonstrated dynamic-key source-reference layout is counted once; unchanged graph/grep callers are not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 31,
-      "implemented_pending_validation": 29,
+      "required": 32,
+      "implemented_pending_validation": 30,
       "not_integrated": 2,
       "verified_complete": 0
     },
-    "effective_required_units": 2189,
-    "effective_implemented_pending_validation": 159,
+    "effective_required_units": 2190,
+    "effective_implemented_pending_validation": 163,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -773,7 +773,7 @@
       "status": "integrated pending target Rust checks/tests",
       "scope": "hover, completion, rename, inline and refactor consume actual retained ContextRegistry; existing source/edit guards independent."
     },
-    "remaining_ordinary_regressions": "Four info +ten namespace prior passes still panic at interp.rs4753 in fresh889. Actual-availability90c is insufficient; remaining array/binary/namespace registration selectors under review.",
+    "remaining_ordinary_regressions": "VM namespace-declaration panic resolved, but same19/5info47/10namespace counts now fail at fresh tcl_platform host bootstrap interp.rs4260. Host-owned raw bootstrap repair under review; no fake Native fallback.",
     "latest_successor_check_current": {
       "status": "PASS",
       "log": "/tmp/naming-formal-observations-native-path-check.log",
@@ -838,6 +838,73 @@
       },
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
+    },
+    "fully_implemented_pending_validation": 131,
+    "partially_implemented_pending_validation": 2,
+    "runtime_report_adoptions": {
+      "baseline_units": [
+        "runtime:report.selected-command-variable-qualification:132",
+        "runtime:report.selected-command-variable-qualification:133",
+        "runtime:report.selected-command-variable-qualification:134"
+      ],
+      "full_callers": 2,
+      "partial_callers": 1,
+      "new_owner_requirements": 0,
+      "status": "integrated_selected_original_controls_PASS_111_full_gates_pending"
+    },
+    "hosts_forwarding_class_build": {
+      "status": "PASS_after_recorded_three_type_errors",
+      "seconds": 443,
+      "warnings": 0,
+      "repair": "Explicit actual source inventory Result<Vec<_>> collection type; no changed guard or test."
+    },
+    "five_library_cd0": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "ordinary": true,
+      "cohorts": 24,
+      "PASS": 123,
+      "FAIL": 26,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 600,
+        "warnings": 0
+      },
+      "scope": "Selected controls only, no whole-suite/issue/Native provider/repository gate acceptance. Fixed original selectors/budgets preserved.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0",
+      "comparison": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0/test-comparison.json"
+    },
+    "hosts_forwarding_class": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+      "ordinary": true,
+      "groups": 12,
+      "PASS": 95,
+      "FAIL": 29,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 443,
+        "warnings": 0
+      },
+      "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/hosts-forwarding-class"
+    },
+    "runtime_report_adoptions_execution": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+      "ordinary": true,
+      "groups": 11,
+      "PASS": 111,
+      "FAIL": 0,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 83,
+        "warnings": 0
+      },
+      "scope": "Selected original controls; no full-suite, issue, Native provider equivalence or repository gate acceptance.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions"
     }
   }
 }

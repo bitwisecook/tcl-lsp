@@ -1,0 +1,22 @@
+Independent canonical proof-extension review — final
+Record naming.consumer.original-source-attachment-candidates
+Input /tmp/naming-lookup-source-proof-reviewed.json
+
+Source-clear. The sole prior issue is fixed: owners[-1].symbol now names actual authored_source_configuration_reference_operand, declared in the retained owner source. The current canonical manifest exactly equals the corrected reviewed record; total2606 remains unchanged.
+
+Rechecked current reviewed JSON SHA, actual owner method, canonical equality/count, both current implementation evidence hashes, unchanged prior fields/providers/source_anchors/replay and exact old-test/old-owner prefixes. All pass. Exact new test module/selector and conditional Source-only scope were cleared in the prior review and are unchanged. No historical hash refresh, Native provider outcome, execution claim or graph-completeness grant is introduced.
+
+Checks:
+{
+  "symbol": "authored_source_configuration_reference_operand",
+  "owner_symbol_exists": true,
+  "canonical_matches_reviewed": true,
+  "total": 2606,
+  "prior_fields_unchanged": true,
+  "prior_tests_prefix": true,
+  "prior_owners_prefix": true,
+  "current_evidence_hashes_match": true,
+  "reviewed_json_sha256": "c2e9066ae49acf0d1be8b54fb0a2a562a313dd9278b6652a58df191cae748fc6"
+}
+
+Read-only proof/source inspection plus this TMP review update. No main edits, Cargo, tests, formatter, official updater execution by reviewer, Git or network. Root owns required validation and gate outcomes.

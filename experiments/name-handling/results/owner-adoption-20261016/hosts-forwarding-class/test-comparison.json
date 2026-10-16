@@ -1,0 +1,138 @@
+{
+  "shared_tests": 99,
+  "gains": [
+    [
+      "tests/grep.rs:grep",
+      "grep_both"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_cidr"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_forward"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_include_body"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_json"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_literal"
+    ],
+    [
+      "tests/grep.rs:grep",
+      "grep_regex"
+    ]
+  ],
+  "regressions": [],
+  "dropped_tests": [],
+  "additional_tests": [
+    [
+      "tests/remote.rs:remote",
+      "invalid_json_position"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "missing_host_errors_for_all_verbs"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "missing_password_after_env_host_and_user"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "missing_payload_file_errno_message"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "missing_user_after_env_host"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "push_dry_run_name_only_target"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "ssh_transport_connection_refused"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "unknown_kind_rejected_by_clap"
+    ],
+    [
+      "tests/remote.rs:remote",
+      "unknown_transport_rejected_by_clap"
+    ],
+    [
+      "unittests src/lib.rs:f5_cli",
+      "commands::remote::auth::tests::opaque_environment_is_present_but_explicit_user_wins"
+    ],
+    [
+      "unittests src/lib.rs:tcl_compiler",
+      "interprocedural::tests::call_by_name_param_traits_inferred"
+    ],
+    [
+      "unittests src/lib.rs:tcl_compiler",
+      "interprocedural::tests::forwarded_to_callee_detected"
+    ],
+    [
+      "unittests src/lib.rs:tcl_compiler",
+      "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts"
+    ],
+    [
+      "unittests src/lib.rs:tcl_compiler",
+      "interprocedural::tests::param_traits_inferred"
+    ],
+    [
+      "unittests src/lib.rs:tcl_registry",
+      "source_configuration_reference::tests::lookup_layout_keeps_literal_group_after_dynamic_key"
+    ],
+    [
+      "unittests src/lib.rs:tcl_registry",
+      "source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality"
+    ],
+    [
+      "unittests src/lib.rs:tcl_registry",
+      "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::catalogue_keys_are_unique"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::dialect_catalogue_round_trips_through_its_names"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::enum_witnesses_compile_and_hold"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::every_runtime_enumeration_is_the_registry"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::every_trait_has_its_own_bit"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::taint_catalogue_matches_bits"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::traits_catalogue_matches_the_registry_flags"
+    ],
+    [
+      "unittests src/lib.rs:tcl_spectcl",
+      "catalogue::tests::variant_name_matches_the_catalogue_spelling"
+    ]
+  ],
+  "scope": "Exact target/test names from ordinary libtest logs. Original forwarding gain is separately compared with five-library-cd0."
+}

@@ -1,0 +1,28 @@
+{
+  "baseline_ids": [
+    "runtime:report.selected-command-variable-qualification:132",
+    "runtime:report.selected-command-variable-qualification:133",
+    "runtime:report.selected-command-variable-qualification:134"
+  ],
+  "partial_scope": {
+    "132": "C selected-home report only; Jim canonical query output remains open"
+  },
+  "shared_apis": [
+    "native_namespace_full_name_bytes",
+    "native_qualified_inventory_report_bytes"
+  ],
+  "files": [
+    {
+      "path": "runtime/rust/src/namespace.rs",
+      "base_sha256": "8a0d860bda3ff0047ddea35df890d0fefc713e27d97e5d2cb325aaf2f0be6ac8",
+      "edit_sha256": "80ebb70bd8eae9c9045ebd66248a2c657041dd762e501fdc2ffe851aa3e5bc7d"
+    },
+    {
+      "path": "runtime/rust/src/state_traits.rs",
+      "base_sha256": "68b5cec79053d9f00ec0e9dc4d7bf12e714d10982b6c1dd4b060afface5171d7",
+      "edit_sha256": "1ee8d54a618e94554d6bcff076e665f8adcb7c1c9e2d878f4b518ffe11b8ea56"
+    }
+  ],
+  "patch_sha256": "18feba8a49ce3b432121896740726ef171f3507d0d879cfe45fcfe676de7f6b0",
+  "validation": "Source only; no builds/tests/main/Git"
+}

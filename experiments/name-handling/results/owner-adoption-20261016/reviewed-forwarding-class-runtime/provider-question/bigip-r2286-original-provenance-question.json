@@ -1,0 +1,42 @@
+{
+  "status": "draft for root review only; not sent; no proof/index/census edits",
+  "question_file": "/tmp/bigip-r2286-original-provenance-question.md",
+  "existing_sources": [
+    "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/TRANSPORT_PROJECTION.md",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/CURRENT_TRANSPORT_SHA256SUMS",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286q-appliance-evidence.tgz",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286q-dev-evidence.tgz",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286s-appliance-evidence.tgz",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286s-dev-evidence.tgz",
+    "experiments/name-handling/results/owner-adoption-20261016/reviewed-source-successor-889/projection-identity/naming-proof-native-result-field-bridge.json",
+    "experiments/name-handling/results/owner-adoption-20261016/reviewed-source-successor-889/projection-identity/naming-proof-native-result-field-bridge-schema-candidate.json"
+  ],
+  "original_artifacts_requested": [
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json",
+      "historical_sha256": "ee533a62089293ff9c10075994ee3fc81fb01402ca978836a95b2a3dff368426",
+      "historical_bytes": 1711344
+    },
+    {
+      "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md",
+      "historical_sha256": "c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7",
+      "historical_bytes": 31721
+    }
+  ],
+  "selectors_requested": [
+    {"run":"r2286q","selector":"nul_counted_last","input_payload_sha256":"c6d687f237c239600f5bd1cf76e16d371f584eea315f1338fceecb14149a64e9","result_sha256":"85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791","result_bytes":299},
+    {"run":"r2286q","selector":"nul_array_root","input_payload_sha256":"1a942ef715ac1b9655a3c34098864fa1f87a9feeb129d9afd95dba545de75fd0","result_sha256":"9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010","result_bytes":490},
+    {"run":"r2286q","selector":"nul_array_index","input_payload_sha256":"8e0c4f79d9213ef60f1b8725af64b25ef1cad809a06aa99643290dd04a1d7cf6","result_sha256":"d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a","result_bytes":503},
+    {"run":"r2286q","selector":"lexical_clean","input_payload_sha256":"7a55589049588f9bb5ddbe36b944c41b2294374942c348a969dfa56e65db543f","result_sha256":"2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128","result_bytes":1843},
+    {"run":"r2286s","selector":"nul_array_root_portable","input_payload_sha256":"8fa234686f7534a4961585b9138d994f1d2016a8a81f6c456bb1f0abd8bc1654","result_sha256":"bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610","result_bytes":1357},
+    {"run":"r2286s","selector":"nul_array_index_portable","input_payload_sha256":"27444ad7e4c3ffa8e72c8655f4b562a53fc362982b2ae3b41bf35297fc6b014d","result_sha256":"8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f","result_bytes":1612}
+  ],
+  "guardrails": [
+    "No blanket hash refresh or proof-index admission",
+    "No claim that current projection equals historical capture",
+    "A new replay is new evidence with a new run identity, not restoration of historical bytes",
+    "Preserve provider/version/TMM/iApps/MCPD context and original source/payload associations"
+  ]
+}

@@ -2397,6 +2397,33 @@ fn note_original_command_params(ctx: ScanCtx<'_>, kind: ProcArgTrait, facts: &mu
     }
 }
 
+/// Conditional source forwarding reports do not close the later Native
+/// invocation/effect scan or its unknown observer/lookup alternatives.
+fn note_original_authored_body_call_parameters(ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    if ctx.parameter_body.is_none() {
+        return;
+    }
+    let Some(calls) = ctx.current_tokens.and_then(|tokens| {
+        crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+            tokens,
+            ctx.source_module,
+            ctx.registry,
+        )
+    }) else {
+        return;
+    };
+    // Source correspondence leaves entry, lookup and observers unproved.
+    facts.param_observations_incomplete |= !calls.obligations().is_empty();
+    if !calls.calls().is_empty()
+        && calls
+            .calls()
+            .iter()
+            .all(|call| call.accepts_arguments() && ctx.known.contains(&call.id()))
+    {
+        note_original_command_params(ctx, ProcArgTrait::ForwardedToCallee, facts);
+    }
+}
+
 fn original_parameter_expression_config(
     expression: &crate::expr_ast::ExprNode,
     base: Option<u32>,
@@ -3695,6 +3722,7 @@ fn scan_statement(
         ..ctx
     };
     note_original_command_references(ctx, facts);
+    note_original_authored_body_call_parameters(ctx, facts);
     let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
     if let Some(tokens) = retained_tokens {
         scan_original_variable_read_effects(tokens, ctx, facts);
@@ -6994,6 +7022,145 @@ mod tests {
             &identities,
             None,
         )
+    }
+
+    #[test]
+    fn original_authored_call_reports_keep_actual_source_target_formals_and_debts() {
+        let source = "proc ::helper {v} {return $v}\nproc ::f {x spare} {::helper $x}";
+        let (context, unit) = original_reference_unit(source);
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let (&id, _) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "::f")
+            .unwrap();
+        let procedure = &module.body_units[&id];
+        let [statement] = procedure.body.statements.as_slice() else {
+            panic!("one actual source call");
+        };
+        assert!(matches!(statement, crate::ir::Statement::Call { .. }));
+        let tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(!binding.has_original_source_layout_owner());
+        assert!(binding.proved_execution_target().is_none());
+        assert!(
+            crate::registry_invocation::original_authored_procedure_calls_for_module(
+                tokens, module, registry
+            )
+            .is_none()
+        );
+        let calls = crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+            tokens, module, registry,
+        )
+        .expect("actual retained source calling template");
+        assert_eq!(calls.obligations().len(), 3);
+        let [call] = calls.calls() else {
+            panic!("one actual original callee allocation");
+        };
+        assert!(call.accepts_arguments());
+        assert_eq!(call.argument_count(), Some(1));
+        assert!(std::ptr::eq(
+            call.procedure(),
+            &module.body_units[&call.id()]
+        ));
+        assert_eq!(
+            module.original_authored_declaration_body_units[&call.id()].name(),
+            "::helper"
+        );
+        assert!(
+            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
+                module,
+                call.procedure()
+            )
+            .is_none()
+        );
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .has_original_source_layout_owner()
+        );
+        let observed = original_reference_facts(&unit, registry);
+        assert!(observed[&id].param_trait_flags["x"].contains(&ProcArgTrait::ForwardedToCallee));
+        assert!(observed[&id].param_observations_incomplete);
+        assert!(observed[&id].has_unknown_calls);
+        assert!(
+            observed[&id]
+                .effect_writes
+                .intersects(crate::side_effects::EffectRegion::UNKNOWN_STATE)
+        );
+        let mut changed = module.clone();
+        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
+        assert!(
+            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                tokens, &changed, registry
+            )
+            .is_none()
+        );
+        let mut changed = module.clone();
+        changed.body_units.get_mut(&call.id()).unwrap().params_raw = "other".to_owned();
+        assert!(
+            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                tokens, &changed, registry
+            )
+            .is_none()
+        );
+        let cloned = tokens.clone();
+        assert!(
+            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                &cloned, module, registry
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                tokens,
+                module,
+                tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
+            )
+            .is_none()
+        );
+
+        for body in ["unknownCommand; ::helper $x", "$name $x", "::helper"] {
+            let source =
+                format!("proc ::helper {{v}} {{return $v}}\nproc ::f {{x name}} {{{body}}}");
+            let (context, unit) = original_reference_unit(&source);
+            let module = &unit.ir_module;
+            let (&id, _) = module
+                .original_authored_declaration_body_units
+                .iter()
+                .find(|(_, card)| card.name() == "::f")
+                .unwrap();
+            let procedure = &module.body_units[&id];
+            let statement = procedure.body.statements.last().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let calls =
+                crate::registry_invocation::original_authored_body_procedure_calls_for_module(
+                    tokens,
+                    module,
+                    context.commands(),
+                );
+            assert!(
+                !calls.is_some_and(|calls| !calls.calls().is_empty()
+                    && calls.calls().iter().all(|call| call.accepts_arguments())),
+                "{body}"
+            );
+            assert!(
+                !original_reference_facts(&unit, context.commands())[&id]
+                    .param_trait_flags
+                    .values()
+                    .any(|traits| traits.contains(&ProcArgTrait::ForwardedToCallee)),
+                "{body}"
+            );
+        }
     }
 
     #[test]

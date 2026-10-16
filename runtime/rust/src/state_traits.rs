@@ -1457,12 +1457,17 @@ impl Namespaces for Interp {
             if !ns.var_table(owner).has_native_namespace_cell(&simple) {
                 continue;
             }
-            let mut qualified = ns.qualified_name(owner);
-            if owner != crate::namespace::GLOBAL {
-                qualified.extend_from_slice(b"::");
-            }
-            qualified.extend_from_slice(&simple);
-            return Ok(Some(qualified));
+            let path =
+                ns.native_context_path(owner)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "namespace variable report context",
+                    ))?;
+            return Ok(Some(
+                tcl_syntax::naming::native_qualified_inventory_report_bytes(
+                    &tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(path),
+                    &simple,
+                ),
+            ));
         }
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());

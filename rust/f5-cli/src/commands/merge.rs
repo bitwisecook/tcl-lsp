@@ -44,7 +44,7 @@ pub fn run_merge(
             let mut confs: Vec<PathBuf> = std::fs::read_dir(raw)
                 .with_context(|| format!("failed to read directory {}", raw.display()))?
                 .map(|entry| entry.map(|entry| entry.path()))
-                .collect::<std::io::Result<_>>()
+                .collect::<std::io::Result<Vec<_>>>()
                 .with_context(|| format!("failed to enumerate directory {}", raw.display()))?
                 .into_iter()
                 .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("conf"))

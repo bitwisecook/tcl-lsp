@@ -1,0 +1,18 @@
+
+running 1 test
+test command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations ... 
+thread 'command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations' (128919) panicked at rust/tcl-compiler/src/command_binding/declaration_layout.rs:4318:17:
+assertion `left == right` failed: Folds: proc trace_mapped {} {trace add variable other write callback; incr {local\
+name}}
+  left: None
+ right: Some("local name")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10241 filtered out; finished in 0.48s
+

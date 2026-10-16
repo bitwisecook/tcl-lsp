@@ -1627,6 +1627,27 @@ impl OriginalDeclarationCallLayoutAdvice {
         self.layout.dialect()
     }
 
+    /// Original Standalone declaration targets for a conditional source report.
+    /// This reborrows the retained row's metadata, never actual point metadata.
+    /// Observer applicability, successful lookup and body entry stay separate.
+    pub(crate) fn original_authored_source_targets(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&[super::SourceCommandTarget]> {
+        if !self.layout.is_authored_standalone_source() || !self.source_targets_are_closed() {
+            return None;
+        }
+        let metadata = self
+            .layout
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        if metadata.is_some_and(|metadata| !metadata.is_standalone()) {
+            return None;
+        }
+        Some(self.targets())
+    }
+
     /// Readonly closure of the original source candidates. This never closes
     /// actual handler, operand, provider or activation alternatives.
     pub(crate) fn source_targets_are_closed(&self) -> bool {

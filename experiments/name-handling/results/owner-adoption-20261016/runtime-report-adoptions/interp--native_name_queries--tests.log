@@ -1,0 +1,21 @@
+
+running 16 tests
+test interp::native_name_queries::tests::generic_proc_body_preserves_first_host_without_missing_procedure_or_default_getters ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_non_global_declaration_body_byte_queries_use_its_actual_holder_and_context ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_byte_query_reuses_original_command_cache_without_a_name_getter ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_query_checks_name_primary_retirement_before_cache_publication ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_query_does_not_follow_alias_invocations_or_alias_cycles ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_query_keeps_declaration_holder_and_first_cause_inside_body_getter ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_query_stops_after_original_name_callback_before_cache_and_body ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_result_reference_precedes_old_result_delete_and_legal_retirement ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value_capsule_keeps_memory_but_no_native_declaration_or_body_role ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value_capsule_refuses_a_foreign_actual_consumer ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value_name_callbacks_refuse_before_body_result_or_cache ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value_publishes_same_lazy_header_without_body_or_warm_name_getter ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::jim_original_body_value_rechecks_caller_and_selected_declaration_before_publication ... ok
+test interp::native_name_queries::tests::jim_procedure_namespace_tests::original_body_query_preserves_finite_c_import_generation_ownership ... ok
+test interp::native_name_queries::tests::original_alias_query_checks_actual_generation_and_namespace_after_lazy_member_callbacks ... ok
+test interp::native_name_queries::tests::original_procedure_query_retains_selected_binding_through_reached_defaults_and_body ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 2284 filtered out; finished in 10.07s
+

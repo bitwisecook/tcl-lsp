@@ -1,0 +1,27 @@
+
+running 13 tests
+test input::tests::a_selecting_language_id_resolves ... ok
+test input::tests::every_runtime_enumeration_is_the_registry ... ok
+test input::tests::explicit_irules_alias_resolves_to_the_canonical_profile ... ok
+test input::tests::explicit_set_only_dialect_resolves_at_cli_ingress ... ok
+test input::tests::recursive_discovery_refuses_opaque_directory_and_keeps_unicode_directories ... ok
+test input::tests::unknown_explicit_dialect_is_an_input_error ... 
+thread 'input::tests::unknown_explicit_dialect_is_an_input_error' (128982) panicked at rust/tcl-vm/src/interp.rs:4260:14:
+fresh tcl_platform array: Completion { code: Error, result: Value(""), options: Value(""), option_origin: NativeReturnOptions }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test input::tests::unsupported_source_file_error_names_the_registry_extensions ... ok
+test secret_input::tests::env_used_when_no_explicit_or_file ... ok
+test secret_input::tests::explicit_wins ... ok
+test secret_input::tests::file_before_env ... ok
+test secret_input::tests::missing_file_is_error ... ok
+test secret_input::tests::nothing_resolves_to_none ... ok
+test secret_input::tests::strip_false_preserves_whitespace ... ok
+
+failures:
+
+failures:
+    input::tests::unknown_explicit_dialect_is_an_input_error
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 17 filtered out; finished in 2.99s
+

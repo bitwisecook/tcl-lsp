@@ -1,0 +1,93 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+   Compiling tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+   Compiling f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+warning: method call on a diverging inference variable
+  --> rust/f5-cli/src/commands/merge.rs:49:18
+   |
+49 |                 .into_iter()
+   |                  ^^^^^^^^^
+   |
+   = help: consider providing a type annotation
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #156047 <https://github.com/rust-lang/rust/issues/156047>
+   = note: `#[warn(method_call_on_diverging_infer_var)]` (part of `#[warn(future_incompatible)]`) on by default
+
+error[E0277]: a value of type `!` cannot be built from an iterator over elements of type `PathBuf`
+  --> rust/f5-cli/src/commands/merge.rs:47:28
+   |
+47 |                 .collect::<std::io::Result<_>>()
+   |                  -------   ^^^^^^^^^^^^^^^^^^ value of type `!` cannot be built from `std::iter::Iterator<Item=PathBuf>`
+   |                  |
+   |                  required by a bound introduced by this call
+   |
+   = help: the trait `FromIterator<PathBuf>` is not implemented for `!`
+help: the trait `FromIterator<std::result::Result<A, E>>` is conditionally implemented for `std::result::Result<V, E>`
+  --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/result.rs:2115:14
+   |
+   = note: unsatisfied requirement introduced here: `!: FromIterator<PathBuf>`
+   = note: required for `std::result::Result<!, std::io::Error>` to implement `FromIterator<std::result::Result<PathBuf, std::io::Error>>`
+note: required by a bound in `collect`
+  --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/iter/traits/iterator.rs:2073:4
+
+error[E0277]: `!` is not an iterator
+  --> rust/f5-cli/src/commands/merge.rs:49:18
+   |
+49 |                 .into_iter()
+   |                  ^^^^^^^^^ `!` is not an iterator
+   |
+   = help: the trait `Iterator` is not implemented for `!`
+   = note: required for `!` to implement `IntoIterator`
+
+error[E0599]: `!` is not an iterator
+  --> rust/f5-cli/src/commands/merge.rs:50:18
+   |
+44 |               let mut confs: Vec<PathBuf> = std::fs::read_dir(raw)
+   |  ___________________________________________-
+45 | |                 .with_context(|| format!("failed to read directory {}", raw.display()))?
+46 | |                 .map(|entry| entry.map(|entry| entry.path()))
+47 | |                 .collect::<std::io::Result<_>>()
+48 | |                 .with_context(|| format!("failed to enumerate directory {}", raw.display()))?
+49 | |                 .into_iter()
+50 | |                 .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("conf"))
+   | |                 -^^^^^^ `!` is not an iterator
+   | |_________________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `!: Iterator`
+           which is required by `&mut !: Iterator`
+
+warning: unreachable expression
+  --> rust/f5-cli/src/commands/merge.rs:50:25
+   |
+44 |               let mut confs: Vec<PathBuf> = std::fs::read_dir(raw)
+   |  ___________________________________________-
+45 | |                 .with_context(|| format!("failed to read directory {}", raw.display()))?
+46 | |                 .map(|entry| entry.map(|entry| entry.path()))
+47 | |                 .collect::<std::io::Result<_>>()
+48 | |                 .with_context(|| format!("failed to enumerate directory {}", raw.display()))?
+49 | |                 .into_iter()
+   | |____________________________- any code following this expression is unreachable
+50 |                   .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("conf"))
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unreachable expression
+   |
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `f5-cli` (lib) generated 2 warnings
+error: could not compile `f5-cli` (lib) due to 3 previous errors; 3 warnings emitted

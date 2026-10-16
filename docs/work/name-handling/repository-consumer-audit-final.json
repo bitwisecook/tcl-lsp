@@ -23601,7 +23601,13 @@
       ],
       "api": "NativeNameProtocol::namespace_variable_query_input; genuine cell/holder owners",
       "required_change": "Final rooted Jim and selected C report assembly local; report cannot reconstruct original cell/name/cache. Actual query/input owner separate",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "reviewed successor of cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+        "validation": "Source-cleared; original selected Runtime controls and required gates pending.",
+        "scope": "C final selected-home variable report only; Jim canonical query report remains open."
+      }
     },
     {
       "area": "runtime",
@@ -23631,7 +23637,13 @@
       ],
       "api": "naming::native_command_full_name_bytes (C); actual Jim namespace holder",
       "required_change": "Jim report branch local join; existing shared naming owner lacks directly consumed purpose here. Preserve actual selected home/generation; never inverse String",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+        "validation": "Source-cleared; original selected Runtime controls and required gates pending.",
+        "scope": "Full recorded caller source migration; no execution acceptance."
+      }
     },
     {
       "area": "runtime",
@@ -23653,7 +23665,13 @@
       ],
       "api": "Existing naming::native_namespace_full_name_bytes for actual constructed C path; actual Jim holder report purpose separate",
       "required_change": "After full Namespace owner read, C branch duplicates shared full-name serializer by parent/retained report walk although immutable actual constructed_path is retained. Reuse central report serializer with genuine selected path/lifecycle; preserve Jim actual already-reached holder report independently. No identity inverse.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+        "validation": "Source-cleared; original selected Runtime controls and required gates pending.",
+        "scope": "Full recorded caller source migration; no execution acceptance."
+      }
     },
     {
       "area": "runtime",
@@ -131484,12 +131502,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T13:10:25.495579+00:00",
+    "utc": "2026-10-16T13:24:11.505667+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 130,
+    "implemented_pending_validation": 133,
     "verified_complete": 0,
-    "not_started": 2028,
+    "not_started": 2025,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -131649,7 +131667,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "31 additional unverified requirements accepted;29 integrated pending validation,2 not integrated. Definition worker/observer coverage and conditional source-operation continuation are distinct once-counted requirements. Existing callers are not recounted.",
+    "owner_facet_reconciliation": "32 additional unverified requirements:30 integrated pending validation,2 not integrated. The newly demonstrated dynamic-key source-reference layout is counted once; unchanged graph/grep callers are not recounted.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -131742,13 +131760,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 31,
-      "implemented_pending_validation": 29,
+      "required": 32,
+      "implemented_pending_validation": 30,
       "not_integrated": 2,
       "verified_complete": 0
     },
-    "effective_required_units": 2189,
-    "effective_implemented_pending_validation": 159,
+    "effective_required_units": 2190,
+    "effective_implemented_pending_validation": 163,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
@@ -131856,7 +131874,7 @@
       "status": "integrated pending target Rust checks/tests",
       "scope": "hover, completion, rename, inline and refactor consume actual retained ContextRegistry; existing source/edit guards independent."
     },
-    "remaining_ordinary_regressions": "Four info +ten namespace prior passes still panic at interp.rs4753 in fresh889. Actual-availability90c is insufficient; remaining array/binary/namespace registration selectors under review.",
+    "remaining_ordinary_regressions": "VM namespace-declaration panic resolved, but same19/5info47/10namespace counts now fail at fresh tcl_platform host bootstrap interp.rs4260. Host-owned raw bootstrap repair under review; no fake Native fallback.",
     "latest_successor_check_current": {
       "status": "PASS",
       "log": "/tmp/naming-formal-observations-native-path-check.log",
@@ -131921,6 +131939,40 @@
       },
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
+    },
+    "fully_implemented_pending_validation": 131,
+    "partially_implemented_pending_validation": 2,
+    "runtime_report_adoptions": {
+      "baseline_units": [
+        "runtime:report.selected-command-variable-qualification:132",
+        "runtime:report.selected-command-variable-qualification:133",
+        "runtime:report.selected-command-variable-qualification:134"
+      ],
+      "full_callers": 2,
+      "partial_callers": 1,
+      "new_owner_requirements": 0,
+      "status": "source_reviewed_integrated_runtime_execution_pending"
+    },
+    "hosts_forwarding_class_build": {
+      "status": "running",
+      "log": "/tmp/naming-hosts-forwarding-class-next-build.log",
+      "source": "cd0+reviewed Authored forwarding5, Registry configuration-reference layout3 and Runtime report2; Runtime controls require separate actual manifest build."
+    },
+    "five_library_cd0": {
+      "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+      "ordinary": true,
+      "cohorts": 24,
+      "PASS": 123,
+      "FAIL": 26,
+      "zero_test_runs": 0,
+      "build": {
+        "status": "PASS",
+        "seconds": 600,
+        "warnings": 0
+      },
+      "scope": "Selected controls only, no whole-suite/issue/Native provider/repository gate acceptance. Fixed original selectors/budgets preserved.",
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0",
+      "comparison": "experiments/name-handling/results/owner-adoption-20261016/five-library-cd0/test-comparison.json"
     }
   }
 }

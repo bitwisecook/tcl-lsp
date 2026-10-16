@@ -1,0 +1,39 @@
+{
+  "candidate_boundary": "new source-producer repair; uncounted pending baseline-row review; no 2158 baseline count change",
+  "supersedes": [
+    "V1 bf14e5e3637a97f86d3bbdec8891acb15228f85887fc6e54c38ac88ff86e4437",
+    "V2 cf2f213d352d90cd26ab17a44e587332f26865e2b8664acff8aa2707d64548c8"
+  ],
+  "patch_sha256": "efdfaca4608213899dae687897b05359dc85ea076db753e26fabd6148c8701bc",
+  "correction": "Only the new positive test expectation changed from argument 1 to argument 2; production offset/count logic is unchanged. Actual selected argv includes outer lookup selector at ordinal 0.",
+  "source_semantics": "selected class lookup uses semantics.argument_offset as key, exact count argument_offset+2, target argument_offset+1; this is source-only candidate projection and grants no Native acceptance. Existing class lookup schema is exact arity 2 after selector, so extra args decline.",
+  "controls": [
+    "dynamic key + literal uri_redirect_map -> selector-inclusive target ordinal 2",
+    "dynamic target -> None",
+    "missing target -> None",
+    "extra argument -> None",
+    "opaque key cardinality -> None"
+  ],
+  "validation_targets": [
+    "cargo test -p tcl-registry source_configuration_reference::tests::lookup_layout_keeps_literal_group_after_dynamic_key",
+    "cargo test -p tcl-bigip --test integration irule_context",
+    "cargo test -p f5-cli --test grep"
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+      "old_sha256": "793554f0627c42c0e6c64d24cf5d279c4e862bfe12e3b912af48f78846e3924a",
+      "new_sha256": "d64fea5ff6a171e4a58d947d6716758d02f7abfedfaad59e23a6141cab518257"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/irules/class.rs",
+      "old_sha256": "954037d051d6aec96acf2629477e8923801e32518760684faae02a857a73f07f",
+      "new_sha256": "da6c78e21741f8b6fec4a4b08b0a4809f047c4e209a4458e835f8d2e4b1ea114"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/catalogue.rs",
+      "old_sha256": "7e4ed424fcfc896204905cf17c6d470bb3f078c6ce03c75e4055962bc5769135",
+      "new_sha256": "5a5a66349eb0bcc5a8e1aa1352693dcfbf86aafb4f692404dad8bab57ca873f6"
+    }
+  ]
+}

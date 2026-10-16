@@ -1,0 +1,13 @@
+
+running 8 tests
+test catalogue::tests::catalogue_keys_are_unique ... ok
+test catalogue::tests::dialect_catalogue_round_trips_through_its_names ... ok
+test catalogue::tests::enum_witnesses_compile_and_hold ... ok
+test catalogue::tests::every_runtime_enumeration_is_the_registry ... ok
+test catalogue::tests::every_trait_has_its_own_bit ... ok
+test catalogue::tests::taint_catalogue_matches_bits ... ok
+test catalogue::tests::traits_catalogue_matches_the_registry_flags ... ok
+test catalogue::tests::variant_name_matches_the_catalogue_spelling ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 257 filtered out; finished in 0.00s
+

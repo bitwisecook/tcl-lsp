@@ -1,0 +1,56 @@
+{
+  "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+  "source_diff_sha256": "2495ba6a086c7831f65e3bb99bf312ae29e75e36a56c0ac7b1d517e6381f8136",
+  "ordinary": true,
+  "binaries": {
+    "unittests src/lib.rs:f5_cli": {
+      "name": "f5_cli-a62d21fd5d2df66a",
+      "sha256": "8950fcdac17ffb16b7d9ddc95f0287fb14d872d0d797dad14657fe5ffb89edd3"
+    },
+    "tests/cli.rs:cli": {
+      "name": "cli-153c8adc63023eef",
+      "sha256": "3f9978f3962a4c9d5d48b8e20cf1eec099db2c3afc6e371d0e22b9ce4840be8f"
+    },
+    "tests/grep.rs:grep": {
+      "name": "grep-1e4f09243ce95374",
+      "sha256": "da48b2bfc2ed51f815ede85fb4102c98ccffd9a48bd1239dc2716dbfb85d9dd8"
+    },
+    "tests/query_input.rs:query_input": {
+      "name": "query_input-5d369ceb9235ab40",
+      "sha256": "7795d73e9257a9beb075c9394b71e3de3df410d821c89e0c44057a8fb82c9afd"
+    },
+    "tests/remote.rs:remote": {
+      "name": "remote-fd3baeb892bd73b0",
+      "sha256": "3c4e7e058698df595600a13c68e202537b0e54ff1dbf4441635f4395507ed5ef"
+    },
+    "tests/tmsh.rs:tmsh": {
+      "name": "tmsh-924f254bb1c51389",
+      "sha256": "fbb87d7582ceddda4fe98daf530a8206f20e782c63755120ca769750f254f4e2"
+    },
+    "unittests src/lib.rs:tcl_compiler": {
+      "name": "tcl_compiler-780a8f18152f691d",
+      "sha256": "97e4a1219b10545070f0de256591bee0ce44912d47a805e8736e493237ce60ed"
+    },
+    "tests/preview_tickets_e2e.rs:preview_tickets_e2e": {
+      "name": "preview_tickets_e2e-c2624556c8d0c28b",
+      "sha256": "09731de7a9487ac7cff9cfa29ad93252b92ef54ac4d5dc669f6363d4a67708b6"
+    },
+    "unittests src/main.rs:tcl_mcp": {
+      "name": "tcl_mcp-ab2879aae42c0240",
+      "sha256": "89d2fdbcb3df39b3e02327e837f6344ac14ed53b894ee12a198b1e0acda0602b"
+    },
+    "unittests src/lib.rs:tcl_registry": {
+      "name": "tcl_registry-bcb77176bb32d31c",
+      "sha256": "026b10744ce234f27369e210e6c8827fc7c445441865452b1876e702316392c1"
+    },
+    "unittests src/lib.rs:tcl_spectcl": {
+      "name": "tcl_spectcl-a8eed7d1d518985a",
+      "sha256": "8e5aa0416fa11eb937e6cc8c6bc38c01c5ccdfca0a1d6c51f32bfb2e70e8fc15"
+    }
+  },
+  "production_f5_query": {
+    "path": "/workspace/tcl-lsp/target/debug/f5-query",
+    "sha256": "1aa9daa3ea1f611677275cf00833e633abb95d90f61ba83ae1dfc74c7bc412fa"
+  },
+  "build_note": "PASS443sec zero warnings after explicit merge Result<Vec<_>> type fix; original3compilererrors+3warnings retained separately. Runtime2 source delta captured but standalone Runtime controls not built by this root workspace command."
+}

@@ -1,19 +1,23 @@
 # Current naming state and validation
 
-Implementation has resumed from `554085e`. **130 baseline units** have reviewed
-implementation pending validation: 76 code units and all 54 authored-documentation
-units. **Zero units are verified complete**. Baseline counts remain **2,158**;
-2,028 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **31 demonstrated
-requirements**, 29 integrated pending validation and two blocked before integration.
-Effective scope is **2,189 obligations**, with **159 integrated pending validation**
-and **2,030 not integrated**. These counts establish neither semantic acceptance
+Implementation has resumed from `554085e`. **133 baseline units** have reviewed
+implementation pending validation: 79 code units and all 54 authored-documentation
+units. These include two explicitly partial callers (DB class cards and Runtime132).
+**Zero units are verified complete**. Baseline counts remain **2,158**;
+2,025 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **32 demonstrated
+requirements**, 30 integrated pending validation and two blocked before integration.
+Effective scope is **2,190 obligations**, with **163 integrated pending validation**
+and **2,027 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `889643a45` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
+Latest reviewed successor ordinary execution is **95 PASS / 29 FAIL** across 12 Host/Registry/Compiler groups, following a **7m23s zero-warning build**. All 99 previously selected Host tests remain, with seven grep gains and zero prior-PASS regressions; the original forwarding control also gains a pass. Two parameter-trait and 27 CLI/MCP failures remain. The real opaque-environment resolver child and opaque-directory controls pass. The first build's three collection-type errors are retained alongside the successful explicit `Result<Vec<_>>` repair. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/hosts-forwarding-class/summary.json).
+
+A separate actual Runtime-manifest ordinary build passes in **1m23s with zero warnings**. Its 11 selected groups are **111 PASS / zero FAIL**, retaining the previous 103 selected checks and adding eight exact qualification/lifetime/Jim controls. Runtime132 remains partial and the original full Runtime174 group remains unexecuted. [Capture](../../../experiments/name-handling/results/owner-adoption-20261016/runtime-report-adoptions/summary.json).
+
+Development checkpoint `cd0c43194` is pushed to `work`. Its reviewed successor now includes six further baseline CLI/Core adoptions,
 scalar source configuration reborrow, a dedicated source parameter-role facade
-and the remaining physical ensemble availability repairs. The current five-library
-ordinary build is running. Its prior scope includes typed trace lexical exclusions,
+and the remaining physical ensemble availability repairs. The five-library ordinary build and selected execution are recorded below. Its prior scope includes typed trace lexical exclusions,
 editor validation, retained MCP context, explicit native-path refusal, conditional
 source-role and actual VM registration repairs, and baseline3936 formal-reference
 observations. No new code is accepted solely from source review.
@@ -48,6 +52,20 @@ are **65 PASS / 34 FAIL**. Query-input23, tmsh1 and opaque-path merge pass;
 MCP tools are26/22. Preview first fails its original diagnostics assertion after
 the known native bootstrap panic, then does not terminate; Root stops it after
 251.5s. Its23 successors remain unexecuted. No counts advance from execution.
+
+The newer [five-library cd0 capture](../../../experiments/name-handling/results/owner-adoption-20261016/five-library-cd0/summary.json)
+builds in **10m00s**, zero warnings, then executes **123 PASS / 26 FAIL** across24
+selected groups. All115 predecessor controls remain with two gains and no
+pairwise regressions. Logical parameter roles now4/4 and the selected configuration
+fixture now2/2; the seven new source/metadata controls are six PASS/one FAIL.
+Registry selected option tables2/2, Core context completion5/5, actual math selection5/5
+and opaque-directory refusal pass. Four existing Core definition tests
+and one CLI dialect control remain failing; no whole-M12 comparison is claimed.
+The VM namespace-declaration panic is gone, but all15 same VM failures now stop
+at fresh tcl_platform host bootstrap; actual missing engine remains unavailable.
+The scalar source positive exposes an upstream source-row stamping purpose gap;
+its original assertions remain unchanged. The next hosts/forwarding/reference
+build is retried after making the merge iterator collection type explicit.
 
 The four-package `cargo check --tests` before formal3936/path5 passes in 3m09s
 with one existing unused helper warning. The successor including formal3936/path5 passes in 2m43s with the same warning. The
@@ -84,7 +102,7 @@ and geometry do not discharge it. Source variable-expression action/read/cell/tr
 and child-body observer requirements also remain open. Required owner/proof,
 generated, `make rust-check` and `make prep-pr` gates are not green. There is no PR,
 issue closure or merge acceptance. Reports use 30-minute intervals; the next is
-13:36 UTC.
+14:06 UTC.
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 

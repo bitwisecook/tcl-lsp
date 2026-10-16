@@ -1603,12 +1603,18 @@ impl Namespaces {
                 },
             );
         }
-        let mut fqn = self.qualified_name(ns);
-        if fqn != b"::" {
-            fqn.extend_from_slice(b"::");
-        }
-        fqn.extend_from_slice(simple);
-        fqn
+        let namespace = if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
+            tcl_syntax::naming::NativeNamespaceReportParts::JimFlat(
+                self.jim_namespace_bytes(ns)
+                    .expect("Jim namespace reporting requires an already reached namespace getter")
+                    .into(),
+            )
+        } else {
+            tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(
+                self.arena[ns].constructed_path.clone(),
+            )
+        };
+        tcl_syntax::naming::native_qualified_inventory_report_bytes(&namespace, simple)
     }
 
     /// Install one real command binding. Replacement deletes the displaced
@@ -3356,26 +3362,7 @@ impl Namespaces {
             rooted.extend_from_slice(namespace);
             return rooted;
         }
-        let mut parts: Vec<&[u8]> = Vec::new();
-        let mut cur = ns;
-        let mut out = loop {
-            if let Some(fqn) = self.arena[cur].retained_fqn.as_deref() {
-                break fqn.to_vec();
-            }
-            let Some(parent) = self.arena[cur].parent else {
-                break Vec::new();
-            };
-            parts.push(&self.arena[cur].name);
-            cur = parent;
-        };
-        if out.is_empty() && parts.is_empty() {
-            return b"::".to_vec();
-        }
-        for part in parts.iter().rev() {
-            out.extend_from_slice(b"::");
-            out.extend_from_slice(part);
-        }
-        out
+        tcl_syntax::naming::native_namespace_full_name_bytes(&self.arena[ns].constructed_path)
     }
 
     /// C command-table components under the same selected command recipe.

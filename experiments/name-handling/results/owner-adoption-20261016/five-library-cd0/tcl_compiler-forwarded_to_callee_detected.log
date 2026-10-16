@@ -1,0 +1,15 @@
+
+running 1 test
+test interprocedural::tests::forwarded_to_callee_detected ... 
+thread 'interprocedural::tests::forwarded_to_callee_detected' (128759) panicked at rust/tcl-compiler/src/interprocedural.rs:7363:9:
+expected ForwardedToCallee for x, got {Passthrough}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interprocedural::tests::forwarded_to_callee_detected
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10241 filtered out; finished in 0.79s
+

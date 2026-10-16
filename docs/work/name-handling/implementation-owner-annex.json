@@ -686,6 +686,30 @@
         "later source rows retain current full input/configuration/declaration and genuinely conditional handler selection",
         "no Native/Normal/read/cell/absence/edit or reached-state grants"
       ]
+    },
+    {
+      "id": "registry.source.conditional-configuration-reference-layout-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+          "symbol": "SourceConfigurationReferenceLayout::DataGroupLookup; ResolvedInvocation::authored_source_configuration_reference"
+        },
+        {
+          "path": "rust/tcl-registry/src/commands/irules/class.rs",
+          "symbol": "class lookup source_configuration_reference"
+        },
+        {
+          "path": "rust/tcl-spectcl/src/catalogue.rs",
+          "symbol": "declarative source layout catalogue witness"
+        }
+      ],
+      "rationale": "One genuine missing selected conditional source-reference layout for a literal data-group target after an ordinary dynamic lookup key. Existing baseline source consumers and action/effect projections do not own this producer. Exact selected full-vector cardinality/argument_offset/arity and literal target are required; unknown expansion, opaque cardinality, dynamic target, missing/extra words and NUL refuse. Source candidate metadata supplies no Native arity/handler/read/Normal/object identity, reachability, complete graph or edit authority. Count once across enum, selected subcommand metadata, generic SpecTcl mirror and owner test; unchanged graph/grep callers are not recounted.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared V3 efdfaca4608213899dae687897b05359dc85ea076db753e26fabd6148c8701bc integrated; root fresh scoped build/execution pending."
     }
   ],
   "unverified_or_open": [
@@ -697,27 +721,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T13:05:52.934278+00:00",
+  "utc": "2026-10-16T13:24:11.505667+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 31,
+    "semantic_code_changes": 32,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 31,
+    "all_required_changes": 32,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 14,
+      "shared_owner_extension": 15,
       "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1830,
+    "semantic_code_changes": 1831,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2189
+    "all_required_changes": 2190
   },
   "implementation_progress": {
-    "implemented_pending_validation": 29,
+    "implemented_pending_validation": 30,
     "not_integrated": 2,
     "verified_complete": 0
   }

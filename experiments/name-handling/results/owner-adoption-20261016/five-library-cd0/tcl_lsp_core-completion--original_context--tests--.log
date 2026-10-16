@@ -1,0 +1,10 @@
+
+running 5 tests
+test completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source ... ok
+test completion::original_context::tests::original_context_completion_preserves_actual_handler_and_effective_ordinals ... ok
+test completion::original_context::tests::original_context_completion_rejects_stale_owners_and_keeps_hosted_schema ... ok
+test completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals ... ok
+test completion::original_context::tests::source_option_value_completion_keeps_selected_options_and_currency ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 3176 filtered out; finished in 7.24s
+

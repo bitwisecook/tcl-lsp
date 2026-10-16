@@ -1,0 +1,5 @@
+{
+  "status": "NOT_RERUN_KNOWN_VM_HOST_BOOTSTRAP_FAILURE",
+  "prior_capture": "cli-mcp-server-889",
+  "reason": "Current cd0 VM controls confirm same host bootstrap blocker; reviewed Host repair is not in this binary. Original first failure/shutdown stop and23 unexecuted controls remain open. No test/assertion/budget changed."
+}

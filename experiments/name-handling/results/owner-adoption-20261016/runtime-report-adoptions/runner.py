@@ -1,0 +1,10 @@
+import subprocess,pathlib,re,json,hashlib,time
+root=pathlib.Path('/workspace/tcl-lsp');out=pathlib.Path('/workspace/naming-validation/runtime-report-adoptions');binding=json.loads((out/'source-binding.json').read_text());binary=out/'frozen-binaries'/binding['binary']['name'];assert hashlib.sha256(binary.read_bytes()).hexdigest()==binding['binary']['sha256']
+spec=['interp::native_name_queries::tests','cmd_info::','interp::native_variable_names::','namespace::tests::constructed_path_and_lookup_stay_on_detached_original_token','namespace::tests::qualified_registration_and_resolution','namespace::original_variable_geometry_tests::namespace_variable_roots_keep_qualification_before_zero_and_counted_simple_keys','cmd_namespace::tests::which_resolves_command_fqn','cmd_namespace::tests::which_variable_resolves_namespace_var_fqn','cmd_namespace::tests::a_recreated_namespace_is_a_distinct_token_from_the_retained_one','interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls','cmd_namespace::tests::original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_order']
+records=[]
+for selector in spec:
+ log=out/(re.sub('[^a-zA-Z0-9_-]','-',selector)+'.log');start=time.monotonic()
+ with log.open('w') as f:p=subprocess.run([str(binary),selector,'--nocapture','--test-threads=1'],cwd=root,stdout=f,stderr=subprocess.STDOUT)
+ m=re.search(r'test result: (\w+)\. (\d+) passed; (\d+) failed; (\d+) ignored;',log.read_text());r={'package':'tcl_runtime','selector':selector,'source_head':binding['source_head'],'source_diff_sha256':binding['source_diff_sha256'],'binary_sha256':binding['binary']['sha256'],'exit':p.returncode,'seconds':time.monotonic()-start,'log':log.name,'log_sha256':hashlib.sha256(log.read_bytes()).hexdigest(),'status':'UNACCEPTED'}
+ if m:r.update(passed=int(m[2]),failed=int(m[3]),ignored=int(m[4]));r['status']='NO_TESTS' if int(m[2])+int(m[3])==0 else 'PASS' if p.returncode==0 and int(m[3])==0 else 'FAIL'
+ records.append(r);(out/'records.json').write_text(json.dumps(records,indent=2)+'\n');print(json.dumps(r),flush=True)

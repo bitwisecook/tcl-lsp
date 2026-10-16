@@ -1,0 +1,28 @@
+{
+  "source_head": "cd0c431946e42357497e2e28bf7286d0cd1d8c8e",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "binaries": {
+    "tcl_cli_support": {
+      "name": "tcl_cli_support-c4c3631427c24177",
+      "sha256": "cca5f1304e930d8dfba0c24a6a5787bd6d6e9baae663d9746de9a1c140becc71"
+    },
+    "tcl_compiler": {
+      "name": "tcl_compiler-d8de6991bbca4c93",
+      "sha256": "7ad965bc2377ea3e546489eb7dc4e1292d9172a42a83741aa29784c5e0a52cb7"
+    },
+    "tcl_lsp_core": {
+      "name": "tcl_lsp_core-a667c600751d0109",
+      "sha256": "5a83b1edf56193e606c3389284f096813e73002b89d1dd2a062dd2d03a5bbbaf"
+    },
+    "tcl_registry": {
+      "name": "tcl_registry-b16ebab44352cebb",
+      "sha256": "2909e0d8ebd7c1e32372cebc64442e631ba4718d1174add71dbf0210b787f8c3"
+    },
+    "tcl_vm": {
+      "name": "tcl_vm-80b96b754505a5a3",
+      "sha256": "cdc6fb88ab7fabf82afbee1dcc402c1a832c011c89a0c00249e6cd8b899636f5"
+    }
+  },
+  "build_note": "PASS600sec zero warnings. Build began889+reviewed source; actual Rust source bytes identical to clean cd0 checkpoint; Git metadata changed mid-build. No temporary instrumentation."
+}
