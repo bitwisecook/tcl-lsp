@@ -719,3 +719,34 @@ fn workspace_symbol_finds_a_just_opened_documents_proc() {
 
     std::fs::remove_dir_all(&root).ok();
 }
+
+/// The first `workspace/symbol` waits out the startup scan however long the
+/// work before it takes. `initialized` pulls the config, registers watchers
+/// and loads the spec packs before it scans; on a loaded machine that alone
+/// can outlast the scan's budget, which must then still be the scan's.
+#[test]
+fn workspace_symbol_waits_out_a_slow_start_to_the_scan() {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-ws-symbol-slow-start-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    std::fs::write(root.join("scanned.tcl"), "proc slow_start_helper {} {}\n")
+        .expect("write fixture");
+
+    // Each config reply comes well within the server's bound on a client
+    // reply, so the pull succeeds, but late enough that with the pack load
+    // the scan begins after the scan's own budget would have run out.
+    let mut lsp = Lsp::spawn(serde_json::json!({}));
+    lsp.set_configuration_reply_delay(std::time::Duration::from_millis(5_500));
+    lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+    let result = lsp.workspace_symbols("slow_start_helper");
+    let syms = result.as_array().cloned().unwrap_or_default();
+    assert!(
+        syms.iter().any(|s| name(s) == "slow_start_helper"),
+        "the on-disk fixture's proc must be found on the first query: {syms:?}"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}

@@ -2595,6 +2595,13 @@ const SCAN_MERGE_BATCH_SIZE: usize = 200;
 /// wait is a relaxed atomic load.
 const INITIAL_WORKSPACE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// How long a workspace-wide query waits for the initial folder scan to
+/// *begin*, before [`INITIAL_WORKSPACE_SCAN_WAIT`] times the scan itself.
+/// `initialized` first pulls the config and registers file watchers, each
+/// bounded by [`CLIENT_REQUEST_TIMEOUT`], then loads the spec packs, so this
+/// covers both round-trips with the pack load to spare.
+const PRE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
 /// to [`DIAGNOSTICS_DEBOUNCE`]: many cold large documents finishing their
@@ -8419,36 +8426,68 @@ impl Drop for EditTurn<'_> {
 /// flight" both wait.
 #[derive(Debug, Default)]
 struct WorkspaceScanReadiness {
-    complete: std::sync::atomic::AtomicBool,
-    completed: tokio::sync::Notify,
+    started: OneShotSignal,
+    complete: OneShotSignal,
 }
 
 impl WorkspaceScanReadiness {
+    /// Record that a scan pass has begun and wake every waiter.
+    fn mark_started(&self) {
+        self.started.raise();
+    }
+
     /// Record that a scan pass has finished and wake every waiter.
     fn mark_complete(&self) {
-        self.complete
-            .store(true, std::sync::atomic::Ordering::Release);
-        self.completed.notify_waiters();
+        self.complete.raise();
     }
 
     fn is_complete(&self) -> bool {
-        self.complete.load(std::sync::atomic::Ordering::Acquire)
+        self.complete.is_raised()
+    }
+
+    /// Wait until the first scan pass has begun: what `initialized` does
+    /// before it scans is bounded on its own, so this always ends.
+    async fn wait_started(&self) {
+        self.started.wait().await;
     }
 
     /// Wait until the first scan pass has completed.  Callers bound this with
     /// their own timeout — a workspace scan is disk-bound and a request must
     /// degrade to a stale answer rather than hang.
     async fn wait(&self) {
+        self.complete.wait().await;
+    }
+}
+
+/// A flag raised once, which tasks can wait for.
+#[derive(Debug, Default)]
+struct OneShotSignal {
+    raised: std::sync::atomic::AtomicBool,
+    notify: tokio::sync::Notify,
+}
+
+impl OneShotSignal {
+    fn raise(&self) {
+        self.raised
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.notify.notify_waiters();
+    }
+
+    fn is_raised(&self) -> bool {
+        self.raised.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    async fn wait(&self) {
         loop {
-            let completed = self.completed.notified();
-            tokio::pin!(completed);
-            // Register before re-reading, so a completion landing between the
+            let raised = self.notify.notified();
+            tokio::pin!(raised);
+            // Register before re-reading, so a raise landing between the
             // check and the await cannot be missed.
-            completed.as_mut().enable();
-            if self.is_complete() {
+            raised.as_mut().enable();
+            if self.is_raised() {
                 return;
             }
-            completed.await;
+            raised.await;
         }
     }
 }
@@ -22351,6 +22390,9 @@ impl Backend {
         {
             return;
         }
+        // The budget is the scan's own: what runs before it is a machine's
+        // load away from fitting in it, and would leave the query no time.
+        let _ = crate::rt::timeout(PRE_SCAN_WAIT, self.workspace_scan_ready.wait_started()).await;
         let _ = crate::rt::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
             self.workspace_scan_ready.wait().await;
             drop(self.workspace_scan_gate.lock().await);
@@ -22550,6 +22592,7 @@ impl Backend {
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate`.
         let _scan_guard = self.workspace_scan_gate.lock().await;
+        self.workspace_scan_ready.mark_started();
         let scan_started = crate::rt::Instant::now();
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
