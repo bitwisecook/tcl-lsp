@@ -437,6 +437,92 @@ pub fn fixed_string_operand(text: &str) -> Option<&str> {
 }
 
 impl ExprNode {
+    /// Whether this is an operation C Tcl folds at compile time when its
+    /// operands are constant: arithmetic, shift, bitwise, logical, and
+    /// numeric comparison, and the standard unary operators. String
+    /// comparison, list membership and every iRules operator are not.
+    #[must_use]
+    pub const fn is_foldable_operation(&self) -> bool {
+        match self {
+            Self::Binary { op, .. } => matches!(
+                op,
+                BinOp::Add
+                    | BinOp::Sub
+                    | BinOp::Mul
+                    | BinOp::Div
+                    | BinOp::Mod
+                    | BinOp::Pow
+                    | BinOp::LShift
+                    | BinOp::RShift
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::BitXor
+                    | BinOp::And
+                    | BinOp::Or
+                    | BinOp::Eq
+                    | BinOp::Ne
+                    | BinOp::Lt
+                    | BinOp::Le
+                    | BinOp::Gt
+                    | BinOp::Ge
+            ),
+            Self::Unary { op, .. } => matches!(
+                op,
+                UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
+            ),
+            _ => false,
+        }
+    }
+
+    /// Whether this is an operator expression over literals only: no
+    /// variable, command, or math-function call, and no quoted operand that
+    /// substitutes.
+    #[must_use]
+    pub fn is_constant(&self) -> bool {
+        match self {
+            Self::Literal { .. } => true,
+            Self::String { text, .. } => {
+                text.starts_with('{') || !(text.contains('$') || text.contains('['))
+            }
+            Self::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
+            Self::Unary { operand, .. } => operand.is_constant(),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => condition.is_constant() && true_branch.is_constant() && false_branch.is_constant(),
+            _ => false,
+        }
+    }
+
+    /// The outermost operations of this expression C folds at compile time
+    /// ([`Self::is_foldable_operation`] over [`Self::is_constant`] operands),
+    /// in order.
+    #[must_use]
+    pub fn folded_operations(&self) -> Vec<&ExprNode> {
+        if self.is_foldable_operation() && self.is_constant() {
+            return vec![self];
+        }
+        match self {
+            Self::Binary { left, right, .. } => {
+                let mut folded = left.folded_operations();
+                folded.extend(right.folded_operations());
+                folded
+            }
+            Self::Unary { operand, .. } => operand.folded_operations(),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => [condition, true_branch, false_branch]
+                .into_iter()
+                .flat_map(|node| node.folded_operations())
+                .collect(),
+            Self::Call { args, .. } => args.iter().flat_map(ExprNode::folded_operations).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Recursively extract variable names from this expression AST.
     ///
     /// This is the structured replacement for the scattered

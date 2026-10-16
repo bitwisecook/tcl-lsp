@@ -6648,6 +6648,17 @@ impl Interp {
         Code::Error
     }
 
+    /// Start the error trace at the result message, where none is started, so
+    /// the command holding the failure logs `invoked from within` rather than
+    /// `while executing` — C's trace for an error a compile-time fold raised.
+    pub(crate) fn start_error_info_at_message(&mut self) {
+        let message = self.result_bytes();
+        let mut exc = self.exc.borrow_mut();
+        if exc.info.is_none() {
+            exc.info = Some(message);
+        }
+    }
+
     /// Publish a portable command-layer error through this runtime's result
     /// and exception-state ABI without losing a structured error code.
     pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {

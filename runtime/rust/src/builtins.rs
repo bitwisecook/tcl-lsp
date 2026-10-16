@@ -968,11 +968,36 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // command — preserve it (an error keeps its `::errorInfo`; a
         // `return`/`break`/`continue` keeps the substitution's value).
         Err(_) if propagated => propagated_code,
-        Err(e) => match e.code {
-            Some(c) => interp.error_with_code(&e.msg, &c),
-            None => interp.set_error(&e.msg),
-        },
+        Err(e) => raise_expr_error(interp, &node, &e),
     }
+}
+
+/// Raise `error`, which evaluating `node` failed with: where it is the error C
+/// raises folding a constant operation of the expression as it compiles it
+/// (from 8.5), its message already starts the trace, as C's does.
+#[cfg(have_tommath)]
+fn raise_expr_error(
+    interp: &mut Interp,
+    node: &tcl_syntax::expr::ExprNode,
+    error: &crate::expr::ExprError,
+) -> Code {
+    let folded = interp.runtime_version().raises_folded_expr_errors()
+        && node.folded_operations().into_iter().any(|operation| {
+            let mut ctx = InterpExprCtx {
+                interp: &mut *interp,
+                propagated: false,
+                propagated_code: Code::Error,
+            };
+            matches!(crate::expr::eval_expr(operation, &mut ctx), Err(e) if e.msg == error.msg)
+        });
+    let code = match &error.code {
+        Some(c) => interp.error_with_code(&error.msg, c),
+        None => interp.set_error(&error.msg),
+    };
+    if folded {
+        interp.start_error_info_at_message();
+    }
+    code
 }
 
 /// Evaluate `src` as a Tcl expression, returning the result object (owned — the
@@ -996,10 +1021,7 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     match result {
         Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
         Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(match e.code {
-            Some(c) => interp.error_with_code(&e.msg, &c),
-            None => interp.set_error(&e.msg),
-        }),
+        Err(e) => Err(raise_expr_error(interp, &node, &e)),
     }
 }
 
@@ -1051,10 +1073,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
         // `[cmd]` substitution carries that code out of the loop/`if`.
         Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(match e.code {
-            Some(c) => interp.error_with_code(&e.msg, &c),
-            None => interp.set_error(&e.msg),
-        }),
+        Err(e) => Err(raise_expr_error(interp, &node, &e)),
     }
 }
 

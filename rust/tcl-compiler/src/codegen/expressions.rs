@@ -28,49 +28,8 @@ use tcl_registry::expr_surface::{MathFunctionCallTarget, RuntimeExprSurface};
 use super::values::parse_simple_var_ref;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
+use crate::expr_ast::{BinOp, ExprNode, render_expr};
 use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
-
-/// Operators whose constant integer value `eval_tcl_expr` computes soundly and
-/// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
-/// **numeric** comparison. Deliberately excludes string comparisons (`eq`/`lt`/
-/// …) and list membership (`in`/`ni`) — the evaluator has no string value type,
-/// so those cannot be folded soundly here — and every iRules dialect operator
-/// (`contains`, `and`/`or`, `matches_*`, …), which has no C-Tcl equivalent and
-/// must keep its dedicated opcode.
-const fn binop_folds(op: BinOp) -> bool {
-    matches!(
-        op,
-        BinOp::Add
-            | BinOp::Sub
-            | BinOp::Mul
-            | BinOp::Div
-            | BinOp::Mod
-            | BinOp::Pow
-            | BinOp::LShift
-            | BinOp::RShift
-            | BinOp::BitAnd
-            | BinOp::BitOr
-            | BinOp::BitXor
-            | BinOp::And
-            | BinOp::Or
-            | BinOp::Eq
-            | BinOp::Ne
-            | BinOp::Lt
-            | BinOp::Le
-            | BinOp::Gt
-            | BinOp::Ge
-    )
-}
-
-/// Unary operators eligible for constant integer folding (the standard numeric
-/// and logical ones; not the iRules word-`!`).
-const fn unaryop_folds(op: UnaryOp) -> bool {
-    matches!(
-        op,
-        UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
-    )
-}
 
 /// Whether `text` begins the way a numeral does — an optional sign then an
 /// ASCII digit — which is what makes a failed parse a *bad number* rather than
@@ -466,11 +425,7 @@ impl CodegenCtx<'_> {
         // never mis-folded; float results are left to the normal path
         // (their string formatting is the runtime's job). Literals keep their
         // own arm (the caller's `tryCvtToNumeric` / invalid-prefix handling).
-        let foldable = match node {
-            ExprNode::Binary { op, .. } => binop_folds(*op),
-            ExprNode::Unary { op, .. } => unaryop_folds(*op),
-            _ => false,
-        };
+        let foldable = node.is_foldable_operation();
         // A computed `INT64_MIN` has no literal under 8.4 and 8.5, whose own
         // string rep of it is `-8`, so the operation stays.
         if foldable
@@ -484,7 +439,7 @@ impl CodegenCtx<'_> {
         // A constant operator subexpression left unfolded may still be one C
         // folds and fails to: mark its operations so an error they raise is
         // reported as that fold failure.
-        if foldable && self.vm_release().raises_folded_expr_errors() && is_constant_expr(node) {
+        if foldable && self.vm_release().raises_folded_expr_errors() && node.is_constant() {
             let start = self.instructions.len();
             let emitted = self.emit_expr_operation(node, depth);
             for instruction in &mut self.instructions[start..] {
@@ -604,29 +559,6 @@ impl CodegenCtx<'_> {
                 false
             }
         }
-    }
-}
-
-/// Whether `node` is an operator expression over literals only: no variable,
-/// command, or math-function call, and no quoted operand that substitutes.
-fn is_constant_expr(node: &ExprNode) -> bool {
-    match node {
-        ExprNode::Literal { .. } => true,
-        ExprNode::String { text, .. } => {
-            text.starts_with('{') || !(text.contains('$') || text.contains('['))
-        }
-        ExprNode::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
-        ExprNode::Unary { operand, .. } => is_constant_expr(operand),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            is_constant_expr(condition)
-                && is_constant_expr(true_branch)
-                && is_constant_expr(false_branch)
-        }
-        _ => false,
     }
 }
 
