@@ -46,7 +46,7 @@ pub(crate) fn original_logical_source_definition_layout(
 /// Selected source layout data shared by fallback and stronger original owners.
 /// The caller retains the actual words/input; this issues no definition or body.
 pub(crate) fn original_source_definition_layout_from_selected_words(
-    words: &super::OriginalRegistryWords,
+    words: &super::source_structure::OriginalRegistryWords,
     input: &ResolvedAnalysisInput,
     tokens: &CommandTokens,
 ) -> Option<OriginalLogicalSourceDefinitionLayout> {

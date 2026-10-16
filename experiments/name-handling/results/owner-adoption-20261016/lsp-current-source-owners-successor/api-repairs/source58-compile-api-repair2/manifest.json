@@ -1,0 +1,16 @@
+{
+  "patch_sha256": "3daf22b7e114723eff363d685fe7cf15690064e894808a222cb8d83c675aad49",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "d16fc2457abd385583510eff65a268217c92dffb37a63d4535c9fcfebdd645a0",
+      "after_sha256": "9de91ca97de8e49b916fbc898adaf95f8f31df3bc3cf1eb33d11d728f9d45e62"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "before_sha256": "80c13214698320a5d2996593e6e216a2d081af7535c5c13443122feddf3cd11c",
+      "after_sha256": "b4aaccb1542389926d2d00c50544265aa09ce213eb8c01c7ec47e3eb8b79130b"
+    }
+  ],
+  "scope": "Actual216.585s builderror two nonDebug Salsa handles in private stamp. Keep all actualEq/currentness fields unchanged; manual top-level Debug displays generation/count only, no Debug-bound/API/semantic guard weakening. Delete only now-unused private reportproperty reference helper after actualgenuineLensadopter; rg entireRust has noothercaller. No existingtest/assertion/sourcefixture/budget change, no new#[allow], noexecution/count."
+}

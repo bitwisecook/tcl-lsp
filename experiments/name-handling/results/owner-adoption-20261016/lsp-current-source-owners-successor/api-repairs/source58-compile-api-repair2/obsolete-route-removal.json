@@ -1,0 +1,7 @@
+{
+  "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+  "before_sha256": "5f871eb8ef5b85b8debdfbeda2ef7667f600a10a719e89cd83e9c100de13f99c",
+  "after_sha256": "6b53746f1489f77dbc5cd22cf752e26349878203283790cc0784473730740c73",
+  "removed_exact_obsolete_caller_route": "| original selected Core dispatch and namespace hazards | `rust/tcl-lsp-core/src/references.rs` | `tcl-lsp-core` | `crate::references` | `scan_my_method_sites` | pub(crate) | `rust/tcl-lsp-core/src/references.rs` | `crate::references` | `property_references_for_class` | `static` |\n",
+  "scope": "Remove only obsolete private caller source registration after zero-caller function removal; no checker/owner/visibility/guard changes."
+}

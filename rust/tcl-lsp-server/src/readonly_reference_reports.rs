@@ -87,14 +87,14 @@ impl OriginalReadonlyReferenceReport {
 
 // Actual host stamps are kept session-side, beside the CALL receipt in the
 // existing bounded registry. Source equality cannot recreate these epochs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct LogicalCallPublicationStamp {
     index_generation: u64,
     inputs_epoch: u64,
     factory_generation: u64,
     documents: Vec<LogicalCallDocumentStamp>,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct LogicalCallDocumentStamp {
     uri: Uri,
     source: Arc<str>,
@@ -114,6 +114,30 @@ struct LogicalCallDocumentStamp {
     index_revision: u64,
     index_context: tcl_lsp_core::workspace_index::WorkspaceDiagnosticSourceContext,
 }
+impl std::fmt::Debug for LogicalCallDocumentStamp {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("LogicalCallDocumentStamp")
+            .field("uri", &self.uri)
+            .field("database_revision", &self.database_revision)
+            .field("document_revision", &self.document_revision)
+            .field("index_revision", &self.index_revision)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for LogicalCallPublicationStamp {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("LogicalCallPublicationStamp")
+            .field("index_generation", &self.index_generation)
+            .field("inputs_epoch", &self.inputs_epoch)
+            .field("factory_generation", &self.factory_generation)
+            .field("document_count", &self.documents.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl LogicalCallPublicationStamp {
     fn capture(
         documents: &[OriginalReadonlyReferenceDocument],

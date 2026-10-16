@@ -1,0 +1,7 @@
+CLEAR — independent source review of the two-line TypeScript repair.
+
+Patch SHA256: e0463f41bee00b03ccb8f1cbc12e64514912fd9711bfa508616eb13d20da9c68
+Beforeimage: editors/vscode/src/documentTransform.ts SHA256 9d0eb41106bb35318e1069ca3b3443fc55f8d6b7d3f1df91575d95774a94963d
+Scratch afterimage: SHA256 416cc496184db6eed6d894a506b6a724971ba02386c4cbaa6f517f35d034143d
+
+The hunk captures the already-narrowed optional validateTransform method bound to the exact transport before creating the async callback. The callback calls that retained method after awaiting and keeps the pre-existing snapshot-currentness checks before validation and after its result. It introduces no non-null assertion, transport reread, or semantic change to the refusal/no-op path. Independent scratch application produced the declared afterimage hash. TypeScript execution was not performed by this reviewer.

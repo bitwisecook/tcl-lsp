@@ -1,0 +1,11 @@
+{
+  "patch_sha256": "29a5cea7510399295097d680735dba418efd0e809de26761bf1ecf1d252160af",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "9de91ca97de8e49b916fbc898adaf95f8f31df3bc3cf1eb33d11d728f9d45e62",
+      "after_sha256": "2d5aed94d9a942716f3d297faeca2153c91f6b23910dd5eae1fa2b8c2382ff87"
+    }
+  ],
+  "scope": "Actualthirdbuild68.688s failed existingassert_eq!(stamp.documents,current.documents) requiring elementDebug. AddmanualprivateDocumentStamp formatting ofuri/revisions only; allfields/Eq/currentness and everyassertion unchanged. No newallow/traitbound relaxation, execution/count."
+}

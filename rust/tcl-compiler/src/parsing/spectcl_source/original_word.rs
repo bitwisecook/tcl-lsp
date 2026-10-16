@@ -139,7 +139,7 @@ impl OriginalPackSourceWord {
     }
     /// Original statement ordinal in its actual selected source container.
     #[must_use]
-    pub const fn statement_ordinal(&self) -> usize {
+    pub fn statement_ordinal(&self) -> usize {
         self.local.statement.ordinal
     }
     /// Complete local original argv; positions belong to the held local image,

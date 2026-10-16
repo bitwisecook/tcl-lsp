@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair2/input-before.json",
+  "sha256": "c4e7acb3f5830c62e362a4383dc49bf18a88e951e505c7f946d92e96859da4b3",
+  "count": 39019,
+  "drift": 0,
+  "scope": "Full index outside Git; recorded source HEAD plus exact diff and admission manifest bind actual snapshot."
+}

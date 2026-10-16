@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-16T23:26:32.012924+00:00",
+  "scope": "Lossless storage compaction of old completed or deferred frozen artifacts only; exact fullELFs preserved and all archive member/original hashes verified before unlink. Restore+rehash before historical execution. Currentbuild/provider/source untouched, no semantic/test acceptance.",
+  "archive": "/workspace/naming-validation/archives/old-workspace-frozen-payloads.tar.zst",
+  "sha256": "a0b0695842fd870b6258ce897c28fa000949edc099c5015aa76ece40599f5b13",
+  "bytes": 416816912,
+  "members": [
+    {
+      "path": "lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+      "sha256": "322ca485ddb66b9cbad8115fa626ad456cdddecdf566d06b40f7af5f97475ff2",
+      "bytes": 249203904,
+      "mode": 33216
+    },
+    {
+      "path": "lsp-compiler-34ae4/frozen-binaries/tcl_compiler-baa5681bd4f4c453",
+      "sha256": "2fb37ddd8978d5cfc223a037a4dab400ca4cab2442a19c512be3b5f3668ae7a2",
+      "bytes": 249312792,
+      "mode": 33216
+    },
+    {
+      "path": "runtime-report-adoptions/frozen-binaries/tcl_runtime-61639851635952d4",
+      "sha256": "40981d2eceaa833ed281c7594b5c863706111f152e4979c07f0b0bcc02651c91",
+      "bytes": 94432200,
+      "mode": 33216
+    },
+    {
+      "path": "cli-mcp-server-889/frozen-binaries/grep-1e4f09243ce95374",
+      "sha256": "da48b2bfc2ed51f815ede85fb4102c98ccffd9a48bd1239dc2716dbfb85d9dd8",
+      "bytes": 15146064,
+      "mode": 33216
+    },
+    {
+      "path": "cli-mcp-server-889/frozen-binaries/preview_tickets_e2e-c2624556c8d0c28b",
+      "sha256": "88daf55799b74d90f12c202f4443d6938df1464429cf9c4d9c6dd5eca05abc84",
+      "bytes": 518440976,
+      "mode": 33216
+    },
+    {
+      "path": "cli-mcp-server-889/frozen-binaries/tcl_lsp_server-5796f44ac2d4dfce",
+      "sha256": "ff2acf2a0e169665daa5c3916e34d1093bed43c3c21cdf39da64d8b459b0810b",
+      "bytes": 321993680,
+      "mode": 33216
+    },
+    {
+      "path": "cli-mcp-server-889/frozen-binaries/tcl_mcp-ab2879aae42c0240",
+      "sha256": "4c2e491b242a87297f9a19c3bce4b1a5f3ed74b8f909ca7f47bc4b9c71a02ab1",
+      "bytes": 440961120,
+      "mode": 33216
+    },
+    {
+      "path": "registry-syntax-jim-2fb/frozen-binaries/tcl_registry-bce4e337f7908311",
+      "sha256": "dacf78a9027608d22f44de28ebf66d4a96c1e96c052826866e40a4e1f6a13ca4",
+      "bytes": 91176632,
+      "mode": 33216
+    },
+    {
+      "path": "registry-syntax-jim-2fb/frozen-binaries/tcl_syntax-b211248d840e4356",
+      "sha256": "bd5ae97251e6646255fc3a7dcf531f6e4116a253d2ba744ba27e9a8dbdf4935c",
+      "bytes": 25512512,
+      "mode": 33216
+    },
+    {
+      "path": "runtime174-engine-jim-report/frozen-binaries/native_namespace_command_query-2b5d05dcf597a71b",
+      "sha256": "7c40738b1d3ee1bc3a4884808198da8cf227f4ebab22c20c42811da44a1f65ef",
+      "bytes": 62520640,
+      "mode": 33216
+    },
+    {
+      "path": "runtime174-engine-jim-report/frozen-binaries/tcl_runtime-d5230050e6f5cac2",
+      "sha256": "0343364a0f142b5d095641dad1398f5e290aa37a73afa6004cc848321adf88c3",
+      "bytes": 95234040,
+      "mode": 33216
+    },
+    {
+      "path": "lsp-spectcl-e0612/frozen-binaries/tcl_spectcl-e9ce37becc1a066b",
+      "sha256": "77cfbc8784b95b8974189eaea34e78d5e96549d35638de0ce105a4cfe3d9ab2c",
+      "bytes": 137324720,
+      "mode": 33216
+    }
+  ],
+  "all_archive_member_hashes_verified": true
+}

@@ -1,0 +1,22 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_definition.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_definition.rs
+@@ -46,7 +46,7 @@
+ /// Selected source layout data shared by fallback and stronger original owners.
+ /// The caller retains the actual words/input; this issues no definition or body.
+ pub(crate) fn original_source_definition_layout_from_selected_words(
+-    words: &super::OriginalRegistryWords,
++    words: &super::source_structure::OriginalRegistryWords,
+     input: &ResolvedAnalysisInput,
+     tokens: &CommandTokens,
+ ) -> Option<OriginalLogicalSourceDefinitionLayout> {
+--- a/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs
++++ b/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs
+@@ -139,7 +139,7 @@
+     }
+     /// Original statement ordinal in its actual selected source container.
+     #[must_use]
+-    pub const fn statement_ordinal(&self) -> usize {
++    pub fn statement_ordinal(&self) -> usize {
+         self.local.statement.ordinal
+     }
+     /// Complete local original argv; positions belong to the held local image,

@@ -141,10 +141,11 @@ export async function applyDocumentTransform(
   if (!isDocumentTransformCurrent(snapshot) || !matchesReceipt(snapshot, result)) return false;
   const transport = snapshot.source.analysisContext?.transport;
   if (!transport?.validateTransform) return false;
+  const validateTransform = transport.validateTransform.bind(transport);
   try {
     return !!(await replaceDocumentFromSnapshot(snapshot.source, result.source, async () => {
       if (!isDocumentTransformCurrent(snapshot)) return false;
-      const current = await transport.validateTransform({
+      const current = await validateTransform({
         ...result.editReceipt,
         replacement: result.source,
       });

@@ -1,0 +1,16 @@
+{
+  "patch_sha256": "fc12ad03e30d18b8bc05f4e23ae2aedb0c370d2ff2b769733d8643084d09a8ac",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_definition.rs",
+      "before_sha256": "70d2f80bbcd950bf66530b89077918641327ad9bf214cb8330acdf1238a26171",
+      "after_sha256": "f4912b12f34d717ec2711f8d73f3c993923debb5447e59b1695f36fff126c1d1"
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+      "before_sha256": "680c34122f20be883cd4b4ff47f576992b6df792bd11607db8ce0f9f6bc39023",
+      "after_sha256": "51d3bb00209259521ee2a50f2fb99470f4f7418690c37c16f047aade7494a2c2"
+    }
+  ],
+  "scope": "Actual99.516s compilerfailure: correct actualmodule-qualifiedtype; removeinvalidconst onreal Arc-backed ordinal accessor. E0614 mightbeunresolvedtypecascade; leaveexistingactualreferencepatternunchanged. No guard/test/assert/sourcefixture/budget changes; noexecution/count."
+}

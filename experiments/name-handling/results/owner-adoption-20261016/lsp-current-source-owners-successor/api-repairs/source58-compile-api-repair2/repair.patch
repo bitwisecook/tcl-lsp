@@ -1,0 +1,79 @@
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -87,14 +87,14 @@
+ 
+ // Actual host stamps are kept session-side, beside the CALL receipt in the
+ // existing bounded registry. Source equality cannot recreate these epochs.
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Clone, PartialEq, Eq)]
+ struct LogicalCallPublicationStamp {
+     index_generation: u64,
+     inputs_epoch: u64,
+     factory_generation: u64,
+     documents: Vec<LogicalCallDocumentStamp>,
+ }
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Clone, PartialEq, Eq)]
+ struct LogicalCallDocumentStamp {
+     uri: Uri,
+     source: Arc<str>,
+@@ -114,6 +114,18 @@
+     index_revision: u64,
+     index_context: tcl_lsp_core::workspace_index::WorkspaceDiagnosticSourceContext,
+ }
++impl std::fmt::Debug for LogicalCallPublicationStamp {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("LogicalCallPublicationStamp")
++            .field("index_generation", &self.index_generation)
++            .field("inputs_epoch", &self.inputs_epoch)
++            .field("factory_generation", &self.factory_generation)
++            .field("document_count", &self.documents.len())
++            .finish_non_exhaustive()
++    }
++}
++
+ impl LogicalCallPublicationStamp {
+     fn capture(
+         documents: &[OriginalReadonlyReferenceDocument],
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -2015,38 +2015,6 @@
+ 
+ fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
+     span.start() <= offset && offset < span.end()
+-}
+-
+-/// Resolve a property's declaration span plus every `my <property>` call
+-/// site — the property counterpart of [`method_references_for_class`], and
+-/// the single source of truth the code lens and the reference peek both
+-/// defer to so their counts can never drift.  Properties have no `$obj
+-/// property` dispatch shape and no inheritance model (confirmed against
+-/// tclsh 9.0.4), so a class-local `my <name>` scan — the same matcher
+-/// [`scan_my_method_sites`] uses for methods — is the whole story; a
+-/// property's own `property <name>` declaration is never itself a `my
+-/// <name>` call site, so there's no declaration span to skip. Returns
+-/// `None` when `class_q` has no property named `property`.
+-pub(crate) fn property_references_for_class(
+-    source: &str,
+-    _dialect: &'static tcl_dialect::DialectProfile,
+-    analysis: &AnalysisResult,
+-    class_q: &str,
+-    property: &str,
+-) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
+-    if !analysis.allows_lexical_declaration_advice() {
+-        return None;
+-    }
+-    let class_def = analysis.all_classes.get(class_q)?;
+-    let decl_span = class_def.properties.get(property)?.name_span;
+-    let call_spans = scan_my_method_sites(
+-        source,
+-        analysis,
+-        &collect_member_bodies(class_def),
+-        property,
+-        None,
+-    );
+-    Some((decl_span, call_spans))
+ }
+ 
+ /// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`

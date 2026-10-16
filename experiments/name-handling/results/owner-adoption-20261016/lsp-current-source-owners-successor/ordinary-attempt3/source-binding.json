@@ -1,0 +1,30 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-current-source-owners-integration/after-compile-api-repair2.json",
+  "approved_union_manifest_sha256": "71d7aef119e022ccfa05a380cefd6e5bb2592a5284463bf7dae9c2bceeaf11ee",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 59,
+  "source_head": "8ba203b880437b746f7ac3b63a755ec843b7157d",
+  "rust_diff_sha256": "d15f2b1d86c44d961faaecd60beea240d0fc436bf3c7cac52f6c7c6620713328",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39019,
+  "utc": "2026-10-16T23:29:47.662480+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed current LSP owner/adopter source batch and necessary Compiler/DB/Registry only. Genuine loader word subjects, conditionalnamespace advice, CALL/Lens original source/session wire, document-transform exact source/currentresult receipts, Signature original procedure/cursor, class definition-source transport, sibling-definition repair and unchanged Native presentation policy, original726preserved+actualnew controls to be bound after build. Runtime/VM/BIGIP dedicated work deferred. No traces, budget changes or stronger Native/edit/absence/Normal grants.",
+  "exit_code": 101,
+  "build_seconds": 68.688,
+  "input_after_count": 39019,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T23:30:56.350638+00:00"
+}

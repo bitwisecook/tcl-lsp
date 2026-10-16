@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+  "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7",
+  "count": 39019,
+  "drift": 0,
+  "scope": "Full index outside Git; source HEAD, exact source.diff and admission manifest bind actual snapshot. All five ELF payloads frozen outside Git, exact references retained."
+}

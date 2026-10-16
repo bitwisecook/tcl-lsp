@@ -1,0 +1,31 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-current-source-owners-integration/after-compile-api-repair3.json",
+  "approved_union_manifest_sha256": "9287fbbe88f7d000284fc5ca61112774839dee5b42e8d42bd3463464fbfbf4b7",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 59,
+  "source_head": "8ba203b880437b746f7ac3b63a755ec843b7157d",
+  "rust_diff_sha256": "1c21246e4fd0dc21ca09c98cc18b4b411e83c42ea2002fe4dbd145967ac4d1ab",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39019,
+  "utc": "2026-10-16T23:32:49.865024+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed current LSP owner/adopter source batch and necessary Compiler/DB/Registry only. Genuine loader word subjects, conditionalnamespace advice, CALL/Lens original source/session wire, document-transform exact source/currentresult receipts, Signature original procedure/cursor, class definition-source transport, sibling-definition repair and unchanged Native presentation policy, original726preserved+actualnew controls to be bound after build. Runtime/VM/BIGIP dedicated work deferred. No traces, budget changes or stronger Native/edit/absence/Normal grants.",
+  "exit_code": 0,
+  "build_seconds": 316.785,
+  "input_after_count": 39019,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T23:38:06.650289+00:00",
+  "all_five_artifact_relocations_hash_verified": true
+}

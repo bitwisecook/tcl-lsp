@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/naming-validation/lsp-current-source-owners-successor/input-before.json",
+  "sha256": "7d9e7a62d1d7b7984d275434ff1fb7de4933623266a111cd4d7d00ee1ea1b512",
+  "count": 39019,
+  "drift": 0,
+  "scope": "Fullindex retainedoutsideGit; sourcecommit+exactdiff/admittedmanifest bindactualsnapshot."
+}

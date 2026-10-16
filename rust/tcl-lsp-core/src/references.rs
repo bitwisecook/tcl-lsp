@@ -2017,38 +2017,6 @@ fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
     span.start() <= offset && offset < span.end()
 }
 
-/// Resolve a property's declaration span plus every `my <property>` call
-/// site — the property counterpart of [`method_references_for_class`], and
-/// the single source of truth the code lens and the reference peek both
-/// defer to so their counts can never drift.  Properties have no `$obj
-/// property` dispatch shape and no inheritance model (confirmed against
-/// tclsh 9.0.4), so a class-local `my <name>` scan — the same matcher
-/// [`scan_my_method_sites`] uses for methods — is the whole story; a
-/// property's own `property <name>` declaration is never itself a `my
-/// <name>` call site, so there's no declaration span to skip. Returns
-/// `None` when `class_q` has no property named `property`.
-pub(crate) fn property_references_for_class(
-    source: &str,
-    _dialect: &'static tcl_dialect::DialectProfile,
-    analysis: &AnalysisResult,
-    class_q: &str,
-    property: &str,
-) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    if !analysis.allows_lexical_declaration_advice() {
-        return None;
-    }
-    let class_def = analysis.all_classes.get(class_q)?;
-    let decl_span = class_def.properties.get(property)?.name_span;
-    let call_spans = scan_my_method_sites(
-        source,
-        analysis,
-        &collect_member_bodies(class_def),
-        property,
-        None,
-    );
-    Some((decl_span, call_spans))
-}
-
 /// The `next` / `nextto` super-dispatch spans inside `class_q`'s own `method`
 /// body — polymorphic **references** to `method`.  Kept out of
 /// [`method_references_for_class`] because that set also drives *rename*, and

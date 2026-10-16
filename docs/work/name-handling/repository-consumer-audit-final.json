@@ -133187,12 +133187,23 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T23:06:00Z",
-      "next_utc": "2026-10-16T23:36:00Z",
+      "last_utc": "2026-10-16T23:37:00Z",
+      "next_utc": "2026-10-17T00:07:00Z",
       "cadence_minutes": 30,
-      "lsp_integrated_at_report": 167,
+      "lsp_integrated_at_report": 177,
       "lsp_required": 325,
-      "verified": 0
+      "lsp_semantic_integrated": 83,
+      "lsp_validation_integrated": 92,
+      "lsp_documentation_integrated": 2,
+      "lsp_no_integration": 148,
+      "effective_integrated_at_report": 367,
+      "effective_required": 2217,
+      "gains_since_previous_report": {
+        "lsp": 10,
+        "effective": 10
+      },
+      "verified": 0,
+      "delivery": "Chat and repository only, per explicit user reply; leave external guide unchanged."
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -134260,8 +134271,19 @@
       "new_annex": 0,
       "existing_purpose_extensions": "Original class-body, Math, Native presentation and sibling-definition repairs plus existing conditionalorder owner; not countedagain. Sharedwire allocation helper implements existing642/722/713currency purpose, no extra helperfacet.",
       "source_checks": "58before/after+fresh0fuzz0offset;45RustfmtPASS; originalassertions unchanged; six reviewed fixture/helper initializer updates disclosed.",
-      "execution": "Fresh ordinarybuild/fullretained726+newcontrols/host/requiredgates pending.",
+      "execution": "After three preserved build failures and independently reviewed narrow API repairs, fourth ordinary five-library build PASS316.785s39019inputs0drift/all5ELFs hashverified. Editor checks PASS408inputs0drift. Actual902standard+10separate selection/listing/replay and hosts/required gates pending.",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-current-source-owners-successor"
+    },
+    "current_source58_builds": {
+      "attempt1": "FAIL99.516s3Compilererrors39019inputs0drift; qualifiedactualtypepath/removeinvalidconstArcordinal peerfc12 applied",
+      "attempt2": "FAIL216.585s2ServerDebugerrors39019inputs0drift; privateexactEqstampmanualDebug+obsoleteprivatehelper/route cleanup peer3daf applied",
+      "attempt3": "FAIL68.688s existing assertion formatting requires private DocumentStamp Debug;39019inputs0drift. Manual Debug repair29a5 peer9bdf applied; assertions and Eq/currentness unchanged.",
+      "editor": "PASS408inputs0drift23:24UTC TSnoEmit/scopedPrettier/worker/Node+browserbundles afterreviewedboundmethodrepair e046; actualhostunexecuted",
+      "next_selection": "Prospective902standard+10separate; all726prefix/selectors/failures/budgets preserved,actualartifact/list/replay pending",
+      "source_counts_unchanged": "177LSP/367effectiveintegrated,0verified",
+      "pending_source_only": "Workspace724b026 andStudio551V12 sourceclearedbutnotintegrated; optimiserV1HOLD actualproducer/fullbatch/dialect gaps; authenticownerextension WIP",
+      "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-current-source-owners-successor",
+      "attempt4": "PASS316.785s actual ordinary five-library build;39019inputs0drift;all5actualELFs relocated/hashverified afterCargoexit. One unused reference_locations_at warning; no tests yet."
     }
   }
 }
