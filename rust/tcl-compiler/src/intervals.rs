@@ -934,7 +934,7 @@ pub fn compute_intervals_with<S: std::hash::BuildHasher>(
     compute_intervals_kernel(cfg, ssa, values, numbers, None)
 }
 
-/// Symbolic intervals conditional on the original native declaration handlers
+/// Symbolic intervals conditional on the original source declaration handlers
 /// and local values. These values cannot supply normal optimisation facts.
 pub(crate) struct DeclarationIntervals(HashMap<ValueKey, Interval>);
 
@@ -973,7 +973,7 @@ fn declaration_increment_input(
     let operand = tokens
         .source_binding
         .as_ref()?
-        .declaration_variable_operand_advice(registry, tokens, &increment.operand)?;
+        .declaration_source_variable_operand_advice(registry, tokens, &increment.operand)?;
     let (selected, version) = operand.diagnostic_version(ssa, block, index, registry)?;
     if selected != symbol {
         return None;

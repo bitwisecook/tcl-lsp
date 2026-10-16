@@ -1689,6 +1689,272 @@ pub(crate) struct DeclarationVariableOperandAdvice {
     name: String,
 }
 
+/// Sealed original source layout for conditional diagnostics. This carrier
+/// has no conversion to Native lookup/body/occurrence or execution facts.
+pub(crate) struct DeclarationSourceOperandLayoutAdvice {
+    pub(crate) config: tcl_lexer::LexerConfig,
+    kind: DeclarationSourceOperandLayoutKind,
+}
+
+enum DeclarationSourceOperandLayoutKind {
+    Original(OriginalCompilationLookupAdvice),
+    Configured {
+        layout: Arc<super::declaration_preview::OriginalDeclarationSourceOperandLayout>,
+        owner: std::sync::Weak<super::OriginalSourceAnalysisOwner>,
+        cache: std::sync::Weak<super::declaration_preview::OriginalDeclarationSourceOperandCache>,
+    },
+}
+
+impl DeclarationSourceOperandLayoutAdvice {
+    pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
+        match &self.kind {
+            DeclarationSourceOperandLayoutKind::Original(advice) => advice.dialect(),
+            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => layout.dialect(),
+        }
+    }
+
+    fn current_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        let binding = tokens.source_binding.as_ref()?;
+        match &self.kind {
+            DeclarationSourceOperandLayoutKind::Original(original) => {
+                let current = binding.declaration_operand_layout_advice(tokens)?;
+                (current.snapshot == original.snapshot
+                    && current.site == original.site
+                    && current.words == original.words
+                    && current.config == self.config
+                    && current.targets == original.targets)
+                    .then_some(current)
+            }
+            DeclarationSourceOperandLayoutKind::Configured {
+                layout,
+                owner,
+                cache,
+            } => {
+                let owner = owner.upgrade()?;
+                let cache = cache.upgrade()?;
+                if binding
+                    .original_analysis_owner
+                    .as_ref()
+                    .is_none_or(|actual| !Arc::ptr_eq(actual, &owner))
+                    || binding.has_original_source_layout_owner()
+                    || binding
+                        .original_source_operand_attachment
+                        .as_ref()
+                        .is_none_or(|attachment| !attachment.owns(&cache, layout.site.offset))
+                    || owner.config != self.config
+                    || !Arc::ptr_eq(&owner.source, &layout.site.source)
+                    || cache
+                        .entries
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .get(&layout.site.offset)?
+                        .as_ref()
+                        .is_none_or(|current| !Arc::ptr_eq(current, layout))
+                {
+                    return None;
+                }
+                layout.metadata_advice(tokens)
+            }
+        }
+    }
+
+    /// Registry candidates under the same original source configuration.
+    /// The callback receives conditional schema data, never a Normal handler.
+    pub(crate) fn with_conditional_registry_facts<T: PartialEq>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        mut project: impl FnMut(
+            &tcl_registry::InvocationFacts,
+            &crate::registry_invocation::EffectiveCommandWords,
+            &[crate::registry_invocation::EffectiveInvocationWord],
+        ) -> Option<T>,
+    ) -> Option<T> {
+        let advice = self.current_advice(tokens)?;
+        let metadata = advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        let mut selected = None;
+        for target in advice.targets() {
+            if !target.registry_backed {
+                return None;
+            }
+            let effective = crate::registry_invocation::compose_original_effective_words(
+                tokens,
+                &target.command,
+                &target.prepended,
+            )?;
+            let values = effective
+                .words
+                .iter()
+                .map(|word| {
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        self.config.escapes,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let words = values
+                .iter()
+                .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+                .collect::<Vec<_>>();
+            let crate::registry_invocation::RegistryInvocationResolution::Resolved(facts) =
+                crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+                    registry,
+                    metadata,
+                    &words,
+                    Some(advice.dialect()),
+                    advice.realm(),
+                )
+                .ok()?
+            else {
+                return None;
+            };
+            let candidate = project(&facts, &effective, &values)?;
+            if selected
+                .as_ref()
+                .is_some_and(|previous| previous != &candidate)
+            {
+                return None;
+            }
+            selected = Some(candidate);
+        }
+        selected
+    }
+}
+
+/// One complete written scalar source operand and its symbolic diagnostic use.
+/// Folded source bytes acquire no ordinary Native occurrence or cell address.
+pub(crate) struct DeclarationSourceVariableOperandAdvice {
+    site: CommandAllocationSite,
+    word: crate::ir::WordExpr,
+    name: String,
+}
+
+impl DeclarationSourceVariableOperandAdvice {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn diagnostic_version(
+        &self,
+        ssa: &crate::ssa::SsaFunction,
+        block: crate::cfg::BlockId,
+        index: usize,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(crate::ssa::Symbol, crate::ssa::Version)> {
+        let tokens = crate::ssa::SsaSourceView::at_statement(ssa, block, index).source_tokens()?;
+        let current = tokens
+            .source_binding
+            .as_ref()?
+            .declaration_source_variable_operand_advice(registry, tokens, &self.word)?;
+        (current.site == self.site && current.name == self.name).then_some(())?;
+        symbolic_version(ssa, block, index, &self.name)
+    }
+}
+
+impl super::SourceInvocationBinding {
+    pub(crate) fn declaration_source_operand_layout_advice(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<DeclarationSourceOperandLayoutAdvice> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        if self.has_original_source_layout_owner() {
+            let advice = self.declaration_operand_layout_advice(tokens)?;
+            advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()?;
+            return Some(DeclarationSourceOperandLayoutAdvice {
+                config: advice.config,
+                kind: DeclarationSourceOperandLayoutKind::Original(advice),
+            });
+        }
+        let owner = self.original_analysis_owner.as_ref()?;
+        let offset = tokens.words().first()?.source().span.start();
+        let cache = owner.source_operand_layouts.get()?.upgrade()?;
+        let layout = cache
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&offset)?
+            .as_ref()?
+            .clone();
+        let advice = DeclarationSourceOperandLayoutAdvice {
+            config: owner.config,
+            kind: DeclarationSourceOperandLayoutKind::Configured {
+                layout,
+                owner: Arc::downgrade(owner),
+                cache: Arc::downgrade(&cache),
+            },
+        };
+        advice
+            .current_advice(tokens)?
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        Some(advice)
+    }
+
+    pub(crate) fn declaration_source_variable_operand_advice(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        word: &crate::ir::WordExpr,
+    ) -> Option<DeclarationSourceVariableOperandAdvice> {
+        let source = self.declaration_source_operand_layout_advice(registry, tokens)?;
+        if let DeclarationSourceOperandLayoutKind::Original(_) = &source.kind {
+            let original = self.declaration_variable_operand_advice(registry, tokens, word)?;
+            return Some(DeclarationSourceVariableOperandAdvice {
+                site: original.invocation,
+                word: original.word,
+                name: original.name,
+            });
+        }
+        if word.source().provenance != crate::ir::Provenance::Source
+            || !tokens.words().iter().any(|original| original == word)
+        {
+            return None;
+        }
+        let crate::registry_invocation::EffectiveInvocationWord::Literal(name) =
+            crate::registry_invocation::effective_invocation_word(
+                word,
+                source.config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&source.config),
+            )
+        else {
+            return None;
+        };
+        if tcl_syntax::naming::is_qualified(name.as_bytes())
+            || tcl_syntax::naming::split_array_name_braced_for_style(
+                &name,
+                true,
+                source.config.braced_var,
+            )
+            .1
+            .is_some()
+        {
+            return None;
+        }
+        let DeclarationSourceOperandLayoutKind::Configured { layout, .. } = &source.kind else {
+            return None;
+        };
+        layout
+            .variable_name_is_eligible(registry, &name)
+            .then_some(())?;
+        Some(DeclarationSourceVariableOperandAdvice {
+            site: layout.site.clone(),
+            word: word.clone(),
+            name,
+        })
+    }
+}
+
 impl DeclarationVariableOperandAdvice {
     pub(crate) fn name(&self) -> &str {
         &self.name
@@ -3732,7 +3998,7 @@ mod tests {
             let mut config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
             config.brace_backslash_newline = brace;
             config.strict_quoting = true;
-            let (_, tokens) = original_tokens_in_image_with_config(
+            let (bindings, tokens) = original_tokens_in_image_with_config(
                 "tcl8.6",
                 &tcl_lexer::SourceImage::document(&source),
                 &body,
@@ -3740,28 +4006,163 @@ mod tests {
                 config,
             );
             let binding = tokens.source_binding.as_ref().unwrap();
-            let layout = binding.declaration_operand_layout_advice(&tokens).unwrap();
+            let layout = binding
+                .declaration_source_operand_layout_advice(registry, &tokens)
+                .unwrap();
+            assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
+            assert!(
+                binding
+                    .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+                    .is_none()
+            );
             assert_eq!(layout.config, config);
             assert_eq!(
                 layout.dialect().word_values.brace,
                 tcl_dialect::BraceBackslashNewline::Folds
             );
             let operand = binding
-                .declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1])
+                .declaration_source_variable_operand_advice(registry, &tokens, &tokens.words()[1])
                 .expect("genuine original scalar operand under its selected configuration");
             let expected = match brace {
                 tcl_dialect::BraceBackslashNewline::Folds => "local name",
                 tcl_dialect::BraceBackslashNewline::Literal => name,
             };
             assert_eq!(operand.name(), expected, "{brace:?}");
+            assert!(
+                crate::registry_invocation::declaration_increment_advice(registry, &tokens)
+                    .is_some()
+            );
             let mut changed = tokens.clone();
             changed.argv_texts[1] = "other".into();
             assert!(
                 binding
-                    .declaration_variable_operand_advice(registry, &changed, &tokens.words()[1])
+                    .declaration_source_variable_operand_advice(
+                        registry,
+                        &changed,
+                        &tokens.words()[1]
+                    )
+                    .is_none()
+            );
+            drop(bindings);
+        }
+    }
+
+    #[test]
+    fn declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals() {
+        let name = concat!("local", "\\", "\n", "name");
+        let source = format!("proc mapped {{}} {{incr {{{name}}}}}");
+        let body = format!("incr {{{name}}}");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let (bindings, tokens) = original_tokens_in_image_with_config(
+            "tcl8.6",
+            &tcl_lexer::SourceImage::document(&source),
+            &body,
+            source.find(&body).unwrap(),
+            config,
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let advice = binding
+            .declaration_source_operand_layout_advice(registry, &tokens)
+            .expect("actual mapped original body source vector");
+        assert!(advice.current_advice(&tokens).is_some());
+        assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
+
+        let mut withdrawn = bindings.clone();
+        withdrawn.declaration_layouts.clear();
+        withdrawn.retain_original_declaration_source_operand_layouts(registry);
+        let mut restamped = tokens.clone();
+        withdrawn.stamp_original_tokens(&mut restamped);
+        assert!(advice.current_advice(&restamped).is_none());
+        assert!(
+            restamped
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_source_operand_layout_advice(registry, &restamped)
+                .is_none()
+        );
+        // Joining source alternatives must retain the attachment only when
+        // both operands have the same actual original inventory receipt.
+        for (left, right) in [(&tokens, &restamped), (&restamped, &tokens)] {
+            let mut joined = left.clone();
+            joined
+                .source_binding
+                .as_mut()
+                .unwrap()
+                .join(right.source_binding.as_ref().unwrap());
+            assert!(advice.current_advice(&joined).is_none());
+            assert!(
+                joined
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .declaration_source_operand_layout_advice(registry, &joined)
                     .is_none()
             );
         }
+        let mut equal_join = tokens.clone();
+        equal_join.source_binding.as_mut().unwrap().join(binding);
+        assert!(advice.current_advice(&equal_join).is_some());
+        // The retained original tokens still describe their actual old immutable
+        // source analysis, independently of the modified clone's inventory.
+        assert!(advice.current_advice(&tokens).is_some());
+
+        let mut changed_world = bindings.clone();
+        Arc::make_mut(&mut changed_world.final_state).mark_opaque_binding_mutation();
+        let mut changed_world_tokens = tokens.clone();
+        changed_world.stamp_original_tokens(&mut changed_world_tokens);
+        assert!(advice.current_advice(&changed_world_tokens).is_none());
+
+        let mut lost_owner = tokens.clone();
+        lost_owner
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .original_analysis_owner = None;
+        assert!(advice.current_advice(&lost_owner).is_none());
+        let mut lost_word = tokens.clone();
+        lost_word.argv_texts[1] = "other".into();
+        assert!(advice.current_advice(&lost_word).is_none());
+        let foreign = tcl_registry::model::ingress::static_context_for("jimtcl").commands();
+        assert!(
+            binding
+                .declaration_source_operand_layout_advice(foreign, &tokens)
+                .is_none()
+        );
+
+        // A genuine new analysis of identical source and a different complete
+        // configuration cannot donate its binding to this retained receipt.
+        let mut literal = config;
+        literal.brace_backslash_newline = tcl_dialect::BraceBackslashNewline::Literal;
+        literal.strict_quoting = !config.strict_quoting;
+        let (_other_owner, other_tokens) = original_tokens_in_image_with_config(
+            "tcl8.6",
+            &tcl_lexer::SourceImage::document(&source),
+            &body,
+            source.find(&body).unwrap(),
+            literal,
+        );
+        assert!(advice.current_advice(&other_tokens).is_none());
+
+        let DeclarationSourceOperandLayoutKind::Configured { layout, cache, .. } = &advice.kind
+        else {
+            panic!("distinct source-only mapped carrier");
+        };
+        cache
+            .upgrade()
+            .unwrap()
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(layout.site.offset, None);
+        assert!(advice.current_advice(&tokens).is_none());
+        assert!(
+            binding
+                .declaration_source_operand_layout_advice(registry, &tokens)
+                .is_none()
+        );
+        drop(bindings);
     }
 
     #[test]

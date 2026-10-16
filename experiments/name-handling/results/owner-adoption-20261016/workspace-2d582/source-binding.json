@@ -1,0 +1,35 @@
+{
+  "source_head": "2d5823c90bf13853e20541e22a2b29258cc0ea2f",
+  "source_diff_sha256": "0c05bb80fab4de5aed75cdd311bcb34c0492df25ccae0b1a0ab949f6c356a377",
+  "ordinary": true,
+  "binaries": {
+    "tcl_cmd_core": {
+      "name": "tcl_cmd_core-4bd40a7b3310e373",
+      "sha256": "38484307e9cc6548f3b4235f41fb43cf808c531c45a77727ee49cf7039f021c2"
+    },
+    "tcl_compiler": {
+      "name": "tcl_compiler-64037e22b395f236",
+      "sha256": "9b50f1506253fea827e34821bffb61f124eb3607fee34dffe12ac9a3c747485f"
+    },
+    "tcl_lsp_core": {
+      "name": "tcl_lsp_core-f8b3e987f580e80a",
+      "sha256": "c19837a1957ec9b346e02650f6fda15c4210545c4cde211408247f9842591044"
+    },
+    "tcl_lsp_db": {
+      "name": "tcl_lsp_db-9e321be92e8dc096",
+      "sha256": "6eb0b7b3c89cf85891c2d118e8c409761146fd6486859276896a98ebfe46d1ec"
+    },
+    "tcl_registry": {
+      "name": "tcl_registry-a9927d319bac91e1",
+      "sha256": "96cc1a85987d104684c4dc91b265a4c86bef52c917f829df1244bb5b33f580ba"
+    },
+    "tcl_syntax": {
+      "name": "tcl_syntax-9e31cc9426373b70",
+      "sha256": "fd1ab6ac61b29778c30f656805a947ce9a2a8cc8662217e7980adadf230dbcb0"
+    },
+    "tcl_vm": {
+      "name": "tcl_vm-10c288c6b81a0f5e",
+      "sha256": "e31f4bd293381f87dd01dedc99d912a5f33c2faddbe5d83f7de2b2c4dac1fb79"
+    }
+  }
+}

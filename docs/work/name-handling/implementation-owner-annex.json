@@ -342,9 +342,10 @@
       ],
       "rationale": "The current VM body caller remains byte-compatible via info::body. The separate physical-body patch manifest explicitly leaves this caller outside the Runtime actual-header adapter; count this distinct caller if physical Jim body-result parity is in scope.",
       "implementation": {
-        "status": "not_integrated",
+        "status": "implemented_pending_validation",
         "verified_complete": false
-      }
+      },
+      "implementation_scope": "Actual genuine Jim original body capsule, stateful consumer and immediate result publication are integrated; Rust execution and missing/nonprocedure diagnostic scope remain pending."
     },
     {
       "id": "vm.native.c-import-preload-route-owner",
@@ -502,6 +503,80 @@
         "status": "implemented_pending_validation",
         "verified_complete": false
       }
+    },
+    {
+      "id": "vm.native.jim-result-slot-retirement-and-adoption-owner",
+      "kind": "shared_owner_repair",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::drop; Value::retire_native_header"
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "NativeJimObjectContext::publish_result"
+        }
+      ],
+      "rationale": "One shared actual Jim result-slot owner for allocation-only protection during old native-reference retirement and incoming borrowed-result adoption ordering. No matching existing annex obligation. This does not cover the distinct physical-body VM caller.",
+      "open_boundaries": [
+        "physical-body VM caller",
+        "arbitrary freeproc behavior"
+      ],
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "compiler.source.original-word-selected-config:mapped-readonly-source-operand-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "OriginalDeclarationSourceOperandCache; retain_original_declaration_source_operand_layouts"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "symbol": "OriginalDeclarationSourceOperandLayout; DeclarationSourceOperandLayoutAdvice; DeclarationSourceVariableOperandAdvice"
+        }
+      ],
+      "rationale": "Baseline 2749 is the selected-config caller requirement; this is a distinct retained original source-operand owner. It grants source advice only, not an executed body, ordinary occurrence across a fold, or Normal fact.",
+      "open_boundaries": [
+        "folded-body execution geometry",
+        "ordinary read/Normal adoption"
+      ],
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
+    },
+    {
+      "id": "db.unit.db.workspace-class-display-cards:explicit-constructor-body-coverage-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_constructor_effects.rs",
+          "symbol": "OriginalSourceConstructorBodyCoverage"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_constructor_effects.rs",
+          "symbol": "OriginalSourceConstructorBodyDisposition"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+          "symbol": "OriginalProjectClassCards::constructor_receiver_class; constructor_body_source_coverage"
+        }
+      ],
+      "rationale": "The existing DB class unit and its already-recorded collection/instance-visibility facets do not retain complete own-definition constructor body inventory and counted lifecycle disposition through the actual selected project constructor. This is one new facet inside that same baseline unit, not another catalogue unit.",
+      "open_boundaries": [
+        "Native execution/dispatch",
+        "default or inherited constructor closure",
+        "operand/read observer coverage"
+      ],
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      }
     }
   ],
   "unverified_or_open": [
@@ -513,28 +588,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T10:58:06.018204+00:00",
+  "utc": "2026-10-16T11:17:51.297115+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 25,
+    "semantic_code_changes": 28,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 25,
+    "all_required_changes": 28,
     "by_kind": {
-      "shared_owner_repair": 7,
-      "shared_owner_extension": 10,
+      "shared_owner_repair": 8,
+      "shared_owner_extension": 12,
       "caller_migration": 7,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1824,
+    "semantic_code_changes": 1827,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2183
+    "all_required_changes": 2186
   },
   "implementation_progress": {
-    "implemented_pending_validation": 24,
-    "not_integrated": 1,
+    "implemented_pending_validation": 28,
+    "not_integrated": 0,
     "verified_complete": 0
   }
 }

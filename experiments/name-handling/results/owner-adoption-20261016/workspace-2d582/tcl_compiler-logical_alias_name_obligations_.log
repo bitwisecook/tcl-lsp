@@ -1,0 +1,17 @@
+
+running 1 test
+test registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops ... 
+thread 'registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops' (82879) panicked at rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs:761:13:
+assertion `left == right` failed: namespace eval N {global $unknown}
+  left: [Span { start: 25, end: 33 }]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10225 filtered out; finished in 20.58s
+

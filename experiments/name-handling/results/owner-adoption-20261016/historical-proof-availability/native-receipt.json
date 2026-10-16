@@ -1,0 +1,3768 @@
+{
+  "checkpoint": "554085e162823ea8bd126898d0c27b7b2a9f8628",
+  "files": [
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.elf.gz",
+      "bytes": 386935,
+      "git_blob": "93b08dde0c919283846fa9a36e464729b9e81f63",
+      "sha256": "0030435de1cedbd1381bac871cc4a68df4664a55c482e4d22740dfa03ebd6cf0",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.elf.gz",
+      "bytes": 567213,
+      "git_blob": "25f3b4c69cacebe1bff729b24cd412f88cfcf8f0",
+      "sha256": "6b4630b8faa6d8b91f19222a55cefbe1a8c4669b727a3cbfc7fc2e0cd7937ca2",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.elf.gz",
+      "bytes": 809046,
+      "git_blob": "887fed2c3081db5b5fb40374e9779554b0695dba",
+      "sha256": "ea84bb346141f42729c6a36d210ea9869f83b212df6aa489b68c70df77bc51cc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.elf.gz",
+      "bytes": 959479,
+      "git_blob": "b0326cb057aff6214a592261f3e8c91867f08bb2",
+      "sha256": "9b4acf551f83018e238b6196d642004753770ed1bfd1f16f2e4012b3908eb435",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.elf.gz",
+      "bytes": 1027687,
+      "git_blob": "eac4e3ccee1d94b11ad7b2a37a097321fb24b2fe",
+      "sha256": "0400423a1df1e0d7e84aaabd3893ed908c8ef3d20bcff64de1456ac5daf60467",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.elf.gz",
+      "bytes": 187564,
+      "git_blob": "78c597e3fefbaf0dbae1b1747e0c82ab54b5ce0c",
+      "sha256": "5863dff022e24dda10223fa648fc797187370056e24048aa92e567e1f2e0555d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_arithseries_multiple_index231/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_access349/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_frame_teardown348/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_member_trace_horizon343/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_operational_unset355/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_owner_teardown347/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_read_destruction324/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_traced_root345/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_undefined_member350/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_array_unset_relookup356/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/probe.elf",
+      "bytes": 859160,
+      "git_blob": "aedf934421eb31072bde5fb0d80969a641dc95c1",
+      "sha256": "8d517c335986828c8948dbc862512dc92ba7e06bcb78117266b59e672ee8e50b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/probe.elf",
+      "bytes": 1254232,
+      "git_blob": "767c0e2b58e8abac90737d358d8b966863289328",
+      "sha256": "7523863174a062a7781261913fdf7ed4bfb93e5275ce857299f7ee34e634b28c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/probe.elf",
+      "bytes": 1866944,
+      "git_blob": "2106fd71ca7469188bdfc229eeb191cb248fd538",
+      "sha256": "25ad9d0b7c4e97f2ef4ccf84ec37b925b537599dd204fab6fccf22eb0c07a0c4",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/probe.elf",
+      "bytes": 2270440,
+      "git_blob": "adec88d5fb17ef5eeef6ee55933236898e03b396",
+      "sha256": "976a54f60935b22a816d8cf097742afad7762751ce79c06b08b82e71574213ca",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/probe.elf",
+      "bytes": 2512008,
+      "git_blob": "c415d793397eaac0e3d6169f8f71224b942ac560",
+      "sha256": "dd880b0e2c4f948235d0a4cdba9919016f4292c97566b51d1e0b118b849a6c3d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/probe.elf",
+      "bytes": 426776,
+      "git_blob": "ce5bf1da07b92df71c5f6b3ad0ee485f561d93f3",
+      "sha256": "3e55df8a415acd11a06ca4d8717608ab9b1f96dc4ab1328819500dec0a3454e4",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_alias_inventory298/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_child_bootstrap_context303/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/probe.elf.gz",
+      "bytes": 386818,
+      "git_blob": "3f3a92e45737d3cbdb21b7b03aa07cb98be3dec4",
+      "sha256": "538c134adb6b2fc675a4a1c595c6ef611a2703dc65ab1149f05466263b1e35ba",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/probe.elf.gz",
+      "bytes": 567073,
+      "git_blob": "3c451ee951cedcff00f35d6031e4a937a9181277",
+      "sha256": "62bd26df02d79d394919296839bfb7c4b5eaea04ff309777a80a030c127b87d5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/probe.elf.gz",
+      "bytes": 808901,
+      "git_blob": "50219f94de7b3949917bf37ad98083188ea719dc",
+      "sha256": "481b1e03c7d2384cbcf766f8c85f1f05241b953d0c752f235f32f6e1a8034acc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/probe.elf.gz",
+      "bytes": 959347,
+      "git_blob": "2661f160c393bea39cba14e54eed490b77c0244f",
+      "sha256": "fd6a6fc23d2c1f9529a40ebaba964a91c00496332cc15713df58d0ab04dab184",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/probe.elf.gz",
+      "bytes": 1027515,
+      "git_blob": "d089e260f5ccbc71e379b56e2b3454fecb3fa4d6",
+      "sha256": "77b0223c66034bb23acff6e94647ab6591c0dded55bacb8bfe4c08cd55986121",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/probe.elf.gz",
+      "bytes": 187443,
+      "git_blob": "c833d60e2b543b28d3164f54ed311734ba83d7c6",
+      "sha256": "9c8ae9a77e0c41becbb3045e06b29b15607a4c815a44195a9279916fbd603214",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_original_holder250/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/errors/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_coroutine_public_injection255/original/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/probe.elf",
+      "bytes": 858840,
+      "git_blob": "4830f6b5fe28d98cfad63a56dcaec775f8ce1bfb",
+      "sha256": "0f024927665e49b91a4425fe01a5933125a842e43da1f469b89e692009d9e0a6",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/probe.elf",
+      "bytes": 1253920,
+      "git_blob": "6680cdca88c070a79827d21f15a621c0aee0a797",
+      "sha256": "96accad0d57eff8e96fe960f06f1bac7632aae06e376288f964d3082574305dc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/probe.elf",
+      "bytes": 1866632,
+      "git_blob": "62880ee7e8eb684f1f2ac28d65741833c559e2c9",
+      "sha256": "40956a323cd6aaf403cff0fd0624ebc7a65c3373f6c746e792d0607d3fe60d2a",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/probe.elf",
+      "bytes": 2270136,
+      "git_blob": "7fd28b450c005f804636ccc79c6f295b6ba2b0f7",
+      "sha256": "d466e89ba708cfb1cf121ad67762e08c5a72da57cfaa757cc17284cdf8a2308d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/probe.elf",
+      "bytes": 2507616,
+      "git_blob": "ec7fbdf3405616e4968aa116c0673332179b337c",
+      "sha256": "6af3c849b249dafa0483fda77ef3882b7ce27cb412262f473fbb30ae0931d6d4",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_object306/jim/probe.elf",
+      "bytes": 422152,
+      "git_blob": "63e90a87557720d67730a73ed502048dfd82aa15",
+      "sha256": "f9b7696c0f8029d21717aba89730453b737586d8001987a27960d9e06b419800",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/probe.elf",
+      "bytes": 858872,
+      "git_blob": "28c3478fffc2c5aef64578a02240156ec7052f7d",
+      "sha256": "c40f0b58c2801bf4c00ddfb996ceb1a1242788e6b6b5d511bba31f99c0ba14a5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/probe.elf",
+      "bytes": 1253952,
+      "git_blob": "75ec5b828706b45fadd6a1d3c9033cfedd6d0ee0",
+      "sha256": "9125ace6c14af8fa78fd174c234105338997fcb705c091a4f3d1637a848430dc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/probe.elf",
+      "bytes": 1866664,
+      "git_blob": "ea509f608bc8a04d634b467147f58e1c5214272f",
+      "sha256": "f0581433de94329c3665d2575250c384b75b99aec2391c23706efb8916f2ee64",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/probe.elf",
+      "bytes": 2270168,
+      "git_blob": "bd725ff28440711267c9c4395f43d9eb93f79499",
+      "sha256": "4efcd7faf270fb9d0b1afb1271044457a7a54f7bb9555c46ce6cc251688b4cc9",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/probe.elf",
+      "bytes": 2507648,
+      "git_blob": "588c4f700f55740b427d05e46d800ed1fc0b81aa",
+      "sha256": "1a5c68a6bae6bd3a93f6226448a09914b07dfb0252682a28e43b87ffcd501137",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/jim/probe.elf",
+      "bytes": 422152,
+      "git_blob": "dd732162a2ff9ff9e9ea8cd775b8ac40a431a9d2",
+      "sha256": "f6227c055e0214327c43d9c81f960e497a4f0b80e0081bb05e06d306511a40fe",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_holder_routing205/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.4.20/probe.elf",
+      "bytes": 858992,
+      "git_blob": "f3b062df8c848c84855246338a65f8bdb60cfc8d",
+      "sha256": "39d0cf6e64e915177613975d18ee30fe07d9e902156cf907565b0bbe49f27f13",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/probe.elf",
+      "bytes": 1254080,
+      "git_blob": "7eb2f29d39e198be8c216cfeff6579e8a8a966ab",
+      "sha256": "df606914bd70df117cb1b056f157d7b4f24f93d9e5e9e514f2c02fcf33893564",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/probe.elf",
+      "bytes": 1870888,
+      "git_blob": "07d637cebad127a158af7de2fb667bacce75cbe5",
+      "sha256": "671278548e1b6986971f89bae72cf07f852c9836a4918cda6a183ea87b2c1d35",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/probe.elf",
+      "bytes": 2270288,
+      "git_blob": "778efe8ed7a806736a40446a0e8e8169c96b7d7c",
+      "sha256": "7abf20df85ba5dfa75bcb8dca8e264c2c17e53d98044a87f40cecbc8d8c96a37",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/probe.elf",
+      "bytes": 2511856,
+      "git_blob": "49092a3bc6b85df4b564e206113e49a646b2fd79",
+      "sha256": "b77a5241a76119038ddd0d905a8ba4d62bacd1a6f5aed8f2284e90e76546e711",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/jim/probe.elf",
+      "bytes": 426664,
+      "git_blob": "2c6be3bc3fa29e061a2a3132a45208e736feb2e8",
+      "sha256": "45551a43640092a394f99b41425ae2ee585775a1739b9c0e104933876cfb5a71",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/8.4.20/probe.elf",
+      "bytes": 863456,
+      "git_blob": "79cbb0dacf903f27f8a130f8c94de47c5c6610d4",
+      "sha256": "a5f4bc7a08be9ce046f8a2dd01367508ad46110b8a1497833b8ed11000ccae7e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/8.5.19/probe.elf",
+      "bytes": 1258512,
+      "git_blob": "bffdd72774610422b976ff54692a7b0d515f5a42",
+      "sha256": "b2a2ce1abb974cfc6fb678708b1a301dd473e24159c8cb10341f99f8ae30e4bb",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/8.6.18/probe.elf",
+      "bytes": 1871224,
+      "git_blob": "ea8e23f37794aa7770ca978d819bfe5246f98bf3",
+      "sha256": "936bc19d47e880a3f38792d29fe1ea40208269b0f2710dd7886650d69ad42d0c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/9.0.4/probe.elf",
+      "bytes": 2274720,
+      "git_blob": "158f4b08f1e2cedcf0e79ea29b9c8307e1195cc7",
+      "sha256": "db7eace3a1519d7951d7ffa677bddbee40612e837b9fc7cf73239b7fa67a27cc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/9.1.0/probe.elf",
+      "bytes": 2512200,
+      "git_blob": "f675cf7d6b5b37ab97f2a903afd885b4ced7408d",
+      "sha256": "1e639f5b7929d9e9eb36477d2cc65740402194521a328e54d53d1268c31ca146",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_commands_literal_original/providers/jim/probe.elf",
+      "bytes": 430944,
+      "git_blob": "12e4c69a453f59fee1cc9a5ebac55ee83c5661af",
+      "sha256": "c8590cd6230c9a3ebc84693f018ecc06c09551c4900b80ab505caba1689ae961",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_original_dispatch292/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_interpreter_option_tables210/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_error_extent279/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_alias_introspection274/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys340/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_command_table_keys341/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/8.4.20/probe.elf",
+      "bytes": 858488,
+      "git_blob": "0ebc65e6d6710eb730a6171788c2a9f52aa265c1",
+      "sha256": "21424fb2da09ab0c1257a3f8b45abf73d8338f09944241d48bd540e2ece0405d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/8.5.19/probe.elf",
+      "bytes": 1253568,
+      "git_blob": "b06ab324a5ca2390255e1b4175f3a5dea84ed8b7",
+      "sha256": "856e8ef9ea454a7b5a76621659aea82cdd077d76942692f289e6639ea6320211",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/8.6.18/probe.elf",
+      "bytes": 1866280,
+      "git_blob": "72ac6819c525a9af083d54107dacf3616bc44c65",
+      "sha256": "0b33aba80af884b25f98b5bebfce2483e32ea93e90049700f2d599e371d4255a",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/9.0.4/probe.elf",
+      "bytes": 2269752,
+      "git_blob": "07d682a48b07d9beb7f36ba08cfd2c5b8c9c7649",
+      "sha256": "df218ee3bdedab32c0242d5783f621b855dd4a2dba6b7574e238d6957a77fe35",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/9.1.0/probe.elf",
+      "bytes": 2507264,
+      "git_blob": "0062b84ea173a56cf52168fcb303a796ad3949ea",
+      "sha256": "07349d92678d275c0567311c6982f1da39de147abf42d221a5d292ce3bf1fed0",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/jim/probe.elf",
+      "bytes": 219632,
+      "git_blob": "cc0e872baaf20bfc85246b17b763970199ba2c29",
+      "sha256": "b2d4c0ba1f1b0267d1e659f9dc9bc10e02a8ac1491a494a1e8751af8164b4d00",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_core_command_inventory257/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/probe.elf",
+      "bytes": 228880,
+      "git_blob": "37a6a02c969caf245aa794bb40396eedad6353c2",
+      "sha256": "010d4349935240584eeac37a237bdd2907250fe78a72d47412c10f4485d3de1b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/limited-control/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_command_inventory254/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_info_helper_forwarding258/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_namespace_distribution236/limited-control/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_jim_rooted_info_command_inventory256/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/8.4.20/probe.elf",
+      "bytes": 867768,
+      "git_blob": "6aac24f4760828ca8ca1b80ba75d0de0fcb5965a",
+      "sha256": "c2d7e3fe6d7654a12045d53f3954476575c1e3a6076244d83b038ea0173e44a9",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/8.5.19/probe.elf",
+      "bytes": 1258760,
+      "git_blob": "2a28336d97e18dca62a4b8497cc9fa97fa30ce39",
+      "sha256": "7b5fc13de769419738a6845311fec7c2d3c87f29d63a78987d230bf404e6d14d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/8.6.18/probe.elf",
+      "bytes": 1871472,
+      "git_blob": "147c10944a1b1d406eec981e80912a9c2c4f123a",
+      "sha256": "eace7c1f04684392ebe79ec29c868d66d0c39f040ea69bb67ca147d8062be873",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/9.0.4/probe.elf",
+      "bytes": 2279032,
+      "git_blob": "c92e6ab1a21001fbe72d0f2f1125aa5b96c3b8ad",
+      "sha256": "7343ec38b085bd4cd31cb7ef8731d0dfd78b8f1fc93728dc3185d6f671a053dd",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/9.1.0/probe.elf",
+      "bytes": 2516536,
+      "git_blob": "4030b1fe0408c8f191e207336de62dd5e4d36458",
+      "sha256": "f2d9070dc4e4070b63c00c8332696702c6446401a8c785a2a8b6105b39225dbc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_logical_operand_truth_sites_original/jim/probe.elf",
+      "bytes": 431328,
+      "git_blob": "a60ea33b4d0cdd12f3209da3f95a24af7a59cb80",
+      "sha256": "d9deef9f3345d5f552f2633869004c645e0cd2a879fe250c9e3e222dfd15ac99",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication422/providers/8.5.19/probe.elf",
+      "bytes": 1253664,
+      "git_blob": "660763c74716f9db458bce54f5eedc5bdf81048d",
+      "sha256": "c9b9268f18c794329e739cd74f397496f9b09c181da66a0df0c6386a63cf4286",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication422/providers/8.6.18/probe.elf",
+      "bytes": 1866376,
+      "git_blob": "a6014b6371eed29c0d229ffc9bd24f270d5f3405",
+      "sha256": "46f1f3bb7dcbe1fcefc15beb610c414dbe62bf20568851304a437908ed1d4c9e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication422/providers/9.0.4/probe.elf",
+      "bytes": 2269840,
+      "git_blob": "28d1e49e60874f71b0bf0481b8333f54595e91a8",
+      "sha256": "3cb50f1070a00d27c24e1d92b22a78c190d6bf27a92e88195ca3f0d322bb113b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication422/providers/9.1.0/probe.elf",
+      "bytes": 2507352,
+      "git_blob": "16e60532ea207e400f7740a31be237f3df2d8004",
+      "sha256": "09b5a03c415bc307e47648a80e73d8473dfa381afa0e717b1dd686fe1a753628",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication422/providers/jim/probe.elf",
+      "bytes": 422168,
+      "git_blob": "cad942b61ab29a67b95db2dc297f186fe2c81185",
+      "sha256": "cdc388a6fae632fa07088166f7721cac851650d11fb32a2fb851f9ea416b4323",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/8.4.20/probe.elf",
+      "bytes": 858576,
+      "git_blob": "2366026f09346f4c2c0392466fb9af283271026f",
+      "sha256": "d04dc8d6fe335c0c18bab41e2f635631dcc482eb661f53234fd0437aabdf6d96",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/8.5.19/probe.elf",
+      "bytes": 1253664,
+      "git_blob": "660763c74716f9db458bce54f5eedc5bdf81048d",
+      "sha256": "c9b9268f18c794329e739cd74f397496f9b09c181da66a0df0c6386a63cf4286",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/8.6.18/probe.elf",
+      "bytes": 1866376,
+      "git_blob": "a6014b6371eed29c0d229ffc9bd24f270d5f3405",
+      "sha256": "46f1f3bb7dcbe1fcefc15beb610c414dbe62bf20568851304a437908ed1d4c9e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/9.0.4/probe.elf",
+      "bytes": 2269840,
+      "git_blob": "28d1e49e60874f71b0bf0481b8333f54595e91a8",
+      "sha256": "3cb50f1070a00d27c24e1d92b22a78c190d6bf27a92e88195ca3f0d322bb113b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/9.1.0/probe.elf",
+      "bytes": 2507352,
+      "git_blob": "16e60532ea207e400f7740a31be237f3df2d8004",
+      "sha256": "09b5a03c415bc307e47648a80e73d8473dfa381afa0e717b1dd686fe1a753628",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_constructor_publication424/providers/jim/probe.elf",
+      "bytes": 422168,
+      "git_blob": "cad942b61ab29a67b95db2dc297f186fe2c81185",
+      "sha256": "cdc388a6fae632fa07088166f7721cac851650d11fb32a2fb851f9ea416b4323",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_mathop_public_envelopes222/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_namespace_holder_routing202/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/8.4.20/probe.elf.gz",
+      "bytes": 387415,
+      "git_blob": "55079583ac75a8cd2bf2ba8af459ee55346e2470",
+      "sha256": "ea16ffd62191905157ae906c71083a8a39088e5181756ea37351e44eaebe5327",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/8.5.19/probe.elf.gz",
+      "bytes": 567602,
+      "git_blob": "71cf9eb4d33a8d8ea1f8d30a03e571b6463957d5",
+      "sha256": "c8b21f62c3cf967e22b33497322e7fee9fad000232806b2a58a48f8956ae5c88",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/8.6.18/probe.elf.gz",
+      "bytes": 809480,
+      "git_blob": "4a0539dfd18f32af3b2d11ebd6d70245372343f6",
+      "sha256": "02da7cfacf3a38f62606428d785afdc04ffb59d30031172958107ee47d31c14f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/9.0.4/probe.elf.gz",
+      "bytes": 959804,
+      "git_blob": "5a7a2f44d0eb3cee740bc19fbd8b49f7476c45bc",
+      "sha256": "8c1f7b14f92ab91964a6226a05ac09e40cb8db2ec50b84638ba2b843c15a6850",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028153,
+      "git_blob": "c5c24e281a31fd148741477e4e1f25ab30061ded",
+      "sha256": "394f08bd42391fd912f733ff5d09dc527f608d07d983a229484600a7bfab86dc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499b/providers/jim/probe.elf.gz",
+      "bytes": 188075,
+      "git_blob": "1a1c322519c92123d889d7f2b95b714102f0ca02",
+      "sha256": "c245300b8255f55df379a00a2f2f4951ec4334346dfe3b5424620a0f2377ea6b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.4.20/probe.elf.gz",
+      "bytes": 387415,
+      "git_blob": "55079583ac75a8cd2bf2ba8af459ee55346e2470",
+      "sha256": "ea16ffd62191905157ae906c71083a8a39088e5181756ea37351e44eaebe5327",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.5.19/probe.elf.gz",
+      "bytes": 567602,
+      "git_blob": "71cf9eb4d33a8d8ea1f8d30a03e571b6463957d5",
+      "sha256": "c8b21f62c3cf967e22b33497322e7fee9fad000232806b2a58a48f8956ae5c88",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.6.18/probe.elf.gz",
+      "bytes": 809480,
+      "git_blob": "4a0539dfd18f32af3b2d11ebd6d70245372343f6",
+      "sha256": "02da7cfacf3a38f62606428d785afdc04ffb59d30031172958107ee47d31c14f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.0.4/probe.elf.gz",
+      "bytes": 959804,
+      "git_blob": "5a7a2f44d0eb3cee740bc19fbd8b49f7476c45bc",
+      "sha256": "8c1f7b14f92ab91964a6226a05ac09e40cb8db2ec50b84638ba2b843c15a6850",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028153,
+      "git_blob": "c5c24e281a31fd148741477e4e1f25ab30061ded",
+      "sha256": "394f08bd42391fd912f733ff5d09dc527f608d07d983a229484600a7bfab86dc",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/jim/probe.elf.gz",
+      "bytes": 188075,
+      "git_blob": "1a1c322519c92123d889d7f2b95b714102f0ca02",
+      "sha256": "c245300b8255f55df379a00a2f2f4951ec4334346dfe3b5424620a0f2377ea6b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/8.4.20/probe.elf.gz",
+      "bytes": 387441,
+      "git_blob": "57e60f448f5b02c79188e6ad8bace3b224ef2f52",
+      "sha256": "50b0aff594765cc2630b969a3078f4a78479220bbf73e6eac4b08514cde6b88b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/8.5.19/probe.elf.gz",
+      "bytes": 567716,
+      "git_blob": "6f849a8252faa214125bec6bc3d9f311bbb0fccb",
+      "sha256": "f4ea0426e8f9f39d133e00bf37e61d375f26985bc7fee648d13a8ccc5d0fdb77",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/8.6.18/probe.elf.gz",
+      "bytes": 809464,
+      "git_blob": "af5215f3ef0823e6a046d43e7d97f9a9be747a5c",
+      "sha256": "53ce1a932e35c80bb4b9aa44696ebeaa378fe3e70bb181bb318eaa7a11559e88",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/9.0.4/probe.elf.gz",
+      "bytes": 959791,
+      "git_blob": "e6a1d9dea5a9a94226c9fd01feb11abf0b5ace4a",
+      "sha256": "787a287d3e2ac65a3ccdc4270f43e060b4346be2d7262349cf3ab4c7bedc6bde",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028103,
+      "git_blob": "709e9f8174d8c536f2ec6044e174a07ad15f792c",
+      "sha256": "4292233b635888f3e2d8f14471ecf642ecadc2ddec54280f1471275bcc5a927b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/jim/probe.elf.gz",
+      "bytes": 188123,
+      "git_blob": "9c8150eeef7ce91c07945f406f0b5afb26f4a111",
+      "sha256": "c9c6291e23ab14439cb2de3e26416e5ca279ffac213081df90958943cdea199b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_nested_foreach_source214/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_context296/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 4,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.4.20/probe.elf.gz",
+      "bytes": 389853,
+      "git_blob": "bc8ad01b61860b705e36c132222b2b0b9f4ea19e",
+      "sha256": "d16320ac0327037630014abce14ecf472f732c351753111891ac811f4e154866",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.5.19/probe.elf.gz",
+      "bytes": 569732,
+      "git_blob": "5f251acfa5bbe4095c78981f916a6fd0c821f5db",
+      "sha256": "f1f50c2e319cbdcc1be8b689e6f6cf3f2c6b57183005fcb2acdeb5675b1adbb5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/probe.elf.gz",
+      "bytes": 811979,
+      "git_blob": "866fe53a5d3c84684b715f7de3468fc18162dd76",
+      "sha256": "d2ce25b83d74a1a3a8639ec307ee308188fc5265ebbd159740326539f0336d33",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/probe.elf.gz",
+      "bytes": 961000,
+      "git_blob": "dc74fa0cd48af565a83c02311e6267cd64e2b210",
+      "sha256": "f4f06db605d86aecc37335eed6dc7c9a25f6aa32b29ba8d3343108cffe6701df",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/probe.elf.gz",
+      "bytes": 1030263,
+      "git_blob": "1078e483ee79f1de6d1cba7feba9d743832615a9",
+      "sha256": "dd7ea7671d2f150328fa2b553625bf8b02509e28936c4a49d296f9da5251285e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/jim/probe.elf.gz",
+      "bytes": 186793,
+      "git_blob": "649c1003e7e7b33619a44bb90e6fa81c95189530",
+      "sha256": "4750eea3a74d8e3f22179734d3986f93d7c6fccdb60e21439f13f34c71501b1b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_collision249/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_copy251/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_original_holder248/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_renamed_definition321/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/8.4.20/probe.elf",
+      "bytes": 858488,
+      "git_blob": "db438b2b551ee6179fab3d44c144ce977f94cb71",
+      "sha256": "9d9c655fa6ee258d48e57a6ead517192a3f11367005f296bb7be4a906e6ea051",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/8.5.19/probe.elf",
+      "bytes": 1253568,
+      "git_blob": "b205d1e70b33c39726dd8b0c9002c7ee4b338c5f",
+      "sha256": "fc8c89480951efc7243dbb626a81f607c62054490557ad698d85014095979b97",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/8.6.18/probe.elf",
+      "bytes": 1866280,
+      "git_blob": "962f56e6e9d35b5992dbc0ae179762428a442b10",
+      "sha256": "90c44dde5d2ee3a3f177e29f49283dda7133d4932d9fcd296eed4f30131d4471",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/9.0.4/probe.elf",
+      "bytes": 2269752,
+      "git_blob": "a28eea274e67df668cee6c949ae3b488e0e04e98",
+      "sha256": "f7b64083c8c2498a074e2e49032708ac389f8c4d5f0407e0556180af34bd400d",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/9.1.0/probe.elf",
+      "bytes": 2507264,
+      "git_blob": "5926b0345d1147206240846e3f36f543d8f1fba4",
+      "sha256": "9bba62867e7015c1486d6dde70040db6824eaa8ce62c903432b81039012b2947",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_oo_variable_header300/jim/probe.elf",
+      "bytes": 422072,
+      "git_blob": "c5bff3689a051af1160b28e1790ca87d927af133",
+      "sha256": "b0526041746516226eb7e90bec55e751da6c9eb870fcb35875e575aef4e74daa",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_precision_unset319/limited-control/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/8.4.20/probe.elf",
+      "bytes": 859384,
+      "git_blob": "c2e21cea2083c4f8010bb02a4ae81d8b4c42444a",
+      "sha256": "33c84de2a224c1f0af4422d293e4c11c7149cdc6e3c7b35a5c3955eedfd91d58",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/8.5.19/probe.elf",
+      "bytes": 1254472,
+      "git_blob": "4506cdf8797f65d51e979583e7e765d534f61412",
+      "sha256": "a1de7d0f26a5d7d05e4706678e38fdabfdaee4c663b3acd72fc0e954e3c8719e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/8.6.18/probe.elf",
+      "bytes": 1871280,
+      "git_blob": "6050fd4b3c036cdce9f9ac98cc92bf017d564b4c",
+      "sha256": "f926d22f32279a7a1d6c15838a7d40211428631be29cd068cbad5cb2ad6090f7",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/9.0.4/probe.elf",
+      "bytes": 2270656,
+      "git_blob": "bdecc5727ff013ebf9d78e3e46d8e10e2df597bb",
+      "sha256": "2aa92f2f94b5b490ac0e7ad9504955eedaa14a3ec825a9f8e70fef3b99b878d5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/9.1.0/probe.elf",
+      "bytes": 2512256,
+      "git_blob": "4b23d6cd546459d87ab1d2e99543ae2911509fa9",
+      "sha256": "800533991d8f07e717a359e0aa28b0c9657aebbe575947a0babf0cf33cb2349e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/jim/probe.elf",
+      "bytes": 427040,
+      "git_blob": "3cc54a9c8212fa327fa69efa2a09eeab132649c1",
+      "sha256": "4829bbdccbfbec4278c681cc9fe3ca51b05b337857cefbcc8e8b6cdaa7a3923c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_procedure_usage_extents288/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf",
+      "bytes": 907648,
+      "git_blob": "6a2009fcabf350a2f10bec12bf017718816af220",
+      "sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf",
+      "bytes": 1294480,
+      "git_blob": "15f7bd52a3fa15c79930f149aa4c25bac02beb20",
+      "sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf",
+      "bytes": 1915376,
+      "git_blob": "5d50aa385293a877cf062cdda0e5b9b49bd97184",
+      "sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf",
+      "bytes": 3471033,
+      "git_blob": "52bf9a6326d64bfb7933d19c885acec13428b252",
+      "sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf",
+      "bytes": 3717328,
+      "git_blob": "bde8ea449faf3ebb4c07cecaa6d94b3b05925fed",
+      "sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf",
+      "bytes": 438632,
+      "git_blob": "e40b6b711072a8fde6636a7de7c7f38e8614767d",
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "proof_reference_count": 24,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_error_context295/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/8.4.20/probe.elf",
+      "bytes": 858832,
+      "git_blob": "eedba31202a42af6125cce9f9618db2a387b99eb",
+      "sha256": "0eb41c99a9d6c58672399a43f59d84da0681254f3ee910f3c11bd080afc2b992",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/8.5.19/probe.elf",
+      "bytes": 1253912,
+      "git_blob": "8f76b558cc391d0961a203df711da31aeb5eeae5",
+      "sha256": "4475484fa0661b611a3f0d6d8641d23a3636ab91a333066cee00d438bd0f822e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/8.6.18/probe.elf",
+      "bytes": 1866624,
+      "git_blob": "2633e049d33226eb4fd79e3d5b8ed341380b78d9",
+      "sha256": "1209f318fc148ae5461b5643ffd6c96f9c99f5f78d16e98d91d61e16ba1d8af6",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/9.0.4/probe.elf",
+      "bytes": 2270096,
+      "git_blob": "7a78333256d60883c702b4defcdcc7906e8f28d5",
+      "sha256": "177ee8e81129079880b5dd194abc4b4acce7a00269da8bbbbaf8b010db2dc868",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/9.1.0/probe.elf",
+      "bytes": 2507608,
+      "git_blob": "ef971da4283e0380dbde9274dc1ede033c530d3f",
+      "sha256": "b623347b3066f9ebb75d51117999668a26a4d8bd6c4afe5b1fc9ec04191d4e80",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_source_list_length241/jim/probe.elf",
+      "bytes": 422416,
+      "git_blob": "0b7b3869154be10e2e4ecec356a985a93e6a84ea",
+      "sha256": "d95c6f740c0f7a7f8db1e05e5f5354db16c0231e4c1bd7641728ad7d1a3d07f3",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_upvar_error_publication307/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/8.4.20/probe.elf",
+      "bytes": 858960,
+      "git_blob": "1204f6f753766cc57e9dd56315714feb66732149",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/8.5.19/probe.elf",
+      "bytes": 1254016,
+      "git_blob": "eadb28b38c1266d3c7be3456e298abe2d97d39ed",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/8.6.18/probe.elf",
+      "bytes": 1866728,
+      "git_blob": "fcdefec6a68edefe2eb56bbabaebefdacefdf645",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/9.0.4/probe.elf",
+      "bytes": 2270224,
+      "git_blob": "bb444c12ac7bfaaa56697411f7e97684c5ca140f",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/9.1.0/probe.elf",
+      "bytes": 2507704,
+      "git_blob": "61b40143c56c480238cd1fb36460f57052632212",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_variable_trace_refill351/jim/probe.elf",
+      "bytes": 422376,
+      "git_blob": "0b68f62ff642b9f837b21e1891fb4440d54dc44d",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/8.4.20/probe.elf.gz",
+      "bytes": 391965,
+      "git_blob": "1f2a37f43d4346ee45ee141c924b08ca0b48e553",
+      "sha256": "1ac760f0ff01654e04f15b425c40f5b8abfafaba17aa9d6e837b76c95aea8d02",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/8.5.19/probe.elf.gz",
+      "bytes": 571455,
+      "git_blob": "f528fa875d5019e32259416fc043e28810bbf8c1",
+      "sha256": "c49d47b25c45f1c3589dca18f441aaedb3b3c315f21cfacfc6c487fbbbea5108",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/8.6.18/probe.elf.gz",
+      "bytes": 813979,
+      "git_blob": "5b83d9555eda0b8814be19eed902ef6f5636dc0b",
+      "sha256": "39242c85d69909dfde5a9a9aa0531cb0c437fc2da039481657635989ce92d5f7",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/9.0.4/probe.elf.gz",
+      "bytes": 962729,
+      "git_blob": "0ec5523928d88f9c5621ddde5a71ffad856711d7",
+      "sha256": "e27be70e140b51e32cc36c735fcfb52b1b68883648067b0421f6cdc88618bf32",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1032177,
+      "git_blob": "4876d79d2e0845df28e05b5ce9e2fe6253f35e9e",
+      "sha256": "4ba71f0bc9a3ad664cbddecc367f7c6a8eba2ae9a3bc8215669f5c2e292e42df",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_command_key_replacement_child_capture_rename_original/421b/providers/jim/probe.elf.gz",
+      "bytes": 191885,
+      "git_blob": "f8c2fd49c1b1eaa2e2dda07696e894cea254b16a",
+      "sha256": "6c351b412c130baa08b83186913901f211532c1d46da96dd78fcd908e3729d2e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/probe.elf.gz",
+      "bytes": 389763,
+      "git_blob": "199fe8a67f222565f9a9b8fec0566cabf191fe1d",
+      "sha256": "df8a25f2701d67ffb0f26cb4dd91135b0ce82285a0dc508c5a0ca986dba591b1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/probe.elf.gz",
+      "bytes": 569737,
+      "git_blob": "bc27a6b765381debfe9b499d7a038cfaca422f7b",
+      "sha256": "14e5fc7daf536c5846c5377d7ff8c61b9122b4a4aff5bdbd9e09edd19901e7e1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/probe.elf.gz",
+      "bytes": 811989,
+      "git_blob": "4af60d452daae58b9be2f26685975ee04d754caa",
+      "sha256": "1f6fa0556140dcb85f5c2fa21e68a026b23dfe8a246e83362831b81f68cf21f6",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/probe.elf.gz",
+      "bytes": 960991,
+      "git_blob": "219d585e7758a2b8c811fb177687dd36c85ece98",
+      "sha256": "934869a9dcadd5f6393593aa68f0010f8f90d68d1a3567c665ef2b6ae19b70e5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/probe.elf.gz",
+      "bytes": 1030315,
+      "git_blob": "ad03e802cf2db78514fe666b2eeee2a5c2433b37",
+      "sha256": "aa7161adda101674a7b7d668e14fbbc519ba21b37caf8b88c2c278c93db2855e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/probe.elf.gz",
+      "bytes": 190029,
+      "git_blob": "2cb08443b20c2690f2467391ce0a1022c9b8bee4",
+      "sha256": "6c930df190f7561c300a7cb409e157bb501f2fe92ee14fbf949f603b7ce38b67",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/8.4.20/probe.elf.gz",
+      "bytes": 387867,
+      "git_blob": "bb39f13c9e492a645b48ee6669c67752ef7428f6",
+      "sha256": "71065a09a111f046e8b61d7e87bada4399c54999e3bc1d20533ded7ba36fe95f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/8.5.19/probe.elf.gz",
+      "bytes": 567931,
+      "git_blob": "32f443ca41895e562c09307731101a5d20b64aeb",
+      "sha256": "63d386ba3e52575aa5479231d3bba260b95bb0e74d2807cd5e2cdfdcc5f5a07c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/8.6.18/probe.elf.gz",
+      "bytes": 809765,
+      "git_blob": "b315585cc5c9c5a387bcdc9de06cdd95438901e0",
+      "sha256": "f601d6683fe8dd0ef63a48e37c0aac612f8a96ba240b356614e262576c951058",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/9.0.4/probe.elf.gz",
+      "bytes": 960291,
+      "git_blob": "25edb54d6644743c676508fef118aa7f672328ed",
+      "sha256": "f7bba352185baab82d02203a3e47296728522eb3557fd7bd81e8880fc6253471",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/9.1.0/probe.elf.gz",
+      "bytes": 1029044,
+      "git_blob": "34b47e1c93441a8cd9b0bf9d7c7a1b1c5f87aeb1",
+      "sha256": "c9acfd13acd3554b085d18df524a0e4f25bcb850b947bfd763ce4cab63b547d5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511/providers/jim/probe.elf.gz",
+      "bytes": 188385,
+      "git_blob": "e7bb5f7efa662176006d698c67939f7203195f7c",
+      "sha256": "73a71065c63c87b7411e45dadd2911b7e0fa73f5be5082033d5a8a347fdc3bf4",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/8.4.20/probe.elf.gz",
+      "bytes": 388100,
+      "git_blob": "a8c05aad17e4c9b0939358d55c85b1d8d05d5ec9",
+      "sha256": "f0f2d4dc6814471e2c4423616ea76537bd7d144eb98a302ddd1804b23a092368",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/8.5.19/probe.elf.gz",
+      "bytes": 568228,
+      "git_blob": "39e05916af24a9d8c9402e9d89c69213c6128cc7",
+      "sha256": "8df2b9db52669b889e5c86c903b4ef540ae37c115fce91df625647875f83cb97",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/8.6.18/probe.elf.gz",
+      "bytes": 810007,
+      "git_blob": "d9b267112270547726c9f7b5afc9cd2b5a15923e",
+      "sha256": "9ea687ec7aa44596de2ca6e796e2bcd8edb0c49ffcf163b59759794ec956ef7c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/9.0.4/probe.elf.gz",
+      "bytes": 960449,
+      "git_blob": "b8f81030b1e8131ed06cb28f13ea80364a44eebe",
+      "sha256": "915fcba119c3736ca3614185300c678479cf4bb9065d835e11734009a44fef67",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1029343,
+      "git_blob": "68213c935e93b8fb097c33ddf600b6d4ad8ee155",
+      "sha256": "01890ff434a921bade033dce4cb4e7481bdc4fa27359f730f36aedea6445f2eb",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_constant_captured_cell_after_write_trace_original/511b/providers/jim/probe.elf.gz",
+      "bytes": 188535,
+      "git_blob": "5c0ac4e25fcaa6e8f833930f178ee7b0dc93ad9b",
+      "sha256": "ced933a5db2d22e729e8119575c363b9044ac7dfac95cddb82f215157c866573",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614/providers/8.4.20/probe.elf.gz",
+      "bytes": 388244,
+      "git_blob": "0d6896cffeb25d892c5f7444f4c10d35f2fc3fbd",
+      "sha256": "8737136eb198fded3b99005eb22f9507ce72554568d28d5c086e4a7b236a0a9f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/8.4.20/probe.elf.gz",
+      "bytes": 388244,
+      "git_blob": "0d6896cffeb25d892c5f7444f4c10d35f2fc3fbd",
+      "sha256": "8737136eb198fded3b99005eb22f9507ce72554568d28d5c086e4a7b236a0a9f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614b/providers/9.0.4/probe.elf.gz",
+      "bytes": 960121,
+      "git_blob": "dc32fdcc1c1dba3ed9a93036b0e12e0e1836d538",
+      "sha256": "473145c90f1ebef2f5e94afc03e691ccdac30b8f2dfe503b381cffc39be38101",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/probe.elf.gz",
+      "bytes": 388108,
+      "git_blob": "14dc3279b606d083d3b9e256bc05ed17dcc6c3dc",
+      "sha256": "3ff1861071567a7e2ca570f1fcb963080d75159099abd4a69a3489325c25dc1b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/probe.elf.gz",
+      "bytes": 568027,
+      "git_blob": "150d23e4f92abe955c8c7162078ca116cf147773",
+      "sha256": "7bc85868ea0d5144a2439cc5319533b8578f78ceb8a3cc5afd83bf1d6c682234",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/probe.elf.gz",
+      "bytes": 809771,
+      "git_blob": "ec4e6e5ea5bd358243e0dafadfcafa2d9a1eaa0d",
+      "sha256": "d31a8c5951df366d417f2445b9d20d446fe96548fbb4cb49558c354155c54728",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/probe.elf.gz",
+      "bytes": 959961,
+      "git_blob": "4105363a41ccf023052007b6fe23c3826c071ee1",
+      "sha256": "abed326635495b674ec3e4d9c685ac8c45ed0663ba77171c1f11ab19804b668c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028510,
+      "git_blob": "eceb1afb884d08a852973544397e505aa3bb94e9",
+      "sha256": "e92d1802cf708f7df8a28de9ed54b8acc33d1ea3d1274c24afae58e57b146571",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506/providers/8.4.20/probe.elf.gz",
+      "bytes": 386517,
+      "git_blob": "0941f0f876701cd197eaa48cc2c27d54a734e7c4",
+      "sha256": "dc0e1fd8802c502938ac1d0741bf4da6a8a1a3814ff303a44d9282a8916305df",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506/providers/8.5.19/probe.elf.gz",
+      "bytes": 566534,
+      "git_blob": "11082542834e76b55db9afb0a3fc672cb94ec599",
+      "sha256": "826f0cc5053242b08a4ef5df25b09c6d66f7652979abfb68385fda9a9c3ca5f5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506/providers/8.6.18/probe.elf.gz",
+      "bytes": 812143,
+      "git_blob": "1fabac243c87b374497f9c2cf6f8c06d7a1c8d53",
+      "sha256": "fafde163ec00939425de6230e9f6a166d7bfe9802c6f4724634ee4829f415934",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506/providers/9.0.4/probe.elf.gz",
+      "bytes": 961069,
+      "git_blob": "9f52d62c3ba6dd883d2af42a06f27ecdb42a1992",
+      "sha256": "26aa8ff769f44f8ca099524998dd6556168d52b920a50a3670b6822b23b046f0",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/8.4.20/probe.elf.gz",
+      "bytes": 386517,
+      "git_blob": "0941f0f876701cd197eaa48cc2c27d54a734e7c4",
+      "sha256": "dc0e1fd8802c502938ac1d0741bf4da6a8a1a3814ff303a44d9282a8916305df",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/8.5.19/probe.elf.gz",
+      "bytes": 566534,
+      "git_blob": "11082542834e76b55db9afb0a3fc672cb94ec599",
+      "sha256": "826f0cc5053242b08a4ef5df25b09c6d66f7652979abfb68385fda9a9c3ca5f5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/8.6.18/probe.elf.gz",
+      "bytes": 812143,
+      "git_blob": "1fabac243c87b374497f9c2cf6f8c06d7a1c8d53",
+      "sha256": "fafde163ec00939425de6230e9f6a166d7bfe9802c6f4724634ee4829f415934",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/9.0.4/probe.elf.gz",
+      "bytes": 961069,
+      "git_blob": "9f52d62c3ba6dd883d2af42a06f27ecdb42a1992",
+      "sha256": "26aa8ff769f44f8ca099524998dd6556168d52b920a50a3670b6822b23b046f0",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1030364,
+      "git_blob": "c1afa3d1a58973b94f02c8108aee2f418116d8dd",
+      "sha256": "b5ea156816671fb8427635a3ab9527e57f79992eb9babfdebe6c8cd67f96551a",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_cache_active_call_lifetime_original/506b/providers/jim/probe.elf.gz",
+      "bytes": 186759,
+      "git_blob": "449c7c298b3eb6ff8e974bcc6d6116807b064185",
+      "sha256": "bcea848ded081d666619f631e655f7a871d86de19c55cb94163189f4dfccc875",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/8.4.20/probe.elf.gz",
+      "bytes": 386514,
+      "git_blob": "541b61f9a148489904a33aff9d35ea93b1035bf7",
+      "sha256": "86666596562f528d775e71d26a995cda93f47f97da99cd2886798d21dcfd5ef1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/8.5.19/probe.elf.gz",
+      "bytes": 566535,
+      "git_blob": "f04928b6a3f220ad97d27c20b6aa6ec93821980d",
+      "sha256": "b20665c9328242b2dcac44c507904aa17a39d74e9a77f086a4a5b01d5b27746f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/8.6.18/probe.elf.gz",
+      "bytes": 812576,
+      "git_blob": "65105aab25c6303b40e419bd24937d83c4f41f5c",
+      "sha256": "864b3f1119741c1fb6afe4d44dd565ba645859cf896817a4b836c4717c38b85b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/9.0.4/probe.elf.gz",
+      "bytes": 961459,
+      "git_blob": "0012680fcb8147b206f8909481c1b9bbda281a73",
+      "sha256": "b2377436208bb4906d9968d33df266b7a1060b96fbe5a7abe9cca76fa38b8245",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/9.1.0/probe.elf.gz",
+      "bytes": 1030849,
+      "git_blob": "7d426c69af69dc140f2fc425f2a23883e9bd6b03",
+      "sha256": "d62ecf317e4e6e5112729de00865b1f9761c128f2ad2931eb859a28527b835eb",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510/providers/jim/probe.elf.gz",
+      "bytes": 186761,
+      "git_blob": "51b967bc5773e05aaf9aff75daf8fb2f42c9e4f6",
+      "sha256": "c0ee4146874650a7a322bb5521b85f5a4df06b8c7e46770f331d0dbbaefebca7",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/8.4.20/probe.elf.gz",
+      "bytes": 386514,
+      "git_blob": "541b61f9a148489904a33aff9d35ea93b1035bf7",
+      "sha256": "86666596562f528d775e71d26a995cda93f47f97da99cd2886798d21dcfd5ef1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/8.5.19/probe.elf.gz",
+      "bytes": 566535,
+      "git_blob": "f04928b6a3f220ad97d27c20b6aa6ec93821980d",
+      "sha256": "b20665c9328242b2dcac44c507904aa17a39d74e9a77f086a4a5b01d5b27746f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/8.6.18/probe.elf.gz",
+      "bytes": 812623,
+      "git_blob": "cfed93a0febd0acd65097fb2c566bcce22860977",
+      "sha256": "05f899bf16879ecf37e91f3d7ca26ce4aad0782284994c599a7baabc7f0210c2",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/9.0.4/probe.elf.gz",
+      "bytes": 961443,
+      "git_blob": "a595f7d7f940a6ca131e714f1f0f7f99a44b2562",
+      "sha256": "b67567da345d994f470f8ca162e2aa2f1f215f1c4789f4cc9ef96548a95bd4c5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1030915,
+      "git_blob": "42ef9b0861b5ae710a9d6b1a3bce26c95e9094ca",
+      "sha256": "8ceb179ca1242c5fb2a8e7e4e32bdc5193bba892bf0a7e2af886083790b1683a",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_method_rename_operands_records_original/510b/providers/jim/probe.elf.gz",
+      "bytes": 186761,
+      "git_blob": "51b967bc5773e05aaf9aff75daf8fb2f42c9e4f6",
+      "sha256": "c0ee4146874650a7a322bb5521b85f5a4df06b8c7e46770f331d0dbbaefebca7",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/jim/invoked-jimsh.elf.gz",
+      "bytes": 193362,
+      "git_blob": "84cd56aed8d48e64d9cf904b52bafa782dfb6ad2",
+      "sha256": "1a6a367de6dd5d1b0f918870a62880f27d3934b292e33c640aac9674d4c6c611",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+      "bytes": 407064,
+      "git_blob": "931a513fdbbbbc095d9e5ad9c086054d28dbf506",
+      "sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+      "bytes": 583706,
+      "git_blob": "bf4d9292d724deac72a9b903cc455606fbaaea01",
+      "sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+      "bytes": 828694,
+      "git_blob": "a07f260afc6c7c6f31a894430d30d292bc050637",
+      "sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+      "bytes": 1982642,
+      "git_blob": "9a520894248eb73f8d4b985f948e0b560674bdb1",
+      "sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+      "bytes": 2050708,
+      "git_blob": "2753ddd6322a82b541a64581f343c0589d0cb25a",
+      "sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+      "bytes": 193362,
+      "git_blob": "061859448310efa65f43f162ba1a1da2d96fe21a",
+      "sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+      "proof_reference_count": 2,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/8.4.20/probe.elf.gz",
+      "bytes": 386535,
+      "git_blob": "6af9fbe83229fe8f5f70719d94d43fc4f9d5f6d6",
+      "sha256": "0c8823a54863720ef21109ef711c7b877a36b471a270a53678387d47e7e15867",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/8.5.19/probe.elf.gz",
+      "bytes": 566542,
+      "git_blob": "8702248e884d8953a382e228bf46dde2db4920db",
+      "sha256": "098d55b51015674206aaa8bcce90cbe68304715bd820eac9d8ea4d3707ee797f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/8.6.18/probe.elf.gz",
+      "bytes": 808386,
+      "git_blob": "b4b6b02b551b77ae1ce0b50769b7063647490d14",
+      "sha256": "04aefee0bb68599be648c2607cfaa0d3d131e8649b4824272189577b2c4e38e6",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/9.0.4/probe.elf.gz",
+      "bytes": 958954,
+      "git_blob": "e24e1843f449f589a70d2f326a8cebe60d2ae1e2",
+      "sha256": "2b131e3a676edcd5e3f5b383ee295cc3916d6aa9aede1bb2bd4f133b3055739f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1029935,
+      "git_blob": "a02efdbbc3d51a3096fb758676fac25009eca443",
+      "sha256": "524f8835e59a2bcffd8a59c8d2a4e0c9fe6efa40f045181f71c2b49b11b389d5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_slot_reference_order_original/509b/providers/jim/probe.elf.gz",
+      "bytes": 186764,
+      "git_blob": "8c092cfb44baf5505fa4dc56faae51c4b8ad09e5",
+      "sha256": "5a29ac9dceda81c14d6d21750a77dc5a2c294de592ff2558082e0240ad717d2c",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/probe.elf.gz",
+      "bytes": 389046,
+      "git_blob": "98fb33e58da99009e65c702044ab9d2bef7f455c",
+      "sha256": "de2fd1506f18cfb1cd988b85d5b2ef008cddc130f6872c417d201a2226f04c5b",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/probe.elf.gz",
+      "bytes": 568975,
+      "git_blob": "5aea7f58aaa14d6d36aeccf6b2b22a1e6208fe6c",
+      "sha256": "06413828c6bc4026266ecbf848abf12a183aa3fe636a723137db482bf7b19ba7",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/probe.elf.gz",
+      "bytes": 810971,
+      "git_blob": "b03fcd1b58a9d7f92d2dab52d38569c89196b26e",
+      "sha256": "6af450b1da6128abd33b76f6777f089b70c26a6740ba9fc735a09242b28fc328",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/probe.elf.gz",
+      "bytes": 960284,
+      "git_blob": "ea225616f55631e3561fe4f39a376e8009fd31e2",
+      "sha256": "345db2034a29d4eb04e1b5bb99c327e2b703be8c5aa77be554e643c77b964132",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/probe.elf.gz",
+      "bytes": 1029377,
+      "git_blob": "b23e13656fad7748447b6fd8cd6cd1b2d871c9fe",
+      "sha256": "9fef702813aa418289e3056cddec65d5eb8b4cfaa2f50222c2818b369c776161",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/probe.elf.gz",
+      "bytes": 387887,
+      "git_blob": "1d3f9311464b55f4ecead0bea9d7504dc54cc071",
+      "sha256": "c61b17e54a1cdf36ad7b17fbefb1912312b52f7c39a2c6fb0a379b7e8641eb39",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/probe.elf.gz",
+      "bytes": 567928,
+      "git_blob": "f5ded20ebe66f16f308850dc800fd3881b72c97d",
+      "sha256": "e6ede0f15f1b02eeab061bbc3975d880903b49b64dbc76f9109fea5e2943540e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/probe.elf.gz",
+      "bytes": 809716,
+      "git_blob": "2af14e71bd306b54cd0ceee41d453d94429aa914",
+      "sha256": "0f20caacf25b9a70de233a3a0ac663f0131002710a0c9ee88c9845f853a426ae",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/probe.elf.gz",
+      "bytes": 959895,
+      "git_blob": "ce9a006d084a8ae8ceaa27176573059711d2acc5",
+      "sha256": "ab5031942f32bd87f9c207dd7f972b0e020565ebe5c8ba7d8f2e44ca74dc345f",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028609,
+      "git_blob": "1524a41ba9ac1895a52845b9b295582e4ee17029",
+      "sha256": "0562efd1f08a22330245bf0d86f6fc188c2801705f68dc26654e134cf055afa1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/probe.elf.gz",
+      "bytes": 188501,
+      "git_blob": "2b7fa50f862d4f17deb0c2ecc595b45cd93d05ad",
+      "sha256": "c3edd3af0f7617a82801b165922e37c1593c266366dc6d6c8ede3ad60c796521",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/probe.elf.gz",
+      "bytes": 387784,
+      "git_blob": "e8a9dae90e7f7be71a56ba32e9325356d77f93dd",
+      "sha256": "c63e4e21e686a8edf89c723e6685c3aec9510278f5dd9b3553d5b472749cc603",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/probe.elf.gz",
+      "bytes": 567990,
+      "git_blob": "56402963a76ea437b962a97a6967c93b95b8ac98",
+      "sha256": "b3c0287d74c28fb667da38400299774537d9eadce52613c0dfb7b979c0f68e0e",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/probe.elf.gz",
+      "bytes": 809675,
+      "git_blob": "0b0566840b5fdaf2484a750d60dad14bbde5a332",
+      "sha256": "67ab69b0bf66d938a28648de26691dc54e20f5873b718a1c6998176d158de0b5",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/probe.elf.gz",
+      "bytes": 959981,
+      "git_blob": "81e70e646f6d8e2d02b3c1770f4450441f8e50e2",
+      "sha256": "5defdc4de5a9c7eebdc11bcd42e550503537a3bf97c91f312cc71f1ba98a5eb3",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/probe.elf.gz",
+      "bytes": 1028387,
+      "git_blob": "07f062e68693ba606507ad140941dc3e96629cda",
+      "sha256": "5f59fe52ad642b6523d4b3da064626f32919653df272e9adf2e0376770942012",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/probe.elf.gz",
+      "bytes": 188382,
+      "git_blob": "f5f3e7393ad642a5a8b5c950659ac3b09a369798",
+      "sha256": "462cc255cdba6aa4a8aa74aff6343a8e47ce806795118645998e0ed3001354d1",
+      "proof_reference_count": 1,
+      "status": "VERIFIED_GIT_AND_ALL_RETAINED_PROOF_HASHES"
+    }
+  ],
+  "bytes": 616441339,
+  "retained_proof_references_verified": 638,
+  "scope": "Availability restoration only; no executable launched and no source afterimage restored. All retained evidence/result/status digests unchanged."
+}

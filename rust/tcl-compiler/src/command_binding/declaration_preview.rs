@@ -18,7 +18,7 @@
 
 //! Original procedure-body layouts independent of command installation.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use super::declaration_layout::{
@@ -204,6 +204,12 @@ enum ProcedureReadSource {
         producer: crate::signature_scan::scope::SignatureSourceNameKey,
         correspondence: tcl_syntax::backslash::NativeBracedWordSourceMap,
     },
+    /// Whole original source geometry under the selected configuration. This
+    /// variant is confined to the tagged operand-layout carrier below.
+    ConfiguredSourceWord {
+        producer: crate::signature_scan::scope::SignatureSourceNameKey,
+        correspondence: tcl_syntax::backslash::NativeBracedWordSourceMap,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProcedureReadFormals {
@@ -217,7 +223,8 @@ impl OriginalProcedureReadDeclaration {
     pub(crate) fn original_image(&self) -> &tcl_lexer::SourceImage {
         match &self.source {
             ProcedureReadSource::Contiguous(source) => source.origin.source_image(),
-            ProcedureReadSource::OriginalBraced { producer, .. } => {
+            ProcedureReadSource::OriginalBraced { producer, .. }
+            | ProcedureReadSource::ConfiguredSourceWord { producer, .. } => {
                 producer.original_word().image()
             }
         }
@@ -230,7 +237,8 @@ impl OriginalProcedureReadDeclaration {
                     .base()
                     .checked_add(u32::try_from(source.text.len()).ok()?)?,
             )),
-            ProcedureReadSource::OriginalBraced { producer, .. } => {
+            ProcedureReadSource::OriginalBraced { producer, .. }
+            | ProcedureReadSource::ConfiguredSourceWord { producer, .. } => {
                 producer.original_word().content_span().ok()
             }
         }
@@ -252,6 +260,7 @@ impl OriginalProcedureReadDeclaration {
         }
         match &self.source {
             ProcedureReadSource::Contiguous(_) => true,
+            ProcedureReadSource::ConfiguredSourceWord { .. } => false,
             ProcedureReadSource::OriginalBraced { correspondence, .. } => correspondence
                 .native_extent(
                     (span.start() - body.start()) as usize..(span.end() - body.start()) as usize,
@@ -276,6 +285,499 @@ impl OriginalProcedureReadDeclaration {
             ProcedureReadFormals::Logical { text, .. } => Some(text),
         }
     }
+}
+
+/// Derived whole-word source layouts never participate in execution identity.
+#[derive(Debug, Default)]
+pub(super) struct OriginalDeclarationSourceOperandCache {
+    pub(super) entries:
+        std::sync::Mutex<BTreeMap<u32, Option<Arc<OriginalDeclarationSourceOperandLayout>>>>,
+    final_state: std::sync::OnceLock<std::sync::Weak<super::ModuleCommandBindings>>,
+}
+
+/// A source-only stamp against one actual retained declaration inventory. Weak
+/// identity never traverses cached facts, body snapshots or invocation bindings.
+#[derive(Debug, Clone)]
+pub(super) struct OriginalDeclarationSourceOperandAttachment {
+    cache: std::sync::Weak<OriginalDeclarationSourceOperandCache>,
+    offset: u32,
+}
+impl PartialEq for OriginalDeclarationSourceOperandAttachment {
+    fn eq(&self, other: &Self) -> bool {
+        self.offset == other.offset && std::sync::Weak::ptr_eq(&self.cache, &other.cache)
+    }
+}
+impl Eq for OriginalDeclarationSourceOperandAttachment {}
+impl OriginalDeclarationSourceOperandAttachment {
+    pub(super) fn owns(
+        &self,
+        cache: &Arc<OriginalDeclarationSourceOperandCache>,
+        offset: u32,
+    ) -> bool {
+        self.offset == offset && std::sync::Weak::ptr_eq(&self.cache, &Arc::downgrade(cache))
+    }
+}
+
+/// A conditional source body, its actual declaration lineage and one complete
+/// original command vector. The Native-decoded header value is retained
+/// separately from the selected source-word transform. No executed body,
+/// ordinary occurrence across a fold, installed frame or Normal fact is issued.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalDeclarationSourceOperandLayout {
+    pub(super) site: CommandAllocationSite,
+    pub(super) config: tcl_lexer::LexerConfig,
+    pub(super) words: Arc<[crate::ir::WordExpr]>,
+    dialect: tcl_registry::InvocationDialect,
+    read: OriginalProcedureReadDeclaration,
+    header: DeclaredProcedureHeader,
+    snapshot: Arc<super::SourceLookupSnapshot>,
+    native_header_value: Arc<[u8]>,
+    parents: Arc<[DeclarationLayoutObservation]>,
+}
+
+impl OriginalDeclarationSourceOperandLayout {
+    pub(super) const fn dialect(&self) -> tcl_registry::InvocationDialect {
+        self.dialect
+    }
+
+    pub(super) fn metadata_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<super::OriginalCompilationLookupAdvice> {
+        if tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || tokens.words() != self.words.as_ref()
+            || !self.current_original_body()
+        {
+            return None;
+        }
+        super::original_site_operand_layout_advice(
+            &self.site,
+            tokens,
+            &self.snapshot,
+            &self.header.namespace,
+            self.config,
+        )
+    }
+
+    fn matches_original_bindings(&self, bindings: &SourceCommandBindings) -> bool {
+        let Some(actual) = bindings
+            .declaration_layouts
+            .get(&self.header.declaration)
+            .and_then(|rows| original_declaration_layouts(rows))
+        else {
+            return false;
+        };
+        bindings.lexer_config == Some(self.config)
+            && bindings
+                .source_origin()
+                .is_some_and(|source| Arc::ptr_eq(source, &self.site.source))
+            && bindings.source_metadata_owner() == &self.snapshot.state.baseline.metadata_context
+            && actual.eq(self.parents.iter())
+            && self.current_original_body()
+    }
+
+    fn current_original_body(&self) -> bool {
+        let ProcedureReadSource::ConfiguredSourceWord {
+            producer,
+            correspondence,
+        } = &self.read.source
+        else {
+            return false;
+        };
+        original_declaration_layouts(&self.parents).is_some()
+            && self.parents.iter().all(|parent| {
+                parent.config == self.config
+                    && parent.snapshot.state.current_source_origin.as_ref()
+                        == Some(&self.header.declaration.source)
+            })
+            && Arc::ptr_eq(&self.header.declaration.source, &self.site.source)
+            && producer.source_image() == self.site.source.source_image()
+            && producer.lexer_config() == self.config
+            && correspondence.bytes() == producer.bytes()
+            && tcl_syntax::backslash::native_source_literal_bytes(
+                self.header.value.as_bytes(),
+                producer.source_image().channel(),
+                producer.policy().string_protocol(),
+            )
+            .is_ok_and(|value| value.as_ref() == self.native_header_value.as_ref())
+            && self.snapshot.state.current_source_origin.as_ref() == Some(&self.site.source)
+            && super::SourceCommandBindings::context_owns_frame(
+                &self.snapshot.state.source_variables,
+                &self.header.frame,
+                Some(&self.header.namespace),
+            )
+            && self.snapshot.state.variable_frame == self.header.frame
+    }
+
+    pub(super) fn variable_name_is_eligible(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        name: &str,
+    ) -> bool {
+        if !self.current_original_body()
+            || self
+                .read
+                .parameter_names()
+                .iter()
+                .any(|formal| formal == name)
+            || super::declaration_layout::local_read_scope_is_excluded(
+                &self.snapshot.state.source_variables,
+                name,
+            )
+        {
+            return false;
+        }
+        let Some(metadata) = self
+            .snapshot
+            .state
+            .baseline
+            .metadata_context
+            .metadata_context_for_source(registry, self.config, registry.profile())
+        else {
+            return false;
+        };
+        let Some(body) = self.read.original_body_text() else {
+            return false;
+        };
+        let effects = crate::ir_helpers::script_value_name_ownership_with_metadata_context(
+            body,
+            registry,
+            &self.snapshot.state,
+            &crate::ir::ExecutionNamespace::SourceContext(self.header.namespace.clone()),
+            metadata,
+            self.config,
+            crate::script_binds::Ownership::ScopeAliases,
+        );
+        !effects.opaque && !effects.names.contains(&name.to_owned())
+    }
+}
+
+impl SourceCommandBindings {
+    pub(super) fn original_declaration_source_operand_attachment(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalDeclarationSourceOperandAttachment> {
+        let owner = self.original_analysis_owner.as_ref()?;
+        let cache = owner.source_operand_layouts.get()?.upgrade()?;
+        if !Arc::ptr_eq(&cache, &self.original_source_operand_layouts)
+            || self.lexer_config != Some(owner.config)
+            || self.source_metadata_owner() != &owner.metadata
+            || !std::sync::Weak::ptr_eq(
+                cache.final_state.get()?,
+                &Arc::downgrade(&self.final_state),
+            )
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let entries = cache
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let layout = entries.get(&offset)?.as_ref()?;
+        if tokens.words() != layout.words.as_ref() || !layout.matches_original_bindings(self) {
+            return None;
+        }
+        Some(OriginalDeclarationSourceOperandAttachment {
+            cache: Arc::downgrade(&cache),
+            offset,
+        })
+    }
+
+    pub(super) fn retain_original_declaration_source_operand_layouts(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let Some(owner) = &self.original_analysis_owner else {
+            return;
+        };
+        if self.lexer_config != Some(owner.config)
+            || self
+                .source_origin()
+                .is_none_or(|source| !Arc::ptr_eq(source, &owner.source))
+            || self.source_metadata_owner() != &owner.metadata
+            || self.final_state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+        {
+            return;
+        }
+        let cache = &self.original_source_operand_layouts;
+        let mut retained = BTreeMap::new();
+        for (site, rows) in &self.declaration_layouts {
+            if !Arc::ptr_eq(&site.source, &owner.source) {
+                continue;
+            }
+            let Some(rows) = original_declaration_layouts(rows) else {
+                continue;
+            };
+            let parents: Arc<[DeclarationLayoutObservation]> =
+                rows.cloned().collect::<Vec<_>>().into();
+            let mut agreed = None;
+            let mut complete = true;
+            for row in parents.iter() {
+                let Some(layouts) =
+                    original_source_operand_layout_for_declaration(site, row, &parents, registry)
+                else {
+                    complete = false;
+                    break;
+                };
+                if agreed.as_ref().is_some_and(|previous| previous != &layouts) {
+                    complete = false;
+                    break;
+                }
+                agreed = Some(layouts);
+            }
+            if !complete {
+                continue;
+            }
+            for layout in agreed.into_iter().flatten() {
+                match retained.entry(layout.site.offset) {
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        entry.insert(Some(Arc::new(layout)));
+                    }
+                    std::collections::btree_map::Entry::Occupied(mut entry) => {
+                        if entry.get().as_deref() != Some(&layout) {
+                            entry.insert(None);
+                        }
+                    }
+                }
+            }
+        }
+        if retained.is_empty() {
+            return;
+        }
+        let final_state = cache
+            .final_state
+            .get_or_init(|| Arc::downgrade(&self.final_state));
+        if !std::sync::Weak::ptr_eq(final_state, &Arc::downgrade(&self.final_state)) {
+            return;
+        }
+        let linked = owner
+            .source_operand_layouts
+            .get_or_init(|| Arc::downgrade(cache));
+        if !std::sync::Weak::ptr_eq(linked, &Arc::downgrade(cache)) {
+            return;
+        }
+        let mut entries = cache
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for (offset, layout) in retained {
+            match entries.entry(offset) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(layout);
+                }
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    if entry.get() != &layout {
+                        entry.insert(None);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn original_source_operand_layout_for_declaration(
+    site: &CommandAllocationSite,
+    row: &DeclarationLayoutObservation,
+    parents: &Arc<[DeclarationLayoutObservation]>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<Vec<OriginalDeclarationSourceOperandLayout>> {
+    let tokens = declaration_tokens(site, row)?;
+    let advice = super::original_site_operand_layout_advice(
+        site,
+        &tokens,
+        &row.snapshot,
+        &row.namespace,
+        row.config,
+    )?;
+    let metadata = advice
+        .original_declaration_metadata_context(registry, &tokens)
+        .ok()?;
+    let dialect = advice.dialect();
+    let mut selected = None;
+    for target in advice.targets() {
+        if !target.registry_backed || !target.prepended.is_empty() {
+            return None;
+        }
+        let effective = effective_words_for_target(&tokens, target)?;
+        let values = effective
+            .words
+            .iter()
+            .map(|word| {
+                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+            })
+            .collect::<Vec<_>>();
+        let words = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect::<Vec<_>>();
+        let RegistryInvocationResolution::Resolved(facts) =
+            crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                metadata,
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
+        else {
+            return None;
+        };
+        let tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(shape) =
+            facts.procedure_definition?
+        else {
+            return None;
+        };
+        let header = procedure_declaration_header(
+            site,
+            &tokens,
+            row,
+            &facts,
+            target,
+            &ProcedureOperands {
+                effective: &effective,
+                values: &values,
+                dialect,
+            },
+        )?;
+        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(producer) =
+            original_declaration_operand_input(
+                site,
+                &tokens,
+                row,
+                target,
+                &effective,
+                shape.body_at.checked_add(1)?,
+            )?
+        else {
+            return None;
+        };
+        let word = producer.original_word();
+        if word.group().kind != tcl_lexer::WordKind::Braced
+            || word.image() != site.source.source_image()
+            || word.config() != row.config
+        {
+            return None;
+        }
+        let content = word.content_span().ok()?;
+        let raw = word.image().bytes().get(content.as_range())?;
+        // Existing unchanged Native bodies keep their original owner terminally.
+        // This facet is solely for an original body transformed at declaration.
+        if raw == header.value.as_bytes() {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::from_bytes(raw, site.source.source_image().channel());
+        let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
+            raw,
+            word.image().channel(),
+            row.config.brace_backslash_newline,
+            producer.policy().string_protocol(),
+        )
+        .ok()?;
+        if correspondence.bytes() != producer.bytes() {
+            return None;
+        }
+        let native_header_value: Arc<[u8]> = tcl_syntax::backslash::native_source_literal_bytes(
+            header.value.as_bytes(),
+            word.image().channel(),
+            producer.policy().string_protocol(),
+        )
+        .ok()?
+        .into_owned()
+        .into();
+        let read = OriginalProcedureReadDeclaration {
+            source: ProcedureReadSource::ConfiguredSourceWord {
+                producer,
+                correspondence,
+            },
+            formals: ProcedureReadFormals::Native(header.original_parameters.clone()?),
+        };
+        let mut state = row.snapshot.state.clone();
+        state.variable_frame = header.frame.clone();
+        state.source_variables = Arc::new(
+            state
+                .source_variables
+                .in_frame(&header.frame)
+                .with_namespace_identity(header.namespace.clone()),
+        );
+        header
+            .original_parameters
+            .as_ref()?
+            .seed_unknown(Arc::make_mut(&mut state.source_variables), registry);
+        state.current_source_origin = Some(Arc::clone(&site.source));
+        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(state, row.snapshot.realm));
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            site.source.source_image().clone(),
+            content,
+            row.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &image,
+            content.start(),
+            row.config.nested(),
+        )?;
+        let mut retained = Vec::new();
+        for segment in segments {
+            if segment.is_partial {
+                return None;
+            }
+            let command =
+                super::source_command_tokens_boxed(&image, content.start(), row.config, &segment);
+            let offset = command.words().first()?.source().span.start();
+            let projection =
+                site.source
+                    .original_lexical_command(command.words(), offset, row.config)?;
+            if !plan
+                .commands
+                .iter()
+                .any(|original| original.words.as_slice() == projection.native_words())
+            {
+                return None;
+            }
+            let child = CommandAllocationSite {
+                source: Arc::clone(&site.source),
+                offset,
+            };
+            retained.push(OriginalDeclarationSourceOperandLayout {
+                site: child.clone(),
+                config: row.config,
+                words: Arc::from(command.words()),
+                dialect,
+                read: read.clone(),
+                header: header.clone(),
+                snapshot: Arc::clone(&snapshot),
+                native_header_value: Arc::clone(&native_header_value),
+                parents: Arc::clone(parents),
+            });
+            if !retains_successor_layout(
+                &child,
+                &command,
+                &snapshot,
+                &header.namespace,
+                row.config,
+                registry,
+            ) {
+                break;
+            }
+        }
+        if selected
+            .as_ref()
+            .is_some_and(|previous| previous != &retained)
+        {
+            return None;
+        }
+        selected = Some(retained);
+    }
+    selected
 }
 
 /// One lexical body under its complete immutable parent lookup worlds.

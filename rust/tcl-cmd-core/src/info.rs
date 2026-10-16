@@ -120,11 +120,11 @@ where
 }
 
 /// A byte-compatible value or an original header retained through publication.
-pub enum BodyResult<V, E> {
+pub enum BodyResult<V, E, O: ?Sized> {
     /// Result constructed by the existing byte-compatible adapter.
     Value(V),
     /// Actual original body header; publish while this owner is still alive.
-    Original(Box<dyn tcl_runtime_api::OriginalProcedureBodyValue<V, E>>),
+    Original(Box<dyn tcl_runtime_api::OriginalProcedureBodyValue<V, E, O>>),
 }
 
 /// Select the actual original body-result owner before explicit byte compatibility.
@@ -132,7 +132,7 @@ pub enum BodyResult<V, E> {
 pub fn body_result<O, V>(
     ops: &mut O,
     name: &V,
-) -> Result<BodyResult<V, O::OperationError>, CmdError>
+) -> Result<BodyResult<V, O::OperationError, O>, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
     O::OperationError: Into<CmdError>,

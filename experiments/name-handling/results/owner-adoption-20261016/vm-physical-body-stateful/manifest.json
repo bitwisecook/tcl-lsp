@@ -1,0 +1,21 @@
+{
+  "patch": "/tmp/vm-physical-body-stateful/stateful-info-body.patch",
+  "sha256": "d8394085da4efa0d1249145b4a60ff11b9b4b8f27cbd1c5f6bc1617c3650fbae",
+  "files": [
+    "runtime/rust/src/cmd_info.rs",
+    "runtime/rust/src/interp/native_name_queries.rs",
+    "runtime/rust/src/interp/native_name_queries/tests.rs",
+    "runtime/rust/src/state_traits.rs",
+    "rust/tcl-cmd-core/src/info.rs",
+    "rust/tcl-runtime-api/src/lib.rs",
+    "rust/tcl-vm/src/cmd_info.rs",
+    "rust/tcl-vm/src/interp.rs",
+    "rust/tcl-vm/src/interp/native_name_queries.rs",
+    "rust/tcl-vm/src/value.rs"
+  ],
+  "requires": "/tmp/vm-jim-result-slot/result-slot.patch SHA83cc5a24b512d499880e2af0fbaf11ee9874c30c00fcaddb1f3458c100eca03b",
+  "validation": "TMP rustfmt parsed all10files only; Rust unbuilt/unrun per root freeze; current main expected first patch prerequisite",
+  "producer": "existing genuine VM ProcDef body_src adopted through original selected Jim command cache and allocation-only capsule; not a new producer count",
+  "api": "single existing checked_value(actual)/finish(actual) capsule with actualconsumer generic; Runtime mechanical test calls preserved; new foreignconsumer negative",
+  "claim": "prepared candidate, no Native acceptance"
+}

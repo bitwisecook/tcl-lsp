@@ -1,0 +1,7 @@
+
+running 2 tests
+test interp::native_namespace_names::tests::selected_jim_report_parts_get_the_original_stringless_holder ... ok
+test interp::native_namespace_names::tests::selected_jim_report_parts_reach_the_original_target_holder_and_borrow_its_header ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1376 filtered out; finished in 0.16s
+

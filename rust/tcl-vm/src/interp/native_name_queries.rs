@@ -183,6 +183,186 @@ impl ProcedureQuery {
     }
 }
 
+struct OriginalJimBodyResult {
+    caller: super::native_name_consumers::OriginalNameConsumerScope,
+    original: crate::NativeObjectLifetimeLease,
+    node: std::rc::Weak<super::native_jim_lookup::JimCommandNode>,
+    token: u64,
+    declaration: std::rc::Weak<ProcDef>,
+    namespace: QueryNamespace,
+    body: crate::NativeObjectLifetimeLease,
+    context: std::rc::Weak<crate::value::NativeJimObjectContext>,
+}
+
+fn retain_body_result_error(vm: &mut Vm, error: CmdError) -> CmdError {
+    if let Some(cause) = error.native_execution_refusal() {
+        return CmdError::from_execution_refusal(
+            vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone())),
+        );
+    }
+    error
+}
+
+impl OriginalJimBodyResult {
+    fn current(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.caller.current_for_value(vm, self.original.value())
+    }
+    fn result_context(
+        &self,
+        vm: &mut Vm,
+    ) -> Result<Rc<crate::value::NativeJimObjectContext>, CmdError> {
+        self.current(vm)?;
+        let context = self
+            .context
+            .upgrade()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original body-result Jim context retired",
+            ))?;
+        let actual = vm.native_jim_object_context()?;
+        if !Rc::ptr_eq(&context, &actual) {
+            return Err(vm.retain_name_query_refusal("foreign original body-result consumer"));
+        }
+        self.body.value().check_native_jim_context(&context)?;
+        self.current(vm)?;
+        Ok(context)
+    }
+}
+
+impl tcl_runtime_api::OriginalProcedureBodyValue<Value, CmdError, Vm> for OriginalJimBodyResult {
+    fn checked_value(&self, vm: &mut Vm) -> Result<Value, CmdError> {
+        let reached = (|| {
+            let _context = self.result_context(vm)?;
+            let declaration =
+                self.declaration
+                    .upgrade()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original body-result declaration retired",
+                    ))?;
+            let node = self
+                .node
+                .upgrade()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original body-result command retired",
+                ))?;
+            let selected = {
+                let command = node.command.borrow();
+                matches!(&*command, Command::Proc(procedure) if Rc::ptr_eq(&procedure.declaration(), &declaration))
+            };
+            if node.token != self.token
+                || !node.is_live()
+                || !selected
+                || declaration.native_reference_count() == 0
+                || declaration
+                    .actual_namespace_context()
+                    .context()
+                    .resolved_token()
+                    != Some(self.namespace.id)
+                || !self.namespace.current(vm)
+                || !declaration.body_src.is_same_object(self.body.value())
+            {
+                return Err(
+                    vm.retain_name_query_refusal("original body-result selected owner changed")
+                );
+            }
+            self.caller.current_for_value(vm, self.body.value())?;
+            drop(node);
+            drop(declaration);
+            self.current(vm)?;
+            Ok(self.body.value().native_lifetime_lease().into_value())
+        })();
+        reached.map_err(|error| retain_body_result_error(vm, error))
+    }
+
+    fn finish(self: Box<Self>, vm: &mut Vm) -> Result<(), CmdError> {
+        let reached = (|| {
+            let context = self.result_context(vm)?;
+            // A real old-result callback may retire the selected declaration.
+            // The actual result role now owns the body; only caller currency
+            // and this published original header remain required.
+            self.caller.current_for_value(vm, self.body.value())?;
+            if !context.with_result_object(|result| result.is_same_object(self.body.value())) {
+                return Err(vm.retain_name_query_refusal("original body-result publication header"));
+            }
+            self.current(vm)
+        })();
+        reached.map_err(|error| retain_body_result_error(vm, error))
+    }
+}
+
+impl Vm {
+    pub(crate) fn original_proc_body_value_query(
+        &mut self,
+        original: &Value,
+    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<Value, CmdError, Vm>, CmdError> {
+        let caller = super::native_name_consumers::OriginalNameConsumerScope::enter(self)?;
+        let reached = (|| {
+            let dialect = self.actual_native_invocation_dialect();
+            if dialect.native_jim_lookup_protocol().is_none()
+                || dialect.native_jim_info_protocol().is_none()
+            {
+                return Err(
+                    self.retain_name_query_refusal("original Jim procedure body query issuer")
+                );
+            }
+            caller.current_for_value(self, original)?;
+            let context = self.native_jim_object_context()?;
+            original.check_native_jim_context(&context)?;
+            let namespace = self.current_namespace_execution_context();
+            let selected =
+                self.native_jim_command_from_original_in_context(&namespace, original)?;
+            caller.current_for_value(self, original)?;
+            let Some((_, Command::Proc(procedure))) = selected else {
+                let name = caller.read(self, original)?.to_vec();
+                caller.check(self)?;
+                return Ok(tcl_runtime_api::ProcBodyValueQuery::NotProcedure(name));
+            };
+            let declaration = procedure.declaration();
+            let node = self.selected_original_jim_node(original).ok_or(
+                ValueError::CommandProtocolUnavailable("original body-result selected Jim node"),
+            )?;
+            let same = matches!(&*node.command.borrow(), Command::Proc(selected)
+                if Rc::ptr_eq(&selected.declaration(), &declaration));
+            if !same || !node.is_live() || declaration.native_reference_count() == 0 {
+                return Err(
+                    self.retain_name_query_refusal("original body-result selected procedure")
+                );
+            }
+            let namespace = QueryNamespace::capture(
+                self,
+                declaration
+                    .actual_namespace_context()
+                    .context()
+                    .resolved_token()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original body-result namespace owner",
+                    ))?,
+            )?;
+            let body = declaration.body_src.native_lifetime_lease();
+            let token = node.token;
+            let selected_node = Rc::downgrade(&node);
+            let selected_declaration = Rc::downgrade(&declaration);
+            drop(node);
+            drop(declaration);
+            drop(procedure);
+            caller.check(self)?;
+            let result = OriginalJimBodyResult {
+                caller,
+                original: original.native_lifetime_lease(),
+                node: selected_node,
+                token,
+                declaration: selected_declaration,
+                namespace,
+                body,
+                context: Rc::downgrade(&context),
+            };
+            let value = tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result, self)?;
+            drop(value);
+            Ok(tcl_runtime_api::ProcBodyValueQuery::Body(Box::new(result)))
+        })();
+        reached.map_err(|error| retain_body_result_error(self, error))
+    }
+}
+
 impl Vm {
     pub(super) fn retain_name_query_refusal(&mut self, reason: &'static str) -> CmdError {
         let error = CmdError::from(ValueError::CommandProtocolUnavailable(reason));

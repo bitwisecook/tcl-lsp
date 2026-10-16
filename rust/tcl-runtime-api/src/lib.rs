@@ -2220,8 +2220,10 @@ pub trait Procs: tcl_syntax::value::ValueOps {
     fn proc_body_original_value(
         &mut self,
         _original: &Self::Value,
-    ) -> Result<Option<ProcBodyValueQuery<Self::Value, Self::OperationError>>, Self::OperationError>
-    {
+    ) -> Result<
+        Option<ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
+        Self::OperationError,
+    > {
         Ok(None)
     }
 
@@ -2266,12 +2268,14 @@ pub trait Procs: tcl_syntax::value::ValueOps {
 /// Checked borrowed body header without an extra native object or procedure role.
 /// The issuer preserves allocation safety and original operation currency until
 /// the consumer's actual result setter acquires its own result reference.
-pub trait OriginalProcedureBodyValue<V, E> {
+/// The actual consumer is supplied at each frontier so stateful adapters can
+/// revalidate the same caller without retaining a pointer to a movable engine.
+pub trait OriginalProcedureBodyValue<V, E, O: ?Sized> {
     /// Borrow the original header immediately before its actual result publication.
     ///
     /// # Errors
     /// Refuses stale allocation, declaration, caller or original operation state.
-    fn checked_value(&self) -> Result<V, E>;
+    fn checked_value(&self, actual: &mut O) -> Result<V, E>;
 
     /// Finish after actual publication, then release only allocation transports.
     /// A legal old-result callback can delete the queried declaration; this
@@ -2279,13 +2283,13 @@ pub trait OriginalProcedureBodyValue<V, E> {
     ///
     /// # Errors
     /// Retains the first Host cause or changed original operation/caller state.
-    fn finish(self: Box<Self>) -> Result<(), E>;
+    fn finish(self: Box<Self>, actual: &mut O) -> Result<(), E>;
 }
 
 /// Original body query outcome, distinct from a freshly constructed byte report.
-pub enum ProcBodyValueQuery<V, E> {
+pub enum ProcBodyValueQuery<V, E, O: ?Sized> {
     /// Actual original header and its allocation/currentness transport.
-    Body(Box<dyn OriginalProcedureBodyValue<V, E>>),
+    Body(Box<dyn OriginalProcedureBodyValue<V, E, O>>),
     /// Original diagnostic spelling; diagnostic producer selection is independent.
     NotProcedure(Vec<u8>),
 }

@@ -732,7 +732,7 @@ impl Procs for Interp {
         &mut self,
         original: &Self::Value,
     ) -> Result<
-        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError>>,
+        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
         Self::OperationError,
     > {
         if self

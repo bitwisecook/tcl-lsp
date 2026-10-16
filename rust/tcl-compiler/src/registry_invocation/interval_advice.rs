@@ -1,11 +1,8 @@
-//! Original native increment layout for conditional numeric diagnostics.
+//! Original source increment layout for conditional numeric diagnostics.
 
-use super::{
-    CommandRegistry, CommandTokens, EffectiveInvocationWord, InvocationWordOrigin,
-    RegistryInvocationResolution, compose_original_effective_words, effective_invocation_word,
-    resolve_registry_words_in_realm,
-};
+use super::{CommandRegistry, CommandTokens, EffectiveInvocationWord, InvocationWordOrigin};
 
+#[derive(PartialEq, Eq)]
 pub(crate) struct DeclarationIncrementAdvice {
     pub(crate) operand: crate::ir::WordExpr,
     pub(crate) amount: Option<String>,
@@ -18,36 +15,15 @@ pub(crate) fn declaration_increment_advice(
     tokens: &CommandTokens,
 ) -> Option<DeclarationIncrementAdvice> {
     let binding = tokens.source_binding.as_ref()?;
-    let advice = binding.declaration_operand_layout_advice(tokens)?;
-    let dialect = advice.dialect();
-    let mut unanimous = None;
-    for target in advice.targets() {
-        let effective =
-            compose_original_effective_words(tokens, &target.command, &target.prepended)?;
-        let values: Vec<_> = effective
-            .words
-            .iter()
-            .map(|word| {
-                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
-            })
-            .collect();
-        let words: Vec<_> = values
-            .iter()
-            .map(EffectiveInvocationWord::as_registry_word)
-            .collect();
-        let RegistryInvocationResolution::Resolved(facts) =
-            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
-                .ok()?
-        else {
-            return None;
-        };
+    let source = binding.declaration_source_operand_layout_advice(registry, tokens)?;
+    source.with_conditional_registry_facts(registry, tokens, |facts, effective, values| {
         if facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(
                 tcl_registry::hooks::LoweringHookId::Incr,
             )
             || !facts.arg_roles_complete
             || facts.argument_offset != 0
-            || !(2..=3).contains(&words.len())
+            || !(2..=3).contains(&values.len())
         {
             return None;
         }
@@ -55,8 +31,8 @@ pub(crate) fn declaration_increment_advice(
             return None;
         };
         let operand = tokens.words().get(index)?.clone();
-        binding.declaration_variable_operand_advice(registry, tokens, &operand)?;
-        let amount = if words.len() == 2 {
+        binding.declaration_source_variable_operand_advice(registry, tokens, &operand)?;
+        let amount = if values.len() == 2 {
             None
         } else {
             let EffectiveInvocationWord::Literal(value) = values.get(2)? else {
@@ -64,17 +40,8 @@ pub(crate) fn declaration_increment_advice(
             };
             Some(value.clone())
         };
-        if unanimous
-            .as_ref()
-            .is_some_and(|previous: &DeclarationIncrementAdvice| {
-                previous.operand != operand || previous.amount != amount
-            })
-        {
-            return None;
-        }
-        unanimous = Some(DeclarationIncrementAdvice { operand, amount });
-    }
-    unanimous
+        Some(DeclarationIncrementAdvice { operand, amount })
+    })
 }
 
 #[cfg(test)]

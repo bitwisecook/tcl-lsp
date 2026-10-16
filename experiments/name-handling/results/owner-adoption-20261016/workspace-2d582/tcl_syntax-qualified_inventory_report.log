@@ -1,0 +1,7 @@
+
+running 2 tests
+test naming::native::tests::qualified_inventory_report_never_reinterprets_a_flat_separator_spelling ... ok
+test naming::native::tests::qualified_inventory_reports_preserve_constructed_components_and_flat_bytes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 718 filtered out; finished in 0.00s
+

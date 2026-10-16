@@ -616,6 +616,33 @@ impl OriginalSourceDefinitionMemberScriptBody {
     pub fn matches_context(&self, context: &ContextRegistry) -> bool {
         self.parent.matches_context(context)
     }
+    /// Complete original member-body command geometry. Counted source must
+    /// exactly retain the authored content; a partial or cooked body refuses.
+    /// This supplies no entered member, effect closure or normal completion.
+    pub(crate) fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(&self.container)?;
+        (self
+            .container
+            .image()
+            .bytes()
+            .get(self.content.as_range())?
+            == value.as_slice())
+        .then_some(())?;
+        let plan = tcl_lexer::native_script_words_in(
+            self.container.image().clone(),
+            self.content,
+            self.container.config(),
+        )
+        .ok()?;
+        plan.fatal_tail.is_none().then_some(())?;
+        Some(
+            plan.commands
+                .into_iter()
+                .map(|command| command.words)
+                .collect(),
+        )
+    }
+
     /// Original post-keyword body ordinal, preserving wrapper/option offsets.
     #[must_use]
     pub const fn argument(&self) -> usize {
@@ -702,6 +729,7 @@ pub struct OriginalSourceDefinitionMemberRegion {
     context: ResolvedContext,
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     plan: tcl_lexer::NativeScriptWordsPlan,
+    region: Span,
 }
 
 impl OriginalSourceScriptBody {
@@ -741,10 +769,27 @@ impl OriginalSourceScriptBody {
             context: context.context().clone(),
             grammar,
             plan,
+            region: script_region,
         })
     }
 }
 impl OriginalSourceDefinitionMemberRegion {
+    /// Complete original vectors only when the retained lexical plan covers
+    /// the entire genuine parent definition body without a fatal tail.
+    /// An empty complete vector is source coverage, never lifecycle absence.
+    pub(crate) fn complete_original_commands(&self) -> Option<Vec<Vec<NativeWord>>> {
+        // The complete-plan caller must retain the whole parent extent; a
+        // subregion cannot certify the rest of a class definition.
+        let complete = self.region == self.parent.content_span();
+        (complete && self.plan.fatal_tail.is_none()).then_some(())?;
+        Some(
+            self.plan
+                .commands
+                .iter()
+                .map(|command| command.words.clone())
+                .collect(),
+        )
+    }
     /// Complete original argv at its genuine command-head offset in this
     /// retained source region. No fresh segmentation or displayed head is used.
     #[must_use]
@@ -2619,6 +2664,57 @@ mod script_purpose_tests {
             source_script_bodies_for_mutation_coverage(&reference, &context),
             Some(vec![])
         );
+    }
+
+    #[test]
+    fn original_definition_coverage_requires_complete_parent_and_member_plans() {
+        for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+            let source = "oo::class create C {constructor {} { }; method ping {} {}}";
+            let (analysis, parent) = original_definition_parent(source, dialect);
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            let commands = region.complete_original_commands().expect(dialect);
+            assert_eq!(commands.len(), 2);
+            let constructor = region.script_bodies(&commands[0]).unwrap().remove(0);
+            assert_eq!(constructor.complete_original_commands(), Some(Vec::new()));
+            let prefix = parent
+                .definition_member_region(
+                    &context,
+                    Span::new(
+                        parent.content_span().start(),
+                        commands[0].last().unwrap().span().end(),
+                    ),
+                )
+                .unwrap();
+            assert!(prefix.complete_original_commands().is_none(), "{dialect}");
+
+            let (analysis, parent) = original_definition_parent(
+                "oo::class create C {constructor {} { }; \"unterminated}",
+                dialect,
+            );
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            assert!(region.complete_original_commands().is_none(), "{dialect}");
+
+            let (analysis, parent) = original_definition_parent(
+                "oo::class create C {constructor {} {\"unterminated}}",
+                dialect,
+            );
+            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+            let region = parent
+                .definition_member_region(&context, parent.content_span())
+                .unwrap();
+            let command = region.original_commands().next().unwrap();
+            let constructor = region.script_bodies(command).unwrap().remove(0);
+            assert!(
+                constructor.complete_original_commands().is_none(),
+                "{dialect}"
+            );
+        }
     }
 }
 

@@ -452,9 +452,28 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             // body/args/default route through the shared `info` core over the `Procs`
             // role trait; the var-write for `default` stays here (it is trace-aware).
             "body" => match rest {
-                [name] => match tcl_cmd_core::info::body(vm, name) {
-                    Ok(v) => ok(v),
-                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
+                [name] => match tcl_cmd_core::info::body_result(vm, name) {
+                    Ok(tcl_cmd_core::info::BodyResult::Value(value)) => ok(value),
+                    Ok(tcl_cmd_core::info::BodyResult::Original(owner)) => {
+                        let original = match owner.checked_value(vm) {
+                            Ok(original) => original,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
+                        };
+                        let result = vm.adopt_native_interp_result(original);
+                        let finished = owner.finish(vm);
+                        match finished {
+                            Err(error) => crate::command::completion_from_cmd_error(vm, error),
+                            Ok(()) => match result {
+                                Ok(result) => ok(result.into_value()),
+                                Err(error) => {
+                                    crate::command::completion_from_cmd_error(vm, error.into())
+                                }
+                            },
+                        }
+                    }
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 },
                 _ => crate::command::native_wrong_args(vm, "info body procname"),
             },

@@ -29,6 +29,8 @@ discriminating test guidance are in
 | Which command words agree across advisory candidates? | `RegistryInvocationAssistance::unanimous_command_words` | Nonempty closed lookup; every command identity, effective word, origin and frozen prefix agrees; no role or execution authority |
 | Which Logical declaration formals have source usage traits? | `TraitScanEnv::original_logical_body`; `infer_param_traits`; `infer_param_traits_deep`; `caller_frame_upvar_params` | Genuine original procedure/body/formals, exact whole body and full current input/configuration; accepted same-scope named-only source schema; no body entry or Native grant |
 | Which original expression gaps may be removed? | `source_structure::original_expression_gap_compaction` | Current original braced pure finite expression plus independent handler, observer, reflection and token/AST correspondence; issued gap spans only |
+| Which transformed procedure-source operands may a diagnostic inspect? | `declaration_source_operand_layout_advice`; `declaration_source_variable_operand_advice` | Actual current declaration-stamped source attachment, separate Native header and configured source map, complete original vector; conditional symbolic intervals only |
+| What explicit own constructor body is represented? | `OriginalProjectReceiverClass::constructor_body_source_coverage` | Complete original own-definition and selected attempt argv/caller; command-free retained versus explicitly removed body, with inherited/default and operand/getter effects still unknown |
 | Which named-instance labels may a report show? | `OriginalProjectClassCards::named_instance_display_reports`; `NamedInstanceMap::report_rows` | Complete current final source catalogue and genuine instance/class owners; private report mode survives aggregation and grants no receiver lookup |
 | Which scripts does a wrapper execute? | `BodyExecutionSpec::select`; `EvaluatedBodyRegion` | Authored registry grammar, literal operands, proved implementation/provider/hook prerequisites |
 | How are frames, package versions, or namespace imports interpreted? | `DialectProfile` policy accessors; `frame_effect`; release-parameterised version helpers | Selected profile, runtime family, independent numeral/word grammar |
@@ -901,6 +903,22 @@ models `Jim_StringEqObj` with actual same-header identity or checked left then
 right counted String getters. Its caller supplies original-object and operation
 currentness checks; a missing identity or failed getter is terminal. The generic
 `full_native_equality` and character-ordering preparation remain independent.
+
+Transformed-body diagnostic layouts use an actual current-analysis attachment,
+not a successful Native read map. Missing parent inventories or changed final
+state prevent restamping from an inherited cache, and a missing joined
+alternative withdraws the attachment. The configured variant never supplies
+`owns_original_read`, `native_extent`, `NativeBodyRecipe` or Normal intervals.
+Constructor body coverage likewise describes only the represented explicit own
+body; it cannot subtract an unknown read, observer or getter mutation barrier.
+
+Physical Jim `info body` uses the single actual-consumer capsule through
+`body_result`. Call `checked_value(actual)` immediately before the actual setter,
+then `finish(actual)` after publication while retaining the capsule. The setter
+owns the new result before retiring the old one; post-publication validation
+permits legal declaration deletion while preserving first Host/caller/context
+refusal and original result identity. Byte queries and C compatibility retain
+their independent purpose and schedule.
 
 Each consumer requires its own purpose-specific projection. A command-owner
 result does not by itself identify an editable source span, establish a runtime

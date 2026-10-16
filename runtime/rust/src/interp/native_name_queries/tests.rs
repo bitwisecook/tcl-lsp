@@ -710,7 +710,7 @@ mod jim_procedure_namespace_tests {
             panic!("genuine Jim body must retain its original header owner")
         };
         assert_eq!(weak.strong_count(), declaration_transports);
-        assert_eq!(owner.checked_value().unwrap(), original);
+        assert_eq!(owner.checked_value(&mut actual).unwrap(), original);
         assert_eq!(unsafe { (*original).ref_count }, 1);
         assert_eq!(
             actual.rename_command(b"::Holder::p", b""),
@@ -721,7 +721,7 @@ mod jim_procedure_namespace_tests {
             assert_eq!(retired.native_procedure_role_ledger().references(), 0);
         }
         assert!(body_memory.checked_ptr().is_err());
-        let error = owner.checked_value().unwrap_err();
+        let error = owner.checked_value(&mut actual).unwrap_err();
         assert_eq!(
             error.native_execution_refusal(),
             actual.native_execution_refusal().as_ref()
@@ -810,7 +810,7 @@ mod jim_procedure_namespace_tests {
                     actual.register_builtin(b"::Holder::p", builtin);
                 }
             }
-            let error = owner.checked_value().unwrap_err();
+            let error = owner.checked_value(&mut actual).unwrap_err();
             assert_eq!(
                 error.native_execution_refusal(),
                 actual.native_execution_refusal().as_ref()
@@ -881,5 +881,28 @@ mod jim_procedure_namespace_tests {
             assert_eq!(READS.with(|reads| reads.borrow().clone()), b"CC");
             assert!(actual.native_execution_refusal().is_none());
         }
+    }
+    #[test]
+    fn jim_original_body_value_capsule_refuses_a_foreign_actual_consumer() {
+        let mut actual = native("jimtcl");
+        let body = lazy(b'B');
+        let declaration = define(&mut actual, &body);
+        let name = text(b"::Holder::p");
+        let _cleanup = arm(&actual, 0, declaration.namespace());
+        let tcl_cmd_core::info::BodyResult::Original(owner) =
+            tcl_cmd_core::info::body_result(&mut actual, &name.as_ptr()).unwrap()
+        else {
+            panic!("genuine original Jim body");
+        };
+        let mut foreign = native("jimtcl");
+        let error = owner.checked_value(&mut foreign).unwrap_err();
+        assert_eq!(
+            error.native_execution_refusal(),
+            actual.native_execution_refusal().as_ref()
+        );
+        assert!(actual.native_execution_refusal().is_some());
+        assert!(foreign.native_execution_refusal().is_none());
+        assert!(!obj::has_string_rep(body.as_ptr()));
+        assert!(READS.with(|reads| reads.borrow().is_empty()));
     }
 }

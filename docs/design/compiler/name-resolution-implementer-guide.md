@@ -1628,6 +1628,19 @@ rules differ by C Tcl release. Neither host UTF-8 repair nor an authored grammar
 supplies this native formatting authority; Jim uses its separate retained stack
 objects and evaluation state.
 
+For physical Jim `info body`, retain the single
+`OriginalProcedureBodyValue<V, E, O>` returned by `body_result` through the actual
+result setter. Supply the genuine mutable engine at `checked_value(actual)` and
+`finish(actual)` so the capsule checks its actual consumer identity and current
+caller/operation. Runtime and VM retain weak declaration observations and
+allocation memory, without an extra procedure/body role or a body String getter.
+The setter first acquires the new result role, then retires the old result;
+finish must allow legal declaration deletion during retirement while retaining
+the first Host cause and actual result header. Keep full-evaluation entry reset
+separate from direct worker publication controls. A represented refusal is
+terminal; C's byte path and exact missing/nonprocedure diagnostics have separate
+contracts.
+
 ## Preserve source evaluation and lookup boundaries
 
 Original `CommandTokens` retain word shape, lexical origins, nested dispatch sites, and reached variable access contexts. Evaluated argument values are a second carrier. Never replace the original words with those values: the compiler selects from original syntax, while runtime operations consume the already evaluated argv.
@@ -2640,6 +2653,20 @@ their independent meaning. Deep body descent must reuse
 outer formals into a fresh or deferred body. Include overlapping/reordered
 formal, body-prefix, stale-config and nested-frame negatives alongside a genuine
 same-frame positive.
+
+For transformed braced procedure source diagnostics, use
+`declaration_source_operand_layout_advice` and
+`declaration_source_variable_operand_advice`. Preserve the Native header value
+separately from the selected full configuration's original source transform.
+The actual stamp must authenticate current declaration parents, source, metadata,
+configuration, final-state allocation and the complete original command vector;
+a cache hit alone is insufficient. The weak attachment must meet across both
+join alternatives. Canonical whole-body NestedScript planning authenticates
+source commands without inventing an ordinary occurrence across a fold. Only
+conditional declaration intervals consume its symbolic versions; keep old
+Native body/read refusal and Normal interval guards terminal. Test withdrawn
+parent/restamp, changed final state and both unavailable join orders beside the
+unchanged configured source positive.
 
 ## Keep recursive source-driver construction out of retained frames
 
@@ -7432,6 +7459,16 @@ queries. Actual project method colouring keeps its separate typed class-card
 selection and refuses legacy label recovery after a typed refusal. Foreign
 constructor provenance cannot discharge an unknown collection getter's effect
 or lookup obligations.
+
+`OriginalProjectReceiverClass::constructor_body_source_coverage` exposes a
+readonly `OriginalSourceConstructorBodyAttempt` after the actual selected
+constructor/occupancy checks. Its `OriginalSourceConstructorBodyCoverage` retains
+the complete original own-definition, explicit constructor body and current
+immutable factory; caller and declaring inputs remain separate. Preserve counted
+`{ }` command-free retention versus `{}` explicit removal. Unknown member or
+configuration coverage, inherited/default chains and arbitrary constructor
+commands remain unavailable. Do not use this report to clear an original
+variable-read, operand-observer or following collection-getter lookup barrier.
 
 ### Readonly resident name labels
 

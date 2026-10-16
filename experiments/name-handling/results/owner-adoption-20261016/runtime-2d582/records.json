@@ -1,0 +1,16 @@
+[
+  {
+    "source_head": "2d5823c90bf13853e20541e22a2b29258cc0ea2f",
+    "ordinary": true,
+    "binary_sha256": "dd6b8c3619c8bd66f0783b62c9044dfb8d56452a258d710e86554a2277b1006a",
+    "source_status": "",
+    "selector": "interp::native_variable_names::",
+    "passed": 43,
+    "failed": 0,
+    "ignored": 0,
+    "status": "PASS",
+    "log": "native-variable-names.log",
+    "log_sha256": "c4e9f3b6e9ca0974c21b2795596a260e231f61ebf3ccdb63245b4759ad4b0d2f",
+    "scope": "Selected Runtime variable group only; unsupported Jim setup printed results retained; no whole-suite or issue acceptance."
+  }
+]

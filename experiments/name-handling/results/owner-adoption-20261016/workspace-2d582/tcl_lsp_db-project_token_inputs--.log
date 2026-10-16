@@ -1,0 +1,82 @@
+
+running 15 tests
+test project_token_inputs::tests::project_class_collection_display_keeps_original_container_and_receiver_paths ... 
+thread 'project_token_inputs::tests::project_class_collection_display_keeps_original_container_and_receiver_paths' (83236) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:738:13:
+assertion `left == right` failed: tcl: oo::class create C {method ping {} {}}; dict set values key [C new]; [dict get $values key] ping
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test project_token_inputs::tests::project_class_collection_display_retains_foreign_getter_unknown_barrier ... ok
+test project_token_inputs::tests::project_class_collection_field_display_uses_original_declaration_and_receiver_side ... 
+thread 'project_token_inputs::tests::project_class_collection_field_display_uses_original_declaration_and_receiver_side' (83257) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:816:13:
+assertion `left == right` failed: tcl: oo::class create C {method ping {} {}}; oo::class create Cache {variable values; constructor {} {dict set values key [C new]}; method read {} {[dict get $values key] ping}}
+  left: false
+ right: true
+FAILED
+test project_token_inputs::tests::project_class_display_does_not_recover_refused_receipts_from_report_maps ... 
+thread 'project_token_inputs::tests::project_class_display_does_not_recover_refused_receipts_from_report_maps' (83286) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:641:9:
+assertion failed: is_method(&semantic_tokens_project_for_inputs(&db, caller, project),
+    "[C new] ping", "ping")
+FAILED
+test project_token_inputs::tests::project_class_display_keeps_original_factory_and_named_instance_cards ... 
+thread 'project_token_inputs::tests::project_class_display_keeps_original_factory_and_named_instance_cards' (83298) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:573:13:
+tcl: [::C new] ping
+FAILED
+test project_token_inputs::tests::project_class_foreign_equal_content_unknown_inventory_stays_terminal ... 
+thread 'project_token_inputs::tests::project_class_foreign_equal_content_unknown_inventory_stays_terminal' (83302) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:905:9:
+tcl: caller-only later unknown is not an earlier lookup mutation
+FAILED
+test project_token_inputs::tests::project_class_inherited_display_does_not_collapse_distinct_equal_content_files ... 
+thread 'project_token_inputs::tests::project_class_inherited_display_does_not_collapse_distinct_equal_content_files' (83303) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:845:9:
+tcl: one foreign Base
+FAILED
+test project_token_inputs::tests::project_configurable_display_preserves_cross_file_factory_positive ... 
+thread 'project_token_inputs::tests::project_configurable_display_preserves_cross_file_factory_positive' (83305) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:674:5:
+assertion failed: is_method(&semantic_tokens_project_for_inputs(&db, caller, project), source,
+    "configure")
+FAILED
+test project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers ... 
+thread 'project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers' (83306) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:492:9:
+assertion failed: is_variable(&semantic_tokens_project_for_inputs(&db, caller, project),
+    "reader FIRST retained", "retained")
+FAILED
+test project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals ... 
+thread 'project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals' (83308) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:446:13:
+assertion `left == right` failed: tcl: reader retained
+  left: false
+ right: true
+FAILED
+test project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels ... ok
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... 
+thread 'project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable' (83325) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:225:5:
+assertion failed: !project_proc_var_index_for_inputs(&db, project).is_empty()
+FAILED
+test project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability ... 
+thread 'project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability' (83326) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:83:5:
+the actual library role is retained
+FAILED
+test project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping ... 
+thread 'project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping' (83328) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:303:5:
+assertion failed: !facts.named_instances.is_empty()
+FAILED
+test project_token_inputs::tests::supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits ... ok
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_class_collection_display_keeps_original_container_and_receiver_paths
+    project_token_inputs::tests::project_class_collection_field_display_uses_original_declaration_and_receiver_side
+    project_token_inputs::tests::project_class_display_does_not_recover_refused_receipts_from_report_maps
+    project_token_inputs::tests::project_class_display_keeps_original_factory_and_named_instance_cards
+    project_token_inputs::tests::project_class_foreign_equal_content_unknown_inventory_stays_terminal
+    project_token_inputs::tests::project_class_inherited_display_does_not_collapse_distinct_equal_content_files
+    project_token_inputs::tests::project_configurable_display_preserves_cross_file_factory_positive
+    project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers
+    project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals
+    project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+    project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability
+    project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping
+
+test result: FAILED. 3 passed; 12 failed; 0 ignored; 0 measured; 180 filtered out; finished in 19.39s
+

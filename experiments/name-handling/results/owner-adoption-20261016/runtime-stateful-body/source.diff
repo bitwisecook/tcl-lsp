@@ -1,0 +1,250 @@
+diff --git a/runtime/rust/src/cmd_info.rs b/runtime/rust/src/cmd_info.rs
+index 665d3f3ad..840e7bcc3 100644
+--- a/runtime/rust/src/cmd_info.rs
++++ b/runtime/rust/src/cmd_info.rs
+@@ -324,14 +324,13 @@ fn info_cmd_original(
+                 scope,
+             } => {
+                 if let Some(script) = protocol.literal_script(name) {
+-                    let namespace =
+-                        match crate::interp::OriginalJimLookupNamespace::capture(
+-                            interp,
+-                            interp.current_ns(),
+-                        ) {
+-                            Ok(namespace) => namespace,
+-                            Err(error) => return interp.report_cmd_error(error.into()),
+-                        };
++                    let namespace = match crate::interp::OriginalJimLookupNamespace::capture(
++                        interp,
++                        interp.current_ns(),
++                    ) {
++                        Ok(namespace) => namespace,
++                        Err(error) => return interp.report_cmd_error(error.into()),
++                    };
+                     if let Err(error) = namespace.check_current_arguments(interp, arguments) {
+                         return interp.report_cmd_error(error);
+                     }
+@@ -1093,12 +1092,12 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+             Code::Ok
+         }
+         Ok(tcl_cmd_core::info::BodyResult::Original(owner)) => {
+-            let original = match owner.checked_value() {
++            let original = match owner.checked_value(interp) {
+                 Ok(original) => original,
+                 Err(error) => return interp.report_cmd_error(error),
+             };
+             interp.set_result(original);
+-            match owner.finish() {
++            match owner.finish(interp) {
+                 Ok(()) => Code::Ok,
+                 Err(error) => interp.report_cmd_error(error),
+             }
+diff --git a/runtime/rust/src/interp/native_name_queries.rs b/runtime/rust/src/interp/native_name_queries.rs
+index 32478c4f5..5845139d2 100644
+--- a/runtime/rust/src/interp/native_name_queries.rs
++++ b/runtime/rust/src/interp/native_name_queries.rs
+@@ -308,12 +308,18 @@ struct OriginalProcedureBodyResult {
+     namespace: ProcedureQueryNamespace,
+     body: NativeObjectLifetime,
+ }
+-impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError>
++impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError, Interp>
+     for OriginalProcedureBodyResult
+ {
+-    fn checked_value(&self) -> Result<*mut TclObj, CmdError> {
++    fn checked_value(&self, consumer: &mut Interp) -> Result<*mut TclObj, CmdError> {
+         let reached = (|| {
+             self.operand.check()?;
++            if !Rc::ptr_eq(&consumer.0, &self.operand.actual.0) {
++                return Err(ValueError::CommandProtocolUnavailable(
++                    "foreign original body-result consumer",
++                )
++                .into());
++            }
+             let actual = &self.operand.actual;
+             let declaration =
+                 self.declaration
+@@ -351,8 +357,14 @@ impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError>
+         })();
+         reached.map_err(|error| self.operand.arguments.retain_refusal(error))
+     }
+-    fn finish(self: Box<Self>) -> Result<(), CmdError> {
++    fn finish(self: Box<Self>, consumer: &mut Interp) -> Result<(), CmdError> {
+         self.operand.check()?;
++        if !Rc::ptr_eq(&consumer.0, &self.operand.actual.0) {
++            return Err(self.operand.arguments.retain_refusal(
++                ValueError::CommandProtocolUnavailable("foreign original body-result consumer")
++                    .into(),
++            ));
++        }
+         let original = self
+             .body
+             .checked_ptr()
+@@ -414,7 +426,7 @@ impl Interp {
+     pub(crate) fn original_proc_body_value_query(
+         &mut self,
+         original: *mut TclObj,
+-    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<*mut TclObj, CmdError>, CmdError> {
++    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<*mut TclObj, CmdError, Interp>, CmdError> {
+         let operand = OriginalProcedureBodyOperand::enter(self, original)?;
+         let query = operand
+             .select(self)
+@@ -443,7 +455,7 @@ impl Interp {
+             namespace,
+             body,
+         };
+-        tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result)?;
++        tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result, self)?;
+         Ok(tcl_runtime_api::ProcBodyValueQuery::Body(Box::new(result)))
+     }
+ 
+diff --git a/runtime/rust/src/interp/native_name_queries/tests.rs b/runtime/rust/src/interp/native_name_queries/tests.rs
+index 0156e6fed..9ca5c7af9 100644
+--- a/runtime/rust/src/interp/native_name_queries/tests.rs
++++ b/runtime/rust/src/interp/native_name_queries/tests.rs
+@@ -710,7 +710,7 @@ mod jim_procedure_namespace_tests {
+             panic!("genuine Jim body must retain its original header owner")
+         };
+         assert_eq!(weak.strong_count(), declaration_transports);
+-        assert_eq!(owner.checked_value().unwrap(), original);
++        assert_eq!(owner.checked_value(&mut actual).unwrap(), original);
+         assert_eq!(unsafe { (*original).ref_count }, 1);
+         assert_eq!(
+             actual.rename_command(b"::Holder::p", b""),
+@@ -721,7 +721,7 @@ mod jim_procedure_namespace_tests {
+             assert_eq!(retired.native_procedure_role_ledger().references(), 0);
+         }
+         assert!(body_memory.checked_ptr().is_err());
+-        let error = owner.checked_value().unwrap_err();
++        let error = owner.checked_value(&mut actual).unwrap_err();
+         assert_eq!(
+             error.native_execution_refusal(),
+             actual.native_execution_refusal().as_ref()
+@@ -810,7 +810,7 @@ mod jim_procedure_namespace_tests {
+                     actual.register_builtin(b"::Holder::p", builtin);
+                 }
+             }
+-            let error = owner.checked_value().unwrap_err();
++            let error = owner.checked_value(&mut actual).unwrap_err();
+             assert_eq!(
+                 error.native_execution_refusal(),
+                 actual.native_execution_refusal().as_ref()
+@@ -882,4 +882,27 @@ mod jim_procedure_namespace_tests {
+             assert!(actual.native_execution_refusal().is_none());
+         }
+     }
++    #[test]
++    fn jim_original_body_value_capsule_refuses_a_foreign_actual_consumer() {
++        let mut actual = native("jimtcl");
++        let body = lazy(b'B');
++        let declaration = define(&mut actual, &body);
++        let name = text(b"::Holder::p");
++        let _cleanup = arm(&actual, 0, declaration.namespace());
++        let tcl_cmd_core::info::BodyResult::Original(owner) =
++            tcl_cmd_core::info::body_result(&mut actual, &name.as_ptr()).unwrap()
++        else {
++            panic!("genuine original Jim body");
++        };
++        let mut foreign = native("jimtcl");
++        let error = owner.checked_value(&mut foreign).unwrap_err();
++        assert_eq!(
++            error.native_execution_refusal(),
++            actual.native_execution_refusal().as_ref()
++        );
++        assert!(actual.native_execution_refusal().is_some());
++        assert!(foreign.native_execution_refusal().is_none());
++        assert!(!obj::has_string_rep(body.as_ptr()));
++        assert!(READS.with(|reads| reads.borrow().is_empty()));
++    }
+ }
+diff --git a/runtime/rust/src/state_traits.rs b/runtime/rust/src/state_traits.rs
+index 96214e294..07d0fc4af 100644
+--- a/runtime/rust/src/state_traits.rs
++++ b/runtime/rust/src/state_traits.rs
+@@ -732,7 +732,7 @@ impl Procs for Interp {
+         &mut self,
+         original: &Self::Value,
+     ) -> Result<
+-        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError>>,
++        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
+         Self::OperationError,
+     > {
+         if self
+diff --git a/rust/tcl-cmd-core/src/info.rs b/rust/tcl-cmd-core/src/info.rs
+index 48d512074..17fafedf7 100644
+--- a/rust/tcl-cmd-core/src/info.rs
++++ b/rust/tcl-cmd-core/src/info.rs
+@@ -120,11 +120,11 @@ where
+ }
+ 
+ /// A byte-compatible value or an original header retained through publication.
+-pub enum BodyResult<V, E> {
++pub enum BodyResult<V, E, O: ?Sized> {
+     /// Result constructed by the existing byte-compatible adapter.
+     Value(V),
+     /// Actual original body header; publish while this owner is still alive.
+-    Original(Box<dyn tcl_runtime_api::OriginalProcedureBodyValue<V, E>>),
++    Original(Box<dyn tcl_runtime_api::OriginalProcedureBodyValue<V, E, O>>),
+ }
+ 
+ /// Select the actual original body-result owner before explicit byte compatibility.
+@@ -132,7 +132,7 @@ pub enum BodyResult<V, E> {
+ pub fn body_result<O, V>(
+     ops: &mut O,
+     name: &V,
+-) -> Result<BodyResult<V, O::OperationError>, CmdError>
++) -> Result<BodyResult<V, O::OperationError, O>, CmdError>
+ where
+     O: ValueOps<Value = V> + Procs,
+     O::OperationError: Into<CmdError>,
+diff --git a/rust/tcl-runtime-api/src/lib.rs b/rust/tcl-runtime-api/src/lib.rs
+index 3a88a1fbb..b97e1a719 100644
+--- a/rust/tcl-runtime-api/src/lib.rs
++++ b/rust/tcl-runtime-api/src/lib.rs
+@@ -2220,8 +2220,10 @@ pub trait Procs: tcl_syntax::value::ValueOps {
+     fn proc_body_original_value(
+         &mut self,
+         _original: &Self::Value,
+-    ) -> Result<Option<ProcBodyValueQuery<Self::Value, Self::OperationError>>, Self::OperationError>
+-    {
++    ) -> Result<
++        Option<ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
++        Self::OperationError,
++    > {
+         Ok(None)
+     }
+ 
+@@ -2266,12 +2268,14 @@ pub trait Procs: tcl_syntax::value::ValueOps {
+ /// Checked borrowed body header without an extra native object or procedure role.
+ /// The issuer preserves allocation safety and original operation currency until
+ /// the consumer's actual result setter acquires its own result reference.
+-pub trait OriginalProcedureBodyValue<V, E> {
++/// The actual consumer is supplied at each frontier so stateful adapters can
++/// revalidate the same caller without retaining a pointer to a movable engine.
++pub trait OriginalProcedureBodyValue<V, E, O: ?Sized> {
+     /// Borrow the original header immediately before its actual result publication.
+     ///
+     /// # Errors
+     /// Refuses stale allocation, declaration, caller or original operation state.
+-    fn checked_value(&self) -> Result<V, E>;
++    fn checked_value(&self, actual: &mut O) -> Result<V, E>;
+ 
+     /// Finish after actual publication, then release only allocation transports.
+     /// A legal old-result callback can delete the queried declaration; this
+@@ -2279,13 +2283,13 @@ pub trait OriginalProcedureBodyValue<V, E> {
+     ///
+     /// # Errors
+     /// Retains the first Host cause or changed original operation/caller state.
+-    fn finish(self: Box<Self>) -> Result<(), E>;
++    fn finish(self: Box<Self>, actual: &mut O) -> Result<(), E>;
+ }
+ 
+ /// Original body query outcome, distinct from a freshly constructed byte report.
+-pub enum ProcBodyValueQuery<V, E> {
++pub enum ProcBodyValueQuery<V, E, O: ?Sized> {
+     /// Actual original header and its allocation/currentness transport.
+-    Body(Box<dyn OriginalProcedureBodyValue<V, E>>),
++    Body(Box<dyn OriginalProcedureBodyValue<V, E, O>>),
+     /// Original diagnostic spelling; diagnostic producer selection is independent.
+     NotProcedure(Vec<u8>),
+ }

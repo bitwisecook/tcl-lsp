@@ -34,6 +34,17 @@ pub(crate) struct OriginalProjectClassCells {
     complete: bool,
 }
 impl OriginalProjectClassCells {
+    pub(crate) fn has_complete_class_source_coverage(
+        &self,
+        class: &OriginalSourceClassDeclaration,
+    ) -> bool {
+        self.complete
+            && self.cells.iter().any(|(_, cell)| {
+                matches!(cell, ProjectClassCell::Class(current)
+                if std::ptr::eq(current.factory(), class.factory()))
+            })
+    }
+
     pub(crate) fn new(
         image: SourceImage,
         config: LexerConfig,
@@ -75,6 +86,7 @@ impl OriginalProjectClassCells {
 struct ClassCard {
     factory: OriginalSourceClassDeclaration,
     metadata: ClassDef,
+    constructor_body: Option<crate::command_binding::OriginalSourceConstructorBodyCoverage>,
     members: crate::analyser::class_hierarchy::original_metadata::OriginalInstanceClassMetadata,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,8 +201,19 @@ pub struct OriginalProjectReceiverClass {
     hierarchy: crate::analyser::ClassHierarchy,
     method: NativeWord,
     collection: Option<crate::object_types::OriginalObjectCollectionSourceCandidates>,
+    constructor_body: Option<crate::command_binding::OriginalSourceConstructorBodyAttempt>,
 }
 impl OriginalProjectReceiverClass {
+    /// Actual selected original construction attempt and its independent own
+    /// constructor-body coverage, when represented. It grants no inherited or
+    /// default chain closure, operand observer effect, unchanged getter lookup,
+    /// Native entry, allocated instance or normal completion.
+    #[must_use]
+    pub const fn constructor_body_source_coverage(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalSourceConstructorBodyAttempt> {
+        self.constructor_body.as_ref()
+    }
     /// Actual collection source association, when this is an element hint.
     /// The retained source union explicitly preserves unknown contents.
     #[must_use]
@@ -264,6 +287,7 @@ fn capture_class(
     Some(ClassCard {
         factory: factory.clone(),
         metadata: members.metadata().clone(),
+        constructor_body: factory.constructor_body_source_coverage(analysis),
         members,
     })
 }
@@ -340,6 +364,7 @@ fn finish(
         hierarchy,
         method: method.clone(),
         collection: None,
+        constructor_body: None,
     })
 }
 
@@ -550,7 +575,13 @@ fn constructor_receiver_class(
             .name_input()
             .native_input()
             .map(|input| input.policy());
-        return finish(class, input, policy, input, &final_cards, providers, method);
+        let constructor_body = class
+            .constructor_body
+            .as_ref()
+            .and_then(|coverage| coverage.for_source_attempt(analysis, lookup_words));
+        let mut selected = finish(class, input, policy, input, &final_cards, providers, method)?;
+        selected.constructor_body = constructor_body;
+        return Some(selected);
     }
     let selected = selected_row(source, analysis, lookup_offset, lookup_words, providers)?;
     selected.1.instance.is_none().then_some(())?;
@@ -567,7 +598,11 @@ fn constructor_receiver_class(
         None,
     )?;
     (lookup_words.len().checked_sub(1)? >= shape.constructor_args_from()).then_some(())?;
-    finish(
+    let constructor_body = class
+        .constructor_body
+        .as_ref()
+        .and_then(|coverage| coverage.for_source_attempt(analysis, lookup_words));
+    let mut receiver = finish(
         class.clone(),
         input,
         selected.0.cells.policy,
@@ -575,7 +610,9 @@ fn constructor_receiver_class(
         selected.0,
         providers,
         method,
-    )
+    )?;
+    receiver.constructor_body = constructor_body;
+    Some(receiver)
 }
 
 fn selected_row<'a>(
@@ -1096,6 +1133,145 @@ mod tests {
                 "tcl9.0"
             };
             assert!(receiver("[C new] ping", other, &providers).is_none());
+        }
+    }
+
+    #[test]
+    fn project_constructor_body_coverage_retains_actual_explicit_source_attempt() {
+        use crate::command_binding::OriginalSourceConstructorBodyDisposition as D;
+        for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+            let library_source = "oo::class create C {constructor {} { }; method ping {} {}}";
+            let library = cards(library_source, dialect);
+            let selected = receiver("[C new] ping", dialect, &[library]).expect(dialect);
+            assert!(selected.provides_method(), "{dialect}");
+            let attempt = selected.constructor_body_source_coverage().expect(dialect);
+            assert_eq!(attempt.original_words().len(), 2);
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(
+                    &attempt.original_words()[0]
+                ),
+                Some(b"C".to_vec()),
+            );
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(
+                    &attempt.original_words()[1]
+                ),
+                Some(b"new".to_vec()),
+            );
+            assert_eq!(attempt.original_words()[0].image().bytes(), b"[C new] ping");
+            let coverage = attempt.body_coverage();
+            assert_eq!(coverage.disposition(), D::CommandFreeRetainedBody);
+            assert_eq!(coverage.original_members().len(), 2);
+            assert_eq!(
+                coverage
+                    .definition_body()
+                    .original_container()
+                    .image()
+                    .bytes(),
+                library_source.as_bytes()
+            );
+            let body = coverage.constructor_body();
+            assert_eq!(body.original_words().len(), 3);
+            assert_eq!(
+                body.original_container()
+                    .image()
+                    .bytes()
+                    .get(body.content_span().as_range()),
+                Some(b" ".as_slice())
+            );
+            assert_eq!(
+                coverage.declaring_input().has_logical_source_name_context(),
+                dialect == "tcl"
+            );
+            assert_eq!(
+                attempt.caller_input().has_logical_source_name_context(),
+                dialect == "tcl"
+            );
+
+            let removed = receiver(
+                "[C new] ping",
+                dialect,
+                &[cards(
+                    "oo::class create C {constructor {} {}; method ping {} {}}",
+                    dialect,
+                )],
+            )
+            .expect(dialect);
+            assert_eq!(
+                removed
+                    .constructor_body_source_coverage()
+                    .expect(dialect)
+                    .body_coverage()
+                    .disposition(),
+                D::ExplicitlyRemoved
+            );
+            // An actual move keeps the selected immutable factory; it does not
+            // turn the empty-body removal report into a default-chain proof.
+            let moved = receiver(
+                "[D new] ping",
+                dialect,
+                &[cards(
+                    "oo::class create C {constructor {} { }; method ping {} {}}; rename C D",
+                    dialect,
+                )],
+            )
+            .expect(dialect);
+            assert_eq!(
+                moved
+                    .constructor_body_source_coverage()
+                    .expect(dialect)
+                    .body_coverage()
+                    .disposition(),
+                D::CommandFreeRetainedBody
+            );
+        }
+    }
+
+    #[test]
+    fn project_constructor_body_coverage_preserves_missing_mro_and_effect_barriers() {
+        for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+            for library_source in [
+                // No constructor is not a demonstrated default body.
+                "oo::class create C {method ping {} {}}",
+                "oo::class create C {constructor {} {unknown_effect}; method ping {} {}}",
+                "oo::class create C {constructor {} {set local 1}; method ping {} {}}",
+                "oo::class create Base {constructor {} { }}; oo::class create C {superclass Base; method ping {} {}}",
+                "oo::class create Base {}; oo::class create C {superclass Base; constructor {} { }; method ping {} {}}",
+                "oo::class create C {constructor {} { }; method ping {} {}}; oo::define C constructor {} {unknown_effect}",
+                "oo::class create C {constructor {} { }; method ping {} {}}; unknown_effect",
+                "oo::class create C {constructor {} { }; method ping {} {}}; rename C {}; oo::class create C {method ping {} {}}",
+            ] {
+                let selected = receiver("[C new] ping", dialect, &[cards(library_source, dialect)]);
+                assert!(
+                    selected
+                        .as_ref()
+                        .and_then(|selected| selected.constructor_body_source_coverage())
+                        .is_none(),
+                    "{dialect}: {library_source}"
+                );
+            }
+            let source = "oo::class create C {constructor {} { }; method ping {} {}}";
+            let analysis = Analyser::new().analyse(source, dialect);
+            let class =
+                super::super::source_class_declaration_at(source, &analysis, 0).expect(dialect);
+            assert!(class.constructor_body_source_coverage(&analysis).is_some());
+            let mut stale = analysis.clone();
+            stale.resolved_input = Some(
+                Analyser::new()
+                    .analyse(source, if dialect == "tcl" { "tcl9.0" } else { "tcl" })
+                    .resolved_input
+                    .unwrap(),
+            );
+            assert!(
+                class.constructor_body_source_coverage(&stale).is_none(),
+                "{dialect}"
+            );
+            let changed =
+                Analyser::new().analyse(&source.replace("{ }", "{unknown_effect}"), dialect);
+            assert!(
+                class.constructor_body_source_coverage(&changed).is_none(),
+                "{dialect}"
+            );
         }
     }
 }

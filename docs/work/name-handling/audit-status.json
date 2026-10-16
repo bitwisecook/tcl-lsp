@@ -401,7 +401,7 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T10:58:06.018204+00:00",
+    "utc": "2026-10-16T11:17:51.297115+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
     "implemented_pending_validation": 98,
@@ -409,15 +409,19 @@
     "not_started": 2060,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
-      "Physical VM body result caller remains explicit annex obligation; original physical producer exists, stateful capsule transport still required.",
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
       "Foreign constructor/collection unknown-mutation transport remains open within the existing baseline caller.",
-      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance."
+      "MCP empty-pool candidates remain an existing validation obligation; decoder adoption gives no acceptance.",
+      "VM original physical body success transport is integrated, unexecuted; missing/nonprocedure diagnostics and broader dispatch parity remain independently open."
     ],
     "latest_scoped_build": {
-      "status": "FAIL4_NEW_TEST_SCOPE_ERRORS",
-      "log": "/tmp/naming-workspace-build-reviewed-successor.log",
-      "repair": "Moved new named-instance report control into its existing module containing Analyser and token_kind_at; unchanged assertions/inputs. Fresh build pending."
+      "status": "PASS",
+      "source": "2d5823c90 + semantically identical DB identity assertions requiring no Debug",
+      "log": "/tmp/naming-workspace-build-2d582-test-debug-fixed.log",
+      "seconds": 129,
+      "packages": 7,
+      "source_diff_sha256": "0c05bb80fab4de5aed75cdd311bcb34c0492df25ccae0b1a0ab949f6c356a377",
+      "current_successor": "Runtime stateful original body API build running; workspace successor not yet built."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -609,6 +613,14 @@
         "structural_errors": 3403,
         "log": "experiments/name-handling/results/owner-adoption-20261016/proof-reviewed-successor/check.log",
         "scope": "Availability/source consistency improved; required gate still red."
+      },
+      "availability_diagnostic": {
+        "structural_errors": 2291,
+        "missing_files": 0,
+        "unbound_annotations": 0,
+        "log": "experiments/name-handling/results/owner-adoption-20261016/proof-availability-restored/check.log",
+        "gate_acceptance": false,
+        "limitation": "Source integrations occurred during the run. A stable-source full gate rerun remains necessary."
       }
     },
     "additional_facet_review": {
@@ -619,13 +631,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 25,
-      "implemented_pending_validation": 24,
-      "not_integrated": 1,
+      "required": 28,
+      "implemented_pending_validation": 28,
+      "not_integrated": 0,
       "verified_complete": 0
     },
-    "effective_required_units": 2183,
-    "effective_implemented_pending_validation": 122,
+    "effective_required_units": 2186,
+    "effective_implemented_pending_validation": 126,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "rust": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
@@ -642,6 +654,25 @@
       "PASS": 164,
       "FAIL": 79,
       "NO_TESTS": 1
+    },
+    "runtime_variable_group": {
+      "PASS": 43,
+      "FAIL": 0,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-2d582/records.json",
+      "ordinary": true
+    },
+    "runtime_stateful_body": {
+      "PASS": 60,
+      "FAIL": 0,
+      "ordinary": true,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/runtime-stateful-body/records.json"
+    },
+    "workspace_2d582": {
+      "PASS": 109,
+      "FAIL": 30,
+      "zero_test_runs": 0,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/workspace-2d582/records.json",
+      "scope": "Selected groups only; not the same cohort as workspace-1e5. VM cmd_namespace57PASS; collision2PASS; new trait/navigation/report/pure positives remain red."
     }
   }
 }

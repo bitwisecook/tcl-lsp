@@ -1,0 +1,41 @@
+{
+  "proof_ids": [
+    "naming.embedding.original-host-publication-and-fact-transport",
+    "naming.database.original-callback-future-lookup"
+  ],
+  "change_scope": {
+    "test_bindings_added": [
+      "interp::native_original_lookup::tests::original_lookup_checks_namespace_world_after_the_reached_formatter_query",
+      "interp::native_original_lookup::tests::original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_query",
+      "interp::native_original_lookup::tests::original_jim_materialisation_checks_the_independent_lookup_operand_before_string_or_token"
+    ],
+    "owner_binding_replaced_in": "naming.database.original-callback-future-lookup",
+    "owner_binding_replaced": {
+      "from": {
+        "path": "rust/tcl-lsp-db/src/lib.rs",
+        "symbol": "callback_arity_diagnostic"
+      },
+      "to": {
+        "path": "rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs",
+        "symbol": "SourceCallbackAritySubject::from_selected_signatures"
+      }
+    },
+    "unchanged_fields": [
+      "provider status/answers",
+      "result evidence objects and SHA-256 values",
+      "source anchors and hashes",
+      "replay command/limitations",
+      "all pre-existing test/owner bindings"
+    ]
+  },
+  "provenance_check": {
+    "source": "experiments/name-handling/results/owner-adoption-20261016/workspace-1e5/records.json and vm-interp--native_original_lookup--tests.log",
+    "recorded_selector": "interp::native_original_lookup::tests",
+    "recorded_result": "5 PASS, 0 FAIL, 1369 filtered out",
+    "recorded_source_head": "1e5dfbdb0187f02f85bd114e93d94a4d9a29814b",
+    "match_to_three_added_selectors": false,
+    "reason": "The exact five names in the retained 1e5 log are different. That run cannot be attributed to these three tests; no execution result is added or implied."
+  },
+  "integration_command": "python3 scripts/dev/update-name-resolution-proof-index.py --records /tmp/proof-structural-repair-records.json --replace --render",
+  "writes_by_this_preparer": "Only /tmp/proof-structural-repair-records.json and /tmp/proof-structural-repair-report.json"
+}

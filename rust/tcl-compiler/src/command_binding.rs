@@ -153,12 +153,13 @@ pub use source_transition_advice::{
     OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
-    OriginalSourceConstructorCall, OriginalSourceConstructorShape,
-    OriginalSourceInterpreterHandleBody, OriginalSourceInterpreterPathBinding,
-    OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
-    OriginalSourceProcedurePublications, OriginalSourceProducedCommandPrefix,
-    OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
-    OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
+    OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
+    OriginalSourceConstructorBodyDisposition, OriginalSourceConstructorCall,
+    OriginalSourceConstructorShape, OriginalSourceInterpreterHandleBody,
+    OriginalSourceInterpreterPathBinding, OriginalSourceProcedureCandidate,
+    OriginalSourceProcedurePublication, OriginalSourceProcedurePublications,
+    OriginalSourceProducedCommandPrefix, OriginalSourceRegisteredHandleBinding,
+    OriginalSourceRegisteredInstance, OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
     SourceCommandTransitionObligation,
 };
 pub(crate) use source_transition_advice::{
@@ -1249,6 +1250,8 @@ pub struct SourceInvocationBinding {
     pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
     original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
     original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
+    original_source_operand_attachment:
+        Option<declaration_preview::OriginalDeclarationSourceOperandAttachment>,
     original_authored_source_body_scope:
         Option<Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
     original_native_source_command:
@@ -1533,6 +1536,7 @@ impl Default for SourceInvocationBinding {
             compiler_lookup_state: None,
             original_logical_source_advice: None,
             original_analysis_owner: None,
+            original_source_operand_attachment: None,
             original_authored_source_body_scope: None,
             original_native_source_command: None,
             declaration_layout_observations: None,
@@ -2186,6 +2190,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_source_operand_attachment != other.original_source_operand_attachment {
+            self.original_source_operand_attachment = None;
+        }
         if self.original_analysis_owner != other.original_analysis_owner {
             self.original_analysis_owner = None;
         }
@@ -3450,6 +3457,9 @@ pub(crate) struct OriginalSourceAnalysisOwner {
     registered_instance_sources: std::sync::OnceLock<
         std::sync::Weak<original_name_value::OriginalRegisteredInstanceSourceCache>,
     >,
+    source_operand_layouts: std::sync::OnceLock<
+        std::sync::Weak<declaration_preview::OriginalDeclarationSourceOperandCache>,
+    >,
 }
 impl PartialEq for OriginalSourceAnalysisOwner {
     fn eq(&self, other: &Self) -> bool {
@@ -3486,6 +3496,8 @@ pub struct SourceCommandBindings {
     // Equality and execution identity remain independent of cache warmth.
     original_registered_instance_sources:
         Arc<original_name_value::OriginalRegisteredInstanceSourceCache>,
+    original_source_operand_layouts:
+        Arc<declaration_preview::OriginalDeclarationSourceOperandCache>,
     declaration_preview_depth: usize,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     lexer_config: Option<tcl_lexer::LexerConfig>,
@@ -6831,6 +6843,7 @@ impl SourceCommandBindings {
                 metadata: state.baseline.metadata_context.clone(),
                 config,
                 registered_instance_sources: std::sync::OnceLock::new(),
+                source_operand_layouts: std::sync::OnceLock::new(),
             })
         });
         let namespace_key = frame
@@ -6897,6 +6910,7 @@ impl SourceCommandBindings {
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
         bindings.retain_logical_receiver_source_catalogues(config, registry);
+        bindings.retain_original_declaration_source_operand_layouts(registry);
         if let Some(key) = memo_key {
             source_analysis_cache::retain(key, &bindings);
         }
@@ -7896,6 +7910,13 @@ impl SourceCommandBindings {
                 .map(|(_, binding)| binding),
         ) {
             binding.original_analysis_owner = self.original_analysis_owner.clone();
+            binding.original_source_operand_attachment = None;
+        }
+        // This attachment authenticates the actual current declaration inventory;
+        // a cloned analysis with withdrawn rows cannot reuse a derived cache.
+        let attachment = self.original_declaration_source_operand_attachment(tokens);
+        if let Some(binding) = &mut tokens.source_binding {
+            binding.original_source_operand_attachment = attachment;
         }
     }
 
@@ -8079,6 +8100,7 @@ impl SourceCommandBindings {
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
         bindings.retain_logical_receiver_source_catalogues(config, registry);
+        bindings.retain_original_declaration_source_operand_layouts(registry);
         Some(bindings)
     }
 
@@ -12623,6 +12645,7 @@ fn source_binding_projection_in(
         original_logical_source_advice: None,
         original_authored_source_body_scope: None,
         original_analysis_owner: None,
+        original_source_operand_attachment: None,
         original_native_source_command: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,

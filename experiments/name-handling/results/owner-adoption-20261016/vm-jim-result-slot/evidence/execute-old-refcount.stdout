@@ -1,0 +1,8 @@
+VERSION|0.84-9-g5bac7c9
+DEFINE|code=0|body_refs=2|body_getters=0|body_string=0
+ROW|PRIMITIVE_COLD|code=0|same_body=1|body_string=0|body_type=physicalBodyOriginal|body_refs=2|body_getters=0|name_string=1|name_type=command
+ROW|PRIMITIVE_WARM|code=0|same_body=1|body_string=0|body_type=physicalBodyOriginal|body_refs=2|body_getters=0|name_string=0|name_type=command
+ROW|FULL_EVAL|code=0|same_body=1|body_string=0|body_type=physicalBodyOriginal|body_refs=2|body_getters=0|name_string=0|name_type=command
+ROW|PRIMITIVE_OLD_RESULT_DELETE|code=0|same_body=1|body_string=0|body_type=physicalBodyOriginal|body_refs=1|body_getters=0|name_string=0|name_type=command
+CALLBACK|count=1|old_slot=1|old_refs=0|before=2|after=1|delete=0|body_frees=0
+CLEANUP|body_frees=1|body_getters=0

@@ -324,14 +324,13 @@ fn info_cmd_original(
                 scope,
             } => {
                 if let Some(script) = protocol.literal_script(name) {
-                    let namespace =
-                        match crate::interp::OriginalJimLookupNamespace::capture(
-                            interp,
-                            interp.current_ns(),
-                        ) {
-                            Ok(namespace) => namespace,
-                            Err(error) => return interp.report_cmd_error(error.into()),
-                        };
+                    let namespace = match crate::interp::OriginalJimLookupNamespace::capture(
+                        interp,
+                        interp.current_ns(),
+                    ) {
+                        Ok(namespace) => namespace,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
                     if let Err(error) = namespace.check_current_arguments(interp, arguments) {
                         return interp.report_cmd_error(error);
                     }
@@ -1093,12 +1092,12 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Ok(tcl_cmd_core::info::BodyResult::Original(owner)) => {
-            let original = match owner.checked_value() {
+            let original = match owner.checked_value(interp) {
                 Ok(original) => original,
                 Err(error) => return interp.report_cmd_error(error),
             };
             interp.set_result(original);
-            match owner.finish() {
+            match owner.finish(interp) {
                 Ok(()) => Code::Ok,
                 Err(error) => interp.report_cmd_error(error),
             }

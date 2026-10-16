@@ -3129,7 +3129,6 @@ impl InterpState {
         &mut self,
         value: Value,
     ) -> Result<crate::NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
-        let value = value.into_native_reference();
         let protocol = self
             .actual_native_invocation_dialect()
             .native_string_protocol();
@@ -3141,7 +3140,9 @@ impl InterpState {
             .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_some()
         {
-            let retired = self.native_c_result.replace(Some(value));
+            let retired = self
+                .native_c_result
+                .replace(Some(value.into_native_reference()));
             drop(retired);
         } else {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -27341,6 +27342,23 @@ impl Procs for Vm {
 
     fn proc_body_bytes(&mut self, name: &[u8]) -> Result<Option<Vec<u8>>, Self::OperationError> {
         self.original_proc_body_query(name)
+    }
+
+    fn proc_body_original_value(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<
+        Option<tcl_runtime_api::ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
+        Self::OperationError,
+    > {
+        if self
+            .actual_native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Ok(None);
+        }
+        self.original_proc_body_value_query(original).map(Some)
     }
 
     fn proc_original_formal_list_value(

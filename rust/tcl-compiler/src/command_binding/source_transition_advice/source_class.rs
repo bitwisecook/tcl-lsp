@@ -159,6 +159,17 @@ impl OriginalSourceClassDeclaration {
         let metadata = matching.next()?;
         matching.next().is_none().then_some(metadata)
     }
+    /// Readonly explicit constructor-body coverage under the same genuine
+    /// class definition and retained full analysis input. No constructor-chain,
+    /// default absence, unchanged lookup or Native entry follows.
+    #[must_use]
+    pub fn constructor_body_source_coverage(
+        &self,
+        analysis: &AnalysisResult,
+    ) -> Option<super::OriginalSourceConstructorBodyCoverage> {
+        super::source_constructor_effects::capture(self, analysis)
+    }
+
     /// Same original definer receipt for a canonical source declaration.
     #[must_use]
     pub fn from_class(

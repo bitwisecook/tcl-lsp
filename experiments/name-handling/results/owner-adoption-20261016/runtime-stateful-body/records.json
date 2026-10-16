@@ -1,0 +1,32 @@
+[
+  {
+    "source_head": "2d5823c90bf13853e20541e22a2b29258cc0ea2f",
+    "source_diff_sha256": "d9fc27bfc6cf634a7734e58fa3c7bdb53d71ebffeb421c027a0cb68c96a9fda4",
+    "binary_sha256": "bfb75a2f163f0b13f1a8a34869b8a20da99381af534d2b098ddc6f0dfb2e7710",
+    "ordinary": true,
+    "selector": "interp::native_name_queries::tests",
+    "exit": 0,
+    "seconds": 10.527281944001516,
+    "log": "interp--native_name_queries--tests.log",
+    "log_sha256": "bffe39173abdbb4721b2488510fb026a776c71e410e3560de31048e7927d5940",
+    "status": "PASS",
+    "passed": 16,
+    "failed": 0,
+    "ignored": 0
+  },
+  {
+    "source_head": "2d5823c90bf13853e20541e22a2b29258cc0ea2f",
+    "source_diff_sha256": "d9fc27bfc6cf634a7734e58fa3c7bdb53d71ebffeb421c027a0cb68c96a9fda4",
+    "binary_sha256": "bfb75a2f163f0b13f1a8a34869b8a20da99381af534d2b098ddc6f0dfb2e7710",
+    "ordinary": true,
+    "selector": "cmd_info::",
+    "exit": 0,
+    "seconds": 53.099153979999755,
+    "log": "cmd_info--.log",
+    "log_sha256": "b88fc492183dc54991fb16171297e72ff5382f540257bf35d7dd74448d9acfb2",
+    "status": "PASS",
+    "passed": 44,
+    "failed": 0,
+    "ignored": 0
+  }
+]

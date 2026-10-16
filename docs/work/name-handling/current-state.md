@@ -4,13 +4,13 @@ Implementation has resumed from `554085e`. **98 baseline units** have reviewed
 implementation pending validation: 44 code units and all 54 authored-documentation
 units. **Zero units are verified complete**. Baseline counts remain **2,158**;
 2,060 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **25 demonstrated
-requirements**, of which 24 have integrated implementation pending validation.
-Effective scope is **2,183 obligations**, with **122 integrated pending validation**
-and **2,061 not integrated**. These counts establish neither semantic acceptance
+[owner/caller annex](implementation-owner-annex.json) adds **28 demonstrated
+requirements**, all 28 of which have integrated implementation pending validation.
+Effective scope is **2,186 obligations**, with **126 integrated pending validation**
+and **2,060 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
-Development checkpoint `80541dfbc` is pushed to `work`. Its fresh ordinary
+Development checkpoint `2d5823c90` is pushed to `work`. Its fresh ordinary
 six-package workspace build passed in 9m18s. Selected controls are **164 PASS /
 79 FAIL**, with one zero-test invocation explicitly rejected. Core minifier
 controls are 92 PASS/50 FAIL and VM namespace controls 44 PASS/12 FAIL; all six
@@ -22,7 +22,8 @@ retained, with eight gains and zero regressions. Reviewed repairs for the five
 remaining failures are integrated. A fresh ordinary successor build passed in
 57.46s with zero warnings; its selected controls finished at 298 PASS/1 FAIL. The remaining local-cache
 fixture entered a fresh Native read after refusal; its reviewed correction
-inspects the original physical compiled slot and awaits a fresh build. The workspace
+inspects the original physical compiled slot. A fresh build and all 43 variable
+controls now pass. The workspace
 successor encountered 19 missing API docs and one test borrow error, now repaired;
 its seven-package rebuild compiled production libraries but found four
 new test-only scope errors in the instance-report control; moving that control
@@ -34,7 +35,7 @@ foreign constructor collections and VM physical body transport remain open.
 The full proof checker at `2a86f7dfd` reported 3,574 errors. A reviewed repair
 addresses its 17 source/binding/document consistency messages and passes bounded
 108-owner/85-binding checks without changing evidence, result or status digests.
-The current full rerun reports 3,403 errors. Thirteen small historical files (3,520,174 bytes)
+The earlier current-source full rerun reports 3,403 errors. Thirteen small historical files (3,520,174 bytes)
 were restored with Git blob and all 164 retained proof hashes verified. This is
 availability restoration only; 638 native binary references across 470 paths
 remain missing. Census/evidence drift and required acceptance remain open.
@@ -65,3 +66,19 @@ Incoming `origin/rust` is now `5704753576d9e6d57ba7928c739dcbf726ce6bd1` (#2486 
 Portable receipts are indexed in [handoff/packets.json](handoff/packets.json) and [handoff/SHA256SUMS](handoff/SHA256SUMS). Verify exact bytes before restoring. Extract evidence into a separate tree; never overwrite newer implementation with an old complete afterimage. Review blockers and rebase individual reviewed changes. Original `/tmp` helpers and provisioned binaries may be absent in a fresh environment; use repository toolchain owners. Preserve unrelated edits and `editors/vscode/.vscode-test`; do not clean caches to refresh an audit.
 
 The audit tranche changes tracking/artifacts only. It supplies no production/test migration, Cargo build, original C/Jim/F5 execution or gate acceptance. Implementation resumes from the exact final boundary catalogue after this checkpoint.
+
+Reviewed successor integration retains mapped source operands solely for diagnostic
+intervals, explicit constructor-body coverage solely for source reporting, and
+actual VM original-body result publication through the shared stateful capsule.
+All remain pending validation. The seven-package 2d582 test build passes after
+new-test scope/opaque identity assertion repairs; selected controls are running.
+All 470 remaining archived executables (616,441,339 bytes) were restored with Git
+and all 638 retained proof hashes verified; none was executed during restoration.
+Three maintained test bindings and one current owner binding were repaired while
+preserving evidence/result/source-anchor hashes. Required gates remain red.
+
+The stateful Runtime API successor build passes; its selected original-name
+queries are 16 PASS and info controls 44 PASS. Availability diagnostic after
+restoring the bounded payload set reports 2,291 errors, zero missing files and
+zero unbound annotations. Source integration occurred during that run, so it
+is not immutable-source gate acceptance; evidence/census drift remains open.

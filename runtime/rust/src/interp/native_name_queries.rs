@@ -308,12 +308,18 @@ struct OriginalProcedureBodyResult {
     namespace: ProcedureQueryNamespace,
     body: NativeObjectLifetime,
 }
-impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError>
+impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError, Interp>
     for OriginalProcedureBodyResult
 {
-    fn checked_value(&self) -> Result<*mut TclObj, CmdError> {
+    fn checked_value(&self, consumer: &mut Interp) -> Result<*mut TclObj, CmdError> {
         let reached = (|| {
             self.operand.check()?;
+            if !Rc::ptr_eq(&consumer.0, &self.operand.actual.0) {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign original body-result consumer",
+                )
+                .into());
+            }
             let actual = &self.operand.actual;
             let declaration =
                 self.declaration
@@ -351,8 +357,14 @@ impl tcl_runtime_api::OriginalProcedureBodyValue<*mut TclObj, CmdError>
         })();
         reached.map_err(|error| self.operand.arguments.retain_refusal(error))
     }
-    fn finish(self: Box<Self>) -> Result<(), CmdError> {
+    fn finish(self: Box<Self>, consumer: &mut Interp) -> Result<(), CmdError> {
         self.operand.check()?;
+        if !Rc::ptr_eq(&consumer.0, &self.operand.actual.0) {
+            return Err(self.operand.arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("foreign original body-result consumer")
+                    .into(),
+            ));
+        }
         let original = self
             .body
             .checked_ptr()
@@ -414,7 +426,7 @@ impl Interp {
     pub(crate) fn original_proc_body_value_query(
         &mut self,
         original: *mut TclObj,
-    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<*mut TclObj, CmdError>, CmdError> {
+    ) -> Result<tcl_runtime_api::ProcBodyValueQuery<*mut TclObj, CmdError, Interp>, CmdError> {
         let operand = OriginalProcedureBodyOperand::enter(self, original)?;
         let query = operand
             .select(self)
@@ -443,7 +455,7 @@ impl Interp {
             namespace,
             body,
         };
-        tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result)?;
+        tcl_runtime_api::OriginalProcedureBodyValue::checked_value(&result, self)?;
         Ok(tcl_runtime_api::ProcBodyValueQuery::Body(Box::new(result)))
     }
 

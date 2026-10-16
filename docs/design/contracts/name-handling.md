@@ -798,6 +798,17 @@ legacy compatibility rows; typed project receiver selection consumes the
 independent original cards. Report labels supply no instance identity, allocation
 or dispatch closure.
 
+`OriginalSourceConstructorBodyCoverage` retains complete original own-definition
+member vectors and one explicit constructor body under the actual declaring
+input, realm, configuration and surviving immutable factory. A selected project
+constructor attempt retains the actual caller input and original argv separately.
+`CommandFreeRetainedBody` covers a nonempty counted zero-command body such as
+`{ }`; `ExplicitlyRemoved` preserves the existing empty-body removal rule for
+`{}`. Neither supplies a default or inherited constructor chain. Missing members,
+configuration changes and unknown effects refuse this bounded coverage. It
+cannot discharge variable-read, observer, operand or collection-getter lookup
+uncertainty, and grants no reached constructor, allocation or Normal completion.
+
 ## Rename error names
 
 `report_native_name_bytes` with `RenameCommandError` owns operand presentation
@@ -961,6 +972,17 @@ issued original gap spans after source and Registry currentness checks.
 Variables, child scripts, functions, expansion and procedure-body reflection
 remain outside this action; a known result or a lexical whitespace proposal
 cannot replace its receipt.
+
+Transformed braced procedure source has a separate diagnostic operand layout.
+`declaration_source_operand_layout_advice` retains the actual original header,
+Native-decoded body value and selected-configuration whole-source map separately.
+Canonical NestedScript commands and complete original vectors authenticate its
+geometry. The existing stamp checks current declaration parents, source/config,
+metadata and actual final-state allocation before issuing a weak source-only
+attachment; joins retain it only when both alternatives agree. The configured
+carrier cannot own an ordinary Native read or body recipe. Its variable operand
+and symbolic SSA version serve conditional declaration intervals only, without
+Normal optimisation, lookup, fold-spanning Native occurrence or edit authority.
 
 Readonly source optimisation certificates retain complete actual unit mutation
 and trace dependencies. With those hazards, per-body reuse requires a nonempty
@@ -1424,3 +1446,12 @@ Original Jim procedure-body publication retains the actual body header through
 supply no extra native role. The actual result setter owns the new result before
 old-result retirement, and post-publication validation permits legal declaration
 deletion while preserving original caller currency and first refusal.
+The single `OriginalProcedureBodyValue<V, E, O>` capsule additionally receives the
+actual mutable engine at both `checked_value(actual)` and `finish(actual)`.
+Runtime and VM revalidate that genuine consumer instead of retaining a pointer
+to a movable engine. The VM uses its existing selected original body, weak
+procedure/node observations and allocation-only transports; its immediate result
+adoption acquires the new result role before old-result retirement. No body
+String getter or protective procedure/body ownership is added. Public evaluation
+result reset remains distinct from the worker's primitive publication frontier;
+C byte compatibility and exact missing/nonprocedure diagnostics stay separate.

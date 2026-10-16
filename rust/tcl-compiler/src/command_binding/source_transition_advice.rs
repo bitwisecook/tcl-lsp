@@ -23,6 +23,11 @@ mod produced_prefix;
 mod registered_instance;
 mod source_callback;
 mod source_class;
+mod source_constructor_effects;
+pub use source_constructor_effects::{
+    OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
+    OriginalSourceConstructorBodyDisposition,
+};
 mod source_class_publications;
 mod source_class_reference;
 mod source_configured_class;

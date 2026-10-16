@@ -1,0 +1,66 @@
+{
+  "baseline_collision_unit": {
+    "id": "lsp-minifier-claimed-name-inventory",
+    "catalogue": "/workspace/tcl-lsp/docs/work/name-handling/repository-consumer-audit-final.json",
+    "kind": "shared_owner_extension",
+    "report_kind": "shared_owner_extension",
+    "purpose": "Aggressive new alias collision candidates, not physical variable absence.",
+    "required_change": "Partial/failing SSA or scope inventories collapse to a smaller HashSet, no complete source occupancy/new-name intent owner. Needs typed source collision inventory/unknown obligations. Source-only SSA labels are collision hints, never locations/absence. Aggressive insertion remains observable authoring.",
+    "catalogue_site": "rust/tcl-lsp-core/src/minify.rs::collect_live_names",
+    "patch_scope": "/tmp/sol-minifier-collision/collision-reservations-4ee3043e4969.patch",
+    "patch_behavior": "Adds conservative scanner-derived candidate names after '$' using shared scan_var_name_end_with(..., true), alongside the existing configured scan_var_ref. The added regression verifies candidates including Unicode/inert source are reservations, configured Tcl reads remain distinct, and alias insertion still refuses without MissingAliasInsertionContract.",
+    "count_decision": "No new owner count and no distinct integrated baseline unit beyond 98. This is a partial refinement of this existing baseline row, not a new owner; it does not implement the required typed complete source occupancy/new-name-intent inventory or unknown-obligation propagation, so do not mark the baseline unit integrated from this patch alone. Existing baseline 98 remains unchanged."
+  },
+  "proof_log_comparison": {
+    "old": {"path":"/tmp/naming-proof-check-2a86f7dfd.log","structural_errors":3574},
+    "current": {"path":"/tmp/naming-proof-check-reviewed-successor.log","structural_errors":3403},
+    "net_change": -171,
+    "old_category_counts": {
+      "missing_file":802,
+      "evidence_digest_changed":1074,
+      "census_path_drift":729,
+      "census_digest_changed":952,
+      "unbound_test_proof_annotation":2,
+      "missing_test_comment":1,
+      "other_owner_doc_or_selector_consistency":14
+    },
+    "current_category_counts": {
+      "missing_file":638,
+      "evidence_digest_changed":1080,
+      "census_path_drift":729,
+      "census_digest_changed":952,
+      "unbound_test_proof_annotation":3,
+      "missing_test_comment":0,
+      "other_owner_doc_or_selector_consistency":1
+    },
+    "difference": {
+      "missing_file":-164,
+      "evidence_digest_changed":6,
+      "unbound_test_proof_annotation":1,
+      "missing_test_comment":-1,
+      "other_owner_doc_or_selector_consistency":-13,
+      "census_path_drift":0,
+      "census_digest_changed":0
+    },
+    "missing_file_extensions": {
+      "old": {".elf":512,".gz":127,".json":159,".log":2,"extensionless":2},
+      "current": {".elf":512,".gz":126},
+      "interpretation": "The 164-error reduction is entirely 159 JSON, 2 log, 2 extensionless and one gzip payload no longer reported missing; all 512 ELF and 126 remaining gzip payload errors persist. This is file availability/path evidence, not proof-gate success."
+    },
+    "new_source_digest_records": [
+      "naming.consumer.original-type-and-implementation-navigation: rust/tcl-lsp-core/src/type_definition.rs",
+      "naming.embedding.original-host-publication-and-fact-transport: runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "naming.embedding.original-host-publication-and-fact-transport: rust/tcl-vm/src/literal_pool.rs",
+      "naming.list.original-value-append-storage-currency: rust/tcl-cmd-core/src/var.rs",
+      "naming.runtime.original-literal-owner-retirement: rust/tcl-vm/src/literal_pool.rs",
+      "naming.source.original-class-publications: rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_publications.rs"
+    ],
+    "unbound_annotations_current": [
+      "naming.embedding.original-host-publication-and-fact-transport: rust/tcl-vm/src/interp/native_original_lookup/tests.rs::original_lookup_checks_namespace_world_after_the_reached_formatter_query",
+      "naming.embedding.original-host-publication-and-fact-transport: rust/tcl-vm/src/interp/native_original_lookup/tests.rs::original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_query",
+      "naming.embedding.original-host-publication-and-fact-transport: rust/tcl-vm/src/interp/native_original_lookup/tests.rs::original_jim_materialisation_checks_the_independent_lookup_operand_before_string_or_token"
+    ],
+    "remaining_non_digest_consistency_error": "naming.database.original-callback-future-lookup: owner declaration is absent: callback_arity_diagnostic",
+    "interpretation": "The 171 net decrease does not represent a repaired proof gate: 164 fewer missing payloads and 13 fewer owner/doc/selector issues are offset by six new source digest mismatches and one new unbound annotation. Census drift and census digest errors are identical at 729 and 952. Preserve all failures; no digest refresh or dropped check is proposed."
+  }
+}

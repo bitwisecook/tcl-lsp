@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_layout::tests::logical_receiver_catalogues_retain_parent_member_and_vector_without_native_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10225 filtered out; finished in 0.65s
+

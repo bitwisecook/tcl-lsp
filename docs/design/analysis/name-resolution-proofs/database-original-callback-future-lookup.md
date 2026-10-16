@@ -74,7 +74,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 - [rust/tcl-compiler/src/signature_scan/types.rs](../../../../rust/tcl-compiler/src/signature_scan/types.rs), `SignatureCommandInvocation::logical_callback_candidate_keys`: Withdraw compatibility reporting-name candidates for retained original callback/name inputs; actual Logical DB readers share this projection.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `apply_original_callback_arity`: Demand current original source declaration headers through the immutable callback prefix lookup and typed source-signature subject.
-- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `callback_arity_diagnostic`: Share exact and range appended-argument arithmetic across callback diagnostic consumers.
+- [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackAritySubject::from_selected_signatures`: Compose exact finite or at-least callback counts from the retained prefix, baked/captured arguments and selected current declaration signatures, then classify mismatch before presentation.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::original_callback_missing_future_lookup_declines_reporting_candidates` (linked): An authentic retained cb input with its future lookup removed and a conflicting legacy arity map has no candidate keys and produces no project callback diagnostic.
 
 A named test is a coverage binding, not a claim that it executed.

@@ -1,0 +1,11 @@
+{
+  "patch": "/tmp/vm-jim-result-slot/result-slot.patch",
+  "sha256": "83cc5a24b512d499880e2af0fbaf11ee9874c30c00fcaddb1f3458c100eca03b",
+  "files": [
+    "rust/tcl-vm/src/value.rs",
+    "rust/tcl-vm/src/interp.rs"
+  ],
+  "validation": "TMP rustfmt only; Rust tests unrun; no main/Cargo/Git",
+  "original_control": "evidence/original-info-body.c adds only old_refs observation to retained original Runtime probe; actual static pinned Jim execution execute-old-refcount.stdout old_slot1 old_refs0 bodyrefs2->1 getters0",
+  "scope": "shared actual Jim result setter, allocation-only retiring reference and borrowed result adoption only; physical info body VM caller remains open"
+}

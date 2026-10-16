@@ -1,0 +1,8 @@
+
+running 3 tests
+test analyser::commands::tests::logical_namespace_reference_inputs_require_current_original_owners_and_sites ... ok
+test analyser::commands::tests::logical_namespace_references_keep_original_words_and_independent_frames ... ok
+test analyser::commands::tests::logical_namespace_references_preserve_alias_written_indices_and_unknowns ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 10223 filtered out; finished in 7.72s
+

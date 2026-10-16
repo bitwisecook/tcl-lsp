@@ -1,0 +1,18 @@
+
+running 1 test
+test minify::original::tests::native_syntax_compaction_uses_pure_original_expression_gap_receipt ... 
+thread 'minify::original::tests::native_syntax_compaction_uses_pure_original_expression_gap_receipt' (83365) panicked at rust/tcl-lsp-core/src/minify/original.rs:674:13:
+assertion `left == right` failed: expr { 1 + 2 * 3 }
+
+  left: "expr { 1 + 2 * 3 }"
+ right: "expr {1+2*3}"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    minify::original::tests::native_syntax_compaction_uses_pure_original_expression_gap_receipt
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3178 filtered out; finished in 0.44s
+

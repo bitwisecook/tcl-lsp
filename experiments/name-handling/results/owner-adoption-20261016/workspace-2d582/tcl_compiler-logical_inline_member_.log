@@ -1,0 +1,7 @@
+
+running 2 tests
+test analyser::original_members::tests::logical_inline_member_metadata_keeps_actual_original_name_and_body_words ... ok
+test analyser::original_members::tests::logical_inline_member_words_require_one_complete_retained_source_suffix ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10224 filtered out; finished in 1.16s
+

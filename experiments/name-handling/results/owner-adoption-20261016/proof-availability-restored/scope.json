@@ -1,0 +1,13 @@
+{
+  "status": "FAIL",
+  "structural_errors": 2291,
+  "missing_files": 0,
+  "unbound_annotations": 0,
+  "scope": "Availability and binding diagnostic; source integrations occurred while this check ran. This is not immutable-source gate acceptance. Evidence/result/source-anchor hashes were not refreshed.",
+  "unchanged_checker": "scripts/dev/check-name-resolution-proofs.py",
+  "restoration": {
+    "files": 483,
+    "bytes": 619961513,
+    "proof_reference_hashes_verified": 802
+  }
+}

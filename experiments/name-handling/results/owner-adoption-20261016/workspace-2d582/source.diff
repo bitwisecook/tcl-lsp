@@ -1,0 +1,22 @@
+diff --git a/rust/tcl-lsp-db/src/project_token_inputs/tests.rs b/rust/tcl-lsp-db/src/project_token_inputs/tests.rs
+index 8a64e1c89..061676fb4 100644
+--- a/rust/tcl-lsp-db/src/project_token_inputs/tests.rs
++++ b/rust/tcl-lsp-db/src/project_token_inputs/tests.rs
+@@ -834,7 +834,7 @@ fn project_class_inherited_display_does_not_collapse_distinct_equal_content_file
+         let library = "oo::class create Base {method ping {} {}}";
+         let a = SourceFile::new(&db, library.to_owned(), dialect.to_owned(), None);
+         let b = SourceFile::new(&db, library.to_owned(), dialect.to_owned(), None);
+-        assert_ne!(a, b);
++        assert!(a != b);
+         let source = "oo::class create C {superclass Base}; [C new] ping";
+         let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+         let one = Project::with_token_configurations(
+@@ -896,7 +896,7 @@ fn project_class_foreign_equal_content_unknown_inventory_stays_terminal() {
+         let source = "[C new] ping; unknown_effect";
+         let caller = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+         let duplicate = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+-        assert_ne!(caller, duplicate);
++        assert!(caller != duplicate);
+         let one = Project::with_token_configurations(
+             &db,
+             vec![library, caller],
