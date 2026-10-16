@@ -1,81 +1,32 @@
 # Centralised name handling on work
 
-The repository audit is active. The 03:20 UTC portable checkpoint retains **9,147 provisional purpose records / 1,977 verified primary members**; these are not migration counts. Required changes are being counted separately at actual integration boundaries and joined to their shared owners. The current source-backed local registers are DB184, LSP203 plus122 validation changes, Root188, Runtime374 plus one post-seal Core owner, and VM328. Compiler and the broader tooling/generated/guidance lane still have source-role and final-boundary reconciliation work. **No repository-wide total is accepted yet.** See [audit-status.md](audit-status.md). This tranche changes no production/tests and supplies no execution acceptance.
+The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 
-Repository-wide review is now tracked in [the complete-file audit](repository-consumer-audit.md). Its 110,709-path roster is complete; semantic consumer review and the remaining-consumer total are still unfinished. Earlier bounded counts must not be used as the repository total.
+[Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
 
+The [beginner API and integration guide](https://chatgpt.com/space/page_87188db946408191aa04822f5b653a90) explains dialects, SSA/SCCP, arrays and dictionaries with diagrams.
 
-Earlier measured development checkpoints below are historical; use [audit-status.md](audit-status.md) and [current-state.md](current-state.md) for the active audit state.
+Keep written source, evaluated names, namespace identity, command slots, live command identity, variable places/cells and display text distinct. Shared owners retain original bytes, spans, complete configuration, source ownership, namespace/frame/interpreter context and lifetimes/generations. A display string cannot reconstruct identity. Source advice grants no Native execution, physical cell, entered frame, absence, edit/optimisation authority or normal completion. Repair missing owner transport instead of weakening guards or adding String inverses.
 
-Complete one coherent set of name representations, lookup policies and
-purpose-specific queries across the entire codebase. The starting report is
-[#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286): W210 must understand
-the actual setup/body/cleanup frame of a resolved Tcltest invocation, while
-still reporting genuine missing reads. The wider goal includes every command,
-namespace, variable, array, link, procedure, class, method and callback consumer.
+| Area | Semantic code | Validation repairs | Authored docs | Total |
+|---|---:|---:|---:|---:|
+| Compiler, analyser, inference and optimisation | 297 | 44 | 0 | 341 |
+| Database, registry and SpecTcl | 177 | 7 | 0 | 184 |
+| LSP, server, editors, iRules and MCP | 201 | 122 | 2 | 325 |
+| Runtime, shared Core/API and hosts | 370 | 5 | 1 | 376 |
+| VM, codegen and registered targets | 319 | 9 | 0 | 328 |
+| Additional tooling, query and target consumers | 164 | 16 | 8 | 188 |
+| Repository-wide tooling, generated and guidance consumers | 271 | 102 | 43 | 416 |
 
-Central owners retain source bytes and spans, dialect/release, interpreter,
-namespace/path/frame context, actual identity and relevant lifetimes. Consumers
-select the query for their purpose and adapt its output. Presentation is not
-identity. Conditional source advice, native allocation evidence, completed
-execution and permission to edit or optimise are separate facts. Ordinary
-dynamic Tcl idioms need useful shared analysis and explicit abstention when
-evidence cannot establish a target.
+One change means one actual integration boundary with a distinct purpose. Count a genuinely missing shared-owner facet once, then each caller whose code must separately change. Unchanged callers, raw purpose rows, filenames, source anchors, repair families, open issues and existing tests are not migration counts. S/M/L/XL describes relative scope and coupling, not days.
 
-## Read and continue
+Read [the continuation](continue-prompt.md), [plan](plan.md), [issue catalogue](issues.md) and [portable handoff](handoff/README.md).
 
-| Document | Purpose |
-| --- | --- |
-| [Continuation prompt](continue-prompt.md) | Complete instructions for a coordinator and sub-agents |
-| [Current state](current-state.md) | Scoped measured acceptance, failures and exact evidence |
-| [Completion plan](plan.md) | Every consumer group, inventory requirements and acceptance |
-| [Implementation ledger](implementation-ledger.md) | Remaining obligations and next bounded work |
-| [Call-site inventory](consumer-inventory.md) | Bounded inspected consumers, shared APIs, actual validation and unexamined obligations |
-| [Related issues](issues.md) | Open and closed issues; GitHub status is separate from branch acceptance |
-| [Issue action proposals](issue-actions.md) | Existing scoped acceptance requirements |
-| [Name-handling contract](../../design/contracts/name-handling.md) | Durable entry point and representation/context rules |
-| [Implementer guide](../../design/compiler/name-resolution-implementer-guide.md) | Existing purpose-specific APIs and consumer recipes |
-| [Semantic queries](../../design/contracts/resolved-semantic-queries.md) | Shared evidence and query contracts |
-| [Consumer matrix](../../design/contracts/naming-consumer-matrix.md) | Durable consumer integrations |
-| [Canonical proofs](../../design/analysis/name-resolution-proofs/README.md) | Semantic questions and scoped provider evidence |
-| [Oracle experiments](../../../experiments/name-handling/README.md) | Retained scripts, measurements and test promotion |
-| [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Original suite outcomes and limitations |
-| [Pattern catalogue](../../../experiments/name-handling/patterns/README.md) | Corpus/Wiki idioms, positive/adversarial inputs and evidence |
-| [BIG-IP request](../../../experiments/name-handling/f5/REQUEST.md) | Questions for the chat with appliance access |
-| [BIG-IP answers](../../../experiments/name-handling/f5/answers/README.md) | Returned answers and outstanding operation audit |
+- [Naming contract](../../design/contracts/name-handling.md)
+- [Implementer guide](../../design/compiler/name-resolution-implementer-guide.md)
+- [Shared-utility contracts](../../design/contracts/shared-utility-contracts-rust.md)
+- [Consumer matrix](../../design/contracts/naming-consumer-matrix.md)
+- [Semantic query contracts](../../design/contracts/resolved-semantic-queries.md)
+- [Name-resolution proof index](../../design/analysis/name-resolution-proofs/README.md)
 
-Source238 is adopted on `work`; checkpoint `4e20920a5` is push-confirmed. Source232 owner clauses and the219 RHS catalogue are applied. Parent/Text sources237/238 are integrated; the fresh selected ordinary272 results below now cover source238. Native Runtime/VM acceptance remains separate. Ordinary271 failed its fresh build with exit101, Registry/Compiler rustc SIGKILL9, seven partial ELFs and zero tests; source drift{}. That failed271 attempt executed no tests. Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 TIMEOUT. Its single-job fresh build passes in348.483727 seconds with14 test ELFs, errors[] and unchanged authored source, executing zero tests during the build. All12 selected scopes retain unchanged captured source/binaries, exact single runs and no missing/empty filters. Every265929 selector remains with1 gain and0 prior-PASS regressions/drops; eight additions within retained scopes are7 PASS/1 FAIL; the independent IRules19 scope is16 PASS/3 FAIL. Original#2286 runs first and passes72.400995379s under the unchanged180-second budget. Runtime174/VM133 and formatter88/integration55/15 annexes remain unexecuted plans; normal owner CLI250 still197 diagnostics. The cgroup OOM counters are cumulative without a before/after cause baseline; do not claim measured causation. Runtime174 and VM133 are fully peered future plans, unexecuted.
-
-TEMP270 built successfully and ran twelve exact diagnostic controls once: eight Compiler failures and four DB failures, no timeouts or source/binary drift. All three temporary files and97,819 authored inputs restored exactly at08:45:43.133493 UTC, changed inputs{}. Diagnostic results establish first guards only; they provide no ordinary acceptance.
-
-The canonical continuation is [continue-prompt.md](continue-prompt.md). Portable unfinished work and exact future plans are indexed in [handoff/README.md](handoff/README.md). Prior source audits and issue/provider rosters retain their original capture dates. Current implementation, remaining naming-consumer owners and validation limits are recorded in [current-state.md](current-state.md) and [implementation-ledger.md](implementation-ledger.md).
-
-## Acceptance and document lifecycle
-
-Use C Tcl 8.4–9.1, the latest identified upstream JimTcl, and actually reached
-F5 execution contexts as independent oracles. When using Tcltest, run the
-original init.tcl and tcltest.tcl belonging to that exact C interpreter version,
-with original suite/support inputs. Retain executable experiments, raw results,
-provenance, answer documents and deterministic conformance tests derived from
-those observed results.
-
-This directory is temporary coordination material. Maintain a compact current
-snapshot and unresolved obligations while work continues. The durable
-architecture and API documentation must describe the current implementation,
-with limitations made explicit. Before the final PR, remove this directory,
-all temporary plans/prompts/ledgers/proposals elsewhere, their links and generated
-copies, and the work-specific AGENTS push exception. Audit all documentation and
-comments repository-wide, including pre-existing files. Keep minimal necessary
-how/why comments, current public contracts and self-describing code.
-
-Preserve reproducible semantic evidence and legal attribution. Do not restore
-previously scrubbed lab/device/security material. Development history belongs
-in Git; the final PR describes the resulting behaviour and validation.
-
-Every consumer must be accounted for and verified, or have a measured,
-documented unsupported boundary with tested refusal. An unexamined consumer,
-unavailable required oracle, failing check or unanswered supported F5 operation
-prevents completion. Regular reviewed development pushes are authorised on work;
-all required checks must pass at the PR stage. No merge is requested.
-
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.

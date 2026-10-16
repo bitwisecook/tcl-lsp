@@ -1,146 +1,24 @@
-# Naming migration handoff
+# Naming audit evidence and implementation handoff
 
-The repository audit is active. The 03:20 UTC portable checkpoint retains **9,147 provisional purpose records / 1,977 verified primary members**; these are not migration counts. Required changes are being counted separately at actual integration boundaries and joined to their shared owners. The current source-backed local registers are DB184, LSP203 plus122 validation changes, Root188, Runtime374 plus one post-seal Core owner, and VM328. Compiler and the broader tooling/generated/guidance lane still have source-role and final-boundary reconciliation work. **No repository-wide total is accepted yet.** See [audit-status.md](../audit-status.md). This tranche changes no production/tests and supplies no execution acceptance.
+The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
 
-Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [packets.json](packets.json); nested retention does not grant source-review completion.
+[Final status](../audit-status.md) · [Full catalogue](../repository-consumer-audit-final.json) · [Searchable report](../naming-audit.html) · [Continuation](../continue-prompt.md)
 
-Read [the exact pause status](../audit-status.md) first. Extract the deeper archive alongside the primary packet to restore source snapshots and nested review receipts. Preserve both SHA-bound manifests; recorded source reads do not establish runtime or migration acceptance. Resume only when asked.
+Final primary archive: `repository-consumer-audit-final-20261016T050553Z.tar.gz`, SHA256 `91fb54a7fdd2f1c934485333f4865e8e715a93ecabcd91b4f050d471f42fb504`. Restore its ordered parts only after checking [packets.json](packets.json) and [SHA256SUMS](SHA256SUMS):
 
-Latest audit packet: `repository-audit-progress-20261015T214711Z.tar.gz`
-(SHA256 `f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153`),
-5,717 provisional purpose rows / 484 verified members. NOT a remaining count.
-All54 Compiler source peers admitted (51production/3whole test children); omitted
-operations still unfinished. Independent UI unit peer preserves proper UTF16
-fields/generated rows; Root329 purposes remain provisional. Current source/test
-and M12 acceptance unchanged. Continue accurate whole-source/canonical audit,
-then all remaining consumer migrations; no PR while gates red/unrun.
+- `repository-consumer-audit-final-20261016T050553Z.tar.gz.part-01` — SHA256 `0ccdeedb1f276a41772c9db19b8a19f9f68fa8b9d49be39fed3b29ad52ddb2c9`
+- `repository-consumer-audit-final-20261016T050553Z.tar.gz.part-02` — SHA256 `e9acd2170101c87076bf32881514ae1f3536149a327eece13f8f526c618308b1`
+- `repository-consumer-audit-final-20261016T050553Z.tar.gz.part-03` — SHA256 `ea0c8325d3ad2407a86b0d34667ebadd67be36b988b649e6bee48bb75c3649a5`
+- `repository-consumer-audit-final-20261016T050553Z.tar.gz.part-04` — SHA256 `740c5b11bdd9e515cf028032bcb8d5cc1f617e7286648d7ba098b446715533ab`
 
+It retains all current root source/role receipts, seven canonical catalogues, raw rows, exact coverage, final joins, scripts/aids, artifacts and hash manifest. Internal member checks establish byte retention, not implementation acceptance. Nested receipt/source recovery uses the retained full base `repository-audit-deep-progress-20261015T220906Z.tar.gz` SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa` plus final delta `repository-audit-deep-delta-20261016T050542Z.tar.gz` SHA256 `d4342fff001cbf3471b63861600a307de2a48b330c8b7dd93efb8388f639a802`.
 
-Latest audit packet: `repository-audit-progress-20261015T213051Z.tar.gz`
-(SHA256 `d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d`),
-5,313 provisional purposes / 431 verified members. Incomplete source review and
-semantic-unit reconciliation remain explicit; this is not a remaining count.
-Exact source peer receipts distinguish production aids from omitted tests and
-shared metadata from target/publication validation. No new execution acceptance.
+The original 2 GB coverage beforeimage is preserved inside the ordered nine-part 032020 primary archive, logical SHA256 `defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494`. Current compact coverage replaces repeated evidence payloads with exact immutable pointers; no source rows or disposition facts are dropped.
 
+Portable receipts are indexed in [packets.json](packets.json) and [SHA256SUMS](SHA256SUMS). Verify exact bytes before restoring. Extract evidence into a separate tree; never overwrite newer implementation with an old complete afterimage. Review blockers and rebase individual reviewed changes. Original `/tmp` helpers and provisioned binaries may be absent in a fresh environment; use repository toolchain owners. Preserve unrelated edits and `editors/vscode/.vscode-test`; do not clean caches to refresh an audit.
 
-Latest repository audit capture: `repository-audit-progress-20261015T211642Z.tar.gz`,
-4,995 provisional purpose rows and 399 verified members. This is an incomplete
-source/operational census, never a remaining-consumer total or acceptance. It
-retains primary source bindings plus individually hash-bound independent semantic
-corrections, Compiler peers, operational extents and unchanged-ELF cache retirement.
-Read [current-state.md](../current-state.md) before interpreting older packets.
+Latest executed ordinary M12 is frozen to `c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls; 1,133 PASS, 410 FAIL, one TIMEOUT, two NOT_ACCEPTED_RUN_COUNT**. All 1,491 predecessors remain, with four gains, zero prior-PASS regressions and zero drops. The 55 additions are 53 PASS and two FAIL. Seven original EPERM aborts and their exact successful permission repairs remain separate. Two nested Host raw-exit-zero runs remain rejected by the unchanged single-run guard. Its fresh single-job build produced 23 test binaries with zero compiler errors in 678.804699595 seconds. No newer execution follows from this audit.
 
+Runtime174, VM133, Formatter88 and integration55/15 remain **UNEXECUTED**. The full proof checker on frozen 6294 failed with 2,128 structural errors; no current green proof gate exists. Required current owner/proof/generated checks, `make rust-check` and `make prep-pr` remain red or unrun. No PR, issue closure or merge acceptance is supplied.
 
-Complete migration of every naming consumer to the centralised APIs remains the
-first priority. Use parallel implementation agents for audited consumers while an
-independent agent finishes the outstanding audits. The canonical instructions are
-in [continue-prompt.md](../continue-prompt.md); the [current snapshot](../current-state.md)
-separates integrated source, measured tests and remaining work.
-
-These temporary coordination packets preserve unfinished work across checkouts.
-Drafts are **not integrated implementations or acceptance evidence**. Validation
-packets retain only their explicitly measured source and selected-test scope;
-they do not accept later implementations. Verify each archive or ordered part against [packets.json](packets.json), inspect its README/manifest and exact
-beforeimages, then rebase only the reviewed hunks against the current branch.
-Several drafts are incomplete or awaiting architectural/lifetime review. Never
-apply a complete old afterimage over newer shared-file changes.
-
-| Packet | Next implementation responsibility |
-| --- | --- |
-| `compiler-logical-source.tar.gz` | Finish authentic Logical source/frame projection from retained tape/body receipts; keep physical Native currentness unchanged. Resolve the documented nested-region allocation-identity join before review. |
-| `db-logical-source.tar.gz` | Finish positive Logical occurrence catalogue and current graph-selected occupancy facade; migrate project direct diagnostics off the absence-only ledger without inventing absence or replacing stronger occupants. |
-| `vm-naming.tar.gz` | Review and finish selected namespace-retirement receipt and original current-holder Parent consumer. Preserve physical incarnation, deletion order and the integrated shared-empty result arm. |
-| `runtime-naming.tar.gz` | Finish namespace helper dispatch using the original selector through the existing owner; preserve finite alias/cycle/lifetime guards for Import. Contains actual SDK200/Import observations and unreviewed drafts. |
-| `lsp-minifier.tar.gz` | Finish the minifier alias-reference constructor through shared scalar-source construction and complete configured receiver proof. Use the included controlled original-oracle results before adding assertions. |
-| `validation-plans.tar.gz` | Exact future plans and capture scripts: ordinary956, Runtime174 and VM133 retain their predecessors and budgets. Rebind locations explicitly; keep all fail-closed source/provider/artifact/exact-run guards. |
-| `validation-receipts.tar.gz` | Actual ordinary265, Runtime268, VM269 and TEMP270 receipts/raw test logs. Full original build/source/provider closures and binaries remain at their recorded capture paths; this archive does not recreate those closures. |
-| `validation-current272.tar.gz` | Complete selected current272 results: 956 exact controls, 643 PASS, 312 FAIL, 1 TIMEOUT; raw test logs, authored input maps and build metadata. No independent Native/runtime/VM/F5 acceptance. |
-| `compiler-current272-coverage-addendum.tar.gz` | Positive readonly coverage refuses after validating both analysis inventories. Static review identifies an incompatible declaration-only dependency for Installed IDs; genuine Installed owner correspondence is still required. |
-
-The `compiler-temp270-addendum.tar.gz` records all eight Compiler diagnostic logs: in three declaration controls, original source geometry succeeds before the namespace/local point adapters refuse. Its Authored/IA traces do not establish a current missing-site cause; the alias control has no actual VarDefs before the public join.
-
-The [DB TEMP270 addendum](db-temp270/README.md) records measured first refusals.
-Direct source diagnostics had no candidates because they enumerated the
-absence-only ledger. The second callback stopped at the existing earlier-unknown
-mutation guard. Do not clear that uncertainty to make an arity test pass.
-
-The integrated checkpoint contains the formatter, inline-variable, iRules value,
-Readonly Authored coverage, Standalone layout and Jim Parent/Text migrations.
-Current272 retains all 929 predecessor controls with one fixture-control gain and no prior-PASS regressions; 27 additions pass 23 and fail four. The original #2286 control passes at its unchanged budget. The new readonly positive, iRules source-role/candidate and MCP pool-name failures remain explicit work. The numeric source packet identifier is bookkeeping, **not a count or percentage
-of migrated consumers**. Consult the consumer inventory and audit for actual
-completion boundaries. Runtime174 and VM133 remain unexecuted plans unless the
-current snapshot records a later sealed run.
-
-Original experiments and oracle-backed regressions belong in the repository's
-experiment/test locations. Before the PR, finish the migrations, preserve needed
-observations/tests/contracts there, then remove these temporary handoff packets
-and other development-process documents. Final documentation and minimal
-how/why comments must describe only the current codebase; git retains history.
-
-`validation-551f-batch-a.tar.gz` retains the first successor frozen ordinary build/replays, all967 selected controls and direct ordinary272 comparison, plus the separate failed Runtime build (zero tests). Source551f only; subsequent code is unexecuted.
-
-`validation-8df-batch-f.tar.gz` retains the complete992-control replay/build/comparison:677PASS/314FAIL/1TIMEOUT,10gains/1MCP priorPASS regression/0drops against all967 predecessors. Runtime2ELF preflight is build-only; full Native acceptance remains separate.
-
-`validation-vm-8df-full133.tar.gz` retains the reviewed exact source-rebind packet and actual133/133PASS replay with all original source/provider/harness/artifact/compiled-input guards; all six predecessor failures pass. Frozen8df only, not later helpers or full backend/host acceptance.
-
-`validation-runtime-8df-full174.tar.gz` seals171PASS/3FAIL with exact original174 selectors and all source/provider/compiled-input/artifact guards. Two failures stop at the variable-key owner before Import semantics; namespace Delete is the third. Source8df only.
-
-`successor-hi-build-feedback.tar.gz` retains failed H (six test-compilation errors, three ELFs) and I (one private-module path error, zero ELFs), both zero tests and unchanged source. H repairs are captured in1a78; I uses the already existing public re-export in the next checkpoint. Fresh execution remains required.
-
-`successor-j-build-feedback.tar.gz` retains J0f634 four VM epoch-field compile errors, zero ELFs/tests and unchanged source. The actual existing epoch owner is used byc448; K rebuild remains separate.
-
-## Frozen c448 validation
-
-`validation-c448-batch-k.tar.gz` retains the successful14-ELF ordinary build and
-1027 selected controls:696PASS/330FAIL/1TIMEOUT. All992F predecessors remain,
-with1gain/4prior-PASS regressions/0drops. Original#2286 ran first and passed
-73.301624588s within180seconds. Public-API diagnostic probes retain exact source,
-invocations, channels and unchanged source/artifact checks; rebuildable ELFs are
-excluded, and none supplies successor acceptance.
-
-Runtime and VM archives are ordered seven-part files to retain the exact reviewed
-packet closures below Git's per-file limit. Verify all parts with SHA256SUMS,
-then concatenate `.part-01` through `.part-07` in that order before extraction.
-The reconstructed archives must have these exact SHA256 values:
-
-| Reconstructed archive | SHA256 | Measured scope |
-| --- | --- | --- |
-| `validation-runtime-c448-full174.tar.gz` | `4b723bc64471bb3c08b25882dd026acd633b9c50664f02b377affa5405e9d372` |173PASS/1FAIL; retained Jim Import refuses original inventory-key ownership; no accepted Import semantics |
-| `validation-vm-c448-full133.tar.gz` | `4ad3c45cd2d68e79502a7a775894036e981d364a4db13890e27285e37cdbc1c6` |133PASS/0FAIL; original133 selectors/assertions/budgets/guards retained |
-
-Both captures have errors[] and source/compiled-input/artifact drift maps{}.
-The VM packet retains the initial immutableREADME setup failure separately from
-the doc-only repair; every runner/guard Python byte remains unchanged. Historical
-root-commit patches include binary archive deltas and account for most packet
-size; these exact retained bytes provide no extra semantic acceptance.
-Only after both Native seals, root retired4.3GiB of compiled outputs while109625
-source/provider inputs remained unchanged; no ENOSPC occurred. Current source,
-full host/backend coverage and required repository gates remain unaccepted.
-
-`successor-l-l2-l3-build-feedback.tar.gz` preserves the wrong-package setup separately from the corrected production compilation failures. All three ran0tests with source drift{}. The reviewed canonical import repair and source consumers require a fresh L4 build. `conditional-pairing-ingress-receipt.json` records219 unchanged original test bodies and the explicit test helper API adoption; it supplies no execution acceptance.
-
-`successor-l6-l7-l8-build-feedback.tar.gz` retains exact failed build channels and source snapshots for L6/L7/L8, zero executed tests, and the separate guarded L7 compiled-output retirement. The repaired source requires fresh execution; L7 had a known generic Lambda frame issue and was never admitted for semantic replay.
-
-## Successor L9–L14 feedback and bounded source receipts
-
-`successor-l9-l14-build-and-source-receipts.tar.gz` retains failed zero-test build/setup captures, exact source-before/after inventories, the actual failing full proof-check result, provider-preserving cache retirement and bounded original-test-body/API receipts. Its SHA256 and all43 packet hashes are verified in packets.json/SHA256SUMS. It supplies no execution acceptance for newer Main. L15 at4faff is a separately frozen23ELF successful build with selected1491 replay running; its complete replay is not yet sealed.
-
-## Current reviewed consumer receipts
-
-`reviewed-source-consumers-and-count-snapshot.tar.gz` retains exact bounded source/API/original-test-body receipts and timed count corrections/beforeimages. The27-function15/12 snapshot is a lower bound, not a full census. New code has no Rust execution acceptance. All44 packet digests are verified; complete L15 replay is still running and is captured separately when sealed.
-
-## L15 selected replay and separate permission repairs
-
-Concatenate both `validation-4faff-l15-ordinary1491.tar.gz.part-*` files before extracting; the exact archive SHA is557a0f6fc99c61dbdb8bb0f1f4e3ccb66a5bed046dda9cf578695988fffbeab0. The raw1491 attempts include6abort/2nested-harness guard refusals; the latter remain unaccepted. `l15-permission-repair-and-source-followups.tar.gz` retains independent unchanged-selector6PASS repairs outside the sandbox and the original failed attempts remain in the first archive. Combinedlatest1076PASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. All47 packet digests verify. No newer Main or full Native/repository acceptance follows.
-
-## Complete-file audit baseline and subsequent source receipts
-
-`complete-file-audit-baseline-cc24.tar.gz` retains the exact110,709-path Git roster and independently verified seven disjoint assignments. It is an inventory, not completed source review or a remaining-consumer count. `reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz` retains bounded reviewed source manifests and actual failed M/M2/M3 zero-test builds. M4 is a separate current-source build in progress. All49 packet digests verify; semantic consumer audit, current Rust acceptance and required repository gates remain unfinished.
-
-`repository-audit-progress-20261015T185809Z.tar.gz` retains an incomplete source-bound audit checkpoint with every coverage row and583 provisional purpose rows. Binding/schema/partition checks pass; remaining-consumer total stays unknown until unexamined scope and independent reconciliation are complete. All50 packet digests verify.
-
-`ordinary-m4-m9-build-feedback.tar.gz` retains all six failed zero-test builds, including explicit unchanged-source M7 repetition. Required API docs/test setup and compile-time trait-budget repairs do not relax runtime/source/edit/provider guards. M10 is a fresh separate build in progress. All51 portable packet digests verify; current-source Rust acceptance and repository gates remain unfinished.
-
-
-The 03:20 archive is retained as nine numbered `.part-01` through `.part-09` files in the handoff index because the original397.60MiB archive exceeds GitHub’s file limit. Concatenate them in order; the resulting archive SHA256 remains `defabce0ce674ac5538518a195d434188dbc7a90481eb3c6fc4bb79408733494`. All original members, including the pre-compaction audit coverage beforeimage, are preserved. The unpushed checkpoint commit was amended to use these portable parts.
+Temporary `/tmp` storage, test binaries and old script paths are not readiness evidence. Development artifacts may contain reviewed/unreviewed drafts with blockers; their presence or checked hashes never grants safe complete-afterimage application. Finish all migrations and cleanup before PR. No merge.

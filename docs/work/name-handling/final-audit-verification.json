@@ -1,0 +1,998 @@
+{
+  "utc": "2026-10-16T05:07:24.632764+00:00",
+  "status": "PASS_FINAL_AUDIT_ARTIFACT_AND_RETENTION_CHECKS",
+  "counts": {
+    "semantic_code_changes": 1799,
+    "validation_code_repairs": 305,
+    "authored_documentation": 54,
+    "all_required_changes": 2158,
+    "by_work_kind": {
+      "shared_owner_repair": 175,
+      "caller_migration": 1321,
+      "metadata_or_target_schema": 101,
+      "validation_code_repair": 305,
+      "shared_owner_extension": 202,
+      "authored_documentation": 54
+    },
+    "relative_effort": {
+      "M": 1161,
+      "S": 340,
+      "L": 652,
+      "XL": 5
+    },
+    "by_area": {
+      "compiler": {
+        "semantic_code_changes": 297,
+        "validation_code_repairs": 44,
+        "authored_documentation": 0,
+        "all_required_changes": 341,
+        "by_work_kind": {
+          "shared_owner_repair": 26,
+          "caller_migration": 267,
+          "metadata_or_target_schema": 4,
+          "validation_code_repair": 44
+        },
+        "relative_effort": {
+          "M": 137,
+          "S": 68,
+          "L": 136
+        }
+      },
+      "db": {
+        "semantic_code_changes": 177,
+        "validation_code_repairs": 7,
+        "authored_documentation": 0,
+        "all_required_changes": 184,
+        "by_work_kind": {
+          "shared_owner_repair": 27,
+          "shared_owner_extension": 79,
+          "caller_migration": 66,
+          "metadata_or_target_schema": 5,
+          "validation_code_repair": 7
+        },
+        "relative_effort": {
+          "L": 56,
+          "M": 110,
+          "S": 17,
+          "XL": 1
+        }
+      },
+      "lsp": {
+        "semantic_code_changes": 201,
+        "validation_code_repairs": 122,
+        "authored_documentation": 2,
+        "all_required_changes": 325,
+        "by_work_kind": {
+          "caller_migration": 166,
+          "shared_owner_extension": 22,
+          "metadata_or_target_schema": 13,
+          "authored_documentation": 2,
+          "validation_code_repair": 122
+        },
+        "relative_effort": {
+          "M": 270,
+          "L": 30,
+          "S": 25
+        }
+      },
+      "runtime": {
+        "semantic_code_changes": 370,
+        "validation_code_repairs": 5,
+        "authored_documentation": 1,
+        "all_required_changes": 376,
+        "by_work_kind": {
+          "shared_owner_repair": 39,
+          "caller_migration": 284,
+          "metadata_or_target_schema": 47,
+          "authored_documentation": 1,
+          "validation_code_repair": 5
+        },
+        "relative_effort": {
+          "L": 223,
+          "M": 140,
+          "XL": 2,
+          "S": 11
+        }
+      },
+      "vm": {
+        "semantic_code_changes": 319,
+        "validation_code_repairs": 9,
+        "authored_documentation": 0,
+        "all_required_changes": 328,
+        "by_work_kind": {
+          "caller_migration": 204,
+          "shared_owner_extension": 100,
+          "metadata_or_target_schema": 6,
+          "shared_owner_repair": 9,
+          "validation_code_repair": 9
+        },
+        "relative_effort": {
+          "M": 160,
+          "L": 127,
+          "S": 39,
+          "XL": 2
+        }
+      },
+      "root": {
+        "semantic_code_changes": 164,
+        "validation_code_repairs": 16,
+        "authored_documentation": 8,
+        "all_required_changes": 188,
+        "by_work_kind": {
+          "caller_migration": 133,
+          "shared_owner_repair": 11,
+          "metadata_or_target_schema": 19,
+          "authored_documentation": 8,
+          "validation_code_repair": 16,
+          "shared_owner_extension": 1
+        },
+        "relative_effort": {
+          "M": 128,
+          "S": 36,
+          "L": 24
+        }
+      },
+      "audit": {
+        "semantic_code_changes": 271,
+        "validation_code_repairs": 102,
+        "authored_documentation": 43,
+        "all_required_changes": 416,
+        "by_work_kind": {
+          "validation_code_repair": 102,
+          "caller_migration": 201,
+          "shared_owner_repair": 63,
+          "metadata_or_target_schema": 7,
+          "authored_documentation": 43
+        },
+        "relative_effort": {
+          "S": 144,
+          "M": 216,
+          "L": 56
+        }
+      }
+    }
+  },
+  "baseline_paths": 110709,
+  "unexamined_paths": 0,
+  "files": {
+    "repository-consumer-audit-final.json": "989029eddc6ec11294b2e6755214597e01660434540f778f687a1c96e33725af",
+    "naming-audit.html": "b19293697d0762079c0ea103cdb7317156db7eb1d912e32ac5f80b7288ebd4e3",
+    "naming-api-guide.md": "cf1bbc2d5f085632b80d75d9b9621cc44147a782d3b1ef3f62c7d8a0e7443fbb",
+    "audit-status.json": "cf7a31bc5eaa55a3dfeeeb046072d0ee272a5ad005007ccf5c34d5a4458c6156",
+    "handoff/packets.json": "3b11ec54c9316ee43859b8bd042c663ad5c5989f09f8b65488303baab3c01c06",
+    "handoff/SHA256SUMS": "5d1ca1145131bb5deb2a936acc2714d79b93c6ed3f3fb5c77866dea5c5909fda"
+  },
+  "source_anchor_integrity": {
+    "utc": "2026-10-16T05:02:04.528965+00:00",
+    "input": "root-global-reconciliation-input.json",
+    "input_sha256": "e96fa4fbdfad8816c4ed711dca34c35206c2d5b1f9c9b28ed865d53ce94d71ed",
+    "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
+    "status": "MECHANICAL_EXACT_BASELINE_ANCHORS_ONLY",
+    "anchors_checked": 3711,
+    "source_files": 963,
+    "errors": [],
+    "anchor_questions": [],
+    "limits": "Actual source hash/blob/line binding only. Semantic owner/adopter join, original source-role completion and current successor annex remain independent. No count/implementation/provider acceptance from hashing."
+  },
+  "artifact_behaviour": {
+    "status": "PASS_STANDALONE_ARTIFACT_DATA_AND_SCRIPT_BEHAVIOUR",
+    "artifact": "/workspace/naming-audit.html",
+    "sha256": "b19293697d0762079c0ea103cdb7317156db7eb1d912e32ac5f80b7288ebd4e3",
+    "unit_count": 2158,
+    "checks": [
+      "JSON full roundtrip via producer",
+      "JavaScript syntax",
+      "initial 50 row pagination",
+      "next/previous page",
+      "namespace search",
+      "area/work-kind filters",
+      "matching JSON export",
+      "empty results controls"
+    ],
+    "limits": "Isolated DOM stub checks static artifact JavaScript/data, not visual browser rendering, product tests, naming API implementation or provider execution."
+  },
+  "retention": {
+    "outer_packets": 119,
+    "outer_bytes": 2922641016,
+    "errors": [],
+    "full_verification": {
+      "utc": "2026-10-16T05:06:22.286243+00:00",
+      "status": "COMPLETE_OUTER_PACKET_INDEX_AND_DIGEST_VERIFICATION",
+      "index_sha256": "3b11ec54c9316ee43859b8bd042c663ad5c5989f09f8b65488303baab3c01c06",
+      "checksum_index_sha256": "5d1ca1145131bb5deb2a936acc2714d79b93c6ed3f3fb5c77866dea5c5909fda",
+      "members": [
+        {
+          "path": "compiler-logical-source.tar.gz",
+          "sha256": "f6153d8aae467d2e01c70137ee7b68d2b855d36e5268abad1186904212970564",
+          "bytes": 507881
+        },
+        {
+          "path": "db-logical-source.tar.gz",
+          "sha256": "6120a0c5c79425b5f4ef565620082edad4f689f7ce17459f7c4b0199400541ea",
+          "bytes": 273116
+        },
+        {
+          "path": "validation-plans.tar.gz",
+          "sha256": "5906a361c98c64e55746e404d85dd7799f11efdc8c9668b7135fb2b1d6008397",
+          "bytes": 622058
+        },
+        {
+          "path": "runtime-naming.tar.gz",
+          "sha256": "f002968199038ce06fe92d6973319dc9f3dc05dac3c3ac723729f7795683cd5d",
+          "bytes": 528707
+        },
+        {
+          "path": "vm-naming.tar.gz",
+          "sha256": "a14c79a053a316190098dd21b1541c73e4d12ff3ca8550cdf56ee0e80b02f209",
+          "bytes": 103941
+        },
+        {
+          "path": "validation-receipts.tar.gz",
+          "sha256": "7ecee27b0ab5f813cb171076b466dee12b7d0358af5007bc2e45676a4d301718",
+          "bytes": 957912
+        },
+        {
+          "path": "compiler-temp270-addendum.tar.gz",
+          "sha256": "44d3de59fd7eb64378030ff2f877db4ec6103cefe0c8db358955c4efe12ac7d8",
+          "bytes": 11969
+        },
+        {
+          "path": "lsp-minifier.tar.gz",
+          "sha256": "d22fb434a83ded4999b8c8d50b54882f41c1089a7e29587d86e727bda6e7504a",
+          "bytes": 69676
+        },
+        {
+          "path": "compiler-current272-coverage-addendum.tar.gz",
+          "sha256": "7b2f1af90d48d4b1f1d874637621e506a7667a56a73c4546bf4e6418aa90dbac",
+          "bytes": 8317
+        },
+        {
+          "path": "validation-current272.tar.gz",
+          "sha256": "476d95737174fa228b6753000a7bc6e6961b932c53013cbde91796ac93ebc673",
+          "bytes": 6516649
+        },
+        {
+          "path": "validation-551f-batch-a.tar.gz",
+          "sha256": "855d601440b7195eecac04b385caef860ce52d4dbe9c34bcfd4c563f74443039",
+          "bytes": 41445992
+        },
+        {
+          "path": "successor-build-feedback.tar.gz",
+          "sha256": "4b1ce7711d86bde2d813631eb1d50c7bc4678bf606cccee604468979eb7a9d24",
+          "bytes": 26747606
+        },
+        {
+          "path": "validation-8df-batch-f.tar.gz",
+          "sha256": "46e8a20a7f64bd8e747d32fb1c77010e4b1485dd58cecb2d8da64a14eb770213",
+          "bytes": 41781138
+        },
+        {
+          "path": "validation-vm-8df-full133.tar.gz",
+          "sha256": "8e0410b86533fbe819c6e68b0c153c6266b2504cd9e9006fb6ca4d209cc1fde9",
+          "bytes": 54263980
+        },
+        {
+          "path": "validation-runtime-8df-full174.tar.gz",
+          "sha256": "0bdf920a1d7dbbbb88b2bb863bd449fdc42188203dc4f7cc8b3f79856e71c339",
+          "bytes": 55175525
+        },
+        {
+          "path": "successor-g-build-feedback.tar.gz",
+          "sha256": "d4c9f29ee1326e259ec5f695ff80680c0a9b63fa9aaf4f38067dc693eb94512e",
+          "bytes": 6681171
+        },
+        {
+          "path": "successor-hi-build-feedback.tar.gz",
+          "sha256": "1d22f1e50eba62e607b749e5f896ad91b34f4220760f0a3175a5baddc14f06fc",
+          "bytes": 13390229
+        },
+        {
+          "path": "successor-j-build-feedback.tar.gz",
+          "sha256": "c5edba1d28c890e3ce9c667d85b36a81e1bb4df32933a274c12bfb0f1847af3c",
+          "bytes": 6686832
+        },
+        {
+          "path": "validation-c448-batch-k.tar.gz",
+          "sha256": "de42e898639098181bdcc3d396efc274c200739612d34f55a1f9fce54d0edaf6",
+          "bytes": 37173068
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-01",
+          "sha256": "1e17001ad65dcbe770ecb4d326be4e019f61356f6cef293358089e21adb0feda",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-02",
+          "sha256": "24b0bd9dff7e4b88b76f9955103d1575c8fd53c2a41c60bc78dbe79e5360c8ff",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-03",
+          "sha256": "83eb1d0496652b2c7c5b9ebc2fd542f67261d78a4abc8ba011a73a85449cfc0f",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-04",
+          "sha256": "d8136111c88e09c361db692e2a5c93793263f149c44cc65727b63d6d63011218",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-05",
+          "sha256": "3adfa9f766a6310cde3c771685e4cf69299e11c1e0986e64ac14d826e88b82f9",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-06",
+          "sha256": "d3724487284a5f167369bd0bc391032461a09fad1d40c66fc95bd771ca62766a",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-runtime-c448-full174.tar.gz.part-07",
+          "sha256": "a778939e7ab50e02a74991edd40600518cb8dd43ff2afea70863451ccd67d08f",
+          "bytes": 27075301
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-01",
+          "sha256": "ce5f2b7ec214955423bb656057f4eae7c722fed8f856db7aa2078dcf1ec805dc",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-02",
+          "sha256": "ba3875e0cad0bdc839332d40c733165dfb2f6687ba32dcc72feac2ff62238454",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-03",
+          "sha256": "6bfe2033bc7bde7b61352b54bb0c53834468992103a0c805c44063636ba1fa1f",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-04",
+          "sha256": "c19305108a75cbc7741febc1742bc1d915019cb825ea5240df3f745fe61beeb7",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-05",
+          "sha256": "58b57940a08f44c0e486125b8cfcf93786476150f3e288ff294f46c8b510a681",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-06",
+          "sha256": "6445c1b9212b93b6134ecabc11faf5af0a04d7f55d2c1b80756c40d32b6d42c8",
+          "bytes": 47185920
+        },
+        {
+          "path": "validation-vm-c448-full133.tar.gz.part-07",
+          "sha256": "0b3fa53754e7f574ed795f8856193f2d1f2f71da936838ca1b4369ed6f2c9d50",
+          "bytes": 25346854
+        },
+        {
+          "path": "conditional-pairing-ingress-receipt.json",
+          "sha256": "c3cae0fbf8a854392d3f1a80e1d748952b57f1964aadcda973c8e0fcc58ab147",
+          "bytes": 2889
+        },
+        {
+          "path": "successor-l-l2-l3-build-feedback.tar.gz",
+          "sha256": "8397574cc55b359cb7b0c9de0c17b2ae8d0cad8c67f68b44404138789379c6c9",
+          "bytes": 20089216
+        },
+        {
+          "path": "conditional-flow-ingress-receipt.json",
+          "sha256": "b8a6c4f174897f6b1fc6ab501ffaa85e0eb2842df35d618616aadb355abc3ed7",
+          "bytes": 3276
+        },
+        {
+          "path": "successor-l4-l5-build-feedback.tar.gz",
+          "sha256": "ec3c198b51d644c1227ef9e725216a03ecee4bf92df0e42fca16b08bf5b002f0",
+          "bytes": 13434560
+        },
+        {
+          "path": "variable-cursor-test-ingress-receipt.json",
+          "sha256": "0359799e3bc003e96fddcb9ec76ba596c98727d889fc8fc73cbe2d9f7e53e901",
+          "bytes": 850
+        },
+        {
+          "path": "semantic-source-geometry-receipt.json",
+          "sha256": "cbf53b3a80bd02bfa665e4e6a7761e1d7b0c62c55793c15cd9cfe997c04226df",
+          "bytes": 2312
+        },
+        {
+          "path": "logical-procedure-role-source-review.tar.gz",
+          "sha256": "01778659ed5906836c5881bacc6cccde53c3194ef52780394f28899c9e93ce79",
+          "bytes": 9938
+        },
+        {
+          "path": "oo-variable-display-receipt.json",
+          "sha256": "a699f893ae343d39bdba5e08683b49057eca32a6a3b26f299e0044b180054905",
+          "bytes": 2521
+        },
+        {
+          "path": "successor-l6-l7-l8-build-feedback.tar.gz",
+          "sha256": "5427a6e239352916436bd7f6daa2e0cee32ac909e759cbd437f75e3246352d35",
+          "bytes": 23641352
+        },
+        {
+          "path": "successor-l9-l14-build-and-source-receipts.tar.gz",
+          "sha256": "fe543cc6c88be1c48a24dbda2fbda2dc4baa7ec3d3be2dc90597fc304d1a763f",
+          "bytes": 41823846
+        },
+        {
+          "path": "reviewed-source-consumers-and-count-snapshot.tar.gz",
+          "sha256": "0aa2998800607bf21a027dfa0cd9e9bc40249ab5f355d204b1660883c383f2d5",
+          "bytes": 732998
+        },
+        {
+          "path": "validation-4faff-l15-ordinary1491.tar.gz.part-01",
+          "sha256": "9ad4f9d123a33196edeec5b04508aa73453dbcdb8a4c1d1185ee8925190d7d86",
+          "bytes": 41943040
+        },
+        {
+          "path": "validation-4faff-l15-ordinary1491.tar.gz.part-02",
+          "sha256": "3ccf2e9618ca79b6eaf361a8dde29779abf4b5de7e41d2af8325e9205027feb2",
+          "bytes": 21489270
+        },
+        {
+          "path": "l15-permission-repair-and-source-followups.tar.gz",
+          "sha256": "beefcf217ae1380adfd17c5ec2cf710210ebdf5dc502dbd28fc5e82255900a15",
+          "bytes": 4636264
+        },
+        {
+          "path": "complete-file-audit-baseline-cc24.tar.gz",
+          "sha256": "8e6008921aa2586b459e3701a304abbfcf6923b95f147c8b38f6f90129474c3e",
+          "bytes": 5508874
+        },
+        {
+          "path": "reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz",
+          "sha256": "2c961ee235bf9e5419985618d5bb64b0f1bea9374fc156f2085b9265ebfd1710",
+          "bytes": 21198590
+        },
+        {
+          "path": "repository-audit-progress-20261015T185809Z.tar.gz",
+          "sha256": "9c7cb64582ecbb1c2f502010e26dd2aaf4631afb4951cfb14f75d9422d536fec",
+          "bytes": 7852711
+        },
+        {
+          "path": "ordinary-m4-m9-build-feedback.tar.gz",
+          "sha256": "98ecb042c237c7752b020fa5edca0a86975732971d50304c329f72ca43c9d3b3",
+          "bytes": 40528082
+        },
+        {
+          "path": "repository-audit-progress-20261015T192406Z.tar.gz",
+          "sha256": "b8a21b3b32450e7a3ccc71fac760af6c37e21d2d2285886fcffcac384a402176",
+          "bytes": 17438140
+        },
+        {
+          "path": "ordinary-m10-m11-build-feedback.tar.gz",
+          "sha256": "b1e030d11f85e4e80d44ad7b47eee04d596d792b0548c3d59a791d8fadc753d3",
+          "bytes": 13529718
+        },
+        {
+          "path": "repository-audit-progress-20261015T195120Z.tar.gz",
+          "sha256": "b58f361cefff4cae4d9312d49637489551910f2dc4d779f00a7e80cfc7f5b35c",
+          "bytes": 22196017
+        },
+        {
+          "path": "ordinary-m12-build-and-first-core-db-feedback.tar.gz",
+          "sha256": "0b8e78b8e11a96d3ee45e6daa295b7210d2c0eacef374e097001a2b0652e43a1",
+          "bytes": 14053024
+        },
+        {
+          "path": "ordinary-m12-complete-1546-and-permission-repairs.tar.gz",
+          "sha256": "b4563a00663bdfb7defcac59306906866d58f121bcbeb428d91438e30b080140",
+          "bytes": 67967345
+        },
+        {
+          "path": "repository-audit-progress-20261015T201719Z.tar.gz",
+          "sha256": "d30327074567d9e1f1382bea4e8f8b2a4a7fda26146cfdea66688469912d27fd",
+          "bytes": 22820985
+        },
+        {
+          "path": "repository-audit-progress-20261015T204653Z.tar.gz",
+          "sha256": "5864bbc47e17e32a3e75d5491ec80d3aa78f91cb8cd2111570d1ad9e499b7bf5",
+          "bytes": 24416600
+        },
+        {
+          "path": "repository-audit-progress-20261015T210007Z.tar.gz",
+          "sha256": "eb4971275d9d1137674739552ae3e578c535f9b4e6cc5f4e78e32b526ccc399c",
+          "bytes": 24818624
+        },
+        {
+          "path": "repository-audit-progress-20261015T211642Z.tar.gz",
+          "sha256": "19d736861405c86f66bfdfe35e13cb27fe7daa79451539e8ee76fd8e483547a9",
+          "bytes": 25235227
+        },
+        {
+          "path": "repository-audit-progress-20261015T213051Z.tar.gz",
+          "sha256": "d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d",
+          "bytes": 25546257
+        },
+        {
+          "path": "repository-audit-progress-20261015T214711Z.tar.gz",
+          "sha256": "f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153",
+          "bytes": 26086805
+        },
+        {
+          "path": "repository-audit-progress-20261015T220314Z.tar.gz",
+          "sha256": "6e91ea1a4b6a7a56edc9b159e996e538ce2117c2e1574cb06f02381cbc8b0486",
+          "bytes": 26734580
+        },
+        {
+          "path": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
+          "sha256": "8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa",
+          "bytes": 40735567
+        },
+        {
+          "path": "repository-audit-progress-20261015T220942Z.tar.gz",
+          "sha256": "675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04",
+          "bytes": 30741937
+        },
+        {
+          "path": "repository-audit-progress-20261015T223550Z.tar.gz",
+          "sha256": "2946a3c98e14a84cb5b2ccd7d7fa96437b0dad50c1aa3228a2071f95d5efb09c",
+          "bytes": 31426589
+        },
+        {
+          "path": "repository-audit-deep-delta-20261015T225101Z.tar.gz",
+          "sha256": "b1c38d580652b764ebfa29df2f9c4386979b3f50f232ac1be3e8d0c53128e5ae",
+          "bytes": 18795
+        },
+        {
+          "path": "repository-audit-progress-20261015T225103Z.tar.gz",
+          "sha256": "e79b612cc0c22bcef44dd55646fac529e8d94a173f6b7a4bac0491476b2d6511",
+          "bytes": 33050181
+        },
+        {
+          "path": "repository-audit-deep-delta-20261015T230617Z.tar.gz",
+          "sha256": "3967a2982623b86b58a0740820c75ef2882f00acb7afa400617a112ae614af39",
+          "bytes": 86826
+        },
+        {
+          "path": "repository-audit-progress-20261015T230620Z.tar.gz",
+          "sha256": "1d5d1b398e1de5863c3fe9c191027bc964551d8b888ab2c8d80d7844079d05a4",
+          "bytes": 34832156
+        },
+        {
+          "path": "repository-audit-deep-delta-20261015T232013Z.tar.gz",
+          "sha256": "8b5961fd8a1f41a165a2bb568fd756fe6dc4e0bbae927f9b596bf881a1bb05ad",
+          "bytes": 630107
+        },
+        {
+          "path": "repository-audit-progress-20261015T232153Z.tar.gz",
+          "sha256": "788f83e79684bc251fc7f78eea746e89f72a3ee001bfce41a74a3161d9264f0b",
+          "bytes": 35415572
+        },
+        {
+          "path": "repository-audit-deep-delta-20261015T233825Z.tar.gz",
+          "sha256": "5ef7936dc0ba05a82214ef61bab21b684db70c0a5baad13af54f4ffdcbd5ba90",
+          "bytes": 1681016
+        },
+        {
+          "path": "repository-audit-progress-20261015T233826Z.tar.gz",
+          "sha256": "a73ddeee95f4b1147fb96054a2cf6fa7d92fbd60e718362a07ca1370aa71c109",
+          "bytes": 35821167
+        },
+        {
+          "path": "repository-audit-deep-delta-20261015T235426Z.tar.gz",
+          "sha256": "e39c41f4044615a13210b4db3c8ecd44405271c12e78654c1fc5a02a20c80bc6",
+          "bytes": 3027123
+        },
+        {
+          "path": "repository-audit-progress-20261015T235428Z.tar.gz",
+          "sha256": "6ac8ab68eed959833b063e9c10356b2f68fcbe654596f7881872dc6c5adbbbc6",
+          "bytes": 37180613
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T000710Z.tar.gz",
+          "sha256": "61250d9477bd9cccc60a0546f3adb55b9c84070742d543ba0a000f5479679a98",
+          "bytes": 3128291
+        },
+        {
+          "path": "repository-audit-progress-20261016T000712Z.tar.gz",
+          "sha256": "87a1cd57662645046e920ff7a80ebb9f2d93420c008611f63a17dabda7cfd510",
+          "bytes": 37883298
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T002037Z.tar.gz",
+          "sha256": "a449f1eb4cd3b65c1f5c0a5c0236a963c0dbbffb3927f5448a1cc23a406baf7d",
+          "bytes": 3264194
+        },
+        {
+          "path": "repository-audit-progress-20261016T002039Z.tar.gz",
+          "sha256": "6bb3a09a30d8b84aff1ac7072aa1474d404e4736185e091e6355edc3bf085dc4",
+          "bytes": 38243124
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T004251Z.tar.gz",
+          "sha256": "c0c40724ecd412d06e6931e11d57c238d8018495620e802a1471ff0e749ff156",
+          "bytes": 3483207
+        },
+        {
+          "path": "repository-audit-progress-20261016T004253Z.tar.gz",
+          "sha256": "5aa0b6b6ffc6d0d91f5c20853c1a5f568753bda18de0f3918c4e406920eb5576",
+          "bytes": 39710969
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T005559Z.tar.gz",
+          "sha256": "cd7ef33d22f7e5b18ad8255ffa8a732a1b83b5529c2b6446e2afbd352362d8f6",
+          "bytes": 4496515
+        },
+        {
+          "path": "repository-audit-progress-20261016T005612Z.tar.gz",
+          "sha256": "9160a57223b2aa3afa644f9e0ac78f1e0093dd254e9fafa75a1b855db4b91aed",
+          "bytes": 41062972
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T011157Z.tar.gz",
+          "sha256": "4ab50148cb63283ab00bceb33dd8098a7cdcc08eb0ae1e8bc64a41fcc3e64d2c",
+          "bytes": 5303443
+        },
+        {
+          "path": "repository-audit-progress-20261016T011203Z.tar.gz",
+          "sha256": "198ae0a9e3bbabda1e1576c2055fb8ef260ce15f08d3538cad1b062031044dca",
+          "bytes": 42187471
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T012327Z.tar.gz",
+          "sha256": "371c79c1cfe0cd85ea02fec9417c6e024f31bc90d1b5530f538d2f09c490b162",
+          "bytes": 6814494
+        },
+        {
+          "path": "repository-audit-progress-20261016T012342Z.tar.gz",
+          "sha256": "007b8f731d4a2f1617719d7f9c6c21cbd4c6df4b66161af94b57ae7b5f2fd9df",
+          "bytes": 42704532
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T014114Z.tar.gz",
+          "sha256": "8b53465a40d86128e71b70eae1c195ac91795335f2c07afaf72b19140672042a",
+          "bytes": 6831953
+        },
+        {
+          "path": "repository-audit-progress-20261016T014202Z.tar.gz",
+          "sha256": "ec8709646cac21983c0006516f680b76da3c9b5278c939f842f2331af0a4d53f",
+          "bytes": 44143684
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T021211Z.tar.gz",
+          "sha256": "a3132dc3f10f9864cca813fd8b8a7587374e1550cffb74d77a1f214a6416b479",
+          "bytes": 6923045
+        },
+        {
+          "path": "repository-audit-progress-20261016T021220Z.tar.gz",
+          "sha256": "0325029c8e89f5fab301b0916eac9af482968a18ce320ecb1638d224b94653e7",
+          "bytes": 46679563
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T022731Z.tar.gz",
+          "sha256": "ca8b1f70782519b41da26eecfde2e441a5ac004a5f6e1da6aa5a4f364a99a233",
+          "bytes": 6936001
+        },
+        {
+          "path": "repository-audit-progress-20261016T022818Z.tar.gz",
+          "sha256": "b123ce923396c1161d1209aaa945a0f9796ddb11101f6b7a0c9003208703d9fe",
+          "bytes": 48505409
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T024542Z.tar.gz",
+          "sha256": "a2a1ac81c3b0749b37158674e3b16c6a47c3b9bbdc1f1155899fd9f0e4abb411",
+          "bytes": 6990958
+        },
+        {
+          "path": "repository-audit-progress-20261016T024610Z.tar.gz",
+          "sha256": "88587c20fdbd69f91e2f234c6eba4bc7f5f8a63f2e05e5307093fa87bf0f1c3d",
+          "bytes": 51470695
+        },
+        {
+          "path": "repository-audit-db161-seal-20261016T0249.tar.gz",
+          "sha256": "7cd565ab8890353ca61dcd3926d2c97dfd75f3c76fe589edb2ea105f39ce2250",
+          "bytes": 479603
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T025833Z.tar.gz",
+          "sha256": "5cdff8da7e8b6d6a8ef167ad33f3f60f144b3f74774ce76a9069096ddcc91455",
+          "bytes": 8471141
+        },
+        {
+          "path": "repository-audit-progress-20261016T025923Z.tar.gz",
+          "sha256": "0206ff015e5fd150ec6b336a6f54295acfa07e42388f87f325a4022ccdd9c5dd",
+          "bytes": 56228488
+        },
+        {
+          "path": "repository-audit-runtime374-seal-20261016T0303.tar.gz",
+          "sha256": "bde443892655f9c2c0d1c13528c6f5503709c6df86c45a7b5a69444785d1ebcd",
+          "bytes": 1491238
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T031956Z.tar.gz",
+          "sha256": "b788358ef8f0caecf49404e6ca6c3649b61013c6ae56c3b57bd6cc40738b5fa9",
+          "bytes": 8473290
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-01",
+          "sha256": "0426bde29a779224f3ae88c34953d929f943313c3aa9798325eb2a70b3a90206",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-02",
+          "sha256": "6182dca634ccef1b9696ae00f20a08241471e749840358c4925dbf7ce9f8e90c",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-03",
+          "sha256": "ce289417406aa150a9849006a273f295f37cae5c88064a931f1d85207bfb323b",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-04",
+          "sha256": "90880420cf7631d42589e0a607dbbf5ca8ea2835efd8eb1db62c7f093403fdd6",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-05",
+          "sha256": "cd1fb7f4d5aa97e6b3b38fa18e2f8f7460556a136ba2f7bb12d7070fb5145a06",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-06",
+          "sha256": "0ff96e0cb0cf54cdcc07dda133bd415dbb5e1259fad0c7b182b1ec992213bb14",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-07",
+          "sha256": "57d08e35abb2da191b0ba9cd3b0c95c8bf6fdb17f7a7d54a875a9969f580583f",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-08",
+          "sha256": "b8f244151f5a5e51713bbe052ba6ed0a50df428ad87df5d02fdf174ad02d1ab6",
+          "bytes": 50331648
+        },
+        {
+          "path": "repository-audit-progress-20261016T032020Z.tar.gz.part-09",
+          "sha256": "ada432668b3c31f5fbac754a16d23fdcf80818f0be516799bcf0ed5936098b77",
+          "bytes": 14264338
+        },
+        {
+          "path": "repository-audit-closure-progress-20261016T035425Z.tar.gz",
+          "sha256": "05e8d5b0442932b8c9af1a9926473eb3fe1a820f0730960856e70083620d0808",
+          "bytes": 243609
+        },
+        {
+          "path": "repository-audit-closure-progress-20261016T040954Z.tar.gz",
+          "sha256": "552737386ac39046394f7f3b1df6b16e3735fcc6fab5f0f555e150f23d2c933d",
+          "bytes": 3557964
+        },
+        {
+          "path": "repository-audit-final-role-progress-20261016T043337Z.tar.gz",
+          "sha256": "8195061ee075d8ab651483b906e3ef7030cf6e9d75d0521093a2e9f6c46b9e01",
+          "bytes": 19320816
+        },
+        {
+          "path": "repository-audit-final-role-progress-20261016T044857Z.tar.gz",
+          "sha256": "d2984665b672fc3e6022f22f8f4bfad5e0662f5f9b92e1b3ee4b7d6fdecea509",
+          "bytes": 8903803
+        },
+        {
+          "path": "repository-audit-deep-delta-20261016T050542Z.tar.gz",
+          "sha256": "d4342fff001cbf3471b63861600a307de2a48b330c8b7dd93efb8388f639a802",
+          "bytes": 15638761
+        },
+        {
+          "path": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-01",
+          "sha256": "0ccdeedb1f276a41772c9db19b8a19f9f68fa8b9d49be39fed3b29ad52ddb2c9",
+          "bytes": 47185920
+        },
+        {
+          "path": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-02",
+          "sha256": "e9acd2170101c87076bf32881514ae1f3536149a327eece13f8f526c618308b1",
+          "bytes": 47185920
+        },
+        {
+          "path": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-03",
+          "sha256": "ea0c8325d3ad2407a86b0d34667ebadd67be36b988b649e6bee48bb75c3649a5",
+          "bytes": 47185920
+        },
+        {
+          "path": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-04",
+          "sha256": "740c5b11bdd9e515cf028032bcb8d5cc1f617e7286648d7ba098b446715533ab",
+          "bytes": 4602681
+        }
+      ],
+      "errors": [],
+      "limits": "Outer bytes, exact inventory and index consistency only. Internal member proofs retain their own sealed manifests. Portable old proposals retain blockers; no code/provider/current acceptance follows."
+    }
+  },
+  "primary_archive": {
+    "status": "FINAL_SOURCE_AUDIT_RECONCILED",
+    "logical_archive": "repository-consumer-audit-final-20261016T050553Z.tar.gz",
+    "logical_sha256": "91fb54a7fdd2f1c934485333f4865e8e715a93ecabcd91b4f050d471f42fb504",
+    "logical_bytes": 146160441,
+    "verified_members": 2723,
+    "parts": [
+      {
+        "file": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-01",
+        "sha256": "0ccdeedb1f276a41772c9db19b8a19f9f68fa8b9d49be39fed3b29ad52ddb2c9",
+        "bytes": 47185920
+      },
+      {
+        "file": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-02",
+        "sha256": "e9acd2170101c87076bf32881514ae1f3536149a327eece13f8f526c618308b1",
+        "bytes": 47185920
+      },
+      {
+        "file": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-03",
+        "sha256": "ea0c8325d3ad2407a86b0d34667ebadd67be36b988b649e6bee48bb75c3649a5",
+        "bytes": 47185920
+      },
+      {
+        "file": "repository-consumer-audit-final-20261016T050553Z.tar.gz.part-04",
+        "sha256": "740c5b11bdd9e515cf028032bcb8d5cc1f617e7286648d7ba098b446715533ab",
+        "bytes": 4602681
+      }
+    ],
+    "catalogue_sha256": "989029eddc6ec11294b2e6755214597e01660434540f778f687a1c96e33725af",
+    "counts": {
+      "semantic_code_changes": 1799,
+      "validation_code_repairs": 305,
+      "authored_documentation": 54,
+      "all_required_changes": 2158,
+      "by_work_kind": {
+        "shared_owner_repair": 175,
+        "caller_migration": 1321,
+        "metadata_or_target_schema": 101,
+        "validation_code_repair": 305,
+        "shared_owner_extension": 202,
+        "authored_documentation": 54
+      },
+      "relative_effort": {
+        "M": 1161,
+        "S": 340,
+        "L": 652,
+        "XL": 5
+      },
+      "by_area": {
+        "compiler": {
+          "semantic_code_changes": 297,
+          "validation_code_repairs": 44,
+          "authored_documentation": 0,
+          "all_required_changes": 341,
+          "by_work_kind": {
+            "shared_owner_repair": 26,
+            "caller_migration": 267,
+            "metadata_or_target_schema": 4,
+            "validation_code_repair": 44
+          },
+          "relative_effort": {
+            "M": 137,
+            "S": 68,
+            "L": 136
+          }
+        },
+        "db": {
+          "semantic_code_changes": 177,
+          "validation_code_repairs": 7,
+          "authored_documentation": 0,
+          "all_required_changes": 184,
+          "by_work_kind": {
+            "shared_owner_repair": 27,
+            "shared_owner_extension": 79,
+            "caller_migration": 66,
+            "metadata_or_target_schema": 5,
+            "validation_code_repair": 7
+          },
+          "relative_effort": {
+            "L": 56,
+            "M": 110,
+            "S": 17,
+            "XL": 1
+          }
+        },
+        "lsp": {
+          "semantic_code_changes": 201,
+          "validation_code_repairs": 122,
+          "authored_documentation": 2,
+          "all_required_changes": 325,
+          "by_work_kind": {
+            "caller_migration": 166,
+            "shared_owner_extension": 22,
+            "metadata_or_target_schema": 13,
+            "authored_documentation": 2,
+            "validation_code_repair": 122
+          },
+          "relative_effort": {
+            "M": 270,
+            "L": 30,
+            "S": 25
+          }
+        },
+        "runtime": {
+          "semantic_code_changes": 370,
+          "validation_code_repairs": 5,
+          "authored_documentation": 1,
+          "all_required_changes": 376,
+          "by_work_kind": {
+            "shared_owner_repair": 39,
+            "caller_migration": 284,
+            "metadata_or_target_schema": 47,
+            "authored_documentation": 1,
+            "validation_code_repair": 5
+          },
+          "relative_effort": {
+            "L": 223,
+            "M": 140,
+            "XL": 2,
+            "S": 11
+          }
+        },
+        "vm": {
+          "semantic_code_changes": 319,
+          "validation_code_repairs": 9,
+          "authored_documentation": 0,
+          "all_required_changes": 328,
+          "by_work_kind": {
+            "caller_migration": 204,
+            "shared_owner_extension": 100,
+            "metadata_or_target_schema": 6,
+            "shared_owner_repair": 9,
+            "validation_code_repair": 9
+          },
+          "relative_effort": {
+            "M": 160,
+            "L": 127,
+            "S": 39,
+            "XL": 2
+          }
+        },
+        "root": {
+          "semantic_code_changes": 164,
+          "validation_code_repairs": 16,
+          "authored_documentation": 8,
+          "all_required_changes": 188,
+          "by_work_kind": {
+            "caller_migration": 133,
+            "shared_owner_repair": 11,
+            "metadata_or_target_schema": 19,
+            "authored_documentation": 8,
+            "validation_code_repair": 16,
+            "shared_owner_extension": 1
+          },
+          "relative_effort": {
+            "M": 128,
+            "S": 36,
+            "L": 24
+          }
+        },
+        "audit": {
+          "semantic_code_changes": 271,
+          "validation_code_repairs": 102,
+          "authored_documentation": 43,
+          "all_required_changes": 416,
+          "by_work_kind": {
+            "validation_code_repair": 102,
+            "caller_migration": 201,
+            "shared_owner_repair": 63,
+            "metadata_or_target_schema": 7,
+            "authored_documentation": 43
+          },
+          "relative_effort": {
+            "S": 144,
+            "M": 216,
+            "L": 56
+          }
+        }
+      }
+    },
+    "limits": [
+      "Confirmed required changes, not issue count, raw purpose rows, source files, source anchors, repair families, generic callers or elapsed days.",
+      "Questions have been examined; unsupported/unknown provider or product requirements may establish additional work later. They are retained separately from the confirmed change count.",
+      "Source/role audit completion grants no migration implementation, Native/cell/frame identity, absence, transformation authority, normal completion, provider semantics or green gates.",
+      "Code/schema, validation repairs, existing unexecuted validation, authored guidance and final repository-wide cleanup remain separate. No old afterimage can overwrite newer source; rebase reviewed individual changes.",
+      "All current registered targets/hosts/editor/generated surfaces are represented by source owners/adopters and explicit foreign/original/generated input/output roles. Reproducible generated parity and provider execution remain required validation.",
+      "No PR, issue closure or merge acceptance; #2286 stays open."
+    ]
+  },
+  "limits": [
+    "Audit source/role census, source-anchor bindings, artifacts and retention only. No production/test code changes or execution acceptance.",
+    "No new Cargo/build/provider/oracle run; required gates remain red or unrun. #2286 remains OPEN.",
+    "Read-only remote check: origin/workffecb525 and origin/rustca698d87; incoming rust remains unmerged/unadmitted."
+  ]
+}
