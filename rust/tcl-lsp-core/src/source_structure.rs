@@ -107,6 +107,19 @@ impl SourceSyntaxRegion {
 }
 
 impl SourceSyntaxStructure {
+    /// Original readonly command vectors without the independent lexical-token
+    /// inventory. The complete current analysis/input/image/configuration owns
+    /// the same selected script regions as `capture`; no binding, execution,
+    /// completeness or edit authority follows from an individual command.
+    #[must_use]
+    pub fn capture_commands(
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<Vec<SegmentedCommand>> {
+        let (_, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+        Some(SourceStructure::capture(source, Some(analysis), config)?.commands)
+    }
+
     /// Capture the current document using its actual input, realm and grammar.
     /// Stale source or unavailable correspondence declines without recapture.
     #[must_use]
@@ -1067,6 +1080,39 @@ fn retain_member_bodies<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn commands_only_capture_keeps_current_original_regions_without_token_inventory() {
+        let source = "proc p {} {greet arg}; set value [greet arg]; set data {inert arg}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let commands = SourceSyntaxStructure::capture_commands(source, &analysis).unwrap();
+        let full = SourceSyntaxStructure::capture(source, &analysis).unwrap();
+        assert_eq!(commands, full.commands());
+        let greet = commands
+            .iter()
+            .filter(|command| command.texts.first().is_some_and(|head| head == "greet"))
+            .count();
+        assert_eq!(greet, 2);
+        assert!(
+            !commands
+                .iter()
+                .any(|command| command.texts.first().is_some_and(|head| head == "inert"))
+        );
+        assert!(
+            SourceSyntaxStructure::capture_commands(
+                &source.replace("greet arg", "other arg"),
+                &analysis,
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(SourceSyntaxStructure::capture_commands(source, &missing).is_none());
+        let mut mismatched = analysis;
+        let config = mismatched.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(SourceSyntaxStructure::capture_commands(source, &mismatched).is_none());
+    }
 
     #[test]
     fn logical_procedure_structure_uses_current_declared_body_word() {

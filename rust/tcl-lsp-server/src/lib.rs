@@ -29702,28 +29702,75 @@ fn line_col_to_byte_offset_indexed(
     Some(index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(col), source) as usize)
 }
 
-/// Whether the cursor at `pos` sits on a command head (the first
-/// word of a command), per the analyser's recorded command
-/// invocations.  Used to gate the cross-document go-to-definition
-/// fallback so it only fires on call sites, not on argument words
-/// that happen to collide with a sibling proc/class name.
-///
-/// `index` is the caller's persisted [`tcl_lexer::LineIndex`]
-/// (`DocumentState::line_index`) — resolved through it rather than a fresh
-/// rebuild, since both hover and go-to-definition call this on every request.
+/// Gate legacy navigation fallback on a current, complete original command
+/// head and an exact LSP cursor. Source geometry grants no binding or dispatch.
 fn position_is_command_head(
     source: &str,
     pos: Position,
     analysis: &AnalysisResult,
     index: &tcl_lexer::LineIndex,
 ) -> bool {
+    let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
+    else {
+        return false;
+    };
+    let current_index = tcl_lexer::LineIndex::new_lsp(source);
+    if index.line_count() != current_index.line_count()
+        || (0..current_index.line_count()).any(|line| {
+            let line = u32::try_from(line).expect("source line count fits u32");
+            index.line_start(line) != current_index.line_start(line)
+        })
+    {
+        return false;
+    }
     let Some(offset) = line_col_to_byte_offset_indexed(index, source, pos.line, pos.character)
     else {
         return false;
     };
-    analysis.command_invocations.iter().any(|inv| {
-        let (start, end) = (inv.range.start() as usize, inv.range.end() as usize);
-        offset >= start && offset < end
+    let offset = u32::try_from(offset).expect("source offset fits u32");
+    let actual_position = index.position_at_utf16(offset, source);
+    if actual_position.line != pos.line || actual_position.character.get() != pos.character {
+        return false;
+    }
+    let Some(commands) = tcl_lsp_core::SourceSyntaxStructure::capture_commands(source, analysis)
+    else {
+        return false;
+    };
+    let map = tcl_lexer::SourceMap::from_image(&image);
+    commands.iter().any(|command| {
+        let extent = command.execution_span(source);
+        if command.is_partial
+            || !command.word_views_aligned()
+            || offset < extent.start()
+            || extent.end() <= offset
+        {
+            return false;
+        }
+        let Some(first) = command.argv.first() else {
+            return false;
+        };
+        let tokens = tcl_compiler::ir::CommandTokens::from_segmented(&map, config, command);
+        let Some(words) = tcl_compiler::registry_invocation::original_native_compiler_words(
+            &image,
+            tokens.words(),
+            first.span.start(),
+            tokens.native_lexer_config(config),
+        ) else {
+            return false;
+        };
+        let Some(head) = words.first() else {
+            return false;
+        };
+        let span = head.span();
+        !head.group().expand
+            && span.start() <= offset
+            && offset < span.end()
+            && analysis.command_invocations.iter().any(|invocation| {
+                invocation.lookup.is_execution_site()
+                    && span.start() <= invocation.range.start()
+                    && invocation.range.start() < invocation.range.end()
+                    && invocation.range.end() <= span.end()
+            })
     })
 }
 
@@ -49035,6 +49082,93 @@ proc p {} {
             },
             &analysis,
             &index,
+        ));
+    }
+
+    #[test]
+    fn command_head_gate_uses_whole_original_words_and_exact_utf16_positions() {
+        let src = "\"greet\" arg\ngr\\u0065et arg\n😀greet arg\nset value [greet arg]\nset data {greet arg}\n";
+        let analysis = Analyser::new().analyse(src, "tcl8.6");
+        let index = tcl_lexer::LineIndex::new_lsp(src);
+        for pos in [
+            Position::new(0, 0),
+            Position::new(0, 3),
+            Position::new(0, 6),
+            Position::new(1, 4),
+            Position::new(2, 0),
+            Position::new(2, 2),
+            Position::new(3, 12),
+        ] {
+            assert!(
+                position_is_command_head(src, pos, &analysis, &index),
+                "{pos:?}"
+            );
+        }
+        for pos in [
+            Position::new(0, 9),
+            Position::new(2, 1),
+            Position::new(2, 99),
+            Position::new(3, 18),
+            Position::new(4, 12),
+            Position::new(99, 0),
+        ] {
+            assert!(
+                !position_is_command_head(src, pos, &analysis, &index),
+                "{pos:?}"
+            );
+        }
+        let multiline = "\"greet\nmore\" arg\n";
+        let analysis = Analyser::new().analyse(multiline, "tcl8.6");
+        let index = tcl_lexer::LineIndex::new_lsp(multiline);
+        assert!(!position_is_command_head(
+            multiline,
+            Position::new(0, 99),
+            &analysis,
+            &index
+        ));
+    }
+
+    #[test]
+    fn command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows() {
+        let src = "greet arg\n";
+        let analysis = Analyser::new().analyse(src, "tcl8.6");
+        let index = tcl_lexer::LineIndex::new_lsp(src);
+        let pos = Position::new(0, 2);
+        assert!(position_is_command_head(src, pos, &analysis, &index));
+        assert!(!position_is_command_head(
+            "other arg\n",
+            pos,
+            &analysis,
+            &index
+        ));
+        let foreign_index = tcl_lexer::LineIndex::new_lsp("one\ntwo\n");
+        assert!(!position_is_command_head(
+            src,
+            pos,
+            &analysis,
+            &foreign_index
+        ));
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(!position_is_command_head(src, pos, &missing, &index));
+        let mut grammar = analysis.clone();
+        grammar.body_lexer_config = None;
+        assert!(!position_is_command_head(src, pos, &grammar, &index));
+        let mut consumed = analysis.clone();
+        for invocation in &mut consumed.command_invocations {
+            invocation.lookup =
+                tcl_compiler::signature_scan::types::SignatureCommandLookup::DeferredReference;
+        }
+        assert!(!position_is_command_head(src, pos, &consumed, &index));
+        let mut argument_report = analysis;
+        for invocation in &mut argument_report.command_invocations {
+            invocation.range = tcl_lexer::Span::new(6, 9);
+        }
+        assert!(!position_is_command_head(
+            src,
+            Position::new(0, 7),
+            &argument_report,
+            &index
         ));
     }
 

@@ -1,0 +1,110 @@
+{
+  "status": "SELECTION_CAPTURE_ONLY_NO_ORDINARY_ACCEPTANCE",
+  "selection": "Partial retry3 fresh Compiler Jim-source issuer original positive plus new guarded source controls; no whole-build acceptance",
+  "manifest_sha256": "be2410f1afa65cf3153a507cb8dab9e920575faa78183597de243db16c3efc3a",
+  "partial_target": null,
+  "expected_selected_count": 3,
+  "full_group_expected_count": 3,
+  "artifacts": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+      "sha256": "322ca485ddb66b9cbad8115fa626ad456cdddecdf566d06b40f7af5f97475ff2"
+    }
+  },
+  "environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1"
+  },
+  "runs": [
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 13.812697536002815,
+      "log": "test-001.log",
+      "log_sha256": "7b62f9204cb13ef9fafe1ca92912747cece4b1bde47a4ba9e58458995c16f332",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.716796490996785,
+      "log": "test-002.log",
+      "log_sha256": "887f7cd07abd221e6624f4eeb240ed4bc00d255de51a27fd6a78c85371257f77",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.0677838880001218,
+      "log": "test-003.log",
+      "log_sha256": "06a0f570921e727b8e11cc96de74abe7d7c351a97c1f0b24448b4f32397b3e49",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    }
+  ],
+  "errors": [],
+  "artifact_drift": {},
+  "listed_only": false,
+  "selected_vector_complete": true,
+  "full_group_complete": true,
+  "passed_count": 1,
+  "failed_count": 2
+}

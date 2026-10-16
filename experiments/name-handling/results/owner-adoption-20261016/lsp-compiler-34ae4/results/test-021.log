@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection ... 
+thread 'analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection' (161760) panicked at rust/tcl-compiler/src/analyser/variable_source_declarations.rs:194:21:
+actual source target ::ns::array: {}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10254 filtered out; finished in 4.15s
+

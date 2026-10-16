@@ -1,0 +1,503 @@
+{
+  "group": "Clean34ae4 Compiler LSP dependencies: unchanged predecessor37/repair63 Compiler selectors plus new originalBody Source controls",
+  "total_exact_selectors": 37,
+  "groups": {
+    "tcl_compiler": [
+      "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "interprocedural::tests::param_traits_inferred",
+      "interprocedural::tests::call_by_name_param_traits_inferred",
+      "interprocedural::tests::forwarded_to_callee_detected",
+      "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+      "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+      "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+      "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+      "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+      "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+      "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+      "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+      "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+      "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_compiler": 37
+  },
+  "execution_order": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {},
+    "unset": []
+  },
+  "source_evidence": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3712,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3727,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2590,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1781,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1992,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2025,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2061,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2076,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "source_path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "source_line": 14083,
+      "source_sha256": "080a05c33096df7b510c44246316ce80cbf5fabcfe9709d5a77f68e6e9fc41c1",
+      "purpose": "Logical source local declaration/link reporting without executed alias"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "source_path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+      "source_line": 974,
+      "source_sha256": "0766d1ca0679dc14a58f39f8ab3cc80963b5fe4f2260f1dc4b20b9eae0adc501",
+      "purpose": "Genuine scalar source scope/config and stronger Native refusal dependency"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7401,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7112,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7262,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7668,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7685,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7760,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2213,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2240,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2515,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Actual expanded argv children, optional/rest formal binding topology"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2798,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2837,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10194,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10219,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10248,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10283,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "ProcDef VarRead/Write roles projected through actual original formal/expanded argv owner"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 990,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1115,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1281,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1156,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1945,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1960,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1992,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 59,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 206,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 255,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 420,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 471,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    }
+  ],
+  "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged."
+}

@@ -1,0 +1,34 @@
+{
+  "group": "Partial retry3 fresh Compiler Jim-source issuer original positive plus new guarded source controls; no whole-build acceptance",
+  "total_exact_selectors": 3,
+  "groups": {
+    "tcl_compiler": [
+      "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_compiler": 3
+  },
+  "execution_order": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {},
+    "unset": []
+  }
+}

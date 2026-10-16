@@ -1,0 +1,29 @@
+{
+  "scope": "37 Compiler-only LSP dependency controls, 35 unchanged predecessor selectors plus two new originalBody Source controls; not other LSP packages/full acceptance",
+  "source_head": "34ae4d0feccbdc3cab4f38c2dd17b26710796197",
+  "passed": 30,
+  "failed": 7,
+  "timeouts": 0,
+  "singleton_guard_rejections": 0,
+  "predecessor_overlap": 35,
+  "gains": [
+    "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+    "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations"
+  ],
+  "prior_pass_regressions": [],
+  "new_selectors": [
+    "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+    "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers"
+  ],
+  "ordinary": true,
+  "instrumentation": false,
+  "inputs_count": 38995,
+  "input_drift_count": 0,
+  "input_manifest_retention": "/workspace/naming-validation/lsp-compiler-34ae4/input-before.json",
+  "input_manifest_sha256": "e563780270d801c097ebe8a6e153d241dec8df7ed7494d1ce0e5a1ebdfc52a8b",
+  "adapter_path": "/tmp/naming-retained-selection-recovery-v3/replay-selection.py",
+  "adapter_sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+  "build_scope": "Compiler-only ordinary library test build; success excludes Core/DB/Registry/Server unit builds and runtime execution",
+  "provider_scope": "Source-analysis controls select actual recorded dialect inputs; this capture supplies no new original-provider semantic authority",
+  "utc": "2026-10-16T15:49:47.855161+00:00"
+}

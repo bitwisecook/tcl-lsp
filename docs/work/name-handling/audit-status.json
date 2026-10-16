@@ -404,9 +404,9 @@
     "utc": "2026-10-16T15:28:18.434308+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 216,
+    "implemented_pending_validation": 217,
     "verified_complete": 0,
-    "not_started": 1942,
+    "not_started": 1941,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,18 +665,13 @@
       "verified_complete": 0
     },
     "effective_required_units": 2194,
-    "effective_implemented_pending_validation": 251,
+    "effective_implemented_pending_validation": 252,
     "effective_verified_complete": 0,
     "incoming_remote": {
-      "rust": "c60f938ddd2a8d92a3bc251c57fa3609d77593c3",
-      "issue": 2488,
-      "prior_tip": "5704753576d9e6d57ba7928c739dcbf726ce6bd1",
-      "status": "unmerged_unadmitted",
-      "changed_paths": [
-        ".claude/hooks/session-start.sh",
-        "docs/design/contracts/development-environment.md",
-        "scripts/dev/ensure-test-deps.sh"
-      ]
+      "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "rechecked_utc": "2026-10-16T15:50:00Z",
+      "status": "UNMERGED_UNADMITTED",
+      "scope": "#2487 includes new pre-scan wait separate from10s scan budget and first-query test; LSP publication/scanning overlap inspected; VM changes deferred; no source/evidence donation."
     },
     "ordinary_workspace_build": {
       "status": "PASS",
@@ -839,7 +834,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 215,
+    "fully_implemented_pending_validation": 216,
     "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -1005,14 +1000,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 88,
+      "lsp_integrated_pending_validation": 89,
       "lsp_by_kind_integrated": {
-        "semantic": 16,
+        "semantic": 17,
         "validation": 70,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 237,
+      "lsp_without_integrated_implementation": 236,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1119,15 +1114,20 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T15:06:00Z",
-      "next_utc": "2026-10-16T15:36:00Z",
-      "LSP_integrated": 42,
+      "last_utc": "2026-10-16T15:36:00Z",
+      "next_utc": "2026-10-16T16:06:00Z",
+      "LSP_integrated": 88,
       "LSP_required": 325,
       "verified_complete": 0,
-      "selected": 100,
-      "PASS": 89,
-      "FAIL": 11,
-      "scope": "Two disjoint exact focused selections; no whole-repository acceptance"
+      "prior_selected": 100,
+      "prior_PASS": 89,
+      "prior_FAIL": 11,
+      "separate_retry3_compiler_issuer_subset": {
+        "selected": 3,
+        "PASS": 1,
+        "FAIL": 2,
+        "scope": "Compiler-only completed artifact from otherwisefailed5libbuild; excludeslateraliaschanges"
+      }
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -1221,6 +1221,57 @@
       "status": "integrated_pending_validation",
       "validation": "Independent V2CLEAR; genuineLogicalrenameinput/dollarcase and pureReadWriteconversion distinctfromsource-selectionauthority; no newowner. Freshbuild/executionpending."
     },
-    "pending_retry4": "Existing context Arc passed directly in newTkcontrol; source-clearedLogicalaliasreborrow fe536 and oracle-backedCfixture6dc plus3validations57501 integrated. Newordinarybuildpending."
+    "pending_retry4": "Clean34ae4 Compiler-only build passes; focused37 completes30P7F; otherLSP library build running separately. SourceFile admission remains TMP held for actual Native/Virtual/Guest store policy; diagnostic completion/position-head candidates pending integration.",
+    "compiler34ae4_build": {
+      "status": "PASS_COMPILER_ONLY",
+      "source_head": "34ae4d0feccbdc3cab4f38c2dd17b26710796197",
+      "source_dirty": false,
+      "binding": "/workspace/naming-validation/lsp-compiler-34ae4/source-binding.json",
+      "scope": "Compileronly fresh test artifact; otherLSPpackages separate, onejob/testdebug0",
+      "binary_sha256": "2fb37ddd8978d5cfc223a037a4dab400ca4cab2442a19c512be3b5f3668ae7a2",
+      "input_count": 38995,
+      "input_drift_count": 0,
+      "warnings": 0
+    },
+    "compiler34ae4_selection": {
+      "status": "COMPLETE_BOUNDED_SELECTION_NOT_ACCEPTANCE",
+      "selected": 37,
+      "PASS": 30,
+      "FAIL": 7,
+      "TIMEOUT": 0,
+      "run_count_rejections": 0,
+      "predecessor_overlap": 35,
+      "gains": [
+        "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+        "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations"
+      ],
+      "prior_PASS_regressions": 0,
+      "durable": "experiments/name-handling/results/owner-adoption-20261016/lsp-compiler-34ae4/summary.json"
+    },
+    "lsp_libs34ae4_build": {
+      "status": "FAILED_E0624_PRIVATE_METHOD_IN_NEW_VALIDATION",
+      "packages": [
+        "tcl-lsp-core",
+        "tcl-lsp-db",
+        "tcl-registry",
+        "tcl-lsp-server"
+      ],
+      "source_head": "34ae4d0feccbdc3cab4f38c2dd17b26710796197",
+      "input_binding": "/workspace/naming-validation/lsp-libs-34ae4/source-binding.json",
+      "single_job": true,
+      "test_debug": 0,
+      "input_drift_count": 0,
+      "fix": "Compare retained full resolved input to genuine supplied Logical input through public typed equality; final original rename assertions unchanged."
+    },
+    "lsp_position_head": {
+      "baseline_units": [
+        "lsp-server-position-head-source-geometry"
+      ],
+      "status": "integrated_pending_validation",
+      "patch": "a62e4e31c6f7fbec344afc904d352b2876bf65a6e93a2a3eb11bc84cf46bfa52",
+      "contract": "87bb55a24613c24942ffd831b953dfce84eed2e03ee05dac535ee2982fff5d09",
+      "new_requirement_delta": 0,
+      "validation": "Root source CLEAR + TMPfmt PASS; same genuine readonly producer, strict wholehead/vector/config/source/UTF16 guards; original tests preserved. No timing/performance acceptance; ordinary controls pending."
+    }
   }
 }

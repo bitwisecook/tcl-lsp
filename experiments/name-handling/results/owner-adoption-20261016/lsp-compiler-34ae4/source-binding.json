@@ -1,0 +1,21 @@
+{
+  "source_head": "34ae4d0feccbdc3cab4f38c2dd17b26710796197",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "packages": [
+    "tcl-compiler"
+  ],
+  "single_job": true,
+  "test_debug": 0,
+  "status": "compiler_only_build_pass",
+  "source_scope": "Clean34ae4 reviewed LSP batch, no instrumentation. LSP Core/DB/Registry/Server fresh build and full gates remain separate.",
+  "input_before_count": 38995,
+  "input_before_sha256": "e563780270d801c097ebe8a6e153d241dec8df7ed7494d1ce0e5a1ebdfc52a8b",
+  "utc": "2026-10-16T15:35:04.360949+00:00",
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "compiler_warnings": 0,
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler --lib --no-run",
+  "completed_utc": "2026-10-16T15:46:34.380778+00:00",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+}

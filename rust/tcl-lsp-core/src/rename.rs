@@ -3527,16 +3527,10 @@ mod tests {
             let source = format!("set {{{name}}} 1\nputs ${{{name}}}\n");
             let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
             let analysis = Analyser::new()
-                .with_resolved_input(input)
+                .with_resolved_input(input.clone())
                 .analyse(&source, profile.name)
                 .clone();
-            assert!(
-                analysis
-                    .resolved_input
-                    .as_ref()
-                    .unwrap()
-                    .has_logical_source_name_context()
-            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
             assert!(analysis.allows_lexical_declaration_advice());
             let edits = rename(&source, profile, 1, 7, "new", &analysis, None);
             assert!(!edits.is_empty(), "{name}");

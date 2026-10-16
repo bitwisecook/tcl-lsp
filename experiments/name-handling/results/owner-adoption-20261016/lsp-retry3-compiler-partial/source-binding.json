@@ -1,0 +1,22 @@
+{
+  "scope": "Compiler-only completed unit artifact from failed five-library retry3; Core test constructor failed separately. No whole-build or current-source acceptance.",
+  "source_binding": {
+    "source_head": "c20c6ed04445f02dbd11ff55b7be9cf13a401b8d",
+    "source_diff_sha256": "8b06be7567409eaa84b0a62724f53c64cabbb23042f538a18dcecbbcdb55e2a6",
+    "ordinary": true,
+    "single_job": true,
+    "profile_test_debug": 0,
+    "status": "ordinary_build_FAILED_NEW_TK_TEST_DOUBLE_ARC_CONSTRUCTOR",
+    "source_scope": "Committedc20 + reviewedJim originalBody parameter Source issuer/contracts + reviewed per-resource document-symbol config and checked installation picker + URI error documentation lint fix. No instrumentation. All later sourcealias/admission/3validation candidates excluded.",
+    "input_before_count": 38995,
+    "input_before_sha256": "fd4a0b80ffd81b7f8c6bad852712d709c5682a7954e9906ac7db1d50db092770",
+    "input_scope": "All tracked Rust/runtime-rust/specs/scripts/rootCargo/toolchain/.cargo inputs; externalproviders independently bound.",
+    "utc": "2026-10-16T15:18:25.347177+00:00",
+    "input_after_drift": []
+  },
+  "artifact": {
+    "path": "/workspace/naming-validation/lsp-retry3-compiler-partial/tcl_compiler-8207aa965502e4cf",
+    "sha256": "322ca485ddb66b9cbad8115fa626ad456cdddecdf566d06b40f7af5f97475ff2"
+  },
+  "source_limit": "Excludes later Logical alias reborrow and fixture changes after retry3. No instrumentation."
+}
