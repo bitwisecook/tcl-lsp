@@ -47,6 +47,144 @@ pub(super) struct DeclaredProcedureBody {
     logical_parameters_word: Option<tcl_lexer::NativeWord>,
     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+    authored_original_body_word: Option<tcl_lexer::NativeWord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OriginalAuthoredDeclarationSourceObligation {
+    PrefixEffects,
+    HandlerLookup,
+    ObserverApplicability,
+}
+
+/// Original declaration geometry with independent, unclosed source applicability.
+/// The original row supplies syntax, not an entered lookup or completed prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalAuthoredProcedureSourceGeometry {
+    header: crate::ir::CommandTokens,
+    body: DeclaredProcedureBody,
+    body_word: tcl_lexer::NativeWord,
+    config: tcl_lexer::LexerConfig,
+    snapshot: Arc<SourceLookupSnapshot>,
+    obligations: [OriginalAuthoredDeclarationSourceObligation; 3],
+}
+
+impl OriginalAuthoredProcedureSourceGeometry {
+    pub(crate) fn body_word(&self) -> &tcl_lexer::NativeWord {
+        &self.body_word
+    }
+    pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
+        &self.body.namespace
+    }
+    pub(crate) fn name(&self) -> Option<&str> {
+        self.body.logical_name.as_deref()
+    }
+    pub(crate) fn parameters_text(&self) -> Option<&str> {
+        self.body.logical_parameters_text.as_deref()
+    }
+    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.body.parameters
+    }
+    pub(crate) fn reporting_label(&self) -> Option<String> {
+        self.body.command_label()
+    }
+    pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+    pub(crate) fn registry_snapshot(&self) -> Option<&tcl_registry::RegistrySnapshot> {
+        self.snapshot.state.baseline.registry_owner.as_ref()
+    }
+    pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.snapshot.realm
+    }
+    pub(crate) fn has_unclosed_source_coverage(&self) -> bool {
+        !self.obligations.is_empty()
+    }
+}
+
+impl super::SourceInvocationBinding {
+    pub(crate) fn original_authored_procedure_source_geometry(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalAuthoredProcedureSourceGeometry> {
+        if self.has_original_native_source_command()
+            || self.has_original_logical_source_advice()
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        // A present reached owner remains terminal, including invalid metadata.
+        // Its absence does not turn the declaration into an entered invocation.
+        let point = if self.lookup_state.is_some() {
+            let advice = self.original_authored_source_layout(tokens, registry)?;
+            advice.has_unclosed_source_coverage().then_some(())?;
+            Some(advice)
+        } else {
+            None
+        };
+        let site = self.invocation_site()?;
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let owner = self.original_analysis_owner.as_ref()?;
+        if !Arc::ptr_eq(&owner.source, &site.source)
+            || owner.config != config
+            || !owner.metadata.is_standalone()
+        {
+            return None;
+        }
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let mut agreed = None;
+        for row in rows {
+            if row.config != config
+                || row.words.as_ref() != tokens.words()
+                || !row.snapshot.state.baseline.metadata_context.is_standalone()
+                || row
+                    .snapshot
+                    .state
+                    .baseline
+                    .registry_owner
+                    .as_ref()?
+                    .semantic_key()
+                    != registry.snapshot().semantic_key()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                tokens,
+                &row.snapshot,
+                &row.namespace,
+                config,
+            )?;
+            if point.as_ref().is_some_and(|point| {
+                point.targets() != advice.targets() || point.namespace() != advice.namespace()
+            }) {
+                return None;
+            }
+            // Reuse the genuine original declaration recipe. An unavailable
+            // recipe never falls back to a source-text reconstruction.
+            let body = standalone_procedure_body_recipe(site, tokens, row, registry, &advice)?;
+            let body_word = body.authored_original_body_word.as_ref()?.clone();
+            let geometry = OriginalAuthoredProcedureSourceGeometry {
+                header: tokens.clone(),
+                body,
+                body_word,
+                config,
+                snapshot: Arc::clone(&row.snapshot),
+                obligations: [
+                    OriginalAuthoredDeclarationSourceObligation::PrefixEffects,
+                    OriginalAuthoredDeclarationSourceObligation::HandlerLookup,
+                    OriginalAuthoredDeclarationSourceObligation::ObserverApplicability,
+                ],
+            };
+            if agreed.as_ref().is_some_and(|old| old != &geometry) {
+                return None;
+            }
+            agreed = Some(geometry);
+        }
+        agreed
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2232,6 +2370,7 @@ fn standalone_procedure_body_recipe(
         logical_parameters_text: Some(parameters_text.clone()),
         logical_parameters_word: Some(original.get(shape.parameters.checked_add(1)?)?.clone()),
         original_parameters: None,
+        authored_original_body_word: Some(original.get(written)?.clone()),
     })
 }
 
@@ -2384,6 +2523,7 @@ fn logical_procedure_body_recipe(
                 _ => None,
             },
             original_parameters: None,
+            authored_original_body_word: None,
         };
         if agreed.as_ref().is_some_and(|previous| previous != &body) {
             return None;
@@ -2583,6 +2723,7 @@ fn procedure_body_recipe(
         logical_parameters_word: None,
         original_parameters: header.original_parameters,
         frame: header.frame,
+        authored_original_body_word: None,
     })
 }
 
@@ -3357,6 +3498,60 @@ mod tests {
                 assert!(declared_body(&site, &tokens, observation, registry).is_none());
             }
         }
+    }
+
+    #[test]
+    fn conditional_authored_declaration_geometry_refuses_withdrawn_rows_and_invalid_points() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = crate::lowering::lower_to_ir(
+            "rename $old decl\nproc kept {arg} {list retained}",
+            registry,
+        );
+        let header = module
+            .top_level
+            .retained_source_tokens_for_statement(module.top_level.statements.last().unwrap())
+            .expect("actual original unentered header");
+        let binding = header.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_authored_procedure_source_geometry(header, registry)
+                .is_some()
+        );
+        let mut withdrawn = header.clone();
+        withdrawn
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .declaration_layout_observations = None;
+        assert!(
+            withdrawn
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&withdrawn, registry)
+                .is_none()
+        );
+        let row = original_declaration_layouts(
+            binding.declaration_layout_observations.as_deref().unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let mut state = row.snapshot.state.clone();
+        Arc::make_mut(&mut state.baseline).metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let mut invalid_point = header.clone();
+        invalid_point.source_binding.as_mut().unwrap().lookup_state = Some(Arc::new(
+            SourceLookupSnapshot::in_realm(state, row.snapshot.realm),
+        ));
+        assert!(
+            invalid_point
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&invalid_point, registry)
+                .is_none()
+        );
     }
 
     #[test]

@@ -1259,7 +1259,9 @@ fn original_authored_definition_operands(
             .or_else(|| {
                 binding.original_authored_source_body_scope_for_name_roles(original, registry)
             })?;
-        scope.matches_module(module).then_some(())?;
+        if !scope.matches_module(module) || scope.has_unclosed_declaration_source_coverage() {
+            return None;
+        }
         let body = function.body_id?;
         module
             .original_authored_declaration_body_units

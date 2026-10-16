@@ -1,0 +1,38 @@
+{
+  "change": "Reject non-UTF-8 native temporary paths at test-only Unicode library-path configuration boundaries instead of silently substituting lossy text.",
+  "patch": "patch.apply.diff",
+  "patch_sha256": "de29653e61bfc07f0a516af941c02df8e96097f1dcf1b1137dd4c4b56a805610",
+  "file": "rust/tcl-lsp-server/src/lib.rs",
+  "before_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78",
+  "after_sha256": "b477f70d35b0ec27d41be1c43846b7a2fc711a9381f8ff193c8f949ee86afdf0",
+  "units": [
+    {
+      "id": "lsp.validation.18.03.fn0",
+      "site": "tests::scan_workspace_folders_builds_resolver_with_no_roots",
+      "before": "lib_ws.0.to_string_lossy().into_owned()",
+      "after": "lib_ws.0.to_str().expect(\"library path configuration requires UTF-8\").to_owned()",
+      "preserved_control": "The positive no-root library-path resolver assertion and the negative root-tree scan control are unchanged."
+    },
+    {
+      "id": "lsp.validation.18.03.fn1",
+      "site": "tests::seed_autoload_library helper",
+      "before": "libdir.display().to_string()",
+      "after": "libdir.to_str().expect(\"library path configuration requires UTF-8\").to_owned()",
+      "callers": [
+        "autoload_merge_makes_references_reach_the_library_m8",
+        "original_autoload_navigation_joins_current_source_declaration_identity",
+        "original_library_publication_rechecks_closed_source_after_gate_wait",
+        "autoload_merge_makes_rename_reach_the_library_m8",
+        "autoload_indexed_query_waits_out_an_in_flight_workspace_scan",
+        "rehomed_symbol_snapshot_does_not_hold_its_gate_while_waiting_for_scan",
+        "autoload_merge_abstains_when_the_workspace_defines_the_command",
+        "autoload_merge_is_dropped_when_the_package_database_rebuilds",
+        "did_rename_forgets_the_autoloaded_library_record_1298"
+      ]
+    }
+  ],
+  "validation": {
+    "scope": "No Cargo, tests, or repository writes were performed.",
+    "rustfmt": "Not available on PATH; formatter check not run."
+  }
+}

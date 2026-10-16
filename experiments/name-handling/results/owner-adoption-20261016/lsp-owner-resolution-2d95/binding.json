@@ -1,0 +1,39 @@
+{
+  "source_head": "2d95ff05319641510a05e2c73b932782aa821f91",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": "cargo xtask owner-resolution",
+  "single_job": true,
+  "ordinary": true,
+  "status": "FAIL",
+  "inputs": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "sha256": "816db643ff1dde4b38c2db60f72e24cdfbe90c28fa420fb3b71c48217590bc02"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "sha256": "d381a9b2f4a44131debca3697e5d93f048bd40bcc29c751b21c8ebae2571f69c"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "sha256": "1810a27182226c1f71815498e1ecd0e7ec1a8ea21d820eb5b7c2df7f63074650"
+    },
+    {
+      "path": ".cargo/config.toml",
+      "sha256": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "9ff955a18e4ba53cf2abe746d97c72eb390337fddd207a3fb6e0c836455a956d"
+    }
+  ],
+  "utc": "2026-10-16T16:26:48.579251+00:00",
+  "input_drift": [],
+  "exit_code": 1,
+  "completed_utc": "2026-10-16T16:33:30.343671+00:00",
+  "limitations": "Actual gate failure; runtime/VM dependency compilation and errors do not resume their deferred migrations."
+}

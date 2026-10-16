@@ -18520,7 +18520,12 @@
       "required_change": [
         "Per-pass directive analysis drops actual supplied Registry/overlay context and builds default Analyser from profile only. Nested command/body schema may differ from supplied Registry, changing real comment/directive scope; need same actual configured standalone input/Registry owner transported into directive analysis. Explicit standalone profile may be fixed, but actual registry is still supplied and must not be silently discarded."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
+      }
     },
     {
       "area": "lsp",
@@ -65028,6 +65033,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65058,6 +65068,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65101,6 +65116,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65144,6 +65164,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65938,6 +65963,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65968,6 +65998,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -65998,6 +66033,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed LSP successor of2d95ff053",
+        "validation": "Full supplied optimiser input/Registry and fresh per-pass directive owners, or existing checked native path/Unicode fixture owner adoption. Selectors/assertions/budgets retained; fresh compilation and execution pending."
       }
     },
     {
@@ -66203,6 +66243,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of2d95",
+        "validation": "Native Path enters Unicode library-path configuration via checked to_str in actual retained test/seed helper. All assertions/budgets/callers preserved; fresh Server library compilation and exact controls pending."
       }
     },
     {
@@ -66233,6 +66278,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed successor of2d95",
+        "validation": "Native Path enters Unicode library-path configuration via checked to_str in actual retained test/seed helper. All assertions/budgets/callers preserved; fresh Server library compilation and exact controls pending."
       }
     },
     {
@@ -131931,12 +131981,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T15:28:18.489962+00:00",
+    "utc": "2026-10-16T16:37:43.834347+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 217,
+    "implemented_pending_validation": 227,
     "verified_complete": 0,
-    "not_started": 1941,
+    "not_started": 1931,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132096,7 +132146,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "36 annex requirements:35 integrated pendingvalidation,1sourceblocked. New originalBody/Jim parameter SourceMay issuer countedonce; prior compiler/1validationpointer not a requiredmigrationunit; existingLogicalowner distinct. UnchangedDB/LSPcallers0.",
+    "owner_facet_reconciliation": "37 annex requirements:36 integrated pending validation,1 blocked. New authentic Authored unentered declaration source geometry issuer counted once; conditional alias and original body scope repairs add zero.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -132189,13 +132239,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 36,
-      "implemented_pending_validation": 35,
+      "required": 37,
+      "implemented_pending_validation": 36,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2194,
-    "effective_implemented_pending_validation": 252,
+    "effective_required_units": 2195,
+    "effective_implemented_pending_validation": 263,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
@@ -132364,7 +132414,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 216,
+    "fully_implemented_pending_validation": 226,
     "partially_implemented_pending_validation": 1,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -132530,14 +132580,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 89,
+      "lsp_integrated_pending_validation": 99,
       "lsp_by_kind_integrated": {
-        "semantic": 17,
-        "validation": 70,
+        "semantic": 18,
+        "validation": 79,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 236,
+      "lsp_without_integrated_implementation": 226,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -132644,25 +132694,26 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T16:06:26Z",
-      "next_utc": "2026-10-16T16:36:00Z",
-      "LSP_integrated": 89,
+      "last_utc": "2026-10-16T16:36:00Z",
+      "next_utc": "2026-10-16T17:06:00Z",
+      "LSP_integrated": 97,
       "LSP_required": 325,
-      "LSP_semantic_integrated": 17,
-      "LSP_validation_integrated": 70,
+      "LSP_semantic_integrated": 18,
+      "LSP_validation_integrated": 77,
       "LSP_documentation_integrated": 2,
-      "LSP_without_integrated": 236,
+      "LSP_without_integrated": 228,
       "verified_complete": 0,
-      "compiler37": {
-        "PASS": 30,
-        "FAIL": 7
+      "compiler43": {
+        "PASS": 33,
+        "FAIL": 10
       },
-      "noncompiler75": {
-        "PASS": 71,
-        "FAIL": 4
+      "noncompiler120": {
+        "PASS": 102,
+        "FAIL": 17,
+        "TIMEOUT": 1
       },
-      "additional45": "RUNNING;41captured/12fail; no partial acceptance",
-      "scope": "Bounded distinct source artifacts; no wholecurrentbuild/owner/proof/repository acceptance"
+      "owner_resolution": "FAIL725; bounded resolver/manifest repairs pending",
+      "scope": "Source integrations and bounded executed controls are distinct. New reviewed source batch awaits fresh build. RuntimeVM/BIGIP paused."
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -132869,6 +132920,40 @@
         ]
       },
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-scope-successor/summary.json"
+    },
+    "lsp_reviewed_batch_1636": {
+      "baseline_units": [
+        "lsp-diagnostic-report-standalone-directive-input",
+        "lsp.validation.07.11.fn1",
+        "lsp.validation.07.11.fn2",
+        "lsp.validation.07.11.fn3",
+        "lsp.validation.07.11.fn4",
+        "lsp.validation.18.00.fn0",
+        "lsp.validation.18.00.fn1",
+        "lsp.validation.18.01.fn0"
+      ],
+      "baseline_delta": 8,
+      "annex_delta": 1,
+      "status": "integrated_pending_validation",
+      "repair_only": [
+        "typed conditional no-level alias metadata on existing SourceMay relation",
+        "member-hazard genuine profile ingress fixture",
+        "standalone findings whole-file BOM configuration",
+        "Jim Body parameter facade matches actual ResolvedHead+Written argument producer, all stronger guards preserved"
+      ],
+      "execution": "fresh build pending",
+      "later_two_fixtures": [
+        "lsp.validation.18.03.fn0",
+        "lsp.validation.18.03.fn1"
+      ]
+    },
+    "owner_resolution_2d95": {
+      "status": "FAIL",
+      "errors": 725,
+      "source_head": "2d95ff05319641510a05e2c73b932782aa821f91",
+      "input_drift": [],
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-owner-resolution-2d95",
+      "diagnosis": "241 conditional required module crate errors appear caused by built-in recursion_limit attribute being refused by module resolver. Bounded repair in preparation; all other actual manifest errors remain open."
     }
   }
 }

@@ -130,7 +130,9 @@ pub use declaration_layout::SourceOriginalVariableFrame;
 pub(crate) use logical_variable_scope::OriginalLogicalVariableScope;
 mod declaration_preview;
 mod source_read_scope;
-pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;
+pub(crate) use declaration_preview::{
+    OriginalAuthoredProcedureSourceGeometry, OriginalProcedureReadDeclaration,
+};
 pub(crate) use source_read_scope::{SourceReadScope, source_targets_match_advice};
 mod scalar_body_alpha;
 pub use scalar_body_alpha::{OriginalLocalStoreAlphaRename, OriginalScalarBodyAlphaRename};
@@ -1386,6 +1388,10 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
     ) -> Option<()> {
         let advice = self.original_authored_declaration_scalar_layout(tokens, scope.registry())?;
+        if advice.has_unclosed_source_coverage() || scope.has_unclosed_declaration_source_coverage()
+        {
+            return None;
+        }
         scope.original_words(tokens, scope.registry())?;
         if advice.namespace() != scope.namespace()
             || self
@@ -1412,6 +1418,10 @@ impl SourceInvocationBinding {
         }
         let scope = self.original_authored_source_body_scope.as_deref()?;
         let advice = self.original_authored_declaration_scalar_layout(tokens, registry)?;
+        if advice.has_unclosed_source_coverage() || scope.has_unclosed_declaration_source_coverage()
+        {
+            return None;
+        }
         scope.original_words(tokens, registry)?;
         (advice.namespace() == scope.namespace()
             && self

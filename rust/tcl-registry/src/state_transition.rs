@@ -1680,6 +1680,14 @@ impl StateTransitionKnowledge {
 pub enum LogicalSourceStateTransitionResolver {
     /// Conditional frame-alias grammar under positively retained Logical input.
     FrameAliases(StateTransitionResolver),
+    /// Actual derived alias-pair producer, retaining the selected layout policy.
+    /// Only this typed registration may supply conditional no-level roles.
+    FrameAliasPairs {
+        /// Actual producer-selected optional level grammar.
+        level_word: crate::frame_effect::FrameLevelWord,
+        /// Existing source-role resolver from that same producer.
+        resolver: StateTransitionResolver,
+    },
     /// Conditional completion storage through the retained source argv grammar.
     /// This supplies no Native completion, entered frame or successful edge.
     CompletionState(StateTransitionResolver),
@@ -1899,9 +1907,10 @@ impl ResolvedStateTransitions {
             .flatten()
         {
             let mut resolved = match descriptor.logical_source_resolver {
-                Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver)) => {
-                    resolver(arguments)
-                }
+                Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver))
+                | Some(LogicalSourceStateTransitionResolver::FrameAliasPairs {
+                    resolver, ..
+                }) => resolver(arguments),
                 Some(LogicalSourceStateTransitionResolver::CompletionState(_)) | None => {
                     descriptor.resolve(arguments)
                 }
@@ -1934,9 +1943,9 @@ impl ResolvedStateTransitions {
                 Some(LogicalSourceStateTransitionResolver::CompletionState(resolver)) => {
                     resolver(arguments)
                 }
-                Some(LogicalSourceStateTransitionResolver::FrameAliases(_)) | None => {
-                    descriptor.resolve(arguments)
-                }
+                Some(LogicalSourceStateTransitionResolver::FrameAliases(_))
+                | Some(LogicalSourceStateTransitionResolver::FrameAliasPairs { .. })
+                | None => descriptor.resolve(arguments),
             };
             resolved.widen_dynamic_arguments(
                 arguments,
@@ -2459,11 +2468,22 @@ fn alias_pairs_with_source_target(
         level_word,
         layout: FrameArgLayout::AliasPairs,
     };
-    let Some(taken) = frame.level_word_len_for_arguments(arguments) else {
-        if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
-            transitions.widen(subject, VARIABLE_ALIAS_DOMAINS);
+    let taken = match frame.level_word_len_for_arguments(arguments) {
+        Some(taken) => taken,
+        None => {
+            if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
+                transitions.widen(subject, VARIABLE_ALIAS_DOMAINS);
+            }
+            // A conditional source role is not a pre-dispatch layout or frame.
+            if !retain_source_target
+                || frame
+                    .conditional_no_level_source_layout(arguments)
+                    .is_none()
+            {
+                return transitions;
+            }
+            0
         }
-        return transitions;
     };
     let level = match taken {
         0 => CallerFrameSelection::DefaultCaller,

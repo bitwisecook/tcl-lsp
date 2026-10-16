@@ -711,10 +711,24 @@ fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
         .dialect(dialect_profile)
         .build();
     let profile = policy.optimiser.profile;
+    let registry = registry(&dialect);
+    let overlay = tcl_spectcl::bundled::packs().key;
+    let context = match tcl_registry::model::resolve_environment(dialect_profile.name)
+        .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+    {
+        Ok(context) => context.with_command_store(std::sync::Arc::clone(&registry)),
+        Err(miss) => return json!({ "error": miss.to_string() }),
+    };
+    let analysis_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        dialect_profile,
+        dialect_profile,
+        std::sync::Arc::new(context),
+        LexerConfig::for_file_grammar(dialect_profile.grammar),
+    );
     let optimised = optimise_under_policy(
         source,
-        &registry(&dialect),
-        Some(dialect_profile),
+        &registry,
+        Some(&analysis_input),
         profile.max_iterations(),
         &policy,
     );

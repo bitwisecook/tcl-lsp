@@ -3918,11 +3918,9 @@ impl Analyser {
                 self.define_original_namespace_alias_target(&original);
                 // The link's display is attached only after actual original
                 // target geometry. It never supplies symbol identity.
-                if let Some(report) = self.alias_target_report(
-                    &declaration.alias().target,
-                    &tokens.argv_texts[1..],
-                    scope_path,
-                ) {
+                if let Some(report) = declaration.alias().and_then(|alias| {
+                    self.alias_target_report(&alias.target, &tokens.argv_texts[1..], scope_path)
+                }) {
                     self.set_var_link_report(local, scope_path, report, target.span());
                 }
             }

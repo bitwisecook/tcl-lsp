@@ -125,7 +125,10 @@ pub(crate) fn original_authored_scalar_invocation(
         return None;
     }
     let advice = binding.original_authored_declaration_scalar_layout(tokens, registry)?;
-    if advice.namespace() != scope.namespace() {
+    if advice.has_unclosed_source_coverage()
+        || scope.has_unclosed_declaration_source_coverage()
+        || advice.namespace() != scope.namespace()
+    {
         return None;
     }
     let variables = advice.original_variable_context();

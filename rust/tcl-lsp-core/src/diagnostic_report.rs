@@ -44,8 +44,7 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics}
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::{
-    Optimisation, optimise_source_multipass_admitting,
-    optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
+    Optimisation, optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
 };
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_core_types::{DiagCode, Severity};
@@ -280,7 +279,7 @@ pub fn standalone_findings(
         doc.dialect,
         doc.dialect,
         Arc::new(context),
-        LexerConfig::for_profile(Some(doc.dialect)),
+        LexerConfig::for_file_grammar(doc.dialect.grammar),
     );
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
         doc.registry,
@@ -390,29 +389,43 @@ pub struct OptimisedSource {
 ///
 /// This explicit standalone facade serves `tcl opt` and the MCP `optimize`
 /// tool. Current document callers use [`optimise_under_policy_from_analysis`].
-/// The loop is the optimiser's ([`optimise_source_multipass_admitting`]), which re-runs the
+/// The loop is the optimiser's ([`optimise_source_multipass_admitting_with_analysis_input`]), which re-runs the
 /// optimiser over each pass's text; this function is what it admits on a
 /// pass, so the multipass loop has one owner.
 #[must_use]
 pub fn optimise_under_policy(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&'static DialectProfile>,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
     max_iterations: usize,
     policy: &Policy,
 ) -> OptimisedSource {
-    let directive_dialect = dialect.map_or("", |d| d.name);
-    let (text, applied, iterations) = optimise_source_multipass_admitting(
+    let Some(input) = input.filter(|input| {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            input,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        )
+        .is_some()
+    }) else {
+        return OptimisedSource {
+            text: source.to_owned(),
+            applied: Vec::new(),
+            iterations: 0,
+        };
+    };
+    let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
         source,
         registry,
-        dialect,
+        Some(input),
         max_iterations,
         |current, candidates| {
+            let current_analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(current, input.analyser_profile().name);
             let mut pass_policy = policy.clone();
-            pass_policy.directives = Directives::from_analysis(
-                &Analyser::new().analyse(current, directive_dialect),
-                current,
-            );
+            pass_policy.directives = Directives::from_analysis(&current_analysis, current);
             let report = apply(
                 candidates.iter().cloned().map(Finding::from).collect(),
                 &pass_policy,
@@ -487,6 +500,21 @@ pub fn optimise_under_policy_from_analysis(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_optimiser_input(
+        registry: &CommandRegistry,
+        profile: &'static DialectProfile,
+    ) -> tcl_compiler::analyser::ResolvedAnalysisInput {
+        let context = tcl_registry::model::resolve_environment(profile.name)
+            .default_context_registry()
+            .with_command_store(Arc::new(registry.clone()));
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            LexerConfig::for_profile(Some(profile)),
+        )
+    }
     use crate::diagnostic_policy::{OptimiserPolicy, Outcome, PolicyBuilder, PolicyLayer, Reason};
     use tcl_lexer::Span;
 
@@ -609,6 +637,57 @@ mod tests {
             assert_eq!(result.text, source);
             assert!(result.applied.is_empty());
             assert_eq!(result.iterations, 0);
+        }
+    }
+
+    #[test]
+    fn standalone_findings_keep_actual_file_boundary_for_directives_and_unit() {
+        let source = "\u{feff}# noqa: O101\nset x [expr {1 + 2}]\n";
+        let registry = CommandRegistry::build_default();
+        for profile in [tcl9(), crate::profile_for_dialect("tcl8.6")] {
+            let findings = standalone_findings(
+                &StandaloneDocument {
+                    source,
+                    file_path: Some("boundary.tcl"),
+                    dialect: profile,
+                    registry: &registry,
+                    pack_overlay: 0,
+                    external_call_sites: None,
+                },
+                &BTreeSet::new(),
+            );
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            let input = findings.analysis.resolved_input.as_ref().unwrap();
+            assert_eq!(input.lexer_config(), config);
+            assert_eq!(findings.analysis.body_lexer_config, Some(config));
+            let unit = findings.unit.as_ref().unwrap();
+            assert_eq!(unit.ir_module.lexer_config, config);
+            assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(input));
+            let start = u32::try_from(source.find("set x").unwrap()).unwrap();
+            let span = Span::new(start, start + 3);
+            let mut policy = PolicyBuilder::new()
+                .directives(Directives::from_analysis(&findings.analysis, source))
+                .build();
+            policy.optimiser = OptimiserPolicy::all_on();
+            let report = apply(
+                vec![Finding {
+                    code: DiagCode::O101,
+                    span,
+                    severity: Severity::Info,
+                    message: "boundary directive policy control".to_owned(),
+                    fixes: Vec::new(),
+                    data: None,
+                    producer: Producer::Optimiser,
+                }],
+                &policy,
+            );
+            assert_eq!(
+                matches!(
+                    report.reason_for(DiagCode::O101, span),
+                    Some(Reason::InlineDirective { .. })
+                ),
+                profile.grammar.script_skips_leading_bom
+            );
         }
     }
 
@@ -1070,16 +1149,16 @@ mod tests {
     #[test]
     fn optimise_under_policy_skips_a_rewrite_a_directive_silences() {
         let registry = CommandRegistry::build_default();
-        let dialect = Some(tcl9());
+        let input = test_optimiser_input(&registry, tcl9());
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
         let plain = "set x [expr {1 + 2}]\n";
-        let folded = optimise_under_policy(plain, &registry, dialect, 1, &policy);
+        let folded = optimise_under_policy(plain, &registry, Some(&input), 1, &policy);
         assert!(folded.text.contains("set x 3"), "{}", folded.text);
         assert!(folded.applied.iter().any(|o| o.code == DiagCode::O101));
 
         let marked = "# noqa: O101\nset x [expr {1 + 2}]\n";
-        let kept = optimise_under_policy(marked, &registry, dialect, 1, &policy);
+        let kept = optimise_under_policy(marked, &registry, Some(&input), 1, &policy);
         assert_eq!(
             kept.text, marked,
             "a `# noqa` on the command keeps the rewrite off"
@@ -1087,13 +1166,75 @@ mod tests {
         assert!(kept.applied.is_empty());
 
         let whole = "# tcl-lsp: disable=*\nset x [expr {1 + 2}]\n";
-        let untouched = optimise_under_policy(whole, &registry, dialect, 5, &policy);
+        let untouched = optimise_under_policy(whole, &registry, Some(&input), 5, &policy);
         assert_eq!(untouched.text, whole);
 
         let mut off = policy.clone();
         off.optimiser.enabled = false;
-        let switched = optimise_under_policy(plain, &registry, dialect, 5, &off);
+        let switched = optimise_under_policy(plain, &registry, Some(&input), 5, &off);
         assert_eq!(switched.text, plain, "the master switch reaches a rewrite");
+    }
+
+    #[test]
+    fn standalone_optimiser_refuses_missing_or_foreign_analysis_context() {
+        let registry = CommandRegistry::build_default();
+        let input = test_optimiser_input(&registry, tcl9());
+        let source = "set x [expr {1 + 2}]\n";
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+
+        let missing = optimise_under_policy(source, &registry, None, 3, &policy);
+        assert_eq!(missing.text, source);
+        assert!(missing.applied.is_empty());
+        assert_eq!(missing.iterations, 0);
+
+        // The retained input names a different immutable command-store
+        // generation. It cannot lend directive/compiler facts to this caller.
+        let mut foreign_registry = CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "luna_foreign_generation_marker",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let refused = optimise_under_policy(source, &foreign_registry, Some(&input), 3, &policy);
+        assert_eq!(refused.text, source);
+        assert!(refused.applied.is_empty());
+        assert_eq!(refused.iterations, 0);
+    }
+
+    #[test]
+    fn standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives() {
+        let registry = CommandRegistry::build_default();
+        let profile = tcl9();
+        let context = tcl_registry::model::resolve_environment(profile.name)
+            .default_context_registry()
+            .with_command_store(Arc::new(registry.clone()));
+        let source = "\u{feff}# noqa: O101\nset x [expr {1 + 2}]\n";
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+
+        let skipped_bom = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context.with_command_store(Arc::new(registry.clone()))),
+            LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Skip,
+                ..LexerConfig::for_profile(Some(profile))
+            },
+        );
+        let content_bom = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context.with_command_store(Arc::new(registry.clone()))),
+            LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                ..LexerConfig::for_profile(Some(profile))
+            },
+        );
+
+        let suppressed = optimise_under_policy(source, &registry, Some(&skipped_bom), 1, &policy);
+        assert_eq!(suppressed.text, source);
+        let applied = optimise_under_policy(source, &registry, Some(&content_bom), 1, &policy);
+        assert!(applied.text.contains("set x 3"), "{}", applied.text);
     }
 
     /// A `# noqa` covers every line of the command it precedes, as the
@@ -1102,14 +1243,14 @@ mod tests {
     #[test]
     fn a_noqa_reaches_every_line_of_the_command_it_precedes() {
         let registry = CommandRegistry::build_default();
-        let dialect = Some(tcl9());
+        let input = test_optimiser_input(&registry, tcl9());
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
         let marked = "# noqa: O101\nproc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
-        let out = optimise_under_policy(marked, &registry, dialect, 1, &policy);
+        let out = optimise_under_policy(marked, &registry, Some(&input), 1, &policy);
         assert!(out.text.contains("return [expr {1 + 2}]"), "{}", out.text);
         let plain = "proc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
-        let out = optimise_under_policy(plain, &registry, dialect, 1, &policy);
+        let out = optimise_under_policy(plain, &registry, Some(&input), 1, &policy);
         assert!(out.text.contains("return 3"), "{}", out.text);
     }
 
@@ -1119,11 +1260,11 @@ mod tests {
     #[test]
     fn optimise_under_policy_never_applies_half_a_group() {
         let registry = CommandRegistry::build_default();
-        let dialect = Some(crate::profile_for_dialect("tcl8.6"));
+        let input = test_optimiser_input(&registry, crate::profile_for_dialect("tcl8.6"));
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
         let marked = "proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n";
-        let out = optimise_under_policy(marked, &registry, dialect, 1, &policy);
+        let out = optimise_under_policy(marked, &registry, Some(&input), 1, &policy);
         assert!(out.text.contains("set x [llength $y]"), "{}", out.text);
         assert!(
             !out.applied.iter().any(|o| o.code == DiagCode::O127),
@@ -1132,7 +1273,7 @@ mod tests {
         );
         // Positive control: without the directive the pair applies whole.
         let plain = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
-        let out = optimise_under_policy(plain, &registry, dialect, 1, &policy);
+        let out = optimise_under_policy(plain, &registry, Some(&input), 1, &policy);
         assert_eq!(
             out.applied
                 .iter()

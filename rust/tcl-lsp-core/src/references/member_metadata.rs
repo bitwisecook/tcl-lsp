@@ -232,7 +232,7 @@ mod tests {
     use tcl_registry::{CommandRegistry, model::ingress};
 
     fn analyse(source: &str, dialect: &'static str) -> AnalysisResult {
-        let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+        let profile = ingress::resolve_environment(dialect).analyser_profile();
         let mut registry = CommandRegistry::build_default();
         for (original, custom) in [
             ("oo::class", "class-maker"),
@@ -424,7 +424,7 @@ mod tests {
             assert!(member_spans(source, &stale_config, &class).is_empty());
             analysis.resolved_input = None;
             // Keep the original requested profile; a missing input must not be repaired.
-            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let profile = ingress::resolve_environment(dialect).analyser_profile();
             assert!(spans(source, &analysis, profile, &class, "m").is_empty());
         }
     }

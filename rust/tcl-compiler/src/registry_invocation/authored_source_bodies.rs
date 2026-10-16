@@ -29,12 +29,41 @@ pub struct OriginalAuthoredProcedureBody {
     module_profile: Option<&'static tcl_dialect::DialectProfile>,
     lowered_body: Option<Arc<Script>>,
     source_scope: Option<Arc<super::OriginalAuthoredSourceBodyScope>>,
+    conditional_source_geometry:
+        Option<Arc<crate::command_binding::OriginalAuthoredProcedureSourceGeometry>>,
 }
 
 pub(crate) fn original_authored_procedure_body(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<OriginalAuthoredProcedureBody> {
+    if let Some(geometry) = tokens
+        .source_binding
+        .as_ref()?
+        .original_authored_procedure_source_geometry(tokens, registry)
+    {
+        let body_word = geometry.body_word().clone();
+        let body_span = super::source_scoped_body::original_written_script_body_span(&body_word)?;
+        return Some(OriginalAuthoredProcedureBody {
+            header: tokens.clone(),
+            site: tokens.source_binding.as_ref()?.invocation_site()?.clone(),
+            body_word,
+            body_span,
+            config: geometry.config(),
+            registry: registry.snapshot().semantic_key(),
+            name: geometry.name()?.to_owned(),
+            reporting_label: geometry.reporting_label()?,
+            namespace: geometry.namespace().clone(),
+            parameters_text: geometry.parameters_text()?.to_owned(),
+            parameters: geometry.parameters().to_vec(),
+            declaration_span: None,
+            module_entry: None,
+            module_profile: None,
+            lowered_body: None,
+            source_scope: None,
+            conditional_source_geometry: Some(Arc::new(geometry)),
+        });
+    }
     let grammar = super::original_authored_source_structure(tokens, registry)?
         .into_closed_source_grammar()?;
     let positions = grammar.with_source_schema(registry, |schema| {
@@ -80,10 +109,17 @@ pub(crate) fn original_authored_procedure_body(
         module_profile: None,
         lowered_body: None,
         source_scope: None,
+        conditional_source_geometry: None,
     })
 }
 
 impl OriginalAuthoredProcedureBody {
+    pub(crate) fn has_unclosed_declaration_source_coverage(&self) -> bool {
+        self.conditional_source_geometry
+            .as_ref()
+            .is_some_and(|geometry| geometry.has_unclosed_source_coverage())
+    }
+
     pub(crate) fn reporting_label(&self, module: &Module, procedure: &Procedure) -> Option<&str> {
         self.matches_procedure(module, procedure)
             .then_some(self.reporting_label.as_str())
@@ -236,6 +272,7 @@ impl OriginalAuthoredProcedureBody {
             && original.namespace == self.namespace
             && original.parameters_text == self.parameters_text
             && original.parameters == self.parameters
+            && original.conditional_source_geometry == self.conditional_source_geometry
             && procedure.body_source.as_deref()
                 == module
                     .source
@@ -248,6 +285,129 @@ impl OriginalAuthoredProcedureBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conditional_authored_scalar_geometry_cannot_supply_a_definite_ssa_definition() {
+        let registry = CommandRegistry::build_default();
+        let source = "rename $old decl\nproc kept {} {set value 1; return $value}";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let module = &unit.ir_module;
+        let (&id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "kept")
+            .expect("actual conditional scalar source declaration");
+        assert!(card.matches_procedure(module, &module.body_units[&id]));
+        assert!(card.has_unclosed_declaration_source_coverage());
+        assert!(unit.function_for_body(Some(id)).is_some());
+        let write = u32::try_from(source.find("set value").unwrap()).unwrap();
+        assert!(
+            crate::ssa::original_analysis_definition_at_unit(
+                &unit,
+                tcl_lexer::Span::new(write + 4, write + 9),
+                &registry,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "rename $old decl\nproc kept {arg} {list $arg; return untouched}";
+        let module = crate::lowering::lower_to_ir(source, registry);
+        let (&id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "kept")
+            .expect("original conditional declaration, not an installed procedure");
+        let procedure = &module.body_units[&id];
+        assert!(card.matches_procedure(&module, procedure));
+        assert!(card.has_unclosed_declaration_source_coverage());
+        assert!(procedure.publication.is_none());
+        assert!(procedure.body.executed_source.is_none());
+        assert!(!module.installed_procedure_body_units.contains_key(&id));
+        let scope = card
+            .source_scope
+            .as_ref()
+            .expect("actual original body scope");
+        assert!(scope.matches_module(&module));
+        assert!(scope.has_unclosed_declaration_source_coverage());
+        let geometry = card
+            .header
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_procedure_source_geometry(&card.header, registry)
+            .expect("same conditional source row and original vector");
+        assert!(geometry.has_unclosed_source_coverage());
+        assert_eq!(geometry.body_word().image(), &module.source);
+        assert_eq!(geometry.body_word().config(), module.native_lexer_config());
+        assert_eq!(
+            geometry
+                .body_word()
+                .image()
+                .bytes()
+                .get(card.body_span.as_range()),
+            Some(b"list $arg; return untouched".as_slice())
+        );
+        assert!(
+            super::super::original_authored_source_structure(&card.header, registry)
+                .is_none_or(|source| source.into_closed_source_grammar().is_none())
+        );
+        assert!(
+            super::super::admitted_native_compiler_invocation(registry, None, &card.header)
+                .is_none()
+        );
+        for statement in &procedure.body.statements {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .expect("original conditional body vector");
+            assert!(super::super::original_authored_scalar_invocation(tokens, registry).is_none());
+        }
+        let mut altered = card.header.clone();
+        altered.argv_texts[1] = "changed".to_owned();
+        assert!(
+            altered
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&altered, registry)
+                .is_none()
+        );
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document(source.replace("untouched", "different"));
+        assert!(!card.matches_procedure(&changed, &changed.body_units[&id]));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            card.header
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&card.header, foreign)
+                .is_none()
+        );
+        for unsupported in [
+            "rename $old decl\n$declare kept {arg} {list retained}",
+            "rename $old decl\nproc kept {arg(0)} {list retained}",
+            "proc proc args {}; proc kept {arg} {list retained}",
+        ] {
+            let rejected = crate::lowering::lower_to_ir(unsupported, registry);
+            assert!(
+                rejected
+                    .original_authored_declaration_body_units
+                    .values()
+                    .all(|card| card.name() != "kept"),
+                "{unsupported}"
+            );
+        }
+    }
 
     #[test]
     fn authored_source_declaration_bodies_are_not_independent_executable_roots() {

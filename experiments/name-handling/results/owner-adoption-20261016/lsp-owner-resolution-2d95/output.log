@@ -1,0 +1,866 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling ref-cast-impl v1.0.27
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling ref-cast v1.0.27
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+warning: multiple methods are never used
+    --> runtime/rust/src/frame.rs:1079:19
+     |
+ 744 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1079 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1107 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1112 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1274 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1399 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1481 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1537 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `remove_dictionary_element` is never used
+   --> runtime/rust/src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `new_binding` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:293:19
+    |
+219 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+293 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: methods `attested_identities`, `install_alias`, `install_alias_with_original`, and `define_proc_storage` are never used
+    --> runtime/rust/src/interp.rs:3397:8
+     |
+1914 | impl Interp {
+     | ----------- methods in this implementation
+...
+3397 |     fn attested_identities(
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+3935 |     pub(crate) fn install_alias(
+     |                   ^^^^^^^^^^^^^
+...
+3947 |     pub(crate) fn install_alias_with_original(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4706 |     pub(crate) fn define_proc_storage(
+     |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> runtime/rust/src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> runtime/rust/src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `original_jim_command_enumeration_keys` is never used
+   --> runtime/rust/src/namespace.rs:670:19
+    |
+547 | impl Namespaces {
+    | --------------- method in this implementation
+...
+670 |     pub(crate) fn original_jim_command_enumeration_keys(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> runtime/rust/src/vars.rs:3290:19
+     |
+3289 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3290 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 8 warnings
+   Compiling xtask v0.1.0 (/workspace/tcl-lsp/rust/xtask)
+warning: associated function `load` is never used
+   --> rust/xtask/src/owner_resolution/source_internal.rs:158:8
+    |
+157 | impl CrateModules {
+    | ----------------- associated function in this implementation
+158 |     fn load(root: &Path, crate_root: &Path, required: [&str; 2]) -> Result<Self, String> {
+    |        ^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `xtask` (bin "xtask") generated 1 warning
+    Finished `dev` profile [unoptimized] target(s) in 3m 57s
+     Running `target/debug/xtask owner-resolution`
+owner-resolution: contract drift detected:
+  - owner `Actual archive member path selection` entry point `extract_tar` has no public declaration in its source paths
+  - owner `Actual archive member path selection` entry point `extract_zip` has no public declaration in its source paths
+  - owner `Actual archive member path selection` entry point `safe_join` has no public declaration in its source paths
+  - owner `C8.4 quiet CString global error-code publication` entry point `store_original_c84_global_error_code` has no public declaration in its source paths
+  - owner `CFG structural variable-name data` entry point `structural_variable_write_projection` has no public declaration in its source paths
+  - owner `CFG structural variable-name data` entry point `structural_write_roots` has no public declaration in its source paths
+  - owner `Canonical Logical lambda source declaration` entry point `OriginalLogicalLambdaBody` has no public declaration in its source paths
+  - owner `Canonical package path identity` entry point `canonical_name` has no public declaration in its source paths
+  - owner `Conditional lambda lexical source frames` entry point `LogicalSourceFormalParameters` has no public declaration in its source paths
+  - owner `Conditional lambda lexical source frames` entry point `from_logical_lambda_source` has no public declaration in its source paths
+  - owner `Conditional lambda lexical source frames` entry point `source_region_cursor_is_direct` has no public declaration in its source paths
+  - owner `Conditional project source paths` entry point `OriginalProjectSourceLoad::{path_word,literal_path,matches_source}` has no public declaration in its source paths
+  - owner `Conditional project source paths` entry point `capture_original_project_source_load_at` has no public declaration in its source paths
+  - owner `Conditional source operation continuation` entry point `current_conditional_source_advice` has no public declaration in its source paths
+  - owner `Conditional source operation continuation` entry point `original_source_operation_continuation` has no public declaration in its source paths
+  - owner `Configured original taint receiver names` entry point `original_scalar_reference_name` has no public declaration in its source paths
+  - owner `Configured original taint receiver names` entry point `unique_instance_class` has no public declaration in its source paths
+  - owner `Configured single-command lexical projection` entry point `SingleCommandSourcePart` has no public declaration in its source paths
+  - owner `Configured single-command lexical projection` entry point `SingleCommandSourcePurpose` has no public declaration in its source paths
+  - owner `Configured single-command lexical projection` entry point `has_command_separator_with_config` has no public declaration in its source paths
+  - owner `Configured single-command lexical projection` entry point `is_pure_cmd_subst_with_config` has no public declaration in its source paths
+  - owner `Configured single-command lexical projection` entry point `single_command_source_parts` has no public declaration in its source paths
+  - owner `Configured substitution variable candidates` entry point `arg_var_names_with_config` has no public declaration in its source paths
+  - owner `Conservative local-slot metadata narrowing` entry point `typed_local_slot_name` has no public declaration in its source paths
+  - owner `Entered original Jim Import completion observations` entry point `OriginalJimImportEachLoop` has no public declaration in its source paths
+  - owner `Entered original Jim Import completion observations` entry point `OriginalJimImportTraversal` has no public declaration in its source paths
+  - owner `Entered original Jim Import completion observations` entry point `OriginalJimImportWhile` has no public declaration in its source paths
+  - owner `Expanded list scalar source words` entry point `CodegenCtx::emit_variable_reference` has no public declaration in its source paths
+  - owner `Explicit Standalone source authoring ingress` entry point `Lowerer::for_standalone_source` has no public declaration in its source paths
+  - owner `Logical completed class/member source declarations` entry point `LogicalSourceClassDeclaration::capture` has no public declaration in its source paths
+  - owner `Logical lambda formal source fields` entry point `formal_name_field` has no public declaration in its source paths
+  - owner `Logical lambda source namespace` entry point `LogicalSourceListNameInput` has no public declaration in its source paths
+  - owner `Logical lambda source namespace` entry point `OriginalInterpreterLambdaBody` has no public declaration in its source paths
+  - owner `Logical lambda source namespace` entry point `from_logical_lambda_list` has no public declaration in its source paths
+  - owner `Logical lambda source namespace` entry point `logical_list_inputs` has no public declaration in its source paths
+  - owner `Logical object assignment and factory candidates` entry point `advisory_object_factories_with_metadata_context` has no public declaration in its source paths
+  - owner `Logical object assignment and factory candidates` entry point `logical_source_unit_input` has no public declaration in its source paths
+  - owner `Logical object assignment and factory candidates` entry point `object_handle_facts_for_analysis` has no public declaration in its source paths
+  - owner `Logical object assignment and factory candidates` entry point `original_advisory_value_assignments_with_metadata_context` has no public declaration in its source paths
+  - owner `Logical object assignment and factory candidates` entry point `original_logical_constructor_class` has no public declaration in its source paths
+  - owner `Logical object-fact report correspondence` entry point `ObjectHandleFacts::analysis_report_eq` has no public declaration in its source paths
+  - owner `Logical object-fact report correspondence` entry point `ObjectHandleFacts::retain_report_source` has no public declaration in its source paths
+  - owner `Logical original alias prefix provenance` entry point `SourceCommandTarget::original_logical_prepended_name_inputs` has no public declaration in its source paths
+  - owner `Logical per-object member insertion and masks` entry point `LogicalSourceObjectMemberState::capture` has no public declaration in its source paths
+  - owner `Named declaration source SSA ownership` entry point `DeclaredProcedureBody::matches_original_procedure_source` has no public declaration in its source paths
+  - owner `Named declaration source SSA ownership` entry point `LogicalStructuredInvocation::written_variable_name_operand` has no public declaration in its source paths
+  - owner `Named declaration source SSA ownership` entry point `RetainedSourceModuleBindings::owns_original_body_tokens` has no public declaration in its source paths
+  - owner `Native host path transport and diagnostic glob ingress` entry point `NativeFs::copy_path` has no public declaration in its source paths
+  - owner `Native source warning candidates` entry point `NativeSourceTaintInvocation` has no public declaration in its source paths
+  - owner `Native source warning candidates` entry point `native_source_taint_invocation` has no public declaration in its source paths
+  - owner `Once-captured Jim error metadata` entry point `OriginalJimErrorCodeCapture` has no public declaration in its source paths
+  - owner `Once-captured Jim error metadata` entry point `jim_option_pairs_with_captured_error_code` has no public declaration in its source paths
+  - owner `Ordered venv configuration source` entry point `activation` has no public declaration in its source paths
+  - owner `Ordered venv configuration source` entry point `decode` has no public declaration in its source paths
+  - owner `Ordered venv configuration source` entry point `encode` has no public declaration in its source paths
+  - owner `Ordered venv configuration source` entry point `path_value` has no public declaration in its source paths
+  - owner `Ordered venv configuration source` entry point `replace_selected` has no public declaration in its source paths
+  - owner `Original Authored body-name candidates` entry point `original_authored_body_name_candidates` has no public declaration in its source paths
+  - owner `Original Authored control-flow source grammar` entry point `AuthoredSourceInvocation` has no public declaration in its source paths
+  - owner `Original Authored control-flow source grammar` entry point `original_authored_control_invocation` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `OriginalAuthoredSourceBodyScope` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::has_original_authored_source_body_name_role_owner` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::original_authored_source_body_scope_for_name_roles` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::retain_original_authored_source_body_scope` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `original_authored_procedure_body` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `AuthoredSourceInvocation` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `SourceInvocationBinding::original_authored_declaration_scalar_layout` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `SourceInvocationBinding::original_authored_scalar_body_scope` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `SourceInvocationBinding::retain_original_authored_scalar_body_scope` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `original_authored_scalar_invocation` has no public declaration in its source paths
+  - owner `Original C compiled-stack body purpose` entry point `eval_compiled_stack_control_body` has no public declaration in its source paths
+  - owner `Original Hosted control-flow source grammar` entry point `SourceStructuredInvocation` has no public declaration in its source paths
+  - owner `Original Hosted control-flow source grammar` entry point `original_hosted_source_registry_metadata` has no public declaration in its source paths
+  - owner `Original Hosted control-flow source grammar` entry point `original_hosted_structured_invocation` has no public declaration in its source paths
+  - owner `Original Hosted event operand geometry` entry point `Lowerer::original_when_event_word` has no public declaration in its source paths
+  - owner `Original Hosted event operand geometry` entry point `VendorSourceLiteralPurpose::EventName` has no public declaration in its source paths
+  - owner `Original Hosted event operand geometry` entry point `original_hosted_source_registry_metadata` has no public declaration in its source paths
+  - owner `Original Jim command reset and unknown header` entry point `Interp::dispatch_missing_command` has no public declaration in its source paths
+  - owner `Original Jim command reset and unknown header` entry point `Interp::dispatch_prebound_inner` has no public declaration in its source paths
+  - owner `Original Jim existence queries` entry point `install` has no public declaration in its source paths
+  - owner `Original Jim info forwarding scripts` entry point `eval_native_jim_source_bytes` has no public declaration in its source paths
+  - owner `Original Jim local namespace-info dictionary projection` entry point `CapturedJimDictionaryCell::same_place` has no public declaration in its source paths
+  - owner `Original Jim local namespace-info dictionary projection` entry point `EnteredNativeDictionary::set_member_observed` has no public declaration in its source paths
+  - owner `Original Jim local namespace-info dictionary projection` entry point `OriginalDictionaryMutation` has no public declaration in its source paths
+  - owner `Original Jim local namespace-info dictionary projection` entry point `OriginalDictionarySet` has no public declaration in its source paths
+  - owner `Original Jim local namespace-info dictionary projection` entry point `OriginalNamespaceInfoDictionaryPath` has no public declaration in its source paths
+  - owner `Original Jim namespace helper provider and diagnostic dispatch` entry point `Vm::namespace_unknown_subcommand` has no public declaration in its source paths
+  - owner `Original Jim namespace helper provider and diagnostic dispatch` entry point `Vm::refresh_native_jim_namespace_helpers` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `OriginalJimStringCatConstruction` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `OriginalNamespaceInfoCompletion` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `OriginalNamespaceInfoEachLoop` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `OriginalNamespaceInfoFrame` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `original_namespace_info_each_loop` has no public declaration in its source paths
+  - owner `Original Jim namespace-info projection data` entry point `record_original_namespace_info_cat` has no public declaration in its source paths
+  - owner `Original Jim retiring resident-result observation` entry point `RetiringResultHeader::capture` has no public declaration in its source paths
+  - owner `Original Jim retiring resident-result observation` entry point `RetiringResultHeader::resident_bytes` has no public declaration in its source paths
+  - owner `Original Jim retiring resident-result observation` entry point `RetiringResultHeader` has no public declaration in its source paths
+  - owner `Original Jim selected command and tailcall transport` entry point `Interp::retain_active_jim_command` has no public declaration in its source paths
+  - owner `Original Jim selected command and tailcall transport` entry point `Interp::retained_jim_command_reference` has no public declaration in its source paths
+  - owner `Original Jim variable inventory objects` entry point `OriginalJimVariableInventoryKey` has no public declaration in its source paths
+  - owner `Original Jim variable inventory objects` entry point `OriginalJimVariableInventory` has no public declaration in its source paths
+  - owner `Original Logical alias source occurrences` entry point `SignatureSourceVariableOccurrence::from_logical_alias_input` has no public declaration in its source paths
+  - owner `Original Logical body-word geometry` entry point `OriginalLogicalBodyWords::capture` has no public declaration in its source paths
+  - owner `Original Logical body-word geometry` entry point `OriginalLogicalBodyWords` has no public declaration in its source paths
+  - owner `Original Logical body-word geometry` entry point `OriginalSourceTransitionAdviceTape::logical_body_original_word_at_span` has no public declaration in its source paths
+  - owner `Original Logical callback source candidates` entry point `LogicalNamespaceScope::body_scope` has no public declaration in its source paths
+  - owner `Original Logical class source facets` entry point `original_source_class_declaration_for_advice` has no public declaration in its source paths
+  - owner `Original Logical class source facets` entry point `source_class_for_advice` has no public declaration in its source paths
+  - owner `Original Logical class-body syntax` entry point `AnalysisResult::retain_logical_class_body_sources` has no public declaration in its source paths
+  - owner `Original Logical class-body syntax` entry point `Module::original_class_definition_body_source` has no public declaration in its source paths
+  - owner `Original Logical control-flow source grammar` entry point `original_logical_source_structured_invocation` has no public declaration in its source paths
+  - owner `Original Logical procedure MAY dependencies` entry point `OriginalProcedureSummaryOwners::may_calls` has no public declaration in its source paths
+  - owner `Original Logical procedure MAY dependencies` entry point `RetainedSourceModuleBindings::matches_original_procedure_summary` has no public declaration in its source paths
+  - owner `Original Logical procedure MAY dependencies` entry point `original_logical_procedure_may_dependencies_for_module` has no public declaration in its source paths
+  - owner `Original Logical source effect and frame carriers` entry point `SourceInvocationBinding::has_original_source_layout_owner` has no public declaration in its source paths
+  - owner `Original Logical source effect and frame carriers` entry point `SourceInvocationBinding::original_logical_source_words` has no public declaration in its source paths
+  - owner `Original Logical source effect and frame carriers` entry point `SourceInvocationBinding::retain_original_logical_source_advice` has no public declaration in its source paths
+  - owner `Original Logical source effect and frame carriers` entry point `original_logical_frame_invocation_for_module` has no public declaration in its source paths
+  - owner `Original Logical source effect and frame carriers` entry point `original_logical_registry_words_for_module` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `Lowerer::original_logical_body_for_module` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `OriginalLogicalFrameInvocation::source_body` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `OriginalLogicalFrameInvocation::unknown_caller_variable_candidates` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `OriginalLogicalFrameInvocation` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `SourceInvocationBinding::original_logical_frame_body_namespace` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `original_logical_body_geometry_for_module` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `original_logical_frame_body_namespace_for_module` has no public declaration in its source paths
+  - owner `Original Logical source frame projection` entry point `original_logical_frame_invocation_with_metadata_context` has no public declaration in its source paths
+  - owner `Original Logical source operand and outer-write inventories` entry point `GlobalWriteInfo::original_source_writes` has no public declaration in its source paths
+  - owner `Original Logical source operand and outer-write inventories` entry point `OriginalLogicalVariableOperands` has no public declaration in its source paths
+  - owner `Original Native child syntax coordinate` entry point `SourceInvocationBinding::original_native_source_syntax_offset` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `AdviceInvocationContext::retain_native_expression_syntax_inventory` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `OriginalNativeProcedureBody::source_children` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `OriginalNativeSourceBodyChildren` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::has_original_native_source_command` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::original_native_source_may_owner` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::original_native_source_words` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `original_native_source_structured_invocation` has no public declaration in its source paths
+  - owner `Original NativeLowering descriptor queries` entry point `OriginalInvocations::command` has no public declaration in its source paths
+  - owner `Original NativeLowering descriptor queries` entry point `OriginalInvocations::for_module` has no public declaration in its source paths
+  - owner `Original NativeLowering descriptor queries` entry point `OriginalInvocations::substitution` has no public declaration in its source paths
+  - owner `Original OO list operand templates` entry point `scalar_parameter_splice` has no public declaration in its source paths
+  - owner `Original analysis SSA definitions` entry point `current_analysis_function` has no public declaration in its source paths
+  - owner `Original analysis SSA definitions` entry point `current_authored_analysis_function` has no public declaration in its source paths
+  - owner `Original analysis SSA definitions` entry point `original_authored_analysis_definition_at_unit` has no public declaration in its source paths
+  - owner `Original body reference candidates` entry point `original_body_reference_candidates` has no public declaration in its source paths
+  - owner `Original caller-template literal name data` entry point `InvocationBodyAssistance::caller_template_literal_data` has no public declaration in its source paths
+  - owner `Original caller-template literal name data` entry point `logical_parameter_body_assistance` has no public declaration in its source paths
+  - owner `Original caller-template literal name data` entry point `original_body_parameter_source_invocation` has no public declaration in its source paths
+  - owner `Original class member source association` entry point `OriginalSourceMethodNameBody` has no public declaration in its source paths
+  - owner `Original class member source association` entry point `original_definition_members_for_class` has no public declaration in its source paths
+  - owner `Original class member source association` entry point `original_parameter_names_and_body` has no public declaration in its source paths
+  - owner `Original command completion word geometry` entry point `original_word_cursor_prefix` has no public declaration in its source paths
+  - owner `Original compiler variable operands` entry point `CodegenCtx::original_variable_operand` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `OriginalSourceCase` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `StaticLoopSource` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `analyse_for_statement_with_source_dependencies` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `original_logical_source_case_for_tokens` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `original_native_source_case_for_statement` has no public declaration in its source paths
+  - owner `Original conditional case source geometry` entry point `summarise_for_statement_with_source_dependencies` has no public declaration in its source paths
+  - owner `Original conditional word contents` entry point `LogicalOriginalWordValue::capture_invocation` has no public declaration in its source paths
+  - owner `Original conditional word contents` entry point `LogicalOriginalWordValue::is_current` has no public declaration in its source paths
+  - owner `Original conditional word contents` entry point `LogicalOriginalWordValue::value` has no public declaration in its source paths
+  - owner `Original conditional word contents` entry point `SourceInvocationBinding::original_authored_written_argument_value` has no public declaration in its source paths
+  - owner `Original control receiver name data` entry point `Lowerer::original_control_receiver_value` has no public declaration in its source paths
+  - owner `Original dictionary destination data` entry point `Lowerer::original_dict_write_name` has no public declaration in its source paths
+  - owner `Original expression child source catalogue` entry point `AdviceInvocationContext::retain_original_expression_catalogue` has no public declaration in its source paths
+  - owner `Original expression child source catalogue` entry point `OriginalSourceCatalogueBody` has no public declaration in its source paths
+  - owner `Original expression child source catalogue` entry point `OriginalSourceExpressionCommand` has no public declaration in its source paths
+  - owner `Original failed-operand update syntax` entry point `OriginalOperandEvaluationUpdate` has no public declaration in its source paths
+  - owner `Original failed-operand update syntax` entry point `original_operand_evaluation_update` has no public declaration in its source paths
+  - owner `Original failed-operand update syntax` entry point `try_lower_operand_evaluation_update_with_binding` has no public declaration in its source paths
+  - owner `Original fixed scalar-formal alpha equivalence` entry point `AnalysisResult::original_scalar_alpha_for_formals` has no public declaration in its source paths
+  - owner `Original fixed scalar-formal alpha equivalence` entry point `ScalarAlphaFormalSelection` has no public declaration in its source paths
+  - owner `Original formal name source geometry` entry point `ModuleProcedures::original_source_module` has no public declaration in its source paths
+  - owner `Original handler slot eligibility` entry point `call_disables_slots` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `OriginalVariableNameOperand::as_str` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `OriginalVariableNameOperand` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `ResolvedStatementInvocation::original_variable_name_operand` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `SourceNameRoleInventory::original_variable_name_operand` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `original_assignment_name_operand` has no public declaration in its source paths
+  - owner `Original lowered expression name footprints` entry point `SourceInvocationBinding::original_variable_reference_policy` has no public declaration in its source paths
+  - owner `Original lowered expression name footprints` entry point `original_lowered_expression_syntax` has no public declaration in its source paths
+  - owner `Original method caller-frame source correspondence` entry point `RetainedSourceModuleBindings::matches_original_method_summary` has no public declaration in its source paths
+  - owner `Original method caller-frame source correspondence` entry point `method_reaches_caller_frame` has no public declaration in its source paths
+  - owner `Original procedure MAY dependencies` entry point `OriginalProcedureMayDependencies` has no public declaration in its source paths
+  - owner `Original procedure MAY dependencies` entry point `original_procedure_may_dependencies_for_word_for_module` has no public declaration in its source paths
+  - owner `Original procedure summary ownership` entry point `Module::original_source_procedure_bodies` has no public declaration in its source paths
+  - owner `Original procedure summary ownership` entry point `Module::original_source_procedure_for_target` has no public declaration in its source paths
+  - owner `Original rendered result properties` entry point `NormalRepresentationInvocation::rendered_value_traits` has no public declaration in its source paths
+  - owner `Original rendered result properties` entry point `propagate_rendered_props_with_config` has no public declaration in its source paths
+  - owner `Original same-frame mapping source arms` entry point `SourceMappingArm` has no public declaration in its source paths
+  - owner `Original same-frame mapping source arms` entry point `mapping_arms` has no public declaration in its source paths
+  - owner `Original source analysis attachments` entry point `OriginalSourceAnalysisOwner` has no public declaration in its source paths
+  - owner `Original source analysis attachments` entry point `RetainedSourceModuleBindings::owns_original_analysis_attachment` has no public declaration in its source paths
+  - owner `Original source analysis attachments` entry point `SourceCommandBindings::original_analysis_owner` has no public declaration in its source paths
+  - owner `Original source analysis attachments` entry point `SourceInvocationBinding::original_analysis_attachment` has no public declaration in its source paths
+  - owner `Original source argv inventory disposition` entry point `RegistryInvocationShape::source_argument_words` has no public declaration in its source paths
+  - owner `Original source name-role inventory` entry point `SourceNameRoleInventory` has no public declaration in its source paths
+  - owner `Original source name-role inventory` entry point `original_source_name_roles` has no public declaration in its source paths
+  - owner `Original source outer-place summaries` entry point `OriginalSourceVariableAliasOperands` has no public declaration in its source paths
+  - owner `Original source outer-place summaries` entry point `SignatureSourceVariableOccurrence` has no public declaration in its source paths
+  - owner `Original source outer-place summaries` entry point `SourceSummaryContext` has no public declaration in its source paths
+  - owner `Original source value components` entry point `OriginalSourceArgument::scalar_reference_name` has no public declaration in its source paths
+  - owner `Original source value components` entry point `OriginalSourceArgument` has no public declaration in its source paths
+  - owner `Original source value components` entry point `original_literal_argument_data_for_module` has no public declaration in its source paths
+  - owner `Original source value components` entry point `original_literal_argument_data` has no public declaration in its source paths
+  - owner `Original source value components` entry point `original_name_role_values` has no public declaration in its source paths
+  - owner `Original source value components` entry point `original_source_argument_for_module` has no public declaration in its source paths
+  - owner `Original source value components` entry point `original_source_argument_for_script` has no public declaration in its source paths
+  - owner `Original source warning read operands` entry point `OriginalSourceTaintReadOperands` has no public declaration in its source paths
+  - owner `Original source warning read operands` entry point `original_source_taint_read_operands` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `OriginalAuthoredSourceSubstitutionWords` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `OriginalSubstitutionInventory` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `OriginalSubstitutionInvocation` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `checked_authored_source_substitution_words` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `original_authored_substitution_name_roles` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `original_substitution_invocations` has no public declaration in its source paths
+  - owner `Original variable declaration source joins` entry point `AnalysisResult::original_variable_alias_coverage` has no public declaration in its source paths
+  - owner `Original variable rename source authority` entry point `Backend::cross_document_original_variable_rename` has no public declaration in its source paths
+  - owner `Original variable rename source authority` entry point `describe_variable_collision` has no public declaration in its source paths
+  - owner `Original variable token reference forms` entry point `original_variable_reference_form` has no public declaration in its source paths
+  - owner `POSIX literal source rendering` entry point `PosixLiteral` has no public declaration in its source paths
+  - owner `Package scaffold namespace construction` gate `xtask-gen-editor-catalogs` invokes `gen-editor-catalogs` but xtask dispatch has no matching command
+  - owner `Prepared BPF source and generated command origins` entry point `BpfPreparedFunction` has no public declaration in its source paths
+  - owner `Prepared BPF source and generated command origins` entry point `BpfSourceScript` has no public declaration in its source paths
+  - owner `Prepared BPF source and generated command origins` entry point `lower_prepared_function` has no public declaration in its source paths
+  - owner `Prepared BPF source and generated command origins` entry point `prepare_function` has no public declaration in its source paths
+  - owner `Reached original Jim Try names and message getters` entry point `OriginalNumericOps::list_with_original_caller_check` has no public declaration in its source paths
+  - owner `Reached original Jim Try names and message getters` entry point `bind_original_jim_handler_vars` has no public declaration in its source paths
+  - owner `Reached original Jim Try names and message getters` entry point `capture_original_jim_try_variables` has no public declaration in its source paths
+  - owner `Registered legacy stock-list descriptor identity` entry point `stock_list_input_class` has no public declaration in its source paths
+  - owner `Retained original source-option write advice` entry point `SourceInvocationBinding::original_source_advice_purpose` has no public declaration in its source paths
+  - owner `Retained original source-option write advice` entry point `original_command_option_writes` has no public declaration in its source paths
+  - owner `Retained original source-option write advice` entry point `original_instance_option_writes` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::attested_command_identity` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::bind_builtin` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::register_stock_builtin` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::stock_ensemble_implementation_is_current` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::stock_ensemble_registry_identity` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::synchronise_command_environment_guards` has no public declaration in its source paths
+  - owner `SCCP phased write and destroy inventory` entry point `retain_source_call_name_coverage` has no public declaration in its source paths
+  - owner `SCCP phased write and destroy inventory` entry point `scan_defined_and_unset` has no public declaration in its source paths
+  - owner `Selected codegen wrapping traits` entry point `CodegenCtx::selected_invocation_traits` has no public declaration in its source paths
+  - owner `Selected lowering descriptor transport` entry point `ModuleCommandMutations::trusts_unobserved_descriptor` has no public declaration in its source paths
+  - owner `Selected lowering descriptor transport` entry point `SourceInvocationBinding::original_conditional_logical_scalar_store` has no public declaration in its source paths
+  - owner `Shimmer scalar sharing destinations` entry point `copy_destination_name` has no public declaration in its source paths
+  - owner `Shimmer scalar sharing destinations` entry point `mutation_target` has no public declaration in its source paths
+  - owner `Source-only SSA identities and location projections` entry point `OriginalSourceCallMayWrites` has no public declaration in its source paths
+  - owner `Source-owned analysis cache correspondence` entry point `RetainedSourceModuleBindings::matches_original_procedure_summary` has no public declaration in its source paths
+  - owner `Source-owned analysis cache correspondence` entry point `RetainedSourceModuleBindings::original_logical_source_slot_for_body` has no public declaration in its source paths
+  - owner `Standalone typed IR and source-word write coverage` entry point `original_invocation_possible_name_writes` has no public declaration in its source paths
+  - owner `Standalone typed IR and source-word write coverage` entry point `standalone_typed_statement_writes_are_covered` has no public declaration in its source paths
+  - owner `Standalone typed IR and source-word write coverage` entry point `variable_write_effects_from_commands` has no public declaration in its source paths
+  - owner `Typed codegen list iteration correspondence` entry point `matches_foreach_header` has no public declaration in its source paths
+  - owner `Typed instance-variable write candidates` entry point `structural_variable_write_projection` has no public declaration in its source paths
+  - owner `VM actual native invocation argv view` entry point `NativeInvocationState::arguments` has no public declaration in its source paths
+  - owner `VM actual native invocation argv view` entry point `NativeListItems::invocation_view` has no public declaration in its source paths
+  - owner `VM actual native invocation argv view` entry point `invoke_resolved_command_with_entry` has no public declaration in its source paths
+  - owner `VM original quiet global and captured Jim options` entry point `OriginalJimErrorCodeCapture` has no public declaration in its source paths
+  - owner `VM original quiet global and captured Jim options` entry point `current_jim_options_for_exit_code_with_error_code` has no public declaration in its source paths
+  - owner `VM original quiet global and captured Jim options` entry point `read_original_jim_global_error_code` has no public declaration in its source paths
+  - owner `WAT textual artifact names` entry point `escape_wat_bytes` has no public declaration in its source paths
+  - owner `Whole source variable-reference shapes` entry point `LatticeDriver::source_reference_lexer_config` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Frame` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::function_identity_claims_match` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::function_live_command_bindings_match` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::run_compiled_unit` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `CapturedByteStore` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `CapturedContainerModel` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `EnteredVariablePlace` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `Interp::store_captured_byte_variable` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `Interp::store_native_compiled_temporary_checked` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `VarTable::publish_dictionary_root` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `VarTable::publish_elem` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `VarTable::publish_scalar` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `capture_native_compiled_temporary_receiver` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `EnteredVariablePlace::remove` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `Interp::remove_captured_byte_variable` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `Interp::retire_namespace_variables` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `RetiredVariableParts` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `VarTable::publish_remove_after_default` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `VarTable::publish_remove_elem` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `VariableReceiver::publish_unset` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `finish_destruction_with_check` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `publish_array_destruction` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `OriginalNumericOps` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `Vm::authored_numeric_context` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `Vm::numeric_policy_context` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_number_probe_checked_with_string` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_scalar_getter_checked_with_string` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_scalar_probe_checked_with_string` has no public declaration in its source paths
+  - owner `checked tracked document source input` entry point `Backend::analyse_with_workspace_classes_from_analysis` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `RetainedSourceModuleBindings::matches_module` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `original_registry_words_for_module` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `proc_dispatch_facts` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `retained_substitution_calls` has no public declaration in its source paths
+  - owner `complete supplied SSA metadata scans` entry point `SsaInvocationContext` has no public declaration in its source paths
+  - owner `complete supplied SSA metadata scans` entry point `switch_must_defines_with_source_input` has no public declaration in its source paths
+  - owner `conditional declared overwrite advice` entry point `Analyser::emit_cfg_ssa_diagnostics_for_function_full` has no public declaration in its source paths
+  - owner `conditional dictionary source phase` entry point `original_written_script_body_is_empty` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `DeclarationLayoutObservation::source_body_name_ownership` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `OriginalSourceMaterializedFootprint::deferred_namespace` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `Scan::lambda` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceInvocationBinding::original_materialized_footprint_for_module` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceScan::lambda` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceScan::original_registration` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `original_literal_body_ownership` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `own_frame_global_writes_standalone` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `own_frame_global_writes_with_metadata_context` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `selected_values` has no public declaration in its source paths
+  - owner `current source refactor and CLI reduction metadata` entry point `collect_rename_edits` has no public declaration in its source paths
+  - owner `current structural diagram source metadata` entry point `DiagramContext::metadata_context` has no public declaration in its source paths
+  - owner `diagnostic source and overwrite advice` entry point `Analyser::emit_cfg_ssa_diagnostics_for_function_full` has no public declaration in its source paths
+  - owner `dictionary scope binding` entry point `DictionaryScopeRead` has no public declaration in its source paths
+  - owner `dictionary scope binding` entry point `dictionary_scope_variable_read` has no public declaration in its source paths
+  - owner `installed embedding handles and typed settlement` entry point `Interp::install_proc_original_storage` has no public declaration in its source paths
+  - owner `installed embedding handles and typed settlement` entry point `Vm::begin_embedding_call` has no public declaration in its source paths
+  - owner `installed embedding handles and typed settlement` entry point `Vm::finish_embedding_result` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `OriginalClassFactoryTransfer::capture` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `OriginalClassFactoryTransfer::completed` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `closed_definition_member` has no public declaration in its source paths
+  - owner `invocation completion routing` entry point `CfgCommandClasses::conditional_source_completion_route` has no public declaration in its source paths
+  - owner `invocation completion routing` entry point `original_native_source_conditional_completion` has no public declaration in its source paths
+  - owner `native automatic Jim error capture` entry point `NativeJimScriptState::current_script_location` has no public declaration in its source paths
+  - owner `native automatic Jim error capture` entry point `NativeJimScriptState::new_for_evaluation_frame` has no public declaration in its source paths
+  - owner `native deferred Jim namespace and invocation context` entry point `CallMeta::original_frame_arguments` has no public declaration in its source paths
+  - owner `native deferred Jim namespace and invocation context` entry point `Interp::materialize_jim_namespace` has no public declaration in its source paths
+  - owner `native deferred Jim namespace and invocation context` entry point `Interp::original_alias_prefix_value_at` has no public declaration in its source paths
+  - owner `native deferred Jim namespace and invocation context` entry point `Namespaces::record_jim_namespace_materialized` has no public declaration in its source paths
+  - owner `native deferred Jim namespace and invocation context` entry point `OriginalJimLookupNamespace` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `Interp::prune_original_byte_command_registrations` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `Interp::publish_original_jim_registration_keys` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `Interp::remember_original_byte_command_registration` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `OriginalByteCommandRegistration` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `original_jim_command_enumeration_keys` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `OriginalNumericOps::string_value` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `OriginalNumericOps::string` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `native_string_bytes_checked_for_value` has no public declaration in its source paths
+  - owner `nested codegen lexical source operands` entry point `CodegenCtx::nested_command_tokens` has no public declaration in its source paths
+  - owner `original C9 class-variable links` entry point `Interp::prepare_original_c_namespace_link_target` has no public declaration in its source paths
+  - owner `original C9 class-variable links` entry point `classvariable_original` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `CompletionWalk` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `RaiseProof::calls_complete` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `RetainedSourceModuleBindings::matches_original_procedure_summary` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `SourceContext::matches_procedure` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `original_authored_procedure_calls_for_module` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `original_logical_procedure_calls_for_module` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `original_procedure_formal_count_shape` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `original_procedure_scalar_bindings` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `procedures_complete` has no public declaration in its source paths
+  - owner `original branch expression source grammar` entry point `branch_execution_equivalent` has no public declaration in its source paths
+  - owner `original branch expression source grammar` entry point `branch_original_expression` has no public declaration in its source paths
+  - owner `original declaration navigation` entry point `OriginalSourceVariableAliasOperands::namespace_target_scope` has no public declaration in its source paths
+  - owner `original declaration navigation` entry point `SourceInvocationBinding::declaration_source_operand_layout_advice` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `LogicalProcedureDeclaration` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `OriginalProcedureReadDeclaration` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `authored_procedure_read_advice` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `original_procedure_read_declaration` has no public declaration in its source paths
+  - owner `original declared argument read bridge` entry point `OriginalDeclaredProcedureArgumentSlots::incoming_source_read` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `Analyser::dispatch_protocol_signatures` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `Analyser::original_dispatch_peers` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `SignatureSourceCommand::body_scope` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `original_dispatch_site` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `CapturedJimDictionaryCell` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `EnteredNativeDictionary::prepare_original` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `Interp::mutate_original_jim_dictionary_path` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `OriginalJimDictionaryRoot` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `Vm::jim_dictionary_path_update_bytes` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `PublicationService` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `RuntimeEngine::command_publication_service` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `RuntimeEngine::restrict_commands` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `authenticate` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `capture_answer` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `consume` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `fail` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `host_command_proc` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `snapshot_value` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `to_obj` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `SourceContext::for_module` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `SourceContext::invocation` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `build_inlinable_map` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `names_a_command` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `reads_only_bound_names` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `rewrite_value_string` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `root` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `substitutes` has no public declaration in its source paths
+  - owner `original per-point CFG lookup metadata` entry point `CfgLookupContexts` has no public declaration in its source paths
+  - owner `original per-point CFG lookup metadata` entry point `original_argument_metadata_for_module` has no public declaration in its source paths
+  - owner `original per-point CFG lookup metadata` entry point `original_invocation_metadata_for_module` has no public declaration in its source paths
+  - owner `original source index diagnostics` entry point `original_index_diagnostics` has no public declaration in its source paths
+  - owner `original stock TclOO factory/bootstrap roles` entry point `OriginalClassFactoryState` has no public declaration in its source paths
+  - owner `original substitution purity metadata` entry point `SourceInvocationBinding::original_logical_procedure_call_targets` has no public declaration in its source paths
+  - owner `original substitution purity metadata` entry point `original_substitution_purity_with_metadata_context` has no public declaration in its source paths
+  - owner `original substitution purity metadata` entry point `substitutions_are_pure` has no public declaration in its source paths
+  - owner `original summary source dependencies` entry point `summary_deps_key` has no public declaration in its source paths
+  - owner `reached original error-context ownership` entry point `NativeListItems::owns_native_header` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `Analyser::expr_function_calls` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `Analyser::original_expression_parser_context` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `gated_operator_assistance_context` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `RetainedSourceModuleBindings::matches_module` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `TaintSourceContext::for_module_function` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `TaintSourceContext` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `global_instance_class_source` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `SavedExecutionTarget` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `SelectedFrameRestore` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `Vm::eval_value_at_level_checked` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `Vm::restore_execution_frame` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `Vm::select_execution_frame_checked` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `Vm::select_execution_frame` has no public declaration in its source paths
+  - owner `selected possible option source metadata` entry point `conditional_option_arguments_with_metadata_context` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `Backend::compiler_diagnostics_for` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `Backend::semantic_tokens_core_data` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `code_action_report` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `unindexed_semantic_tokens` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `compute_compiler_diags_after_base` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `compute_compiler_diags` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `unindexed_semantic_tokens_for_range` has no public declaration in its source paths
+  - owner `temporal contents folding and existence` entry point `ConditionReading` has no public declaration in its source paths
+  - owner `temporal contents folding and existence` entry point `QueryReading` has no public declaration in its source paths
+  - owner `temporal receiver navigation` entry point `OriginalReceiverBodyContext` has no public declaration in its source paths
+  - owner `temporal receiver navigation` entry point `SourceReceiverNameOperand` has no public declaration in its source paths
+  - owner `temporal receiver navigation` entry point `original_source_receiver_name_operand` has no public declaration in its source paths
+  - source owner `CFG structural variable-name data` `structural_variable_write_projection`: conditional required module `crate`
+  - source owner `CFG structural variable-name data` `structural_write_roots`: conditional required module `crate`
+  - source owner `Conditional original source semantic metadata` `ConditionalSourceMetadata::build`: conditional required module `crate`
+  - source owner `Conditional original source semantic metadata` `ConditionalSourceMetadata::build`: conditional required module `crate`
+  - source owner `Conditional original source semantic metadata` `SourceInvocationBinding::has_nonpoint_original_source_name_role_owner`: conditional required module `crate`
+  - source owner `Conditional original source semantic metadata` `SourceInvocationBinding::original_compiler_point_words_for_source_metadata`: conditional required module `crate`
+  - source owner `Conditional original source semantic metadata` `original_source_metadata_name_roles`: conditional required module `crate`
+  - source owner `Configured original taint receiver names` `original_scalar_reference_name`: conditional required module `crate`
+  - source owner `Configured original taint receiver names` `unique_instance_class`: conditional required module `crate`
+  - source owner `Configured single-command lexical projection` `SingleCommandSourcePart`: conditional required module `crate`
+  - source owner `Configured single-command lexical projection` `SingleCommandSourcePurpose`: conditional required module `crate`
+  - source owner `Configured single-command lexical projection` `single_command_source_parts`: conditional required module `crate`
+  - source owner `Configured substitution variable candidates` `arg_var_names_with_config`: conditional required module `crate`
+  - source owner `Conservative local-slot metadata narrowing` `typed_local_slot_name`: conditional required module `crate`
+  - source owner `Expanded list scalar source words` `CodegenCtx::emit_variable_reference`: conditional required module `crate`
+  - source owner `Expanded list scalar source words` `CodegenCtx::emit_variable_reference`: conditional required module `crate`
+  - source owner `Explicit Standalone source authoring ingress` `Lowerer::for_standalone_source`: conditional required module `crate`
+  - source owner `Explicit Standalone source authoring ingress` `Lowerer::for_standalone_source`: conditional required module `crate`
+  - source owner `Logical completed class/member source declarations` `LogicalSourceClassDeclaration::capture`: conditional required module `crate`
+  - source owner `Logical completed class/member source declarations` `LogicalSourceClassDeclaration`: conditional required module `crate`
+  - source owner `Logical completed class/member source declarations` `LogicalSourceMemberDeclaration`: conditional required module `crate`
+  - source owner `Logical object assignment and factory candidates` `advisory_object_factories_with_metadata_context`: conditional required module `crate`
+  - source owner `Logical object assignment and factory candidates` `logical_source_unit_input`: conditional required module `crate`
+  - source owner `Logical object assignment and factory candidates` `object_handle_facts_for_analysis`: conditional required module `crate`
+  - source owner `Logical object assignment and factory candidates` `original_advisory_value_assignments_with_metadata_context`: conditional required module `crate`
+  - source owner `Logical object assignment and factory candidates` `original_logical_constructor_class`: conditional required module `crate`
+  - source owner `Logical object-fact report correspondence` `ObjectHandleFacts::retain_report_source`: conditional required module `crate`
+  - source owner `Logical original alias prefix provenance` `SourceCommandTarget::original_logical_prepended_name_inputs`: conditional required module `crate`
+  - source owner `Logical per-object member insertion and masks` `LogicalSourceObjectMemberState::capture`: conditional required module `crate`
+  - source owner `Logical per-object member insertion and masks` `LogicalSourceObjectMembers`: conditional required module `crate`
+  - source owner `Logical workspace command candidates` `SourceFormalCountProjection::from_logical_formals`: conditional required module `crate`
+  - source owner `Named declaration source SSA ownership` `DeclaredProcedureBody::matches_original_procedure_source`: conditional required module `crate`
+  - source owner `Named declaration source SSA ownership` `LogicalStructuredInvocation::written_variable_name_operand`: conditional required module `crate`
+  - source owner `Named declaration source SSA ownership` `RetainedSourceModuleBindings::owns_original_body_tokens`: conditional required module `crate`
+  - source owner `Native source warning candidates` `NativeSourceTaintInvocation`: conditional required module `crate`
+  - source owner `Native source warning candidates` `native_source_taint_invocation`: conditional required module `crate`
+  - source owner `Native source warning candidates` `option_injection_arguments`: conditional required module `crate`
+  - source owner `Original Authored body-name candidates` `original_authored_body_name_candidates`: conditional required module `crate`
+  - source owner `Original Authored control-flow source grammar` `AuthoredSourceInvocation`: conditional required module `crate`
+  - source owner `Original Authored control-flow source grammar` `original_authored_control_invocation`: conditional required module `crate`
+  - source owner `Original Authored declaration and child source bodies` `OriginalAuthoredSourceBodyScope`: conditional required module `crate`
+  - source owner `Original Authored declaration and child source bodies` `SourceInvocationBinding::has_original_authored_source_body_name_role_owner`: conditional required module `crate`
+  - source owner `Original Authored declaration and child source bodies` `SourceInvocationBinding::original_authored_source_body_scope_for_name_roles`: conditional required module `crate`
+  - source owner `Original Authored declaration and child source bodies` `original_authored_procedure_body`: conditional required module `crate`
+  - source owner `Original Authored scalar source grammar` `AuthoredSourceInvocation`: conditional required module `crate`
+  - source owner `Original Authored scalar source grammar` `SourceInvocationBinding::original_authored_declaration_scalar_layout`: conditional required module `crate`
+  - source owner `Original Authored scalar source grammar` `SourceInvocationBinding::original_authored_scalar_body_scope`: conditional required module `crate`
+  - source owner `Original Authored scalar source grammar` `original_authored_scalar_invocation`: conditional required module `crate`
+  - source owner `Original Hosted control-flow source grammar` `SourceStructuredInvocation`: conditional required module `crate`
+  - source owner `Original Hosted control-flow source grammar` `original_hosted_source_registry_metadata`: conditional required module `crate`
+  - source owner `Original Hosted control-flow source grammar` `original_hosted_structured_invocation`: conditional required module `crate`
+  - source owner `Original Jim command inventory staging` `OriginalJimLookupNamespace::capture`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim command reset and unknown header` `Interp::dispatch_missing_command`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim command reset and unknown header` `Interp::dispatch_prebound_inner`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim existence queries` `install`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim namespace scripted helpers` `original_source_info`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim retiring resident-result observation` `Interp::native_string_primary_admission`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim retiring resident-result observation` `RetiringResultHeader::capture`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim retiring resident-result observation` `RetiringResultHeader::resident_bytes`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim retiring resident-result observation` `RetiringResultHeader`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim selected command and tailcall transport` `Interp::retain_active_jim_command`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim selected command and tailcall transport` `Interp::retained_jim_command_reference`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim selected command and tailcall transport` `JimCommandReference::same_reference`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim variable inventory objects` `OriginalJimLookupNamespace::capture`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Jim variable inventory objects` `OriginalJimLookupNamespace::check_current_arguments`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original Logical body-word geometry` `OriginalLogicalBodyWords::capture`: conditional required module `crate`
+  - source owner `Original Logical body-word geometry` `OriginalLogicalBodyWords`: conditional required module `crate`
+  - source owner `Original Logical body-word geometry` `OriginalSourceTransitionAdviceTape::logical_body_original_word_at_span`: conditional required module `crate`
+  - source owner `Original Logical callback source candidates` `LogicalNamespaceScope::body_scope`: conditional required module `crate`
+  - source owner `Original Logical callback source candidates` `LogicalNamespaceScope::body_scope`: conditional required module `crate`
+  - source owner `Original Logical class-body syntax` `AnalysisResult::retain_logical_class_body_sources`: conditional required module `crate`
+  - source owner `Original Logical class-body syntax` `Module::original_class_definition_body_source`: conditional required module `crate`
+  - source owner `Original Logical control-flow source grammar` `original_logical_source_structured_invocation`: conditional required module `crate`
+  - source owner `Original Logical procedure MAY dependencies` `OriginalProcedureSummaryOwners::may_calls`: conditional required module `crate`
+  - source owner `Original Logical procedure MAY dependencies` `RetainedSourceModuleBindings::matches_original_procedure_summary`: conditional required module `crate`
+  - source owner `Original Logical procedure MAY dependencies` `original_logical_procedure_may_dependencies_for_module`: conditional required module `crate`
+  - source owner `Original Logical source effect and frame carriers` `SourceInvocationBinding::has_original_source_layout_owner`: conditional required module `crate`
+  - source owner `Original Logical source effect and frame carriers` `SourceInvocationBinding::original_logical_source_words`: conditional required module `crate`
+  - source owner `Original Logical source effect and frame carriers` `SourceInvocationBinding::retain_original_logical_source_advice`: conditional required module `crate`
+  - source owner `Original Logical source effect and frame carriers` `original_logical_frame_invocation_for_module`: conditional required module `crate`
+  - source owner `Original Logical source effect and frame carriers` `original_logical_registry_words_for_module`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `Lowerer::original_logical_body_for_module`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `OriginalLogicalFrameInvocation::source_body`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `OriginalLogicalFrameInvocation::unknown_caller_variable_candidates`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `OriginalLogicalFrameInvocation`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `SourceInvocationBinding::original_logical_frame_body_namespace`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `original_logical_body_geometry_for_module`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `original_logical_frame_body_namespace_for_module`: conditional required module `crate`
+  - source owner `Original Logical source frame projection` `original_logical_frame_invocation_with_metadata_context`: conditional required module `crate`
+  - source owner `Original Native child syntax coordinate` `SourceInvocationBinding::original_native_source_syntax_offset`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `AdviceInvocationContext::retain_native_expression_syntax_inventory`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `OriginalNativeProcedureBody::source_children`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `OriginalNativeSourceBodyChildren`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `SourceInvocationBinding::has_original_native_source_command`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `SourceInvocationBinding::original_native_source_may_owner`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `SourceInvocationBinding::original_native_source_words`: conditional required module `crate`
+  - source owner `Original Native declaration child source grammar` `original_native_source_structured_invocation`: conditional required module `crate`
+  - source owner `Original NativeLowering descriptor queries` `OriginalInvocations::command`: conditional required module `crate`
+  - source owner `Original NativeLowering descriptor queries` `OriginalInvocations::for_module`: conditional required module `crate`
+  - source owner `Original NativeLowering descriptor queries` `OriginalInvocations::substitution`: conditional required module `crate`
+  - source owner `Original analysis SSA definitions` `OriginalAuthoredSourceBodyScope::belongs_to_original_scope`: conditional required module `crate`
+  - source owner `Original analysis SSA definitions` `current_analysis_function`: conditional required module `crate`
+  - source owner `Original analysis SSA definitions` `current_authored_analysis_function`: conditional required module `crate`
+  - source owner `Original analysis SSA definitions` `original_authored_analysis_definition_at_unit`: conditional required module `crate`
+  - source owner `Original analysis SSA definitions` `original_authored_definition_operands`: conditional required module `crate`
+  - source owner `Original body reference candidates` `original_body_reference_candidates`: conditional required module `crate`
+  - source owner `Original caller-template literal name data` `InvocationBodyAssistance::caller_template_literal_data`: conditional required module `crate`
+  - source owner `Original caller-template literal name data` `InvocationBodyAssistance::caller_template_literal_data`: conditional required module `crate`
+  - source owner `Original caller-template literal name data` `InvocationBodyAssistance::caller_template_literal_data`: conditional required module `crate`
+  - source owner `Original caller-template literal name data` `logical_parameter_body_assistance`: conditional required module `crate`
+  - source owner `Original caller-template literal name data` `original_body_parameter_source_invocation`: conditional required module `crate`
+  - source owner `Original compiler variable operands` `CodegenCtx::original_variable_operand`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `OriginalSourceCase`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `StaticLoopSource`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `analyse_for_statement_with_source_dependencies`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `original_logical_source_case_for_tokens`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `original_native_source_case_for_statement`: conditional required module `crate`
+  - source owner `Original conditional case source geometry` `summarise_for_statement_with_source_dependencies`: conditional required module `crate`
+  - source owner `Original conditional word contents` `LogicalOriginalWordValue::capture_invocation`: conditional required module `crate`
+  - source owner `Original conditional word contents` `LogicalOriginalWordValue::is_current`: conditional required module `crate`
+  - source owner `Original conditional word contents` `LogicalOriginalWordValue::value`: conditional required module `crate`
+  - source owner `Original conditional word contents` `SourceInvocationBinding::original_authored_written_argument_value`: conditional required module `crate`
+  - source owner `Original control receiver name data` `Lowerer::original_control_receiver_value`: conditional required module `crate`
+  - source owner `Original declaration source syntax memo` `SourceBodySyntaxOwner`: conditional required module `crate`
+  - source owner `Original declaration source syntax memo` `SourcePurpose`: conditional required module `crate`
+  - source owner `Original definition-script source coordinates` `Module::retain_definition_script_source`: conditional required module `crate`
+  - source owner `Original definition-script source coordinates` `OriginalDefinitionScriptSource::capture`: conditional required module `crate`
+  - source owner `Original definition-script source coordinates` `OriginalDefinitionScriptSource`: conditional required module `crate`
+  - source owner `Original dictionary destination data` `Lowerer::original_dict_write_name`: conditional required module `crate`
+  - source owner `Original expression child source catalogue` `AdviceInvocationContext::retain_original_expression_catalogue`: conditional required module `crate`
+  - source owner `Original expression child source catalogue` `OriginalSourceCatalogueBody`: conditional required module `crate`
+  - source owner `Original expression child source catalogue` `OriginalSourceExpressionCommand`: conditional required module `crate`
+  - source owner `Original failed-operand update syntax` `OriginalOperandEvaluationUpdate`: conditional required module `crate`
+  - source owner `Original failed-operand update syntax` `original_operand_evaluation_update`: conditional required module `crate`
+  - source owner `Original failed-operand update syntax` `try_lower_operand_evaluation_update_with_binding`: conditional required module `crate`
+  - source owner `Original fixed scalar-formal alpha equivalence` `AnalysisResult::original_scalar_alpha_for_formals`: conditional required module `crate`
+  - source owner `Original fixed scalar-formal alpha equivalence` `ScalarAlphaFormalSelection`: conditional required module `crate`
+  - source owner `Original formal name source geometry` `ModuleProcedures::original_source_module`: conditional required module `crate`
+  - source owner `Original handler slot eligibility` `call_disables_slots`: conditional required module `crate`
+  - source owner `Original literal variable-name operands` `OriginalVariableNameOperand::as_str`: conditional required module `crate`
+  - source owner `Original literal variable-name operands` `OriginalVariableNameOperand`: conditional required module `crate`
+  - source owner `Original literal variable-name operands` `ResolvedStatementInvocation::original_variable_name_operand`: conditional required module `crate`
+  - source owner `Original literal variable-name operands` `SourceNameRoleInventory::original_variable_name_operand`: conditional required module `crate`
+  - source owner `Original literal variable-name operands` `original_assignment_name_operand`: conditional required module `crate`
+  - source owner `Original lowered expression name footprints` `SourceInvocationBinding::original_variable_reference_policy`: conditional required module `crate`
+  - source owner `Original lowered expression name footprints` `original_lowered_expression_syntax`: conditional required module `crate`
+  - source owner `Original method caller-frame source correspondence` `RetainedSourceModuleBindings::matches_original_method_summary`: conditional required module `crate`
+  - source owner `Original method caller-frame source correspondence` `method_reaches_caller_frame`: conditional required module `crate`
+  - source owner `Original procedure MAY dependencies` `OriginalProcedureMayDependencies`: conditional required module `crate`
+  - source owner `Original procedure MAY dependencies` `original_procedure_may_dependencies_for_word_for_module`: conditional required module `crate`
+  - source owner `Original procedure report labels` `Module::original_procedure_report_label`: conditional required module `crate`
+  - source owner `Original procedure summary ownership` `Module::original_source_procedure_bodies`: conditional required module `crate`
+  - source owner `Original procedure summary ownership` `Module::original_source_procedure_for_target`: conditional required module `crate`
+  - source owner `Original refactor command geometry` `configured_command_words`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original rendered result properties` `NormalRepresentationInvocation::rendered_value_traits`: conditional required module `crate`
+  - source owner `Original rendered result properties` `propagate_rendered_props_with_config`: conditional required module `crate`
+  - source owner `Original source analysis attachments` `OriginalAuthoredSourceBodyScope::original_analysis_attachment`: conditional required module `crate`
+  - source owner `Original source analysis attachments` `OriginalSourceAnalysisOwner`: conditional required module `crate`
+  - source owner `Original source analysis attachments` `RetainedSourceModuleBindings::owns_original_analysis_attachment`: conditional required module `crate`
+  - source owner `Original source analysis attachments` `SourceCommandBindings::original_analysis_owner`: conditional required module `crate`
+  - source owner `Original source analysis attachments` `SourceInvocationBinding::original_analysis_attachment`: conditional required module `crate`
+  - source owner `Original source name-role inventory` `SourceNameRoleInventory`: conditional required module `crate`
+  - source owner `Original source name-role inventory` `original_source_name_roles`: conditional required module `crate`
+  - source owner `Original source value components` `OriginalSourceArgument::scalar_reference_name`: conditional required module `crate`
+  - source owner `Original source value components` `OriginalSourceArgument`: conditional required module `crate`
+  - source owner `Original source value components` `OriginalSourceArgument`: conditional required module `crate`
+  - source owner `Original source value components` `original_literal_argument_data_for_module`: conditional required module `crate`
+  - source owner `Original source value components` `original_literal_argument_data`: conditional required module `crate`
+  - source owner `Original source value components` `original_name_role_values`: conditional required module `crate`
+  - source owner `Original source value components` `original_name_role_values`: conditional required module `crate`
+  - source owner `Original source value components` `original_name_role_values`: conditional required module `crate`
+  - source owner `Original source value components` `original_name_role_values`: conditional required module `crate`
+  - source owner `Original source value components` `original_name_role_values`: conditional required module `crate`
+  - source owner `Original source value components` `original_source_argument_for_module`: conditional required module `crate`
+  - source owner `Original source value components` `original_source_argument_for_script`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `OriginalAuthoredSourceSubstitutionWords`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `OriginalSubstitutionInventory`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `OriginalSubstitutionInvocation`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `checked_authored_source_substitution_words`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `original_authored_substitution_name_roles`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `original_substitution_invocations`: conditional required module `crate`
+  - source owner `Original var-escape substitution inventory` `original_substitution_invocations`: conditional required module `crate`
+  - source owner `Original variable declaration source joins` `AnalysisResult::original_variable_alias_coverage`: conditional required module `crate`
+  - source owner `Original variable declaration source joins` `AnalysisResult::original_variable_alias_coverage`: conditional required module `crate`
+  - source owner `Original variable rename source authority` `describe_variable_collision`: conditional required module `crate`
+  - source owner `Original variable token reference forms` `original_variable_reference_form`: conditional required module `crate`
+  - source owner `Original variable token reference forms` `original_variable_reference_form`: conditional required module `crate`
+  - source owner `Original variable token reference forms` `original_variable_reference_form`: conditional required module `crate`
+  - source owner `Runtime command registration and identity` `Interp::attested_command_identity`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Runtime command registration and identity` `Interp::bind_builtin`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Runtime command registration and identity` `Interp::register_stock_builtin`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Runtime command registration and identity` `Interp::stock_ensemble_implementation_is_current`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Runtime command registration and identity` `Interp::stock_ensemble_registry_identity`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Runtime command registration and identity` `Interp::synchronise_command_environment_guards`: declaration, visibility or actual consumer route does not resolve
+  - source owner `SCCP phased write and destroy inventory` `retain_source_call_name_coverage`: conditional required module `crate`
+  - source owner `SCCP phased write and destroy inventory` `scan_defined_and_unset`: conditional required module `crate`
+  - source owner `Selected codegen wrapping traits` `CodegenCtx::selected_invocation_traits`: conditional required module `crate`
+  - source owner `Shimmer scalar sharing destinations` `copy_destination_name`: conditional required module `crate`
+  - source owner `Shimmer scalar sharing destinations` `mutation_target`: conditional required module `crate`
+  - source owner `Source-owned analysis cache correspondence` `ModuleCommandBindings::prepare_authored_source_body_correspondence`: conditional required module `crate`
+  - source owner `Source-owned analysis cache correspondence` `ModuleCommandBindings::prepare_authored_source_body_correspondence`: conditional required module `crate`
+  - source owner `Source-owned analysis cache correspondence` `ReadonlyAuthoredCoverage::capture`: conditional required module `crate`
+  - source owner `Source-owned analysis cache correspondence` `RetainedSourceModuleBindings::matches_original_procedure_summary`: conditional required module `crate`
+  - source owner `Source-owned analysis cache correspondence` `RetainedSourceModuleBindings::original_logical_source_slot_for_body`: conditional required module `crate`
+  - source owner `Standalone typed IR and source-word write coverage` `original_invocation_possible_name_writes`: conditional required module `crate`
+  - source owner `Standalone typed IR and source-word write coverage` `standalone_typed_statement_writes_are_covered`: conditional required module `crate`
+  - source owner `Standalone typed IR and source-word write coverage` `variable_write_effects_from_commands`: conditional required module `crate`
+  - source owner `Typed instance-variable write candidates` `structural_variable_write_projection`: conditional required module `crate`
+  - source owner `Whole source variable-reference shapes` `LatticeDriver::source_reference_lexer_config`: conditional required module `crate`
+  - source owner `Whole source variable-reference shapes` `LatticeDriver::source_reference_lexer_config`: conditional required module `crate`
+  - source owner `active VM artifact identity` `Frame`: declaration, visibility or actual consumer route does not resolve
+  - source owner `active VM artifact identity` `Vm::function_identity_claims_match`: declaration, visibility or actual consumer route does not resolve
+  - source owner `active VM artifact identity` `Vm::function_live_command_bindings_match`: declaration, visibility or actual consumer route does not resolve
+  - source owner `active VM artifact identity` `Vm::run_compiled_unit`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `CapturedByteStore`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `CapturedContainerModel`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `Interp::store_captured_byte_variable`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `Interp::store_native_compiled_temporary_checked`: missing consumer module
+  - source owner `captured Runtime byte storage` `VarTable::publish_dictionary_root`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `VarTable::publish_elem`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime byte storage` `VarTable::publish_scalar`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `Interp::remove_captured_byte_variable`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `Interp::retire_namespace_variables`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `RetiredVariableParts`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `VarTable::publish_remove_after_default`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `VarTable::publish_remove_elem`: declaration, visibility or actual consumer route does not resolve
+  - source owner `captured Runtime variable removal` `VariableReceiver::publish_unset`: declaration, visibility or actual consumer route does not resolve
+  - source owner `checked original numeric stages` `OriginalNumericOps`: declaration, visibility or actual consumer route does not resolve
+  - source owner `checked original numeric stages` `Vm::authored_numeric_context`: declaration, visibility or actual consumer route does not resolve
+  - source owner `checked original numeric stages` `Vm::numeric_policy_context`: declaration, visibility or actual consumer route does not resolve
+  - source owner `complete retained Module source correspondence` `original_registry_words_for_module`: conditional required module `crate`
+  - source owner `complete retained Module source correspondence` `original_registry_words_for_module`: conditional required module `crate`
+  - source owner `complete retained Module source correspondence` `proc_dispatch_facts`: conditional required module `crate`
+  - source owner `complete retained Module source correspondence` `retained_substitution_calls`: conditional required module `crate`
+  - source owner `conditional declared overwrite advice` `Analyser::emit_cfg_ssa_diagnostics_for_function_full`: conditional required module `crate`
+  - source owner `conditional dictionary source phase` `original_written_script_body_is_empty`: conditional required module `crate`
+  - source owner `conditional literal body name ownership` `original_literal_body_ownership`: conditional required module `crate`
+  - source owner `conditional literal body name ownership` `own_frame_global_writes_standalone`: conditional required module `crate`
+  - source owner `conditional literal body name ownership` `own_frame_global_writes_with_metadata_context`: conditional required module `crate`
+  - source owner `conditional literal body name ownership` `selected_values`: conditional required module `crate`
+  - source owner `diagnostic source and overwrite advice` `Analyser::emit_cfg_ssa_diagnostics_for_function_full`: conditional required module `crate`
+  - source owner `dictionary scope binding` `DictionaryScopeRead`: declaration, visibility or actual consumer route does not resolve
+  - source owner `intrinsic original stock class creation` `OriginalClassFactoryTransfer::capture`: conditional required module `crate`
+  - source owner `intrinsic original stock class creation` `OriginalClassFactoryTransfer::completed`: conditional required module `crate`
+  - source owner `invocation completion routing` `CfgCommandClasses::conditional_source_completion_route`: conditional required module `crate`
+  - source owner `invocation completion routing` `original_native_source_conditional_completion`: conditional required module `crate`
+  - source owner `native deferred Jim namespace and invocation context` `CallMeta::original_frame_arguments`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native deferred Jim namespace and invocation context` `Interp::materialize_jim_namespace`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native deferred Jim namespace and invocation context` `Namespaces::record_jim_namespace_materialized`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native deferred Jim namespace and invocation context` `OriginalJimLookupNamespace::capture`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native deferred Jim namespace and invocation context` `OriginalJimLookupNamespace::check`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native deferred Jim namespace and invocation context` `OriginalJimLookupNamespace`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native original Jim key producer handoff` `Interp::prune_original_byte_command_registrations`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native original Jim key producer handoff` `Interp::publish_original_jim_registration_keys`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native original Jim key producer handoff` `Interp::remember_original_byte_command_registration`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native original Jim key producer handoff` `OriginalByteCommandRegistration`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native string materialisation` `OriginalNumericOps::string_value`: declaration, visibility or actual consumer route does not resolve
+  - source owner `native string materialisation` `OriginalNumericOps::string`: declaration, visibility or actual consumer route does not resolve
+  - source owner `nested codegen lexical source operands` `CodegenCtx::nested_command_tokens`: conditional required module `crate`
+  - source owner `original C9 class-variable links` `Interp::prepare_original_c_namespace_link_target`: declaration, visibility or actual consumer route does not resolve
+  - source owner `original C9 class-variable links` `classvariable_original`: declaration, visibility or actual consumer route does not resolve
+  - source owner `original Logical procedure completion and no-error source calls` `RetainedSourceModuleBindings::matches_original_procedure_summary`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `SourceContext::matches_procedure`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `original_authored_procedure_calls_for_module`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `original_logical_procedure_calls_for_module`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `original_logical_procedure_calls_for_module`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `original_procedure_formal_count_shape`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `original_procedure_scalar_bindings`: conditional required module `crate`
+  - source owner `original Logical procedure completion and no-error source calls` `procedures_complete`: conditional required module `crate`
+  - source owner `original branch expression source grammar` `branch_execution_equivalent`: conditional required module `crate`
+  - source owner `original branch expression source grammar` `branch_original_expression`: conditional required module `crate`
+  - source owner `original declaration navigation` `SourceInvocationBinding::declaration_source_operand_layout_advice`: conditional required module `crate`
+  - source owner `original declaration read metadata` `authored_procedure_read_advice`: conditional required module `crate`
+  - source owner `original diagnostic protocol peers` `Analyser::dispatch_protocol_signatures`: conditional required module `crate`
+  - source owner `original diagnostic protocol peers` `Analyser::original_dispatch_peers`: conditional required module `crate`
+  - source owner `original diagnostic protocol peers` `original_dispatch_site`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `SourceContext::for_module`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `SourceContext::invocation`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `build_inlinable_map`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `names_a_command`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `reads_only_bound_names`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `rewrite_value_string`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `root`: conditional required module `crate`
+  - source owner `original inlining source and alpha-rename geometry` `substitutes`: conditional required module `crate`
+  - source owner `original source index diagnostics` `original_index_diagnostics`: conditional required module `crate`
+  - source owner `original stock TclOO factory/bootstrap roles` `OriginalClassFactoryState`: conditional required module `crate`
+  - source owner `original substitution purity metadata` `SourceInvocationBinding::original_logical_procedure_call_targets`: conditional required module `crate`
+  - source owner `original substitution purity metadata` `original_substitution_purity_with_metadata_context`: conditional required module `crate`
+  - source owner `original substitution purity metadata` `substitutions_are_pure`: conditional required module `crate`
+  - source owner `original summary source dependencies` `summary_deps_key`: conditional required module `crate`
+  - source owner `retained expression assistance and unavailable callback source joins` `Analyser::expr_function_calls`: conditional required module `crate`
+  - source owner `retained expression assistance and unavailable callback source joins` `Analyser::original_expression_parser_context`: conditional required module `crate`
+  - source owner `retained expression assistance and unavailable callback source joins` `gated_operator_assistance_context`: conditional required module `crate`
+  - source owner `selected VM execution frame and saved target` `SavedExecutionTarget`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected VM execution frame and saved target` `SelectedFrameRestore`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected VM execution frame and saved target` `Vm::eval_value_at_level_checked`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected VM execution frame and saved target` `Vm::restore_execution_frame`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected VM execution frame and saved target` `Vm::select_execution_frame_checked`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected VM execution frame and saved target` `Vm::select_execution_frame`: declaration, visibility or actual consumer route does not resolve
+  - source owner `selected possible option source metadata` `conditional_option_arguments_with_metadata_context`: conditional required module `crate`
+  - source owner `temporal receiver navigation` `OriginalReceiverBodyContext`: conditional required module `crate`
+  - source owner `temporal receiver navigation` `SourceReceiverNameOperand`: conditional required module `crate`
+  - source owner `temporal receiver navigation` `original_source_receiver_name_operand`: conditional required module `crate`

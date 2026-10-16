@@ -175,10 +175,21 @@ pub fn run_opt(
         // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5
         // iters); every other profile (including `full`) is a single pass.
         // Every pass applies only the rewrites the policy shows.
+        let overlay = tcl_cli_support::spec_pack_key(dialect.name);
+        let context = tcl_registry::model::resolve_environment(dialect.name)
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .context("resolve optimiser analysis context")?
+            .with_command_store(std::sync::Arc::clone(&registry));
+        let analysis_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            std::sync::Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        );
         let out = optimise_under_policy(
             &source,
             &registry,
-            Some(dialect),
+            Some(&analysis_input),
             policy.optimiser.profile.max_iterations(),
             &policy,
         );

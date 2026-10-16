@@ -1,16 +1,16 @@
 # Remaining naming implementation obligations
 
-Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **89 have integrated changes** (17 semantic,70 validation,2 documentation),236 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
+Active priority is **all LSP consumers and their required shared Compiler/DB/Registry owners**. Runtime/VM and BIG-IP work are deferred at their recorded checkpoints. For uncovered BIG-IP behaviour, Tcl8.4 is a working assumption; measured evidence keeps its original scope and provenance. The LSP baseline contains **325 obligations** (201 semantic,122 validation,2 documentation): **99 have integrated changes** (18 semantic,79 validation,2 documentation),226 have none and zero are verified complete. Shared dependencies keep their original counts and are not recounted here.
 
-Implementation has resumed from `554085e`. **217 baseline units** have reviewed
-implementation pending validation: 163 code units and all 54 authored-documentation
+Implementation has resumed from `554085e`. **227 baseline units** have reviewed
+implementation pending validation: 173 code units and all 54 authored-documentation
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
-1,941 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **36 demonstrated
-requirements**, 35 integrated pending validation and one blocked before integration.
-Effective scope is **2,194 obligations**, with **252 integrated pending validation**
-and **1,942 not integrated**. These counts establish neither semantic acceptance
+1,931 baseline units have no integrated implementation. The bounded
+[owner/caller annex](implementation-owner-annex.json) adds **37 demonstrated
+requirements**, 36 integrated pending validation and one blocked before integration.
+Effective scope is **2,195 obligations**, with **263 integrated pending validation**
+and **1,932 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
 Current selected builds, failures and pending gates are recorded in [current-state.md](current-state.md). Development checkpoint `c20c6ed04` is pushed; reviewed LSP successors remain pending validation. Runtime/VM and BIG-IP implementation and dedicated execution are paused.
@@ -43,3 +43,5 @@ Keep written source, evaluated names, namespace identity, command slots, live co
 Use the full JSON for exact IDs, source locations, APIs, required changes, dependencies and S/M/L/XL scope. Existing validation obligations and examined provider/domain requirements are retained separately; none is silently accepted or counted as another implementation change.
 
 Current active boundaries include actual document/workspace path admission, complete member/rename coverage, genuine parameter-role source transport and exact remaining LSP catalogue units. Shared source-prefix uncertainty across earlier class/instance operations remains blocked; no missing role is replaced with absence. Source-definition worker effect/observer coverage remains blocked separately. Runtime/VM and BIG-IP items above retain their recorded state for later work. Required owner/proof/generated checks and repository gates are not green; no PR, issue closure or merge acceptance is supplied.
+
+The reviewed16:36 successor integrates the complete standalone optimiser directive input caller and seven checked path/config validation callers, plus repair-only conditional no-level alias metadata, member-hazard fixture ingress and standalone BOM policy. A new authentic Authored unentered declaration geometry issuer adds one distinct annex facet, preserving prefix/lookup/observer debts and explicit scalar/definite-SSA refusals. Fresh ordinary build and controls remain pending. Current2d95 owner-resolution actually fails725 errors with bound inputs unchanged; a bounded module-resolver defect and remaining real contract errors are under review. No digest/acceptance refresh is inferred.

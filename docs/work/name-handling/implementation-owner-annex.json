@@ -802,6 +802,27 @@
         "verified_complete": false
       },
       "implementation_scope": "Source53a241d1 and canonicalcontract/gate5edcde1e independently CLEAR and integrated afterc20. Fresh ordinary build running; originalCompiler002/DB036 and new2controls unexecuted on candidate. Source-card and earlier-class/instance-prefix gaps remain open."
+    },
+    {
+      "id": "compiler.source.authored-unentered-declaration-geometry",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+          "symbol": "OriginalAuthoredProcedureSourceGeometry; original_authored_procedure_source_geometry"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs",
+          "symbol": "original Authored conditional declaration source body"
+        }
+      ],
+      "rationale": "Distinct demonstrated missing original Authored unentered/unclosed declaration issuer, reborrowing actual existing strict recipe/header/body word and original row/allocation. Earlier Logical declaration catalogue and original Body/Declared parent reborrow do not issue this owner. Count issuer once; unchanged readonly callers, helper files, tests and explicit stronger SSA refusals add zero. Existing closed declaration grammar and actual definite SSA authority remain separate.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently reviewed df14b1a8 source and f5c01317 contract integrated. PrefixEffects/HandlerLookup/ObserverApplicability remain debts; invalid present points terminal; scalar/SSA stronger receipts refuse. Original025/028 and new controls require ordinary execution."
     }
   ],
   "unverified_or_open": [
@@ -813,27 +834,27 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T15:14:41.182622+00:00",
+  "utc": "2026-10-16T16:35:15.844419+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 36,
+    "semantic_code_changes": 37,
     "validation_code_repairs": 0,
     "authored_documentation": 0,
-    "all_required_changes": 36,
+    "all_required_changes": 37,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 17,
+      "shared_owner_extension": 18,
       "caller_migration": 9,
       "metadata_or_target_schema": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1835,
+    "semantic_code_changes": 1836,
     "validation_code_repairs": 305,
     "authored_documentation": 54,
-    "all_required_changes": 2194
+    "all_required_changes": 2195
   },
   "implementation_progress": {
-    "implemented_pending_validation": 35,
+    "implemented_pending_validation": 36,
     "not_integrated": 1,
     "verified_complete": 0
   }

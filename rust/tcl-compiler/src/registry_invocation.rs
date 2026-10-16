@@ -7004,11 +7004,15 @@ fn original_body_parameter_source_invocation(
     let invocation = resolve_original_declared_layout(registry, metadata, tokens, &layout)?;
     if !invocation.facts.arg_roles_complete
         || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+        || invocation.effective.words.len() != words.len()
+        || invocation.effective.origins.len() != words.len()
+        || invocation.effective.origins.first() != Some(&InvocationWordOrigin::ResolvedHead)
         || invocation
             .effective
             .origins
             .iter()
             .enumerate()
+            .skip(1)
             .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
     {
         return None;

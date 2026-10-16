@@ -676,6 +676,44 @@ impl FrameEffectSpec {
         self.resolve_arguments(source)
     }
 
+    /// A finite conditional no-level source branch. The ordinary grammar
+    /// remains Unknown. Every authored release must select the same successful
+    /// pair geometry; any release's argument-error possibility is retained.
+    pub(crate) fn conditional_no_level_source_layout(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<FrameSuccessProjection> {
+        if self.layout != FrameArgLayout::AliasPairs
+            || self.level_word != FrameLevelWord::Upvar
+            || self.logical_source_layout(arguments) != FrameArgumentResolution::Unknown
+            || arguments.literal_at(0).is_some()
+        {
+            return None;
+        }
+        let count = arguments.exact_argv_len()?;
+        if count < 2 || count % 2 != 0 {
+            return None;
+        }
+        let layout = FrameArgumentResolution::Valid {
+            level: FrameLevel::DEFAULT,
+            level_word_len: 0,
+        };
+        let mut may_argument_error = false;
+        for version in TclVersion::ALL {
+            let branch = self.successful_layout(
+                arguments.with_dialect(crate::InvocationDialect::for_version(version)),
+            );
+            if branch.layout != layout {
+                return None;
+            }
+            may_argument_error |= branch.may_argument_error;
+        }
+        may_argument_error.then_some(FrameSuccessProjection {
+            layout,
+            may_argument_error,
+        })
+    }
+
     /// Project argument layout after a successful native invocation.
     ///
     /// For alias pairs, count parity excludes one dynamic presence branch:

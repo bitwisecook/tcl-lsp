@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-16T16:35:15.844419+00:00",
+  "source_basis": "2d95ff05319641510a05e2c73b932782aa821f91",
+  "baseline_units": [
+    "lsp-diagnostic-report-standalone-directive-input",
+    "lsp.validation.07.11.fn1",
+    "lsp.validation.07.11.fn2",
+    "lsp.validation.07.11.fn3",
+    "lsp.validation.07.11.fn4",
+    "lsp.validation.18.00.fn0",
+    "lsp.validation.18.00.fn1",
+    "lsp.validation.18.01.fn0"
+  ],
+  "new_annex_unit": "compiler.source.authored-unentered-declaration-geometry",
+  "verified_complete": 0,
+  "execution": "pending",
+  "patches": [
+    {
+      "path": "/tmp/compiler-diagnostic-input-v3/diagnostic-input-v3.patch",
+      "sha256": "ff35ee9f3ffd3a815469d4b134d951c56e80f90c853529bd762c40dbb81756b6"
+    },
+    {
+      "path": "/tmp/compiler-standalone-findings-file-boundary-v1/standalone-findings-file-boundary-v1.patch",
+      "sha256": "8a60ca3c559dc464391ac7408a7faf31c20f7e9ea62b50a45437ac0ac5db8398"
+    },
+    {
+      "path": "/tmp/lsp-path-fixtures-v1/patch.apply.diff",
+      "sha256": "c3f0f7310b1c92f862e22d971c44bf6398cb147798d68951615db4b102319c8b"
+    },
+    {
+      "path": "/tmp/sol-lsp-member-ingress-20261016/repair.patch",
+      "sha256": "3fc64a83dd4d6190ccdd8a93863a894fe28d57657242aee677b47b165128bdfa"
+    },
+    {
+      "path": "/tmp/compiler-logical-conditional-no-level-v1/logical-conditional-no-level-v1.d57535d339e17d74a28f47e8b4c73e26002395ba5c3b1de7adc8632ccd993bc2.patch",
+      "sha256": "d57535d339e17d74a28f47e8b4c73e26002395ba5c3b1de7adc8632ccd993bc2"
+    },
+    {
+      "path": "/tmp/compiler-source-may-declaration-geometry-v2/source-may-declaration-geometry-v2.patch",
+      "sha256": "df14b1a8ce22aa93ff75e9d07abe6762925578b9ec56e228d6feb32329ae00d2"
+    }
+  ]
+}

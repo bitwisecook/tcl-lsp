@@ -40439,7 +40439,13 @@ info exists ::N::v\uD800";
         let backend = test_backend();
         // No workspace folders at all (single-file / no-folder session).
         assert!(backend.workspace_folders.lock().await.is_empty());
-        *backend.editor_library_paths.lock().await = vec![lib_ws.0.to_string_lossy().into_owned()];
+        *backend.editor_library_paths.lock().await = vec![
+            lib_ws
+                .0
+                .to_str()
+                .expect("library path configuration requires UTF-8")
+                .to_owned(),
+        ];
 
         backend.scan_workspace_folders().await;
 
@@ -51911,7 +51917,10 @@ proc p {} {
         *backend.package_resolver.write().await = build_package_resolver(
             &vfs::NativeStore,
             &[],
-            &[libdir.display().to_string()],
+            &[libdir
+                .to_str()
+                .expect("library path configuration requires UTF-8")
+                .to_owned()],
             &[],
             WORKSPACE_SCAN_DIR_CAP,
         );

@@ -2504,6 +2504,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 descriptor.logical_source_resolver,
                 Some(
                     crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(_)
+                    | crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliasPairs { .. }
                 )
             );
             if descriptor.composition == crate::StateTransitionComposition::Replace {
@@ -2528,6 +2529,65 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 .state_transitions
                 .resolve_logical_source_frame_aliases(self.words.arguments()),
         )
+    }
+
+    /// Finite conditional no-level roles from an explicitly registered derived
+    /// alias-pair producer. The ordinary/generic source layout remains Unknown.
+    /// No actual default caller, selected local, completion or absence follows.
+    pub fn conditional_no_level_source_alias_layout(
+        &self,
+    ) -> Option<ConditionalNoLevelAliasLayout> {
+        use crate::state_transition::LogicalSourceStateTransitionResolver as Resolver;
+        let mut selected = None;
+        for descriptor in [
+            self.semantics.state_transitions.command,
+            self.semantics.state_transitions.subcommand,
+            self.semantics.state_transitions.form,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if descriptor.composition == crate::StateTransitionComposition::Replace {
+                selected = None;
+            }
+            if let Some(Resolver::FrameAliasPairs { level_word, .. }) =
+                descriptor.logical_source_resolver
+            {
+                if selected.is_some_and(|prior| prior != level_word) {
+                    return None;
+                }
+                selected = Some(level_word);
+            }
+        }
+        let level_word = selected?;
+        let frame = self.semantics.frame_effect?;
+        if frame.level_word != level_word
+            || self.facts().arity_accepts_frozen_arguments() != Some(true)
+        {
+            return None;
+        }
+        let offset = self.semantics.argument_offset;
+        let arguments = self.words.arguments();
+        frame.conditional_no_level_source_layout(arguments.slice_from(offset))?;
+        let mut pairs = Vec::new();
+        for target in (offset..arguments.exact_argv_len()?).step_by(2) {
+            let variable = crate::TransitionSubject::from_argument(arguments, target)?;
+            let local = crate::TransitionSubject::from_argument(arguments, target + 1)?;
+            // A computed local cannot issue an independently written local name.
+            if local.literal().is_some() {
+                pairs.push((variable, local));
+            }
+        }
+        if pairs.is_empty() {
+            return None;
+        }
+        Some(ConditionalNoLevelAliasLayout {
+            pairs,
+            residual: self
+                .semantics
+                .state_transitions
+                .resolve_logical_source_frame_aliases(arguments),
+        })
     }
 
     /// Conditional authored effects and state facts from the same actual argv.
@@ -11272,6 +11332,29 @@ mod logical_frame_source_role_tests {
     }
 }
 
+/// Source-only positioned alias roles in the finite no-level branch of an
+/// unresolved optional-level grammar. This is not a state transition or frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalNoLevelAliasLayout {
+    pairs: Vec<(crate::TransitionSubject, crate::TransitionSubject)>,
+    residual: crate::StateTransitions,
+}
+impl ConditionalNoLevelAliasLayout {
+    /// Actual target/local subjects; original Written-word correspondence is
+    /// independently required by a source consumer.
+    pub fn pairs(&self) -> &[(crate::TransitionSubject, crate::TransitionSubject)] {
+        &self.pairs
+    }
+    /// Original unresolved state facts, including their variable/trace widening.
+    pub fn residual(&self) -> &crate::StateTransitions {
+        &self.residual
+    }
+    /// The alternate level interpretation may produce an argument error.
+    pub const fn may_argument_error(&self) -> bool {
+        true
+    }
+}
+
 impl ResolvedInvocation<'_, '_> {
     /// Original effective operands of a selected conditional index schema.
     /// Unknown selectors, expansions and incompatible shapes supply no advice.
@@ -11449,6 +11532,99 @@ mod logical_source_alias_projection_tests {
             );
         }
     }
+    #[test]
+    fn conditional_no_level_alias_card_keeps_generic_layout_and_target_debt() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = crate::model::ingress::context_for_profile(profile);
+        for arguments in [
+            vec![
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("local"),
+            ],
+            vec![
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("target"),
+                crate::InvocationWord::Literal("local"),
+            ],
+            vec![
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Dynamic,
+            ],
+        ] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("upvar"),
+                        &arguments,
+                    )
+                    .with_profile(Some(profile)),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let schema = selected.resolved().unwrap();
+            let ordinary = schema.state_transitions();
+            assert!(schema.authored_logical_source_state_transitions().is_none());
+            assert!(schema.authored_logical_source_variable_aliases().is_none());
+            let card = schema.conditional_no_level_source_alias_layout();
+            if arguments.len() == 2 && arguments[1].literal() == Some("local") {
+                let card = card.expect("actual typed registered conditional no-level producer");
+                assert!(card.may_argument_error());
+                assert_eq!(card.pairs().len(), 1);
+                assert!(matches!(
+                    card.pairs()[0].0,
+                    crate::TransitionSubject::Unknown {
+                        argument_index: 0,
+                        ..
+                    }
+                ));
+                assert_eq!(card.pairs()[0].1.literal(), Some("local"));
+                assert!(
+                    card.residual()
+                        .facts()
+                        .iter()
+                        .any(|fact| matches!(fact.transition, crate::StateTransition::Widen(_)))
+                );
+                let mut replaced = *schema;
+                replaced.semantics.state_transitions.form =
+                    Some(crate::StateTransitionDescriptor {
+                        composition: crate::StateTransitionComposition::Replace,
+                        ..crate::StateTransitionDescriptor::EMPTY
+                    });
+                assert!(
+                    replaced
+                        .conditional_no_level_source_alias_layout()
+                        .is_none()
+                );
+                let mut extended = *schema;
+                extended.semantics.state_transitions.form =
+                    Some(crate::StateTransitionDescriptor {
+                        composition: crate::StateTransitionComposition::Extend,
+                        ..crate::StateTransitionDescriptor::EMPTY
+                    });
+                assert!(
+                    extended
+                        .conditional_no_level_source_alias_layout()
+                        .is_some()
+                );
+                let mut custom = *schema;
+                let mut descriptor = custom.semantics.state_transitions.command.unwrap();
+                descriptor.logical_source_resolver = Some(
+                    crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
+                        crate::state_transition::logical_source_alias_pairs_resolver(
+                            crate::frame_effect::FrameLevelWord::Upvar,
+                        ),
+                    ),
+                );
+                custom.semantics.state_transitions.command = Some(descriptor);
+                assert!(custom.conditional_no_level_source_alias_layout().is_none());
+            } else {
+                assert!(card.is_none());
+            }
+            assert_eq!(schema.state_transitions(), ordinary);
+        }
+    }
+
     #[test]
     fn logical_alias_destination_applicability_retains_source_purpose_and_unknown_frames() {
         let profile = tcl_dialect::DialectProfile::plain_tcl();

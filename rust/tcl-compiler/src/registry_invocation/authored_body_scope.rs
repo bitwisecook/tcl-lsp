@@ -24,6 +24,8 @@ pub(crate) struct OriginalAuthoredSourceBodyScope {
     dialect: Option<tcl_registry::InvocationDialect>,
     commands: Arc<[NativeScriptCommandWords]>,
     parent: Option<Arc<Self>>,
+    conditional_source_geometry:
+        Option<Arc<crate::command_binding::OriginalAuthoredProcedureSourceGeometry>>,
 }
 
 impl OriginalAuthoredSourceBodyScope {
@@ -41,6 +43,30 @@ impl OriginalAuthoredSourceBodyScope {
             return None;
         }
         let binding = header.source_binding.as_ref()?;
+        if let Some(geometry) =
+            binding.original_authored_procedure_source_geometry(header, module.resolved_registry())
+        {
+            let registry = geometry.registry_snapshot()?.clone();
+            (geometry.body_word() == body
+                && geometry.namespace() == namespace
+                && geometry.config() == module.native_lexer_config()
+                && module.registry_snapshot.as_ref()?.semantic_key() == registry.semantic_key()
+                && body.image() == &module.source)
+                .then_some(())?;
+            return Some(Arc::new(Self {
+                header: header.clone(),
+                body: body.clone(),
+                namespace: namespace.clone(),
+                realm: geometry.realm(),
+                registry,
+                entry: module.source_entry.clone(),
+                profile: module.dialect_profile,
+                dialect: binding.original_source_word_dialect_for_tokens(header),
+                commands: Self::commands(body)?,
+                parent: None,
+                conditional_source_geometry: Some(Arc::new(geometry)),
+            }));
+        }
         let registry = binding
             .retained_registry_snapshot_for_tokens(header)?
             .clone();
@@ -64,6 +90,7 @@ impl OriginalAuthoredSourceBodyScope {
             dialect: binding.original_source_word_dialect_for_tokens(header),
             commands: Self::commands(body)?,
             parent: None,
+            conditional_source_geometry: None,
         };
         Some(Arc::new(scope))
     }
@@ -114,6 +141,7 @@ impl OriginalAuthoredSourceBodyScope {
             dialect: binding.original_source_word_dialect_for_tokens(header),
             commands: Self::commands(body)?,
             parent: None,
+            conditional_source_geometry: None,
         }))
     }
 
@@ -128,6 +156,12 @@ impl OriginalAuthoredSourceBodyScope {
         .ok()?;
         plan.fatal_tail.is_none().then_some(())?;
         Some(Arc::from(plan.commands))
+    }
+
+    pub(crate) fn has_unclosed_declaration_source_coverage(&self) -> bool {
+        self.conditional_source_geometry
+            .as_ref()
+            .is_some_and(|geometry| geometry.has_unclosed_source_coverage())
     }
 
     /// Original retained declaration/header and body geometry; no point or
@@ -274,6 +308,7 @@ impl OriginalAuthoredSourceBodyScope {
             dialect: self.dialect,
             commands: Self::commands(body)?,
             parent: Some(Arc::clone(self)),
+            conditional_source_geometry: self.conditional_source_geometry.clone(),
         }))
     }
 

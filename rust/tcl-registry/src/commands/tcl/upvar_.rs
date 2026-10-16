@@ -48,9 +48,10 @@ const UPVAR_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
 
 const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     logical_source_resolver: Some(
-        crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
-            upvar_logical_source_transitions,
-        ),
+        crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliasPairs {
+            level_word: crate::frame_effect::FrameLevelWord::Upvar,
+            resolver: upvar_logical_source_transitions,
+        },
     ),
     composition: StateTransitionComposition::Extend,
     success_resolver: Some(upvar_success_transitions),

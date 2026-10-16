@@ -2644,6 +2644,13 @@ fn note_original_expression_params(
 fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     let parameter_body = original_parameter_observation_owner(scan);
     let parameter_owner = parameter_body.is_some();
+    let declaration_source_unclosed = parameter_body
+        .and_then(|id| {
+            scan.source_module
+                .original_authored_declaration_body_units
+                .get(&id)
+        })
+        .is_some_and(|card| card.has_unclosed_declaration_source_coverage());
     let ProcScan {
         proc,
         unit: _,
@@ -2660,7 +2667,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     let mut facts = LocalFacts {
         local_pure: true,
         impure_beyond_links: false,
-        param_observations_incomplete: !parameter_owner,
+        param_observations_incomplete: !parameter_owner || declaration_source_unclosed,
         ..LocalFacts::default()
     };
     let params: HashSet<String> = proc
@@ -7409,6 +7416,36 @@ mod tests {
                 "{body}"
             );
         }
+    }
+
+    #[test]
+    fn conditional_authored_declaration_reports_do_not_close_unused_parameters() {
+        let (context, unit) =
+            original_reference_unit("rename $old decl\nproc kept {unused} {return untouched}");
+        let module = &unit.ir_module;
+        let (&id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == "kept")
+            .expect("genuine conditional source body");
+        assert!(card.matches_procedure(module, &module.body_units[&id]));
+        let facts = original_reference_facts(&unit, context.commands());
+        let observed = &facts[&id];
+        assert!(observed.param_observations_incomplete);
+        let traits = finalise_param_traits(
+            &module.body_units[&id].params,
+            &observed.param_trait_flags,
+            None,
+            &observed.param_references,
+            !observed.param_observations_incomplete,
+        );
+        assert!(
+            !traits
+                .get("unused")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Unused))
+        );
+        assert!(observed.upvar_aliases.is_empty());
+        assert!(observed.global_aliases.is_empty());
     }
 
     #[test]

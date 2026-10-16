@@ -453,6 +453,18 @@ retained by the actual resolved analysis input. Missing context remains a refusa
 rebuilding a Registry from a dialect label cannot replace it. Existing source,
 currentness and edit guards remain independent of that metadata transport.
 
+Standalone optimisation policy takes the complete supplied analysis input,
+including the actual Registry generation, overlay availability, analyser/unit
+profiles and selected source configuration. Complete document ingresses choose
+their whole-file boundary policy; explicitly supplied custom configurations
+remain authoritative. Each pass reuses only that immutable source-independent
+metadata while the existing optimiser and analyser issue fresh owners for the
+current rewritten text. Directive scope and rewrite candidates therefore use
+the same selected input. Missing or foreign ownership returns unchanged text
+without applied rewrites. Current-document callers separately validate their
+retained analysis before entering the same multipass owner. This transport
+supplies no Native admission, Normal completion or independent rewrite safety.
+
 SpecTcl native argument-role hook IDs resolve through
 `CommandRegistry::native_argument_role_hook`. Exact qualified command descriptors
 precede command/member interpretations, even when the selected command lacks
@@ -1059,6 +1071,19 @@ Variables, child scripts, functions, expansion and procedure-body reflection
 remain outside this action; a known result or a lexical whitespace proposal
 cannot replace its receipt.
 
+Unentered Authored procedure declarations have a separate readonly SourceMay
+geometry receipt. It reborrows the actual original declaration row and its
+existing strict procedure recipe, complete original header/body words, full
+configuration, immutable Registry and source-analysis attachment. A present
+invalid point remains terminal; an authenticated unclosed point retains its debt,
+and a missing point supplies no entered lookup. The retained row is not a completed source-prefix simulation: prefix
+effects, handler lookup and observer applicability remain explicit obligations.
+The declaration card and lexical scope retain that same receipt under their
+current whole Module/body/header/formal ownership. Parameter observations remain
+incomplete, so these cards cannot establish `Unused`. The closed source grammar,
+scalar-operation scope, Native admission, installed inventory, Normal effects
+and physical SSA definitions keep their separate gates.
+
 Transformed braced procedure source has a separate diagnostic operand layout.
 `declaration_source_operand_layout_advice` retains the actual original header,
 Native-decoded body value and selected-configuration whole-source map separately.
@@ -1358,6 +1383,8 @@ Positive Logical occurrence catalogues use `source_logical_command_candidates` o
 Readonly Authored coverage retains both declaration and Installed inventories. Declaration bodies use their declaration-only CFG and summary owners. Installed rows use their actual issued body ID, FunctionUnit, prepared CFG and separately retained Installed source snapshot; no declaration or Native execution receipt is inferred.
 
 Namespace subcommand descriptor selection retains the original counted argv and actual dialect-filtered table. `namespace_subcommand_input` governs the exact CString comparison; `namespace_subcommand_prefix_input` separately governs Jim counted/C CString abbreviations. `resolve_native_namespace_subcommand_bytes_for_dialect` delegates to the existing table matcher in that order. Metadata cannot issue an original subcommand table/header cache. Runtime scripted helper heads use the actual original selector through `native_namespace_scripted_helper`, with namespace/frame/argv guards around reached getters and publication. Import retains its independent finite alias/cycle/key/List guards.
+
+The separate `ConditionalNoLevelAliasLayout` source card requires an actual typed derived `FrameAliasPairs` descriptor and its original complete argv. Existing shared successful-layout projection must agree across authored releases on the finite even-arity no-level branch while preserving argument-error possibility; the ordinary optional-level decoder and generic source transition query remain Unknown. Positioned target/local subjects retain the original widening and observer/effect debts, and Compiler separately requires genuine Written local spelling, current Logical procedure scope and absolute original target-root geometry. Unknown local names, odd dynamic levels, expansion, replacement and unregistered custom resolvers cannot supply this card. The retained source relation grants no actual default caller, installed alias/local, target element, Normal, absence, complete reference coverage or edit authority.
 
 Logical variable scope witnesses retain the actual full input, image/channel/configuration, original words and source obligations from the current tape. Declared bodies join their identical retained scope-body owner and frame recipe; report-tree labels cannot create scope. Occurrence queries recheck the witness, and earlier uncertainty bars complete rename. Genuine aliases keep precedence; unavailable namespace selections decline. Original source topology supplies no Native frame/cell or execution.
 

@@ -88,6 +88,8 @@ pub(crate) struct OriginalSourceVariableAliasOperands {
         DeclarationVariableAliasPurpose,
     )>,
     logical_declarations: Option<Vec<tcl_registry::VariableCellAliasTransition>>,
+    conditional_no_level:
+        Option<std::sync::Arc<tcl_registry::resolved_invocation::ConditionalNoLevelAliasLayout>>,
     logical_name_obligations: Vec<(
         tcl_lexer::Span,
         Option<tcl_registry::VariableAliasDestination>,
@@ -205,6 +207,19 @@ impl OriginalSourceVariableAliasOperands {
             }
             _ => None,
         };
+        let conditional_no_level = match words.source() {
+            super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                if advice.logical_source_input().is_some() =>
+            {
+                words
+                    .with_source_schema(context, |schema| {
+                        schema.conditional_no_level_source_alias_layout()
+                    })
+                    .flatten()
+                    .map(std::sync::Arc::new)
+            }
+            _ => None,
+        };
         let mut operands = Vec::new();
         for fact in transitions.facts() {
             let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
@@ -239,11 +254,13 @@ impl OriginalSourceVariableAliasOperands {
             || logical_declarations
                 .as_ref()
                 .is_some_and(|aliases| !aliases.is_empty())
+            || conditional_no_level.is_some()
             || !logical_name_obligations.is_empty())
         .then_some(Self {
             words,
             operands,
             logical_declarations,
+            conditional_no_level,
             logical_name_obligations,
         })
     }
@@ -304,33 +321,63 @@ impl OriginalSourceVariableAliasOperands {
     ) -> Option<Vec<OriginalLogicalAliasDeclaration>> {
         let scope = self.logical_scope(input, realm)?;
         let frame = logical_alias_frame(Some(&scope));
-        let declarations = self.logical_declarations.as_ref()?;
-        self.words
-            .with_source_schema(input.borrowed_context_registry(), |schema| {
-                declarations
-                    .iter()
-                    .filter_map(|alias| {
-                        (schema.authored_logical_source_alias_destination_is_active_in_frame(
-                            alias.destination,
-                            frame,
-                        ) == Some(true))
-                        .then_some(())?;
-                        let local = written_alias_operand(&self.words, &alias.local)?;
-                        let value =
-                            tcl_syntax::word_rules::original_static_word_unicode_value(local)?;
-                        // A derived tail has a different source receiver. This facet
-                        // admits only the actual independently written local name.
-                        (alias.local.literal()?.as_bytes() == value).then_some(())?;
-                        Some(OriginalLogicalAliasDeclaration {
-                            source: self.clone(),
-                            input: input.clone(),
-                            alias: alias.clone(),
-                            local: local.clone(),
-                            scope: scope.clone(),
+        if self.logical_declarations.is_none() && self.conditional_no_level.is_none() {
+            return None;
+        }
+        let declarations = self.logical_declarations.as_deref().unwrap_or_default();
+        let mut result: Vec<_> =
+            self.words
+                .with_source_schema(input.borrowed_context_registry(), |schema| {
+                    declarations
+                        .iter()
+                        .filter_map(|alias| {
+                            (schema.authored_logical_source_alias_destination_is_active_in_frame(
+                                alias.destination,
+                                frame,
+                            ) == Some(true))
+                            .then_some(())?;
+                            let local = written_alias_operand(&self.words, &alias.local)?;
+                            let value =
+                                tcl_syntax::word_rules::original_static_word_unicode_value(local)?;
+                            // A derived tail has a different source receiver. This facet
+                            // admits only the actual independently written local name.
+                            (alias.local.literal()?.as_bytes() == value).then_some(())?;
+                            Some(OriginalLogicalAliasDeclaration {
+                                source: self.clone(),
+                                input: input.clone(),
+                                alias: OriginalLogicalAliasKind::Known(alias.clone()),
+                                local: local.clone(),
+                                scope: scope.clone(),
+                            })
                         })
-                    })
-                    .collect()
-            })
+                        .collect()
+                })?;
+        if let Some(card) = &self.conditional_no_level {
+            // These names are only a finite source branch. No actual level,
+            // completed local link or successful argument evaluation is issued.
+            for (ordinal, (_, local_subject)) in card.pairs().iter().enumerate() {
+                let local = written_alias_operand(&self.words, local_subject)?;
+                let value = tcl_syntax::word_rules::original_static_word_unicode_value(local)?;
+                if local_subject.literal()?.as_bytes() != value {
+                    return None;
+                }
+                if logical_alias_frame(Some(&scope)) != tcl_registry::VariableAliasFrame::Procedure
+                {
+                    continue;
+                }
+                result.push(OriginalLogicalAliasDeclaration {
+                    source: self.clone(),
+                    input: input.clone(),
+                    alias: OriginalLogicalAliasKind::ConditionalNoLevel {
+                        card: std::sync::Arc::clone(card),
+                        ordinal,
+                    },
+                    local: local.clone(),
+                    scope: scope.clone(),
+                });
+            }
+        }
+        Some(result)
     }
 
     /// A newer source alias with an unavailable local cannot prove that an
@@ -616,25 +663,50 @@ enum AliasNamespacePurpose {
 /// Source declaration geometry only. Its whole vector and independent frame
 /// remain held; no ordinary alias receipt or completed link is issued.
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalLogicalAliasKind {
+    Known(tcl_registry::VariableCellAliasTransition),
+    ConditionalNoLevel {
+        card: std::sync::Arc<tcl_registry::resolved_invocation::ConditionalNoLevelAliasLayout>,
+        ordinal: usize,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OriginalLogicalAliasDeclaration {
     source: OriginalSourceVariableAliasOperands,
     input: crate::analyser::ResolvedAnalysisInput,
-    alias: tcl_registry::VariableCellAliasTransition,
+    alias: OriginalLogicalAliasKind,
     local: tcl_lexer::NativeWord,
     scope: crate::command_binding::OriginalLogicalVariableScope,
 }
 impl OriginalLogicalAliasDeclaration {
     pub(crate) fn local(&self) -> (&str, &tcl_lexer::NativeWord) {
         (
-            self.alias.local.literal().expect("retained literal local"),
+            self.local_subject()
+                .literal()
+                .expect("retained literal local"),
             &self.local,
         )
     }
-    pub(crate) fn alias(&self) -> &tcl_registry::VariableCellAliasTransition {
-        &self.alias
+    fn local_subject(&self) -> &tcl_registry::TransitionSubject {
+        match &self.alias {
+            OriginalLogicalAliasKind::Known(alias) => &alias.local,
+            OriginalLogicalAliasKind::ConditionalNoLevel { card, ordinal } => {
+                &card.pairs()[*ordinal].1
+            }
+        }
+    }
+    pub(crate) fn alias(&self) -> Option<&tcl_registry::VariableCellAliasTransition> {
+        match &self.alias {
+            OriginalLogicalAliasKind::Known(alias) => Some(alias),
+            OriginalLogicalAliasKind::ConditionalNoLevel { .. } => None,
+        }
     }
     pub(crate) fn target(&self) -> Option<&tcl_lexer::NativeWord> {
-        let target = match &self.alias.target {
+        if let OriginalLogicalAliasKind::ConditionalNoLevel { card, ordinal } = &self.alias {
+            return written_alias_operand(&self.source.words, &card.pairs()[*ordinal].0);
+        }
+        let target = match &self.alias()?.target {
             tcl_registry::VariableAliasTarget::Global { variable }
             | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
             | tcl_registry::VariableAliasTarget::CallerSelectedFrame { variable, .. }
@@ -690,19 +762,20 @@ impl OriginalLogicalAliasDeclaration {
                 .map(SignatureSourceNameInput::OriginalValue)
             })?;
         let target = self.target_occurrence(&self.input, target_input, purpose)?;
-        let alias_purpose = match &self.alias.target {
-            tcl_registry::VariableAliasTarget::Global { .. } => {
+        let alias_purpose = match self.alias().map(|alias| &alias.target) {
+            Some(tcl_registry::VariableAliasTarget::Global { .. }) => {
                 DeclarationVariableAliasPurpose::Global
             }
-            tcl_registry::VariableAliasTarget::CurrentNamespace { .. } => {
+            Some(tcl_registry::VariableAliasTarget::CurrentNamespace { .. }) => {
                 DeclarationVariableAliasPurpose::NamespaceVariable
             }
-            tcl_registry::VariableAliasTarget::CallerSelectedFrame { .. } => {
+            Some(tcl_registry::VariableAliasTarget::CallerSelectedFrame { .. }) => {
                 DeclarationVariableAliasPurpose::Upvar
             }
-            tcl_registry::VariableAliasTarget::Namespace { .. } => {
+            Some(tcl_registry::VariableAliasTarget::Namespace { .. }) => {
                 DeclarationVariableAliasPurpose::NamespaceUpvar
             }
+            None => DeclarationVariableAliasPurpose::Upvar,
         };
         let local = original_variable_alias_local_name(&local_input, alias_purpose)?;
         let relation = OriginalVariableAliasReceipt::new(
@@ -728,6 +801,29 @@ impl OriginalLogicalAliasDeclaration {
     ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
         if input != &self.input {
             return None;
+        }
+        if let OriginalLogicalAliasKind::ConditionalNoLevel { card, .. } = &self.alias {
+            card.may_argument_error().then_some(())?;
+            let word = self.target()?;
+            let policy = purpose.policy()?;
+            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&word.config());
+            let actual = purpose.key(word, rules)
+                .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
+                .or_else(|| crate::signature_scan::scope::SignatureSourceNameValue::from_original_variable_operand_root(word, rules, policy)
+                    .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue))?;
+            if &actual != target
+                || policy
+                    .recipe()
+                    .combined_variable_input(actual.bytes())
+                    .root()
+                    .qualification()
+                    != tcl_syntax::naming::NativeNameQualification::Absolute
+            {
+                return None;
+            }
+            return Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+                Some(policy),
+            ));
         }
         self.source.target_namespace_scope_for_words(
             &self.source.words,

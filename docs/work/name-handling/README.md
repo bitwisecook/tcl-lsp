@@ -7,9 +7,9 @@ implementation pending validation: 162 code units and all 54 authored-documentat
 units. These include one explicitly partial caller (DB class cards).
 **Zero units are verified complete**. Baseline counts remain **2,158**;
 1,942 baseline units have no integrated implementation. The bounded
-[owner/caller annex](implementation-owner-annex.json) adds **36 demonstrated
-requirements**, 35 integrated pending validation and one blocked before integration.
-Effective scope is **2,194 obligations**, with **251 integrated pending validation**
+[owner/caller annex](implementation-owner-annex.json) adds **37 demonstrated
+requirements**, 36 integrated pending validation and one blocked before integration.
+Effective scope is **2,195 obligations**, with **251 integrated pending validation**
 and **1,943 not integrated**. These counts establish neither semantic acceptance
 nor completed gates.
 
@@ -51,3 +51,5 @@ Read [the continuation](continue-prompt.md), [plan](plan.md), [issue catalogue](
 - [Name-resolution proof index](../../design/analysis/name-resolution-proofs/README.md)
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
+
+The reviewed16:36 successor integrates the complete standalone optimiser directive input caller and seven checked path/config validation callers, plus repair-only conditional no-level alias metadata, member-hazard fixture ingress and standalone BOM policy. A new authentic Authored unentered declaration geometry issuer adds one distinct annex facet, preserving prefix/lookup/observer debts and explicit scalar/definite-SSA refusals. Fresh ordinary build and controls remain pending. Current2d95 owner-resolution actually fails725 errors with bound inputs unchanged; a bounded module-resolver defect and remaining real contract errors are under review. No digest/acceptance refresh is inferred.
