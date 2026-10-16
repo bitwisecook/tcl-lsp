@@ -1,0 +1,29 @@
+{
+  "patch": "/tmp/lsp-forward-path-projection-v1/forward-path-projection.9a4527343f803ae1ab403d29d6bfdc5e000fcda58adc71a926336a5f03406cf7.patch",
+  "sha256": "9a4527343f803ae1ab403d29d6bfdc5e000fcda58adc71a926336a5f03406cf7",
+  "baseline": "lsp-server-path-uri-repair-policy",
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bec1b1a6bb21fdabef4b265ad00c7b5fb7d62075875bc68940f4681e1d31982d",
+      "after_sha256": "103e24c968f391f0582c1ccd4a7cd8118b332bbe7925a88d9f0b413a5c6f12f1"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "before_sha256": "3763a3a23b5d4968a4d999d65b9c95c40d44850594d4a742c574123f94ecfaf3",
+      "after_sha256": "acf0410efd5991649c9f7d6b01a3c625e6c717127099c68218c431d24199d447"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "0d568014b2470f758e29dd7e1f9807009ef12ae15c5bf67c24a2d9a818147f5c",
+      "after_sha256": "0e1bde4a84f01b5c7727dbd57fd9745ce0eb7f66547b1e511c9ce3c8fbe14e0d"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+      "before_sha256": "7460a8581cdbde81bc74a4b0934b4f0b2a1066471adb7fa5dea742bd969d1911",
+      "after_sha256": "e3eb914b1092a58f8a730293e52eb356c7acbfc14c15ee63e93c34f283346641"
+    }
+  ],
+  "validation": "TMP rustfmt and tree-sitter; old Core implementation/tests tail identical; old Server canonical tests identical; no Cargo/main/Git/execution",
+  "additional_requirement_proposal": 0
+}

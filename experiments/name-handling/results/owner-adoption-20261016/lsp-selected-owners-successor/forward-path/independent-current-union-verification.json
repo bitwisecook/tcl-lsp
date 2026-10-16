@@ -1,0 +1,11 @@
+{
+  "apply_exit": 0,
+  "apply_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\npatching file rust/tcl-lsp-core/src/file_uri.rs\npatching file rust/tcl-lsp-server/src/lib.rs\nHunk #2 succeeded at 34608 (offset -5 lines).\nHunk #3 succeeded at 37904 (offset -5 lines).\npatching file rust/tcl-lsp-server/src/uri_norm.rs\n",
+  "source": "copied current Root files read-only, TMP apply only; disjoint whole_line_range/autoload contract drift retained",
+  "current_union_after_hashes": {
+    "docs/design/contracts/shared-utility-contracts-rust.md": "1e379930ae11fd3aa461a3b64bd60e36bdec858abdf18699675c4f429a6ca18f",
+    "rust/tcl-lsp-core/src/file_uri.rs": "acf0410efd5991649c9f7d6b01a3c625e6c717127099c68218c431d24199d447",
+    "rust/tcl-lsp-server/src/lib.rs": "1a6788ac07b5b79a1ed927c12447a9ded61d63ea5915caecbbf3aca25b9ec884",
+    "rust/tcl-lsp-server/src/uri_norm.rs": "e3eb914b1092a58f8a730293e52eb356c7acbfc14c15ee63e93c34f283346641"
+  }
+}

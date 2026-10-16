@@ -675,6 +675,14 @@ pub struct InvocationAvailability<'r> {
     pub package_version: Option<&'r str>,
 }
 
+/// Independently owned availability axes of an actual source instance method.
+/// This typed transport preserves the selected provider and receiver purposes.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InstanceMethodAvailability<'w> {
+    pub(crate) provider: InvocationAvailability<'w>,
+    pub(crate) receiver: InvocationAvailability<'w>,
+}
+
 /// Option descriptors applicable to a resolved invocation.
 ///
 /// Command and subcommand options remain separate from form-local options so
@@ -1270,6 +1278,8 @@ pub struct ResolvedInvocation<'r, 'w> {
     /// The descriptors the registry selected — the derived queries' own
     /// inputs, beside the effective [`Self::semantics`].
     pub(crate) selected: SelectedDescriptors<'r>,
+    // Actual inherited source provider; legacy uniform-floor issuers retain None.
+    instance_method_provider: Option<(&'r CommandSpec, InvocationAvailability<'w>)>,
 }
 
 /// The command (or class) and subcommand (or instance method) descriptors an
@@ -2354,6 +2364,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 sub,
                 instance: false,
             },
+            instance_method_provider: None,
         }
     }
 
@@ -2404,7 +2415,61 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 sub: Some(method),
                 instance: true,
             },
+            instance_method_provider: None,
         }
+    }
+
+    /// Separate actual receiver identity from its selected inherited source provider.
+    pub(crate) fn new_instance_with_method_provider(
+        words: InvocationWords<'w>,
+        class_spec: &'r CommandSpec,
+        provider: &'r CommandSpec,
+        method: &'r SubCommand,
+        form: Option<&'r CommandForm>,
+        subcommand: SubcommandResolution<'w>,
+        availability: InstanceMethodAvailability<'w>,
+    ) -> Result<Self, crate::registry::InstanceMethodContextUnavailable> {
+        let InstanceMethodAvailability {
+            provider: availability,
+            receiver: receiver_availability,
+        } = availability;
+        let mut selected =
+            Self::new_instance(words, class_spec, method, form, subcommand, availability);
+        let mut options = invocation_options(provider, Some(method), form, availability);
+        options = selected_nested_options(options, provider, Some(method), words);
+        if selected
+            .semantics
+            .traits
+            .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
+            && options.base.is_empty()
+            && !class_spec.options.is_empty()
+        {
+            // Receiver options retain their independent receiver package. The
+            // current option card has one version axis for base and form; a
+            // mixed card with unequal floors stays unavailable, not absent.
+            if !options.form.is_empty()
+                && availability.package_version != receiver_availability.package_version
+            {
+                return Err(crate::registry::InstanceMethodContextUnavailable::ReceiverOptionAxes);
+            }
+            options.base = class_spec.options;
+            options.parent_surface = class_spec.surface;
+            options.availability = receiver_availability;
+        }
+        selected.semantics.options = options;
+        selected.semantics.option_scope.parent_surface = method.surface.or(provider.surface);
+        selected.instance_method_provider = Some((provider, availability));
+        Ok(selected)
+    }
+
+    /// Actual inherited provider and its own retained package/surface axis.
+    /// The factory remains `authored_source_descriptors().command`. None from
+    /// a legacy uniform-floor issuer supplies no provider or method-absence fact.
+    #[must_use]
+    pub const fn authored_source_instance_method_provider(
+        &self,
+    ) -> Option<(&'r CommandSpec, InvocationAvailability<'w>)> {
+        self.instance_method_provider
     }
 
     /// Resolve the complete mutable-world footprint for this invocation — the
@@ -4815,7 +4880,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                     sub.option_relations,
                     sub.subcommand_forms,
                     sub.constraints,
-                    sub.surface.or(selected.command.surface),
+                    sub.surface.or(self
+                        .instance_method_provider
+                        .map_or(selected.command.surface, |(owner, _)| owner.surface)),
                 )
             },
         );

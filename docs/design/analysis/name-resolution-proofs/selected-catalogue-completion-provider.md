@@ -10,7 +10,7 @@ The existing DocumentFloor context and ResolvedContext::resolve_spec select each
 
 ## Scope
 
-Exact existing catalogue unit: lsp-completion-catalogue-selected-provider-filter, bounded builtin_completions and grammar_member_completions caller facets. Actual unchanged full input/configuration and context ingress remain required. Metadata spelling and usage ranking are source advice and display. Registry inherited instance-method provider/package ownership, linked editing, runtime command occupancy, successful dispatch, physical method frame, Normal, and edit permission remain independent. The existing registry_method_items route is unchanged and its shared inherited provider issue is not claimed closed. No Runtime/VM/BIG-IP source is changed or executed.
+Exact existing catalogue unit: lsp-completion-catalogue-selected-provider-filter, bounded builtin_completions, grammar_member_completions and registry_method_items caller facets. Actual unchanged full input/configuration and context ingress remain required. Metadata spelling and usage ranking are source advice and display. Registry inherited instance-method providers retain their actual owning CommandSpec and independent package floor. Linked editing, runtime command occupancy, successful dispatch, physical method frame, Normal, and edit permission remain independent. No Runtime/VM/BIG-IP source is changed or executed.
 
 ## Provider answers
 
@@ -56,6 +56,19 @@ The prior builtin path resolved an available descriptor but discarded it, then a
 
 A named test is a coverage binding, not an execution claim. All pre-existing test source/assertions remain unchanged.
 
+## Inherited provider ownership
+
+registry_method_items passes the exact context-selected factory descriptor to CommandRegistry::instance_method_providers_for_descriptor_at. The existing Registry breadth-first owner walk retains each actual provider descriptor and obtains its document floor from that same descriptor; the receiver package cannot donate a version floor to a different superclass package. Actual context resolution and exact descriptor correspondence gate each provider, while row lifecycle/surface filtering, cycle prevention and declaration-order first-name precedence remain shared. A foreign factory descriptor refuses. An unavailable owner contributes neither rows nor a superclass traversal.
+
+The legacy instance_methods_for_descriptor_at wrapper retains its original uniform-floor contract; other compiler/diagnostic/native consumers receive no semantic change. This caller projects conditional lexical catalogue advice only. Its existing allows_lexical_declaration_advice guard, actual context selection and configured source method-name rendering are unchanged; no Native receiver completion route opens.
+
+- `registry::instance_method_provider_tests::inherited_method_provider_keeps_exact_descriptor_and_own_package_floor` (linked): genuine per-owner floors, exact provider pointer, foreign-descriptor and unavailable-provider refusal, cycle termination and unchanged legacy uniform-floor scope.
+- `completion::inherited_registry_completion_provider_tests::inherited_completion_uses_selected_provider_package_instead_of_receiver_package` (linked): opposite receiver/provider package floors and a later foreign same-name descriptor cannot suppress or invent an inherited item.
+
+A named selector is unexecuted coverage, not a provider or Rust result. All original test fixtures and assertions remain byte-identical.
+
 ## Replay
 
-Root owns ordinary build, exact binary singleton listing, execution and count reconciliation. Two new selectors are validation annexes to the one existing caller purpose; neither is a new semantic owner or per-helper count. Preserve all original completion operator, method-context, package, grammar, source/currentness and provider controls.
+Root owns ordinary build, exact binary singleton listing, execution and count reconciliation. The original two and added three selectors are validation annexes to the one existing caller purpose; neither is a new semantic owner or per-helper count. Preserve all original completion operator, method-context, package, grammar, source/currentness and provider controls.
+
+The additional `completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster` selector retains a genuine Jim 0.79 Logical editing input. A Tcl surface edge alone admits the superclass descriptor, while the actual inherited command roster excludes it. Full context resolution, including roster and invocation realm, must select that exact descriptor before any method or package floor is projected. This new control remains unexecuted.

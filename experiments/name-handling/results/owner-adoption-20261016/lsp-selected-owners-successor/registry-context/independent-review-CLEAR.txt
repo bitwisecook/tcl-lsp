@@ -1,0 +1,14 @@
+CLEAR — independent source review only, 2026-10-16
+
+Patch SHA-256: b25be5d49f470d6d79c49191de30a0c4676ded23d961290f90c54d2b5dd0194e
+Manifest SHA-256: 8b7640b99a3e5bf537c875eb2352522198d13f5a8682a0ef135d34616f703866
+Contract SHA-256: 62f3dd363511cfbe30b116509aed18c1b0ca711e61571bcd05122602d14a60d4
+Required predecessor: registry-instance-method-provider-v3 patch 3b33b8f5c5dd9436e57909fb646570df14330bc3693bd35c480761c4628acf37.
+
+V2 resolves the sole V1 source HOLD: no new allow remains. The narrow crate-private InstanceMethodAvailability record retains the independently computed provider and receiver InvocationAvailability values verbatim. The Registry contextual resolver constructs that typed record; the selected invocation constructor destructures it to the same original variables. The constructor now has seven arguments. No selection, floor, option, status, source guard or test algorithm changes occur between V1 and V2; only the two expected Rust files differ. Docs and Compiler afterimages are byte-identical to reviewed V1.
+
+The full V1 semantic review therefore applies: actual ContextRegistry store and selected factory/provider pointer authentication; shared BFS/order/lifecycle/surface semantics; strict complete table unavailable versus actual Unknown; retained provider floor and factory identity; method form/options/relation surfaces and separate receiver fallback; explicit ReceiverOptionAxes refusal; actual Compiler W001 and provider-floor E002 adopters; preserved source carrier/full input/context/alias-lineage/applicability debts; no Native/physical receiver/effect closure/Normal/edit grant. Legacy permissive list and uniform-floor APIs retain their scope. Existing DB db.unit.registry.instance.parent-package-floor and Compiler compiler.source.inherited-method-owning-package-context:221 budget this purpose; no new annex/helper/test count. Mixed option axes remain an explicit refusal, not claimed complete representation.
+
+Independent checks: exact patch/manifest/contract plus all six before/after hashes verified; fresh TMP patch --fuzz=0 application succeeds, all six applied hashes match; all four original Rust test suffixes retained byte-identically. See independent-source-verification.json. Full V1 source findings and fixed-input controls are recorded in ../registry-instance-method-context-v1/independent-review-HOLD.txt, whose only finding is now corrected.
+
+No main writes, Git, Cargo, build, tests, traces, gate or provider execution. Source CLEAR is not efficacy/ordinary validation acceptance; Root owns those and final migration/count reconciliation.

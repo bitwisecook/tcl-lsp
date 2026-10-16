@@ -70,6 +70,24 @@ use tcl_dialect::model::surface_nearness;
 use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceLayer, surface_provided_by};
 use tcl_dialect::version_satisfies;
 
+/// Unavailable inherited source method context, distinct from an unknown method.
+/// No variant proves method absence, executed failure or Native eligibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceMethodContextUnavailable {
+    /// The supplied full context owns a different command store.
+    RegistryMismatch,
+    /// The retained factory is not the actual context-selected descriptor.
+    FactorySelection,
+    /// An inherited provider is unavailable under actual context resolution.
+    ProviderSelection(&'static str),
+    /// A declared superclass cannot select a descriptor under this surface.
+    SuperclassSelection(&'static str),
+    /// An owner has no independently declared instance method table.
+    MethodTable(&'static str),
+    /// Receiver and method options require distinct unrepresented version axes.
+    ReceiverOptionAxes,
+}
+
 /// Resolved metadata for an iRules event — the result of
 /// [`CommandRegistry::event_info`].
 #[derive(Debug, Clone)]
@@ -4500,15 +4518,59 @@ impl CommandRegistry {
         package_version: Option<&str>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<&'static SubCommand> {
+        self.instance_method_providers_for_descriptor_at(class_spec, dialect, |_| {
+            Some(package_version)
+        })
+        .into_iter()
+        .map(|(_, method)| method)
+        .collect()
+    }
+
+    /// Visible method rows with their actual owning class descriptors.
+    ///
+    /// The receiver factory must be the exact descriptor selected by this
+    /// Registry and surface. Each inherited owner retains its own package:
+    /// `provider_floor` returns `None` for an unavailable owner, `Some(None)`
+    /// for an admitted owner with no version floor, or `Some(Some(version))`
+    /// for its document-resolved package floor. The Registry combines that
+    /// floor with the same owner's static floor before filtering its rows.
+    /// Unavailable owners contribute neither methods nor superclass traversal.
+    ///
+    /// This source catalogue projection grants no package activation, instance
+    /// allocation, executed method, physical receiver or Native permission.
+    #[must_use]
+    pub fn instance_method_providers_for_descriptor_at<'v>(
+        &self,
+        class_spec: &CommandSpec,
+        dialect: Option<SurfaceQuery<'_>>,
+        mut provider_floor: impl FnMut(&CommandSpec) -> Option<Option<&'v str>>,
+    ) -> Vec<(&'static CommandSpec, &'static SubCommand)> {
+        self.instance_method_providers_with_context_status(
+            class_spec,
+            dialect,
+            &mut provider_floor,
+            false,
+        )
+        .unwrap_or_default()
+    }
+
+    fn instance_method_providers_with_context_status<'v>(
+        &self,
+        class_spec: &CommandSpec,
+        dialect: Option<SurfaceQuery<'_>>,
+        mut provider_floor: impl FnMut(&CommandSpec) -> Option<Option<&'v str>>,
+        require_complete: bool,
+    ) -> Result<Vec<(&'static CommandSpec, &'static SubCommand)>, InstanceMethodContextUnavailable>
+    {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
-        if !self
-            .get_for_surface(class_spec.name, dialect)
-            .is_some_and(|selected| std::ptr::eq(selected, class_spec))
-        {
-            return Vec::new();
+        let Some(selected) = self.get_for_surface(class_spec.name, dialect) else {
+            return Err(InstanceMethodContextUnavailable::FactorySelection);
+        };
+        if !std::ptr::eq(selected, class_spec) {
+            return Err(InstanceMethodContextUnavailable::FactorySelection);
         }
-        let mut queue = std::collections::VecDeque::from([class_spec]);
+        let mut queue = std::collections::VecDeque::from([selected]);
         let mut seen = std::collections::HashSet::new();
         let mut method_names = std::collections::HashSet::new();
         let mut visible_methods = Vec::new();
@@ -4517,6 +4579,17 @@ impl CommandRegistry {
                 continue;
             }
             let Some(class) = owner.object_class else {
+                if require_complete {
+                    return Err(InstanceMethodContextUnavailable::MethodTable(owner.name));
+                }
+                continue;
+            };
+            let Some(package_version) = provider_floor(owner) else {
+                if require_complete {
+                    return Err(InstanceMethodContextUnavailable::ProviderSelection(
+                        owner.name,
+                    ));
+                }
                 continue;
             };
             let package_floor = self.package_floor_for_spec_at(owner, package_version);
@@ -4528,16 +4601,100 @@ impl CommandRegistry {
                     continue;
                 }
                 if method_names.insert(candidate.name) {
-                    visible_methods.push(candidate);
+                    visible_methods.push((owner, candidate));
                 }
             }
             for superclass in class.superclasses {
                 if let Some(owner) = self.get_for_surface(superclass, dialect) {
                     queue.push_back(owner);
+                } else if require_complete {
+                    return Err(InstanceMethodContextUnavailable::SuperclassSelection(
+                        superclass,
+                    ));
                 }
             }
         }
-        visible_methods
+        Ok(visible_methods)
+    }
+
+    /// Complete inherited source catalogue under the exact retained context/store.
+    /// Missing provider/table correspondence remains typed unavailable, never an
+    /// empty method table or an unknown-method verdict.
+    pub fn instance_method_providers_for_descriptor_in_context(
+        &self,
+        class_spec: &CommandSpec,
+        context: &crate::model::ContextRegistry,
+    ) -> Result<Vec<(&'static CommandSpec, &'static SubCommand)>, InstanceMethodContextUnavailable>
+    {
+        if !std::ptr::eq(self, context.commands().as_ref()) {
+            return Err(InstanceMethodContextUnavailable::RegistryMismatch);
+        }
+        let availability = context.context();
+        if !availability
+            .resolve_spec(self, class_spec.name)
+            .is_some_and(|selected| std::ptr::eq(selected, class_spec))
+        {
+            return Err(InstanceMethodContextUnavailable::FactorySelection);
+        }
+        self.instance_method_providers_with_context_status(
+            class_spec,
+            Some(availability.authoring_query()),
+            |owner| {
+                availability
+                    .resolve_spec(self, owner.name)
+                    .filter(|selected| std::ptr::eq(*selected, owner))
+                    .map(|selected| Self::instance_method_provider_floor(selected, context))
+            },
+            true,
+        )
+    }
+
+    fn instance_method_provider_floor<'c>(
+        owner: &CommandSpec,
+        context: &'c crate::model::ContextRegistry,
+    ) -> Option<&'c str> {
+        let availability = context.context();
+        let package = availability
+            .keyed_ambient_placement(owner)
+            .map(|placement| placement.package.as_ref())
+            .or_else(|| owner.owning_package())?;
+        availability
+            .placement_floor(package)
+            .map(tcl_dialect::model::Version::as_str)
+    }
+
+    /// Keyword classification from one complete actual inherited provider table.
+    /// Unavailable context remains separate from a genuine `KeywordMatch::Unknown`.
+    pub fn instance_method_selection_for_descriptor_in_context(
+        &self,
+        class_spec: &CommandSpec,
+        method: &str,
+        context: &crate::model::ContextRegistry,
+    ) -> Result<crate::abbrev::KeywordMatch<'static>, InstanceMethodContextUnavailable> {
+        let providers =
+            self.instance_method_providers_for_descriptor_in_context(class_spec, context)?;
+        Self::instance_method_provider_keyword(class_spec, &providers, method)
+    }
+
+    fn instance_method_provider_keyword(
+        class_spec: &CommandSpec,
+        providers: &[(&'static CommandSpec, &'static SubCommand)],
+        method: &str,
+    ) -> Result<crate::abbrev::KeywordMatch<'static>, InstanceMethodContextUnavailable> {
+        let class =
+            class_spec
+                .object_class
+                .ok_or(InstanceMethodContextUnavailable::MethodTable(
+                    class_spec.name,
+                ))?;
+        Ok(KeywordTable::from_keywords(
+            providers.iter().map(|(_, method)| Keyword {
+                name: method.name,
+                min_abbrev: method.min_abbrev,
+            }),
+            class.method_prefix_matching,
+        )
+        .resolve(method))
     }
 
     /// Resolve an instance method `method` on class `class_name`, walking
@@ -4733,6 +4890,74 @@ impl CommandRegistry {
             subcommand,
             availability,
         ))
+    }
+
+    /// Original instance schema with exact full-context inherited provider ownership.
+    /// Method/form/options use the selected provider's own package placement.
+    /// Unknown or ambiguous keywords are `Ok(None)`; missing owner/context or
+    /// unrepresented option axes are typed unavailable and grant no absence.
+    pub fn resolve_structured_instance_invocation_for_descriptor_in_context<'r, 'w>(
+        &'r self,
+        class_spec: &'r CommandSpec,
+        words: InvocationWords<'w>,
+        context: &'w crate::model::ContextRegistry,
+    ) -> Result<Option<ResolvedInvocation<'r, 'w>>, InstanceMethodContextUnavailable> {
+        let words = words.with_profile(self.profile());
+        let arguments = words.arguments();
+        let providers =
+            self.instance_method_providers_for_descriptor_in_context(class_spec, context)?;
+        let Some(spelling) = arguments.literal_at(0) else {
+            return Ok(None);
+        };
+        let Some(canonical) =
+            Self::instance_method_provider_keyword(class_spec, &providers, spelling)?.unique()
+        else {
+            return Ok(None);
+        };
+        let Some((owner, method)) = providers
+            .into_iter()
+            .find(|(_, method)| method.name == canonical)
+        else {
+            return Ok(None);
+        };
+        let query = Some(context.context().authoring_query());
+        let availability = crate::resolved_invocation::InvocationAvailability {
+            query,
+            package_version: self.package_floor_for_spec_at(
+                owner,
+                Self::instance_method_provider_floor(owner, context),
+            ),
+        };
+        let receiver_availability = crate::resolved_invocation::InvocationAvailability {
+            query,
+            package_version: self.package_floor_for_spec_at(
+                class_spec,
+                Self::instance_method_provider_floor(class_spec, context),
+            ),
+        };
+        let form = pick_form(owner, Some(method), arguments, availability);
+        let resolved_method = ResolvedSubcommand {
+            spelling,
+            canonical_name: method.name,
+        };
+        let subcommand = if spelling == method.name {
+            SubcommandResolution::Exact(resolved_method)
+        } else {
+            SubcommandResolution::UniquePrefix(resolved_method)
+        };
+        ResolvedInvocation::new_instance_with_method_provider(
+            words,
+            class_spec,
+            owner,
+            method,
+            form,
+            subcommand,
+            crate::resolved_invocation::InstanceMethodAvailability {
+                provider: availability,
+                receiver: receiver_availability,
+            },
+        )
+        .map(Some)
     }
 
     /// Resolve the [`ArgRole::CommandPrefix`] positions and appended arities for
@@ -19306,5 +19531,337 @@ mod source_empty_write_projection_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod instance_method_provider_tests {
+    use super::*;
+    use crate::spec::ObjectClassSpec;
+
+    fn registry() -> CommandRegistry {
+        static CHILD_METHODS: [SubCommand; 1] = [SubCommand {
+            name: "own",
+            detail: "child",
+            ..SubCommand::DEFAULT
+        }];
+        static PARENT_METHODS: [SubCommand; 2] = [
+            SubCommand {
+                name: "inherited",
+                lifecycle: Lifecycle::introduced_in("2.0"),
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "future",
+                lifecycle: Lifecycle::introduced_in("3.0"),
+                ..SubCommand::DEFAULT
+            },
+        ];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "ProviderChild",
+            instance_methods: &CHILD_METHODS,
+            superclasses: &["ProviderParent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "ProviderParent",
+            instance_methods: &PARENT_METHODS,
+            superclasses: &["ProviderChild"],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        for (class, package) in [(&CHILD, "ChildPackage"), (&PARENT, "ParentPackage")] {
+            registry.insert(CommandSpec {
+                name: class.class_name,
+                object_class: Some(class),
+                required_package: Some(package),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        registry
+    }
+
+    #[test]
+    fn inherited_method_provider_keeps_exact_descriptor_and_own_package_floor() {
+        let registry = registry();
+        let selected = registry.get("ProviderChild").unwrap();
+        let rows = registry.instance_method_providers_for_descriptor_at(selected, None, |owner| {
+            Some(match owner.owning_package() {
+                Some("ChildPackage") => Some("1.0"),
+                Some("ParentPackage") => Some("2.0"),
+                _ => panic!("unexpected provider"),
+            })
+        });
+        assert_eq!(
+            rows.iter()
+                .map(|(_, method)| method.name)
+                .collect::<Vec<_>>(),
+            ["own", "inherited"]
+        );
+        assert!(std::ptr::eq(
+            rows[1].0,
+            registry.get("ProviderParent").unwrap()
+        ));
+        assert_eq!(rows[1].0.owning_package(), Some("ParentPackage"));
+        assert_eq!(
+            registry
+                .instance_methods_for_descriptor_at(selected, Some("1.0"), None)
+                .iter()
+                .map(|method| method.name)
+                .collect::<Vec<_>>(),
+            ["own"],
+            "the old uniform-floor API keeps its existing scope"
+        );
+        let foreign = selected.clone();
+        assert!(
+            registry
+                .instance_method_providers_for_descriptor_at(&foreign, None, |_| Some(None))
+                .is_empty()
+        );
+        let rows = registry.instance_method_providers_for_descriptor_at(selected, None, |owner| {
+            (owner.name != "ProviderParent").then_some(None)
+        });
+        assert_eq!(
+            rows.iter()
+                .map(|(_, method)| method.name)
+                .collect::<Vec<_>>(),
+            ["own"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod inherited_instance_context_tests {
+    use super::*;
+    use crate::spec::ObjectClassSpec;
+
+    fn context(
+        factory_package: &'static str,
+        provider_package: &'static str,
+    ) -> crate::model::ContextRegistry {
+        static OPTIONS: [crate::hover::OptionSpec; 1] = [crate::hover::OptionSpec {
+            name: "-later",
+            lifecycle: Lifecycle::introduced_in("5.0"),
+            ..crate::hover::OptionSpec::DEFAULT
+        }];
+        static FORMS: [crate::forms::CommandForm; 1] = [crate::forms::CommandForm {
+            name: "option-form",
+            arity: Arity::exact(0).with_positionals(),
+            ..crate::forms::CommandForm::DEFAULT
+        }];
+        static METHODS: [SubCommand; 3] = [
+            SubCommand {
+                name: "late",
+                lifecycle: Lifecycle::introduced_in("5.0"),
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "last",
+                lifecycle: Lifecycle::introduced_in("5.0"),
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "option",
+                options: &OPTIONS,
+                subcommand_forms: &FORMS,
+                ..SubCommand::DEFAULT
+            },
+        ];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "ContextChild",
+            instance_methods: &[],
+            superclasses: &["ContextParent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Enabled,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "ContextParent",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        for (class, package) in [(&CHILD, factory_package), (&PARENT, provider_package)] {
+            registry.insert(CommandSpec {
+                name: class.class_name,
+                required_package: Some(package),
+                object_class: Some(class),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        crate::model::ingress::static_context_for("tcl8.6").with_command_store(Arc::new(registry))
+    }
+
+    #[test]
+    fn inherited_context_method_prefix_form_and_options_keep_provider_axis() {
+        for (factory_package, provider_package, later_available) in
+            [("Itcl", "Tk", true), ("Tk", "Itcl", false)]
+        {
+            let context = context(factory_package, provider_package);
+            let registry = context.commands();
+            let factory = context
+                .context()
+                .resolve_spec(registry, "ContextChild")
+                .unwrap();
+            let provider = context
+                .context()
+                .resolve_spec(registry, "ContextParent")
+                .unwrap();
+            let floor = context
+                .context()
+                .placement_floor(provider_package)
+                .unwrap()
+                .as_str();
+            assert_eq!(
+                floor,
+                if provider_package == "Tk" {
+                    "8.6"
+                } else {
+                    "4.2"
+                }
+            );
+            let keyword = registry
+                .instance_method_selection_for_descriptor_in_context(factory, "la", &context)
+                .unwrap();
+            assert_eq!(
+                matches!(keyword, crate::abbrev::KeywordMatch::Ambiguous(_)),
+                later_available
+            );
+            assert_eq!(
+                registry
+                    .instance_method_selection_for_descriptor_in_context(factory, "late", &context)
+                    .unwrap()
+                    .unique()
+                    .is_some(),
+                later_available
+            );
+            let args = ["option", "-later"];
+            let schema = registry
+                .resolve_structured_instance_invocation_for_descriptor_in_context(
+                    factory,
+                    InvocationWords::literals(".w", &args),
+                    &context,
+                )
+                .unwrap()
+                .unwrap();
+            let (actual_provider, availability) =
+                schema.authored_source_instance_method_provider().unwrap();
+            assert!(std::ptr::eq(actual_provider, provider));
+            assert!(std::ptr::eq(
+                schema.authored_source_descriptors().command,
+                factory
+            ));
+            assert_eq!(availability.package_version, Some(floor));
+            assert_eq!(
+                schema
+                    .semantics
+                    .options
+                    .available()
+                    .any(|option| option.name == "-later"),
+                later_available
+            );
+            assert_eq!(
+                schema.form.is_some(),
+                later_available,
+                "form arity parses options at the same provider floor"
+            );
+            let foreign = factory.clone();
+            assert!(matches!(
+                registry.instance_method_providers_for_descriptor_in_context(&foreign, &context),
+                Err(InstanceMethodContextUnavailable::FactorySelection)
+            ));
+            assert!(matches!(
+                CommandRegistry::build_default()
+                    .instance_method_providers_for_descriptor_in_context(factory, &context),
+                Err(InstanceMethodContextUnavailable::RegistryMismatch)
+            ));
+        }
+    }
+
+    #[test]
+    fn inherited_context_unavailable_table_is_not_unknown_and_mixed_option_axes_refuse() {
+        static MISSING: ObjectClassSpec = ObjectClassSpec {
+            class_name: "IncompleteChild",
+            instance_methods: &[],
+            superclasses: &["UnownedSuperclass"],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        static RECEIVER_OPTIONS: [crate::hover::OptionSpec; 1] = [crate::hover::OptionSpec {
+            name: "-receiver",
+            ..crate::hover::OptionSpec::DEFAULT
+        }];
+        static FORM_OPTIONS: [crate::hover::OptionSpec; 1] = [crate::hover::OptionSpec {
+            name: "-form",
+            ..crate::hover::OptionSpec::DEFAULT
+        }];
+        static FORMS: [crate::forms::CommandForm; 1] = [crate::forms::CommandForm {
+            name: "mixed",
+            options: &FORM_OPTIONS,
+            ..crate::forms::CommandForm::DEFAULT
+        }];
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "configure",
+            traits: Traits::CONFIGURES_INSTANCE_OPTIONS,
+            subcommand_forms: &FORMS,
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "MixedChild",
+            instance_methods: &[],
+            superclasses: &["MixedParent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "MixedParent",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "IncompleteChild",
+            object_class: Some(&MISSING),
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "MixedChild",
+            object_class: Some(&CHILD),
+            required_package: Some("Tk"),
+            options: &RECEIVER_OPTIONS,
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "MixedParent",
+            object_class: Some(&PARENT),
+            required_package: Some("Itcl"),
+            ..CommandSpec::DEFAULT
+        });
+        let context = crate::model::ingress::static_context_for("tcl8.6")
+            .with_command_store(Arc::new(registry));
+        let registry = context.commands();
+        let factory = registry.get("IncompleteChild").unwrap();
+        assert!(matches!(
+            registry
+                .instance_method_selection_for_descriptor_in_context(factory, "missing", &context),
+            Err(InstanceMethodContextUnavailable::SuperclassSelection(
+                "UnownedSuperclass"
+            ))
+        ));
+        let factory = registry.get("MixedChild").unwrap();
+        let args = ["configure"];
+        assert!(matches!(
+            registry.resolve_structured_instance_invocation_for_descriptor_in_context(
+                factory,
+                InvocationWords::literals(".w", &args),
+                &context
+            ),
+            Err(InstanceMethodContextUnavailable::ReceiverOptionAxes)
+        ));
     }
 }

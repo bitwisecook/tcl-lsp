@@ -382,6 +382,38 @@ pub struct OriginalSourceScriptBody {
     content: Span,
 }
 
+/// Conditional source-only body candidates for consumers that inspect syntax
+/// in every possible case arm. The selected source invocation and its complete
+/// projection remain attached even when option selection is unknown; candidates
+/// do not establish a chosen body, execution, effects, or Normal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalConditionalSourceCaseBodies {
+    source: std::sync::Arc<super::source_structure::OriginalRegistryWords>,
+    projection: tcl_registry::case_bodies::CaseBodyOperands,
+    bodies: Vec<OriginalSourceScriptBody>,
+}
+
+impl OriginalConditionalSourceCaseBodies {
+    /// Whether dynamic subject/option interpretation leaves another selection.
+    pub(crate) const fn selection_unknown(&self) -> bool {
+        self.projection.selection_unknown
+    }
+
+    /// Original possible body regions under the retained source projection.
+    pub(crate) fn bodies(&self) -> &[OriginalSourceScriptBody] {
+        &self.bodies
+    }
+
+    /// Complete source image/config and every retained original body match.
+    pub(crate) fn matches_source(&self, image: &SourceImage, config: LexerConfig) -> bool {
+        self.source.matches_source(image, config)
+            && self
+                .bodies
+                .iter()
+                .all(|body| body.matches_source(image, config))
+    }
+}
+
 impl OriginalSourceScriptBody {
     /// Whole original word owning this body or exact source list child.
     #[must_use]
@@ -553,6 +585,24 @@ pub struct OriginalSourceDefinitionMemberScriptBody {
     presentation: tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
     member_row: Option<tcl_registry::definer::MemberRow>,
 }
+/// Two genuine source-body issuers joined for readonly member correspondence.
+/// Both applicability receipts remain intact; this is no body/frame entry or
+/// conversion from conditional source data to a selected Native invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalSourceDefinitionMemberBodyCorrespondence {
+    catalogue: OriginalSourceDefinitionMemberScriptBody,
+    declaration: OriginalSourceDefinitionMemberScriptBody,
+}
+
+impl OriginalSourceDefinitionMemberBodyCorrespondence {
+    pub(crate) const fn catalogue_body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
+        &self.catalogue
+    }
+    pub(crate) const fn declaration_body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
+        &self.declaration
+    }
+}
+
 impl OriginalSourceDefinitionMemberScriptBody {
     /// Actual enclosing declaration body, retained solely as source lineage.
     /// Callable bodies do not acquire the parent's definition vocabulary,
@@ -616,6 +666,90 @@ impl OriginalSourceDefinitionMemberScriptBody {
     pub fn matches_context(&self, context: &ContextRegistry) -> bool {
         self.parent.matches_context(context)
     }
+    /// Join the actual original declaration's parent without equating its
+    /// applicability receipt with a separate conditional catalogue issuer.
+    /// Complete source/configuration, parent argv/origins/values and selected
+    /// descriptor/definition grammar must agree; both sealed bodies survive.
+    pub(crate) fn original_source_correspondence_in_parent(
+        &self,
+        context: &ContextRegistry,
+        parent: &OriginalSourceScriptBody,
+    ) -> Option<OriginalSourceDefinitionMemberBodyCorrespondence> {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let original_parent = self.original_parent_body();
+        let image = self.original_container().image();
+        let config = self.original_container().config();
+        if !self.matches_source(image, config)
+            || !self.matches_context(context)
+            || !parent.matches_source(image, config)
+            || !parent.matches_context(context)
+            || original_parent.original_container() != parent.original_container()
+            || original_parent.extent_span() != parent.extent_span()
+            || original_parent.container_extent_span() != parent.container_extent_span()
+            || original_parent.content_span() != parent.content_span()
+        {
+            return None;
+        }
+        let left = original_parent.source_words();
+        let right = parent.source_words();
+        if left.origins() != right.origins()
+            || left.head_source()?.word()? != right.head_source()?.word()?
+            || left.arguments().len() != right.arguments().len()
+            || !left
+                .arguments()
+                .iter()
+                .zip(right.arguments())
+                .all(
+                    |(left, right)| match (left.literal_bytes(), right.literal_bytes()) {
+                        (Some(left), Some(right)) => left == right,
+                        (None, None) => left == right,
+                        _ => false,
+                    },
+                )
+            || !(0..left.arguments().len()).all(|index| {
+                left.original_argument_word(index).is_some()
+                    && left.original_argument_word(index) == right.original_argument_word(index)
+            })
+        {
+            return None;
+        }
+        let same_schema = left.with_source_schema(context, |left| {
+            right.with_source_schema(context, |right| {
+                std::ptr::eq(
+                    left.authored_source_descriptors().command,
+                    right.authored_source_descriptors().command,
+                ) && left.semantics.argument_offset == right.semantics.argument_offset
+                    && left
+                        .authored_source_definition_body_grammar()
+                        .zip(right.authored_source_definition_body_grammar())
+                        .is_some_and(|(left, right)| std::ptr::eq(left, right))
+            })
+        })??;
+        same_schema.then_some(())?;
+        let region = parent.definition_member_region(context, parent.content_span())?;
+        let original =
+            region.original_command_words_at(self.original_words().first()?.span().start())?;
+        (original == self.original_words()).then_some(())?;
+        let mut bodies = region.script_bodies(original)?.into_iter().filter(|body| {
+            body.original == self.original
+                && body.argument == self.argument
+                && body.container == self.container
+                && body.content == self.content
+                && body.retains_definition_grammar == self.retains_definition_grammar
+                && body.presentation == self.presentation
+                && body.member_row == self.member_row
+        });
+        let declaration = bodies.next()?;
+        bodies
+            .next()
+            .is_none()
+            .then_some(OriginalSourceDefinitionMemberBodyCorrespondence {
+                catalogue: self.clone(),
+                declaration,
+            })
+    }
+
     /// Complete original member-body command geometry. Counted source must
     /// exactly retain the authored content; a partial or cooked body refuses.
     /// This supplies no entered member, effect closure or normal completion.
@@ -1512,6 +1646,92 @@ pub(super) fn source_script_bodies_for_mutation_coverage(
         .collect::<Vec<_>>()
         == expected)
         .then_some(bodies)
+}
+
+/// Possible case-body source geometry for a syntax consumer that must visit
+/// every candidate arm. Unlike the strong inventory below, this carries the
+/// Registry's explicit unknown-selection residual and never chooses a branch.
+pub(crate) fn conditional_source_case_bodies_for(
+    words: &super::source_structure::OriginalRegistryWords,
+    context: &ContextRegistry,
+) -> Option<OriginalConditionalSourceCaseBodies> {
+    if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {
+        return None;
+    }
+    let config = words
+        .operands()
+        .iter()
+        .flatten()
+        .find_map(|operand| operand.word().map(NativeWord::config))?;
+    let value_rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    let (case, projection) = words
+        .with_source_schema(context, |schema| {
+            let case = *schema.semantics.options.case_list?;
+            let projection = schema.authored_source_case_clause_projection(value_rules)?;
+            Some((case, projection))
+        })
+        .flatten()?;
+    let source = std::sync::Arc::new(words.clone());
+    let mut bodies = Vec::new();
+    for candidate in &projection.bodies {
+        let operand = words.operands().get(candidate.argument)?.as_ref()?;
+        let geometry = source_operand_body(operand)?;
+        let mut retain = |geometry: ScriptBodyGeometry| {
+            if words.matches_source(geometry.container.image(), geometry.container.config())
+                && geometry.content.start() >= geometry.container.span().start()
+                && geometry.content.end() <= geometry.container.span().end()
+            {
+                bodies.push(OriginalSourceScriptBody {
+                    source: std::sync::Arc::clone(&source),
+                    container: geometry.container,
+                    extent: geometry.extent,
+                    container_extent: geometry.container_extent,
+                    content: geometry.content,
+                });
+            }
+        };
+        if let Some(list_element) = candidate.list_element {
+            let text = geometry.container.image().try_text().ok()?;
+            let list = text.get(geometry.content.as_range())?;
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: case.clause_flags,
+                clause_value_flags: case.clause_value_flags,
+            };
+            let clause = tcl_syntax::case_list::split_case_list_with_syntax(
+                list,
+                &shape,
+                geometry.container.config().list_parse,
+            )
+            .into_iter()
+            .find(|clause| clause.valid && clause.body_index == Some(list_element))?;
+            let element = clause.body.filter(|body| body.braced)?;
+            let range = element.content_range();
+            let start = geometry
+                .content
+                .start()
+                .checked_add(u32::try_from(range.start).ok()?)?;
+            let end = geometry
+                .content
+                .start()
+                .checked_add(u32::try_from(range.end).ok()?)?;
+            let span = Span::new(start, end);
+            retain(ScriptBodyGeometry {
+                container: geometry.container,
+                extent: span,
+                container_extent: geometry.extent,
+                content: span,
+            });
+        } else {
+            retain(geometry);
+        }
+    }
+    bodies.sort_unstable_by_key(|body| (body.content.start(), body.content.end()));
+    bodies.dedup_by_key(|body| body.content);
+    Some(OriginalConditionalSourceCaseBodies {
+        source,
+        projection,
+        bodies,
+    })
 }
 
 /// Project original script geometry through the shared authored role/case

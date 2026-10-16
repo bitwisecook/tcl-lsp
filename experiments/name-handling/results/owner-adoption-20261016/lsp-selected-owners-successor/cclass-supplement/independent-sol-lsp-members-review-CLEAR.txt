@@ -1,0 +1,9 @@
+CLEAR — independent source review; no execution/efficacy claim
+
+Patch SHA256 ee13a89f849eaded714df14f8d2a54b073eda8dcee7b56811a42d9ed2fff6f9d independently verified. The single current source_class.rs before hash matches manifest; fresh separate TMP application with --fuzz=0 reproduces the declared after hash. Removing only the added test restores the entire original source file byte-for-byte, so original221 and every original assertion/source remain unchanged. No production function is changed.
+
+The supplemental control captures the independently present OriginalCompletedCommandWorld before querying the genuine source-class declaration, checks its canonical namespaced class/body provenance, and requires that exact completed world afterward. The getter explicitly denotes completed Normal SOURCE publication liveness, separate from physical interpreter existence and positioned Native lookup; its type supports Clone/Debug/Eq. The new query is immutable over &AnalysisResult and does not issue or revoke the independent world. The new Some premise is a separate control exposing genuine later query/card failures; it does not rewrite or conceal the original221 false None assertion or claim its remaining statements executed.
+
+The producer/context/refusal assertions remain preserved in original221. No Native entry, physical namespace/frame, Normal grant from the readonly class query, test expectation weakening, or per-test migration count is introduced. The source-basis distinction is coherent; new selector efficacy and ordinary singleton execution remain Root obligations.
+
+No Cargo/build/test listing/test/native oracle/Git/main write performed. Review limited to exact source/test packet and genuine getter/type provenance.

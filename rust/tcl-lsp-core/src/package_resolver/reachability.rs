@@ -266,6 +266,13 @@ pub struct Reached<'t> {
     pub original_words: Option<Vec<NativeWord>>,
 }
 
+/// A genuine standalone selection retained beside its unchanged callback data.
+/// Original-analysis traversal has an independent invocation/schema purpose.
+pub(super) struct SelectedSurveyRegistration<'t> {
+    pub(super) reached: Reached<'t>,
+    pub(super) registration: super::registration::Registration,
+}
+
 /// Walk `content`, calling `visit` once per `package ifneeded` declaration
 /// reachable on *some* Tcl release, with the conditions guarding it.
 ///
@@ -287,6 +294,18 @@ pub fn scan_with_config(
     registry: &CommandRegistry,
     config: LexerConfig,
     visit: &mut dyn FnMut(Reached<'_>),
+) {
+    scan_selected_registrations(content, registry, config, &mut |selected| {
+        visit(selected.reached);
+    });
+}
+
+/// Retain the existing selected survey result without reparsing its script.
+pub(super) fn scan_selected_registrations(
+    content: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    visit: &mut dyn FnMut(SelectedSurveyRegistration<'_>),
 ) {
     let original = u32::try_from(content.len()).ok().map(|end| OriginalScript {
         image: SourceImage::document(content),
@@ -378,7 +397,7 @@ impl OriginalScript {
 struct ScriptWalker<'r, 'v> {
     registry: &'r CommandRegistry,
     config: LexerConfig,
-    visit: &'v mut dyn FnMut(Reached<'_>),
+    visit: &'v mut dyn FnMut(SelectedSurveyRegistration<'_>),
 }
 
 impl ScriptWalker<'_, '_> {
@@ -418,18 +437,17 @@ impl ScriptWalker<'_, '_> {
             let original_words = original
                 .zip(plan.as_ref())
                 .and_then(|(original, plan)| original.words(words, plan));
-            if registration_plan
-                .as_ref()
-                .and_then(|plan| {
-                    super::registration::select_in_plan(text, words, registry, config, plan)
-                })
-                .is_some()
-            {
-                (self.visit)(Reached {
-                    text,
-                    words,
-                    conditions: reached.clone(),
-                    original_words,
+            if let Some(registration) = registration_plan.as_ref().and_then(|plan| {
+                super::registration::select_in_plan(text, words, registry, config, plan)
+            }) {
+                (self.visit)(SelectedSurveyRegistration {
+                    reached: Reached {
+                        text,
+                        words,
+                        conditions: reached.clone(),
+                        original_words,
+                    },
+                    registration,
                 });
                 continue;
             }

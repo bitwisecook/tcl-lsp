@@ -1,0 +1,9 @@
+CLEAR — exact pack-notice range V2 patch 2835f373638ed7b9505b20ef4fdafecdb315ca83889b2a23a75f8f48dd00106f.
+
+Independently verified both before/after hashes and fuzz-zero TMP application. Every original metadata test byte and the complete V1 added CRLF fixture are unchanged prefixes of the V2 afterimage. Production patch changes only notice range call and helper.
+
+The original loader subject owns immutable whole source/configuration/span/line, and from_loader selects one unique genuine static lexical head/property under WholeInput grammar. Its source line counts LF only. V1 incorrectly treated that number as an LSP line when a lone CR preceded the subject. V2 lifts subject.span().start() through shared LineIndex::new_lsp, then obtains this actual line's content end with shared UTF16 conversion. CRLF content excludes both terminators; supplementary Unicode counts two UTF16 units. The new genuine property subject after a lone CR maps to LSP line2, end9; retained CRLF fixture maps to line1,end7. Missing/nontext/mismatched/zero-line subjects use default whole-file anchor with no precise source claim.
+
+No path or SourceStore is read; unavailable path in the test is inert. This fixes existing geometry baseline lsp-server-pack-notice-utf16-range only. Geometry does not establish disk/source publication currentness, path identity, source edit permission or method/native execution; those obligations remain separate.
+
+Source and structural review only. No main/Git/Cargo, Rust test/build/gate or provider execution.

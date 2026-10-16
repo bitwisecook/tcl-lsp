@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "2835f373638ed7b9505b20ef4fdafecdb315ca83889b2a23a75f8f48dd00106f",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "0d568014b2470f758e29dd7e1f9807009ef12ae15c5bf67c24a2d9a818147f5c",
+      "after_sha256": "8ad9462f70d980d3b5cb60b1f97efb85b420f51a2e13d81b6372552db00c2f82"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "9cd0c8f4ca20d0e893feb3832efa6e816843ddda7ac8c3d5b37d6fc382f4f56c",
+      "after_sha256": "b322e595a6189fb18227fe81c7434227a1cccb25ae0838ce7b2c58b03bb82c75"
+    }
+  ],
+  "execution": "none",
+  "baseline": "lsp-server-pack-notice-utf16-range",
+  "limits": "Range uses authentic retained source. No source identity/publication-currentness repair from geometry; those remain existing separate obligations. Missing/mismatched subject yields whole-file default anchor with no precise original source claim."
+}

@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-16T19:01:11.631577+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-folding-completion-links-successor-frozen.tar.zst",
+  "sha256": "3100ce5bce110a116e5aa5baaa63c5066804773fd4a0010be7f8162efbd43a5c",
+  "bytes": 183195491,
+  "members": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+      "sha256": "72e3ac90d2f92c3b4c0d0cc1e52e77c1458f73a32d42ad5af633ac4b8d667b2b",
+      "bytes": 249905432
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+      "sha256": "e3c49de917fa50caf45b31d0da8a1f6cc9fb4223a52332d9a14dee025db3b101",
+      "bytes": 197249744
+    },
+    "tcl_lsp_db": {
+      "path": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+      "sha256": "8a3b3ee77921406111a0c35904ba8086c4f9656a458aec6a0ede292e8b773cda",
+      "bytes": 213752000
+    },
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+      "sha256": "b9c66034c30bc4456e4c417962c690eff8a25e47fb02b376db6df9d94a09aa53",
+      "bytes": 333382728
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/lsp-folding-completion-links-successor/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+      "sha256": "e0231f3c466bc88810ed5a0a5f49ee0d231a240040f2ea5c78c8d558b5b6a812",
+      "bytes": 61765280
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

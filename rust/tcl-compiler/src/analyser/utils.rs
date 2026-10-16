@@ -804,6 +804,15 @@ impl<'a> CommentLineWalker<'a> {
             .into_iter()
             .map(|body| body.content_span())
             .collect::<Vec<_>>();
+        // Case candidates are syntax-only even when the subject/option
+        // selection is unknown; retain that residual while visiting their
+        // original spans, without treating any candidate as entered.
+        if let Some(candidates) = words.conditional_source_case_bodies(&context)
+            && candidates.matches_source(source.source_image(), self.config)
+        {
+            let _selection_unknown = candidates.selection_unknown();
+            children.extend(candidates.bodies().iter().map(|body| body.content_span()));
+        }
         for &(ordinal, role) in words.roles().unwrap_or_default() {
             if role != ArgRole::LambdaLiteral {
                 continue;

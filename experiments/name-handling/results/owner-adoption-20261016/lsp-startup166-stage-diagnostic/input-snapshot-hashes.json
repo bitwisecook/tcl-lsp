@@ -1,0 +1,21 @@
+{
+  "full_snapshots_outside_git": true,
+  "restoration_equality": true,
+  "files": [
+    {
+      "path": "/workspace/naming-validation/lsp-startup166-stage-diagnostic/source-before.json",
+      "sha256": "56a60b87cba16087518d9cac879d3815dc92721daed4b8e5f0a2699be9331e9d",
+      "bytes": 6261195
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-startup166-stage-diagnostic/source-instrumented.json",
+      "sha256": "d76e2511a88ff79dda352d74746fd7dfdc34d16d221203c6b2fce76247937da0",
+      "bytes": 6261195
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-startup166-stage-diagnostic/source-restored.json",
+      "sha256": "56a60b87cba16087518d9cac879d3815dc92721daed4b8e5f0a2699be9331e9d",
+      "bytes": 6261195
+    }
+  ]
+}

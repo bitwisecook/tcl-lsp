@@ -124,8 +124,8 @@ fn source_method_diagnostics(
         words.original_words()[0].span().start(),
         words.original_words().last().unwrap().span().end(),
     );
-    match words.method_selection(context) {
-        Some(tcl_registry::abbrev::KeywordMatch::Unknown)
+    match words.method_selection_status(context) {
+        Ok(Some(tcl_registry::abbrev::KeywordMatch::Unknown))
             if !factory.object_class.unwrap().allow_unknown_methods =>
         {
             return vec![
@@ -141,18 +141,21 @@ fn source_method_diagnostics(
                 .with_subject(subject(words, Kind::MethodName)),
             ];
         }
-        Some(tcl_registry::abbrev::KeywordMatch::Unique(_)) => {}
+        Ok(Some(tcl_registry::abbrev::KeywordMatch::Unique(_))) => {}
         _ => return Vec::new(),
     }
     words
-        .with_source_schema(context, |schema| {
+        .with_source_schema_status(context, |schema| {
             let display = format!("{} {spelling}", factory.name);
             let mut diagnostics = method_relations(words, schema, &display, extent);
             if let Some(selected) = schema.authored_source_arity() {
-                let floor = factory
-                    .required_package
-                    .and_then(|package| context.context().placement_floor(package))
-                    .map(tcl_dialect::model::Version::as_str);
+                // The selected inherited provider retains its own package axis;
+                // receiver factory and option fallback cannot donate that floor.
+                let Some((_, availability)) = schema.authored_source_instance_method_provider()
+                else {
+                    return diagnostics;
+                };
+                let floor = availability.package_version;
                 let arity = tcl_registry::arity::ArityWindow::select(selected.windows, floor)
                     .map_or(selected.arity, |window| window.arity);
                 if let Some(count) = schema.authored_source_count_for_arity(arity)
@@ -171,6 +174,9 @@ fn source_method_diagnostics(
             }
             diagnostics
         })
+        // Typed unavailable is an abstention, never an unknown-method verdict.
+        .ok()
+        .flatten()
         .unwrap_or_default()
 }
 

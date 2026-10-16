@@ -1,0 +1,11 @@
+Existing budget reconciliation — source inspection only
+
+Registry V3 patch3b33b8f5c5dd9436e57909fb646570df14330bc3693bd35c480761c4628acf37 belongs to existing required DB owner unit db.unit.registry.instance.parent-package-floor (family source-instance-parent-package-floor). That baseline explicitly owns extending instance_methods_for_descriptor_at to retain per-package context and each inherited owning descriptor's own floor. No new annex requirement is justified for this same purpose, new public helper or three controls.
+
+V3 implements the list/provider facet and its actual Core registry_method_items adopter. The DB owner remains PARTIALLY implemented: Registry instance_method_selection_for_descriptor_at and resolve_structured_instance_invocation_for_descriptor still take the uniform receiver/factory package_version, and structured invocation still constructs form availability using class_spec's package floor. Prefix ambiguity/method selection and structured method/form semantics do not yet retain actual selected parent owner/package context through these old APIs.
+
+Linked existing Compiler caller compiler.source.inherited-method-owning-package-context:221 remains unimplemented by V3: registered_instance::{with_source_schema,method_selection,methods} still derives floor from factory.required_package and calls the old uniform Registry APIs. A list-only owner API must not be recorded as migrating this caller or completing the shared owner.
+
+The existing Core caller lsp-completion-catalogue-selected-provider-filter lists exactly builtin_completions, grammar_member_completions and registry_method_items. The current catalogue records the first two as source-integrated and only inherited Registry provider/registry_method_items as remaining. V3 fills that last source facet through actual retained context.resolve_spec + exact owner pointer + per-owner DocumentFloor, so Root may mark the WHOLE existing Core caller implemented_pending_validation after integration, while DB stays partial and Compiler221 stays open. No verified completion, actual execution or count delta is issued by this note.
+
+This reconciliation reads the actual current canonical catalogue and Registry/Compiler sources, makes no main/tracking mutation, and adds zero per-helper/per-test requirements. Root owns final exact budget status/count updates.

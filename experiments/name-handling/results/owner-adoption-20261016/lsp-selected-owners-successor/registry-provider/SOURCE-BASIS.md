@@ -1,0 +1,1 @@
+Exact original beforeimages are retained under base/, edits under edit/. Manifest binds both source hashes and patch. Root owns integration, execution and count reconciliation. No main source writes, Git, Cargo or executable validation performed.

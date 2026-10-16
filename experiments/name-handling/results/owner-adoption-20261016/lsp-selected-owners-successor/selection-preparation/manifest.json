@@ -1,0 +1,13 @@
+{
+  "generator_sha256": "4c39359139e879078c6420a84684acdee4aec2010605bf783558b20e02ed507e",
+  "selection_draft_sha256": "1685dd21faed4de5a0293b51c3407cf7e88e6fc9869a8c05acc80708736d1b29",
+  "source_basis_sha256": "c7f012f85f2c3e67f0c6fc961198e4e9a8229998c3bce61d870c14a3558d1560",
+  "total": 338,
+  "retained_prefix": 310,
+  "new_reviewed": 15,
+  "new_scoped_original": 13,
+  "all_original_prefix_and_guard_metadata_identical": true,
+  "current_frozen_elf_binding": "none; awaiting actual completed Root build",
+  "scope": "TMP source-only preparation, no main/build/test/listing/Cargo/Git",
+  "successor_destination": "/workspace/naming-validation/lsp-selected-owners-successor-repair1"
+}

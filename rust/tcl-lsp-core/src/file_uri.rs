@@ -85,6 +85,30 @@ pub(crate) fn document_link_target(
     from_path(&resolved, FileUriEscaping::PathCharacters)
 }
 
+/// Render the explicit VS Code document-key spelling of an actual rooted Path.
+/// Unlike [`from_path`], POSIX leading `//` uses the product's authority alias;
+/// this may collapse root spelling and is not an inverse or filesystem identity.
+/// Callers needing the original Path must retain it separately. Unicode/NUL and
+/// Windows namespace admission are the same as the ordinary forward owner.
+#[must_use]
+pub fn from_path_for_vscode_document(path: &Path) -> Option<String> {
+    path.has_root().then_some(())?;
+    vscode_document_spelling(path.to_str()?, cfg!(windows))
+}
+
+fn vscode_document_spelling(path: &str, windows: bool) -> Option<String> {
+    let ordinary = from_rooted_spelling(path, windows, FileUriEscaping::Unreserved)?;
+    if !windows && let Some(remote) = path.strip_prefix("//") {
+        let (authority, tail) = remote.split_once('/').unwrap_or((remote, ""));
+        return Some(format!(
+            "file://{}/{}",
+            escaped_path(authority, FileUriEscaping::Unreserved),
+            escaped_path(tail, FileUriEscaping::Unreserved),
+        ));
+    }
+    Some(ordinary)
+}
+
 fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) -> Option<String> {
     if path.as_bytes().contains(&0) {
         return None;
@@ -688,6 +712,50 @@ mod document_link_path_tests {
         assert_eq!(
             document_link_target("./link/../target.tcl", Some(Path::new("/work")), None),
             Some("file:///work/./link/../target.tcl".to_owned())
+        );
+    }
+}
+
+#[cfg(test)]
+mod vscode_forward_projection_tests {
+    use super::*;
+
+    #[test]
+    fn product_alias_is_explicit_and_does_not_replace_lossless_path_spelling() {
+        for (path, lossless, product) in [
+            (
+                "//srv/share/a.tcl",
+                "file:////srv/share/a.tcl",
+                "file://srv/share/a.tcl",
+            ),
+            (
+                "///local/path",
+                "file://///local/path",
+                "file:///local/path",
+            ),
+            ("//server", "file:////server", "file://server/"),
+            ("//", "file:////", "file:///"),
+            (
+                "//?/é%25.tcl",
+                "file:////%3F/%C3%A9%2525.tcl",
+                "file://%3F/%C3%A9%2525.tcl",
+            ),
+        ] {
+            assert_eq!(
+                from_rooted_spelling(path, false, FileUriEscaping::Unreserved).as_deref(),
+                Some(lossless)
+            );
+            assert_eq!(
+                vscode_document_spelling(path, false).as_deref(),
+                Some(product)
+            );
+        }
+        assert!(vscode_document_spelling("//srv/invalid\0.tcl", false).is_none());
+        assert!(vscode_document_spelling("relative/file.tcl", false).is_none());
+        assert!(vscode_document_spelling(r"\\?\Volume{test}\file.tcl", true).is_none());
+        assert_eq!(
+            vscode_document_spelling(r"C:\work\é.tcl", true),
+            from_rooted_spelling(r"C:\work\é.tcl", true, FileUriEscaping::Unreserved)
         );
     }
 }

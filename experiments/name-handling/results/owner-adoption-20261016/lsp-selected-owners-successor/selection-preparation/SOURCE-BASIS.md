@@ -1,0 +1,13 @@
+# Exact selected-owner successor preparation
+
+This source-only generator preserves the complete original310 ordered rows plus environment,180-second test budget,30-second listing budget, singleton matching and before/after frozen ELF guards from /workspace/naming-validation/lsp-folding-completion-links-successor/selection.json. Retained historical source/provenance metadata remains historical; current source evidence and current freeze state use selected_owners_* fields.
+
+The draft has338 exact selectors:15 new reviewed controls and13 additional scoped original registration/URI controls, all deduplicated against310. The original comment232 stays retained; conditional commentV2 introduces no test. New source/module routes resolve from current frozen Rust files. Old scoped adds must occur exactly once in the already captured original frozen listings; the generator does not execute a list or test binary. The original URI suites were already retained except one authority refusal. Package additions cover registration/name/version, complete source/configuration, nested-body ordinals/control-flow and the independent original-analysis ownership boundary; no whole package-suite sweep occurs.
+
+Draft mode writes only TMP JSON and binds no binary. It can run while Root's build is in progress. Once Root's actual ordinary five-library build is complete, Root may run:
+
+    python3 /tmp/lsp-selected-owners-selection/generate_selection.py --freeze --output /workspace/naming-validation/lsp-selected-owners-successor-repair1/selection.json
+
+Freeze mode requires actual completed ordinary/noninstrumented/no-drift source-binding.json, the exact actual five target artifacts.json entries under that successor's frozen-binaries/, every actual binary hash/size, and current source/module hashes present in that successor's input-before.json. It never substitutes a predecessor ELF or guesses a future binary. It only reads artifacts; exact per-selector listing, execution and before/after ELF verification remain independently required under the unchanged runtime_guards. No build/test/listing/Cargo/Git or main-source change was performed by this preparation.
+
+Root's first ordinary selected-owner build failed with three visibility/type-path errors before execution. Root corrected those public API paths and selected the actual successor destination `lsp-selected-owners-successor-repair1`. Current source evidence is regenerated after those corrections; no failed-build or old ELF hash can substitute for the completed repair1 artifacts. The unchanged selector total remains338 and every original310 row/guard stays identical.

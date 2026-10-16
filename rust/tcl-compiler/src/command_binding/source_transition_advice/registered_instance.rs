@@ -223,25 +223,35 @@ impl OriginalSourceRegisteredInstanceWords {
         context: &'r ContextRegistry,
         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
     ) -> Option<T> {
-        let factory = self.instance.descriptor(context)?;
+        self.with_source_schema_status(context, project)
+            .ok()
+            .flatten()
+    }
+    /// Same original schema projection with explicit unavailable ownership.
+    /// Unknown/ambiguous selectors return Ok(None); unavailable context is Err
+    /// and cannot supply an unknown-method or empty-table diagnostic.
+    pub fn with_source_schema_status<'r, T>(
+        &'r self,
+        context: &'r ContextRegistry,
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Result<Option<T>, tcl_registry::registry::InstanceMethodContextUnavailable> {
+        let factory = self
+            .instance
+            .descriptor(context)
+            .ok_or(tcl_registry::registry::InstanceMethodContextUnavailable::FactorySelection)?;
         let arguments = registry_words(&self.arguments);
-        let floor = factory
-            .required_package
-            .and_then(|package| context.context().placement_floor(package));
-        let floor = floor.map(tcl_dialect::model::Version::as_str);
         let selected = context
             .commands()
-            .resolve_structured_instance_invocation_for_descriptor(
+            .resolve_structured_instance_invocation_for_descriptor_in_context(
                 factory,
                 tcl_registry::InvocationWords::structured(
                     tcl_registry::InvocationWord::Dynamic,
                     &arguments,
                 )
                 .with_dialect(self.instance.factory.dialect()),
-                floor,
-                Some(context.context().authoring_query()),
+                context,
             )?;
-        Some(project(&selected))
+        Ok(selected.as_ref().map(project))
     }
     /// Shared source keyword classification under the retained factory context.
     /// Opaque, NUL-containing or expanded selectors have no source projection.
@@ -250,41 +260,66 @@ impl OriginalSourceRegisteredInstanceWords {
         &self,
         context: &ContextRegistry,
     ) -> Option<tcl_registry::abbrev::KeywordMatch<'static>> {
-        let bytes = self.argument_bytes(0)?;
-        if !bytes.is_ascii() || bytes.contains(&0) || self.argument_word(0)?.group().expand {
-            return None;
+        self.method_selection_status(context).ok().flatten()
+    }
+    /// Distinguish unavailable inherited ownership from complete-table Unknown.
+    pub fn method_selection_status(
+        &self,
+        context: &ContextRegistry,
+    ) -> Result<
+        Option<tcl_registry::abbrev::KeywordMatch<'static>>,
+        tcl_registry::registry::InstanceMethodContextUnavailable,
+    > {
+        let Some(bytes) = self.argument_bytes(0) else {
+            return Ok(None);
+        };
+        if !bytes.is_ascii()
+            || bytes.contains(&0)
+            || self.argument_word(0).is_none_or(|word| word.group().expand)
+        {
+            return Ok(None);
         }
-        let spelling = std::str::from_utf8(bytes).ok()?;
-        let factory = self.instance.descriptor(context)?;
-        let floor = factory
-            .required_package
-            .and_then(|package| context.context().placement_floor(package))
-            .map(tcl_dialect::model::Version::as_str);
+        let Ok(spelling) = std::str::from_utf8(bytes) else {
+            return Ok(None);
+        };
+        let factory = self
+            .instance
+            .descriptor(context)
+            .ok_or(tcl_registry::registry::InstanceMethodContextUnavailable::FactorySelection)?;
         context
             .commands()
-            .instance_method_selection_for_descriptor_at(
-                factory,
-                spelling,
-                floor,
-                Some(context.context().authoring_query()),
-            )
+            .instance_method_selection_for_descriptor_in_context(factory, spelling, context)
+            .map(Some)
     }
     /// Authored visible method table under the same selected full context.
+    /// Unavailable ownership withdraws advice, never proves an empty table.
     #[must_use]
     pub fn methods(
         &self,
         context: &ContextRegistry,
     ) -> Option<Vec<&'static tcl_registry::SubCommand>> {
-        let factory = self.instance.descriptor(context)?;
-        let floor = factory
-            .required_package
-            .and_then(|package| context.context().placement_floor(package));
-        let floor = floor.map(tcl_dialect::model::Version::as_str);
-        Some(context.commands().instance_methods_for_descriptor_at(
-            factory,
-            floor,
-            Some(context.context().authoring_query()),
-        ))
+        self.method_providers_status(context)
+            .ok()
+            .map(|rows| rows.into_iter().map(|(_, method)| method).collect())
+    }
+    /// Complete actual inherited provider rows, or typed unavailable ownership.
+    pub fn method_providers_status(
+        &self,
+        context: &ContextRegistry,
+    ) -> Result<
+        Vec<(
+            &'static tcl_registry::CommandSpec,
+            &'static tcl_registry::SubCommand,
+        )>,
+        tcl_registry::registry::InstanceMethodContextUnavailable,
+    > {
+        let factory = self
+            .instance
+            .descriptor(context)
+            .ok_or(tcl_registry::registry::InstanceMethodContextUnavailable::FactorySelection)?;
+        context
+            .commands()
+            .instance_method_providers_for_descriptor_in_context(factory, context)
     }
 }
 
@@ -1036,5 +1071,184 @@ mod tests {
                 assert_eq!(graph.instance_key(b"db").unwrap().simple.as_bytes(), b"db");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod inherited_registered_provider_tests {
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+    use crate::registry_invocation::source_structure::source_registered_instance_words_at;
+    use std::sync::Arc;
+    use tcl_registry::spec::ObjectClassSpec;
+    use tcl_registry::{Arity, CommandSpec, SubCommand};
+
+    #[test]
+    fn original_registered_inherited_provider_controls_schema_table_and_diagnostic_arity() {
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "late",
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("5.0"),
+            arity: Arity::exact(1),
+            arity_windows: &[tcl_registry::arity::ArityWindow {
+                lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("7.0"),
+                arity: Arity::exact(2),
+            }],
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "floorfactory",
+            instance_methods: &[],
+            superclasses: &["floorparent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Enabled,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "floorparent",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "floorfactory .t; interp alias {} invoke {} .t; invoke lat payload";
+        let offset = u32::try_from(source.rfind("invoke lat").unwrap()).unwrap();
+        for (factory_package, provider_package, selected) in
+            [("Itcl", "Tk", true), ("Tk", "Itcl", false)]
+        {
+            let mut registry = tcl_registry::CommandRegistry::build_default();
+            let mut factory = registry.get("ttk::treeview").unwrap().clone();
+            factory.name = "floorfactory";
+            factory.required_package = Some(factory_package);
+            factory.object_class = Some(&CHILD);
+            registry.insert(factory);
+            registry.insert(CommandSpec {
+                name: "floorparent",
+                required_package: Some(provider_package),
+                object_class: Some(&PARENT),
+                ..CommandSpec::DEFAULT
+            });
+            let generation = tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::new(registry));
+            let context = Arc::new(generation);
+            let analysis = Analyser::new()
+                .with_resolved_input(ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    Arc::clone(&context),
+                    config,
+                ))
+                .analyse(source, profile.name);
+            let words = source_registered_instance_words_at(source, &analysis, offset)
+                .expect("genuine original named factory and alias lineage");
+            assert_eq!(words.instance().lineage().len(), 1);
+            assert!(words.obligations().contains(
+                &super::SourceCommandTransitionObligation::RegisteredFactoryApplicability
+            ));
+            assert_eq!(
+                words
+                    .method_selection_status(&context)
+                    .unwrap()
+                    .unwrap()
+                    .unique()
+                    .is_some(),
+                selected
+            );
+            assert_eq!(
+                words
+                    .methods(&context)
+                    .unwrap()
+                    .iter()
+                    .any(|method| method.name == "late"),
+                selected
+            );
+            let provider = words
+                .with_source_schema_status(&context, |schema| {
+                    let (owner, availability) =
+                        schema.authored_source_instance_method_provider().unwrap();
+                    (
+                        owner.owning_package(),
+                        availability.package_version.map(str::to_owned),
+                    )
+                })
+                .unwrap();
+            assert_eq!(provider.is_some(), selected);
+            if selected {
+                assert_eq!(provider, Some((Some("Tk"), Some("8.6".to_owned()))));
+            }
+            assert_eq!(
+                analysis
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code.to_string() == "E002"),
+                selected
+            );
+            assert_eq!(
+                analysis
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code.to_string() == "W001"),
+                !selected
+            );
+            assert!(
+                source_registered_instance_words_at(
+                    &source.replace("payload", "changed"),
+                    &analysis,
+                    offset
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_registered_unavailable_superclass_never_donates_unknown_method_warning() {
+        static CLASS: ObjectClassSpec = ObjectClassSpec {
+            class_name: "incompletefactory",
+            instance_methods: &[],
+            superclasses: &["absentProvider"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut factory = registry.get("ttk::treeview").unwrap().clone();
+        factory.name = "incompletefactory";
+        factory.object_class = Some(&CLASS);
+        registry.insert(factory);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::new(registry)),
+        );
+        let source = "incompletefactory .t; .t missing";
+        let analysis = Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                config,
+            ))
+            .analyse(source, profile.name);
+        let words = source_registered_instance_words_at(
+            source,
+            &analysis,
+            u32::try_from(source.rfind(".t missing").unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            words.method_selection_status(&context),
+            Err(
+                tcl_registry::registry::InstanceMethodContextUnavailable::SuperclassSelection(
+                    "absentProvider"
+                )
+            )
+        ));
+        assert!(words.methods(&context).is_none());
+        assert!(
+            !analysis
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.to_string() == "W001")
+        );
     }
 }

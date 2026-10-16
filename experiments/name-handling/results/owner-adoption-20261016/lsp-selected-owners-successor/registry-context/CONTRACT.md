@@ -1,0 +1,15 @@
+# Existing inherited method owner and actual Compiler adopter
+
+Purpose: complete the remaining shared structured-schema dependency of `db.unit.registry.instance.parent-package-floor` and actual adopter `compiler.source.inherited-method-owning-package-context:221`. RegistryV3 completion-provider patch 3b33b8f5 is a required predecessor. No count claim is made.
+
+First refusal: current Compiler receipt retains the full ContextRegistry but passes only factory.required_package's floor into every inherited method query. Structured Registry selection drops the actual method owner before form/options availability; actual widget diagnostics again choose arity windows from the factory package. An inherited Tk8.6 method under an Itcl4.2 receiver and its reverse therefore receive the wrong lifecycle, option/form or arity floor.
+
+New strict Registry companions retain the exact ContextRegistry command store, actual context-selected factory/provider pointers, complete inherited table, owning/keyed package placement, prefix policy and selected provider availability. Shared BFS keeps the existing permissive API behavior for unmigrated callers. Actual structured schemas retain factory identity separately from method-provider identity. Provider method/form/nested options and relation/effect inherited surfaces stay with that provider. Receiver option fallback keeps the receiver's independent floor/surface.
+
+Typed InstanceMethodContextUnavailable retains Registry/factory/provider mismatch, missing superclass/table and unsupported unequal mixed receiver/form option axes. None of these is KeywordMatch::Unknown. Compiler status companions preserve that distinction, and the actual widget W001 path only accepts complete-table Unknown. The actual arity path reads the retained method provider floor. Legacy Option adapters abstain on unavailable and provide no absence fact.
+
+The current option card has one version axis for base and form options. If a genuine receiver fallback plus method form would require unequal floors, ReceiverOptionAxes explicitly withdraws source advice; no complete mixed-axis representation is claimed. Existing SourceMay/unknown earlier mutation/frame/namespace/lookup/applicability obligations remain untouched, and no native entry, physical receiver, successful method dispatch, executed failure or Normal follows.
+
+Four added unexecuted fixed-input controls bind actual context floors, method prefix ambiguity, form/options, genuine original factory/alias/source-input ownership, diagnostic arity, stale-source refusal, missing superclass and mixed-axis refusal. All original Rust test suffixes are byte-identical. Formatting/parsing, exact hashes and fuzz-zero TMP application are the only verification; Root owns build/test/gate execution.
+
+V2 removes the sole AGENTS-policy lint allowance introduced in V1. A typed InstanceMethodAvailability bundle transports provider and receiver axes as separate fields, bringing the narrow constructor to seven parameters. Production branching, source guards, owner selection and original/new tests are unchanged. V1 remains immutable.

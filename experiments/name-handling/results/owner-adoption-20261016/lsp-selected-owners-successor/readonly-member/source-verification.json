@@ -1,0 +1,42 @@
+{
+  "patch_sha256": "c4fa8fa588f18c51cee1d4f7762727076cea336aa65808e57091750c71f42a6e",
+  "fresh_fuzz_zero_apply_all_seven_after_hashes": true,
+  "rustfmt_checks": true,
+  "strong_functions_byte_identical": {
+    "original_member_source_catalogue_advice": true,
+    "original_catalogue_advice": true,
+    "original_source_transition_advice": true
+  },
+  "current_beforeimages": [
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "current_before_match": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "current_before_match": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "current_before_match": true
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "current_before_match": true
+    }
+  ],
+  "original_member_test_module_verbatim": true,
+  "source_only": "No build/tests/nativeoracle/main/Cargo/Git. One prior Root-authorised frozen diagnostic separately bound in manifest."
+}

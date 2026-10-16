@@ -1,0 +1,11 @@
+
+running 1 test
+test original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles ... ORIGINAL_STARTUP_INDEX_STAGE test166.pack_backend.begin
+ORIGINAL_STARTUP_INDEX_STAGE test166.pack_backend.end
+ORIGINAL_STARTUP_INDEX_STAGE test166.scan.begin
+ORIGINAL_STARTUP_INDEX_STAGE scan.gate.begin
+ORIGINAL_STARTUP_INDEX_STAGE scan.gate.end
+ORIGINAL_STARTUP_INDEX_STAGE scan.package_discovery.begin
+ORIGINAL_STARTUP_INDEX_STAGE package_discovery.installations.begin
+ORIGINAL_STARTUP_INDEX_STAGE package_discovery.installations.end
+ORIGINAL_STARTUP_INDEX_STAGE package_discovery.resolver.begin

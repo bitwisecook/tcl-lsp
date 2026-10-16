@@ -1,0 +1,12 @@
+CLEAR — exact V3 source review; supersedes V2 test-ingress clearance
+
+Patch SHA256 3b33b8f5c5dd9436e57909fb646570df14330bc3693bd35c480761c4628acf37
+Manifest SHA256 a799b0efa9ea3406392ae75c74694a6ee1e125c4571e817579f74ff69c968df6
+
+V2's new test called profile_for_dialect("jim0.79"), an unsupported environment spelling. My V2 source review incorrectly treated that lookup as actual Jim0.79 ingress. The author caught this; V2's test-ingress clearance is withdrawn. Its production findings remain unchanged and V1/V2 artifacts remain immutable.
+
+V3 replaces only that newly added test constructor with the actual supported public DialectProfile::projected_from_point("jim", &[], "Jim", DialectPoint::canonical(Release::JIM_0_79)).intern(). profile.rs declares both APIs publicly. Core analyse_document passes that exact interned profile and full LexerConfig into context_for_dialect_profile. Registry ingress::context_for_profile keys by the actual complete profile, resolves the real "jim" environment and uses ContextRegistry::project_for_profile when its core point differs. assembly.rs190+ explicitly replaces the core selector/target with the supplied canonical family/release/build before actual context resolution and command-store projection. Thus the retained analysis/store/grammar/roster really belongs to Jim0.79, with no unknown-label fallback or Native recipe fabrication. The existing assertions independently establish surface-only admission and actual roster refusal.
+
+All V2 production fixes remain byte-identical: exact actual context.resolve_spec+descriptor pointer reborrow before per-owner package floor, shared immutable-owner BFS/lifecycle/cycle/first-name handling, legacy uniform-floor wrapper equivalence, lexical/source guards and no Native/Normal/edit/inventory grant. The invalid foreign-crate source route remains removed and the actual public API remains registered normally. Root owns requirement/count/gate reconciliation.
+
+All five before/after image hashes and CONTRACT.md hash independently verified; exact patch applied --fuzz=0 to separate TMP beforeimages and matched all afterimages. Registry source and all canonical docs are byte-identical V2. The complete Core file differs V2 only by the one newly added test's constructor replacement, proving all production/old tests unchanged. No Cargo/build/tests/gate/executable/instrumentation/Git/main writes. Root owns fresh ordinary selectors/acceptance.

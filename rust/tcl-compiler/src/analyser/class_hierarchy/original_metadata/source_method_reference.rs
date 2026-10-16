@@ -43,6 +43,8 @@ pub struct OriginalSourceSelfMethodReference {
     body_class: SourceDeclarationMetadata<ClassDef>,
     body_method: OriginalSourceMethodMetadata,
     body: OriginalSourceDefinitionMemberScriptBody,
+    body_correspondence:
+        crate::registry_invocation::OriginalSourceDefinitionMemberBodyCorrespondence,
     selector: SignatureSourceNameInput,
     selector_span: Span,
     source_schema: OriginalSourceCommandTransitionAdvice,
@@ -74,6 +76,13 @@ impl OriginalSourceSelfMethodReference {
     #[must_use]
     pub const fn body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
         &self.body
+    }
+    /// Separate conditional catalogue issuer, with its applicability intact.
+    #[must_use]
+    pub fn catalogue_body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
+        crate::registry_invocation::OriginalSourceDefinitionMemberBodyCorrespondence::catalogue_body(
+            &self.body_correspondence,
+        )
     }
     /// Original selector naming input; reported strings cannot replace it.
     #[must_use]
@@ -148,7 +157,9 @@ fn capture(
 ) -> Option<OriginalSourceSelfMethodReference> {
     let (body, selector_word) = checked_member_source_schema(source, analysis, advice)?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    let (body_index, body_method) = original_body_owner(&context, &body, records)?;
+    let (body_index, body_method, body_correspondence) =
+        original_body_owner(&context, &body, advice, records)?;
+    let body = crate::registry_invocation::OriginalSourceDefinitionMemberBodyCorrespondence::declaration_body(&body_correspondence).clone();
     let key = SignatureSourceNameKey::from_original_native_word(
         &selector_word,
         tcl_syntax::word_rules::WordValueRules::from_config(&selector_word.config()),
@@ -183,6 +194,7 @@ fn capture(
             body_class: (*records[body_index]).clone(),
             body_method: body_method.clone(),
             body,
+            body_correspondence,
             selector,
             selector_span: selector_word.content_span().ok()?,
             source_schema: advice.clone(),
@@ -242,21 +254,8 @@ fn checked_member_source_schema(
     {
         return None;
     }
-    let extent = Span::new(
-        advice.original_words().first()?.span().start(),
-        advice.original_words().last()?.span().end(),
-    );
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
-        source.get(extent.as_range())?,
-        extent.start(),
-        config.nested(),
-    );
-    let [segment] = segments.as_slice() else {
-        return None;
-    };
-    let mut tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
-    realm.stamp_original_tokens(&mut tokens);
-    let checked = realm.original_member_source_catalogue_advice(input, &tokens)?;
+    let checked =
+        realm.original_member_reference_source_catalogue_advice(input, advice.original_words())?;
     if &checked != advice {
         return None;
     }
@@ -275,8 +274,13 @@ fn checked_member_source_schema(
 fn original_body_owner<'a>(
     context: &tcl_registry::model::ContextRegistry,
     body: &OriginalSourceDefinitionMemberScriptBody,
+    advice: &OriginalSourceCommandTransitionAdvice,
     records: &[&'a SourceDeclarationMetadata<ClassDef>],
-) -> Option<(usize, &'a OriginalSourceMethodMetadata)> {
+) -> Option<(
+    usize,
+    &'a OriginalSourceMethodMetadata,
+    crate::registry_invocation::OriginalSourceDefinitionMemberBodyCorrespondence,
+)> {
     let member_region = body
         .original_parent_body()
         .definition_member_region(context, body.original_parent_body().content_span())?;
@@ -304,13 +308,18 @@ fn original_body_owner<'a>(
                         && method.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod
                         && method.body_word() == Some(body.original_container())
                         && method.parameters_word() == Some(*parameters)
-                        && method.definition_parent() == Some(body.original_parent_body())
                         && method.declaration().site().offset == original.first()?.span().start()
                         && method.declaration().site().source == class.declaration_site().source
+                        && method.declaration().site().source == advice.site().source
                         && !method.metadata().params_computed
                         && !method.native_class_delegate()
                         && method.forward_prefix().is_none())
-                    .then_some((index, method))
+                    .then_some(())?;
+                    let correspondence = body.original_source_correspondence_in_parent(
+                        context,
+                        method.definition_parent()?,
+                    )?;
+                    Some((index, method, correspondence))
                 })
         });
     let first = owners.next()?;
@@ -424,6 +433,87 @@ mod tests {
                 .len(),
             1,
             "report-map corruption cannot alter independently retained original correspondence"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_source_correspondence_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn readonly_member_correspondence_retains_both_issuers_and_strong_query_result() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let source = "oo::class create C {method ping {} {}; method body {} {my ping}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let offset = source.find("my ping").unwrap() as u32;
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[offset as usize..offset as usize + 7],
+            offset,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &SourceImage::document(source).source_map(),
+            input.lexer_config(),
+            &segment,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let stronger_before = realm.original_member_source_catalogue_advice(input, &tokens);
+        let references = original_source_self_method_references(source, &analysis).unwrap();
+        let [reference] = references.as_slice() else {
+            panic!("one actual readonly source selector")
+        };
+        assert_eq!(
+            reference.body_method().definition_parent(),
+            Some(reference.body().original_parent_body())
+        );
+        assert_eq!(
+            reference.catalogue_body(),
+            reference
+                .source_schema()
+                .original_definition_member_source_body()
+                .unwrap()
+        );
+        assert!(reference.source_schema().obligations().contains(&crate::command_binding::SourceCommandTransitionObligation::ConditionalMemberBodyCatalogueApplicability));
+        assert_eq!(
+            realm.original_member_source_catalogue_advice(input, &tokens),
+            stronger_before
+        );
+        let reborrowed = realm
+            .original_member_reference_source_catalogue_advice(
+                input,
+                reference.source_schema().original_words(),
+            )
+            .unwrap();
+        assert_eq!(&reborrowed, reference.source_schema());
+        let foreign = Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            realm
+                .original_member_reference_source_catalogue_advice(
+                    foreign.resolved_input.as_ref().unwrap(),
+                    reference.source_schema().original_words()
+                )
+                .is_none()
+        );
+        let foreign_source = source.replace("C", "Other");
+        let foreign = Analyser::new().analyse(&foreign_source, "tcl8.6");
+        let foreign_references =
+            original_source_self_method_references(&foreign_source, &foreign).unwrap();
+        let foreign_reference = foreign_references.first().unwrap();
+        assert!(
+            reference
+                .catalogue_body()
+                .original_source_correspondence_in_parent(
+                    &input.context_registry(),
+                    foreign_reference.body().original_parent_body()
+                )
+                .is_none()
         );
     }
 }

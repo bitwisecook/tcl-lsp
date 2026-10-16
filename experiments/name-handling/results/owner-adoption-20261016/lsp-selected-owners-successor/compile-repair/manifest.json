@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+  "before_sha256": "3985ccb6dd8d971f50365a0f0062f246d52043ff96d7c76847c80a9db24ced3f",
+  "after_sha256": "5a72e40730898be8d5e17dc6ee7131df84d43e07de6900cddae75e30360da3fc",
+  "patch_sha256": "ac496eabad64f20c9facefe61bcfa0740366f576133b744df537ef00a9431811",
+  "scope": "Public case_bodies module type path and existing authored_source_descriptors returns same private script_metadata command; no visibility or semantic guard change",
+  "execution": "none"
+}

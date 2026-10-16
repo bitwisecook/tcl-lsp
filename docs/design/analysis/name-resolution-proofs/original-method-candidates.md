@@ -108,3 +108,16 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The named fixed Rust test is a source coverage binding. No Rust test result or native provider capture is attached to this contract; C Tcl, Jim and BIG-IP have not tested this Rust invariant.
+
+
+## Readonly member source reborrow and parent correspondence
+
+The original readonly controls222–224 fail their preserved positive span assertions on the frozen repair2 artifacts. One authorised diagnostic of existing222, using only shipped TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS, is retained separately with actual argv/environment/budget/raw channels/status and identical before/after ELF hashes. It reaches both original member command vectors; it does not identify the final private refusal branch. The source path nevertheless reborrowed a conditional member catalogue through the stronger physical lookup/target revalidation API, and compared full applicability-bearing parent-body objects for equality. Neither stronger condition is the readonly source correspondence purpose.
+
+The dedicated Realm source getter now reborrows only the existing actual Member tape under the same full retained input, source allocation/image/channel/configuration, context/Registry and exact whole original argv. Original source barriers and member-body containment remain mandatory. The stronger original_member_source_catalogue_advice and original_catalogue_advice functions stay byte-identical. This new facade supplies no physical receiver target, method entry, selected Native invocation, Normal result or edit inventory.
+
+OriginalSourceDefinitionMemberBodyCorrespondence retains both genuine body issuers rather than equating their applicability records. The original catalogue and actual declaration parent must match complete original parent container/extents, head/argv origins/known values and whole original operand words, selected descriptor and definition vocabulary. The canonical parent reissues its exact actual member body by the same original member vector, body ordinal/container/content/presentation and row. The class/member source allocation, original name/body/formals, side/purpose and unique current declaration join remain independent. Both original receipts survive in the readonly reference, including conditional declaration/body/receiver/lookup/observer/inheritance obligations; no missing or foreign owner is reconstructed.
+
+- [source_method_reference.rs](../../../../rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs), `analyser::class_hierarchy::original_metadata::source_method_reference::original_source_correspondence_tests::readonly_member_correspondence_retains_both_issuers_and_strong_query_result` (linked): preserve both actual issuers, exact canonical parent, original source debts and the unchanged stronger-query result; foreign input/source/parent refuses.
+
+All original sources/selectors/assertions, including own/inherited/member refusal and Core edit-inventory separation controls, are unchanged. This is a repair within the existing readonly member source facet; Root owns once-only catalogue reconciliation and ordinary execution. The new control is an annex, not a claimed binary census or pass.

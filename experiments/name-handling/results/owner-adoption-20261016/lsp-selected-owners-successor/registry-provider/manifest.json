@@ -1,0 +1,43 @@
+{
+  "scope": "candidate",
+  "source_root": "/workspace/tcl-lsp",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md",
+      "before_sha256": "3699ed63984124975513064f9967bffaeb3a135b36c707a3d9c5ffd388b46f8e",
+      "after_sha256": "3ed9b15ca19ba45612f6dbc6668320d4634423241400362ac5b240c9f3f58ad3"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md",
+      "before_sha256": "9cb1e8fa7252151531401facadde7f11314aa845de92a8b4841042045c38fa26",
+      "after_sha256": "0c4de70415184536436bd936e2bbecc4c222b325e795a6bbab4c73a0c03dd867"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "9adb24344166a3f9a9e9763d913989b47646c18681df471b335a8e4b0864a41d",
+      "after_sha256": "9cefa3a9dd0ff649a04b60c75b0f8a211edd3de65f9b817d7987d13e7c4b6f7e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "before_sha256": "4a8c66823e671ee4bea7c6d3084319ebbc78656480bf2fb3f1a0a0f52eba747b",
+      "after_sha256": "8dc7caf16206b494f56a14d9af3917bf22c061dace8a9d5c3b0ddad596c688a4"
+    },
+    {
+      "path": "rust/tcl-registry/src/registry.rs",
+      "before_sha256": "9aee6c86bb0439f084103cbe13e9275ede6aff8123a753ceb7f8c83defbc0271",
+      "after_sha256": "48869763817872b5d61ea6b3e9de3c70a13593601c4675380301e42ac0c3ef99"
+    }
+  ],
+  "patch_sha256": "3b33b8f5c5dd9436e57909fb646570df14330bc3693bd35c480761c4628acf37",
+  "validation": "TMP source/rustfmt only; no Cargo/build/test/executable/gate execution; no main/Git writes",
+  "baseline_unit": "lsp-completion-catalogue-selected-provider-filter",
+  "count_claim": false,
+  "new_controls": [
+    "registry::instance_method_provider_tests::inherited_method_provider_keeps_exact_descriptor_and_own_package_floor",
+    "completion::inherited_registry_completion_provider_tests::inherited_completion_uses_selected_provider_package_instead_of_receiver_package",
+    "completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster"
+  ],
+  "contract_sha256": "2e564cfc6082b997af7d25eb8816e4f9bb90c21154bdd92cec795f0728589413",
+  "original_test_suffixes_preserved": true,
+  "supersedes": "V2 b4f9a0655b01b46b9e1b1ac66f7778db0d63a37d531cd0e0e25f0fc8f79b2044; immutable"
+}

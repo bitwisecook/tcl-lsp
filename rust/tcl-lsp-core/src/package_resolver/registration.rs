@@ -18,16 +18,49 @@
 
 //! Explicit standalone package-registration source data, without loading authority.
 
-use tcl_lexer::{LexerConfig, SourceImage, Span, Token};
+#[cfg(test)]
+use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Token};
 use tcl_registry::{CommandRegistry, InvocationDialect, InvocationWord, InvocationWords};
 
 pub(super) struct Registration {
-    pub(super) name: Option<String>,
-    pub(super) version: Option<String>,
-    pub(super) body: usize,
+    name: Option<String>,
+    version: Option<String>,
+    body: usize,
+    image: SourceImage,
+    config: LexerConfig,
+    registry: tcl_registry::RegistrySemanticKey,
+    words: Vec<NativeWord>,
 }
 
-/// Select only an exact original command under the held complete source grammar.
+impl Registration {
+    /// Reborrow this selected survey result only at its complete original script
+    /// and word vector. It supplies no reached lookup or package installation.
+    pub(super) fn advertisement(
+        &self,
+        source: &str,
+        tokens: &[Vec<Token>],
+        registry: &CommandRegistry,
+        config: LexerConfig,
+    ) -> Option<(&str, &str, usize)> {
+        if self.image.bytes() != source.as_bytes()
+            || self.config != config
+            || self.registry != registry.snapshot().semantic_key()
+            || self.words.len() != tokens.len()
+            || self.words.iter().zip(tokens).any(|(word, tokens)| {
+                word.image() != &self.image
+                    || word.config() != config
+                    || word.tokens() != tokens.as_slice()
+            })
+        {
+            return None;
+        }
+        Some((self.name.as_deref()?, self.version.as_deref()?, self.body))
+    }
+}
+
+/// Test convenience for the same complete-plan issuer used by the live walker.
+#[cfg(test)]
 pub(super) fn select(
     source: &str,
     tokens: &[Vec<Token>],
@@ -123,5 +156,9 @@ pub(super) fn select_in_plan(
         name: values.get(name.checked_add(1)?)?.clone(),
         version: values.get(version.checked_add(1)?)?.clone(),
         body: body.checked_add(1)?,
+        image: command.words.first()?.image().clone(),
+        config,
+        registry: registry.snapshot().semantic_key(),
+        words: command.words.clone(),
     })
 }

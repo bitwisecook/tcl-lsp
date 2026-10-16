@@ -51,15 +51,14 @@
 //! client's bug to fix (VS Code is not; `uriConverters` exists for those that
 //! are).
 //!
-//! Server-constructed file paths use the shared actual host-path owner via
-//! [`rooted_file_uri`], followed by the separate product compatibility step
-//! [`repair_file_uri_from_path`]. A leading POSIX `//` becomes the authority
-//! spelling used by VS Code's `URI.file`. The shared path owner already handles
-//! Windows extended-length paths; the repair also accepts the legacy encoded
-//! Windows provider shapes. This product spelling supplies no inverse path
-//! conversion. The repair is called only by the path-to-URI constructor, not
-//! by this module's generic incoming-URI normaliser: a first path segment named
-//! `?` and a path beginning `//` retain their existing URI structure.
+//! Server-constructed file paths use the Core actual-Path forward owner with an
+//! explicit VS Code document-key projection. A leading POSIX `//` becomes the
+//! authority spelling used by VS Code's `URI.file`. The shared path owner also
+//! handles Windows extended-length paths. Product spelling supplies no inverse
+//! Path conversion: actual scan Paths are retained separately through admission.
+//! The old rendered-URI repair remains only as a test oracle for legacy provider
+//! shapes. The generic incoming-URI normaliser does not apply this projection:
+//! a first path segment named `?` and a path beginning `//` retain their structure.
 //!
 //! # Tolerant parse
 //!
@@ -160,6 +159,7 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
 /// the shared host-path owner or the legacy provider. It is not a generic
 /// incoming-URI canonicalisation or an authority-preserving path inverse.
 /// Returns `None` when no compatibility repair is needed.
+#[cfg(test)]
 pub(crate) fn repair_file_uri_from_path(raw: &str, windows: bool) -> Option<String> {
     // `from_file_path` prepends `file://` on Unix and `file:///` on Windows.
     // Removing exactly that platform prefix recovers its encoded path without
@@ -267,6 +267,7 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
 /// Native and browser constructors use the same unreserved escaping policy.
 /// This neither canonicalises a relative path nor applies the product's
 /// VS Code authority compatibility step. Incoming URI repair remains separate.
+#[cfg(test)]
 #[must_use]
 pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
     tcl_lsp_core::file_uri::from_path(path, tcl_lsp_core::file_uri::FileUriEscaping::Unreserved)?

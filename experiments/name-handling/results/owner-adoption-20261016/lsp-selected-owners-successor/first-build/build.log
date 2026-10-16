@@ -1,0 +1,23 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+error[E0425]: cannot find type `CaseBodyOperands` in crate `tcl_registry`
+   --> rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:392:31
+    |
+392 |     projection: tcl_registry::CaseBodyOperands,
+    |                               ^^^^^^^^^^^^^^^^ not found in `tcl_registry`
+
+error[E0616]: field `script_metadata` of struct `InvocationSemantics` is private
+   --> rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:720:36
+    |
+720 |                     left.semantics.script_metadata.command,
+    |                                    ^^^^^^^^^^^^^^^ private field
+
+error[E0616]: field `script_metadata` of struct `InvocationSemantics` is private
+   --> rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:721:37
+    |
+721 |                     right.semantics.script_metadata.command,
+    |                                     ^^^^^^^^^^^^^^^ private field
+
+Some errors have detailed explanations: E0425, E0616.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `tcl-compiler` (lib) due to 3 previous errors

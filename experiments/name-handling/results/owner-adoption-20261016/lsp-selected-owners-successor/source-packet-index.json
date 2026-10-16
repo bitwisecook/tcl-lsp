@@ -1,0 +1,251 @@
+{
+  "utc": "2026-10-16T19:12:31.971826+00:00",
+  "source_packets_only": true,
+  "no_ELFs_or_full_input_indexes": true,
+  "ordinary_execution": "FirstbuildFAIL3typepath/privatefield errors,39000inputs0drift; exact public API repair sourceCLEAR; ordinaryrepair1buildinprogress. Draft338selection retainsall310.",
+  "files": [
+    {
+      "source": "/tmp/sol-lsp-readonly-member-source-reborrow-v1/repair.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/readonly-member/repair.patch.zst",
+      "payload_sha256": "c4fa8fa588f18c51cee1d4f7762727076cea336aa65808e57091750c71f42a6e",
+      "payload_bytes": 40711,
+      "sha256": "dacc1fe9f48bd3bafe490b3a93653cb3ef732fc2d0ed2a28d33a05134121e831",
+      "bytes": 10639,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/sol-lsp-readonly-member-source-reborrow-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/readonly-member/manifest.json",
+      "sha256": "7dc8f1526f024aecbb466588aa9645744b455a34894393f3f48dec44e56eb9b3",
+      "bytes": 2705
+    },
+    {
+      "source": "/tmp/sol-lsp-readonly-member-source-reborrow-v1/independent-db-owner-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/readonly-member/independent-db-owner-review-CLEAR.txt",
+      "sha256": "a692ff5c71b233ca507abf0a7b1eb8b20d296273476226e51e6b5c58b0d46a97",
+      "bytes": 4350
+    },
+    {
+      "source": "/tmp/sol-lsp-readonly-member-source-reborrow-v1/source-verification.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/readonly-member/source-verification.json",
+      "sha256": "4883bec8d8ae292575f30fb4be15f8241e84c8be6ad2a7fd8e46d50796a52c4a",
+      "bytes": 1460
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/candidate.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/candidate.patch.zst",
+      "payload_sha256": "3b33b8f5c5dd9436e57909fb646570df14330bc3693bd35c480761c4628acf37",
+      "payload_bytes": 25399,
+      "sha256": "2de0dbb59c1e6dbcf945438fc02825d7a60b0d8f0d824d4a712e8be43b41fdc6",
+      "bytes": 6965,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/manifest.json",
+      "sha256": "a799b0efa9ea3406392ae75c74694a6ee1e125c4571e817579f74ff69c968df6",
+      "bytes": 2393
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/CONTRACT.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/CONTRACT.md",
+      "sha256": "2e564cfc6082b997af7d25eb8816e4f9bb90c21154bdd92cec795f0728589413",
+      "bytes": 3090
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/SOURCE-BASIS.md",
+      "sha256": "8d9553b12ec35490a0ae3ed7d6e0aaa0d0d620cc6f9f8478131d793b9f730b9e",
+      "bytes": 247
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/existing-budget-reconciliation.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/existing-budget-reconciliation.txt",
+      "sha256": "ed0ca2af7a08990e27df31731fbc495b0fb4c673453c2f043eb0c6714154ad9e",
+      "bytes": 2353
+    },
+    {
+      "source": "/tmp/registry-instance-method-provider-v3/independent-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-provider/independent-review-CLEAR.txt",
+      "sha256": "c4fe51ef9c5c108471bdc46f6444671ea53261c8e5c4f9ad5867ace5a50037fd",
+      "bytes": 2443
+    },
+    {
+      "source": "/tmp/registry-instance-method-context-v2/candidate.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-context/candidate.patch.zst",
+      "payload_sha256": "b25be5d49f470d6d79c49191de30a0c4676ded23d961290f90c54d2b5dd0194e",
+      "payload_bytes": 52134,
+      "sha256": "02c3817721f39ccecdf13c18f4cd17c063aa8c4422d30da1b8ed85bccdcd1846",
+      "bytes": 12592,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/registry-instance-method-context-v2/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-context/manifest.json",
+      "sha256": "8b7640b99a3e5bf537c875eb2352522198d13f5a8682a0ef135d34616f703866",
+      "bytes": 3325
+    },
+    {
+      "source": "/tmp/registry-instance-method-context-v2/CONTRACT.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-context/CONTRACT.md",
+      "sha256": "62f3dd363511cfbe30b116509aed18c1b0ca711e61571bcd05122602d14a60d4",
+      "bytes": 3111
+    },
+    {
+      "source": "/tmp/registry-instance-method-context-v2/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-context/SOURCE-BASIS.md",
+      "sha256": "78aae75a85aa1c693589b27a3322e5006d7a6d137914c77c99d91c12de9e654b",
+      "bytes": 921
+    },
+    {
+      "source": "/tmp/registry-instance-method-context-v2/independent-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/registry-context/independent-review-CLEAR.txt",
+      "sha256": "e1e8611663e530c9d27a2edbde8d813f764718ec265da0641ee5d322414387e0",
+      "bytes": 2604
+    },
+    {
+      "source": "/tmp/compiler-c-class-world-premise-v1/c-class-world-premise-v1.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/cclass-supplement/c-class-world-premise-v1.patch.zst",
+      "payload_sha256": "ee13a89f849eaded714df14f8d2a54b073eda8dcee7b56811a42d9ed2fff6f9d",
+      "payload_bytes": 1922,
+      "sha256": "ed6b1ce65fab3af21d48e13899a6fae487b156b2c5c95de869bff74012339354",
+      "bytes": 749,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/compiler-c-class-world-premise-v1/independent-sol-lsp-members-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/cclass-supplement/independent-sol-lsp-members-review-CLEAR.txt",
+      "sha256": "04e33c0ccfc9e0311348dc69c0ecbf7901ecebeb4ba98e7fa9ff46f56068f097",
+      "bytes": 1745
+    },
+    {
+      "source": "/tmp/lsp-pack-notice-range-v2/candidate.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/notice-range/candidate.patch.zst",
+      "payload_sha256": "2835f373638ed7b9505b20ef4fdafecdb315ca83889b2a23a75f8f48dd00106f",
+      "payload_bytes": 4910,
+      "sha256": "d0eeb582d243b52d6fe01bd9d9f813b5d96be29457e8666828f5f192132cd8b2",
+      "bytes": 1669,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/lsp-pack-notice-range-v2/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/notice-range/manifest.json",
+      "sha256": "b4797d468d2f1097475e162e0f378e2c9084b61a433cfca2242097363031cb69",
+      "bytes": 953
+    },
+    {
+      "source": "/tmp/sol-pack-notice-range-review-v2/independent-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/notice-range-review/independent-review-CLEAR.txt",
+      "sha256": "ae3a2a282b4a07d5b8867f526692d7c8c81a18d852077c2c88076433e831424d",
+      "bytes": 1531
+    },
+    {
+      "source": "/tmp/lsp-package-registration-transport-v1/package-registration-transport-v1.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/package-registration/package-registration-transport-v1.patch.zst",
+      "payload_sha256": "251b8156b754e2c943cac3f90916c01c48cc0a8292ca8e6d34f02a2dcf606329",
+      "payload_bytes": 14138,
+      "sha256": "b692e8a76d0d6d9f39df51b7a5f256ad9d62fb831b3fc9c3f0a134130d5456a1",
+      "bytes": 3919,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/lsp-package-registration-transport-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/package-registration/manifest.json",
+      "sha256": "e3639d513b76adcc8da00ea5cebbd6df1d563ae5ea37fa18a85caf9beed70429",
+      "bytes": 2703
+    },
+    {
+      "source": "/tmp/lsp-package-registration-transport-v1/CONTRACT.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/package-registration/CONTRACT.md",
+      "sha256": "0bc913f08fded309b0b50ab4a15866d1d7256adf840431c68772e4011ed89fd2",
+      "bytes": 4211
+    },
+    {
+      "source": "/tmp/lsp-package-registration-transport-v1/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/package-registration/SOURCE-BASIS.md",
+      "sha256": "0d4d7cf49aaa02611cfa65af1e6c436d2c4d6ee4e3ea78774b514a69fbe9fc96",
+      "bytes": 2896
+    },
+    {
+      "source": "/tmp/lsp-package-registration-transport-v1/independent-variable-order-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/package-registration/independent-variable-order-review-CLEAR.txt",
+      "sha256": "803c550dc2567920ba4b61e82e2b3f40cee5b2f78d3fb29192187e74cf9f306c",
+      "bytes": 2397
+    },
+    {
+      "source": "/tmp/lsp-forward-path-projection-v1/forward-path-projection.9a4527343f803ae1ab403d29d6bfdc5e000fcda58adc71a926336a5f03406cf7.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/forward-path/forward-path-projection.9a4527343f803ae1ab403d29d6bfdc5e000fcda58adc71a926336a5f03406cf7.patch.zst",
+      "payload_sha256": "9a4527343f803ae1ab403d29d6bfdc5e000fcda58adc71a926336a5f03406cf7",
+      "payload_bytes": 21526,
+      "sha256": "f7351d8ac9d022022f3f973fa3af487c253877653da7682b15baf4f7cd016ff7",
+      "bytes": 7190,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/lsp-forward-path-projection-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/forward-path/manifest.json",
+      "sha256": "137689511482ec52081da70dd87d6d2cc85eb864f6235b872aa84dec43590115",
+      "bytes": 1492
+    },
+    {
+      "source": "/tmp/lsp-forward-path-projection-v1/SOURCE-BASIS.md",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/forward-path/SOURCE-BASIS.md",
+      "sha256": "1b5ab512c6b1d58aeadde7df0d9b2adef98515ba2708085354e690bbed424c8d",
+      "bytes": 3570
+    },
+    {
+      "source": "/tmp/lsp-forward-path-projection-v1/independent-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/forward-path/independent-review-CLEAR.txt",
+      "sha256": "4302b500f848cfbf58feb173891ab49feae10ed2fb7e4f3f5e0736396113aed6",
+      "bytes": 3758
+    },
+    {
+      "source": "/tmp/lsp-forward-path-projection-v1/independent-current-union-verification.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/forward-path/independent-current-union-verification.json",
+      "sha256": "e6b0d0300d2bfec6ba8c61be98b66bb3c45a3e61e4004543dacc419277d4f3d8",
+      "bytes": 975
+    },
+    {
+      "source": "/tmp/luna-comment-conditional-source/conditional-source-comment-walk-v2.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/comment-source/conditional-source-comment-walk-v2.patch.zst",
+      "payload_sha256": "e6c39377d5e591ec93777a8b5c020aba923ca5dd8f19af81676ec3307270636f",
+      "payload_bytes": 7605,
+      "sha256": "dab4d2ff9693d7c4bf000b7223aadfa3dd2578f7dc5e4dea883dea86c1940608",
+      "bytes": 2575,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/luna-comment-conditional-source/manifest-v2.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/comment-source/manifest-v2.json",
+      "sha256": "5277487e3c205d127ceda90d5413887fb5cb620a74b8c85b4467085a3ba32066",
+      "bytes": 2295
+    },
+    {
+      "source": "/tmp/luna-comment-conditional-source/independent-sol-compiler-review-V2-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/comment-source/independent-sol-compiler-review-V2-CLEAR.txt",
+      "sha256": "aeab1dc3fde82f764363f21deaead12b2fdda6e3e5bfa653082971ad081ea9cd",
+      "bytes": 3248
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-compile-repair-v1/candidate.patch",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/compile-repair/candidate.patch.zst",
+      "payload_sha256": "ac496eabad64f20c9facefe61bcfa0740366f576133b744df537ef00a9431811",
+      "payload_bytes": 1110,
+      "sha256": "d03c610d8710a0843063603140d2431040a81940e02feb488b4dcad4159369d1",
+      "bytes": 484,
+      "encoding": "zstd; decompression verifies original payload hash"
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-compile-repair-v1/manifest.json",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/compile-repair/manifest.json",
+      "sha256": "577d1eaf0861d07b8ea8e94cf6db6310d6a3400abeca8168a26225c2e58f7d6d",
+      "bytes": 538
+    },
+    {
+      "source": "/tmp/lsp-selected-owner-compile-repair-v1/independent-sol-compiler-review-CLEAR.txt",
+      "path": "experiments/name-handling/results/owner-adoption-20261016/lsp-selected-owners-successor/compile-repair/independent-sol-compiler-review-CLEAR.txt",
+      "sha256": "c2df13252d6c204055b8549a2c0200ed6f6afd4db2db1292f7161a6d722c48c9",
+      "bytes": 1915
+    }
+  ]
+}

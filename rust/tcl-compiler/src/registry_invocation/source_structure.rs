@@ -562,6 +562,17 @@ impl OriginalRegistryWords {
         super::source_scoped_body::source_script_bodies_for(self, context, purpose)
     }
 
+    /// Possible case-body candidates for source syntax consumers. The separate
+    /// projection retains unknown option/subject selection; it does not change
+    /// the stronger body inventory or establish entry.
+    #[must_use]
+    pub(crate) fn conditional_source_case_bodies(
+        &self,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<super::source_scoped_body::OriginalConditionalSourceCaseBodies> {
+        super::source_scoped_body::conditional_source_case_bodies_for(self, context)
+    }
+
     /// Complete original source-body inventory for a coverage consumer.
     /// Unlike the partial syntax inventory, a missing, dynamic or malformed
     /// potentially evaluated body returns `None`. This certifies source

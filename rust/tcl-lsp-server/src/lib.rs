@@ -25423,7 +25423,7 @@ impl Backend {
                 tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
             };
             by_uri.entry(uri).or_default().push(Diagnostic {
-                range: whole_line_range(self.store.as_ref(), &notice.path, notice.line),
+                range: whole_line_range(notice),
                 severity: Some(severity),
                 code: Some(NumberOrString::String(
                     core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
@@ -26252,14 +26252,11 @@ impl Backend {
         let permits = Arc::new(Semaphore::new(concurrency));
         let mut tasks = crate::rt::JoinSet::new();
         for path in files {
-            let Some(uri) = canonical_file_uri(&path) else {
+            let Some(constructed) = constructed_file_uri(&path) else {
                 continue;
             };
-            let admission = Arc::new(DocumentPathAdmission::from_selected_path(
-                &uri,
-                &path,
-                self.store.as_ref(),
-            )?);
+            let uri = constructed.uri.clone();
+            let admission = Arc::new(constructed.admission(self.store.as_ref())?);
             let driver = self.fresh_analysis_driver(admission).await;
             let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
                 break;
@@ -34572,31 +34569,26 @@ fn compute_source_inheritance(
     }
 }
 
-/// A range covering line `line` (1-based) of `path`, for a pack-load notice.
-///
-/// Reads the file to find the line's true length so the squiggle covers the
-/// statement rather than a single character. A file that has changed or gone
-/// since the notice was raised degrades to the start of the line — the notice
-/// is still worth showing, and an approximate range beats dropping it.
-fn whole_line_range(
-    store: &dyn vfs::SourceStore,
-    path: &Path,
-    line: u32,
-) -> tower_lsp_server::ls_types::Range {
+/// Whole-line presentation from the loader's retained source subject.
+/// Notices without an original line subject use the whole-file anchor.
+fn whole_line_range(notice: &tcl_spectcl::PackNotice) -> tower_lsp_server::ls_types::Range {
     use tower_lsp_server::ls_types::{Position, Range};
-    let zero_based = line.saturating_sub(1);
-    let end = store
-        .read_to_string(path)
-        .ok()
-        .and_then(|text| {
-            text.lines()
-                .nth(zero_based as usize)
-                .map(|l| u32::try_from(l.chars().count()).unwrap_or(u32::MAX))
-        })
-        .unwrap_or(0);
+    let Some(subject) = notice.subject.as_ref() else {
+        return Range::default();
+    };
+    let Ok(source) = subject.image().try_text() else {
+        return Range::default();
+    };
+    if notice.line == 0 || notice.line != subject.line() {
+        return Range::default();
+    }
+    let index = tcl_lexer::LineIndex::new_lsp(source);
+    let line = index.position_at_utf16(subject.span().start(), source).line;
+    let end = index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(u32::MAX), source);
+    let end = index.position_at_utf16(end, source);
     Range {
-        start: Position::new(zero_based, 0),
-        end: Position::new(zero_based, end),
+        start: Position::new(line, 0),
+        end: Position::new(end.line, end.character.get()),
     }
 }
 
@@ -34616,36 +34608,43 @@ fn whole_line_range(
 /// actual path must be losslessly representable as Unicode: opaque native units
 /// return `None`, while a literal Unicode replacement character remains data.
 ///
-/// URI construction uses the shared actual host-path owner through
-/// [`uri_norm::rooted_file_uri`]. The separate product compatibility step
-/// [`uri_norm::repair_file_uri_from_path`] gives a leading POSIX `//` the
-/// authority shape `VS Code`'s `URI.file` uses. Finally,
-/// [`uri_norm::canonical_uri_string`] pins Windows drive-letter and
-/// percent-escape case. This product spelling does not itself establish an
-/// authority-preserving URI-to-native-path conversion.
+/// URI construction uses the shared Core actual-Path owner with an explicit
+/// VS Code product spelling; its compatibility alias cannot recover the actual
+/// Path. The scan retains a separate forward carrier through provider admission.
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
-    let path = path.as_ref();
-    // Match the provider's actual path selection before admitting Unicode.
-    // A relative ASCII symlink can resolve to opaque native filename units;
-    // checking its written spelling would still permit a replacement URI.
+    constructed_file_uri(path.as_ref()).map(|constructed| constructed.uri)
+}
+
+/// Forward-only geometry: the resolved actual Path and its product alias stay
+/// together. This supplies no provider, filesystem identity or source currency.
+struct ConstructedFileUri {
+    path: PathBuf,
+    uri: Uri,
+}
+
+impl ConstructedFileUri {
+    fn admission(
+        &self,
+        store: &dyn vfs::SourceStore,
+    ) -> DocumentSourceResult<DocumentPathAdmission> {
+        DocumentPathAdmission::from_selected_path(&self.uri, &self.path, store)
+    }
+}
+
+fn constructed_file_uri(path: &Path) -> Option<ConstructedFileUri> {
+    // Preserve the original absolute/no-existence and relative/canonicalise policy.
     let selected = if path.is_absolute() {
         std::borrow::Cow::Borrowed(path)
     } else {
         std::borrow::Cow::Owned(std::fs::canonicalize(path).ok()?)
     };
-    selected.to_str()?;
-    let raw = uri_norm::rooted_file_uri(selected.as_ref())?;
-    // `cfg!` keeps both branches type-checked on every host; unlike `#[cfg]`,
-    // a macOS/Linux gate therefore catches Windows repair-path regressions.
-    let raw = match uri_norm::repair_file_uri_from_path(raw.as_str(), cfg!(windows)) {
-        Some(repaired) => Uri::from_str(&repaired).ok()?,
-        None => raw,
-    };
-    match uri_norm::canonical_uri_string(raw.as_str()) {
-        std::borrow::Cow::Borrowed(_) => Some(raw),
-        std::borrow::Cow::Owned(canonical) => Uri::from_str(&canonical).ok(),
-    }
+    let raw = tcl_lsp_core::file_uri::from_path_for_vscode_document(selected.as_ref())?;
+    let canonical = uri_norm::canonical_uri_string(&raw);
+    Some(ConstructedFileUri {
+        path: selected.into_owned(),
+        uri: Uri::from_str(&canonical).ok()?,
+    })
 }
 
 /// Resolve a literal `source` path written in `parent_uri` to the child
@@ -37903,6 +37902,36 @@ info exists ::N::v\uD800";
             canonical_file_uri("//srv/share/a.tcl").unwrap().as_str(),
             "file://srv/share/a.tcl",
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn constructed_product_alias_retains_the_original_counted_path_for_admission() {
+        for spelling in [
+            "//srv/share/a.tcl",
+            "///local/path.tcl",
+            "//server",
+            "//?/é.tcl",
+        ] {
+            let actual = Path::new(spelling);
+            let constructed = constructed_file_uri(actual).unwrap();
+            assert_eq!(constructed.path.as_os_str(), actual.as_os_str());
+            assert_eq!(Some(constructed.uri.clone()), canonical_file_uri(actual));
+            let admitted = constructed.admission(&vfs::NativeStore).unwrap();
+            assert_eq!(admitted.path().unwrap().as_os_str(), actual.as_os_str());
+            admitted
+                .check_for(&constructed.uri, &vfs::NativeStore)
+                .unwrap();
+            // A virtual registration is an independent stronger owner. The
+            // forward alias cannot replace its different selected Path.
+            let virtual_store = vfs::MemoryStore::new();
+            virtual_store.upsert_uri(
+                constructed.uri.as_str(),
+                "/different/source.tcl",
+                Vec::new(),
+            );
+            assert!(constructed.admission(&virtual_store).is_err());
+        }
     }
 
     #[test]

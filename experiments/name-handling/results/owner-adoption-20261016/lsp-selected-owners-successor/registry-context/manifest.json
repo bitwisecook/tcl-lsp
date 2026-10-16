@@ -1,0 +1,67 @@
+{
+  "scope": "TMP successor to RegistryV3 3b33b8f5; main/Cargo/Git/source freeze preserved",
+  "baseline_units": [
+    "db.unit.registry.instance.parent-package-floor",
+    "compiler.source.inherited-method-owning-package-context:221"
+  ],
+  "count_claim": false,
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md",
+      "before_sha256": "0c4de70415184536436bd936e2bbecc4c222b325e795a6bbab4c73a0c03dd867",
+      "after_sha256": "4f25adbb330fc32ae72a9b9c4be9bf3fbe736bc7aaaeb05adedbcbbaa285acb2"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "9cefa3a9dd0ff649a04b60c75b0f8a211edd3de65f9b817d7987d13e7c4b6f7e",
+      "after_sha256": "5052b1a3257f3464829cf0bc3ed481d100eae14802bbeccc4d0ddecff8c6935f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs",
+      "before_sha256": "bd838ada62a6e3e752cc255e88e4ee666a9b78f3d6ce744fca15c6e8dd821226",
+      "after_sha256": "033c400ff799b8ae14aff5a1fa0f766fd63239329ec1864a32e7d25f45d75f41"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs",
+      "before_sha256": "2281275f32ed156fb851c9d5338c85290e0437dead86e6f58e6021e08162da32",
+      "after_sha256": "f5b3b39cb55e9b93582b32b9b6c8cbeec7f40dcca3e5e7b1faf5f83fd1507e3f"
+    },
+    {
+      "path": "rust/tcl-registry/src/registry.rs",
+      "before_sha256": "48869763817872b5d61ea6b3e9de3c70a13593601c4675380301e42ac0c3ef99",
+      "after_sha256": "5830318de333d636511a6eaea40f1e378e6d6ce0d60a68f052e66bded6551fab"
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "before_sha256": "b9385484bacafd005a6da9a11aa0c051b0876654e87dae24347199115d6c2b64",
+      "after_sha256": "585f6cb0fa91bd13535271f9293d58edfad6ee22ce37f4e01a0333678e377139"
+    }
+  ],
+  "patch_sha256": "b25be5d49f470d6d79c49191de30a0c4676ded23d961290f90c54d2b5dd0194e",
+  "original_test_suffixes_preserved": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs",
+      "old_test_suffix_sha256": "752ada0772f1691d877937d67869f51f3f27db390d48ceed2bcf194e768632f8",
+      "bytes": 4646
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs",
+      "old_test_suffix_sha256": "251e9276b7b279927fa57c2e2c10eba6ff9bdc2a1909680f52727308d1966976",
+      "bytes": 11505
+    },
+    {
+      "path": "rust/tcl-registry/src/registry.rs",
+      "old_test_suffix_sha256": "4f552bf223a6b7be9715997dff99c20ffeb15cb1cfd60f0488ed5042aa446824",
+      "bytes": 407296
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "old_test_suffix_sha256": "b3e1e1154507841612fe09c1b7c6592af2f88badce675786c5ab526338d397aa",
+      "bytes": 249793
+    }
+  ],
+  "validation": "rustfmt parsing + source/hash/fuzz0 only; no build/test/gate/provider execution",
+  "remaining_explicit_refusal": "InstanceMethodContextUnavailable::ReceiverOptionAxes for unequal mixed receiver/form option floors",
+  "contract_sha256": "62f3dd363511cfbe30b116509aed18c1b0ca711e61571bcd05122602d14a60d4",
+  "supersedes": "V1 7bf31f877e47fcb15d896dc51b6c39890da2473795b1c65721d672cad4b3acfe immutable; semantic review otherwise clear"
+}

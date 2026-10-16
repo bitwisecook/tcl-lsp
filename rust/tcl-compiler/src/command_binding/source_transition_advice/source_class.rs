@@ -995,6 +995,37 @@ mod tests {
     use crate::registry_invocation::source_structure::source_constructor_call_at;
 
     #[test]
+    fn c_source_class_query_preserves_independently_completed_world() {
+        use crate::registry_invocation::source_structure::source_class_declaration_at;
+        let source = "namespace eval outer {namespace eval inner {oo::class create Widget {method m {} {}}}}";
+        let offset = u32::try_from(source.find("oo::class").unwrap()).unwrap();
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            assert!(!analysis.allows_lexical_declaration_advice());
+            let completed = analysis
+                .original_completed_command_world()
+                .cloned()
+                .expect("independently retained closed Normal source root before the query");
+            let declaration = source_class_declaration_at(source, &analysis, offset)
+                .expect("genuine original namespace-body class declaration");
+            assert_eq!(
+                declaration
+                    .source_class(&analysis)
+                    .unwrap()
+                    .metadata()
+                    .qualified_name,
+                "::outer::inner::Widget"
+            );
+            assert!(declaration.factory.c_source_body.is_some());
+            assert!(declaration.factory.logical_source_input().is_none());
+            assert_eq!(
+                analysis.original_completed_command_world(),
+                Some(&completed)
+            );
+        }
+    }
+
+    #[test]
     fn c_source_namespace_class_declarations_retain_original_body_and_conditional_scope() {
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md

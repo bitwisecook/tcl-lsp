@@ -1,0 +1,11 @@
+SOURCE CLEAR — exact selected-owner compile repair
+
+Patch SHA256 ac496eabad64f20c9facefe61bcfa0740366f576133b744df537ef00a9431811
+Current complete afterimage SHA256 5a72e40730898be8d5e17dc6ee7131df84d43e07de6900cddae75e30360da3fc
+Exact inverse beforeimage SHA256 3985ccb6dd8d971f50365a0f0062f246d52043ff96d7c76847c80a9db24ced3f
+
+1. tcl-registry/lib.rs publicly declares module case_bodies; case_bodies.rs defines the actual public CaseBodyOperands struct. Qualifying that existing public path names the same intended concrete projection type, with bodies/patterns/selection_unknown/no_match_possible unchanged. It adds no re-export, wrapper, type conversion, visibility or capability.
+
+2. ResolvedInvocation::authored_source_descriptors is an existing public const accessor whose implementation constructs AuthoredSourceDescriptors { command: self.semantics.script_metadata.command, subcommand: self.semantics.script_metadata.subcommand }. Consequently left/right .authored_source_descriptors().command are EXACTLY the prior inaccessible references, not a registry relookup or newly selected descriptor. std::ptr::eq compares the identical addresses; argument_offset/grammar and every surrounding original body/input/source/context guard remain unchanged. The accessor's documented readonly purpose matches this source schema correspondence and grants no installed handler, execution or rewrite permission.
+
+Independently verified exact patch hash/current after SHA. Applied reverse patch --fuzz=0 to a separate TMP copy and matched complete original before SHA, then applied forward --fuzz=0 and matched current complete after bytes. Candidate contains only these type-path/accessor expressions; no tests/assertions, visibility, guards, checker waivers or policy changes. No Cargo/build/test/execution/main/Git operations. Source equivalence CLEAR; ordinary compilation/testing remains Root-owned and unclaimed.

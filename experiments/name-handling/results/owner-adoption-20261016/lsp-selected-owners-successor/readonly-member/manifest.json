@@ -1,0 +1,50 @@
+{
+  "scope": "TMP-only readonly Member source purpose; both actual body/applicability receipts retained; no main/Cargo/Git/build or new oracle.",
+  "patch_sha256": "c4fa8fa588f18c51cee1d4f7762727076cea336aa65808e57091750c71f42a6e",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "9a89ee3f6fbc3cb96714441ad0d67e49bffb305af53e0037c75170dd84246136",
+      "after_sha256": "237dea1cc82347abc064e42d6603d3c8349583950affa1feaa0fc899720ac642"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "bf4307d029e027f867007d6c9fd9b5b936dcdfbe137a03f4711f9e9f8401c4ff",
+      "after_sha256": "7906038cb1cb29e644af1f2cab9fe5f376ed26117eb69045308fcf8470e92da0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "443f951d128fef7fe5f560087bb014ef2b9f0c5598aecf805cfe437eb93de553",
+      "after_sha256": "0d915617d8f94dbd13bdaec8df97c297ed271daf4e49249aed78bc741285f29e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before_sha256": "1423c9f0515e514c1b53c356472df5eb9cc1ad8283ce87da423f21498831ed7c",
+      "after_sha256": "ef66ab9a05eaf212b322544ac6ef16020dc9a62f00bedd0128b1d59c7c8ce2a9"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "9adb24344166a3f9a9e9763d913989b47646c18681df471b335a8e4b0864a41d",
+      "after_sha256": "d10f6d87cfb5b33f4dad5fb738f57d48b7b1ebcc147c7692ef51ee7e272d5bd0"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "0f317e48ccca1a5987365df426676812ba6e21b55786e686926cac0b0d4bb720",
+      "after_sha256": "ce359b646fee3e9af1a875632f0e8efff06d93427f63edce3bccb1b1956f22c7"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "before_sha256": "ed198095f55f676ca957ebf555ef9c0c7ab6762f3fb0b6034630ba9673f32732",
+      "after_sha256": "4b5bccbecb61e57eee4ea0cdb9b4fa3792ccea3d43d7b787638d3570cab30089"
+    }
+  ],
+  "original_failures": [
+    222,
+    223,
+    224
+  ],
+  "diagnostic": "/tmp/sol-lsp-member-readonly-222-diagnostic/result.json",
+  "new_control": "analyser::class_hierarchy::original_metadata::source_method_reference::original_source_correspondence_tests::readonly_member_correspondence_retains_both_issuers_and_strong_query_result",
+  "original_test_module_sha256": "7cccc68e749e52d9db4866b5631afde198ccda17c86a05136fa37ee84cab6d1a",
+  "source_basis": "Exact current frozen Root main; per-file hashes authoritative. No efficacy/build/test claim."
+}

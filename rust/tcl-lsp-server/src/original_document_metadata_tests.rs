@@ -1699,3 +1699,60 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         );
     }
 }
+
+#[test]
+fn pack_notice_range_uses_retained_source_utf16_and_whole_file_unavailability() {
+    use core_code_actions::{SpecPackNoticeKind, SpecPackNoticeSubject};
+    let source = "# heading\r\narty 😀\r\n";
+    let subject = SpecPackNoticeSubject::from_loader(
+        source,
+        tcl_spectcl::loader::pack_source_lexer_config(
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        ),
+        2,
+        "arty",
+        SpecPackNoticeKind::Property,
+    )
+    .unwrap();
+    let mut notice = tcl_spectcl::PackNotice::whole_file(
+        Path::new("/unavailable/notice.tclspec"),
+        "unknown property",
+        tcl_spectcl::pack::Severity::Warning,
+    );
+    assert_eq!(whole_line_range(&notice), Default::default());
+    notice.line = 2;
+    notice.subject = Some(subject);
+    let range = whole_line_range(&notice);
+    assert_eq!(range.start, tower_lsp_server::ls_types::Position::new(1, 0));
+    assert_eq!(range.end, tower_lsp_server::ls_types::Position::new(1, 7));
+    notice.line = 3;
+    assert_eq!(whole_line_range(&notice), Default::default());
+    notice.line = 0;
+    assert_eq!(whole_line_range(&notice), Default::default());
+}
+
+#[test]
+fn pack_notice_range_projects_original_byte_anchor_across_lone_cr() {
+    use core_code_actions::{SpecPackNoticeKind, SpecPackNoticeSubject};
+    let source = "command demo {\n summary ok\r; arty 😀\n}\n";
+    let subject = SpecPackNoticeSubject::from_loader(
+        source,
+        tcl_spectcl::loader::pack_source_lexer_config(
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        ),
+        2,
+        "arty",
+        SpecPackNoticeKind::Property,
+    )
+    .unwrap();
+    let mut notice = tcl_spectcl::PackNotice::whole_file(
+        Path::new("/unavailable/notice.tclspec"),
+        "unknown property",
+        tcl_spectcl::pack::Severity::Warning,
+    );
+    notice.line = 2;
+    notice.subject = Some(subject);
+    let range = whole_line_range(&notice);
+    assert_eq!(range.start, tower_lsp_server::ls_types::Position::new(2, 0));
+    assert_eq!(range.end, tower_lsp_server::ls_types::Position::new(2, 9));
+}

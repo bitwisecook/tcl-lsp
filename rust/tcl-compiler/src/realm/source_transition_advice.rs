@@ -775,6 +775,54 @@ impl super::CommandBindingRealm {
         self.original_catalogue_advice(input, tokens, true)
     }
 
+    /// Reborrow one actual Member catalogue row for readonly source reporting.
+    /// This retains the original body issuer and all applicability debts. It
+    /// supplies no physical receiver lookup, command entry or edit inventory.
+    pub(crate) fn original_member_reference_source_catalogue_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        if !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, config)
+            || original.is_empty()
+            || original
+                .iter()
+                .any(|word| word.image() != image || word.config() != config)
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        let tape = prepared.as_ref().as_ref()?;
+        let offset = original.first()?.span().start();
+        if tape.blocks_registry_source(offset) {
+            return None;
+        }
+        let advice = tape.member_catalogue(offset)?;
+        let body = advice.original_definition_member_source_body()?;
+        let extent = tcl_lexer::Span::new(offset, original.last()?.span().end());
+        if !advice.matches_context(context)
+            || !advice.matches_source(image, config)
+            || advice.original_words() != original
+            || !body.matches_context(context)
+            || !body.matches_source(image, config)
+            || extent.start() < body.content_span().start()
+            || extent.end() > body.content_span().end()
+        {
+            return None;
+        }
+        Some(advice.clone())
+    }
+
     /// Readonly schema at a complete original command before a distinct parse tail.
     /// This grants no partial command, body entry, current cell or execution.
     pub(crate) fn original_source_prefix_catalogue_advice(

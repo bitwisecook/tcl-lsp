@@ -1,0 +1,59 @@
+{
+  "patch": "package-registration-transport-v1.patch",
+  "sha256": "251b8156b754e2c943cac3f90916c01c48cc0a8292ca8e6d34f02a2dcf606329",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+      "before_sha256": "56b7a49be0c8ef466eb8f0d5dff326e45beb5840c4a5bf7682aa7525075732eb",
+      "after_sha256": "bb9016c900609db15fa7e95532c2fb5bb29bc9cb90e0e1bb3c2457d71bb59598"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/registration.rs",
+      "before_sha256": "66cae95cfee09aa66b9b8ab2ec12f1240cac002093efce7d26e6f3e6fcfd9300",
+      "after_sha256": "4166076070a172025eda7c1ad57f5bb3258dfcd165cd08d3672b85e1a240d83f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+      "before_sha256": "951d2cc99bc5ec6d95474a046be1ef2678dfcd93fe3108f275bcc91a28a65c3e",
+      "after_sha256": "7a94c94f295053241984d74bdc4e005582df4e0d570cde3734fcbba71b9be96a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+      "before_sha256": "48677f96e5cc86eafcfa726d5000199de8f4bf1511b9b2c4005400833a19f805",
+      "after_sha256": "54dee8a958feafc11d06d17b60d535bf05c5a63380f43d70e13773d349be958b"
+    }
+  ],
+  "old_tests": "entire old tests.rs prefix byte-identical; no existing test or assertion modified",
+  "validation": "TMP rustfmt; live beforehashes; exact independent fuzz0 apply+afterhashes PASS; no Cargo/build/tests/main/Git/instrumentation",
+  "new_selectors": [
+    {
+      "target": "tcl-lsp-core --lib",
+      "selector": "package_resolver::tests::retained_registration_transport_keeps_full_script_words_store_and_config",
+      "expected_count": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl-lsp-core --lib",
+      "selector": "package_resolver::tests::retained_registration_transport_keeps_nested_survey_source_and_body_ordinals",
+      "expected_count": 1,
+      "budget_seconds": 180
+    }
+  ],
+  "retained_selectors": [
+    {
+      "target": "tcl-lsp-core --lib",
+      "selector": "package_resolver::tests::package_registration_names_and_versions_use_original_values_and_selected_roles",
+      "expected_count": 1,
+      "budget_seconds": 180
+    },
+    {
+      "target": "tcl-lsp-server --lib",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "expected_count": 1,
+      "budget_seconds": 180
+    }
+  ],
+  "count": "0 existing selected-registration transport hardening; no new authority/owner or timeout efficacy claim",
+  "contract_sha256": "0bc913f08fded309b0b50ab4a15866d1d7256adf840431c68772e4011ed89fd2",
+  "source_basis_sha256": "0d4d7cf49aaa02611cfa65af1e6c436d2c4d6ee4e3ea78774b514a69fbe9fc96"
+}

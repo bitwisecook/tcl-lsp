@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "purpose": "Visit Registry-projected original case-body candidate spans for comment syntax in either known or unknown applicability; preserve the CaseBodyOperands selection_unknown bit without asserting a selected or executed body. Existing stronger source body inventory and original test selector/fixture/assertions are unchanged.",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "7906038cb1cb29e644af1f2cab9fe5f376ed26117eb69045308fcf8470e92da0",
+      "after_sha256": "3985ccb6dd8d971f50365a0f0062f246d52043ff96d7c76847c80a9db24ced3f",
+      "before_bytes": 116505,
+      "after_bytes": 121526
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "f7106f0fb33cde0b7ef78255c8d725c0466d80fae114ef47b7d16a7809bbb40a",
+      "after_sha256": "8576b9ffc6425e8cccd9ee7d8c2281759f1ca157979f569298fb501c8e8b2e35",
+      "before_bytes": 228294,
+      "after_bytes": 228821
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "before_sha256": "fdda65ec96511c3671c10b3682ca29b06a24f023529167da22e4d2f145ebbae5",
+      "after_sha256": "c0d8f4c067b56dd1a79267b6941ba3d451e0c2353bf0c7eacf80cfa8bfcf90ce",
+      "before_bytes": 147636,
+      "after_bytes": 148189
+    }
+  ],
+  "patch_sha256": "e6c39377d5e591ec93777a8b5c020aba923ca5dd8f19af81676ec3307270636f",
+  "validation": {
+    "rustfmt_tmp_copies": "passed with skip_children=true",
+    "cargo_or_tests": "not run; no executable diagnostic since Root authorization ended",
+    "main_checkout_modified": false
+  },
+  "preserved_regression_selector": "analyser::utils::tests::script_comment_facts_reaches_nested_command_substitution_case_arms",
+  "review_correction": "V1 incorrectly gated candidate spans on selection_unknown=true. V2 consumes candidate spans regardless of the bit, retaining the bit in the separate carrier and reading it as data at the comment walker. This covers both Tcl 9 two-argument optionless shape (flag false) and ambiguous option selection (flag true).",
+  "nonclaims": [
+    "no chosen switch body",
+    "no execution, effects, Normal or Native grant",
+    "no changes to physical-line comment classification or braced-data traversal"
+  ]
+}

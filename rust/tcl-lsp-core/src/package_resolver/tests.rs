@@ -1246,3 +1246,94 @@ package ifneeded query 8.0
             )
     );
 }
+
+#[test]
+fn retained_registration_transport_keeps_full_script_words_store_and_config() {
+    let source = "package ifneeded p 1.0 {source p.tcl}\npackage ifneeded p 1.0 {source p.tcl}";
+    let config = tcl_lexer::LexerConfig::default();
+    let registry = crate::registry_for_dialect("tcl");
+    let commands = walk_command_words_with_config(source, config);
+    let mut foreign_registry = (*registry).clone();
+    foreign_registry.insert(tcl_registry::CommandSpec {
+        name: "registration_transport_marker",
+        arity: tcl_registry::Arity::exact(0),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    assert_ne!(
+        registry.snapshot().semantic_key(),
+        foreign_registry.snapshot().semantic_key()
+    );
+    let mut changed_config = config;
+    changed_config.strict_quoting ^= true;
+    let mut seen = 0;
+    reachability::scan_selected_registrations(source, registry, config, &mut |selected| {
+        let reached = selected.reached;
+        let registration = &selected.registration;
+        assert_eq!(
+            registration.advertisement(reached.text, reached.words, registry, config),
+            Some(("p", "1.0", 4))
+        );
+        assert!(
+            registration
+                .advertisement(&(source.to_owned() + " "), reached.words, registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, &commands[1 - seen], registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, reached.words, &foreign_registry, config)
+                .is_none()
+        );
+        assert!(
+            registration
+                .advertisement(reached.text, reached.words, registry, changed_config)
+                .is_none()
+        );
+        seen += 1;
+    });
+    assert_eq!(seen, 2);
+}
+
+#[test]
+fn retained_registration_transport_keeps_nested_survey_source_and_body_ordinals() {
+    let source = "if {1} {package ifneeded { nested } 2.0 {source nested.tcl}}";
+    let registry = crate::registry_for_dialect("tcl");
+    let config = tcl_lexer::LexerConfig::default();
+    let mut seen = 0;
+    reachability::scan_selected_registrations(source, registry, config, &mut |selected| {
+        let reached = selected.reached;
+        assert_ne!(reached.text, source);
+        let registration = &selected.registration;
+        let (name, version, body) = registration
+            .advertisement(reached.text, reached.words, registry, config)
+            .unwrap();
+        assert_eq!((name, version, body), (" nested ", "2.0", 4));
+        assert_eq!(
+            tcl_lexer::SourceMap::new(reached.text).token_text(reached.words[body][0]),
+            "source nested.tcl"
+        );
+        assert!(
+            registration
+                .advertisement(source, reached.words, registry, config)
+                .is_none()
+        );
+        seen += 1;
+    });
+    assert_eq!(seen, 1);
+    let directory = Path::new("/transport");
+    let entries = parse_pkg_index(
+        source,
+        directory,
+        &directory.join("pkgIndex.tcl"),
+        &always_exists,
+        &no_tcl_files,
+    );
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].name, " nested ");
+    assert_eq!(entries[0].version, "2.0");
+    assert_eq!(entries[0].source_files, vec![directory.join("nested.tcl")]);
+}

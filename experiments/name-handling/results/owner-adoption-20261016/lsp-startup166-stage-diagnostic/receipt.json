@@ -1,0 +1,72 @@
+{
+  "ordinary": false,
+  "instrumentation": true,
+  "purpose": "Locate exact existing startup166 stall; no semantic or acceptance grant",
+  "source_head": "3945c3730bc4c2ca6edbaf3a706eb33422a9d8dd",
+  "patch_sha256": "e686f2552dd9c8a744fb0fadc4bcd998c2c1631079053e39d3e7b153551529d9",
+  "started_utc": "2026-10-16T18:54:06.181189+00:00",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "0d568014b2470f758e29dd7e1f9807009ef12ae15c5bf67c24a2d9a818147f5c",
+      "diagnostic_after_sha256": "37eb4ff5310f683a95a6c6def9517bfac26a21da1e46c2a6bbd20d4d7a81d6f3"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "9cd0c8f4ca20d0e893feb3832efa6e816843ddda7ac8c3d5b37d6fc382f4f56c",
+      "diagnostic_after_sha256": "a0085ad9088b732f19cf41d5d5fbfcbac817a947e0ea6ef00dae4b72d9f78964"
+    }
+  ],
+  "status": "DIAGNOSTIC_CAPTURE_COMPLETE_NO_ORDINARY_ACCEPTANCE",
+  "build_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "tcl-lsp-server",
+    "--lib",
+    "--no-run"
+  ],
+  "instrumented_input_count": 39000,
+  "changed_inputs": [
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs"
+  ],
+  "build_exit_code": 0,
+  "build_seconds": 111.203,
+  "artifact": {
+    "path": "/workspace/naming-validation/lsp-startup166-stage-diagnostic/frozen-binaries/tcl_lsp_server-6a7a8a8389cf0bde",
+    "sha256": "01a1642e9a5bffdd20ab3835c495fc7068a53f32e05e12dc092b5dc04867096d",
+    "bytes": 332166808
+  },
+  "trace_environment": {
+    "TCL_LSP_TRACE_ORIGINAL_STARTUP_INDEX_STAGES": "1"
+  },
+  "budget_seconds": 180,
+  "test_argv": [
+    "/workspace/naming-validation/lsp-startup166-stage-diagnostic/frozen-binaries/tcl_lsp_server-6a7a8a8389cf0bde",
+    "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "execution_started_utc": "2026-10-16T18:56:02.002920+00:00",
+  "execution_exit_code": -9,
+  "timed_out": true,
+  "execution_seconds": 180.011,
+  "execution_completed_utc": "2026-10-16T18:59:02.014110+00:00",
+  "binary_sha256_after": "01a1642e9a5bffdd20ab3835c495fc7068a53f32e05e12dc092b5dc04867096d",
+  "running_counts": [
+    "1"
+  ],
+  "diagnostic_log_sha256": "1379567343ee12de650b4b954c555d4687b72460c121da2b18f43542e283f19d",
+  "stage_lines": [
+    "test original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles ... ORIGINAL_STARTUP_INDEX_STAGE test166.pack_backend.begin",
+    "ORIGINAL_STARTUP_INDEX_STAGE test166.pack_backend.end",
+    "ORIGINAL_STARTUP_INDEX_STAGE test166.scan.begin"
+  ],
+  "restored_entire_files_byte_exact": true,
+  "restored_full_input_matches_before": true,
+  "restored_utc": "2026-10-16T18:59:04.918710+00:00"
+}

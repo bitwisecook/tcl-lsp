@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T18:52:52.782737+00:00",
+    "utc": "2026-10-16T19:09:56.511219+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 258,
+    "implemented_pending_validation": 262,
     "verified_complete": 0,
-    "not_started": 1900,
+    "not_started": 1896,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,7 +665,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2211,
-    "effective_implemented_pending_validation": 310,
+    "effective_implemented_pending_validation": 314,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 247,
-    "partially_implemented_pending_validation": 11,
+    "fully_implemented_pending_validation": 252,
+    "partially_implemented_pending_validation": 10,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 129,
+      "lsp_integrated_pending_validation": 131,
       "lsp_by_kind_integrated": {
-        "semantic": 42,
-        "documentation": 2,
-        "validation": 85
+        "semantic": 44,
+        "validation": 85,
+        "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 196,
+      "lsp_without_integrated_implementation": 194,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -1574,7 +1574,7 @@
         "lsp-completion-catalogue-selected-provider-filter"
       ],
       "new_annex": 0,
-      "partial_completion": true,
+      "partial_completion": false,
       "build": "/workspace/naming-validation/lsp-folding-completion-links-successor",
       "warning_repair": "Six unused old Server wrappers accurately cfg(test), tests alltargets preserved; freshwarningcheckpending"
     },
@@ -1616,6 +1616,46 @@
       "input_drift": 0,
       "scope": "Includes currentpublisherstatepreference andtest-onlycompatibilityhelper fixes; compileonly, noNative/WASIexecutiondonation",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-wasi-portable-diagnostics-successor"
+    },
+    "registry_provider_v3": {
+      "baseline_owner": "db.unit.registry.instance.parent-package-floor",
+      "owner_status": "implemented_pending_validation",
+      "completion_caller": "lsp-completion-catalogue-selected-provider-filter",
+      "caller_status": "implemented_pending_validation",
+      "new_annex": 0,
+      "source_review": "CLEAR V3 actual supported Jim0.79 ingress, full context selected provider and perowner package floor",
+      "execution": "pending",
+      "structured_companion": "ReviewedContextV2 b25be5d4, actual three Compiler adopters and widget W001/E002; typed unavailability distinct complete Unknown; no lintallow",
+      "compiler_caller": "compiler.source.inherited-method-owning-package-context:221"
+    },
+    "startup166_stage_diagnostic": {
+      "ordinary": false,
+      "instrumentation": true,
+      "timeout_seconds": 180,
+      "last_stage": "package_discovery.resolver.begin",
+      "source_restored_byte_exact": true,
+      "full_input_count": 39000,
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-startup166-stage-diagnostic",
+      "scope": "No workspace/Salsa-publication stage reached. Existing assertions/budgets unchanged; pure owner parsing transport repair in preparation."
+    },
+    "selected_owner_repairs": {
+      "readonly_member": "c4fa8fa5; original222/223/224/242 retained; actualsourcecatalogue+dualbodycorrespondence",
+      "cclass_new_control": "ee13a89f supplemental; original221 falseNonepremise untouched",
+      "pack_range": "2835f373; retainedbyteanchor fixesloneCR, sharedUTF16, wholefileunavailability",
+      "package_registration": "251b8156; actualselectedsurveyreceipt eliminates redundantparsing, original5C owners unchanged; no180efficacyclaim",
+      "execution": "Fresh ordinary5library build started19:08UTC; scopedformatPASS; actual338selection preparation retainsall310",
+      "forward_path": "9a452734 existing shared forward owner/project alias and actual selected Path provider admission; existingbaseline counted once",
+      "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
+    },
+    "last_30_minute_report": {
+      "utc": "2026-10-16T19:06:00Z",
+      "lsp_integrated": 129,
+      "lsp_required": 325,
+      "effective_integrated": 311,
+      "effective_required": 2211,
+      "verified": 0,
+      "latest_ordinary": "310=262PASS47FAIL1TIMEOUT;253retained0newregressions;new57=49PASS8FAIL",
+      "next_report_utc": "2026-10-16T19:36:00Z"
     }
   }
 }

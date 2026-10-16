@@ -1758,12 +1758,20 @@ fn registry_method_items(
     let floor = crate::document_floor::DocumentFloor::new(analysis, profile);
     let context = floor.context()?;
     let spec = context.resolve_spec(registry, class_q)?;
-    let package_version = floor.for_spec(spec);
-    let methods =
-        registry.instance_methods_at(class_q, package_version, Some(context.authoring_query()));
+    let methods = CommandRegistry::instance_method_providers_for_descriptor_at(
+        registry,
+        spec,
+        Some(context.authoring_query()),
+        |owner| {
+            context
+                .resolve_spec(registry, owner.name)
+                .filter(|selected| std::ptr::eq(*selected, owner))
+                .map(|selected| floor.for_spec(selected))
+        },
+    );
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
-        .filter_map(|method| {
+        .filter_map(|(_owner, method)| {
             let insert_text = source_method_name_word(analysis, method.name)?;
             Some(CompletionItem {
                 label: method.name.to_owned(),
@@ -7725,5 +7733,145 @@ mod selected_catalogue_provider_tests {
         );
         assert_eq!(items[0].detail.as_deref(), Some("built-in"));
         assert!(items[1].documentation.is_none() && items[1].detail.is_none());
+    }
+}
+
+#[cfg(test)]
+mod inherited_registry_completion_provider_tests {
+    use super::*;
+    use tcl_registry::spec::ObjectClassSpec;
+    use tcl_registry::{CommandSpec, SubCommand};
+
+    #[test]
+    fn inherited_completion_uses_selected_provider_package_instead_of_receiver_package() {
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "inherited",
+            detail: "actual parent provider",
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
+            ..SubCommand::DEFAULT
+        }];
+        static FOREIGN: [SubCommand; 1] = [SubCommand {
+            name: "foreign",
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionChild",
+            instance_methods: &[],
+            superclasses: &["CompletionParent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionParent",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static FOREIGN_PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionParent",
+            instance_methods: &FOREIGN,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        for (class, package) in [(&CHILD, "ReceiverPackage"), (&PARENT, "ProviderPackage")] {
+            registry.insert(CommandSpec {
+                name: class.class_name,
+                required_package: Some(package),
+                object_class: Some(class),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        registry.insert(CommandSpec {
+            name: "CompletionParent",
+            required_package: Some("ForeignPackage"),
+            object_class: Some(&FOREIGN_PARENT),
+            surface: Some(SpecSurface::JIM),
+            ..CommandSpec::DEFAULT
+        });
+        let profile = crate::profile_for_dialect("tcl");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        for (receiver, provider, expected) in [("1.0", "2.0", true), ("9.0", "1.0", false)] {
+            let source = format!(
+                "package require ReceiverPackage {receiver}\npackage require ProviderPackage {provider}\n"
+            );
+            let analysis =
+                crate::source_structure::analyse_document(&source, profile, &registry, config);
+            assert!(analysis.allows_lexical_declaration_advice());
+            let items = registry_method_items(&analysis, &registry, "CompletionChild", profile)
+                .unwrap_or_default();
+            assert_eq!(items.iter().any(|item| item.label == "inherited"), expected);
+            assert!(items.iter().all(|item| item.label != "foreign"));
+            if expected {
+                assert_eq!(
+                    items[0].documentation.as_deref(),
+                    Some("actual parent provider")
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod inherited_registry_roster_completion_tests {
+    use super::*;
+    use tcl_registry::spec::ObjectClassSpec;
+    use tcl_registry::{CommandSpec, SubCommand};
+
+    #[test]
+    fn inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster() {
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "rosterLeak",
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "RosterChild",
+            instance_methods: &[],
+            superclasses: &["coroutine"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "coroutine",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "RosterChild",
+            object_class: Some(&CHILD),
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "coroutine",
+            object_class: Some(&PARENT),
+            surface: Some(SpecSurface::TCL86),
+            ..CommandSpec::DEFAULT
+        });
+        // Jim 0.79 has no Native name recipe. Its actual inherited Tcl roster
+        // independently excludes coroutine despite the inherited surface edge.
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let analysis = crate::source_structure::analyse_document(" ", profile, &registry, config);
+        assert!(analysis.allows_lexical_declaration_advice());
+        let floor = crate::document_floor::DocumentFloor::new(&analysis, profile);
+        let context = floor.context().unwrap();
+        let surface_owner = registry
+            .get_for_surface("coroutine", Some(context.authoring_query()))
+            .unwrap();
+        assert!(std::ptr::eq(surface_owner.object_class.unwrap(), &PARENT));
+        assert!(context.spec_available(surface_owner));
+        assert!(context.resolve_spec(&registry, "coroutine").is_none());
+        assert!(registry_method_items(&analysis, &registry, "RosterChild", profile).is_none());
     }
 }

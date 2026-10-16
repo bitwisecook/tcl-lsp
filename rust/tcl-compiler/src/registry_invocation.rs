@@ -107,6 +107,7 @@ pub use source_publication::{
     OriginalSourceHandleConstruction,
 };
 mod source_scoped_body;
+pub(crate) use source_scoped_body::OriginalSourceDefinitionMemberBodyCorrespondence;
 /// Sealed readonly original argv and Registry source-role structure.
 pub mod source_structure;
 pub use source_scoped_body::{

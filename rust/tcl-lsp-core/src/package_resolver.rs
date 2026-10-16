@@ -374,65 +374,72 @@ pub fn parse_pkg_index(
     // returns a `&'static`, so this costs nothing per file.
     let registry = crate::registry_for_dialect("tcl");
     let mut out = Vec::new();
-    reachability::scan(content, registry, &mut |reached| {
-        let reachability::Reached {
-            text,
-            words,
-            conditions,
-            ..
-        } = reached;
-        let Some(registration) =
-            registration::select(text, words, registry, tcl_lexer::LexerConfig::default())
-        else {
-            return;
-        };
-        let (Some(name), Some(version)) = (registration.name, registration.version) else {
-            return;
-        };
-        if !is_version_word(&version) {
-            return;
-        }
-        let Some(body) = words.get(registration.body) else {
-            return;
-        };
-        let mut source_files = Vec::new();
-        collect_source_targets(
-            text,
-            &[vec![body.clone()]],
-            pkg_dir,
-            exists,
-            &mut source_files,
-            0,
-        );
-        if source_files.is_empty() {
-            for f in list_tcl_files(pkg_dir) {
-                if f.file_name().is_some_and(|n| n != "pkgIndex.tcl") {
-                    source_files.push(f);
+    reachability::scan_selected_registrations(
+        content,
+        registry,
+        tcl_lexer::LexerConfig::default(),
+        &mut |selected| {
+            let registration = selected.registration;
+            let reachability::Reached {
+                text,
+                words,
+                conditions,
+                ..
+            } = selected.reached;
+            let Some((name, version, body)) = registration::Registration::advertisement(
+                &registration,
+                text,
+                words,
+                registry,
+                tcl_lexer::LexerConfig::default(),
+            ) else {
+                return;
+            };
+            if !is_version_word(version) {
+                return;
+            }
+            let Some(body) = words.get(body) else {
+                return;
+            };
+            let mut source_files = Vec::new();
+            collect_source_targets(
+                text,
+                &[vec![body.clone()]],
+                pkg_dir,
+                exists,
+                &mut source_files,
+                0,
+            );
+            if source_files.is_empty() {
+                for f in list_tcl_files(pkg_dir) {
+                    if f.file_name().is_some_and(|n| n != "pkgIndex.tcl") {
+                        source_files.push(f);
+                    }
                 }
             }
-        }
-        // A declaration with no implementation *file* is still a declaration.
-        // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
-        // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
-        // holds nothing but `pkgIndex.tcl` and the shared object) is the
-        // shape that must not be dropped: parsing the name and version and
-        // then throwing them away makes `provides("pix")` false for a
-        // package plainly declared in the workspace, and every W120 in any
-        // document requiring it is then suppressed as "unknowable".
-        //
-        // Recording it with an empty `source_files` is the honest state: the
-        // package **exists**, its command set is **not statically
-        // enumerable**.  Consumers already distinguish the two — `resolve`
-        // answers an empty file list, so nothing tries to read a shared object
-        // as Tcl, while `provides` answers `true`.
-        out.push(PackageInfo {
-            name,
-            version,
-            source_files,
-            pkg_index_path: pkg_index_path.to_owned(),
-            conditions,
-        });
-    });
+            // A declaration with no implementation *file* is still a declaration.
+            // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
+            // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
+            // holds nothing but `pkgIndex.tcl` and the shared object) is the
+            // shape that must not be dropped: parsing the name and version and
+            // then throwing them away makes `provides("pix")` false for a
+            // package plainly declared in the workspace, and every W120 in any
+            // document requiring it is then suppressed as "unknowable".
+            //
+            // Recording it with an empty `source_files` is the honest state: the
+            // package **exists**, its command set is **not statically
+            // enumerable**.  Consumers already distinguish the two — `resolve`
+            // answers an empty file list, so nothing tries to read a shared object
+            // as Tcl, while `provides` answers `true`.
+            out.push(PackageInfo {
+                name: name.to_owned(),
+                version: version.to_owned(),
+                source_files,
+                pkg_index_path: pkg_index_path.to_owned(),
+                conditions,
+            });
+        },
+    );
     out
 }
 
