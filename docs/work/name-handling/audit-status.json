@@ -1,10 +1,10 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
-  "utc": "2026-10-16T00:42:56.455205+00:00",
+  "utc": "2026-10-16T00:56:15.306452+00:00",
   "status": "RESUMED at user request; six audit lanes active. Source/build freeze retained. Complete actual source/operational/generated/guidance audit and canonical migration scale.",
   "paused": false,
   "remaining_consumer_total": null,
-  "provisional_records": 7779,
+  "provisional_records": 7814,
   "areas": [
     {
       "owner": "compiler",
@@ -15,16 +15,16 @@
         "production_source_read_embedded_tests_grouped": 36,
         "production_statements_and_owner_contracts_read_embedded_tests_grouped": 1,
         "full_source_read": 5,
-        "unexamined": 139,
-        "full_production_source_read_omitted_tests_unexamined": 410,
-        "bounded_actual_source_caller_trace_remainder_unexamined": 2,
-        "full_production_source_read_by_root_peer_exact_hash_receipt": 145,
+        "unexamined": 137,
+        "full_production_source_read_omitted_tests_unexamined": 412,
+        "bounded_actual_source_caller_trace_remainder_unexamined": 1,
+        "full_production_source_read_by_root_peer_exact_hash_receipt": 147,
         "targeted_source_trace_file_remainder_unexamined": 10,
         "bounded_actual_caller_trace_by_root_peer_remainder_unexamined": 11,
         "exact_test_membership_with_external_helpers_read_inline_operations_unexamined": 26,
         "bounded_actual_lexical_diagnostic_caller_trace": 2,
         "bounded_declared_surface_ingress_trace": 1,
-        "bounded_actual_consumer_trace_remainder_unexamined": 5,
+        "bounded_actual_consumer_trace_remainder_unexamined": 4,
         "bounded_actual_caller_trace_remainder_unexamined": 2,
         "bounded_original_omitted_production_read_remainder_unexamined": 1,
         "full_test_only_operational_helper_source_read": 1,
@@ -37,20 +37,20 @@
       },
       "reported_review_statuses": {
         "source_reviewed": 172,
-        "production_reviewed_inline_tests_pending": 510,
-        "unexamined": 139,
-        "partial_remainder_unexamined": 34,
+        "production_reviewed_inline_tests_pending": 514,
+        "unexamined": 137,
+        "partial_remainder_unexamined": 32,
         "test_operational_inline_pending": 26,
         "operational_source_reviewed": 1,
         "manifest_classified_fixture": 3430
       },
-      "provisional_recorded_rows": 1422,
+      "provisional_recorded_rows": 1455,
       "provisional_dispositions": {
-        "shared_owner": 948,
+        "shared_owner": 965,
         "display_only": 41,
         "migrated_validation_pending": 166,
-        "needs_migration": 152,
-        "pending_audit": 80,
+        "needs_migration": 165,
+        "pending_audit": 83,
         "out_of_scope": 25,
         "pending_validation": 10
       }
@@ -96,10 +96,10 @@
         "classified_by_explicit_manifest_rule": 14881,
         "historical_harness_reviewed": 178
       },
-      "provisional_recorded_rows": 904,
+      "provisional_recorded_rows": 905,
       "provisional_dispositions": {
         "display_only": 33,
-        "needs_migration": 152,
+        "needs_migration": 153,
         "migrated_validation_pending": 10,
         "shared_owner": 525,
         "pending_audit": 6,
@@ -182,10 +182,10 @@
       "reported_review_statuses": {
         "unspecified": 10074
       },
-      "provisional_recorded_rows": 991,
+      "provisional_recorded_rows": 992,
       "provisional_dispositions": {
         "pending_audit": 33,
-        "needs_migration": 347,
+        "needs_migration": 348,
         "migrated_validation_pending": 380,
         "shared_owner": 182,
         "out_of_scope": 28,
@@ -311,9 +311,9 @@
     }
   ],
   "primary_packet": {
-    "file": "repository-audit-progress-20261016T004253Z.tar.gz",
-    "sha256": "5aa0b6b6ffc6d0d91f5c20853c1a5f568753bda18de0f3918c4e406920eb5576",
-    "verified_members": 1360
+    "file": "repository-audit-progress-20261016T005612Z.tar.gz",
+    "sha256": "9160a57223b2aa3afa644f9e0ac78f1e0093dd254e9fafa75a1b855db4b91aed",
+    "verified_members": 1394
   },
   "nested_archive_base": {
     "archive_name": "repository-audit-deep-progress-20261015T220906Z.tar.gz",
@@ -562,9 +562,9 @@
   },
   "canonical_status": "audit-status.md",
   "nested_delta": {
-    "file": "repository-audit-deep-delta-20261016T004251Z.tar.gz",
-    "sha256": "c0c40724ecd412d06e6931e11d57c238d8018495620e802a1471ff0e749ff156",
-    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 868 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
+    "file": "repository-audit-deep-delta-20261016T005559Z.tar.gz",
+    "sha256": "cd7ef33d22f7e5b18ad8255ffa8a732a1b83b5529c2b6446e2afbd352362d8f6",
+    "status": "Exact nested audit delta against repository-audit-deep-progress-20261015T220906Z.tar.gz SHA8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa; 899 changed/new verified members,0 deletions; source retention only, no review/execution acceptance."
   },
   "root_canonical_proposal": {
     "counts": {
@@ -599,10 +599,10 @@
   },
   "db_canonical_proposal": {
     "counts": {
-      "required_change_units": 139,
+      "required_change_units": 140,
       "by_work_kind": {
         "owner_repair": 27,
-        "owner_extension": 34,
+        "owner_extension": 35,
         "adoption": 66,
         "metadata_schema": 5,
         "validation": 7
@@ -610,27 +610,29 @@
       "by_relative_effort": {
         "L": 53,
         "M": 71,
-        "S": 14,
+        "S": 15,
         "XL": 1
       },
       "by_priority": {
         "P2": 126,
-        "P3": 13
+        "P3": 14
       },
-      "semantic_code_units_excluding_validation": 132,
+      "semantic_code_units_excluding_validation": 133,
       "validation_code_units": 7,
       "implemented_or_existing_consumer_acceptance_obligations": 12,
       "unresolved_requirement_groups": 7,
-      "original_rows_mapped": 904,
+      "original_rows_mapped": 905,
       "source_rows_by_original_disposition": {
         "display_only": 33,
-        "needs_migration": 152,
+        "needs_migration": 153,
         "migrated_validation_pending": 10,
         "shared_owner": 525,
         "pending_audit": 6,
         "out_of_scope": 178
       },
-      "distinct_required_site_anchors": 291
+      "distinct_required_site_anchors": 292,
+      "historical_checkpoint_source_rows": 904,
+      "new_crossowner_annex_rows": 1
     },
     "status": "Assigned source/operational file census closed; canonical DB-area units source-reviewed. Unresolved provider/domain requirements and all execution acceptance remain explicit, not complete migrations.",
     "review": "Source-reviewed area proposal; independent cross-owner boundary QA and control selection unfinished. Not a repository migration total."
@@ -664,10 +666,10 @@
   "lsp_canonical_proposal": {
     "counts": {
       "original_purpose_rows": 640,
-      "resolved_code_migration_units": 202,
+      "resolved_code_migration_units": 203,
       "resolved_code_by_kind": {
-        "consumer_integration": 164,
-        "shared_owner_extension": 23,
+        "consumer_integration": 166,
+        "shared_owner_extension": 22,
         "descriptor_metadata_target_schema": 13,
         "documentation_cleanup": 2
       },
@@ -683,6 +685,6 @@
       "original_rows_mapped": 640,
       "repair_families": 337
     },
-    "review": "All1203paths/368inline source closure,202code-purpose units and26separate validation families. Exact source binding checked; independent actual purpose and crossowner repair-family QA unfinished."
+    "review": "All1203paths/368inline source closure; working203code-purpose units and26separate validation families. Tk Core/editor actual adapters separated and linked once to DB registry owner; old202 retained historically. Exact source binding checked; independent actual purpose and crossowner repair-family QA unfinished."
   }
 }

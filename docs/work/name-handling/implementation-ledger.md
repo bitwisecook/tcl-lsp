@@ -1,6 +1,6 @@
 # Remaining name-handling obligations
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 00:42 UTC checkpoint retains **7,779 provisional purpose records / 1,360 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 00:56 UTC checkpoint retains **7,814 provisional purpose records / 1,394 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 Current audit checkpoint — 2026-10-15 21:49 UTC: portable 21:47 retains 5,717
 provisional purposes / 484 verified members, not a remaining-consumer total.

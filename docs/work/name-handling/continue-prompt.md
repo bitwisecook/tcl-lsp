@@ -1,12 +1,12 @@
 # Continue centralised name handling with sub-agents
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 00:42 UTC checkpoint retains **7,779 provisional purpose records / 1,360 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 00:56 UTC checkpoint retains **7,814 provisional purpose records / 1,394 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 **RESUMED: finish the source audit and reconcile remaining migration scale; keep source/build freeze until integration is coordinated.**
 
-Final primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [handoff/packets.json](handoff/packets.json); nested retention does not grant source-review completion.
+Historical pause primary packet: `repository-audit-progress-20261015T220942Z.tar.gz` (SHA256 `675d126622193871b11f63f704d518bbe499f03eb28c58be27063f1861b12e04`), **573 hash-verified members**. Nested audit receipts/source snapshots: `repository-audit-deep-progress-20261015T220906Z.tar.gz` (SHA256 `8813dc50abbc84c6c55a0ca2563df708c80ce8d8f8fcb7c60ad2bb092122d4fa`), **14,465 hash-verified members**. Both are indexed in [handoff/packets.json](handoff/packets.json); nested retention does not grant source-review completion.
 
-Latest portable audit: `repository-audit-progress-20261015T214711Z.tar.gz`
+Historical portable audit: `repository-audit-progress-20261015T214711Z.tar.gz`
 (SHA256 `f57514d8421e90c3af72d3f2240257d934954eb74a957cae948a97458a024153`),
 5,717 provisional purpose rows / 484 verified members. NOT a remaining count.
 All54 Compiler source peers admitted (51production/3whole test children); omitted
@@ -16,7 +16,7 @@ and M12 acceptance unchanged. Continue accurate whole-source/canonical audit,
 then all remaining consumer migrations; no PR while gates red/unrun.
 
 
-Latest portable audit: `repository-audit-progress-20261015T213051Z.tar.gz`,
+Historical portable audit: `repository-audit-progress-20261015T213051Z.tar.gz`,
 SHA256 `d2bf6b0d255c27121320df4a92c98f2f250dbf2d45b8e9d49fe8cd3f5e8ae50d`,
 5,313 provisional purpose rows / 431 verified members; NOT remaining-consumer total.
 All thirteen prior Compiler peers admitted; environment production and four whole
@@ -36,7 +36,7 @@ The user requests an accurate audit of every remaining migration site. All six a
 
 M12 frozen c9e complete1546 latest1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after seven exact separate EPERM repairs; all1491 predecessors retained,4gains0regressions0drops;55new53PASS2FAIL. Original2286FIRSTPASS71.841791191s/180. All23ELFs built/source unchanged; complete portable raw capture in handoff. Native plans and required gates remain unfinished. Development pushes remain authorised while red.
 
-Latest portable audit checkpoint21:16 has4995 provisional purpose rows/399 verified
+Historical portable audit checkpoint21:16 has4995 provisional purpose rows/399 verified
 members, NOT remaining consumers. Root344 source scope read;323provisional purposes,
 bounded independent8group peer with14still unreviewed.13Compiler production peer
 files read, first5admitted/latest8pending primary admission at capture time. All
