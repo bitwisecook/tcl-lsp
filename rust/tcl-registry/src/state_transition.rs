@@ -2391,27 +2391,31 @@ fn source_arguments(arguments: InvocationArguments<'_>) -> InvocationArguments<'
 }
 
 fn logical_alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
-    alias_pairs(
+    alias_pairs_with_source_target(
         source_arguments(arguments),
         crate::frame_effect::FrameLevelWord::None,
+        true,
     )
 }
 fn logical_alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
-    alias_pairs(
+    alias_pairs_with_source_target(
         source_arguments(arguments),
         crate::frame_effect::FrameLevelWord::ArityParity,
+        true,
     )
 }
 fn logical_alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
-    alias_pairs(
+    alias_pairs_with_source_target(
         source_arguments(arguments),
         crate::frame_effect::FrameLevelWord::LeadingProbe,
+        true,
     )
 }
 fn logical_alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
-    alias_pairs(
+    alias_pairs_with_source_target(
         source_arguments(arguments),
         crate::frame_effect::FrameLevelWord::Upvar,
+        true,
     )
 }
 
@@ -2434,6 +2438,17 @@ fn alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions 
 fn alias_pairs(
     arguments: InvocationArguments<'_>,
     level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitions {
+    alias_pairs_with_source_target(arguments, level_word, false)
+}
+
+// Only the positively selected Logical source resolver can retain an unknown
+// target as conditional source geometry. Its original widening remains intact;
+// an unknown local or frame never supplies a declaration or selected link.
+fn alias_pairs_with_source_target(
+    arguments: InvocationArguments<'_>,
+    level_word: crate::frame_effect::FrameLevelWord,
+    retain_source_target: bool,
 ) -> StateTransitions {
     use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
     let mut transitions = StateTransitions::default();
@@ -2475,7 +2490,11 @@ fn alias_pairs(
             .find(|subject| subject.literal().is_none() && subject.native_bytes().is_none())
         {
             transitions.widen(dynamic.clone(), VARIABLE_ALIAS_DOMAINS);
-            continue;
+            if !retain_source_target
+                || (local.literal().is_none() && local.native_bytes().is_none())
+            {
+                continue;
+            }
         }
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
@@ -3022,6 +3041,60 @@ mod tests {
         );
     }
     use crate::{InvocationWord, InvocationWords};
+
+    #[test]
+    fn logical_alias_dynamic_target_keeps_source_relation_and_original_widening() {
+        use crate::frame_effect::FrameLevelWord;
+        let words = [InvocationWord::Dynamic, InvocationWord::Literal("local")];
+        let args = InvocationArguments::structured(&words);
+        let ordinary = alias_pairs_resolver(FrameLevelWord::Upvar)(args);
+        assert!(
+            ordinary
+                .facts()
+                .iter()
+                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+        );
+        let source = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(args);
+        assert!(
+            ordinary
+                .facts()
+                .iter()
+                .all(|fact| source.facts().contains(fact))
+        );
+        assert!(source.facts().iter().any(|fact| matches!(&fact.transition,
+            StateTransition::VariableCellAlias(alias)
+                if alias.local.literal() == Some("local")
+                && matches!(&alias.target, VariableAliasTarget::CallerSelectedFrame {
+                    variable: TransitionSubject::Unknown { argument_index: 0, .. }, .. }))));
+        for words in [
+            [InvocationWord::Literal("target"), InvocationWord::Dynamic],
+            [InvocationWord::Dynamic, InvocationWord::Dynamic],
+        ] {
+            let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
+                InvocationArguments::structured(&words),
+            );
+            assert!(
+                facts
+                    .facts()
+                    .iter()
+                    .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+            );
+        }
+        let words = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("local"),
+        ];
+        let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
+            InvocationArguments::structured(&words),
+        );
+        assert!(
+            facts
+                .facts()
+                .iter()
+                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
+        );
+    }
 
     #[test]
     fn logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata() {

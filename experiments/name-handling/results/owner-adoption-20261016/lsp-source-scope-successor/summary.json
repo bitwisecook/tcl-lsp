@@ -1,0 +1,21 @@
+{
+  "scope": "43 exact Compiler/source-alias/three dependent LSP controls; ordinary current source-scope candidate. Not wholecrate/owner/proof/repository acceptance.",
+  "source_head": "4c717119b3fcb4f245997d5602f3271b677e7a0b",
+  "source_diff_sha256": "002977db27bd622413a4d74b9c1776589d11179d9216a2992314596ff9fd36a9",
+  "PASS": 33,
+  "FAIL": 10,
+  "TIMEOUT": 0,
+  "singleton_rejections": 0,
+  "previous_Compiler37_overlap": 37,
+  "gains": [
+    "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening"
+  ],
+  "prior_PASS_regressions": [],
+  "additional_actual_scope_positive": "PASS; genuine C allocated/Jim typed Body-or-Declared source scope, not full parameter-template acceptance",
+  "new_dynamic_source_relation": "FAIL; actual conditional no-level layout producer remains absent before resolver pair loop",
+  "build_seconds": 536,
+  "compiler_warnings": 0,
+  "input_count": 38995,
+  "input_drift_at_build_freeze": 0,
+  "utc": "2026-10-16T16:19:19.432236+00:00"
+}

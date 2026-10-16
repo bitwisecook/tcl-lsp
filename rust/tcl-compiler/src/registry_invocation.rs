@@ -6214,25 +6214,14 @@ struct LogicalTraitInvocation {
 }
 
 struct BodyParameterSourceInvocation {
-    entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
-    layout: crate::command_binding::OriginalCompilationLookupAdvice,
+    entry: crate::command_binding::OriginalBodyParameterSourceScope,
     words: Vec<tcl_lexer::NativeWord>,
     shape: RegistryInvocationShape,
     invocation: ResolvedStatementInvocation,
 }
 impl BodyParameterSourceInvocation {
     fn matches_parameters(&self, parameters: &[&str]) -> bool {
-        self.layout.closed_body_parameter_source_lookup(&self.entry)
-            && self
-                .entry
-                .original_formal_topology()
-                .is_some_and(|formals| {
-                    formals
-                        .parameters()
-                        .iter()
-                        .map(|formal| formal.name.as_slice())
-                        .eq(parameters.iter().map(|name| name.as_bytes()))
-                })
+        self.entry.matches_parameters(parameters)
     }
 }
 
@@ -6995,8 +6984,9 @@ fn original_body_parameter_source_invocation(
     context.matches_registry(registry).then_some(())?;
     let binding = tokens.source_binding.as_ref()?;
     let site = binding.invocation_site()?;
-    let entry = bindings.conditional_body_entry_at(&site.source, site.offset)?;
-    let layout = binding.declaration_operand_layout_advice(tokens)?;
+    (bindings.source_origin() == Some(&site.source)).then_some(())?;
+    let entry = binding.original_body_parameter_source_scope(tokens)?;
+    let layout = entry.layout();
     let metadata = layout
         .original_declaration_metadata_context(registry, tokens)
         .ok()??;
@@ -7007,7 +6997,7 @@ fn original_body_parameter_source_invocation(
     {
         return None;
     }
-    let words = layout.original_body_parameter_source_words(tokens, &entry, config, registry)?;
+    let words = entry.original_words(tokens, config, registry)?;
     if words.iter().any(|word| word.group().expand) {
         return None;
     }
@@ -7023,12 +7013,10 @@ fn original_body_parameter_source_invocation(
     {
         return None;
     }
-    entry.original_formal_topology()?;
     let shape =
         RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
     Some(BodyParameterSourceInvocation {
         entry,
-        layout,
         words,
         shape,
         invocation,
@@ -11817,23 +11805,21 @@ mod original_body_parameter_source_tests {
             .is_some()
         );
         let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
-        let second = bindings
-            .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
-            .unwrap();
-        let layout = tokens
+        let mut second_tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &segments[0].clone().shifted_by(second_offset),
+        );
+        bindings.stamp_original_tokens(&mut second_tokens);
+        let second = second_tokens
             .source_binding
             .as_ref()
             .unwrap()
-            .declaration_operand_layout_advice(&tokens)
-            .unwrap();
+            .original_body_parameter_source_scope(&second_tokens)
+            .expect("actual original second Jim source body scope");
         assert!(
-            layout
-                .original_body_parameter_source_words(
-                    &tokens,
-                    &second,
-                    input.lexer_config(),
-                    registry
-                )
+            second
+                .original_words(&tokens, input.lexer_config(), registry)
                 .is_none()
         );
         let mut changed = tokens.clone();

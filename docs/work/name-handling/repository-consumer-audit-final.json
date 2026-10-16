@@ -22112,7 +22112,12 @@
       "required_change": [
         "Use authentic original head/source cursor receipt for legacy fallback gating, preserving invalid UTF16/nonboundary refusal. Shared conversion currently clamps column through LineIndex; do not infer valid original syntax/command role merely from offset within report range. Actual provider downstream guards may independently refuse, so no demonstrated wrong navigation claimed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "a49f3488a",
+        "validation": "RootsourceCLEAR; originalhead+crossdocumentpositive/newstrictUTF16controls pass in frozena49f3 ordinary artifact; fullowner/proof/repositoryacceptance pending."
+      }
     },
     {
       "area": "lsp",
@@ -132639,20 +132644,25 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T15:36:00Z",
-      "next_utc": "2026-10-16T16:06:00Z",
-      "LSP_integrated": 88,
+      "last_utc": "2026-10-16T16:06:26Z",
+      "next_utc": "2026-10-16T16:36:00Z",
+      "LSP_integrated": 89,
       "LSP_required": 325,
+      "LSP_semantic_integrated": 17,
+      "LSP_validation_integrated": 70,
+      "LSP_documentation_integrated": 2,
+      "LSP_without_integrated": 236,
       "verified_complete": 0,
-      "prior_selected": 100,
-      "prior_PASS": 89,
-      "prior_FAIL": 11,
-      "separate_retry3_compiler_issuer_subset": {
-        "selected": 3,
-        "PASS": 1,
-        "FAIL": 2,
-        "scope": "Compiler-only completed artifact from otherwisefailed5libbuild; excludeslateraliaschanges"
-      }
+      "compiler37": {
+        "PASS": 30,
+        "FAIL": 7
+      },
+      "noncompiler75": {
+        "PASS": 71,
+        "FAIL": 4
+      },
+      "additional45": "RUNNING;41captured/12fail; no partial acceptance",
+      "scope": "Bounded distinct source artifacts; no wholecurrentbuild/owner/proof/repository acceptance"
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -132797,6 +132807,68 @@
       "contract": "87bb55a24613c24942ffd831b953dfce84eed2e03ee05dac535ee2982fff5d09",
       "new_requirement_delta": 0,
       "validation": "Root source CLEAR + TMPfmt PASS; same genuine readonly producer, strict wholehead/vector/config/source/UTF16 guards; original tests preserved. No timing/performance acceptance; ordinary controls pending."
+    },
+    "lsp_libs_a49f3": {
+      "status": "PASS_FOUR_UNIT_LIBRARY_BUILDS_ZERO_WARNINGS",
+      "source_head": "a49f3488a51fcb1281686bef10dd7d01f6042766",
+      "input_count": 38995,
+      "input_drift_count": 0,
+      "build_seconds": 202,
+      "retained_selection": {
+        "selected": 65,
+        "PASS": 62,
+        "FAIL": 3,
+        "TIMEOUT": 0,
+        "gains": 0,
+        "prior_PASS_regressions": 0
+      },
+      "new10": {
+        "selected": 10,
+        "PASS": 9,
+        "FAIL": 1,
+        "scope": "Logicalrename firstscalar fails; Tk3, commands-only capture, commandhead3, originalcrossdocpositive and installationpath pass"
+      },
+      "additional45": {
+        "selected": 45,
+        "PASS": 31,
+        "FAIL": 13,
+        "TIMEOUT": 1,
+        "singleton_count_rejections": 0
+      },
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-libs-a49f3/summary.json",
+      "union120": {
+        "selected": 120,
+        "PASS": 102,
+        "FAIL": 17,
+        "TIMEOUT": 1,
+        "scope": "Distinct exact nonCompiler selectors in same four frozen library artifacts; not wholecrate/e2e/audit acceptance"
+      }
+    },
+    "lsp_source_scope_successor": {
+      "status": "PASS_ORDINARY_FIVE_LIBRARY_BUILD",
+      "head": "4c717119b3fcb4f245997d5602f3271b677e7a0b",
+      "rust_diff_sha256": "002977db27bd622413a4d74b9c1776589d11179d9216a2992314596ff9fd36a9",
+      "patches": [
+        "466a069d639a75a0e729647e0e3869963d8e1630ed790cd96e361caa2a081385",
+        "516d8846f3e5126774831aa930da5eaa459d010930bf630f130d44e7841d2763",
+        "8f187b2858b519d299d5ef96e7b197e41f05d11bdcf5e35bf20808c619fd93b7"
+      ],
+      "new_count": 0,
+      "scope": "Genuine Body/Declared parameter source scope and Logical unknown-target relation WITH retained widening; ordinary/Native purposes unchanged; independentlyCLEAR, executionpending.",
+      "input_drift_count": 0,
+      "compiler_warnings": 0,
+      "build_seconds": 536,
+      "selection": {
+        "selected": 43,
+        "PASS": 33,
+        "FAIL": 10,
+        "TIMEOUT": 0,
+        "prior_Compiler37_PASS_regressions": 0,
+        "gains": [
+          "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening"
+        ]
+      },
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-scope-successor/summary.json"
     }
   }
 }

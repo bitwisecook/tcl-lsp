@@ -1,0 +1,6 @@
+
+running 1 test
+test source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1836 filtered out; finished in 0.08s
+

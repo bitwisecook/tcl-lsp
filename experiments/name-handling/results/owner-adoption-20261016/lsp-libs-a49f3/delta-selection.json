@@ -1,0 +1,549 @@
+{
+  "group": "Additional exact current LSP controls from source delta; excludes alreadyrun retained65/new10",
+  "total_exact_selectors": 45,
+  "groups": {
+    "tcl_lsp_core": [
+      "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "references::tests::document_highlights_var_records_write_at_definition",
+      "code_lens::tests::lens_per_class",
+      "code_lens::tests::lens_counts_class_constructor_calls",
+      "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "code_lens::tests::lens_reports_zero_for_unused_property",
+      "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "code_lens::tests::lens_counts_namespaced_class_method",
+      "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "hover::tests::hover_on_proc_qualified_name",
+      "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "hover::tests::hover_on_dollar_var_returns_var_text",
+      "hover::tests::irules_command_hover_lists_valid_events",
+      "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "definition::tests::alias_lookup_accepts_qualified_form"
+    ],
+    "tcl_lsp_db": [
+      "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail"
+    ],
+    "tcl_lsp_server": [
+      "tests::resource_analyser_inputs_apply_every_field",
+      "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "tests::position_encoding_negotiation",
+      "tests::lsp_position_helpers_use_utf16_columns"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_lsp_core": 37,
+    "tcl_lsp_db": 1,
+    "tcl_lsp_server": 7
+  },
+  "execution_order": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_read_kind_is_correctly_tagged"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_records_write_at_definition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_per_class"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_class_constructor_calls"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_method_calls_within_class_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_unused_property"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_namespaced_class_method"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_qname_exists_finds_a_plain_class"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_proc_qualified_name"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_class_name_returns_metaclass_signature"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_dollar_var_returns_var_text"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::irules_command_hover_lists_valid_events"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::class_hover_text_lists_methods_alphabetically"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::resource_analyser_inputs_apply_every_field"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::position_encoding_negotiation"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::lsp_position_helpers_use_utf16_columns"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {},
+    "unset": []
+  },
+  "source_evidence": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3712,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3727,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2590,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1781,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1992,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2025,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2061,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2076,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "source_path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "source_line": 14083,
+      "source_sha256": "080a05c33096df7b510c44246316ce80cbf5fabcfe9709d5a77f68e6e9fc41c1",
+      "purpose": "Logical source local declaration/link reporting without executed alias"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "source_path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+      "source_line": 974,
+      "source_sha256": "0766d1ca0679dc14a58f39f8ab3cc80963b5fe4f2260f1dc4b20b9eae0adc501",
+      "purpose": "Genuine scalar source scope/config and stronger Native refusal dependency"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7401,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7112,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7262,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7668,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7685,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7760,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2213,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2240,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2515,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Actual expanded argv children, optional/rest formal binding topology"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2798,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2837,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10194,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10219,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10248,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10283,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "ProcDef VarRead/Write roles projected through actual original formal/expanded argv owner"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 990,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1115,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1281,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1156,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1945,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1960,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1992,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 59,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 206,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 255,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 420,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 471,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    }
+  ],
+  "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged."
+}

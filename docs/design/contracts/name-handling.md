@@ -970,14 +970,20 @@ candidates, definite facts and caller-template execution advice remain refused.
 The retained body/cache relationship cannot make cache warmth part of identity
 or create a cycle back to its owning body.
 
-Original procedure-body parameter source observations use the actual retained
-`SourceConditionalBodyEntry` and `OriginalCompilationLookupAdvice`, separately
-from Logical body inventories. The private `BodyParameterSourceInvocation`
+Original procedure-body parameter source observations reborrow the actual
+unanimous original row through `OriginalBodyParameterSourceScope`. Its retained
+owner is either the genuine allocated `SourceConditionalBodyEntry` or the
+existing uninstalled procedure declaration; the latter never becomes an
+allocated Body. `OriginalCompilationLookupAdvice` retains that row's original
+lookup world, separately from Logical body inventories. Root scripts, generic
+script activations and receiver rows cannot supply this procedure purpose. The private `BodyParameterSourceInvocation`
 reborrows the original declaration row, whole source/vector, complete selected
 configuration and metadata input, actual body frame/namespace and counted
 formal topology. Queries require the exact ordered formal names. Original
 source lookup must retain a nonempty Builtin roster without opaque alternatives
-or original step/command/target observers. Only independently Written operands
+or original step/command/target observers in every original row. The allocated
+Body branch retains its original exact conditional-body guards; missing allocated
+inventory cannot manufacture ownership from another source or reporting label. Only independently Written operands
 are admitted; expansion and captured prefixes remain unavailable.
 
 This closes the immutable original source layout only. The dedicated

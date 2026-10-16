@@ -1,0 +1,6 @@
+
+running 1 test
+test uri_norm::tests::windows_unc_uri_shapes_gain_an_authority ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 0.00s
+

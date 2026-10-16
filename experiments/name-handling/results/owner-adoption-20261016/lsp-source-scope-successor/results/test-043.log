@@ -1,0 +1,17 @@
+
+running 1 test
+test project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals ... 
+thread 'project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals' (172529) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:446:13:
+assertion `left == right` failed: jim: reader retained
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 194 filtered out; finished in 14.39s
+

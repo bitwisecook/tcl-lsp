@@ -1,0 +1,22 @@
+
+running 1 test
+test state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening ... 
+thread 'state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening' (172504) panicked at rust/tcl-registry/src/state_transition.rs:3064:9:
+assertion failed: source.facts().iter().any(|fact|
+        matches!(&fact.transition, StateTransition::VariableCellAlias(alias)
+            if alias.local.literal() == Some("local") &&
+            matches!(&alias.target, VariableAliasTarget::CallerSelectedFrame
+            {
+                variable: TransitionSubject::Unknown
+                { argument_index: 0, .. }, ..
+            })))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1837 filtered out; finished in 0.00s
+

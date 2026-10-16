@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10255 filtered out; finished in 2.47s
+

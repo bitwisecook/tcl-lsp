@@ -1,0 +1,22 @@
+{
+  "tcl_lsp_core": {
+    "path": "/workspace/naming-validation/lsp-libs-a49f3/frozen-binaries/tcl_lsp_core-bdc0b1469d9bdfe9",
+    "sha256": "429cc1419388a674a65fe7657ec0eb922f247d47587719aee6b908b504ee5540",
+    "bytes": 195922424
+  },
+  "tcl_lsp_db": {
+    "path": "/workspace/naming-validation/lsp-libs-a49f3/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+    "sha256": "0d1a4af7d73747bba11531285ea91b7a660690992459a2a94f379772e7ee1c36",
+    "bytes": 213256936
+  },
+  "tcl_lsp_server": {
+    "path": "/workspace/naming-validation/lsp-libs-a49f3/frozen-binaries/tcl_lsp_server-b4a2fc61070099f8",
+    "sha256": "e5cddf8ef6526cbde3dff09442474eb0921089d9a058590e763f2254cbe7191a",
+    "bytes": 329476408
+  },
+  "tcl_registry": {
+    "path": "/workspace/naming-validation/lsp-libs-a49f3/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+    "sha256": "f7df6c2c6722f429febd0c477f027054efb338239151086921a2d2c313315db6",
+    "bytes": 61768864
+  }
+}

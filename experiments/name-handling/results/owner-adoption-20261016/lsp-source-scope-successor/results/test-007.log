@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10255 filtered out; finished in 3.50s
+

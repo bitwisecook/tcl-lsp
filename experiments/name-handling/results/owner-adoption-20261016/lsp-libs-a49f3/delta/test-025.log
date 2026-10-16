@@ -1,0 +1,6 @@
+
+running 1 test
+test code_lens::tests::lens_counts_inherited_method_on_subclass_instance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3195 filtered out; finished in 1.01s
+

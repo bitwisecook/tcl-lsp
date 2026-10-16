@@ -1,0 +1,564 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index 990338756..1ef389599 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -125,6 +125,7 @@ pub use source_declared_command::{
+ mod declaration_body_ownership;
+ mod declaration_layout;
+ mod logical_variable_scope;
++pub(crate) use declaration_layout::OriginalBodyParameterSourceScope;
+ pub use declaration_layout::SourceOriginalVariableFrame;
+ pub(crate) use logical_variable_scope::OriginalLogicalVariableScope;
+ mod declaration_preview;
+@@ -1830,13 +1831,26 @@ impl OriginalCompilationLookupAdvice {
+     pub(crate) fn closed_body_parameter_source_lookup(
+         &self,
+         entry: &SourceConditionalBodyEntry,
++    ) -> bool {
++        self.closed_body_parameter_source_parts(
++            entry.owns_source(&self.site.source, self.site.offset),
++            entry.frame(),
++            entry.namespace_context(),
++        )
++    }
++
++    fn closed_body_parameter_source_parts(
++        &self,
++        owns_source: bool,
++        frame: &crate::var_resolve::VariableExecutionFrame,
++        namespace: Option<&SourceNamespaceKey>,
+     ) -> bool {
+         let state = &self.snapshot.state;
+         self.closed_lookup()
+             && state.logical_source_name_advice_input().is_none()
+-            && entry.owns_source(&self.site.source, self.site.offset)
+-            && self.frame() == entry.frame()
+-            && Some(self.namespace()) == entry.namespace_context()
++            && owns_source
++            && self.frame() == frame
++            && Some(self.namespace()) == namespace
+             && !self.targets.is_empty()
+             && !self.has_opaque_handler_alternatives()
+             && !state.source_step_observed()
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index c990badc8..a18d3027b 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -38,6 +38,76 @@ pub(super) enum OriginalDiagnosticFrameEntry {
+     },
+ }
+ 
++/// Original procedure source scope for parameter reports. The actual row
++/// retains either its allocated body or its uninstalled declaration; neither
++/// variant supplies entered-frame or Native invocation authority.
++pub(crate) struct OriginalBodyParameterSourceScope {
++    entry: Arc<OriginalDiagnosticFrameEntry>,
++    layout: OriginalCompilationLookupAdvice,
++}
++impl OriginalBodyParameterSourceScope {
++    pub(crate) fn layout(&self) -> &OriginalCompilationLookupAdvice {
++        &self.layout
++    }
++    pub(crate) fn matches_parameters(&self, parameters: &[&str]) -> bool {
++        self.layout
++            .closed_body_parameter_source_entry_lookup(&self.entry)
++            && self
++                .entry
++                .original_formal_topology()
++                .is_some_and(|formals| {
++                    formals
++                        .parameters()
++                        .iter()
++                        .map(|formal| formal.name.as_slice())
++                        .eq(parameters.iter().map(|name| name.as_bytes()))
++                })
++    }
++    pub(crate) fn original_words(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        config: tcl_lexer::LexerConfig,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<Vec<tcl_lexer::NativeWord>> {
++        if let OriginalDiagnosticFrameEntry::Body(body) = self.entry.as_ref() {
++            return self
++                .layout
++                .original_body_parameter_source_words(tokens, body, config, registry);
++        }
++        (self.layout.config == config).then_some(())?;
++        self.layout
++            .closed_body_parameter_source_entry_lookup(&self.entry)
++            .then_some(())?;
++        self.layout
++            .original_declaration_metadata_context(registry, tokens)
++            .ok()?;
++        let original = self.layout.site.source.original_lexical_command(
++            tokens.words(),
++            self.layout.site.offset,
++            config,
++        )?;
++        Some(original.native_words().to_vec())
++    }
++}
++
++impl OriginalCompilationLookupAdvice {
++    fn closed_body_parameter_source_entry_lookup(
++        &self,
++        entry: &OriginalDiagnosticFrameEntry,
++    ) -> bool {
++        let namespace = match entry {
++            OriginalDiagnosticFrameEntry::Body(body) => body.namespace_context(),
++            OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => Some(&body.namespace),
++            _ => return false,
++        };
++        self.closed_body_parameter_source_parts(
++            entry.owns_source(&self.site.source, self.site.offset),
++            entry.frame(),
++            namespace,
++        )
++    }
++}
++
+ /// A retained Logical member/body issuer with original source geometry only.
+ /// Its frame identity describes the written receiver body, without a Native
+ /// method allocation, formal ABI, receiver namespace or entered activation.
+@@ -3447,6 +3517,33 @@ impl super::SourceInvocationBinding {
+         })
+     }
+ 
++    /// Reborrow the actual unanimous original body/declaration row for source
++    /// parameter reports. Missing allocated-body inventory cannot mint a Body
++    /// from an uninstalled declaration or replace a present reached owner.
++    pub(crate) fn original_body_parameter_source_scope(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Option<OriginalBodyParameterSourceScope> {
++        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
++        let first = rows.clone().next()?;
++        if !matches!(
++            first.entry.as_ref(),
++            OriginalDiagnosticFrameEntry::Body(_)
++                | OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
++        ) || first.entry.original_formal_topology().is_none()
++        {
++            return None;
++        }
++        let layout = self.original_unanimous_declared_layout_advice(
++            tokens,
++            original_body_parameter_source_layout,
++        )?;
++        Some(OriginalBodyParameterSourceScope {
++            entry: Arc::clone(&first.entry),
++            layout,
++        })
++    }
++
+     /// Candidate layout retained independently of actual normal handler facts.
+     /// Exact declaration owner, original geometry and every observation agree.
+     pub(crate) fn declaration_operand_layout_advice(
+@@ -3568,6 +3665,22 @@ impl super::SourceInvocationBinding {
+     }
+ }
+ 
++fn original_body_parameter_source_layout(
++    binding: &super::SourceInvocationBinding,
++    tokens: &crate::ir::CommandTokens,
++    snapshot: &Arc<SourceLookupSnapshot>,
++    namespace: &super::SourceNamespaceKey,
++    config: tcl_lexer::LexerConfig,
++) -> Option<OriginalCompilationLookupAdvice> {
++    let rows = original_declaration_layouts(binding.declaration_layout_observations.as_deref()?)?;
++    let entry = &rows.clone().next()?.entry;
++    let layout =
++        super::original_operand_layout_advice(binding, tokens, snapshot, namespace, config)?;
++    layout
++        .closed_body_parameter_source_entry_lookup(entry)
++        .then_some(layout)
++}
++
+ pub(super) fn local_read_scope_is_excluded(
+     context: &crate::var_resolve::ResolveContext,
+     name: &str,
+@@ -3600,6 +3713,107 @@ pub(super) fn direct_declaration_operand_owner(
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn original_parameter_source_scope_keeps_allocated_and_declared_owners_separate() {
++        fn check(
++            bindings: &super::SourceCommandBindings,
++            registry: &tcl_registry::CommandRegistry,
++            source: &str,
++            config: tcl_lexer::LexerConfig,
++            expected_allocated: Option<bool>,
++        ) {
++            let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
++            let segment = crate::segmenter::segment_commands_with_offset_and_config(
++                "upvar 1 $name cell",
++                offset,
++                config,
++            )
++            .remove(0);
++            let mut tokens = crate::ir::CommandTokens::from_segmented(
++                &tcl_lexer::SourceMap::new(source),
++                config,
++                &segment,
++            );
++            bindings.stamp_original_tokens(&mut tokens);
++            let binding = tokens.source_binding.as_ref().unwrap();
++            let scope = binding
++                .original_body_parameter_source_scope(&tokens)
++                .expect("actual source row and its own body/formal owner");
++            let allocated = matches!(
++                scope.entry.as_ref(),
++                super::OriginalDiagnosticFrameEntry::Body(_)
++            );
++            let declared = matches!(
++                scope.entry.as_ref(),
++                super::OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
++            );
++            assert!(allocated || declared);
++            if let Some(expected) = expected_allocated {
++                assert_eq!(allocated, expected);
++            }
++            assert!(scope.matches_parameters(&["name", "spare"]));
++            assert!(!scope.matches_parameters(&["spare", "name"]));
++            assert_eq!(
++                scope
++                    .original_words(&tokens, config, registry)
++                    .unwrap()
++                    .len(),
++                4
++            );
++            if declared {
++                assert!(
++                    bindings
++                        .conditional_body_entry_at(bindings.source_origin().unwrap(), offset)
++                        .is_none()
++                );
++            } else {
++                assert!(
++                    bindings
++                        .conditional_body_entry_at(bindings.source_origin().unwrap(), offset)
++                        .is_some()
++                );
++                let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
++                assert_ne!(second_offset, offset);
++                let second = bindings
++                    .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
++                    .unwrap();
++                assert!(
++                    scope
++                        .layout
++                        .original_body_parameter_source_words(&tokens, &second, config, registry,)
++                        .is_none()
++                );
++            }
++            let mut config = config;
++            config.strict_quoting = !config.strict_quoting;
++            assert!(scope.original_words(&tokens, config, registry).is_none());
++            let mut withdrawn = binding.clone();
++            withdrawn.declaration_layout_observations = None;
++            assert!(
++                withdrawn
++                    .original_body_parameter_source_scope(&tokens)
++                    .is_none()
++            );
++        }
++        let source = "proc p {name spare} {upvar 1 $name cell; set cell VALUE}\nproc q {name spare} {upvar 1 $name cell; set cell VALUE}";
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
++        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
++        let bindings = super::SourceCommandBindings::analyse(source, config, registry);
++        check(&bindings, registry, source, config, Some(true));
++        let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
++        let input = analysis.resolved_input.as_ref().unwrap();
++        check(
++            analysis
++                .retained_command_realm()
++                .unwrap()
++                .source_bindings_ref(),
++            input.borrowed_context_registry().commands(),
++            source,
++            input.lexer_config(),
++            None,
++        );
++    }
++
+     #[test]
+     fn logical_receiver_catalogues_retain_parent_member_and_vector_without_native_context() {
+         let source = "oo::class create C {method m {arg} {set local $arg}}";
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 036239bae..5b2b8da39 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -6214,25 +6214,14 @@ struct LogicalTraitInvocation {
+ }
+ 
+ struct BodyParameterSourceInvocation {
+-    entry: std::sync::Arc<crate::command_binding::SourceConditionalBodyEntry>,
+-    layout: crate::command_binding::OriginalCompilationLookupAdvice,
++    entry: crate::command_binding::OriginalBodyParameterSourceScope,
+     words: Vec<tcl_lexer::NativeWord>,
+     shape: RegistryInvocationShape,
+     invocation: ResolvedStatementInvocation,
+ }
+ impl BodyParameterSourceInvocation {
+     fn matches_parameters(&self, parameters: &[&str]) -> bool {
+-        self.layout.closed_body_parameter_source_lookup(&self.entry)
+-            && self
+-                .entry
+-                .original_formal_topology()
+-                .is_some_and(|formals| {
+-                    formals
+-                        .parameters()
+-                        .iter()
+-                        .map(|formal| formal.name.as_slice())
+-                        .eq(parameters.iter().map(|name| name.as_bytes()))
+-                })
++        self.entry.matches_parameters(parameters)
+     }
+ }
+ 
+@@ -6995,8 +6984,9 @@ fn original_body_parameter_source_invocation(
+     context.matches_registry(registry).then_some(())?;
+     let binding = tokens.source_binding.as_ref()?;
+     let site = binding.invocation_site()?;
+-    let entry = bindings.conditional_body_entry_at(&site.source, site.offset)?;
+-    let layout = binding.declaration_operand_layout_advice(tokens)?;
++    (bindings.source_origin() == Some(&site.source)).then_some(())?;
++    let entry = binding.original_body_parameter_source_scope(tokens)?;
++    let layout = entry.layout();
+     let metadata = layout
+         .original_declaration_metadata_context(registry, tokens)
+         .ok()??;
+@@ -7007,7 +6997,7 @@ fn original_body_parameter_source_invocation(
+     {
+         return None;
+     }
+-    let words = layout.original_body_parameter_source_words(tokens, &entry, config, registry)?;
++    let words = entry.original_words(tokens, config, registry)?;
+     if words.iter().any(|word| word.group().expand) {
+         return None;
+     }
+@@ -7023,12 +7013,10 @@ fn original_body_parameter_source_invocation(
+     {
+         return None;
+     }
+-    entry.original_formal_topology()?;
+     let shape =
+         RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
+     Some(BodyParameterSourceInvocation {
+         entry,
+-        layout,
+         words,
+         shape,
+         invocation,
+@@ -11817,23 +11805,21 @@ mod original_body_parameter_source_tests {
+             .is_some()
+         );
+         let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
+-        let second = bindings
+-            .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
+-            .unwrap();
+-        let layout = tokens
++        let mut second_tokens = CommandTokens::from_segmented(
++            &tcl_lexer::SourceMap::new(source),
++            input.lexer_config(),
++            &segments[0].clone().shifted_by(second_offset),
++        );
++        bindings.stamp_original_tokens(&mut second_tokens);
++        let second = second_tokens
+             .source_binding
+             .as_ref()
+             .unwrap()
+-            .declaration_operand_layout_advice(&tokens)
+-            .unwrap();
++            .original_body_parameter_source_scope(&second_tokens)
++            .expect("actual original second Jim source body scope");
+         assert!(
+-            layout
+-                .original_body_parameter_source_words(
+-                    &tokens,
+-                    &second,
+-                    input.lexer_config(),
+-                    registry
+-                )
++            second
++                .original_words(&tokens, input.lexer_config(), registry)
+                 .is_none()
+         );
+         let mut changed = tokens.clone();
+diff --git a/rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs b/rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs
+index b7742f602..5dea5a4e6 100644
+--- a/rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs
++++ b/rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs
+@@ -191,26 +191,19 @@ impl OriginalSourceVariableAliasOperands {
+             }
+             _ => Vec::new(),
+         };
+-        let logical_declarations = if transitions.facts().iter().any(|fact| {
+-            matches!(
+-                fact.transition,
+-                tcl_registry::StateTransition::VariableCellAlias(_)
+-            )
+-        }) {
+-            None
+-        } else {
+-            match words.source() {
+-                super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+-                    if advice.logical_source_input().is_some() =>
+-                {
+-                    words
+-                        .with_source_schema(context, |schema| {
+-                            schema.authored_logical_source_variable_aliases()
+-                        })
+-                        .flatten()
+-                }
+-                _ => None,
++        // Source frame applicability is independent of ordinary alias facts.
++        // Even an ordinary alias may be inactive in this actual source frame.
++        let logical_declarations = match words.source() {
++            super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
++                if advice.logical_source_input().is_some() =>
++            {
++                words
++                    .with_source_schema(context, |schema| {
++                        schema.authored_logical_source_variable_aliases()
++                    })
++                    .flatten()
+             }
++            _ => None,
+         };
+         let mut operands = Vec::new();
+         for fact in transitions.facts() {
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index 016f147db..01a024c4c 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -2391,27 +2391,31 @@ fn source_arguments(arguments: InvocationArguments<'_>) -> InvocationArguments<'
+ }
+ 
+ fn logical_alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
+-    alias_pairs(
++    alias_pairs_with_source_target(
+         source_arguments(arguments),
+         crate::frame_effect::FrameLevelWord::None,
++        true,
+     )
+ }
+ fn logical_alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
+-    alias_pairs(
++    alias_pairs_with_source_target(
+         source_arguments(arguments),
+         crate::frame_effect::FrameLevelWord::ArityParity,
++        true,
+     )
+ }
+ fn logical_alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
+-    alias_pairs(
++    alias_pairs_with_source_target(
+         source_arguments(arguments),
+         crate::frame_effect::FrameLevelWord::LeadingProbe,
++        true,
+     )
+ }
+ fn logical_alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
+-    alias_pairs(
++    alias_pairs_with_source_target(
+         source_arguments(arguments),
+         crate::frame_effect::FrameLevelWord::Upvar,
++        true,
+     )
+ }
+ 
+@@ -2434,6 +2438,17 @@ fn alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions
+ fn alias_pairs(
+     arguments: InvocationArguments<'_>,
+     level_word: crate::frame_effect::FrameLevelWord,
++) -> StateTransitions {
++    alias_pairs_with_source_target(arguments, level_word, false)
++}
++
++// Only the positively selected Logical source resolver can retain an unknown
++// target as conditional source geometry. Its original widening remains intact;
++// an unknown local or frame never supplies a declaration or selected link.
++fn alias_pairs_with_source_target(
++    arguments: InvocationArguments<'_>,
++    level_word: crate::frame_effect::FrameLevelWord,
++    retain_source_target: bool,
+ ) -> StateTransitions {
+     use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
+     let mut transitions = StateTransitions::default();
+@@ -2475,7 +2490,11 @@ fn alias_pairs(
+             .find(|subject| subject.literal().is_none() && subject.native_bytes().is_none())
+         {
+             transitions.widen(dynamic.clone(), VARIABLE_ALIAS_DOMAINS);
+-            continue;
++            if !retain_source_target
++                || (local.literal().is_none() && local.native_bytes().is_none())
++            {
++                continue;
++            }
+         }
+         transitions.push(StateTransition::VariableCellAlias(
+             VariableCellAliasTransition {
+@@ -3023,6 +3042,60 @@ mod tests {
+     }
+     use crate::{InvocationWord, InvocationWords};
+ 
++    #[test]
++    fn logical_alias_dynamic_target_keeps_source_relation_and_original_widening() {
++        use crate::frame_effect::FrameLevelWord;
++        let words = [InvocationWord::Dynamic, InvocationWord::Literal("local")];
++        let args = InvocationArguments::structured(&words);
++        let ordinary = alias_pairs_resolver(FrameLevelWord::Upvar)(args);
++        assert!(
++            ordinary
++                .facts()
++                .iter()
++                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
++        );
++        let source = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(args);
++        assert!(
++            ordinary
++                .facts()
++                .iter()
++                .all(|fact| source.facts().contains(fact))
++        );
++        assert!(source.facts().iter().any(|fact| matches!(&fact.transition,
++            StateTransition::VariableCellAlias(alias)
++                if alias.local.literal() == Some("local")
++                && matches!(&alias.target, VariableAliasTarget::CallerSelectedFrame {
++                    variable: TransitionSubject::Unknown { argument_index: 0, .. }, .. }))));
++        for words in [
++            [InvocationWord::Literal("target"), InvocationWord::Dynamic],
++            [InvocationWord::Dynamic, InvocationWord::Dynamic],
++        ] {
++            let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
++                InvocationArguments::structured(&words),
++            );
++            assert!(
++                facts
++                    .facts()
++                    .iter()
++                    .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
++            );
++        }
++        let words = [
++            InvocationWord::Dynamic,
++            InvocationWord::Literal("target"),
++            InvocationWord::Literal("local"),
++        ];
++        let facts = logical_source_alias_pairs_resolver(FrameLevelWord::Upvar)(
++            InvocationArguments::structured(&words),
++        );
++        assert!(
++            facts
++                .facts()
++                .iter()
++                .all(|fact| !matches!(fact.transition, StateTransition::VariableCellAlias(_)))
++        );
++    }
++
+     #[test]
+     fn logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata() {
+         let frame = crate::FrameEffectSpec {

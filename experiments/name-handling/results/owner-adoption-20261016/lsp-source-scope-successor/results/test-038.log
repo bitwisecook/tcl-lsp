@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_layout::tests::original_parameter_source_scope_keeps_allocated_and_declared_owners_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10255 filtered out; finished in 0.97s
+

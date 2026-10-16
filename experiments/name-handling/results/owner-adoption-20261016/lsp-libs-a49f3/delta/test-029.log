@@ -1,0 +1,6 @@
+
+running 1 test
+test code_lens::tests::lens_unknown_instance_method_is_not_counted ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3195 filtered out; finished in 0.67s
+

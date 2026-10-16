@@ -1,0 +1,15 @@
+
+running 1 test
+test references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans ... 
+thread 'references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans' (169328) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:235:66:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3195 filtered out; finished in 0.00s
+

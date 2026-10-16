@@ -1,0 +1,706 @@
+{
+  "group": "LSP source-backed exact selector delta since baseline 5b4 (current libs 4c717119b)",
+  "baseline_manifests": [
+    {
+      "path": "/tmp/compiler-lsp-source-selection-v1/selection.json",
+      "noncompiler_counts": {
+        "tcl_lsp_core": 16,
+        "tcl_lsp_db": 5
+      }
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/repair-selection.json",
+      "noncompiler_counts": {
+        "tcl_registry": 2,
+        "tcl_lsp_core": 11,
+        "tcl_lsp_server": 31
+      }
+    }
+  ],
+  "preserved_prior_noncompiler_unique_counts": {
+    "tcl_lsp_core": 27,
+    "tcl_lsp_db": 5,
+    "tcl_registry": 2,
+    "tcl_lsp_server": 31
+  },
+  "groups": {
+    "tcl_lsp_core": [
+      "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+      "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "references::tests::document_highlights_var_records_write_at_definition",
+      "code_lens::tests::lens_per_class",
+      "code_lens::tests::lens_counts_class_constructor_calls",
+      "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "code_lens::tests::lens_reports_zero_for_unused_property",
+      "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "code_lens::tests::lens_counts_namespaced_class_method",
+      "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "hover::tests::hover_on_proc_qualified_name",
+      "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "hover::tests::hover_on_dollar_var_returns_var_text",
+      "hover::tests::irules_command_hover_lists_valid_events",
+      "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "definition::tests::alias_lookup_accepts_qualified_form"
+    ],
+    "tcl_lsp_db": [
+      "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail"
+    ],
+    "tcl_lsp_server": [
+      "tests::resource_analyser_inputs_apply_every_field",
+      "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+      "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+      "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+      "tests::position_encoding_negotiation",
+      "tests::lsp_position_helpers_use_utf16_columns"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_lsp_core": 38,
+    "tcl_lsp_db": 1,
+    "tcl_lsp_server": 10
+  },
+  "total_exact_selectors": 49,
+  "execution_order": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_read_kind_is_correctly_tagged"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_records_write_at_definition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_per_class"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_class_constructor_calls"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_method_calls_within_class_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_unused_property"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_namespaced_class_method"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_qname_exists_finds_a_plain_class"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_proc_qualified_name"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_class_name_returns_metaclass_signature"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_dollar_var_returns_var_text"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::irules_command_hover_lists_valid_events"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::class_hover_text_lists_methods_alphabetically"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::resource_analyser_inputs_apply_every_field"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::position_encoding_negotiation"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::lsp_position_helpers_use_utf16_columns"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {},
+    "unset": []
+  },
+  "e2e_deferred_until_fresh_e2e_build": [
+    {
+      "target": "e2e",
+      "selector": "diagnostics::consumer_rename_resolves_through_a_real_workspace_folder_m8",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+      "purpose": ".07.14.fn0: actual workspace and consumer file paths"
+    },
+    {
+      "target": "e2e",
+      "selector": "diagnostics::a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+      "purpose": ".07.14.fn1: actual options and control paths"
+    },
+    {
+      "target": "e2e",
+      "selector": "rename_safety::a_variable_renames_again_after_the_first_rename_was_undone",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/rename_safety.rs",
+      "purpose": ".12.00.fn0: intermediate requested-version barrier"
+    },
+    {
+      "target": "e2e",
+      "selector": "rename_safety::fp_rename_verdict_is_the_same_from_every_occurrence_of_a_hazardous_member",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/rename_safety.rs",
+      "purpose": "member hazard refusal end-to-end"
+    },
+    {
+      "target": "e2e",
+      "selector": "rename_safety::fn_guard_rename_still_applies_across_tracked_consumer_documents",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/rename_safety.rs",
+      "purpose": "cross-document positive rename control"
+    },
+    {
+      "target": "e2e",
+      "selector": "unicode_positions::definition_resolves_through_multibyte_prefix",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/unicode_positions.rs",
+      "purpose": "UTF-16 position through multibyte prefix"
+    },
+    {
+      "target": "e2e",
+      "selector": "unicode_positions::highlight_columns_are_utf16_through_astral_prefix",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/unicode_positions.rs",
+      "purpose": "UTF-16 position through astral prefix"
+    },
+    {
+      "target": "e2e",
+      "selector": "diagnostics::same_file_renamed_proc_call_inherits_original_arity",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+      "purpose": "renamed procedure arity tail"
+    },
+    {
+      "target": "e2e",
+      "selector": "diagnostics::bare_string_is_e001_with_tight_command_head_span",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/diagnostics.rs",
+      "purpose": "original command-head range end-to-end"
+    }
+  ],
+  "notes": [
+    "The earlier non-Compiler selector set is retained by reference, not repeated; root reports that prior65 is complete62P3F.",
+    "All newly named source selectors are test functions in their actual parent modules. Helper functions such as resource path accessors or position converters are not selectors.",
+    "No dedicated listTclInstallations wire-dispatch test exists in the current source or frozen test listing. tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths tests the picker path projection; it does not claim protocol dispatch coverage.",
+    "No tests or Cargo commands were run. Frozen four-library --list output should validate this delta before running it; e2e selectors remain deferred."
+  ],
+  "source_evidence": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "source_path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "source_line": 366,
+      "source_sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "source_path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "source_line": 396,
+      "source_sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "source_path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "source_line": 443,
+      "source_sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "source_path": "rust/tcl-lsp-core/src/file_uri.rs",
+      "source_line": 506,
+      "source_sha256": "aa494c8bf68ed98f0b8ccfa5994ab9421b87bf87482c729d9e738d53c4386f08"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "source_path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "source_line": 1733,
+      "source_sha256": "83c9de36486348365e52f1b6d0e2c9a006857ad7242e664a09cb80e3630fbdbc"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_line": 269,
+      "source_sha256": "64e61774f02f45973e9ade1e397657cda1035c8a1e6ebafc411850fa008efb77"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_line": 314,
+      "source_sha256": "64e61774f02f45973e9ade1e397657cda1035c8a1e6ebafc411850fa008efb77"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_line": 344,
+      "source_sha256": "64e61774f02f45973e9ade1e397657cda1035c8a1e6ebafc411850fa008efb77"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_line": 369,
+      "source_sha256": "64e61774f02f45973e9ade1e397657cda1035c8a1e6ebafc411850fa008efb77"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "source_path": "rust/tcl-lsp-core/src/references/member_metadata.rs",
+      "source_line": 402,
+      "source_sha256": "64e61774f02f45973e9ade1e397657cda1035c8a1e6ebafc411850fa008efb77"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+      "source_path": "rust/tcl-lsp-core/src/rename.rs",
+      "source_line": 3514,
+      "source_sha256": "276bcd521199875ad219cc5655fb7d54618c40e5dff1932c068425234544330c"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "source_line": 2629,
+      "source_sha256": "b5aa23c2c1b51ec42bf499ee65f9e7e5738615f82663c252d6c3c0683f0f541e"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "source_path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "source_line": 825,
+      "source_sha256": "2740495c4047086320b38127be3292d2ddb9b8f3ccd9b401f8624df59fb6bd54"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "source_path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "source_line": 1024,
+      "source_sha256": "56b6985faf4a679aba6ff9496f5658b76a1ce7e1432e7ab962f0e49b42bc55d3"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "source_line": 5990,
+      "source_sha256": "9a7931fe475d6e3e2508c48ff75ce5b0c28a84c78e52e25905ab607938bb64b0"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_records_write_at_definition",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "source_line": 5962,
+      "source_sha256": "9a7931fe475d6e3e2508c48ff75ce5b0c28a84c78e52e25905ab607938bb64b0"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_per_class",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 685,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_class_constructor_calls",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 709,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 745,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 772,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 798,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 914,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_unused_property",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 940,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1408,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1439,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1469,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1503,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_namespaced_class_method",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1542,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1576,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1609,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "source_line": 1675,
+      "source_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_proc_qualified_name",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 3810,
+      "source_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 3877,
+      "source_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_dollar_var_returns_var_text",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 3891,
+      "source_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::irules_command_hover_lists_valid_events",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 4175,
+      "source_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 4297,
+      "source_sha256": "b27ff62b2412bfb7e83c843fb3ad7085a9eb9a8f4885085f601a022144cd5b6f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 6503,
+      "source_sha256": "34e14818a30f7dc5f6530b93fd1d1989ba2bafe2512405779727aaa3f68d05f6"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 6822,
+      "source_sha256": "34e14818a30f7dc5f6530b93fd1d1989ba2bafe2512405779727aaa3f68d05f6"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail",
+      "source_path": "rust/tcl-lsp-db/src/lib.rs",
+      "source_line": 9440,
+      "source_sha256": "e03d07e75597de710722f3340838969091c7fbfd37a50b065d832373d53f443d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::resource_analyser_inputs_apply_every_field",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 44658,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "source_path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "source_line": 904,
+      "source_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "source_path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "source_line": 1403,
+      "source_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "source_path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "source_line": 595,
+      "source_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "source_path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "source_line": 733,
+      "source_sha256": "279c1618811e4b1d3892550828a391b9c161c00fd5a14be30f49f3042c9f61f1"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 35750,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49089,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49132,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::position_encoding_negotiation",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 37278,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::lsp_position_helpers_use_utf16_columns",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 38740,
+      "source_sha256": "73b378802050920d2209549124c8140ae34caad2fddfdd8cda0ec8eca1172f78"
+    }
+  ],
+  "frozen_listing_validation": {
+    "artifact_manifest": "/workspace/naming-validation/lsp-libs-a49f3/artifacts.json",
+    "exact_named_selectors_present": 49,
+    "exact_named_selectors_requested": 49,
+    "method": "The four frozen library test executables were invoked with --list only; no test bodies executed."
+  }
+}

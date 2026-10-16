@@ -1,0 +1,25 @@
+{
+  "source_head": "a49f3488a51fcb1281686bef10dd7d01f6042766",
+  "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ordinary": true,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FOUR_LSP_LIBRARY_UNIT_BUILDS",
+  "input_before_count": 38995,
+  "input_before_sha256": "0af9d0b9ccd76f36b5e27cab834e9dce75c5bc3315d6dfbf6ff308dede332065",
+  "utc": "2026-10-16T15:54:07.121457+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "compiler_warnings": 0,
+  "completed_utc": "2026-10-16T15:58:48.327822+00:00",
+  "completion_head": "4c717119b3fcb4f245997d5602f3271b677e7a0b",
+  "head_change_scope": "Only compact validation listing storage Git commit; all tracked build input bytes unchanged",
+  "build_seconds": 202
+}

@@ -1,0 +1,15 @@
+
+running 1 test
+test original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store ... 
+thread 'original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store' (170713) panicked at rust/tcl-lsp-server/src/original_document_metadata_tests.rs:744:5:
+assertion failed: older.analysis.diagnostics.iter().any(|row| row.code == DiagCode::W150)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 0.38s
+

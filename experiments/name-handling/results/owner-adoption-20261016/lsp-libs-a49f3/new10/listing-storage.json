@@ -1,0 +1,20 @@
+{
+  "members": [
+    {
+      "original_name": "tcl_lsp_server.list",
+      "raw_sha256": "e944194b67306e00f3f064f4364ac1146677b14dbe5f8aef2318d70f0094b5e4",
+      "raw_bytes": 49412,
+      "shared_lossless_payload": "../retained65/tcl_lsp_server.list.zst",
+      "restore": "zstd -d -c ../retained65/tcl_lsp_server.list.zst > tcl_lsp_server.list",
+      "scope": "Actual captured listing stdout verified byteidentical; payload retained once"
+    },
+    {
+      "original_name": "tcl_lsp_core.list",
+      "raw_sha256": "815baa26b80e0552418d5ba2c68ef482a019037aed3cf778d25f4e8fb48a19d6",
+      "raw_bytes": 275289,
+      "shared_lossless_payload": "../retained65/tcl_lsp_core.list.zst",
+      "restore": "zstd -d -c ../retained65/tcl_lsp_core.list.zst > tcl_lsp_core.list",
+      "scope": "Actual captured listing stdout verified byteidentical; payload retained once"
+    }
+  ]
+}

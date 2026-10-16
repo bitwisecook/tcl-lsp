@@ -1,0 +1,37 @@
+{
+  "scope": "Lossless full original listing stdout; decompress and verify before replay if required",
+  "members": [
+    {
+      "original_name": "tcl_lsp_server.list",
+      "raw_sha256": "e944194b67306e00f3f064f4364ac1146677b14dbe5f8aef2318d70f0094b5e4",
+      "raw_bytes": 49412,
+      "archive": "tcl_lsp_server.list.zst",
+      "archive_sha256": "adeb116f9b4af77102e0dbade1c4615b1a9608b49a5f6e01626cac081ec58ee8",
+      "restore": "zstd -d -c tcl_lsp_server.list.zst > tcl_lsp_server.list"
+    },
+    {
+      "original_name": "tcl_lsp_db.list",
+      "raw_sha256": "eb3dd32a577d6de205818dc19e31f96660bb04bacb07e807157552bb67f5e0a3",
+      "raw_bytes": 15543,
+      "archive": "tcl_lsp_db.list.zst",
+      "archive_sha256": "de9c947c3a91df60c92026d2f2d0844f3d11dcdf4c69575c857e13ae4407e55d",
+      "restore": "zstd -d -c tcl_lsp_db.list.zst > tcl_lsp_db.list"
+    },
+    {
+      "original_name": "tcl_registry.list",
+      "raw_sha256": "e4b1dcb17aef31fef4717a505ce119f9db4c62208f4dd37cffb2d1197bdf6b70",
+      "raw_bytes": 160653,
+      "archive": "tcl_registry.list.zst",
+      "archive_sha256": "16de33e94115093520f1ff6ecb63ed2c063a3990c7b216fd0a8206bdf5d5c9e4",
+      "restore": "zstd -d -c tcl_registry.list.zst > tcl_registry.list"
+    },
+    {
+      "original_name": "tcl_lsp_core.list",
+      "raw_sha256": "815baa26b80e0552418d5ba2c68ef482a019037aed3cf778d25f4e8fb48a19d6",
+      "raw_bytes": 275289,
+      "archive": "tcl_lsp_core.list.zst",
+      "archive_sha256": "38fd18159f6a38134fefbb7483d966e1070ff516accc3178935e194006e83cae",
+      "restore": "zstd -d -c tcl_lsp_core.list.zst > tcl_lsp_core.list"
+    }
+  ]
+}

@@ -191,26 +191,19 @@ impl OriginalSourceVariableAliasOperands {
             }
             _ => Vec::new(),
         };
-        let logical_declarations = if transitions.facts().iter().any(|fact| {
-            matches!(
-                fact.transition,
-                tcl_registry::StateTransition::VariableCellAlias(_)
-            )
-        }) {
-            None
-        } else {
-            match words.source() {
-                super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
-                    if advice.logical_source_input().is_some() =>
-                {
-                    words
-                        .with_source_schema(context, |schema| {
-                            schema.authored_logical_source_variable_aliases()
-                        })
-                        .flatten()
-                }
-                _ => None,
+        // Source frame applicability is independent of ordinary alias facts.
+        // Even an ordinary alias may be inactive in this actual source frame.
+        let logical_declarations = match words.source() {
+            super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                if advice.logical_source_input().is_some() =>
+            {
+                words
+                    .with_source_schema(context, |schema| {
+                        schema.authored_logical_source_variable_aliases()
+                    })
+                    .flatten()
             }
+            _ => None,
         };
         let mut operands = Vec::new();
         for fact in transitions.facts() {

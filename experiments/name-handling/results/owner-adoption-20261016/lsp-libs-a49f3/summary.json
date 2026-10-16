@@ -1,0 +1,63 @@
+{
+  "scope": "65 exact nonCompiler controls retained from previous37+63; selected current LSP unit libraries only, not e2e/full repository/audit acceptance",
+  "source_head": "a49f3488a51fcb1281686bef10dd7d01f6042766",
+  "completion_head": "4c717119b3fcb4f245997d5602f3271b677e7a0b",
+  "source_binding": "source-binding.json",
+  "PASS": 62,
+  "FAIL": 3,
+  "TIMEOUT": 0,
+  "run_count_rejections": 0,
+  "gains": [],
+  "prior_PASS_regressions": [],
+  "failures": [
+    [
+      "tcl_lsp_core",
+      "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors"
+    ],
+    [
+      "tcl_lsp_db",
+      "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable"
+    ],
+    [
+      "tcl_lsp_db",
+      "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals"
+    ]
+  ],
+  "ordinary": true,
+  "input_count": 38995,
+  "input_drift_at_build_freeze": 0,
+  "build_seconds": 202,
+  "warnings": 0,
+  "utc": "2026-10-16T16:09:50.571457+00:00",
+  "limits": "Fresh SourceStore/currentDiagnostics/Compiler source-scope successors excluded. Memberhazard five controls hit actual unregistered exact profile fixture first; profileowner fixture correction is proposed separately, no pass claimed. GUI/browser/e2e/owner/proof/repository checks remain pending.",
+  "separate_completed_selections": {
+    "retained65": {
+      "selected": 65,
+      "PASS": 62,
+      "FAIL": 3,
+      "TIMEOUT": 0,
+      "singleton_count_rejections": 0
+    },
+    "new10": {
+      "selected": 10,
+      "PASS": 9,
+      "FAIL": 1,
+      "TIMEOUT": 0,
+      "singleton_count_rejections": 0
+    },
+    "delta": {
+      "selected": 45,
+      "PASS": 31,
+      "FAIL": 13,
+      "TIMEOUT": 1,
+      "singleton_count_rejections": 0
+    }
+  },
+  "selection_union": {
+    "selected": 120,
+    "PASS": 102,
+    "FAIL": 17,
+    "TIMEOUT": 1,
+    "scope": "Distinct exact nonCompiler selectors in same four frozen library artifacts; not wholecrate/e2e/audit acceptance"
+  }
+}

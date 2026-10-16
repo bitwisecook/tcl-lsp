@@ -38,6 +38,76 @@ pub(super) enum OriginalDiagnosticFrameEntry {
     },
 }
 
+/// Original procedure source scope for parameter reports. The actual row
+/// retains either its allocated body or its uninstalled declaration; neither
+/// variant supplies entered-frame or Native invocation authority.
+pub(crate) struct OriginalBodyParameterSourceScope {
+    entry: Arc<OriginalDiagnosticFrameEntry>,
+    layout: OriginalCompilationLookupAdvice,
+}
+impl OriginalBodyParameterSourceScope {
+    pub(crate) fn layout(&self) -> &OriginalCompilationLookupAdvice {
+        &self.layout
+    }
+    pub(crate) fn matches_parameters(&self, parameters: &[&str]) -> bool {
+        self.layout
+            .closed_body_parameter_source_entry_lookup(&self.entry)
+            && self
+                .entry
+                .original_formal_topology()
+                .is_some_and(|formals| {
+                    formals
+                        .parameters()
+                        .iter()
+                        .map(|formal| formal.name.as_slice())
+                        .eq(parameters.iter().map(|name| name.as_bytes()))
+                })
+    }
+    pub(crate) fn original_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        if let OriginalDiagnosticFrameEntry::Body(body) = self.entry.as_ref() {
+            return self
+                .layout
+                .original_body_parameter_source_words(tokens, body, config, registry);
+        }
+        (self.layout.config == config).then_some(())?;
+        self.layout
+            .closed_body_parameter_source_entry_lookup(&self.entry)
+            .then_some(())?;
+        self.layout
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        let original = self.layout.site.source.original_lexical_command(
+            tokens.words(),
+            self.layout.site.offset,
+            config,
+        )?;
+        Some(original.native_words().to_vec())
+    }
+}
+
+impl OriginalCompilationLookupAdvice {
+    fn closed_body_parameter_source_entry_lookup(
+        &self,
+        entry: &OriginalDiagnosticFrameEntry,
+    ) -> bool {
+        let namespace = match entry {
+            OriginalDiagnosticFrameEntry::Body(body) => body.namespace_context(),
+            OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => Some(&body.namespace),
+            _ => return false,
+        };
+        self.closed_body_parameter_source_parts(
+            entry.owns_source(&self.site.source, self.site.offset),
+            entry.frame(),
+            namespace,
+        )
+    }
+}
+
 /// A retained Logical member/body issuer with original source geometry only.
 /// Its frame identity describes the written receiver body, without a Native
 /// method allocation, formal ABI, receiver namespace or entered activation.
@@ -3447,6 +3517,33 @@ impl super::SourceInvocationBinding {
         })
     }
 
+    /// Reborrow the actual unanimous original body/declaration row for source
+    /// parameter reports. Missing allocated-body inventory cannot mint a Body
+    /// from an uninstalled declaration or replace a present reached owner.
+    pub(crate) fn original_body_parameter_source_scope(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalBodyParameterSourceScope> {
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let first = rows.clone().next()?;
+        if !matches!(
+            first.entry.as_ref(),
+            OriginalDiagnosticFrameEntry::Body(_)
+                | OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
+        ) || first.entry.original_formal_topology().is_none()
+        {
+            return None;
+        }
+        let layout = self.original_unanimous_declared_layout_advice(
+            tokens,
+            original_body_parameter_source_layout,
+        )?;
+        Some(OriginalBodyParameterSourceScope {
+            entry: Arc::clone(&first.entry),
+            layout,
+        })
+    }
+
     /// Candidate layout retained independently of actual normal handler facts.
     /// Exact declaration owner, original geometry and every observation agree.
     pub(crate) fn declaration_operand_layout_advice(
@@ -3568,6 +3665,22 @@ impl super::SourceInvocationBinding {
     }
 }
 
+fn original_body_parameter_source_layout(
+    binding: &super::SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &super::SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    let rows = original_declaration_layouts(binding.declaration_layout_observations.as_deref()?)?;
+    let entry = &rows.clone().next()?.entry;
+    let layout =
+        super::original_operand_layout_advice(binding, tokens, snapshot, namespace, config)?;
+    layout
+        .closed_body_parameter_source_entry_lookup(entry)
+        .then_some(layout)
+}
+
 pub(super) fn local_read_scope_is_excluded(
     context: &crate::var_resolve::ResolveContext,
     name: &str,
@@ -3600,6 +3713,107 @@ pub(super) fn direct_declaration_operand_owner(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_parameter_source_scope_keeps_allocated_and_declared_owners_separate() {
+        fn check(
+            bindings: &super::SourceCommandBindings,
+            registry: &tcl_registry::CommandRegistry,
+            source: &str,
+            config: tcl_lexer::LexerConfig,
+            expected_allocated: Option<bool>,
+        ) {
+            let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                "upvar 1 $name cell",
+                offset,
+                config,
+            )
+            .remove(0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                &segment,
+            );
+            bindings.stamp_original_tokens(&mut tokens);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let scope = binding
+                .original_body_parameter_source_scope(&tokens)
+                .expect("actual source row and its own body/formal owner");
+            let allocated = matches!(
+                scope.entry.as_ref(),
+                super::OriginalDiagnosticFrameEntry::Body(_)
+            );
+            let declared = matches!(
+                scope.entry.as_ref(),
+                super::OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
+            );
+            assert!(allocated || declared);
+            if let Some(expected) = expected_allocated {
+                assert_eq!(allocated, expected);
+            }
+            assert!(scope.matches_parameters(&["name", "spare"]));
+            assert!(!scope.matches_parameters(&["spare", "name"]));
+            assert_eq!(
+                scope
+                    .original_words(&tokens, config, registry)
+                    .unwrap()
+                    .len(),
+                4
+            );
+            if declared {
+                assert!(
+                    bindings
+                        .conditional_body_entry_at(bindings.source_origin().unwrap(), offset)
+                        .is_none()
+                );
+            } else {
+                assert!(
+                    bindings
+                        .conditional_body_entry_at(bindings.source_origin().unwrap(), offset)
+                        .is_some()
+                );
+                let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
+                assert_ne!(second_offset, offset);
+                let second = bindings
+                    .conditional_body_entry_at(bindings.source_origin().unwrap(), second_offset)
+                    .unwrap();
+                assert!(
+                    scope
+                        .layout
+                        .original_body_parameter_source_words(&tokens, &second, config, registry,)
+                        .is_none()
+                );
+            }
+            let mut config = config;
+            config.strict_quoting = !config.strict_quoting;
+            assert!(scope.original_words(&tokens, config, registry).is_none());
+            let mut withdrawn = binding.clone();
+            withdrawn.declaration_layout_observations = None;
+            assert!(
+                withdrawn
+                    .original_body_parameter_source_scope(&tokens)
+                    .is_none()
+            );
+        }
+        let source = "proc p {name spare} {upvar 1 $name cell; set cell VALUE}\nproc q {name spare} {upvar 1 $name cell; set cell VALUE}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let bindings = super::SourceCommandBindings::analyse(source, config, registry);
+        check(&bindings, registry, source, config, Some(true));
+        let analysis = crate::analyser::Analyser::new().analyse(source, "jimtcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        check(
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref(),
+            input.borrowed_context_registry().commands(),
+            source,
+            input.lexer_config(),
+            None,
+        );
+    }
+
     #[test]
     fn logical_receiver_catalogues_retain_parent_member_and_vector_without_native_context() {
         let source = "oo::class create C {method m {arg} {set local $arg}}";

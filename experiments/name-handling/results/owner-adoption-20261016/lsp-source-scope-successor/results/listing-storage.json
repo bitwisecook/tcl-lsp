@@ -1,0 +1,37 @@
+{
+  "scope": "Complete actual stdout retained losslessly, restore and verify as needed",
+  "members": [
+    {
+      "original_name": "tcl_lsp_db.list",
+      "raw_sha256": "eb3dd32a577d6de205818dc19e31f96660bb04bacb07e807157552bb67f5e0a3",
+      "raw_bytes": 15543,
+      "archive": "tcl_lsp_db.list.zst",
+      "archive_sha256": "de9c947c3a91df60c92026d2f2d0844f3d11dcdf4c69575c857e13ae4407e55d",
+      "restore": "zstd -d -c tcl_lsp_db.list.zst > tcl_lsp_db.list"
+    },
+    {
+      "original_name": "tcl_registry.list",
+      "raw_sha256": "bc5742c5a955c74e95aa1b5d5e31f178165a7df42ea233f73b6c3fccd357e9c9",
+      "raw_bytes": 160757,
+      "archive": "tcl_registry.list.zst",
+      "archive_sha256": "0cd0cd4436359935426b036837925e06eaf1bc2f71051c307d48e301902c3a1b",
+      "restore": "zstd -d -c tcl_registry.list.zst > tcl_registry.list"
+    },
+    {
+      "original_name": "tcl_lsp_core.list",
+      "raw_sha256": "815baa26b80e0552418d5ba2c68ef482a019037aed3cf778d25f4e8fb48a19d6",
+      "raw_bytes": 275289,
+      "archive": "tcl_lsp_core.list.zst",
+      "archive_sha256": "38fd18159f6a38134fefbb7483d966e1070ff516accc3178935e194006e83cae",
+      "restore": "zstd -d -c tcl_lsp_core.list.zst > tcl_lsp_core.list"
+    },
+    {
+      "original_name": "tcl_compiler.list",
+      "raw_sha256": "6ca691c894e668056c28066047b39dba6a3a4f0954c14b9326f660474ebc688f",
+      "raw_bytes": 925776,
+      "archive": "tcl_compiler.list.zst",
+      "archive_sha256": "c2c45e44f120a18c3eb0034b3d2623959b5b513550caca47421ea4ce657f1076",
+      "restore": "zstd -d -c tcl_compiler.list.zst > tcl_compiler.list"
+    }
+  ]
+}

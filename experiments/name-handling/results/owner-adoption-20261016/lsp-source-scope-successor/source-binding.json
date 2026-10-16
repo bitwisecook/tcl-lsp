@@ -1,0 +1,26 @@
+{
+  "source_head": "4c717119b3fcb4f245997d5602f3271b677e7a0b",
+  "rust_diff_sha256": "002977db27bd622413a4d74b9c1776589d11179d9216a2992314596ff9fd36a9",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 38995,
+  "input_before_sha256": "0aad61fe0b18bf8d75f633e8f786bd5bac8bfc4c87222c910e85cbe66604e33a",
+  "scope": "Reviewed actual Body/Declared source parameter scope + Logical dynamic target SourceMay with retained widening; existing annex36 and source alias facets, no newcount. All prior ordinaryassertions preserved; new wrongbodyfixture uses authentic selected row owner.",
+  "utc": "2026-10-16T16:01:37.609756+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "build_seconds": 536,
+  "compiler_warnings": 0,
+  "input_after_count": 38995,
+  "input_drift_count": 0,
+  "completed_utc": "2026-10-16T16:11:15.364822+00:00"
+}

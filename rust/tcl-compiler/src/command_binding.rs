@@ -125,6 +125,7 @@ pub use source_declared_command::{
 mod declaration_body_ownership;
 mod declaration_layout;
 mod logical_variable_scope;
+pub(crate) use declaration_layout::OriginalBodyParameterSourceScope;
 pub use declaration_layout::SourceOriginalVariableFrame;
 pub(crate) use logical_variable_scope::OriginalLogicalVariableScope;
 mod declaration_preview;
@@ -1831,12 +1832,25 @@ impl OriginalCompilationLookupAdvice {
         &self,
         entry: &SourceConditionalBodyEntry,
     ) -> bool {
+        self.closed_body_parameter_source_parts(
+            entry.owns_source(&self.site.source, self.site.offset),
+            entry.frame(),
+            entry.namespace_context(),
+        )
+    }
+
+    fn closed_body_parameter_source_parts(
+        &self,
+        owns_source: bool,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: Option<&SourceNamespaceKey>,
+    ) -> bool {
         let state = &self.snapshot.state;
         self.closed_lookup()
             && state.logical_source_name_advice_input().is_none()
-            && entry.owns_source(&self.site.source, self.site.offset)
-            && self.frame() == entry.frame()
-            && Some(self.namespace()) == entry.namespace_context()
+            && owns_source
+            && self.frame() == frame
+            && Some(self.namespace()) == namespace
             && !self.targets.is_empty()
             && !self.has_opaque_handler_alternatives()
             && !state.source_step_observed()
