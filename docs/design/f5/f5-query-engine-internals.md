@@ -550,11 +550,14 @@ Two surfaces with different output guarantees:
   the public-key PEM), plus the deterministic projections `x509_eq` and
   `x509_from_config`. The `--enable-probes` gating error is also
   byte-for-byte. **These pure helpers are not gated.**
-- **Faithful but not golden.** The live probes — `dns`, `rev_dns`, `ping`,
-  `portping`, `traceroute`, `socket_get`, `tls_handshake`, and the `url_*`
-  HTTP family. They do real I/O in the reference output shape, but nothing
-  asserts them byte-for-byte against live results, because the test
-  environment has no reliable network.
+- **Live I/O, not golden-tested.** The implemented probes — `dns`,
+  `rev_dns`, `ping`, `portping`, `traceroute`, `socket_get`, and
+  `tls_handshake` — perform I/O, but tests do not assert byte-for-byte live
+  results because the test environment has no reliable network.
+- **Declared, but not implemented.** The `url_*` HTTP family is accepted by
+  the DSL and gated as a probe, but its backend makes no request and returns a
+  fixed unsupported-result shape (null status/peer certificate, empty body,
+  and an explanatory error).
 
 #### Gating
 
@@ -564,9 +567,10 @@ explicitly:
 - `probes_enabled: bool` — the `--enable-probes` gate. Every live probe
   opens with `require_probes(name, ctx.probes_enabled)?`, which raises the
   one fixed gating message before touching the network.
-- `ca_bundle: Option<String>` — an optional CA path overriding the system
-  trust store for `url_*` and `tls_handshake`. `None` falls back to the
-  system roots.
+- `ca_bundle: Option<String>` — an optional CA path used by the implemented
+  `tls_handshake` probe to override the system trust store; `None` falls back
+  to system roots. The `url_*` placeholder currently ignores this value; it is
+  part of the future HTTP request design.
 
 Because both live on the context rather than in process-global state,
 concurrent query runs cannot interfere with each other, and a caller
@@ -585,9 +589,10 @@ so. Only `reason.fatal` means the data is genuinely unavailable.
 
 #### HTTP
 
-`probes/http.rs` performs the `url_*` requests and captures the peer
-certificate off the same connection, so reading the chain never costs a
-second round-trip.
+The intended `url_*` design is to perform an HTTP request and capture the
+peer certificate from that same connection. That is future behaviour: the
+current `probes/http.rs` backend performs no I/O and returns the fixed
+unsupported-result shape described above.
 
 ### `inputs.rs` — External input parsers
 

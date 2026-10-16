@@ -1295,3 +1295,11 @@ purposes. Purity metadata grants no Normal completion.
 authored object path. Empty components stay empty and each consumer owns its
 display/default behaviour. Filesystem artifact names require independent
 platform-safe construction and collision handling.
+
+Logical compatibility minifier roles consume the complete original positioned
+invocation, its effective argument origins and genuine selected script-body
+receipts. Recursive regions retain their absolute span in the same complete
+source image and full parent configuration, with an explicit nested-script
+segmentation purpose. Detached decoded or generated strings cannot recapture
+an original body occurrence. These source roles do not grant Native execution,
+read erasure or transformation authority beyond the consumer's existing guards.

@@ -93,9 +93,6 @@ pub(crate) fn capture_original_project_source_load_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<OriginalProjectSourceLoad> {
-    if analysis.original_interpreter_source_domain.is_some() {
-        return None;
-    }
     let input = analysis.resolved_input.as_ref()?;
     let image = tcl_lexer::SourceImage::document(source);
     if !analysis.matches_original_source_image(&image, input.lexer_config()) {

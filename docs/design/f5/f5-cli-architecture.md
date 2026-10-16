@@ -40,7 +40,7 @@ separate top-level binary from the `tcl` binary.  It is a pure-Rust,
    [`f5-query-dsl.md`](../../references/f5_query/dsl.md) for grammar, value
    model, edit pipeline, and jq-compatibility notes, and
    [`f5-query-dsl-builtins.md`](../../references/f5_query/builtins.md) for the
-   auto-generated per-function reference).  The verb handlers in
+   hand-maintained per-function reference).  The verb handlers in
    `rust/f5-cli/src/commands/` are thin shells over these two crates —
    they do file I/O and argument shaping, then hand the parsed
    `BigipConfig` to the engine (`diff`, `explain`, and the rest all build
@@ -129,8 +129,9 @@ Internal layering:
   `rename`, `rename_partition`, …), split into per-category modules
   (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …); a registry binds
   each function's signature and metadata so the same source feeds runtime
-  dispatch, `f5 query --help-builtins NAME`, and the generated reference
-  doc at `docs/references/f5_query/builtins.md`.
+  dispatch and `f5 query --help-builtins NAME`. The prose in
+  `docs/references/f5_query/builtins.md` is authored by hand; an xtask checks
+  only that its builtin heading names match the registry.
 - `grammar.rs`, `examples.rs`, `manual.rs` — terminal-friendly grammar
   reference and the worked-example cookbook surfaced by
   `--help-dsl` / `--help-examples` / `--help-manual`.

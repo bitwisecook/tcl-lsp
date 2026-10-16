@@ -401,25 +401,46 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T08:20:06Z",
+    "utc": "2026-10-16T08:34:00Z",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 18,
+    "implemented_pending_validation": 24,
     "verified_complete": 0,
-    "not_started": 2140,
+    "not_started": 2134,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM no-argument Parent current-holder projection (catalogue mapping pending)",
       "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)"
     ],
     "latest_scoped_build": {
-      "status": "FAIL_TEST_ADAPTER_COMPILE",
-      "log": "/tmp/naming-initial-build.log",
-      "source_diff_sha256": "de4bb5382300a7dc852e2f9ab495340cb10863495ab607e19938e5ef9e2a70ac",
-      "errors": 2,
-      "cause": "One test caller of project_source_diagnostics_for_analysis retained old signature; repaired without changing its assertions."
+      "status": "FAIL_SOURCE_LOAD_COMPILE",
+      "head": "1b9bc6ea158014961af766dcc3d702e3228333fb",
+      "log": "/tmp/naming-build-1b9bc6ea1.log",
+      "errors": 1,
+      "cause": "Nonexistent AnalysisResult field; repaired by checking actual Source hook scope ancestry for interpreter domains/isolated bodies before sealed capture. Next build pending."
     },
     "required_gates": "Still not green; no PR acceptance.",
-    "report_cadence_minutes": 30
+    "report_cadence_minutes": 30,
+    "current_scoped_results": [
+      {
+        "status": "PASS",
+        "selector": "namespace_snapshot_",
+        "tests": 2,
+        "required_providers": [
+          "8.4.20",
+          "8.5.19",
+          "8.6.18",
+          "9.0.4",
+          "9.1.0"
+        ],
+        "log": "/tmp/naming-syntax-snapshot-1b9bc6ea1.log"
+      },
+      {
+        "status": "PASS",
+        "selector": "source_tree_execution_selects_matching_original_init_and_tcltest",
+        "tests": 1,
+        "log": "/tmp/naming-provider-pairing.log"
+      }
+    ]
   }
 }

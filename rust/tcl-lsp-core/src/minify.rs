@@ -734,6 +734,7 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
     Ok(minify_body(
         source,
         MinifyEnv {
+            original_source: source,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -742,7 +743,7 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
             identities,
         },
         0,
-        input.lexer_config(),
+        tcl_lexer::SourceSegmentationPurpose::WholeInput,
     ))
 }
 
@@ -754,6 +755,8 @@ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, Mi
 /// and one of its steps was already at the argument limit.
 #[derive(Clone, Copy)]
 struct MinifyEnv<'a> {
+    /// Complete unchanged source backing every borrowed rendering region.
+    original_source: &'a str,
     /// Same immutable complete driver input sealed by the retained Realm.
     input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     /// The document's dialect, for the lexer and the abbreviation tables.
@@ -784,26 +787,29 @@ impl<'a> MinifyEnv<'a> {
         self.identities.head_words_unpositioned(head).resolved
     }
 
-    /// Same retained Logical source generation, distinct from runtime lookup.
-    fn source_head(self, name: &str) -> Option<String> {
-        // naming.minifier.logical-source-header
-        // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
-        let resolved = self.resolve(name);
-        if !resolved.is_empty() {
-            Some(resolved.to_owned())
-        } else {
-            self.identities.lexical_source_header_unpositioned(
-                self.identities.original_source_image()?,
-                self.input,
-                name,
-            )
-        }
+    /// Only an actual subslice of the complete held input retains coordinates.
+    /// Decoded or generated text cannot recapture a source-body occurrence.
+    fn original_region(self, source: &str) -> Option<Span> {
+        let start =
+            (source.as_ptr() as usize).checked_sub(self.original_source.as_ptr() as usize)?;
+        let end = start.checked_add(source.len())?;
+        (self.original_source.get(start..end)? == source).then_some(())?;
+        Some(Span::new(
+            u32::try_from(start).ok()?,
+            u32::try_from(end).ok()?,
+        ))
     }
 }
 
 /// Minify a Tcl script body (top-level or inside braces). `depth` is this
 /// body's nesting level — see [`MAX_MINIFY_DEPTH`].
-fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32, local_config: LexerConfig) -> String {
+fn minify_body(
+    source: &str,
+    env: MinifyEnv<'_>,
+    depth: u32,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+) -> String {
+    let local_config = purpose.config(env.config);
     let dialect = env.dialect;
     // Native-stack safety net — see `MAX_MINIFY_DEPTH`'s doc comment.
     // Past the cap, leave this (deeply nested) body unminified rather than
@@ -824,16 +830,20 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32, local_config: Lexer
 
     // naming.minifier.complete-lexical-head
     // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
-    let original_words = lexical_script_words(source, local_config);
-    // Render only the source roles selected in the retained context.
+    let original_words = env.original_region(source).and_then(|region| {
+        let image = env.identities.original_source_image()?.clone();
+        (image.bytes() == env.original_source.as_bytes()).then_some(())?;
+        let plan =
+            tcl_lexer::native_script_words_in_with_purpose(image, region, env.config, purpose)
+                .ok()?;
+        (plan.fatal_tail.is_none() && plan.commands.len() == commands.len()).then_some(plan)
+    });
     let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
     for (index, cmd_args) in commands.iter().enumerate() {
-        let head_word = original_words
+        let original = original_words
             .as_ref()
-            .and_then(|plan| plan.commands.get(index))
-            .and_then(|command| command.words.first());
-        let Some(command) = render_command(&sm, cmd_args, head_word, env, depth, local_config)
-        else {
+            .and_then(|plan| plan.commands.get(index));
+        let Some(command) = render_command(&sm, cmd_args, original, env, depth) else {
             return source.to_owned();
         };
         rendered.push(command);
@@ -1283,6 +1293,7 @@ fn compact_names(
         return (source.to_owned(), SymbolMap::default());
     };
     let env = MinifyEnv {
+        original_source: source,
         input,
         dialect: input.unit_profile(),
         config: input.lexer_config(),
@@ -1882,6 +1893,7 @@ fn abbreviate_keywords(
     lexical_keywords::abbreviate(
         source,
         MinifyEnv {
+            original_source: source,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -2197,6 +2209,7 @@ fn collect_string_literals(
     };
     let context = input.context_registry();
     let env = MinifyEnv {
+        original_source: source,
         input,
         dialect: input.unit_profile(),
         config: input.lexer_config(),
@@ -2819,104 +2832,81 @@ fn parse_commands(source: &str, tokens: &[Token], config: LexerConfig) -> Vec<Ve
 fn render_command(
     sm: &SourceMap,
     cmd_args: &[Arg],
-    head_word: Option<&tcl_lexer::NativeWord>,
+    original: Option<&tcl_lexer::NativeScriptCommandWords>,
     env: MinifyEnv<'_>,
     depth: u32,
-    local_config: LexerConfig,
 ) -> Option<Vec<String>> {
-    // naming.minifier.complete-lexical-head
-    // docs/design/analysis/name-resolution-proofs/minifier-complete-lexical-head.md
-    let cmd_name = cmd_args
-        .first()
-        .and_then(|arg| lexical_head_value(sm, arg, head_word?, local_config));
-    // The head's *effective command identity*: which registry command the
-    // spelling really names once the document's `namespace import` / `interp
-    // alias` / `rename` / built-in-shadowing `proc` statements are folded in
-    // Without it a rebound command's body / lambda / expression /
-    // clause-list arguments are re-minified as the grammar of the command it
-    // no longer is.
-    let source_head = cmd_name.as_deref().and_then(|name| env.source_head(name));
-    let head = source_head.as_deref().unwrap_or_default();
-    let post: Vec<String> = cmd_args.iter().skip(1).map(|a| token_text(sm, a)).collect();
-    let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
-
-    let argument_words = lexical_argument_words(cmd_args, &post);
-    let selected = lexical_source_schema(env, head, &argument_words, |schema| {
-        let (roles, complete) = schema.authored_source_argument_roles();
-        let roles = if complete {
-            roles
-                .into_iter()
-                .filter_map(|(index, role)| {
-                    Some((
-                        schema
-                            .semantics
-                            .argument_offset
-                            .checked_add(usize::from(index))?
-                            .checked_add(1)?,
-                        role,
-                    ))
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        (roles, schema.authored_source_case_invocation())
+    let words = original.and_then(|command| {
+        tcl_compiler::registry_invocation::source_structure::original_logical_registry_words_for_command(
+            env.identities, env.input, command,
+        )
     });
-    let (roles, case_invocation) = selected.unwrap_or_default();
-    let body_indices = roles
-        .iter()
-        .filter(|(_, role)| *role == ArgRole::Body)
-        .map(|(index, _)| *index)
-        .collect::<Vec<_>>();
-    let lambda_indices = roles
-        .iter()
-        .filter(|(_, role)| *role == ArgRole::LambdaLiteral)
-        .map(|(index, _)| *index)
-        .collect::<Vec<_>>();
-    let expr_indices = roles
-        .iter()
-        .filter(|(_, role)| *role == ArgRole::Expr)
-        .map(|(index, _)| *index)
-        .collect::<Vec<_>>();
-    let case_list_spec = case_invocation.as_ref().map(|(spec, _)| *spec);
-    let clause_list_index = case_invocation
+    // Effective aliases and expansions retain their original producers. Only
+    // a genuine complete written operand can receive a whole-word rewrite.
+    let written_role = |index: usize, role: ArgRole| {
+        let words = words.as_ref()?;
+        let argument = words.roles()?.iter().find_map(|&(argument, selected)| {
+            (selected == role
+                && words.origins().get(argument + 1)
+                    == Some(
+                        &tcl_compiler::registry_invocation::InvocationWordOrigin::Written(index),
+                    ))
+            .then_some(argument)
+        })?;
+        let operand = words.operands().get(argument)?.as_ref()?.word()?;
+        (original?.words.get(index)? == operand).then_some(())
+    };
+    let bodies = words
         .as_ref()
-        .and_then(|(_, invocation)| invocation.clause_list_index)
-        .and_then(|index| index.checked_add(1));
-    let inline_body_indices = case_invocation
-        .as_ref()
-        .and_then(|(spec, invocation)| {
-            invocation
-                .inline_clause_start
-                .and_then(|start| spec.inline_clauses(&post_refs, start))
-        })
-        .map(|clauses| {
-            clauses
-                .into_iter()
-                .filter_map(|clause| clause.body_index.and_then(|index| index.checked_add(1)))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
+        .map(|words| words.source_script_bodies(env.context));
+    let case = words.as_ref().and_then(|words| {
+        words.with_source_schema(env.context, |schema| {
+            schema.authored_source_case_invocation()
+        })?
+    });
+    let list_index = case.as_ref().and_then(|(_, layout)| {
+        let ordinal = layout.clause_list_index?.checked_add(1)?;
+        match words.as_ref()?.origins().get(ordinal)? {
+            tcl_compiler::registry_invocation::InvocationWordOrigin::Written(index) => Some(*index),
+            _ => None,
+        }
+    });
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
     for (i, arg) in cmd_args.iter().enumerate() {
         let single_braced = arg.is_braced && arg.tokens.len() == 1;
-        if clause_list_index == Some(i) && single_braced {
+        let original_word = original.and_then(|command| command.words.get(i));
+        let selected_body = original_word.and_then(|word| {
+            let content = word.content_span().ok()?;
+            bodies
+                .as_ref()?
+                .iter()
+                .find(|body| body.original_container() == word && body.content_span() == content)
+        });
+        if list_index == Some(i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            let minified = case_list_spec.map_or_else(
-                || minify_body(inner, env, depth + 1, env.config.nested()),
-                |cl| minify_case_list(inner, &cl, env, depth + 1),
-            );
+            let minified =
+                minify_case_list(inner, &case.as_ref()?.0, env, depth + 1, bodies.as_deref()?);
             out.push(format!("{{{minified}}}"));
-        } else if (inline_body_indices.contains(&i) || body_indices.contains(&i)) && single_braced {
+        } else if selected_body.is_some() && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!(
                 "{{{}}}",
-                minify_body(inner, env, depth + 1, env.config.nested())
+                minify_body(
+                    inner,
+                    env,
+                    depth + 1,
+                    tcl_lexer::SourceSegmentationPurpose::NestedScript
+                )
             ));
-        } else if lambda_indices.contains(&i) && single_braced {
-            out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
-        } else if expr_indices.contains(&i) && single_braced {
+        } else if written_role(i, ArgRole::LambdaLiteral).is_some() && single_braced {
+            out.push(minify_lambda_literal(
+                sm,
+                arg.tokens[0],
+                original_word?,
+                env,
+                depth + 1,
+            ));
+        } else if written_role(i, ArgRole::Expr).is_some() && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
         } else {
@@ -2927,6 +2917,7 @@ fn render_command(
 }
 
 /// Original whole-command words under the actual complete body configuration.
+#[cfg(test)]
 fn lexical_script_words(
     source: &str,
     config: LexerConfig,
@@ -2939,6 +2930,7 @@ fn lexical_script_words(
 }
 
 /// Static ASCII metadata value of the exact complete original head word.
+#[cfg(test)]
 fn lexical_head_value(
     sm: &SourceMap,
     arg: &Arg,
@@ -2958,42 +2950,6 @@ fn lexical_head_value(
     String::from_utf8(value).ok()
 }
 
-/// Compatibility word values retain unknown substitutions and cardinality.
-/// A first fragment is never used as the complete compound control value.
-fn lexical_argument_words<'w>(
-    cmd_args: &[Arg],
-    post: &'w [String],
-) -> Vec<tcl_registry::InvocationWord<'w>> {
-    cmd_args
-        .iter()
-        .skip(1)
-        .zip(post)
-        .map(|(arg, text)| {
-            if arg
-                .tokens
-                .iter()
-                .any(|token| token.kind == TokenType::Expand)
-            {
-                tcl_registry::InvocationWord::Expanded
-            } else if !arg.is_braced
-                && arg.tokens.iter().any(|token| {
-                    matches!(
-                        token.kind,
-                        TokenType::Var | TokenType::Cmd | TokenType::ExprSugar
-                    )
-                })
-            {
-                tcl_registry::InvocationWord::Dynamic
-            } else if arg.tokens.len() == 1 {
-                tcl_registry::InvocationWord::Literal(text.as_str())
-            } else {
-                // A first fragment cannot represent a compound control value.
-                tcl_registry::InvocationWord::Opaque
-            }
-        })
-        .collect::<Vec<_>>()
-}
-
 /// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
 /// ?ns?}` shape): only the body element is recursively minified as a
 /// script; the parameter list and optional namespace elements are copied
@@ -3010,16 +2966,30 @@ fn lexical_argument_words<'w>(
 /// `puts\ hi`), and a multi-word
 /// parameter list (`apply {{x y} …}`) would otherwise lose the braces that
 /// group it into one list element.
-fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: u32) -> String {
+fn minify_lambda_literal(
+    sm: &SourceMap,
+    tok: Token,
+    word: &tcl_lexer::NativeWord,
+    env: MinifyEnv<'_>,
+    depth: u32,
+) -> String {
     let source = sm.source();
     let fallback = || format!("{{{}}}", sm.token_text(tok));
     let Some(elems) = split_lambda_literal_decoded(source, tok) else {
         return fallback();
     };
-    let Some(body) = elems.body.as_deref() else {
+    let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+        .and_then(|lambda| lambda.braced_body())
+        .and_then(|span| env.original_source.get(span.as_range()))
+    else {
         return fallback();
     };
-    let minified_body = minify_body(body, env, depth, env.config.nested());
+    let minified_body = minify_body(
+        body,
+        env,
+        depth,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    );
     let mut parts = vec![
         tcl_syntax::list::list_element(&elems.params),
         tcl_syntax::list::list_element(&minified_body),
@@ -3031,6 +3001,7 @@ fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: 
 }
 
 /// Readonly source roles and case shape from the actual retained generation.
+#[cfg(test)]
 fn lexical_source_schema<'r: 'w, 'w, T>(
     env: MinifyEnv<'r>,
     name: &'w str,
@@ -3143,7 +3114,12 @@ fn reconstruct_raw(
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!(
             "[{}]",
-            minify_body(sm.token_text(tok), env, depth + 1, env.config.nested())
+            minify_body(
+                sm.token_text(tok),
+                env,
+                depth + 1,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript
+            )
         ),
         TokenType::Var => {
             return reconstruct_variable_reference(sm, tok, next_tok, env.config, in_quotes);
@@ -3318,6 +3294,7 @@ fn minify_case_list(
     cl: &tcl_registry::CaseListSpec,
     env: MinifyEnv<'_>,
     depth: u32,
+    bodies: &[tcl_compiler::registry_invocation::OriginalSourceScriptBody],
 ) -> String {
     let Some(elements) = case_list_elements(inner) else {
         return inner.to_owned();
@@ -3381,9 +3358,18 @@ fn minify_case_list(
         }
         let (pattern, body) = (&elements[i], &elements[i + 1]);
         parts.push(case_element_text(inner, pattern).to_owned());
-        if body.braced {
-            let body_src = &inner[body.value.clone()];
-            let minified = minify_body(body_src, env, depth, env.config.nested());
+        let body_src = &inner[body.value.clone()];
+        if body.braced
+            && env
+                .original_region(body_src)
+                .is_some_and(|span| bodies.iter().any(|body| body.content_span() == span))
+        {
+            let minified = minify_body(
+                body_src,
+                env,
+                depth,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            );
             parts.push(format!("{{{minified}}}"));
         } else {
             parts.push(case_element_text(inner, body).to_owned());
@@ -3686,7 +3672,12 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             i = end;
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
-                minify_body(inner, env, nest_depth + 1, env.config.nested())
+                minify_body(
+                    inner,
+                    env,
+                    nest_depth + 1,
+                    tcl_lexer::SourceSegmentationPurpose::NestedScript
+                )
             )));
         } else if c == b'$' {
             let start = i;
@@ -3900,6 +3891,7 @@ mod tests {
             let input = analysis.resolved_input.as_ref().unwrap();
             let context = input.context_registry();
             let env = MinifyEnv {
+                original_source: source,
                 input,
                 dialect: input.unit_profile(),
                 config: input.lexer_config(),

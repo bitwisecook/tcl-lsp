@@ -1133,6 +1133,7 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
         let env = super::super::MinifyEnv {
+            original_source: source,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1294,6 +1295,7 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
         let env = super::super::MinifyEnv {
+            original_source: source,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1564,6 +1566,7 @@ mod tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
         project(super::super::MinifyEnv {
+            original_source: source,
             input,
             dialect: input.unit_profile(),
             config: input.lexer_config(),
@@ -1571,6 +1574,56 @@ mod tests {
             context: &context,
             identities: analysis.retained_command_realm().unwrap(),
         })
+    }
+
+    #[test]
+    fn logical_render_roles_retain_effective_alias_prefix_and_original_body() {
+        let source = "interp alias {} choose {} if 1; choose { puts   yes }";
+        with_lexical_metadata(source, |env| {
+            let output = super::super::minify_body(
+                source,
+                env,
+                0,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            );
+            assert!(output.ends_with("choose {puts yes}"), "{output}");
+        });
+        let source = "interp alias {} choose {} switch --; choose $value { a { puts   yes } default { puts   no } }";
+        with_lexical_metadata(source, |env| {
+            let output = super::super::minify_body(
+                source,
+                env,
+                0,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            );
+            assert!(output.contains("{puts yes}"), "{output}");
+            assert!(output.contains("{puts no}"), "{output}");
+        });
+    }
+
+    #[test]
+    fn logical_render_roles_refuse_detached_and_changed_original_regions() {
+        let source = "if 1 { expr { 1 + 2 } }";
+        with_lexical_metadata(source, |env| {
+            let detached = source.to_owned();
+            assert!(env.original_region(&detached).is_none());
+            let output = super::super::minify_body(
+                &detached,
+                env,
+                0,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            );
+            assert!(output.contains("{ expr { 1 + 2 } }"), "{output}");
+            let body = &source[source.find("expr").unwrap()..source.len() - 2];
+            assert!(env.original_region(body).is_some());
+            let output = super::super::minify_body(
+                source,
+                env,
+                0,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            );
+            assert!(output.contains("{expr {1+2}}"), "{output}");
+        });
     }
 
     #[test]
@@ -1737,6 +1790,7 @@ mod tests {
             let input = analysis.resolved_input.as_ref().unwrap();
             let context = input.context_registry();
             let env = super::super::MinifyEnv {
+                original_source: source,
                 input,
                 dialect: input.unit_profile(),
                 config: input.lexer_config(),

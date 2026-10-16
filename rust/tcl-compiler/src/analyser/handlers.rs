@@ -11188,7 +11188,16 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        let original_project_source_load = (self.interp_path_stack.is_empty()
+        let current_interpreter_scope = (0..=scope_path.len()).all(|depth| {
+            super::scope::scope_at(&self.result.global_scope, &scope_path[..depth]).is_some_and(
+                |scope| {
+                    scope.original_interpreter_source_domain.is_none()
+                        && !scope.isolated_interpreter_source_body
+                },
+            )
+        });
+        let original_project_source_load = (current_interpreter_scope
+            && self.interp_path_stack.is_empty()
             && self.safe_interp_stack.is_empty())
         .then(|| {
             crate::registry_invocation::source_structure::capture_original_project_source_load_at(

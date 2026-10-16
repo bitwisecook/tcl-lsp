@@ -460,7 +460,9 @@ an `EditPlan`.  When evaluation finishes, the planner:
 
 1. Applies any **prefix-cascade rewrites** queued by builtins like
    `rename_partition` (token-bounded regex prefix substitution against
-   the whole source).  Verifies the result still parses.
+   the whole source). This step does not parse or validate the rewritten
+   output; the configuration parser is currently infallible, so this path
+   provides no final-output syntax-validation guarantee.
 2. Splits the remaining ops into identity writes and field writes.
 3. Routes identity writes through `rename_object`, threading the
    evolving source between successive renames.  `|=` on an identity
