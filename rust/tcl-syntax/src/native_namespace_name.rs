@@ -40,6 +40,27 @@ pub enum NativeNamespaceObjectProducer {
     CodeContext,
     /// The private namespace of an actually selected `TclOO` object.
     ObjectNamespace,
+    /// A fresh ensemble namespace configuration object. Standalone legacy
+    /// string-result publication has its separate result stage.
+    EnsembleConfiguration,
+}
+
+/// Position receiving the selected ensemble namespace configuration value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeEnsembleNamespaceResultStage {
+    /// The standalone `-namespace` query result.
+    Option,
+    /// The namespace member of the complete configuration list.
+    Snapshot,
+}
+
+/// Physical construction after the ensemble namespace has been selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeEnsembleNamespaceResult {
+    /// C8.5 `Tcl_SetResult` followed by the original object-result getter.
+    LegacyStringResult,
+    /// A freshly allocated object for this configuration value.
+    FreshObject,
 }
 
 /// C command-table retirement frontier used by namespace teardown.
@@ -149,6 +170,21 @@ impl NativeNamespaceNameRecipe {
             }
         }
     }
+    /// Select standalone legacy-result publication separately from list members.
+    #[must_use]
+    pub const fn ensemble_configuration_result(
+        self,
+        stage: NativeEnsembleNamespaceResultStage,
+    ) -> Option<NativeEnsembleNamespaceResult> {
+        match (self.0, stage) {
+            (TclVersion::V8_4, _) => None,
+            (TclVersion::V8_5, NativeEnsembleNamespaceResultStage::Option) => {
+                Some(NativeEnsembleNamespaceResult::LegacyStringResult)
+            }
+            _ => Some(NativeEnsembleNamespaceResult::FreshObject),
+        }
+    }
+
     /// Select one actual result factory without borrowing another producer's class.
     #[must_use]
     pub const fn result_primary(
@@ -161,7 +197,11 @@ impl NativeNamespaceNameRecipe {
         }
         if matches!(lifecycle, NativeNamespaceLifecycle::Dead)
             || (matches!(self.0, TclVersion::V8_4)
-                && matches!(producer, NativeNamespaceObjectProducer::Path))
+                && matches!(
+                    producer,
+                    NativeNamespaceObjectProducer::Path
+                        | NativeNamespaceObjectProducer::EnsembleConfiguration
+                ))
         {
             return None;
         }
@@ -182,6 +222,48 @@ mod tests {
         NativeNamespaceNameRecipe as Recipe,
     };
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn ensemble_configuration_namespace_factory_uses_its_own_release_and_lifetime() {
+        use super::{
+            NativeEnsembleNamespaceResult as Result, NativeEnsembleNamespaceResultStage as Stage,
+            NativeNamespaceObjectProducer::EnsembleConfiguration,
+        };
+
+        for (version, live) in [
+            (TclVersion::V8_4, None),
+            (TclVersion::V8_5, Some(Primary::UntypedString)),
+            (TclVersion::V8_6, Some(Primary::UntypedString)),
+            (TclVersion::V9_0, Some(Primary::NamespaceName)),
+            (TclVersion::V9_1, Some(Primary::NamespaceName)),
+        ] {
+            let recipe = Recipe::for_tcl_version(version);
+            assert_eq!(
+                recipe.ensemble_configuration_result(Stage::Option),
+                match version {
+                    TclVersion::V8_4 => None,
+                    TclVersion::V8_5 => Some(Result::LegacyStringResult),
+                    _ => Some(Result::FreshObject),
+                },
+            );
+            assert_eq!(
+                recipe.ensemble_configuration_result(Stage::Snapshot),
+                (version != TclVersion::V8_4).then_some(Result::FreshObject),
+            );
+            assert_eq!(
+                recipe.result_primary(EnsembleConfiguration, State::Live),
+                live
+            );
+            assert_eq!(
+                recipe.result_primary(EnsembleConfiguration, State::Dying),
+                (version != TclVersion::V8_4).then_some(Primary::UntypedString),
+            );
+            assert_eq!(
+                recipe.result_primary(EnsembleConfiguration, State::Dead),
+                None
+            );
+        }
+    }
 
     #[test]
     fn actual_release_cache_and_producer_discriminators() {

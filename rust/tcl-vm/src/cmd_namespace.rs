@@ -31,6 +31,7 @@ use crate::command::{err_with_code, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
+use tcl_syntax::native_namespace_name::NativeEnsembleNamespaceResultStage;
 
 mod native_jim_helpers;
 mod native_jim_subcommands;
@@ -904,24 +905,33 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     .collect(),
             ));
         }
-        let mut values = rest;
-        if let Some(first) = values.first() {
-            let bytes = match original_names.read(vm, first) {
-                Ok(bytes) => bytes,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            if bytes.as_ref() == b"-clear" {
-                vm.clear_exports();
-                values = &values[1..];
-            }
-        }
         let Some(policy) = vm.name_policy_protocol() else {
             return vm.refuse_host_command("native export protocol is unavailable".into());
         };
         if policy.recipe().is_jim084() {
             return ok(Value::empty());
         }
-        let mut patterns = Vec::new();
+        let mut values = rest;
+        if let Some(first) = values.first() {
+            let bytes = match original_names.read(vm, first) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let clear = match policy.recipe().namespace_export_clears(&bytes) {
+                Ok(clear) => clear,
+                Err(_) => {
+                    return vm.refuse_host_command(
+                        "native export control projection is unavailable".into(),
+                    );
+                }
+            };
+            if clear {
+                vm.clear_exports();
+                values = &values[1..];
+            }
+        }
+        // Each native getter is followed by validation and publication before
+        // visiting the next original operand. Earlier clear/exports survive failure.
         for value in values {
             let bytes = match original_names.read(vm, value) {
                 Ok(bytes) => bytes,
@@ -938,27 +948,16 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     );
                 }
             };
-            patterns.push(selected);
-        }
-        // `NamespaceExportCmd` calls `Tcl_Export` once per pattern and returns on
-        // the first failure, so the patterns before an invalid one are already
-        // committed — validation is NOT a batch gate. (`-clear` is committed
-        // earlier still: C spends a whole `Tcl_Export(…, "::", 1)` call on it,
-        // which resets the list and then fails its own qualifier check, an error
-        // `NamespaceExportCmd` deliberately discards with `Tcl_ResetResult`.)
-        // An export pattern names commands in the *current* namespace, so it may
-        // not carry a namespace qualifier.
-        for pattern in &patterns {
-            if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+            if tcl_syntax::naming::is_qualified(selected.as_bytes()) {
                 let mut message = b"invalid export pattern \"".to_vec();
-                message.extend_from_slice(pattern.as_bytes());
+                message.extend_from_slice(selected.as_bytes());
                 message.extend_from_slice(b"\": pattern can't specify a namespace");
                 return crate::command::completion_from_cmd_error(
                     vm,
                     tcl_cmd_core::CmdError::new_bytes(message),
                 );
             }
-            vm.add_exports(std::slice::from_ref(pattern));
+            vm.add_exports(std::slice::from_ref(&selected));
         }
         ok(Value::empty())
     })();
@@ -1634,9 +1633,14 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     ) {
                         return crate::command::completion_from_cmd_error(vm, error);
                     }
-                    match ensemble_option_value(vm, &def, options.configure_option(index)) {
+                    match ensemble_option_value(
+                        vm,
+                        &def,
+                        options.configure_option(index),
+                        NativeEnsembleNamespaceResultStage::Option,
+                    ) {
                         Ok(value) => ok(value),
-                        Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+                        Err(error) => crate::command::completion_from_cmd_error(vm, error),
                     }
                 }
                 Err(error) => crate::command::completion_from_cmd_error(vm, error),
@@ -1728,9 +1732,14 @@ fn ensemble_configuration_snapshot(
     };
     let mut pairs = Vec::new();
     for option in options.configuration_options() {
-        let value = match ensemble_option_value(vm, def, option) {
+        let value = match ensemble_option_value(
+            vm,
+            def,
+            option,
+            NativeEnsembleNamespaceResultStage::Snapshot,
+        ) {
             Ok(value) => value,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         pairs.push(Value::string(option.name()));
         pairs.push(value);
@@ -1740,10 +1749,11 @@ fn ensemble_configuration_snapshot(
 
 /// One `namespace ensemble configure` option's value.
 fn ensemble_option_value(
-    vm: &Vm,
+    vm: &mut Vm,
     def: &crate::command::EnsembleDef,
     option: tcl_cmd_core::ensemble::ConfigOption,
-) -> Result<Value, tcl_syntax::value::ValueError> {
+    stage: NativeEnsembleNamespaceResultStage,
+) -> Result<Value, tcl_cmd_core::CmdError> {
     use tcl_cmd_core::ensemble::ConfigOption;
     let role = match option {
         ConfigOption::Map => def.originals.map.as_ref(),
@@ -1774,9 +1784,7 @@ fn ensemble_option_value(
         )
     };
     Ok(match option {
-        ConfigOption::Namespace => {
-            Value::string(tcl_runtime_api::Namespaces::name(vm, def.namespace))
-        }
+        ConfigOption::Namespace => vm.original_ensemble_namespace_result(def.namespace, stage)?,
         ConfigOption::Prefixes => Value::bool(def.prefixes),
         ConfigOption::Parameters => {
             if def.parameters.is_empty() {
@@ -2366,8 +2374,398 @@ mod native_upvar_fixture_tests {
 }
 
 #[cfg(test)]
+mod original_export_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+    use tcl_platform::{
+        NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
+        NativeIntegerKind,
+    };
+
+    fn invoke_export(vm: &mut Vm, patterns: &[Value]) -> Completion<Value> {
+        let mut arguments = vec![Value::string("export")];
+        arguments.extend_from_slice(patterns);
+        vm.invoke_host_original_object_vector(&Value::string("namespace"), &arguments)
+    }
+
+    fn exports(vm: &Vm) -> Vec<Vec<u8>> {
+        vm.exports_get()
+            .iter()
+            .map(|name| name.as_bytes().to_vec())
+            .collect()
+    }
+
+    fn pending_list(vm: &Vm) -> Value {
+        Value::native_list_constructor(
+            vec![Value::new_native_string_bytes(b"unreached".as_slice())],
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn export_invalid_pattern_stops_before_later_original_getter_and_keeps_prior_commits() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(release));
+            vm.add_exports(&[tcl_core_types::NameBytes::from("before")]);
+            let later = pending_list(&vm);
+            let result = invoke_export(
+                &mut vm,
+                &[
+                    Value::new_native_string_bytes(b"-clear\0tail".as_slice()),
+                    Value::new_native_string_bytes(b"kept\xff".as_slice()),
+                    Value::new_native_string_bytes(b"::invalid\0tail".as_slice()),
+                    later.clone(),
+                ],
+            );
+            assert_eq!(result.code, Code::Error, "{release}");
+            assert_eq!(
+                result.result.resident_string_bytes().unwrap().as_ref(),
+                b"invalid export pattern \"::invalid\": pattern can't specify a namespace"
+            );
+            assert!(later.resident_string_bytes().is_none(), "{release}");
+            assert_eq!(exports(&vm), [b"kept\xff".to_vec()], "{release}");
+            assert!(vm.execution_refusal.is_none(), "{release}");
+        }
+    }
+
+    #[test]
+    fn export_clear_control_is_exact_leading_and_uses_cstring_extent() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (patterns, expected) in [
+                (
+                    vec![b"-clear\0tail".as_slice(), b"p", b"-clear"],
+                    vec![b"p".as_slice(), b"-clear"],
+                ),
+                (
+                    vec![b"-cl".as_slice(), b"p"],
+                    vec![b"before".as_slice(), b"-cl", b"p"],
+                ),
+                (
+                    vec![b"--".as_slice(), b"p"],
+                    vec![b"before".as_slice(), b"--", b"p"],
+                ),
+                (
+                    vec![b"-clear\xc0\x80tail".as_slice(), b"p"],
+                    vec![b"before".as_slice(), b"-clear\xc0\x80tail", b"p"],
+                ),
+                (
+                    vec![b"p".as_slice(), b"-clear\0tail"],
+                    vec![b"before".as_slice(), b"p", b"-clear"],
+                ),
+            ] {
+                let mut vm =
+                    crate::native_fixture::core(crate::environment::profile_for_dialect(release));
+                vm.add_exports(&[tcl_core_types::NameBytes::from("before")]);
+                let values: Vec<_> = patterns
+                    .into_iter()
+                    .map(Value::new_native_string_bytes)
+                    .collect();
+                let result = invoke_export(&mut vm, &values);
+                assert_eq!(result.code, Code::Ok, "{release}");
+                assert_eq!(exports(&vm), expected, "{release}");
+                assert!(vm.execution_refusal.is_none(), "{release}");
+            }
+        }
+    }
+
+    struct FailingFormatter(Cell<usize>);
+    impl NativeIntegerFormatter for FailingFormatter {
+        fn build(&self) -> NativeIntegerFormatterBuild {
+            NativeIntegerFormatterBuild {
+                version: [8, 4, 20, 0],
+                sha256: [7; 32],
+                long_bits: 64,
+            }
+        }
+        fn format(
+            &self,
+            _: NativeIntegerKind,
+            _: i64,
+        ) -> Result<Vec<u8>, NativeIntegerFormatterUnavailable> {
+            self.0.set(self.0.get() + 1);
+            Err(NativeIntegerFormatterUnavailable::Operation)
+        }
+    }
+    struct FormatterHost {
+        actual: Rc<dyn tcl_platform::Host>,
+        formatter: Rc<FailingFormatter>,
+    }
+    impl tcl_platform::Host for FormatterHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.actual.env()
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
+            Some(&*self.formatter)
+        }
+    }
+
+    #[test]
+    fn export_commits_each_original_pattern_before_a_later_getter_refusal() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        let formatter = Rc::new(FailingFormatter(Cell::new(0)));
+        vm.set_host(Rc::new(FormatterHost {
+            actual: vm.host_rc(),
+            formatter: Rc::clone(&formatter),
+        }));
+        vm.add_exports(&[tcl_core_types::NameBytes::from("before")]);
+        let failing = Value::from_native_scalar_cache(
+            tcl_syntax::scalar_getter::NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+                i64::MIN,
+            )),
+            None,
+            vm.actual_native_invocation_dialect(),
+        )
+        .unwrap();
+        let later = pending_list(&vm);
+        let result = invoke_export(
+            &mut vm,
+            &[
+                Value::string("-clear"),
+                Value::string("committed"),
+                failing.clone(),
+                later.clone(),
+            ],
+        );
+        assert_eq!(result.code, Code::Error);
+        assert_eq!(formatter.0.get(), 1);
+        assert_eq!(exports(&vm), [b"committed".to_vec()]);
+        assert!(failing.resident_string_bytes().is_none());
+        assert!(later.resident_string_bytes().is_none());
+        let first = vm.execution_refusal.as_ref().unwrap();
+        assert!(!matches!(
+            first,
+            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
+        ));
+    }
+
+    #[test]
+    fn jim_export_noop_does_not_reach_original_operand_getters() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+        let original = pending_list(&vm);
+        let result = invoke_export(&mut vm, &[original.clone(), Value::string("-clear")]);
+        assert_eq!(result.code, Code::Ok);
+        assert!(original.resident_string_bytes().is_none());
+        assert!(result.result.resident_string_bytes().unwrap().is_empty());
+        assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[cfg(test)]
 mod original_ensemble_tests {
     use super::*;
+
+    #[test]
+    fn configuration_namespace_results_keep_exact_selected_bytes_and_primary() {
+        for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(release));
+            for (name, command) in [
+                (b"::raw\xff".as_slice(), "::E1"),
+                (b"::raw\xfe".as_slice(), "::E2"),
+            ] {
+                let selected = vm.activate_namespace_operand(name).unwrap();
+                vm.push_ns_token(&name[2..], selected);
+                let created = ns_ensemble_create(
+                    &mut vm,
+                    &[Value::string("-command"), Value::string(command)],
+                );
+                assert_eq!(created.code, Code::Ok, "{release}");
+                vm.pop_ns();
+                assert_ne!(vm.current_ns_id(), selected);
+                let query = ns_ensemble_configure(
+                    &mut vm,
+                    &[Value::string(command), Value::string("-namespace")],
+                );
+                assert_eq!(query.code, Code::Ok, "{release}");
+                let snapshot = ns_ensemble_configure(&mut vm, &[Value::string(command)]);
+                assert_eq!(snapshot.code, Code::Ok, "{release}");
+                let protocol = vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap();
+                let entries = snapshot
+                    .result
+                    .native_object_list_elements(protocol)
+                    .unwrap();
+                let configured = entries
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .find(|pair| pair[0].resident_string_bytes().unwrap().as_ref() == b"-namespace")
+                    .unwrap()[1]
+                    .clone();
+                for result in [query.result, configured] {
+                    assert_eq!(result.resident_string_bytes().unwrap().as_ref(), name);
+                    assert_eq!(
+                        result.native_namespace_name_cache().is_some(),
+                        matches!(release, "tcl9.0" | "tcl9.1"),
+                    );
+                    if let Some(cache) = result.native_namespace_name_cache() {
+                        assert!(
+                            cache
+                                .namespace()
+                                .unwrap()
+                                .same_token(&vm.native_namespace_name_token(selected).unwrap())
+                        );
+                        assert!(cache.reference().is_none());
+                    }
+                    assert_eq!(vm.namespace_object_lookup(&result).unwrap(), Some(selected));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn configuration_namespace_result_retains_bytes_after_retirement_and_refuses_dead_owner() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        let selected = vm.activate_namespace_operand(b"::held").unwrap();
+        vm.push_ns_token("held", selected);
+        let created =
+            ns_ensemble_create(&mut vm, &[Value::string("-command"), Value::string("::E")]);
+        assert_eq!(created.code, Code::Ok);
+        vm.pop_ns();
+        let (_, crate::command::Command::Ensemble(token)) = vm
+            .lookup_command_bytes_checked(vm.current_ns_id(), b"::E")
+            .unwrap()
+            .unwrap()
+        else {
+            panic!("actual ensemble token");
+        };
+        let def = token.config();
+        let live = ensemble_option_value(
+            &mut vm,
+            &def,
+            tcl_cmd_core::ensemble::ConfigOption::Namespace,
+            NativeEnsembleNamespaceResultStage::Option,
+        )
+        .unwrap();
+        let cache = live.native_namespace_name_cache().unwrap();
+        assert!(
+            vm.delete_namespace_path(&tcl_core_types::ByteNamespacePath::from_segments([
+                b"held".as_slice(),
+            ]))
+        );
+        assert_eq!(
+            cache.namespace().unwrap().lifecycle(),
+            tcl_syntax::native_namespace_name::NativeNamespaceLifecycle::Dead,
+        );
+        assert_eq!(live.resident_string_bytes().unwrap().as_ref(), b"::held");
+        assert!(
+            ensemble_option_value(
+                &mut vm,
+                &def,
+                tcl_cmd_core::ensemble::ConfigOption::Namespace,
+                NativeEnsembleNamespaceResultStage::Option,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn configuration_namespace_results_preserve_distinct_owners_with_equal_name_bytes() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        let mut results = Vec::new();
+        let mut namespaces = Vec::new();
+        for (segments, command) in [
+            ([b"a:".as_slice(), b"b".as_slice()], "::E1"),
+            ([b"a".as_slice(), b":b".as_slice()], "::E2"),
+        ] {
+            let path = tcl_core_types::ByteNamespacePath::from_segments(segments);
+            vm.declare_namespace_path_with_origin(path.clone(), true);
+            let selected = vm.definition_namespace_token_at_path(&path, true);
+            let name = tcl_runtime_api::Namespaces::name_bytes(&vm, selected);
+            vm.push_ns_token(&name[2..], selected);
+            let created = ns_ensemble_create(
+                &mut vm,
+                &[Value::string("-command"), Value::string(command)],
+            );
+            assert_eq!(created.code, Code::Ok);
+            vm.pop_ns();
+            let queried = ns_ensemble_configure(
+                &mut vm,
+                &[Value::string(command), Value::string("-namespace")],
+            );
+            assert_eq!(queried.code, Code::Ok);
+            let result = queried.result;
+            assert!(
+                result
+                    .native_namespace_name_cache()
+                    .unwrap()
+                    .namespace()
+                    .unwrap()
+                    .same_token(&vm.native_namespace_name_token(selected).unwrap())
+            );
+            assert_eq!(vm.namespace_object_lookup(&result).unwrap(), Some(selected));
+            results.push(result);
+            namespaces.push(selected);
+        }
+        assert_ne!(namespaces[0], namespaces[1]);
+        assert_eq!(
+            results[0].resident_string_bytes(),
+            results[1].resident_string_bytes()
+        );
+        assert!(
+            !results[0]
+                .native_namespace_name_cache()
+                .unwrap()
+                .namespace()
+                .unwrap()
+                .same_token(
+                    results[1]
+                        .native_namespace_name_cache()
+                        .unwrap()
+                        .namespace()
+                        .unwrap()
+                )
+        );
+    }
+
+    #[test]
+    fn configuration_namespace_result_refuses_component_with_no_native_c_spelling() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+        let actual = vm.activate_namespace_operand(b"::a::b").unwrap();
+        let impossible = tcl_core_types::ByteNamespacePath::from_segments([b"a::b".as_slice()]);
+        vm.declare_namespace_path_with_origin(impossible.clone(), true);
+        let constructed = vm.definition_namespace_token_at_path(&impossible, true);
+        assert_ne!(actual, constructed);
+        assert_eq!(
+            tcl_runtime_api::Namespaces::name_bytes(&vm, actual),
+            tcl_runtime_api::Namespaces::name_bytes(&vm, constructed),
+        );
+        let result = vm
+            .original_ensemble_namespace_result(
+                actual,
+                NativeEnsembleNamespaceResultStage::Snapshot,
+            )
+            .unwrap();
+        assert!(
+            result
+                .native_namespace_name_cache()
+                .unwrap()
+                .namespace()
+                .unwrap()
+                .same_token(&vm.native_namespace_name_token(actual).unwrap())
+        );
+        assert!(
+            vm.original_ensemble_namespace_result(
+                constructed,
+                NativeEnsembleNamespaceResultStage::Snapshot,
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn map_queries_keep_the_same_original_and_do_not_own_retired_configuration() {
@@ -2398,9 +2796,13 @@ mod original_ensemble_tests {
             let references = args[3].native_object_reference_count();
             let another = query.clone();
             assert_eq!(args[3].native_object_reference_count(), references);
-            let original =
-                ensemble_option_value(&vm, &query, tcl_cmd_core::ensemble::ConfigOption::Map)
-                    .unwrap();
+            let original = ensemble_option_value(
+                &mut vm,
+                &query,
+                tcl_cmd_core::ensemble::ConfigOption::Map,
+                NativeEnsembleNamespaceResultStage::Snapshot,
+            )
+            .unwrap();
             assert_eq!(
                 original.native_object_identity(),
                 args[3].native_object_identity()

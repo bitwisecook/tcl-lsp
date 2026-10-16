@@ -18,6 +18,43 @@ use tcl_syntax::{
 
 mod jim_parent;
 
+/// A reached C8.5 standalone ensemble namespace string-result stage.
+/// Only this owner can issue it for the actual selected interpreter result.
+pub(crate) struct OriginalEnsembleNamespaceResult<'a> {
+    scope: &'a super::native_name_consumers::OriginalNameConsumerScope,
+    result: &'a Value,
+    namespace: Token,
+    selected: NsId,
+    lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+}
+
+impl OriginalEnsembleNamespaceResult<'_> {
+    fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.scope.check(vm)?;
+        let selected = vm.native_namespace_name_token(self.selected)?;
+        let current = self.namespace.same_token(&selected)
+            && self.namespace.lifecycle() == self.lifecycle
+            && vm.with_native_interp_result(|actual| actual.is_same_object(self.result))?
+            && !self.result.native_object_is_shared()
+            && self.result.native_object_reference_count() == 1;
+        self.scope
+            .require(vm, current, "original ensemble namespace result owner")
+    }
+
+    pub(crate) fn bytes_for(&self, result: &Value) -> Result<&[u8], ValueError> {
+        result.check_native_header()?;
+        if !result.is_same_object(self.result)
+            || result.native_object_is_shared()
+            || result.native_object_reference_count() != 1
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original ensemble namespace result header",
+            ));
+        }
+        Ok(self.namespace.full_name().as_bytes())
+    }
+}
+
 impl Vm {
     pub(crate) fn original_jim_canonical_namespace_object(
         &mut self,
@@ -119,6 +156,75 @@ impl Vm {
         value.bind_native_jim_context(&self.native_jim_object_context()?)?;
         current(self)?;
         Ok(value)
+    }
+
+    pub(crate) fn original_ensemble_namespace_result(
+        &mut self,
+        namespace: NsId,
+        stage: tcl_syntax::native_namespace_name::NativeEnsembleNamespaceResultStage,
+    ) -> Result<Value, CmdError> {
+        use super::native_name_consumers::OriginalNameConsumerScope;
+        use tcl_syntax::native_namespace_name::NativeEnsembleNamespaceResult;
+
+        let scope = OriginalNameConsumerScope::enter_for_namespace(self, Some(namespace))?;
+        let reached = (|| {
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_namespace_name_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "ensemble namespace result issuer",
+                ))?;
+            let production = protocol
+                .recipe()
+                .ensemble_configuration_result(stage)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "ensemble namespace result stage",
+                ))?;
+            if production == NativeEnsembleNamespaceResult::FreshObject {
+                return self
+                    .native_namespace_result_object(namespace, Producer::EnsembleConfiguration)
+                    .map_err(CmdError::from);
+            }
+            let selected = namespace;
+            let namespace = self.native_namespace_name_token(selected)?;
+            let lifecycle = namespace.lifecycle();
+            scope.require(
+                self,
+                protocol
+                    .recipe()
+                    .result_primary(Producer::EnsembleConfiguration, lifecycle)
+                    .is_some(),
+                "original ensemble namespace result lifetime",
+            )?;
+            let reuse =
+                self.with_native_interp_result(|result| !result.native_object_is_shared())?;
+            let retired = if reuse {
+                None
+            } else {
+                self.native_c_result
+                    .replace(Some(Value::new_native_string_bytes(b"".as_slice())))
+            };
+            let result = self.with_native_interp_result(Value::native_lifetime_lease)?;
+            let original = OriginalEnsembleNamespaceResult {
+                scope: &scope,
+                result: result.value(),
+                namespace,
+                selected,
+                lifecycle,
+            };
+            drop(retired);
+            original.check(self)?;
+            result
+                .value()
+                .initialise_original_ensemble_namespace_result(&original, &mut || {
+                    original.check(self)
+                })?;
+            original.check(self)?;
+            drop(original);
+            Ok(result.into_value())
+        })();
+        scope.finish(self)?;
+        reached
     }
 
     pub(crate) fn native_namespace_result_object(
@@ -619,6 +725,69 @@ mod tests {
             super::super::CommandSlot::new(namespace, tcl_core_types::NameBytes::from("marker")),
             crate::command::Command::Builtin(if second { binding_two } else { binding_one }),
         )
+    }
+
+    #[test]
+    fn c85_ensemble_namespace_option_keeps_result_header_and_snapshot_stays_fresh() {
+        use tcl_syntax::native_namespace_name::NativeEnsembleNamespaceResultStage as Stage;
+
+        for shared in [false, true] {
+            let mut vm = actual_vm("tcl8.5");
+            let namespace = declare(&mut vm, &[b"raw\xff"]);
+            let before = vm.adopt_native_interp_result(Value::int(42)).unwrap();
+            let retained = shared.then(|| before.value().clone());
+            vm.native_errors.primitive_error_code = Some(Value::string("EPISODE"));
+            vm.native_errors.error_logged = true;
+            vm.native_errors.native_error_info_len = 37;
+            let result = vm
+                .original_ensemble_namespace_result(namespace, Stage::Option)
+                .unwrap();
+            assert_eq!(result.is_same_object(before.value()), !shared);
+            assert_eq!(
+                result.resident_string_bytes().unwrap().as_ref(),
+                b"::raw\xff"
+            );
+            assert_eq!(result.native_object_type_name(), "none");
+            assert_eq!(result.native_object_reference_count(), 1);
+            assert!(
+                vm.with_native_interp_result(|actual| actual.is_same_object(&result))
+                    .unwrap()
+            );
+            if let Some(retained) = retained {
+                assert_eq!(retained.native_object_type_name(), "int");
+                assert!(retained.resident_string_bytes().is_none());
+            }
+            let first = vm
+                .original_ensemble_namespace_result(namespace, Stage::Snapshot)
+                .unwrap();
+            let second = vm
+                .original_ensemble_namespace_result(namespace, Stage::Snapshot)
+                .unwrap();
+            assert!(!first.is_same_object(&result));
+            assert!(!second.is_same_object(&result));
+            assert!(!first.is_same_object(&second));
+            assert_eq!(first.native_object_type_name(), "none");
+            assert_eq!(
+                first.resident_string_bytes().unwrap().as_ref(),
+                b"::raw\xff"
+            );
+            assert!(
+                vm.with_native_interp_result(|actual| actual.is_same_object(&result))
+                    .unwrap()
+            );
+            assert_eq!(
+                vm.native_errors
+                    .primitive_error_code
+                    .as_ref()
+                    .unwrap()
+                    .resident_string_bytes()
+                    .unwrap()
+                    .as_ref(),
+                b"EPISODE"
+            );
+            assert!(vm.native_errors.error_logged);
+            assert_eq!(vm.native_errors.native_error_info_len, 37);
+        }
     }
 
     #[test]

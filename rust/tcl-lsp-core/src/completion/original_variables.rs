@@ -820,7 +820,6 @@ mod tests {
 #[cfg(test)]
 mod write_advice_tests {
     use super::tests::items;
-    use super::*;
     use tcl_compiler::analyser::Analyser;
 
     #[test]

@@ -1605,6 +1605,19 @@ impl NativeNameProtocol {
             None,
         ))
     }
+    /// Test the sole leading export control after selecting its native input extent.
+    /// This supplies no operand visit order, clear effect or namespace owner.
+    ///
+    /// # Errors
+    /// Jim export is a no-op and has no C export control declaration.
+    pub fn namespace_export_clears(
+        self,
+        original: &[u8],
+    ) -> Result<bool, NameProjectionUnavailable> {
+        self.namespace_pattern_input(original, NativeNamePurpose::NamespaceExportPattern)
+            .map(|input| input.selected() == b"-clear")
+    }
+
     /// Select a namespace command pattern before qualifier parsing or storage.
     /// C export/import/forget entry points receive C strings. Jim's import
     /// helper receives the same extent; its export/forget APIs have no C recipe.
@@ -3140,6 +3153,27 @@ mod tests {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ];
+
+    #[test]
+    fn export_clear_control_uses_exact_cstring_input_and_has_no_jim_recipe() {
+        for version in VERSIONS {
+            let protocol = NativeNameProtocol::C(version);
+            for (original, expected) in [
+                (b"-clear".as_slice(), true),
+                (b"-clear\0tail", true),
+                (b"-cl", false),
+                (b"--", false),
+                (b"-clear\xc0\x80tail", false),
+                (b"prefix-clear", false),
+            ] {
+                assert_eq!(protocol.namespace_export_clears(original), Ok(expected));
+            }
+        }
+        assert_eq!(
+            NativeNameProtocol::Jim084.namespace_export_clears(b"-clear"),
+            Err(NameProjectionUnavailable::PurposeNotModelled),
+        );
+    }
 
     #[test]
     fn ensemble_map_prefix_construction_preserves_counted_heads_before_lookup() {

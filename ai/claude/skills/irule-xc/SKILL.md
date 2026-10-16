@@ -13,14 +13,21 @@ allowed-tools: mcp__tcl-lsp__xc_translate, Bash, Read, Write
    (`output_format` default `both`): Terraform HCL, ves.io JSON, a coverage
    percentage, and a per-command breakdown of translated / untranslatable /
    advisory constructs. On a tool error report it and suggest fixes.
-3. Coverage ≥ 80 %: the static translation stands. Below that, suggest XC
-   alternatives for the untranslatable constructs: complex routing → custom
+3. Treat coverage as a summary of the commands the translator classified, not
+   as proof that the source is fully represented or safe to migrate. Review every
+   untranslatable and advisory item, and inspect entrypoints, names, and effects
+   that the per-command report does not represent. A high percentage does not
+   establish applicability for those omissions. Suggest XC alternatives for
+   untranslatable constructs: complex routing → custom
    route objects; L4 logic → App Stack; `table` / `session` state → XC rate
    limiting or API discovery; SSL/TLS events → load-balancer TLS config;
    WAF/ASM events → App Firewall or WAF exclusion rules; bot defence → Bot
    Defence; rate limiting → Rate Limiting.
-4. Write `$FILE.tf` and `$FILE.xc.json`, check the Terraform parses, and
-   comment each mapping from the original iRule.
+4. Treat the mapping table below as explanatory guidance, not a second
+   resolver or a guarantee that a construct maps in this source. Confirm each
+   emitted target resource and reference against the actual source and XC output.
+   Write `$FILE.tf` and `$FILE.xc.json`, check the Terraform parses, and comment
+   each mapping from the original iRule.
 
 ## XC mapping
 

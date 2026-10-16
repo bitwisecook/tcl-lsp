@@ -805,25 +805,33 @@ exactly as same-file.
 Original interpreter paths retain genuine list elements, the selected child-key
 purpose and independently current interpreter allocation/generation. Runtime
 child commands, deletion/recreation and evaluation ownership remain separate.
-Synthetic `@interp@` source domains below are reporting-analysis isolation;
-their strings cannot supply an actual interpreter token, runtime command table
-or frame. Original source body advice preserves an unknown entry rather than
-turning domain geometry into successful `interp eval`.
+Synthetic `@interp@` source domains below are reporting-analysis coordinates,
+not reserved Tcl names: authored namespace text can contain the same spelling.
+The source-analysis namespace identity remains distinct from actual native
+interpreter identity (`NativeInterpreterIdentity`, a runtime owner plus
+interpreter slot); the synthetic string supplies no token, command table or
+frame. See [the shared Rust identity contracts](../contracts/shared-utility-contracts-rust.md)
+for the actual compiler/runtime identity owners. Original source body advice
+preserves an unknown entry rather than turning domain geometry into successful
+`interp eval`.
 
 The analyser maintains an interpreter-domain map driven entirely by registry
 hooks (`InterpCreate` / `InterpDelete` / `InterpHide` / `InterpExpose` /
 `InterpEval`) — no command names in the walker.
 
 - **Identity.** A literal `interp` path (a Tcl list, relative to the current
-  interpreter) keys the domain. Paths named inside a child's eval body
+  interpreter) keys the source domain. Paths named inside a child's eval body
   qualify against the enclosing path: `interp create t` inside `interp eval s
-  {…}` names `s t`. Evaluation bodies home under the synthetic namespace
-  `@interp@<path>` — unrepresentable in Tcl, so a real parent namespace of
-  the same name can never collide — and repeated evals into the same live
-  interpreter accumulate, as in C.
-- **Temporal identity.** `interp delete` bumps the path's **epoch**; a
-  re-created interpreter homes under `@interp@<path>#<epoch>` and never
-  merges with its predecessor's definitions.
+  {…}` names `s t`. Evaluation bodies use the synthetic reporting coordinate
+  `@interp@<path>`. Tcl permits that text as a real namespace spelling, so the
+  label alone does not prevent a textual collision. Consumers retain source
+  domain owners separately from native interpreter tokens; a reporting label
+  supplies no isolation guarantee. Repeated evals into the same live source
+  domain accumulate, as in C.
+- **Temporal identity.** `interp delete` bumps the source path's **epoch**; a
+  recreated interpreter's reporting coordinate is `@interp@<path>#<epoch>`, so
+  its source-analysis definitions do not merge with the predecessor's. This
+  source epoch is not an actual native interpreter allocation token.
 - **Existence.** An `interp eval` into a literal path never created in the
   file draws **W140** (abstaining when any interp operation used a dynamic
   path).

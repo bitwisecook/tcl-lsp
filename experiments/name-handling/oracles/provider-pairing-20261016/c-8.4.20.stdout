@@ -1,0 +1,9 @@
+patchlevel=8.4.20
+executable=/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh
+library=/workspace/tcl-lsp/tmp/tcl8.4.20/library
+init=/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl
+tcltest_version=2.2.11
+tcltest_loader=source /workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl
+tcltest_command=::tcltest::test
+loaded=
+pairing=accepted

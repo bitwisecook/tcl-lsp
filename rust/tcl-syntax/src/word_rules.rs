@@ -1023,10 +1023,141 @@ pub fn lexical_unicode_source_word_matches(
     admits().is_some()
 }
 
+/// Whether a complete configured proposal retains one original word's ordered
+/// literal values and substitution components. Command/expression bodies and
+/// array references retain exact source bytes; scalar names retain their exact
+/// literal data. Bare proposals containing literal brace data are outside this
+/// conservative source subset. This grants syntax correspondence only, without a value,
+/// getter, evaluation-erasure, Native object or edit permission.
+#[must_use]
+pub fn lexical_source_word_preserves_components(
+    original: &tcl_lexer::NativeWord,
+    proposal: &str,
+) -> bool {
+    let admits = || -> Option<()> {
+        let end = u32::try_from(proposal.len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(proposal),
+            tcl_lexer::Span::new(0, end),
+            original.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [proposed] = command.words.as_slice() else {
+            return None;
+        };
+        let components = source_word_components(proposed)?;
+        if proposed.group().kind == tcl_lexer::WordKind::Bare
+            && components.iter().any(|component| {
+                matches!(component, SourceWordComponent::Text(value) if value.contains(&b'{') || value.contains(&b'}'))
+            })
+        {
+            return None;
+        }
+        (plan.fatal_tail.is_none()
+            && proposed.span() == tcl_lexer::Span::new(0, end)
+            && source_word_components(original)? == components)
+            .then_some(())
+    };
+    admits().is_some()
+}
+
+#[derive(PartialEq, Eq)]
+enum SourceWordComponent {
+    Text(Vec<u8>),
+    Scalar(Vec<u8>),
+    Array(Vec<u8>),
+    Command(Vec<u8>),
+    Expression(Vec<u8>),
+}
+
+fn source_word_components(word: &tcl_lexer::NativeWord) -> Option<Vec<SourceWordComponent>> {
+    use tcl_lexer::{ExecutablePart, SourceChannel};
+    if word.image().channel() != SourceChannel::Document || word.group().expand {
+        return None;
+    }
+    word.image().try_text().ok()?;
+    if let Some(value) = original_static_word_unicode_value(word) {
+        return Some(vec![SourceWordComponent::Text(value)]);
+    }
+    let arena = word.executable_parts();
+    let mut components = Vec::new();
+    for component in arena.list(arena.root()) {
+        let selected = match component.part {
+            ExecutablePart::Text(_) => {
+                let value = original_unicode_text_component(arena, component)?;
+                if value.is_empty() {
+                    continue;
+                }
+                if let Some(SourceWordComponent::Text(previous)) = components.last_mut() {
+                    previous.extend(value);
+                    continue;
+                }
+                SourceWordComponent::Text(value)
+            }
+            ExecutablePart::Variable { name, index: None } => {
+                SourceWordComponent::Scalar(arena.bytes(name)?.to_vec())
+            }
+            ExecutablePart::Variable { index: Some(_), .. } => {
+                SourceWordComponent::Array(arena.bytes(component.span)?.to_vec())
+            }
+            ExecutablePart::Command { body } => {
+                SourceWordComponent::Command(arena.bytes(body)?.to_vec())
+            }
+            ExecutablePart::Expression { expression } => {
+                SourceWordComponent::Expression(arena.bytes(expression)?.to_vec())
+            }
+            ExecutablePart::ParseError(_) => return None,
+        };
+        components.push(selected);
+    }
+    Some(components)
+}
+
 #[cfg(test)]
 mod original_metadata_tests {
     use super::*;
     use tcl_lexer::{LexerConfig, SourceImage, Span};
+
+    #[test]
+    fn complete_component_correspondence_keeps_substitutions_and_full_word_boundaries() {
+        let config = LexerConfig::for_dialect("tcl9.0");
+        for (source, proposal, expected) in [
+            (r#""${x}-[puts {a b}]""#, r#"$x-[puts {a b}]"#, true),
+            (r#""${x}tail""#, "$xtail", false),
+            (r#""${x}(key)""#, "$x(key)", false),
+            (r#""$arr($key)""#, "$arr($other)", false),
+            (r#""[puts one]""#, "[puts two]", false),
+            (r#""a\ b""#, r"a\ b", true),
+            (r#""a b""#, "a b", false),
+            (r#""$x""#, "$x;puts altered", false),
+            (r#""$x""#, "$x ", false),
+            (r#""literal""#, "{*}{literal}", false),
+            (r##""#literal""##, "#literal", false),
+            (r#""\$x""#, "$x", false),
+        ] {
+            let original = word(SourceImage::document(source), config);
+            assert_eq!(
+                lexical_source_word_preserves_components(&original, proposal),
+                expected,
+                "{source} -> {proposal}"
+            );
+        }
+        let jim = LexerConfig::for_dialect("jim");
+        let original = word(SourceImage::document("\"$x\u{0b}text\""), jim);
+        assert!(lexical_source_word_preserves_components(
+            &original,
+            "$x\u{0b}text"
+        ));
+        let original = word(SourceImage::document("\"$x\u{0b}text\""), config);
+        assert!(!lexical_source_word_preserves_components(
+            &original,
+            "$x\u{0b}text"
+        ));
+    }
 
     fn presentation(source: &str, config: LexerConfig) -> Option<Vec<u8>> {
         let image = SourceImage::document(source);

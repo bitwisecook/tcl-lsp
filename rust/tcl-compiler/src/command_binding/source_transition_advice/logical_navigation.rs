@@ -928,12 +928,26 @@ mod tests {
             );
             assert!(query(source, &analysis, head).is_none(), "{source}");
             if local {
-                let formal = analysis
-                    .original_variable_symbol_at_offset(
-                        u32::try_from(source.find("value").unwrap()).unwrap(),
-                    )
-                    .unwrap();
-                assert_eq!(read.symbol(), formal.symbol(), "{source}");
+                let tape = logical_variable_tape(&analysis);
+                let mut cards = tape
+                    .logical_procedure_bodies
+                    .values()
+                    .filter_map(Option::as_ref);
+                let card = cards.next().expect("genuine retained procedure body");
+                assert!(cards.next().is_none(), "one original procedure in {source}");
+                assert!(card.matches_source(&image, input));
+                let frame = crate::command_binding::SourceOriginalVariableFrame::from_logical_procedure_source(
+                    card, input,
+                ).expect("original Logical procedure frame");
+                let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+                    frame: selected,
+                    simple,
+                } = read.symbol().slot()
+                else {
+                    panic!("local occurrence in its actual source frame: {source}");
+                };
+                assert_eq!(selected, &frame, "{source}");
+                assert_eq!(simple.as_bytes(), b"value", "{source}");
             }
         }
     }
@@ -976,15 +990,18 @@ mod tests {
             );
         }
         for source in [
-            "proc p {} {global shared; namespace upvar ::other value shared; $dispatch $shared}",
+            "proc p {} {global shared; namespace upvar ::other $unknown shared; $dispatch $shared}",
             "proc p {} {global shared; upvar 0 $unknown shared; $dispatch $shared}",
         ] {
             let analysis = logical_variable_analysis(source);
             let image = tcl_lexer::SourceImage::document(source);
-            assert!(!analysis.original_variable_alias_source_is_complete(
-                &image,
-                analysis.body_lexer_config.unwrap(),
-            ));
+            assert!(
+                !analysis.original_variable_alias_source_is_complete(
+                    &image,
+                    analysis.body_lexer_config.unwrap(),
+                ),
+                "unrepresented dynamic alias target in {source}",
+            );
             if let Some(read) = analysis.original_variable_symbol_at_offset(
                 u32::try_from(source.rfind("$shared").unwrap() + 1).unwrap(),
             ) {

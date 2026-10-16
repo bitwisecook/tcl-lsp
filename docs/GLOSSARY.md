@@ -574,9 +574,12 @@ KCS tag: `ssa`.
 
 ### SSA value key
 
-A `(variable_name, version)` tuple that uniquely identifies one
-definition of a variable.  Type alias `SsaValueKey` in
-`tcl_compiler::def_use`.
+A `(Symbol, Version)` pair that identifies one SSA value within a
+function. `Symbol` is that function's interned variable-name identifier;
+`Version` identifies a contents transition. The variable's display spelling
+is recovered separately with `SsaFunction::var_name`; an optional source
+location/name projection is separate from this key. Type alias `SsaValueKey`
+in `tcl_compiler::def_use` aliases `tcl_compiler::ssa::ValueKey`.
 
 See also: [SSA construction](design/compiler/ssa-construction.md).
 KCS tag: `ssa`.
@@ -1082,12 +1085,15 @@ See also: [Name resolution](design/analysis/name-resolution.md).
 
 ### Interpreter domain
 
-The analyser's identity for one child interpreter: its literal `interp`
-path (qualified against enclosing `interp eval` bodies), its safe state
-and hide/expose deltas, and its deletion epoch (a deleted-and-recreated
-path is a fresh domain). Evaluation bodies home under the synthetic
-`@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
-namespace of the same name can never collide.
+The analyser's source identity for one child interpreter: its literal
+`interp` path (qualified against enclosing `interp eval` bodies), safe state,
+hide/expose deltas, and deletion epoch. Evaluation bodies use an
+`@interp@<path>[#<epoch>]` synthetic reporting namespace. That spelling is
+valid Tcl text and is not reserved or unrepresentable; it is not itself a
+native interpreter token. Source-analysis domains and actual Compiler
+interpreter identities are separate: `NativeInterpreterIdentity` carries a
+runtime owner and interpreter slot, so a matching display string does not
+establish the same identity.
 
 See also: [Name resolution](design/analysis/name-resolution.md).
 

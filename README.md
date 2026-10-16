@@ -1862,10 +1862,13 @@ manifest can express; dynamic, guarded, loop-contained, exact, bounded, and
 alternative requirements stay visible as review findings for explicit
 `tcl pkg add` decisions.
 
-The manifest is a native Tcl file (`tclpkg.tcl`) evaluated in a sandboxed
-interpreter.  The lockfile (`tclpkg.lock`) is canonical JSON — two runs against
-the same manifest produce byte-identical output (aside from the
-`generated` timestamp, which `--frozen` preserves).
+The manifest (`tclpkg.tcl`) uses a restricted declarative source grammar
+with Tcl-like command and word syntax. The loader parses directives such as
+`package`, `version`, `require`, and `dev-require`; it rejects commands
+outside the manifest directive set and does not evaluate arbitrary Tcl code.
+The lockfile (`tclpkg.lock`) is canonical JSON — two runs against the same
+manifest produce byte-identical output (aside from the `generated` timestamp,
+which `--frozen` preserves).
 
 ```tcl
 # tclpkg.tcl — example manifest

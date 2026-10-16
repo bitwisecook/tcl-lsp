@@ -789,9 +789,8 @@ impl Analyser {
 
         report_phase("variable-command-sites");
         // W125 (orphaned control-flow keyword) and IRULE5005 (direct
-        // iRules-proc call without `call`) — both key off whether the
-        // command head resolves to a user proc, so they share one
-        // resolution.
+        // iRules-proc call without `call`) retain their separate original
+        // lookup and hosted source-procedure purposes.
         self.emit_proc_resolution_diagnostics(cmd_name, args, cmd_tok, scope_path);
 
         // When the constructor's class head is a `$var` reference
@@ -1961,20 +1960,17 @@ impl Analyser {
         }
     }
 
-    /// Emit the two diagnostics that key off whether the command head
-    /// resolves to a user proc:
+    /// Emit standalone-keyword and hosted source-procedure call diagnostics:
     ///
     /// - **W125** (Warning) — an orphaned control-flow keyword
     ///   (`else` / `elseif` / `then` / `on` / `trap` / `finally`) used as a
     ///   standalone command.  This almost always means a misplaced newline
     ///   split its parent `if` / `try` (`}\nelse {` instead of `} else {`).
-    ///   Suppressed when a user proc *or* a registry command of the same
-    ///   name shadows the keyword.
+    ///   Requires positive diagnostic absence at the original lookup point;
+    ///   occupied or unknown source slots suppress the warning.
     /// - **IRULE5005** (Error) — a user proc invoked directly inside an
     ///   iRules event body, where Tcl-on-TMM requires `call PROC ARGS`.
     ///   Ships a `call PROC`-rewrite [`CodeFix`].
-    ///
-    /// The proc is resolved once and shared between both checks.
     pub(super) fn emit_proc_resolution_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1982,15 +1978,8 @@ impl Analyser {
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
-        let resolves_to_proc = self.resolve_proc_call(cmd_name, scope_path).is_some();
-
-        if !resolves_to_proc
-            && let Some(parent) = tcl_registry::clause_grammar::owner_of_keyword(cmd_name)
-            && self
-                .analysis_context()
-                .context()
-                .resolve_spec(self.analysis_context().commands(), cmd_name)
-                .is_none()
+        if let Some(parent) = tcl_registry::clause_grammar::owner_of_keyword(cmd_name)
+            && self.original_keyword_slot_is_absent(cmd_name, cmd_tok)
         {
             self.result
                 .diagnostics
@@ -2011,7 +2000,7 @@ impl Analyser {
                 tcl_registry::events::IrulesExecutionContext::EventBody
                     | tcl_registry::events::IrulesExecutionContext::ProcedureBody
             );
-        if resolves_to_proc && irules_proc_dispatch_context {
+        if irules_proc_dispatch_context && self.resolve_proc_call(cmd_name, scope_path).is_some() {
             let suffix = if args.is_empty() {
                 String::new()
             } else {
@@ -2035,6 +2024,38 @@ impl Analyser {
                 }]),
             );
         }
+    }
+
+    /// Missing reporting metadata cannot establish an orphaned keyword.
+    /// The original lookup owner retains occupants and all unknown alternatives.
+    fn original_keyword_slot_is_absent(&self, command: &str, token: Token) -> bool {
+        let Some(input) = self.result.resolved_input.as_ref() else {
+            return false;
+        };
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        if !self
+            .result
+            .matches_original_source_image(&image, input.lexer_config())
+            || !self.head_identities.matches_resolved_analysis_input(input)
+        {
+            return false;
+        }
+        let Some((word, offset)) = self
+            .head_identities
+            .original_written_word_at_span_in_source(&image, token.span, input.lexer_config())
+        else {
+            return false;
+        };
+        if offset != token.span.start()
+            || word.span().start() != offset
+            || word.group().expand
+            || tcl_syntax::word_rules::original_static_word_unicode_value(&word).as_deref()
+                != Some(command.as_bytes())
+        {
+            return false;
+        }
+        self.head_identities.diagnostic_slot_presence_at(offset)
+            == crate::command_binding::SourceCommandSlotPresence::Absent
     }
 
     /// The script-injection family — a script or command line built by
@@ -4780,8 +4801,8 @@ impl Analyser {
             scope_path,
         });
         // W125 (orphaned keyword) and IRULE5005 (direct iRules-proc call
-        // without `call`) key off whether the head resolves to a user proc, so
-        // they must reach substitution commands too: `when HTTP_REQUEST { set x
+        // without `call`) must reach substitution commands too, retaining their
+        // independent lookup purposes: `when HTTP_REQUEST { set x
         // [helper] }` invokes `helper` directly inside a `[…]`, and without this
         // the IRULE5005 emitter never sees it.  Matches the top-level
         // `process_command` ordering (proc-resolution after site recording).
@@ -7179,6 +7200,97 @@ mod tests {
             "tcl",
             "W125"
         ));
+    }
+
+    #[test]
+    fn w125_requires_positive_original_slot_absence() {
+        for dialect in ["tcl", "tcl8.6", "tcl9.1"] {
+            for source in ["else {}", "set ignored [else {}]"] {
+                assert!(has_code(source, dialect, "W125"), "{dialect}/{source}");
+            }
+        }
+    }
+
+    #[test]
+    fn w125_preserves_actual_occupants_and_unknown_lookup_barriers() {
+        for source in [
+            "proc finally {} {}; finally",
+            "rename puts finally; finally VALUE",
+            "interp alias {} finally {} puts; finally VALUE",
+            "namespace eval N {proc finally {} {}; proc p {} {finally}}",
+            "namespace eval P {proc finally {} {}}; namespace eval N {namespace path ::P; finally}",
+            "unknown_command; finally",
+            "proc unknown {args} {}; finally",
+            "if {$condition} {proc finally {} {}}; finally",
+            "namespace eval N {namespace path $paths; finally}",
+            "finally [unknown_command]",
+        ] {
+            for dialect in ["tcl", "tcl8.6", "tcl9.1"] {
+                assert!(!has_code(source, dialect, "W125"), "{dialect}/{source}");
+            }
+        }
+    }
+
+    #[test]
+    fn w125_original_lookup_ignores_report_maps_and_requires_current_inputs() {
+        for (source, absent) in [
+            ("finally", true),
+            ("interp alias {} finally {} puts; finally VALUE", false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.result = analyser.analyse(source, "tcl");
+            let input = analyser.result.resolved_input.clone().unwrap();
+            let token = segment_commands_with_offset_and_config(source, 0, input.lexer_config())
+                .last()
+                .unwrap()
+                .argv[0];
+            assert_eq!(
+                analyser.original_keyword_slot_is_absent("finally", token),
+                absent
+            );
+            analyser.result.all_procs.clear();
+            analyser.result.all_classes.clear();
+            analyser.result.command_aliases.clear();
+            let foreign = Analyser::new().analyse("proc finally {} {}", "tcl");
+            analyser
+                .result
+                .all_procs
+                .insert("::finally".into(), foreign.all_procs["::finally"].clone());
+            assert_eq!(
+                analyser.original_keyword_slot_is_absent("finally", token),
+                absent
+            );
+            analyser.result.diagnostics.clear();
+            analyser.emit_proc_resolution_diagnostics("finally", &[], token, &[]);
+            assert_eq!(
+                analyser
+                    .result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| { diagnostic.code == DiagCode::W125 }),
+                absent
+            );
+            assert!(!analyser.original_keyword_slot_is_absent("else", token));
+            analyser.result.resolved_input = None;
+            assert!(!analyser.original_keyword_slot_is_absent("finally", token));
+            analyser.result.resolved_input = Some(input.clone());
+            let mut config = input.lexer_config();
+            config.strict_quoting = !config.strict_quoting;
+            analyser.result.body_lexer_config = Some(config);
+            assert!(!analyser.original_keyword_slot_is_absent("finally", token));
+            analyser.result.body_lexer_config = Some(input.lexer_config());
+            analyser.result.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+            assert!(!analyser.original_keyword_slot_is_absent("finally", token));
+            analyser.result.resolved_input = Some(input);
+            analyser.source.push(' ');
+            assert!(!analyser.original_keyword_slot_is_absent("finally", token));
+        }
     }
 
     #[test]

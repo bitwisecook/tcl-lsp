@@ -1684,72 +1684,55 @@ canonical name has already been substituted in.
 
 ### The source-text consumers resolve identity themselves
 
-Each source-text consumer resolves its head's **effective command identity**
-once, before any registry query, through the document's realm
-command-binding state (`rust/tcl-compiler/src/realm.rs`):
+Source-text consumers share the positioned `SourceCommandBindings` owner
+(`rust/tcl-compiler/src/command_binding/`), which retains source command
+transitions and lookup worlds at their relevant source positions.
+`document_realm_bindings` in `realm.rs` is a legacy head projection over that
+owner, not a separate top-level statement map. Consumers can ask for the
+effective command identity before registry queries; conditional and
+unsupported transitions remain uncertain rather than becoming binding facts:
 
 ```rust
 enum RealmBinding<'a> {
-    Command(&'a str),  // the registry name this spelling really invokes
-    Rebound,           // the binding was provably taken over -- no grammar applies
+    Command(&'a str),  // registry name projected for this source spelling
+    Rebound,           // proven takeover; no registry grammar applies
 }
 ```
 
-`document_realm_bindings` scans the document's **top-level** statements once
-and records an offset-keyed fact per head spelling. Which commands mutate the
-command table is registry data (`CommandTableEffect`), and the argument shapes
-come from the compiler's own `alias.rs` detectors -- the same ones the
-IR-lowering pipeline uses -- so nothing here spells a command name. Four
-sources feed it:
+The shared owner uses registry transition metadata and compiler invocation /
+alias owners. It can retain supported nested and conditional source contexts;
+it does not claim that every Tcl effect or runtime mutation is statically
+known. Dynamic operands, unsupported transitions, incomplete provenance, and
+applicability/currentness questions remain unknown. These examples illustrate
+source facts rather than an exhaustive input list:
 
-| Statement | Fact |
+| Statement | Example projected fact |
 |---|---|
-| `namespace import ::tcltest::*` | `test` -> `::tcltest::test` |
-| `interp alias {} myfmt {} format` | `myfmt` and `::myfmt` -> `format` |
-| `rename format origfmt` | `origfmt` -> `format`, **and** `format` -> `Rebound` |
-| `proc format {args} {...}` | `format` -> `Rebound` |
+| `namespace import ::tcltest::*` | `test` may resolve to `::tcltest::test` |
+| `interp alias {} myfmt {} format` | `myfmt` may resolve to `format` |
+| `rename format origfmt` | `origfmt` may resolve to `format`; `format` is rebound |
+| `proc format {args} {...}` | `format` is rebound |
 
-A binding **source** is read through the map before the registry, so chains
-compose: `interp alias {} a {} format; rename a b` leaves `b` naming `format`
-(tclsh 8.6.16 and 9.0.4, byte-identical: `b %08x 42` answers `0000002a` while
-`info commands a` answers empty), and `proc format {…} {…}; rename format
-myfmt` correctly leaves `myfmt` `Rebound` rather than inheriting the built-in's
-grammar. An alias always *takes over* the name it binds, because C Tcl lets one
-shadow an existing command outright.
-
-Both the bare and the explicitly `::`-qualified spelling of a bound name are
-recorded, and the *latest* fact at or before the call's byte offset wins, so a
-binding never retroactively re-tags an earlier call:
-
-```tcl
-format {%08x} 42       ;# still the built-in -- specifier sub-tokens
-rename format origfmt
-origfmt {%08x} 42      ;# now the built-in
-format  {%08x} 42      ;# Rebound -- a plain string argument
-```
+At a supported source position, known transitions compose: an alias followed
+by a rename can preserve the alias target, while a proc takeover prevents
+registry grammar from being borrowed through a later rename. Such source facts
+do not prove successful execution, a live native command token, or
+applicability when unmodelled effects may intervene. An earlier call is not
+retroactively retagged by a later transition. Rooted and unrooted spellings
+follow the selected command-name policy, rather than an unconditional string
+rewrite.
 
 `RealmBinding::spec_name()` answers `""` for `Rebound`, which
-`CommandRegistry::get` never resolves -- so every registry query the walker
-already makes (`arg_indices_for_role`, `format_string_args`,
-`handle_binding`, ...) answers "unknown command" without a variant check at
-each call site.
+`CommandRegistry::get` never resolves. This is a registry-grammar filter; it
+does not confer runtime dispatch authority or turn conditional source advice
+into a certain binding.
 
-**Explicit limits.** The table is sound by abstention, and states nothing for:
-
-- a **dynamic** binding -- `rename $old new`, `interp alias {} $n {} eval`,
-  `interp alias {} n {} $t` (rejected by `is_dynamic_word`);
-- an alias with **pre-bound arguments** -- `interp alias {} pad {} format %08x`
-  shifts every index, so the target's layout cannot be reused; the name is
-  marked `Rebound` rather than aliased;
-- **another interpreter** -- a non-empty `srcPath` binds a name in a *child*
-  interpreter and states nothing here; a non-empty `targetPath` marks the name
-  `Rebound`. Hidden commands in a safe interpreter are invisible for the same
-  reason: this is a description of *this* document's command table;
-- a **conditional or nested** binding -- only top-level statements are scanned,
-  so a `rename` inside an `if` / proc / `eval`, and a `proc` inside
-  `namespace eval ::n` (which defines `::n::format`, not `::format`), state
-  nothing;
-- `unknown` fallback, traces, and computed heads -- nothing is inferred.
+**Applicability limits.** Dynamic heads or transition operands, unsupported
+command-table effects, incomplete source input, and uncertain lookup or
+fallback state yield unknown advice. Interpreter-domain facts remain scoped
+to their retained source/native domain. A conditional or nested transition is
+usable only where the shared owner retains its source, position, and
+applicability premises; it is not globally promoted from a catalogue example.
 
 #### Positioned and unpositioned readers
 

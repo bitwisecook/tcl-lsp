@@ -47,6 +47,33 @@ pub fn scalar_source_reference(
         .then_some(reference)
 }
 
+/// Propose one scalar component without absorbing any part of the complete
+/// following source fragment. The same configured scanner must reproduce the
+/// exact name and boundary after a braced retry. This is source syntax only.
+#[must_use]
+pub fn scalar_source_reference_followed_by(
+    name: &str,
+    following: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    for require_braces in [false, true] {
+        let Some(reference) = scalar_source_reference(name, config, require_braces) else {
+            continue;
+        };
+        let joined = format!("{reference}{following}");
+        if tcl_lexer::word_parts::scan_var_ref(joined.as_bytes(), 0, config).is_ok_and(|parsed| {
+            parsed.is_some_and(|parsed| {
+                parsed.next == reference.len()
+                    && parsed.name == name.as_bytes()
+                    && parsed.index.is_none()
+            })
+        }) {
+            return Some(reference);
+        }
+    }
+    None
+}
+
 /// Propose a complete array reference from separate literal root/index data.
 /// The selected scanner and static fragment decoder must reproduce both parts.
 /// This supplies syntax only, without source ownership, a cell or a read grant.
@@ -171,6 +198,29 @@ mod tests {
     use super::*;
     use tcl_dialect::DialectProfile;
     use tcl_lexer::{LexerConfig, SourceChannel};
+
+    #[test]
+    fn scalar_source_components_check_the_complete_following_fragment() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            for (following, expected) in [
+                ("", "$x"),
+                ("tail", "${x}"),
+                ("::tail", "${x}"),
+                ("(key)", "${x}"),
+                ("[puts next]", "$x"),
+                ("$next", "$x"),
+                ("\\ntext", "$x"),
+            ] {
+                assert_eq!(
+                    scalar_source_reference_followed_by("x", following, config).as_deref(),
+                    Some(expected),
+                    "{dialect} {following}"
+                );
+            }
+            assert!(scalar_source_reference_followed_by("x}tail", "suffix", config).is_none());
+        }
+    }
 
     #[test]
     fn scalar_source_proposals_preserve_native_operand_and_complete_reference() {

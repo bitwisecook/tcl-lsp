@@ -1303,3 +1303,30 @@ source image and full parent configuration, with an explicit nested-script
 segmentation purpose. Detached decoded or generated strings cannot recapture
 an original body occurrence. These source roles do not grant Native execution,
 read erasure or transformation authority beyond the consumer's existing guards.
+
+Configured scalar-component proposals validate the exact name and boundary
+against the complete following rendered fragment. Whole-word component
+correspondence preserves ordered literal data, scalar names, original array
+references and command/expression bodies under the complete configuration;
+its conservative bare-word subset excludes literal brace data. These are
+lexical construction checks, with no read, erasure or edit grant. Logical
+expression whitespace proposals use the shared configured expression tokens
+and retain the complete ordered token signature.
+
+The positive Logical procedure declaration catalogue retains original body
+allocations, including superseded declarations, independently of report-map
+membership. It reauthenticates each header against current source/input and
+metadata; omission proves no complete census, selected occupancy or absence.
+W125 consumes a genuine positioned diagnostic `Absent` receipt, alongside its
+original whole head and current source/input. Missing metadata is not absence.
+
+Original C namespace continuations retain the outer argument vector, caller
+frame/namespace birth and each selected namespace token across reached
+getters and publication. Export processes each original pattern through
+getter, selected C-string projection, validation and publication before the
+next; Jim's no-op does not materialise operands. Ensemble configuration
+results have their own selected namespace producer: standalone C8.5 legacy
+string publication preserves or replaces the actual unshared/shared result
+header without resetting the error episode, while configuration-list members
+are fresh objects. C8.6 returns fresh strings and C9 uses its live namespace
+primary; dying and dead-owner rules remain selected separately.

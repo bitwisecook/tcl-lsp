@@ -515,7 +515,17 @@ impl Interp {
                     pattern = bytes.map_err(&refuse)?;
                 }
                 if scope.variable_inventory_uses_helper(&namespace_bytes, pattern.as_deref()) {
-                    let head = Owned::fresh(super::new_string(b"namespace info"));
+                    let helper = self
+                        .native_invocation_dialect()
+                        .native_jim_namespace_helper(
+                            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
+                        )
+                        .ok_or_else(|| {
+                            refuse(ValueError::CommandProtocolUnavailable(
+                                "original Jim variable inventory helper descriptor",
+                            ))
+                        })?;
+                    let head = Owned::fresh(super::new_string(helper.name().as_bytes()));
                     let mut invocation = Vec::with_capacity(original.len() + 1);
                     invocation.push(head.as_ptr());
                     invocation.extend_from_slice(original);

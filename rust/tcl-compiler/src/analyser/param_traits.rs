@@ -961,31 +961,66 @@ fn original_reference_components(
     scanner: &mut crate::var_refs::VarReferenceScanner,
 ) -> Vec<String> {
     use tcl_lexer::ExecutablePart;
-    let arena = word.executable_parts();
+    enum PendingReference {
+        Word(tcl_lexer::NativeWord),
+        Name(String),
+    }
+    let mut pending = vec![PendingReference::Word(word.clone())];
     let mut names = Vec::new();
-    for component in arena.all_parts() {
-        match component.part {
-            ExecutablePart::Variable { name, .. } => {
-                if let Some(name) = arena
-                    .bytes(name)
-                    .and_then(|name| std::str::from_utf8(name).ok())
-                {
-                    names.push(
-                        tcl_syntax::naming::split_element_ref(name)
-                            .map_or(name, |(root, _)| root)
-                            .to_owned(),
-                    );
-                }
+    while let Some(reference) = pending.pop() {
+        let word = match reference {
+            PendingReference::Name(name) => {
+                names.push(name);
+                continue;
             }
-            ExecutablePart::Command { body } | ExecutablePart::Expression { expression: body } => {
-                if let Some(script) = arena
-                    .bytes(body)
-                    .and_then(|script| std::str::from_utf8(script).ok())
-                {
-                    names.extend(scanner.scan_lexical_script(script, registry));
+            PendingReference::Word(word) => word,
+        };
+        let arena = word.executable_parts();
+        let components: Vec<_> = arena.all_parts().collect();
+        for component in components.into_iter().rev() {
+            match component.part {
+                ExecutablePart::Variable { name, .. } => {
+                    if let Some(name) = arena
+                        .bytes(name)
+                        .and_then(|name| std::str::from_utf8(name).ok())
+                    {
+                        // The lexer already separates an array's index. A scalar
+                        // name retains literal parentheses and dollar bytes.
+                        pending.push(PendingReference::Name(name.to_owned()));
+                    }
                 }
+                ExecutablePart::Command { body } => {
+                    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+                        word.image().clone(),
+                        body,
+                        word.config(),
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    ) else {
+                        continue;
+                    };
+                    if plan.fatal_tail.is_some() {
+                        continue;
+                    }
+                    for command in plan.commands.into_iter().rev() {
+                        pending.extend(command.words.into_iter().rev().map(PendingReference::Word));
+                    }
+                }
+                ExecutablePart::Expression { expression } => {
+                    if let Some(script) = arena
+                        .bytes(expression)
+                        .and_then(|script| std::str::from_utf8(script).ok())
+                    {
+                        pending.extend(
+                            scanner
+                                .scan_lexical_script(script, registry)
+                                .into_iter()
+                                .rev()
+                                .map(PendingReference::Name),
+                        );
+                    }
+                }
+                ExecutablePart::Text(_) | ExecutablePart::ParseError(_) => {}
             }
-            ExecutablePart::Text(_) | ExecutablePart::ParseError(_) => {}
         }
     }
     names
@@ -2266,9 +2301,81 @@ mod tests {
                 if nested { &["a{b}c"][..] } else { &["a{b"][..] }
             );
             assert_eq!(values("$arr($k)").argument_components(0), &["arr", "k"]);
-            assert_eq!(values("${arr($k)}").argument_components(0), &["arr"]);
+            assert!(values("${arr($k)}").argument_components(0).is_empty());
+            assert_eq!(
+                values("[set $café]").argument_components(0),
+                if unicode {
+                    &["café"][..]
+                } else {
+                    &["caf"][..]
+                },
+            );
+            assert_eq!(
+                values("[set ${a{b}c}]").argument_components(0),
+                if nested { &["a{b}c"][..] } else { &["a{b"][..] },
+            );
             assert!(values("${arr($k)}").argument(0).is_none());
             assert!(values("{$arr($k)}").argument_components(0).is_empty());
+        }
+    }
+
+    #[test]
+    fn original_parameter_reference_components_keep_lexical_scalar_names() {
+        let parameters = ["p", "p(key)", "p($k)", "k", "after"];
+        for dialect in ["tcl8.6", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_known_environment(dialect)
+                .unwrap()
+                .unit_profile();
+            let config = LexerConfig::for_file_grammar(profile.grammar);
+            for (source, expected) in [
+                ("${p(key)}", vec!["p(key)"]),
+                ("${p($k)}", vec!["p($k)"]),
+                ("$p(key)", vec!["p"]),
+                ("$p($k)", vec!["p", "k"]),
+                ("prefix-${p(key)}", vec!["p(key)"]),
+                ("[set ${p(key)}]", vec!["p(key)"]),
+                ("[set ${p($k)}]", vec!["p($k)"]),
+                ("[set $p($k)]", vec!["p", "k"]),
+                ("$p([set ${p(key)}])", vec!["p", "p(key)"]),
+                ("[set ${p(key)}]$after", vec!["p(key)", "after"]),
+                ("[set [set [set ${p(key)}]]]", vec!["p(key)"]),
+                ("[set {${p(key)}}]", vec![]),
+                ("{${p(key)}}", vec![]),
+                ("\\${p(key)}", vec![]),
+            ] {
+                let values = lexical_reference_values(source, &parameters, config);
+                assert_eq!(
+                    values.argument_components(0),
+                    expected,
+                    "{dialect}/{source}"
+                );
+            }
+            assert!(
+                lexical_reference_values("${p(key)}", &parameters, config)
+                    .argument(0)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_parameter_scalar_components_do_not_borrow_an_array_root_trait() {
+        for deep in [false, true] {
+            for body in [
+                "set ${p(key)} 1",
+                "set target [set ${p(key)}]",
+                "set target [set $p([set ${p(key)}])]",
+            ] {
+                let traits = infer_owned(&["p", "p(key)"], body, deep);
+                assert_trait(&traits, "p(key)", ProcArgTrait::DynamicNameLocal);
+                if !body.contains("$p(") {
+                    assert!(!traits.contains_key("p"), "{deep}/{body}: {traits:?}");
+                }
+            }
+            let traits = infer_owned(&["p", "k"], "set $p($k) 1", deep);
+            for parameter in ["p", "k"] {
+                assert_trait(&traits, parameter, ProcArgTrait::DynamicNameLocal);
+            }
         }
     }
 

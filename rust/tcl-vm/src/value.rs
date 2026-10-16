@@ -1320,6 +1320,28 @@ impl Value {
         self.replace_primary(IntRep::Str);
     }
 
+    /// Materialise the C8.5 standalone ensemble namespace legacy string result
+    /// on its reset unshared original result header, without resetting error state.
+    pub(crate) fn initialise_original_ensemble_namespace_result(
+        &self,
+        original: &crate::interp::OriginalEnsembleNamespaceResult<'_>,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        check()?;
+        original.bytes_for(self)?;
+        *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::<[u8]>::from([])));
+        self.0
+            .string_storage
+            .set(NativeStringStorageIdentity::CanonicalEmpty);
+        self.replace_primary_using(IntRep::Str, &mut Some(&mut *check))?;
+        let bytes = Rc::<[u8]>::from(original.bytes_for(self)?);
+        *self.0.string.borrow_mut() = Some(RawString::from_bytes(bytes));
+        self.0
+            .string_storage
+            .set(NativeStringStorageIdentity::Allocated);
+        check()
+    }
+
     /// Opaque identity of this retained original object, for equality and lifetime tracking.
     /// It supplies neither a native pointer ABI nor execution authority.
     #[must_use]

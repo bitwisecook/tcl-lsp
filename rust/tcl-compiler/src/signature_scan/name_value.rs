@@ -841,7 +841,6 @@ impl Eq for OriginalLogicalListField {}
 
 impl std::hash::Hash for OriginalLogicalListField {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        use std::hash::Hash;
         std::sync::Arc::as_ptr(&self.source).hash(state);
         self.path.hash(state);
         self.span.hash(state);
@@ -908,12 +907,14 @@ impl OriginalLogicalListField {
     pub(crate) fn source_span(&self) -> Span {
         self.span
     }
+    #[cfg(test)]
     pub(crate) fn source_path(&self) -> &[usize; 3] {
         &self.path
     }
     pub(crate) fn policy(&self) -> NamePolicyProtocol {
         self.lambda.name_policy()
     }
+    #[cfg(test)]
     pub(crate) fn original_container(&self) -> &NativeWord {
         self.field.original_word()
     }

@@ -1290,8 +1290,8 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/minifier-retained-lexical-context.md
         let profile = lexical_profile();
         let registry = CommandRegistry::build_default();
-        let analysis =
-            analysis_for_profile("switch -exact $value {a {puts A}}\n", profile, &registry);
+        let source = "switch -exact $value {a {puts A}}\n";
+        let analysis = analysis_for_profile(source, profile, &registry);
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
         let env = super::super::MinifyEnv {
@@ -1623,6 +1623,54 @@ mod tests {
                 tcl_lexer::SourceSegmentationPurpose::WholeInput,
             );
             assert!(output.contains("{expr {1+2}}"), "{output}");
+        });
+    }
+
+    #[test]
+    fn logical_expression_lexing_retains_configured_names_and_contextual_boundaries() {
+        let source = "expr { 1e-3 + sqrt( 4 ) }";
+        with_lexical_metadata(source, |env| {
+            for expression in [
+                "1e-3 + sqrt( 4 )",
+                "$array($key + 1) + 2",
+                "$x eq \"word\"",
+                "$x eq {a  b}",
+                "1 + +2",
+                "0x10 + 1",
+            ] {
+                let output = super::super::strip_expr_whitespace(expression, env, 0);
+                assert!(
+                    super::super::expression_token_signature(expression, env, false).is_some(),
+                    "{expression}"
+                );
+                assert_eq!(
+                    super::super::expression_token_signature(expression, env, false),
+                    super::super::expression_token_signature(&output, env, false),
+                    "{expression} -> {output}"
+                );
+            }
+            let output = super::super::strip_expr_whitespace("1e-3 + sqrt( 4 )", env, 0);
+            assert!(output.contains("1e-3"), "{output}");
+            assert!(output.contains("sqrt"), "{output}");
+            let literal = super::super::strip_expr_whitespace("$x eq {a  b}", env, 0);
+            assert!(literal.contains("{a  b}"), "{literal}");
+            assert!(
+                matches!(super::super::tokenise_expr("1e-3", env, 0).as_slice(), [super::super::ExprTok::Other(value)] if value == "1e-3")
+            );
+            for malformed in [
+                "[unterminated + 1",
+                "\"unterminated + 1",
+                "$array(unclosed + 1",
+                "1 + \\q",
+                "café(1)",
+                "$x   $y",
+                "${a{b}c} + 1",
+            ] {
+                assert_eq!(
+                    super::super::strip_expr_whitespace(malformed, env, 0),
+                    malformed
+                );
+            }
         });
     }
 

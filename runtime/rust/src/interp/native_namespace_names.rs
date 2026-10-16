@@ -17,7 +17,80 @@ use tcl_syntax::{
 #[cfg(test)]
 mod tests;
 
+/// Actual caller namespace/frame and each subsequently selected namespace birth.
+/// Token observations add no Native reference or lookup purpose.
+pub(crate) struct OriginalNamespaceConsumer {
+    interpreter: Interp,
+    namespace: NsId,
+    frame: super::native_arguments::OriginalArgumentFrame,
+    tokens: std::cell::RefCell<
+        Vec<(
+            tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+            tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+        )>,
+    >,
+}
+impl OriginalNamespaceConsumer {
+    pub(crate) fn check(
+        &self,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        arguments.check_for(&self.interpreter)?;
+        self.frame.check(&self.interpreter, arguments)?;
+        if self.interpreter.current_ns() != self.namespace
+            || self.tokens.borrow().iter().any(|(token, lifecycle)| {
+                token.lifecycle() != *lifecycle
+                    || !self
+                        .interpreter
+                        .namespaces()
+                        .owns_namespace_name_token(token)
+            })
+        {
+            return Err(arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("original namespace consumer incarnation")
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn observe(
+        &self,
+        namespace: NsId,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check(arguments)?;
+        let token = self
+            .interpreter
+            .native_namespace_token_at(namespace)
+            .ok_or_else(|| {
+                arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable("original namespace consumer target")
+                        .into(),
+                )
+            })?;
+        let lifecycle = token.lifecycle();
+        self.tokens.borrow_mut().push((token, lifecycle));
+        self.check(arguments)
+    }
+}
+
 impl Interp {
+    pub(crate) fn original_namespace_consumer(
+        &self,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<OriginalNamespaceConsumer, tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        let owner = OriginalNamespaceConsumer {
+            interpreter: self.clone(),
+            namespace: self.current_ns(),
+            frame: super::native_arguments::OriginalArgumentFrame::capture(self),
+            tokens: std::cell::RefCell::new(Vec::new()),
+        };
+        owner.observe(owner.namespace, arguments)?;
+        Ok(owner)
+    }
+
     /// Observe the actual holder through the existing namespace ledger.
     pub(crate) fn native_namespace_token_at(
         &self,

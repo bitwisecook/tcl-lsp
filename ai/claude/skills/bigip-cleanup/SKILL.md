@@ -1,6 +1,6 @@
 ---
 name: bigip-cleanup
-description: "Generate a tmsh script that deletes F5 BIG-IP objects unreferenced by any virtual server. Walks the full reference graph (including iRule body references — pool, persist, class match — and config-property references like pool monitors and profile fallbacks) and emits delete commands in reverse-topological order so tmsh accepts every line. Use when cleaning up a bigip.conf, finding orphaned pools / nodes / monitors / iRules / data-groups / profiles / persistence / SNAT pools, or generating a safe delete script for a BIG-IP config."
+description: "Report BIG-IP objects not reached by the reference edges recognised in the supplied configuration, and propose a tmsh cleanup script for review. Use when inspecting possible orphaned pools / nodes / monitors / iRules / data-groups / profiles / persistence / SNAT pools in a BIG-IP config."
 allowed-tools: Bash, Read
 ---
 
@@ -14,23 +14,30 @@ allowed-tools: Bash, Read
    together when both exist). Options: `--keep PATH` (repeatable; a trailing
    `/` keeps a partition), `--no-keep-common` (by default `/Common/` is kept
    so factory objects survive).
-3. The JSON has `candidates` (ordered `delete` commands with `fullPath`,
-   `kind`, `module`, `objectType`, `range`, `reason`), `summary` (counts by
-   kind), and `tmshScript` (what the CLI prints).
-4. Report: headline counts by kind, the script verbatim in a fenced block,
-   and a reminder that the order is reverse-topological (referencing objects
-   go first) and every line needs review — especially anything referencing
-   config outside the files given. An empty report: say every object is
-   referenced and how many virtuals were roots.
+3. The JSON has `candidates` (proposed deletes with `fullPath`, `kind`,
+   `module`, `objectType`, `range`, `reason`), `summary` (counts by kind), and
+   `tmshScript` (what the CLI prints). This is bounded by the graph edges and
+   source recognised by the provider; it is not proof of a complete BIG-IP
+   reference census.
+4. Report the proposed counts and script verbatim in a fenced block, and say
+   the order follows the provider's reported reference graph. Where supplied
+   sources or unsupported/dynamic references leave completeness unresolved, say
+   so explicitly. Review every line, especially references to config outside
+   the supplied files and target paths. An empty candidate list means only that this analysis found no
+   candidates; it does not prove every object is referenced.
 
 ## What the tool understands
 
-- Roots are `ltm virtual` and `gtm wideip *`; everything reachable is kept.
-- iRule bodies are parsed: `pool`, `persist`, `class match … DG`,
-  `snatpool`, `virtual`, `node` references count.
-- Config-property references come from the object registry: members →
-  nodes, monitors, rules, profiles and `defaults-from` chains, persistence,
-  SNAT pool members. Cycles break with a deterministic tie-break.
+- The analysis uses the root and edge types supported by the current provider.
+  Reachability in that conditional source graph is not a closed-world proof of
+  all BIG-IP references.
+- Recognized iRule body references include `pool`, `persist`, `class match`,
+  `snatpool`, `virtual`, and `node`; unsupported or dynamic effects may remain
+  unknown.
+- Recognized config-property references include registry-modelled members,
+  nodes, monitors, rules, profiles and `defaults-from` chains, persistence, and
+  SNAT pool members. This list does not imply all config properties are
+  modelled. Cycles use the provider's deterministic ordering.
 - Never deleted: anything outside `ltm` / `gtm`, and `ltm virtual_address`
   (BIG-IP manages it from virtual destinations). The tool only emits the
   script; the user runs it after review.

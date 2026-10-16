@@ -2174,8 +2174,15 @@ struct ArtefactIdentityManifest {
   browser, reads nothing, and decodes the file as the encoding `-encoding`
   names — UTF-8 from Tcl 9, the system encoding before — where the names are the
   four `encoding system` accepts (`utf-8`, `iso8859-1`, `ascii` and `unicode`) and
-  any other is Tcl's `unknown encoding`. `runtime/rust`'s
-  `source` reads through its host too and ignores the option.
+  any other is Tcl's `unknown encoding`. The Runtime `source` handler also
+  selects a dialect-specific source grammar and native file protocol, then
+  passes the selected filename and optional `-encoding` operand to
+  `prepare_source_file`. That owner uses the host filesystem and encoding
+  catalogue to open, read, decode, and close the file before `eval_sourced`;
+  it honours the supported `-encoding` form. Tcl 8.4 and Jim use filename-only
+  grammar, Tcl 8.5/8.6 accept `-encoding name`, and Tcl 9 additionally accepts
+  `-nopkg`. Jim's source protocol is separate and returns the read bytes
+  without the C Tcl channel-decoding path.
 - **Jim and every non-Tcl point execute as Tcl 9 by decision**
   (`vm_runtime_version` in `rust/tcl-dialect/src/profile.rs`), so a Jim
   attestation key has nothing to compare against.

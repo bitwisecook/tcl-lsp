@@ -282,7 +282,7 @@ fn namespace_cmd_original(
         b"eval" => ns_eval(interp, argv),
         b"exists" => ns_exists(interp, argv),
         b"parent" => ns_parent(interp, argv, arguments),
-        b"children" => ns_children(interp, argv),
+        b"children" => ns_children(interp, argv, arguments),
         b"qualifiers" => ns_qualifiers(interp, argv, arguments),
         b"tail" => ns_tail(interp, argv, arguments),
         b"which" => ns_which(interp, argv),
@@ -297,12 +297,12 @@ fn namespace_cmd_original(
         }
         b"import" => ns_import(interp, argv, arguments),
         b"forget" => ns_forget(interp, argv, arguments),
-        b"path" => ns_path(interp, argv),
+        b"path" => ns_path(interp, argv, arguments),
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
-        b"unknown" => ns_unknown(interp, argv),
-        b"upvar" => ns_upvar(interp, argv),
+        b"unknown" => ns_unknown_original(interp, argv, arguments),
+        b"upvar" => ns_upvar(interp, argv, arguments),
         _ => unreachable!("subcommand resolved to a canonical name above"),
     }
 }
@@ -313,6 +313,7 @@ fn namespace_cmd_original(
 /// unknown-command handler. The global namespace's default is `::unknown`; a
 /// sub-namespace with no handler reports the empty string (and falls back to
 /// `::unknown` at dispatch). Mirrors `NamespaceUnknownCmd` (`tclNamesp.c`).
+#[cfg(test)]
 fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let arguments = match OriginalArguments::enter(interp, argv) {
         Ok(arguments) => arguments,
@@ -330,32 +331,50 @@ fn ns_unknown_original(
     if argv.len() > 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"?script?");
     }
+    let owner = match interp.original_namespace_consumer(arguments) {
+        Ok(owner) => owner,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let check = || owner.check(arguments);
     let cur = interp.current_ns();
     if argv.len() == 3 {
-        use tcl_syntax::value::ValueOps;
-        let length = match interp.list_len(&argv[2]) {
+        let length = match crate::value_ops::list_length_using(
+            interp,
+            &argv[2],
+            &mut |actual, original| {
+                arguments.check_original_for(actual, 2, *original)?;
+                check()
+            },
+            |actual, original| namespace_list_elements_using(actual, *original, &check, arguments),
+        ) {
             Ok(length) => length,
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
         };
         let handler = (length != 0).then(|| obj::Owned::retain(argv[2]));
         let retired = interp.namespaces_mut().set_unknown_handler(cur, None);
         drop(retired);
-        if let Err(error) = arguments.check() {
+        if let Err(error) = check() {
             return interp.report_cmd_error(error);
         }
         let retired = interp.namespaces_mut().set_unknown_handler(cur, handler);
         drop(retired);
-        if let Err(error) = arguments.check() {
+        if let Err(error) = check() {
             return interp.report_cmd_error(error);
         }
         interp.set_result(argv[2]);
-        return Code::Ok;
+        return match check() {
+            Ok(()) => Code::Ok,
+            Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+        };
     }
     match interp.namespace_unknown_root(cur, cur == GLOBAL) {
         Some(handler) => interp.set_result(handler.as_ptr()),
         None => interp.set_result_bytes(b""),
     }
-    Code::Ok
+    match check() {
+        Ok(()) => Code::Ok,
+        Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+    }
 }
 
 /// `namespace current` — the FQN of the current namespace.
@@ -490,25 +509,37 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
 
 /// `namespace children ?name? ?pattern?` — child namespace FQNs (glob-filtered),
 /// via the shared core.
-fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_children(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() > 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"?name? ?pattern?");
     }
+    let owner = match interp.original_namespace_consumer(arguments) {
+        Ok(owner) => owner,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let check = || owner.check(arguments);
+    let current = interp.current_ns();
     let target = if let Some(&original) = argv.get(2) {
-        match interp.native_namespace_object_lookup(original) {
+        match interp.native_namespace_object_lookup_at_using(current, original, &check, &|error| {
+            arguments.retain_refusal(error.into())
+        }) {
             Ok(Some(target)) => target,
             Ok(None) => {
-                return ns_operation_not_found(
+                return ns_operation_not_found_using(
                     interp,
                     original,
                     tcl_syntax::naming::NativeNamespaceLookupOperation::Children,
+                    Some(&check),
                 );
             }
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
         }
     } else {
         interp.current_ns()
     };
+    if let Err(error) = owner.observe(target, arguments) {
+        return interp.report_cmd_error_using(error, Some(&check));
+    }
     let target = match u32::try_from(target) {
         Ok(target) => tcl_runtime_api::NsId(target),
         Err(_) => {
@@ -520,10 +551,10 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             );
         }
     };
-    let pattern = if let Some(&original) = argv.get(3) {
-        match tcl_syntax::value::ValueOps::native_string_bytes(interp, &original) {
+    let pattern = if argv.get(3).is_some() {
+        match arguments.bytes_using(3, &check) {
             Ok(bytes) => Some(bytes),
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
         }
     } else {
         None
@@ -534,14 +565,29 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         pattern.as_deref(),
     ) {
         Ok(children) => children,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error_using(error.into(), Some(&check)),
     };
+    if let Err(error) = check() {
+        return interp.report_cmd_error_using(error, Some(&check));
+    }
+    for child in &children {
+        if let Err(error) = owner.observe(child.0 as usize, arguments) {
+            return interp.report_cmd_error_using(error, Some(&check));
+        }
+    }
     match tcl_cmd_core::namespace::children_original(interp, &children) {
         Ok(v) => {
+            if let Err(error) = check() {
+                crate::interp::drop_fresh(v);
+                return interp.report_cmd_error_using(error, Some(&check));
+            }
             interp.set_result(v);
-            Code::Ok
+            match check() {
+                Ok(()) => Code::Ok,
+                Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+            }
         }
-        Err(error) => interp.report_cmd_error(error.into()),
+        Err(error) => interp.report_cmd_error_using(error.into(), Some(&check)),
     }
 }
 
@@ -1019,13 +1065,23 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
 // path
 
 /// `namespace path ?nsList?` — query (FQN list) or set the current ns's path.
-fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_path(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"?nsList?");
     }
+    let owner = match interp.original_namespace_consumer(arguments) {
+        Ok(owner) => owner,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let check = || owner.check(arguments);
     let cur = interp.current_ns();
     if argv.len() == 2 {
         let path = interp.namespaces().path(cur).to_vec();
+        for &namespace in &path {
+            if let Err(error) = owner.observe(namespace, arguments) {
+                return interp.report_cmd_error_using(error, Some(&check));
+            }
+        }
         let path = match path
             .into_iter()
             .map(|namespace| u32::try_from(namespace).map(tcl_runtime_api::NsId))
@@ -1047,36 +1103,119 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::Path,
         ) {
             Ok(result) => {
+                if let Err(error) = check() {
+                    crate::interp::drop_fresh(result);
+                    return interp.report_cmd_error_using(error, Some(&check));
+                }
                 interp.set_result(result);
-                Code::Ok
+                match check() {
+                    Ok(()) => Code::Ok,
+                    Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+                }
             }
-            Err(error) => interp.report_cmd_error(error.into()),
+            Err(error) => interp.report_cmd_error_using(error.into(), Some(&check)),
         };
     }
     // Retain the original list members through namespace conversion.
     let original = obj::Owned::retain(argv[2]);
-    let elems = match tcl_syntax::value::ValueOps::list_elements(interp, &original.as_ptr()) {
+    let elems = match namespace_list_elements_using(interp, original.as_ptr(), &check, arguments) {
         Ok(elements) => elements,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
+    };
+    let primary = match obj::NativePrimaryReceipt::capture(original.as_ptr()) {
+        Ok(primary) => primary,
+        Err(error) => return interp.report_cmd_error_using(error.into(), Some(&check)),
+    };
+    let backing = list::native_list_backing(original.as_ptr());
+    let members = elems
+        .iter()
+        .map(|&member| obj::NativeObjectLifetime::retain(member))
+        .collect::<Vec<_>>();
+    let member_check = || {
+        check()?;
+        primary
+            .check_for(original.as_ptr(), "original namespace path List primary")
+            .map_err(|error| arguments.retain_refusal(error.into()))?;
+        if let Some(backing) = &backing {
+            backing
+                .check_original_header(original.as_ptr())
+                .map_err(|error| arguments.retain_refusal(error.into()))?;
+        }
+        for member in &members {
+            member
+                .checked_ptr()
+                .map_err(|error| arguments.retain_refusal(error.into()))?;
+        }
+        Ok(())
     };
     let mut path: Vec<NsId> = Vec::with_capacity(elems.len());
     for &element in &elems {
-        let ns = match interp.native_namespace_object_lookup(element) {
+        let ns = match interp.native_namespace_object_lookup_at_using(
+            cur,
+            element,
+            &member_check,
+            &|error| arguments.retain_refusal(error.into()),
+        ) {
             Ok(Some(namespace)) => namespace,
             Ok(None) => {
-                return ns_operation_not_found(
+                return ns_operation_not_found_using(
                     interp,
                     element,
                     tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                    Some(&member_check),
                 );
             }
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
         };
+        if let Err(error) = owner.observe(ns, arguments) {
+            return interp.report_cmd_error_using(error, Some(&member_check));
+        }
         path.push(ns);
+    }
+    if let Err(error) = member_check() {
+        return interp.report_cmd_error_using(error, Some(&member_check));
     }
     interp.namespaces_mut().set_path(cur, path);
     interp.set_result_bytes(b"");
-    Code::Ok
+    match check() {
+        Ok(()) => Code::Ok,
+        Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+    }
+}
+
+fn namespace_list_elements_using(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    check: &impl Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    arguments: &OriginalArguments,
+) -> Result<Vec<*mut TclObj>, tcl_cmd_core::CmdError> {
+    check()?;
+    let protocol = interp
+        .native_invocation_dialect()
+        .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        ))
+        .ok_or_else(|| {
+            arguments.retain_refusal(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native object list conversion",
+                )
+                .into(),
+            )
+        })?
+        .protocol();
+    if protocol.is_jim084() {
+        let context = interp
+            .native_jim_object_context()
+            .map_err(|error| arguments.retain_refusal(error.into()))?;
+        check()?;
+        crate::native_source::bind_context(original, &context)
+            .map_err(|error| arguments.retain_refusal(error.into()))?;
+        check()?;
+    }
+    list::list_elements_native_using(original, protocol, check, &|error| {
+        arguments.retain_refusal(error.into())
+    })
 }
 
 // helpers
@@ -1422,7 +1561,7 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// frame to `otherVar`, a variable resolved in namespace `ns` (mirrors C's
 /// `NamespaceUpvarCmd`: the other-var is looked up with the var frame's
 /// namespace temporarily set to `ns`).
-fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj], originals: &OriginalArguments) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
@@ -1445,28 +1584,40 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(arguments) => arguments,
         Err(_) => return interp.wrong_args_for_prefix(argv, 2, grammar.wrong_arguments_suffix()),
     };
+    let owner = match interp.original_namespace_consumer(originals) {
+        Ok(owner) => owner,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let check = || owner.check(originals);
+    let current = interp.current_ns();
     let protocol = match interp.require_variable_name_protocol() {
         Ok(protocol) => protocol,
         Err(error) => return crate::builtins::var_error(interp, b"", error),
     };
-    let ns = match interp.native_namespace_object_lookup(argv[2]) {
-        Ok(Some(namespace)) => namespace,
-        Ok(None) => {
-            return ns_operation_not_found(
-                interp,
-                argv[2],
-                tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-            );
-        }
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
+    let ns =
+        match interp.native_namespace_object_lookup_at_using(current, argv[2], &check, &|error| {
+            originals.retain_refusal(error.into())
+        }) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => {
+                return ns_operation_not_found_using(
+                    interp,
+                    argv[2],
+                    tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                    Some(&check),
+                );
+            }
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
+        };
+    if let Err(error) = owner.observe(ns, originals) {
+        return interp.report_cmd_error_using(error, Some(&check));
+    }
     for (target_word, local_word) in arguments.pairs() {
         let local_word = local_word.expect("selected C grammar has complete pairs") + 2;
-        let bytes =
-            match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[local_word]) {
-                Ok(bytes) => bytes,
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
+        let bytes = match originals.bytes_using(local_word, &check) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error_using(error, Some(&check)),
+        };
         let local = match protocol.namespace_upvar_local_input(&bytes) {
             Ok(input) => crate::obj::Owned::fresh(crate::obj::new_string_bytes(input.selected())),
             Err(_) => {
@@ -1477,14 +1628,25 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 );
             }
         };
-        let code =
-            interp.link_original_c_namespace_objects(argv[target_word + 2], ns, local.as_ptr());
+        let code = interp.link_original_c_namespace_objects_using(
+            argv[target_word + 2],
+            ns,
+            local.as_ptr(),
+            Some(&check),
+        );
+        drop(local);
+        if let Err(error) = check() {
+            return interp.report_cmd_error_using(error, Some(&check));
+        }
         if code != Code::Ok {
             return code;
         }
     }
     interp.set_result_bytes(b"");
-    Code::Ok
+    match check() {
+        Ok(()) => Code::Ok,
+        Err(error) => interp.report_cmd_error_using(error, Some(&check)),
+    }
 }
 
 // ensemble
@@ -7119,3 +7281,354 @@ mod native_jim_text_result_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_helper_literal_head_tests.rs"]
 mod native_jim_helper_literal_head_tests;
+
+#[cfg(test)]
+mod original_namespace_continuation_tests {
+    use super::*;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+
+    thread_local! {
+        static ACTUAL: RefCell<Option<Interp>> = const { RefCell::new(None) };
+        static PAYLOADS: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
+        static EVENTS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+        static ACTION: Cell<u8> = const { Cell::new(0) };
+        static AT: Cell<usize> = const { Cell::new(0) };
+        static TARGET: Cell<NsId> = const { Cell::new(GLOBAL) };
+        static PARENT: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
+        static FIRST: RefCell<Option<tcl_runtime_api::NativeExecutionError>> = const { RefCell::new(None) };
+    }
+
+    fn callback() {
+        let mut actual = ACTUAL.with(|slot| slot.borrow().as_ref().unwrap().clone());
+        match ACTION.with(Cell::get) {
+            0 => {}
+            1 => {
+                actual.refuse_host_command("original namespace continuation first cause");
+                FIRST.with(|slot| *slot.borrow_mut() = actual.native_execution_refusal());
+            }
+            2 => {
+                let original = actual.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("namespace-continuation-control".into(), "1.0".into())];
+                actual.pin_context(&changed).unwrap();
+                actual.pin_context(&original).unwrap();
+            }
+            3 => actual.set_current_ns(TARGET.with(Cell::get)),
+            4 => {
+                let old = TARGET.with(Cell::get);
+                actual.delete_namespace_by_id(old);
+                let replacement = actual.ensure_global_namespace(b"::tree");
+                assert_ne!(replacement, old);
+            }
+            5 => obj::change_type(PARENT.with(Cell::get), std::ptr::null(), 0),
+            6 => {
+                let namespace = actual.current_ns();
+                actual.frames.borrow_mut().push(namespace);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    extern "C" fn update(original: *mut TclObj) {
+        let index = usize::try_from(obj::internal_rep(original)).unwrap();
+        EVENTS.with(|events| events.borrow_mut().push(index));
+        let bytes = PAYLOADS.with(|payloads| payloads.borrow()[index].clone());
+        unsafe { obj::set_native_updater_string_rep(original, &bytes, false) };
+        if AT.with(Cell::get) == index {
+            callback();
+        }
+    }
+    extern "C" fn free(_: *mut TclObj) {
+        EVENTS.with(|events| events.borrow_mut().push(99));
+        callback();
+    }
+    static LAZY: obj::TclObjType = obj::TclObjType {
+        name: c"originalNamespaceContinuation".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update),
+        set_from_any_proc: None,
+    };
+    static RETIRED: obj::TclObjType = obj::TclObjType {
+        name: c"originalNamespaceHandlerRetirement".as_ptr(),
+        free_int_rep_proc: Some(free),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+
+    struct Cleanup;
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            ACTION.with(|action| action.set(0));
+            ACTUAL.with(|slot| slot.borrow_mut().take());
+            PARENT.with(|parent| parent.set(std::ptr::null_mut()));
+        }
+    }
+    fn actual(engine: &str) -> (Interp, Cleanup, NsId, NsId) {
+        ACTUAL.with(|slot| slot.borrow_mut().take());
+        PAYLOADS.with(|values| values.borrow_mut().clear());
+        EVENTS.with(|values| values.borrow_mut().clear());
+        ACTION.with(|value| value.set(0));
+        AT.with(|value| value.set(0));
+        FIRST.with(|value| value.borrow_mut().take());
+        let mut interp = original_argument_tests::instance(engine);
+        assert_eq!(interp.eval_str(b"namespace eval tree {namespace eval child {}; variable value VALUE}; namespace eval dest {}"), Code::Ok);
+        let tree = interp.ensure_global_namespace(b"::tree");
+        let dest = interp.ensure_global_namespace(b"::dest");
+        interp.set_current_ns(dest);
+        ACTUAL.with(|slot| *slot.borrow_mut() = Some(interp.clone()));
+        (interp, Cleanup, tree, dest)
+    }
+    fn lazy(bytes: &[u8]) -> Owned {
+        let index = PAYLOADS.with(|payloads| {
+            let mut payloads = payloads.borrow_mut();
+            let index = payloads.len();
+            payloads.push(bytes.to_vec());
+            index
+        });
+        Owned::fresh(obj::alloc_typed(&LAZY, u64::try_from(index).unwrap()))
+    }
+    fn text(bytes: &[u8]) -> Owned {
+        Owned::fresh(obj::new_string_bytes(bytes))
+    }
+    fn call(actual: &mut Interp, subcommand: &[u8], operands: &[&Owned]) -> Code {
+        let head = text(b"namespace");
+        let member = text(subcommand);
+        let mut argv = vec![head.as_ptr(), member.as_ptr()];
+        argv.extend(operands.iter().map(|word| word.as_ptr()));
+        let code = namespace_cmd(actual, &argv);
+        assert_eq!(actual.entered_native_operation_count(), 0);
+        code
+    }
+    fn events() -> Vec<usize> {
+        EVENTS.with(|events| events.borrow().clone())
+    }
+    fn action(mode: u8, at: usize, target: NsId) {
+        ACTION.with(|action| action.set(mode));
+        AT.with(|selected| selected.set(at));
+        TARGET.with(|slot| slot.set(target));
+    }
+
+    #[test]
+    fn original_namespace_children_path_unknown_upvar_keep_successful_getter_order_and_objects() {
+        // Software extension controls preserve the existing native success paths.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let (mut actual, _cleanup, tree, dest) = actual(engine);
+            let target = lazy(b"::tree");
+            let pattern = lazy(b"*");
+            assert_eq!(
+                call(&mut actual, b"children", &[&target, &pattern]),
+                Code::Ok,
+                "{engine}"
+            );
+            assert_eq!(actual.result_bytes(), b"::tree::child", "{engine}");
+            assert_eq!(events(), vec![0, 1]);
+
+            if engine == "tcl8.4" {
+                continue;
+            }
+            let first = lazy(b"::tree");
+            let second = lazy(b"::dest");
+            let path = Owned::fresh(actual.new_list_object(&[first.as_ptr(), second.as_ptr()]));
+            assert_eq!(call(&mut actual, b"path", &[&path]), Code::Ok, "{engine}");
+            assert_eq!(actual.namespaces().path(dest), &[tree, dest]);
+            assert_eq!(events(), vec![0, 1, 2, 3]);
+            assert_eq!(call(&mut actual, b"path", &[]), Code::Ok);
+            assert_eq!(actual.result_bytes(), b"::tree ::dest");
+
+            let handler = lazy(b"::handler retained\0counted");
+            assert_eq!(call(&mut actual, b"unknown", &[&handler]), Code::Ok);
+            assert_eq!(actual.get_obj_result(), handler.as_ptr());
+            assert_eq!(call(&mut actual, b"unknown", &[]), Code::Ok);
+            assert_eq!(actual.get_obj_result(), handler.as_ptr());
+            assert_eq!(
+                obj::bytes_of(handler.as_ptr()),
+                b"::handler retained\0counted"
+            );
+
+            let namespace = lazy(b"::tree");
+            let variable = lazy(b"value");
+            let local = lazy(b"linked\0discarded");
+            let start = events().len();
+            let first_index = PAYLOADS.with(|payloads| payloads.borrow().len()) - 3;
+            assert_eq!(
+                call(&mut actual, b"upvar", &[&namespace, &variable, &local]),
+                Code::Ok,
+                "{engine}"
+            );
+            assert_eq!(
+                &events()[start..],
+                &[first_index, first_index + 2, first_index + 1]
+            );
+            assert_eq!(
+                actual.eval_str(b"set linked CHANGED; set ::tree::value"),
+                Code::Ok
+            );
+            assert_eq!(actual.result_bytes(), b"CHANGED");
+            assert_eq!(obj::bytes_of(local.as_ptr()), b"linked\0discarded");
+            assert!(actual.native_execution_refusal().is_none());
+        }
+    }
+
+    #[test]
+    fn original_namespace_children_keeps_selected_target_birth_across_pattern_callback() {
+        let (mut actual, _cleanup, tree, _) = actual("tcl8.6");
+        let target = text(b"::tree");
+        let pattern = lazy(b"*");
+        actual.set_result_bytes(b"PRIOR");
+        let prior = actual.get_obj_result();
+        action(4, 0, tree);
+        assert_eq!(
+            call(&mut actual, b"children", &[&target, &pattern]),
+            Code::Error
+        );
+        assert_eq!(events(), vec![0]);
+        assert_eq!(actual.get_obj_result(), prior);
+        assert!(actual.native_execution_refusal().is_some());
+        assert_ne!(
+            actual.namespaces().find_namespace(GLOBAL, b"::tree"),
+            Some(tree)
+        );
+    }
+
+    #[test]
+    fn original_namespace_path_checks_prior_targets_and_original_member_backing_before_commit() {
+        for mode in [1, 2, 3, 4, 5] {
+            let (mut actual, _cleanup, tree, dest) = actual("tcl9.1");
+            actual.namespaces_mut().set_path(dest, vec![dest]);
+            let first = lazy(b"::tree");
+            let second = lazy(b"::dest");
+            let later = lazy(b"::tree");
+            let path = Owned::fresh(actual.new_list_object(&[
+                first.as_ptr(),
+                second.as_ptr(),
+                later.as_ptr(),
+            ]));
+            PARENT.with(|parent| parent.set(path.as_ptr()));
+            actual.set_result_bytes(b"PRIOR");
+            let prior = actual.get_obj_result();
+            action(mode, 1, tree);
+            assert_eq!(call(&mut actual, b"path", &[&path]), Code::Error, "{mode}");
+            assert_eq!(events(), vec![0, 1], "{mode}");
+            assert!(!obj::has_string_rep(later.as_ptr()));
+            assert_eq!(actual.namespaces().path(dest), &[dest]);
+            assert_eq!(actual.get_obj_result(), prior);
+            let refusal = actual.native_execution_refusal().unwrap();
+            if mode == 1 {
+                assert_eq!(FIRST.with(|first| first.borrow().clone()), Some(refusal));
+            }
+        }
+    }
+
+    #[test]
+    fn original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler() {
+        for mode in [1, 2, 3, 6] {
+            let (mut actual, _cleanup, tree, dest) = actual("tcl8.6");
+            let old = text(b"::old handler");
+            assert_eq!(call(&mut actual, b"unknown", &[&old]), Code::Ok);
+            let replacement = lazy(b"::new handler");
+            actual.set_result_bytes(b"PRIOR");
+            let prior = actual.get_obj_result();
+            action(mode, 0, tree);
+            assert_eq!(call(&mut actual, b"unknown", &[&replacement]), Code::Error);
+            assert_eq!(events(), vec![0]);
+            assert_eq!(
+                actual.namespace_unknown_root(dest, false).unwrap().as_ptr(),
+                old.as_ptr()
+            );
+            assert_eq!(actual.get_obj_result(), prior);
+            assert!(actual.native_execution_refusal().is_some());
+            if mode == 6 {
+                actual.frames.borrow_mut().pop();
+            }
+        }
+    }
+
+    #[test]
+    fn original_namespace_unknown_checks_retired_handler_callback_before_new_publication() {
+        for mode in [1, 2, 3, 6] {
+            let (mut actual, _cleanup, tree, dest) = actual("tcl8.6");
+            let retired = Owned::fresh(obj::alloc_typed(&RETIRED, 0));
+            let old = Owned::fresh(actual.new_list_object(&[retired.as_ptr()]));
+            drop(retired);
+            assert!(actual
+                .namespaces_mut()
+                .set_unknown_handler(dest, Some(old))
+                .is_none());
+            let replacement = text(b"::new handler");
+            actual.set_result_bytes(b"PRIOR");
+            let prior = actual.get_obj_result();
+            action(mode, 99, tree);
+            assert_eq!(call(&mut actual, b"unknown", &[&replacement]), Code::Error);
+            assert_eq!(events(), vec![99]);
+            assert!(actual.namespace_unknown_root(dest, false).is_none());
+            assert_eq!(actual.get_obj_result(), prior);
+            assert!(actual.native_execution_refusal().is_some());
+            if mode == 1 {
+                assert_eq!(
+                    FIRST.with(|first| first.borrow().clone()),
+                    actual.native_execution_refusal()
+                );
+            }
+            if mode == 6 {
+                actual.frames.borrow_mut().pop();
+            }
+        }
+    }
+
+    #[test]
+    fn original_namespace_upvar_checks_namespace_before_target_getter_and_alias_publication() {
+        for mode in [1, 2, 3, 4, 6] {
+            let (mut actual, _cleanup, tree, dest) = actual("tcl8.6");
+            let namespace = text(b"::tree");
+            let target = lazy(b"value");
+            let local = lazy(b"linked");
+            actual.set_result_bytes(b"PRIOR");
+            let prior = actual.get_obj_result();
+            action(mode, 1, tree);
+            assert_eq!(
+                call(&mut actual, b"upvar", &[&namespace, &target, &local]),
+                Code::Error,
+                "{mode}"
+            );
+            assert_eq!(events(), vec![1], "{mode}");
+            assert!(!obj::has_string_rep(target.as_ptr()));
+            assert_eq!(actual.get_obj_result(), prior);
+            assert!(actual
+                .namespaces()
+                .var_table(dest)
+                .cell(b"linked")
+                .is_none());
+            assert!(actual.native_execution_refusal().is_some());
+            if mode == 6 {
+                actual.frames.borrow_mut().pop();
+            }
+        }
+    }
+
+    #[test]
+    fn original_namespace_upvar_transports_outer_namespace_check_through_original_target_conversion(
+    ) {
+        let (mut actual, _cleanup, tree, dest) = actual("tcl8.6");
+        let namespace = text(b"::tree");
+        let target = lazy(b"value");
+        let local = text(b"linked");
+        actual.set_result_bytes(b"PRIOR");
+        let prior = actual.get_obj_result();
+        action(3, 0, tree);
+        assert_eq!(
+            call(&mut actual, b"upvar", &[&namespace, &target, &local]),
+            Code::Error
+        );
+        assert_eq!(events(), vec![0]);
+        assert_eq!(actual.get_obj_result(), prior);
+        assert!(actual
+            .namespaces()
+            .var_table(dest)
+            .cell(b"linked")
+            .is_none());
+        assert!(actual.native_execution_refusal().is_some());
+    }
+}

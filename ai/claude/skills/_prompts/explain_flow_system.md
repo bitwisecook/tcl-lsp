@@ -103,9 +103,12 @@ Each session carries every key; an unset field is `""`, `[]`, `false`, or
    counts).
 3. `profile_chain`: which BIG-IP code paths ran (TCP-only, TLS-decrypt,
    HTTP-aware); order is attach order.
-4. `event_sequence` + `event_annotations`: which branches were taken and what
-   they read — each annotation is "in event X the iRule looked at command Y
-   and saw Z", which explains a `[HTTP::host] equals` branch or an SNI route.
+4. `event_sequence` + `event_annotations` are reconstructed source analysis.
+   The sequence is an expected event ordering derived from attached profiles
+   and observed L7 features; annotations associate source commands with values
+   inferred from captured connection state. They do not show that a branch was
+   taken or that an event executed. State the source condition and the
+   annotation separately from capture observations.
 5. `policy_decisions`: which LTM policy rule fired and what it did. Every
    rule is listed with `matched` / `fired` and its full per-condition trace
    (`expected` beside `actual`, plus `note` for a condition that could not be
@@ -121,9 +124,11 @@ Each session carries every key; an unset field is `""`, `[]`, `false`, or
    rule overrode the choice.
 8. `reset_analysis` explains why the session ended; an RST with an F5 reset
    cause (e.g. `POOL_DOWN`, in the flow's `f5_reset_causes`) is definitive.
-9. The `simulated_*` fields, when `simulate=true`, are the truth source (the
-   iRule run under c-tcl with the captured state); on a non-empty
-   `simulation_error` fall back to the static analysis.
+9. The `simulated_*` fields, when `simulate=true`, report the best-effort
+   outcome of running the iRule through the embedded Tcl VM with captured
+   request state. They are simulated results, not observations from the captured
+   BIG-IP. On a non-empty `simulation_error`, report that simulation failed and
+   keep it separate from static source analysis and packet observations.
 
 ## Limitations
 
@@ -131,12 +136,13 @@ Each session carries every key; an unset field is `""`, `[]`, `false`, or
   peer-tuples that pair `:np` front/back sides come only from the built-in
   walker, so a filtered run loses front/back pairing. Drop the filter for
   proxied traffic.
-- `simulate` needs `tclsh` on PATH and one orchestrator subprocess per
-  matched session; avoid on captures with hundreds of sessions unless
-  `tshark_filter` is set.
-- Static event ordering comes from attached profiles and observed L7
-  features; it does not honour `event disable` or conditional
-  `when ... { return }` — consult the `simulated_*` fields for runtime truth.
+- `simulate` runs the embedded Tcl VM for each matched session; avoid it on
+  captures with hundreds of sessions unless `tshark_filter` is set.
+- The reported event ordering is reconstructed from attached profiles and
+  observed L7 features; it does not establish event execution and does not
+  honour `event disable` or conditional `when ... { return }`. The simulation
+  reports VM behaviour under its modelled request and profiles, not captured
+  device execution.
 - Path-through-iRule analysis is static unless `simulate=true`: it surfaces
   the relevant `when` bodies, it does not follow branches on payload bytes.
 - GTM probe results and APM session state are not retained; `gtm_wide_ips`

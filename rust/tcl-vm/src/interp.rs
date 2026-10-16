@@ -123,6 +123,7 @@ mod native_namespace_address_tests;
 #[cfg(test)]
 mod native_namespace_command_query_tests;
 mod native_namespace_names;
+pub(crate) use native_namespace_names::OriginalEnsembleNamespaceResult;
 #[cfg(test)]
 mod native_namespace_origin_tests;
 #[cfg(test)]

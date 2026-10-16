@@ -401,23 +401,23 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T08:34:00Z",
+    "utc": "2026-10-16T08:52:00Z",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 24,
+    "implemented_pending_validation": 47,
     "verified_complete": 0,
-    "not_started": 2134,
+    "not_started": 2111,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "VM no-argument Parent current-holder projection (catalogue mapping pending)",
       "MCP empty-pool candidate existing validation obligation (already adopted decoder, no new semantic migration)"
     ],
     "latest_scoped_build": {
-      "status": "FAIL_SOURCE_LOAD_COMPILE",
-      "head": "1b9bc6ea158014961af766dcc3d702e3228333fb",
-      "log": "/tmp/naming-build-1b9bc6ea1.log",
+      "status": "FAIL_MINIFIER_TEST_FIXTURE_COMPILE",
+      "head": "21110f670fc5d0ae5943d7859e9b6be1b8b86c38",
+      "log": "/tmp/naming-build-21110f670.log",
       "errors": 1,
-      "cause": "Nonexistent AnalysisResult field; repaired by checking actual Source hook scope ancestry for interpreter domains/isolated bodies before sealed capture. Next build pending."
+      "cause": "One MinifyEnv fixture lacked a binding for its unchanged source input; repaired with identical fixture/assertions. Shared Compiler/Core/VM libraries compiled, complete broad build not accepted."
     },
     "required_gates": "Still not green; no PR acceptance.",
     "report_cadence_minutes": 30,
@@ -440,7 +440,29 @@
         "selector": "source_tree_execution_selects_matching_original_init_and_tcltest",
         "tests": 1,
         "log": "/tmp/naming-provider-pairing.log"
+      },
+      {
+        "status": "FAIL",
+        "head": "21110f670fc5d0ae5943d7859e9b6be1b8b86c38",
+        "selector": "logical_variable_",
+        "tests": 6,
+        "PASS": 4,
+        "FAIL": 2,
+        "log": "/tmp/naming-compiler-logical-variable-21110f670.log",
+        "repairs": "Two newly added fixture premises repaired; retest pending."
       }
-    ]
+    ],
+    "provider_pairing": {
+      "status": "PASS_SETUP_ONLY",
+      "capture": "experiments/name-handling/oracles/provider-pairing-20261016/capture.json",
+      "sha256": "79dc7176990fb671b8c44f5074bd1202023b7c771f4f2a98378576d3fe54a647",
+      "providers": 6,
+      "jim_upstream_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "semantic_acceptance": false
+    },
+    "withheld_drafts": [
+      "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
+    ],
+    "owner_facet_reconciliation": "New owner facets and VM Parent catalogue correspondence remain explicitly pending reconciliation; no extra unit completion or baseline count change inferred."
   }
 }

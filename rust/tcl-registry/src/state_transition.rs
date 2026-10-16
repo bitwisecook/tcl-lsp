@@ -680,14 +680,7 @@ impl NamespaceTransition {
             return None;
         }
         let clear = patterns.first().map_or(Some(false), |first| {
-            policy
-                .recipe()
-                .namespace_pattern_input(
-                    first,
-                    tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
-                )
-                .ok()
-                .map(|input| input.selected() == b"-clear")
+            policy.recipe().namespace_export_clears(first).ok()
         })?;
         Some((clear, &patterns[usize::from(clear)..]))
     }

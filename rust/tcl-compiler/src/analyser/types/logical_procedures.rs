@@ -198,6 +198,21 @@ impl AnalysisResult {
         declarations.next().is_none().then_some(declaration)
     }
 
+    /// Current retained Logical headers, including superseded source declarations.
+    /// Equal command coordinates retain their independent original allocations.
+    /// Unavailable or conflicting headers are omitted; this positive source
+    /// catalogue proves no complete occupancy, installation or Native authority.
+    pub fn logical_source_procedure_declarations(
+        &self,
+    ) -> impl Iterator<Item = &LogicalSourceProcedureDeclaration> {
+        self.logical_procedure_declarations
+            .iter()
+            .filter(|declaration| {
+                self.logical_source_procedure_declaration_for_body(&declaration.body)
+                    .is_some_and(|selected| std::ptr::eq(selected, *declaration))
+            })
+    }
+
     /// Current actual procedure metadata must agree with the genuine header card.
     /// Reporting names are excluded from selection and insertion.
     #[must_use]
@@ -210,6 +225,10 @@ impl AnalysisResult {
             .chain(
                 self.original_procedure_declarations()
                     .map(|declaration| declaration.metadata()),
+            )
+            .chain(
+                self.logical_source_procedure_declarations()
+                    .map(LogicalSourceProcedureDeclaration::metadata),
             )
             .any(|current| std::ptr::eq(current, procedure))
             .then_some(())?;
@@ -226,6 +245,147 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_procedure_catalogue_keeps_superseded_original_allocations() {
+        let source = "proc p {first} {return $first}; proc p {second} {return $second}; namespace eval N {proc p {third} {return $third}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(analysis.all_procs.len(), 2);
+        let declarations: Vec<_> = analysis.logical_source_procedure_declarations().collect();
+        assert_eq!(declarations.len(), 3);
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|row| row.metadata().params[0].name.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "second", "third"]
+        );
+        assert!(!Arc::ptr_eq(&declarations[0].body, &declarations[1].body));
+        assert_eq!(
+            declarations[0].source_candidate_coordinate(),
+            declarations[1].source_candidate_coordinate()
+        );
+        assert_ne!(
+            declarations[1].source_candidate_coordinate(),
+            declarations[2].source_candidate_coordinate()
+        );
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = SourceImage::document(source);
+        for (row, body) in
+            declarations
+                .iter()
+                .zip(["return $first", "return $second", "return $third"])
+        {
+            assert_eq!(
+                row.original_body_word(&image, input)
+                    .unwrap()
+                    .content_span()
+                    .ok()
+                    .and_then(|span| source.get(span.as_range())),
+                Some(body)
+            );
+            assert!(std::ptr::eq(
+                analysis
+                    .logical_source_procedure_declaration(row.metadata())
+                    .unwrap(),
+                *row,
+            ));
+            assert!(
+                analysis
+                    .logical_source_procedure_declaration(&row.metadata().clone())
+                    .is_none()
+            );
+        }
+        let foreign = Analyser::new().analyse(source, "tcl");
+        let foreign_row = foreign
+            .logical_source_procedure_declarations()
+            .next()
+            .unwrap();
+        assert!(
+            analysis
+                .logical_source_procedure_declaration(foreign_row.metadata())
+                .is_none()
+        );
+        analysis.all_procs.clear();
+        analysis.original_procedure_metadata.clear();
+        let retained: Vec<_> = analysis.logical_source_procedure_declarations().collect();
+        assert_eq!(retained.len(), 3);
+        for row in retained {
+            assert!(
+                analysis
+                    .logical_source_procedure_declaration(row.metadata())
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_procedure_catalogue_withdraws_stale_or_conflicting_headers() {
+        let source = "proc p {first} {return $first}; proc p {second} {return $second}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(analysis.logical_source_procedure_declarations().count(), 2);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = SourceImage::document(source);
+        let row = analysis
+            .logical_source_procedure_declarations()
+            .next()
+            .unwrap();
+        assert!(!row.matches_source(&SourceImage::document(&format!("{source} ")), input));
+        let mut changed = analysis.clone();
+        changed.logical_procedure_declarations[0].metadata.params[0].name = "changed".into();
+        assert_eq!(changed.logical_source_procedure_declarations().count(), 1);
+        assert_eq!(
+            changed
+                .logical_source_procedure_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .params[0]
+                .name,
+            "second"
+        );
+        let mut conflict = analysis.clone();
+        let mut competing = conflict.logical_procedure_declarations[0].clone();
+        competing.metadata.doc = "competing retained metadata".into();
+        conflict.logical_procedure_declarations.push(competing);
+        assert_eq!(conflict.logical_source_procedure_declarations().count(), 1);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert_eq!(missing.logical_source_procedure_declarations().count(), 0);
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        for changed_input in [
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            ),
+            ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ),
+        ] {
+            assert!(!row.matches_source(&image, &changed_input));
+            let mut stale = analysis.clone();
+            stale.resolved_input = Some(changed_input);
+            assert_eq!(stale.logical_source_procedure_declarations().count(), 0);
+        }
+        let mut stale_source = analysis.clone();
+        stale_source.command_realm = Analyser::new()
+            .analyse(&format!("{source} "), "tcl")
+            .retained_command_realm_arc()
+            .cloned();
+        assert_eq!(
+            stale_source.logical_source_procedure_declarations().count(),
+            0
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(native.logical_source_procedure_declarations().count(), 0);
+    }
 
     #[test]
     fn logical_procedure_card_signature_is_independent_of_presentation_metadata() {

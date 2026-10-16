@@ -15,13 +15,16 @@ allowed-tools: mcp__tcl-lsp__suggest_datagroup_extractions, mcp__tcl-lsp__extrac
    inferred value type (ip, integer, string), CIDR flag, body shape
    (identical, set_mapping, return_mapping, complex), and confidence. On a
    tool error report it and suggest fixes.
-3. **High confidence:** call `mcp__tcl-lsp__extract_datagroup` with `source`
-   plus the candidate's `line` and `character` (optionally `dg_name`); it
-   returns the rewritten iRule and the tmsh definition.
-4. **Medium / low:** decide by hand — a domain-appropriate name, whether to
-   consolidate related patterns, the `class match` operator (equals,
-   contains, starts_with), CIDR handling for ip types — and write the
-   definition.
+3. Use the candidate's independent `has_static_extraction` field to decide
+   whether the mechanical extractor applies. Confidence describes the heuristic
+   candidate; it does not determine extractor eligibility. When
+   `has_static_extraction` is true, call `mcp__tcl-lsp__extract_datagroup` with
+   `source` and the candidate's `line` and `character` (optionally `dg_name`),
+   then review its rewritten iRule and tmsh definition.
+4. When static extraction is unavailable, treat the candidate as a suggestion
+   for manual analysis. Decide whether its pattern is semantically suitable,
+   choose any proposed name as a user-facing suggestion only, and verify the
+   operator and CIDR behaviour against the source before writing a definition.
 5. For each extraction show the inline code, the `class match` /
    `class lookup` replacement, the tmsh definition
    (`ltm data-group internal <name> { records { <key> { data <value> } } type <string|ip|integer> }`),

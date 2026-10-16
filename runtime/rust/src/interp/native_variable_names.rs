@@ -1539,17 +1539,19 @@ impl Interp {
 
     /// Namespace-upvar retains its original target object. Its local CString
     /// API creates a fresh scalar name before the shared simple alias lookup.
-    pub(crate) fn link_original_c_namespace_objects(
+    pub(crate) fn link_original_c_namespace_objects_using(
         &mut self,
         original: *mut TclObj,
         namespace: crate::namespace::NsId,
         local: *mut TclObj,
+        stage: OriginalCNameStage<'_>,
     ) -> Code {
-        let target = match self.prepare_original_c_namespace_link_target(original, namespace) {
-            Ok(target) => target,
-            Err(code) => return code,
-        };
-        self.bind_selected_c_alias_local(local, target)
+        let target =
+            match self.prepare_original_c_namespace_link_target_using(original, namespace, stage) {
+                Ok(target) => target,
+                Err(code) => return code,
+            };
+        self.bind_selected_c_alias_local_using(local, target, stage)
     }
 
     /// Prepare the original namespace receiver before a caller's local-link
@@ -1559,21 +1561,32 @@ impl Interp {
         original: *mut TclObj,
         namespace: crate::namespace::NsId,
     ) -> Result<OriginalCLinkTarget, Code> {
-        let selected = match self.prepare_original_c_name_in(
+        self.prepare_original_c_namespace_link_target_using(original, namespace, None)
+    }
+
+    fn prepare_original_c_namespace_link_target_using(
+        &mut self,
+        original: *mut TclObj,
+        namespace: crate::namespace::NsId,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<OriginalCLinkTarget, Code> {
+        let selected = match self.prepare_original_c_name_in_using(
             original,
             NativeVariableNameLookupPurpose::Link,
             Some(namespace),
+            stage,
         ) {
             Ok(Some(selected)) => selected,
             Ok(None) => {
-                return Err(self.report_cmd_error(
+                return Err(self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("original namespace upvar target")
                         .into(),
+                    stage,
                 ));
             }
             Err(code) => return Err(code),
         };
-        self.prepare_selected_c_namespace_target(original, &selected)
+        self.prepare_selected_c_namespace_target_using(original, &selected, stage)
     }
 
     pub(crate) fn link_original_c_namespace_alias(
@@ -1657,26 +1670,51 @@ impl Interp {
         original: *mut TclObj,
         target: OriginalCLinkTarget,
     ) -> Code {
+        self.bind_selected_c_alias_local_using(original, target, None)
+    }
+
+    fn bind_selected_c_alias_local_using(
+        &mut self,
+        original: *mut TclObj,
+        target: OriginalCLinkTarget,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias local");
         if let Err(error) = target.check(self) {
-            return self.report_cmd_error(error);
+            return self.report_cmd_error_using(error, stage);
         }
-        let reached = self.native_string_bytes(&original);
+        let actual = self.clone();
+        let current = || {
+            actual.check_original_c_name_stage(stage)?;
+            target.check(&actual)
+        };
+        let reached = if stage.is_some() {
+            self.original_c_name_bytes_using(original, Some(&current))
+        } else {
+            self.native_string_bytes(&original)
+                .map_err(tcl_cmd_core::CmdError::from)
+        };
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         if let Err(error) = target.check(self) {
-            return self.report_cmd_error(error);
+            return self.report_cmd_error_using(error, stage);
         }
         let bytes = match reached {
             Ok(bytes) => bytes,
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return self.report_cmd_error_using(error, stage),
         };
         if self.upvar_would_invert(&target, &bytes) {
             let mut message = b"bad variable name \"".to_vec();
             message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
             message.extend_from_slice(b"\": ");
             message.extend_from_slice(protocol.alias_namespace_inversion_reason());
-            return self.original_c_alias_error(&message, b"TCL UPVAR INVERTED");
+            return self.original_c_alias_error_using(&message, b"TCL UPVAR INVERTED", stage);
         }
         if protocol.alias_local_is_element(&bytes) {
             let mut message = b"bad variable name \"".to_vec();
@@ -1684,7 +1722,7 @@ impl Interp {
             message.extend_from_slice(
                 b"\": can't create a scalar variable that looks like an array element",
             );
-            return self.original_c_alias_error(&message, b"TCL UPVAR LOCAL_ELEMENT");
+            return self.original_c_alias_error_using(&message, b"TCL UPVAR LOCAL_ELEMENT", stage);
         }
         let selected = crate::vars::prepare_original_c_alias_local(
             &mut self.frames.borrow_mut(),
@@ -1702,20 +1740,28 @@ impl Interp {
                 message.extend_from_slice(name);
                 message.extend_from_slice(b"\": parent namespace doesn't exist");
                 let code = super::error_code_list(&[b"TCL", b"LOOKUP", b"VARNAME", name]);
-                return self.original_c_alias_diagnostic(
+                return self.original_c_alias_diagnostic_using(
                     &message,
                     tcl_cmd_core::CmdErrorCodeUpdate::Set(code),
+                    stage,
                 );
             }
             Err(error) => {
-                return self.original_c_lookup_var_error(
+                return self.original_c_lookup_var_error_using(
                     original,
                     NativeVariableNameLookupPurpose::Link,
                     error,
+                    stage,
                 );
             }
         };
-        self.settle_original_c_alias_at(selected.home, selected.compiled, &selected.name, target)
+        self.settle_original_c_alias_at_using(
+            selected.home,
+            selected.compiled,
+            &selected.name,
+            target,
+            stage,
+        )
     }
 
     pub(crate) fn link_original_c_upvar_objects(

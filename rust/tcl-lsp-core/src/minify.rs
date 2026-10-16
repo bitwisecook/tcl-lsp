@@ -143,7 +143,6 @@ use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
 #[cfg(test)]
 use tcl_compiler::ir::Statement;
-use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 #[cfg(test)]
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::TaintColour;
@@ -779,14 +778,6 @@ struct MinifyEnv<'a> {
 }
 
 impl<'a> MinifyEnv<'a> {
-    /// The registry name a head spelling effectively resolves to.
-    fn resolve<'h>(&'h self, head: &'h str) -> &'h str
-    where
-        'a: 'h,
-    {
-        self.identities.head_words_unpositioned(head).resolved
-    }
-
     /// Only an actual subslice of the complete held input retains coordinates.
     /// Decoded or generated text cannot recapture a source-body occurrence.
     fn original_region(self, source: &str) -> Option<Span> {
@@ -2910,7 +2901,7 @@ fn render_command(
             let inner = sm.token_text(arg.tokens[0]);
             out.push(format!("{{{}}}", compress_expr(inner, env, depth + 1)));
         } else {
-            out.push(reconstruct_arg(sm, arg, env, depth)?);
+            out.push(reconstruct_arg(sm, arg, original_word, env, depth)?);
         }
     }
     Some(out)
@@ -2950,22 +2941,8 @@ fn lexical_head_value(
     String::from_utf8(value).ok()
 }
 
-/// Minify an `ArgRole::LambdaLiteral` argument (`apply`'s `{argList body
-/// ?ns?}` shape): only the body element is recursively minified as a
-/// script; the parameter list and optional namespace elements are copied
-/// through untouched (`ArgRole::ParamList` isn't itself minified anywhere in
-/// this file). Re-segmenting the whole literal as a script would misread the
-/// parameter word as a command name and never reach the real body at all.
-///
-/// Each element is decoded (backslash escapes collapsed for a bare/quoted
-/// element — [`split_lambda_literal_decoded`]) before use and re-quoted with
-/// [`tcl_syntax::list::list_element`] on reassembly, rather than pasted back
-/// as raw source spelling wrapped in a bare `{}`: a non-literal body's
-/// backslash escapes would otherwise survive into the "minified" text and
-/// change what it runs (`apply {{} puts\ hi}`'s real body is `puts hi`, not
-/// `puts\ hi`), and a multi-word
-/// parameter list (`apply {{x y} …}`) would otherwise lose the braces that
-/// group it into one list element.
+/// Minify the selected lambda's body, retaining complete configured original
+/// field values. A cooked field has no original region or nested role receipt.
 fn minify_lambda_literal(
     sm: &SourceMap,
     tok: Token,
@@ -2973,31 +2950,48 @@ fn minify_lambda_literal(
     env: MinifyEnv<'_>,
     depth: u32,
 ) -> String {
-    let source = sm.source();
     let fallback = || format!("{{{}}}", sm.token_text(tok));
-    let Some(elems) = split_lambda_literal_decoded(source, tok) else {
-        return fallback();
-    };
-    let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
-        .and_then(|lambda| lambda.braced_body())
-        .and_then(|span| env.original_source.get(span.as_range()))
+    let Some(elems) =
+        tcl_compiler::lambda_literal::split_original_lambda_literal_lexical_decoded(word)
     else {
         return fallback();
     };
+    let Some(decoded_body) = elems.body.as_deref() else {
+        return fallback();
+    };
+    let body = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+        .and_then(|lambda| lambda.braced_body())
+        .and_then(|span| env.original_source.get(span.as_range()))
+        .filter(|body| *body == decoded_body)
+        .unwrap_or(decoded_body);
     let minified_body = minify_body(
         body,
         env,
         depth,
         tcl_lexer::SourceSegmentationPurpose::NestedScript,
     );
-    let mut parts = vec![
-        tcl_syntax::list::list_element(&elems.params),
-        tcl_syntax::list::list_element(&minified_body),
-    ];
-    if let Some(ns) = elems.namespace.as_deref() {
-        parts.push(tcl_syntax::list::list_element(ns));
+    let mut fields = vec![elems.params.as_ref(), minified_body.as_str()];
+    if let Some(namespace) = elems.namespace.as_deref() {
+        fields.push(namespace);
     }
-    format!("{{{}}}", parts.join(" "))
+    let value = fields
+        .iter()
+        .map(|field| tcl_syntax::list::list_element(field))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&env.config);
+    let Ok(reparsed) = rules.split_list(&value) else {
+        return fallback();
+    };
+    if reparsed.len() != fields.len()
+        || reparsed
+            .iter()
+            .zip(&fields)
+            .any(|(parsed, field)| parsed.as_ref() != *field)
+    {
+        return fallback();
+    }
+    tcl_syntax::word_rules::lexical_unicode_source_word(&value, env.config).unwrap_or_else(fallback)
 }
 
 /// Readonly source roles and case shape from the actual retained generation.
@@ -3034,33 +3028,13 @@ fn lexical_source_schema<'r: 'w, 'w, T>(
     .map(project)
 }
 
-/// Text of an argument's first token.
-fn token_text(sm: &SourceMap, arg: &Arg) -> String {
-    arg.tokens
-        .first()
-        .map(|&t| sm.token_text(t).to_owned())
-        .unwrap_or_default()
-}
-
-/// Literal component bytes, or a delimiter prefix fixing a nonliteral component.
-fn rendered_component_prefix<'s>(sm: &SourceMap<'s>, tok: Token, in_quotes: bool) -> &'s str {
-    match tok.kind {
-        TokenType::Str if in_quotes => sm.text(tok.span),
-        TokenType::Str | TokenType::Expand => "{",
-        TokenType::Cmd => "[",
-        TokenType::Var | TokenType::ExprSugar => "$",
-        _ => sm.token_text(tok),
-    }
-}
-
 /// One original reference, preserving arrays and checking scalar proposals against
 /// the next rendered component under the complete selected source grammar.
 fn reconstruct_variable_reference(
     sm: &SourceMap,
     tok: Token,
-    next: Option<Token>,
+    following: &str,
     config: LexerConfig,
-    in_quotes: bool,
 ) -> Option<String> {
     let source = sm.source_bytes();
     let at = tok.span.as_range().start;
@@ -3076,24 +3050,7 @@ fn reconstruct_variable_reference(
     else {
         return Some(spelling.to_owned());
     };
-    let candidate = tcl_syntax::naming::scalar_source_reference(name, config, false)?;
-    let extends_reference = next
-        .map(|next| rendered_component_prefix(sm, next, in_quotes))
-        .is_some_and(|fragment| {
-            let joined = format!("{candidate}{fragment}");
-            !tcl_lexer::word_parts::scan_var_ref(joined.as_bytes(), 0, config).is_ok_and(|parsed| {
-                parsed.is_some_and(|reference| {
-                    reference.next == candidate.len()
-                        && reference.name == name.as_bytes()
-                        && reference.index.is_none()
-                })
-            })
-        });
-    if extends_reference {
-        tcl_syntax::naming::scalar_source_reference(name, config, true)
-    } else {
-        Some(candidate)
-    }
+    tcl_syntax::naming::scalar_source_reference_followed_by(name, following, config)
 }
 
 /// Rebuild source text from a single token, re-adding delimiters
@@ -3101,7 +3058,7 @@ fn reconstruct_variable_reference(
 fn reconstruct_raw(
     sm: &SourceMap,
     tok: Token,
-    next_tok: Option<Token>,
+    following: &str,
     env: MinifyEnv<'_>,
     in_quotes: bool,
     depth: u32,
@@ -3122,7 +3079,7 @@ fn reconstruct_raw(
             )
         ),
         TokenType::Var => {
-            return reconstruct_variable_reference(sm, tok, next_tok, env.config, in_quotes);
+            return reconstruct_variable_reference(sm, tok, following, env.config);
         }
         TokenType::Expand => "{*}".to_owned(),
         TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
@@ -3130,27 +3087,15 @@ fn reconstruct_raw(
     })
 }
 
-/// Characters that would change semantics if they appear unquoted.
-const NEEDS_QUOTING: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}', ';', '"', '\0'];
-
-/// Whether a quoted argument can safely drop its double quotes.
+#[cfg(test)]
 fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
-    if raw.is_empty() {
-        return false;
-    }
-    let first = raw.chars().next().unwrap();
-    if matches!(first, '"' | '{' | '#') {
-        return false;
-    }
-    if raw == "{*}" {
-        return false;
-    }
-    if raw.chars().any(|c| NEEDS_QUOTING.contains(&c)) {
-        return false;
-    }
-    // Any `{` / `}` outside `${var}` references blocks stripping.
-    let stripped = strip_braced_var_refs(raw, style);
-    !(stripped.contains('{') || stripped.contains('}'))
+    let config = LexerConfig {
+        braced_var: style,
+        ..LexerConfig::default()
+    };
+    standalone_alias_word(&format!("\"{raw}\""), config).is_some_and(|word| {
+        tcl_syntax::word_rules::lexical_source_word_preserves_components(&word, raw)
+    })
 }
 
 /// Remove `${…}` references from `raw` so the residual brace check
@@ -3161,6 +3106,7 @@ fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
 /// must stay; under 9.x the whole thing is one reference and they may go.
 /// Scanning by the wrong rule strips quotes that were load-bearing, or
 /// keeps ones that were not.
+#[cfg(test)]
 fn strip_braced_var_refs(raw: &str, style: tcl_dialect::BracedVarStyle) -> String {
     let bytes = raw.as_bytes();
     let n = bytes.len();
@@ -3197,23 +3143,28 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) -> Option<String> {
+fn reconstruct_arg(
+    sm: &SourceMap,
+    arg: &Arg,
+    original: Option<&tcl_lexer::NativeWord>,
+    env: MinifyEnv<'_>,
+    depth: u32,
+) -> Option<String> {
     let mut raw = String::new();
-    for (idx, &tok) in arg.tokens.iter().enumerate() {
-        // The next token within the *same* word can extend a preceding
-        // `${var}` reference whether the word is quoted or bare
-        // (`"${a}jumps"` and bare `${a}jumps` both read `ajumps` if the braces
-        // are dropped), so the name-extension guard must see it in both cases.
-        let next = arg.tokens.get(idx + 1).copied();
-        raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth)?);
+    // Every scalar proposal sees all subsequently emitted bytes in its word.
+    for &tok in arg.tokens.iter().rev() {
+        let component = reconstruct_raw(sm, tok, &raw, env, arg.is_quoted, depth)?;
+        raw.insert_str(0, &component);
     }
-    Some(
-        if arg.is_quoted && !can_strip_quotes(&raw, env.config.braced_var) {
-            format!("\"{raw}\"")
-        } else {
-            raw
-        },
-    )
+    if arg.is_quoted
+        && !original.is_some_and(|word| {
+            tcl_syntax::word_rules::lexical_source_word_preserves_components(word, &raw)
+        })
+    {
+        Some(format!("\"{raw}\""))
+    } else {
+        Some(raw)
+    }
 }
 
 // case-list (clause list) handling
@@ -3395,27 +3346,92 @@ enum ExprTok {
 /// spaces only around word-operators and between adjacent word
 /// tokens. (no AST shrinking).
 fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
-    let toks = tokenise_expr(text, env, depth);
-    let rendered: Vec<String> = toks
-        .iter()
-        .filter_map(|t| match t {
-            ExprTok::Space => None,
-            ExprTok::Cmd(s) | ExprTok::Other(s) => Some(s.clone()),
-        })
-        .collect();
-    if rendered.is_empty() {
+    let mut syntax = tcl_syntax::expr::parser::ExprParseContext::for_profile(env.dialect);
+    syntax.lexer_grammar = env.config.grammar_over(syntax.lexer_grammar);
+    if matches!(
+        tcl_syntax::expr::parser::parse_expr_with_syntax_context(text, &syntax),
+        ExprNode::Raw { .. }
+    ) {
         return text.to_owned();
     }
-    let mut out = String::new();
-    out.push_str(&rendered[0]);
-    for w in rendered.windows(2) {
-        let (prev, cur) = (&w[0], &w[1]);
-        if is_word_op(prev) || is_word_op(cur) || (is_word_token(prev) && is_word_token(cur)) {
-            out.push(' ');
-        }
-        out.push_str(cur);
+    let tokens = tokenise_expr(text, env, depth);
+    let rendered = tokens
+        .iter()
+        .filter_map(|token| match token {
+            ExprTok::Space => None,
+            ExprTok::Cmd(value) | ExprTok::Other(value) => Some(value.as_str()),
+        })
+        .collect::<Vec<_>>();
+    let Some(first) = rendered.first() else {
+        return text.to_owned();
+    };
+    let baseline = rendered.join(" ");
+    let Some(expected) = expression_token_signature(&baseline, env, false) else {
+        return text.to_owned();
+    };
+    if expression_token_signature(text, env, true)
+        != expression_token_signature(&baseline, env, true)
+    {
+        return text.to_owned();
     }
-    out
+    let mut output = (*first).to_owned();
+    for pair in rendered.windows(2) {
+        let (previous, current) = (pair[0], pair[1]);
+        let joined = format!("{previous}{current}");
+        let spaced = format!("{previous} {current}");
+        let preserves = expression_token_signature(&joined, env, false)
+            .zip(expression_token_signature(&spaced, env, false))
+            .is_some_and(|(joined, spaced)| joined == spaced);
+        if is_word_op(previous) || is_word_op(current) || !preserves {
+            output.push(' ');
+        }
+        output.push_str(current);
+    }
+    if expression_token_signature(&output, env, false) == Some(expected) {
+        output
+    } else {
+        baseline
+    }
+}
+
+fn configured_expression_tokens(
+    text: &str,
+    env: MinifyEnv<'_>,
+) -> Option<Vec<tcl_lexer::ExprToken<Vec<u8>>>> {
+    let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+        text.as_bytes(),
+        &env.config.grammar_over(env.dialect.grammar),
+        env.dialect.expr_grammar_base,
+        env.dialect.f5_core_expr_grammar(),
+    );
+    if unknown {
+        return None;
+    }
+    tcl_lexer::expression_terms(text.as_bytes(), &tokens, env.config)?;
+    Some(tokens)
+}
+
+/// Ordered lexical tokens only; rewritten child scripts retain their own
+/// source purpose and AST transformations keep their independent contract.
+fn expression_token_signature(
+    text: &str,
+    env: MinifyEnv<'_>,
+    omit_command_text: bool,
+) -> Option<Vec<(tcl_lexer::ExprTokenType, Vec<u8>)>> {
+    Some(
+        configured_expression_tokens(text, env)?
+            .into_iter()
+            .filter(|token| !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof)
+            .map(|token| {
+                let text = if omit_command_text && token.kind == tcl_lexer::ExprTokenType::Command {
+                    Vec::new()
+                } else {
+                    token.text
+                };
+                (token.kind, text)
+            })
+            .collect(),
+    )
 }
 
 /// Compress and shrink an `expr` body: strip whitespace, then try
@@ -3625,127 +3641,51 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
     negate(shrink_node(operand))
 }
 
-/// Tokenise an `expr` body, with a catch-all so no character is
-/// dropped.
+/// Project the selected shared expression tokens and original command terms.
+/// Unknown syntax keeps the entire original expression, including its gaps.
 fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok> {
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < n {
-        let c = bytes[i];
-        if c.is_ascii_whitespace() {
-            let start = i;
-            while i < n && bytes[i].is_ascii_whitespace() {
-                i += 1;
+    let project = || -> Option<Vec<ExprTok>> {
+        let tokens = configured_expression_tokens(text, env)?;
+        let terms = tcl_lexer::expression_terms(text.as_bytes(), &tokens, env.config)?;
+        let mut output = Vec::new();
+        for token in tokens {
+            if token.kind == tcl_lexer::ExprTokenType::Eof {
+                continue;
             }
-            let _ = start;
-            out.push(ExprTok::Space);
-        } else if c == b'"' {
-            let start = i;
-            i += 1;
-            while i < n {
-                if bytes[i] == b'\\' && i + 1 < n {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'"' {
-                    i += 1;
-                    break;
-                }
-                i += 1;
+            if token.kind.is_skipped() {
+                output.push(ExprTok::Space);
+                continue;
             }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if c == b'[' {
-            let start = i;
-            let Ok(end) = tcl_lexer::command_subst_close(
-                bytes,
-                start,
-                tcl_lexer::SubstFlags::default(),
-                env.config,
-            ) else {
-                return vec![ExprTok::Other(text.to_owned())];
-            };
-            let Some(inner) = text.get(start + 1..end.saturating_sub(1)) else {
-                return vec![ExprTok::Other(text.to_owned())];
-            };
-            i = end;
-            out.push(ExprTok::Cmd(format!(
-                "[{}]",
-                minify_body(
-                    inner,
-                    env,
-                    nest_depth + 1,
-                    tcl_lexer::SourceSegmentationPurpose::NestedScript
-                )
-            )));
-        } else if c == b'$' {
-            let start = i;
-            let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, start, env.config) else {
-                return vec![ExprTok::Other(text.to_owned())];
-            };
-            if reference.next <= start || reference.next > n {
-                return vec![ExprTok::Other(text.to_owned())];
+            let end = token.end.checked_add(1)?;
+            let original = text.get(token.start as usize..end as usize)?;
+            if original.as_bytes() != token.text {
+                return None;
             }
-            i = reference.next;
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if c.is_ascii_alphanumeric() || c == b'.' || c == b'_' {
-            let start = i;
-            while i < n
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_')
-            {
-                i += 1;
+            if token.kind == tcl_lexer::ExprTokenType::Command {
+                let term = terms.iter().find(|term| {
+                    term.kind == tcl_lexer::ExprTermKind::Command
+                        && term.source == (token.start..end)
+                })?;
+                let body = text.get(term.value.start as usize..term.value.end as usize)?;
+                output.push(ExprTok::Cmd(format!(
+                    "[{}]",
+                    minify_body(
+                        body,
+                        env,
+                        nest_depth + 1,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript
+                    )
+                )));
+            } else {
+                output.push(ExprTok::Other(original.to_owned()));
             }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else if is_expr_op_byte(c) {
-            let start = i;
-            while i < n && is_expr_op_byte(bytes[i]) {
-                i += 1;
-            }
-            out.push(ExprTok::Other(text[start..i].to_owned()));
-        } else {
-            // Catch-all single char (`(`, `)`, `,`, etc.).
-            let ch_len = utf8_len(c);
-            out.push(ExprTok::Other(text[i..i + ch_len].to_owned()));
-            i += ch_len;
         }
-    }
-    out
+        Some(output)
+    };
+    project().unwrap_or_else(|| vec![ExprTok::Other(text.to_owned())])
 }
 
-/// Whether `b` is a byte that forms a symbolic `expr` operator.
-fn is_expr_op_byte(b: u8) -> bool {
-    matches!(
-        b,
-        b'+' | b'-'
-            | b'*'
-            | b'/'
-            | b'%'
-            | b'<'
-            | b'>'
-            | b'='
-            | b'!'
-            | b'&'
-            | b'|'
-            | b'^'
-            | b'?'
-            | b':'
-            | b'~'
-    )
-}
-
-/// Whether `tok` is a Tcl expr word-operator needing surrounding
-/// whitespace (`eq`, `ne`, `in`, `ni`, the TIP 461 `lt`/`le`/`gt`/`ge`, the
-/// iRules word operators, …).
-///
-/// Derived from `tcl_syntax::expr::operators`
-/// rather than a hand-typed list, which would miss the word-form operators —
-/// `lt`/`le`/`gt`/`ge` in particular. Not a confirmed corruption bug today
-/// (the `is_word_token(prev) && is_word_token(cur)` branch at this
-/// function's call site already independently forces the needed space for
-/// every operand-adjacent case), but this function's own contract — "is
-/// this a word operator" — was simply wrong for those spellings, and
-/// relying on a second, unstated heuristic to paper over it is fragile.
+/// Keep canonical spacing around word operators from the shared inventory.
 fn is_word_op(tok: &str) -> bool {
     static OPS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
         std::sync::OnceLock::new();
@@ -3762,15 +3702,6 @@ fn is_word_op(tok: &str) -> bool {
             .collect()
     })
     .contains(tok)
-}
-
-/// Whether `tok` is a "word" (identifier / number / variable /
-/// string / command-substitution).
-fn is_word_token(tok: &str) -> bool {
-    let Some(c) = tok.chars().next() else {
-        return false;
-    };
-    c == '$' || c == '"' || c == '[' || c.is_alphanumeric() || c == '_'
 }
 
 #[cfg(test)]
@@ -3973,6 +3904,37 @@ mod tests {
         // …which is exactly what decides whether the quotes may go.
         assert!(can_strip_quotes("${a{b}c}", BracedVarStyle::Tcl9Nesting));
         assert!(!can_strip_quotes("${a{b}c}", BracedVarStyle::FirstClose));
+    }
+
+    #[test]
+    fn quote_stripping_uses_complete_configured_components() {
+        let registry = CommandRegistry::build_default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        for source in [
+            "puts \"[list {a b}]\"",
+            "puts \"[list \"a b\"]\"",
+            "puts \"${x}tail\"",
+            "puts \"${x}(key)\"",
+            "puts \"$array($index)\"",
+            "puts \"a\\ b\"",
+        ] {
+            let analysis = original::analysis_for_profile(source, profile, &registry);
+            let config = analysis.body_lexer_config.unwrap();
+            let output = lexical_default(source, &analysis).unwrap();
+            let original = lexical_script_words(source, config).unwrap();
+            let proposed = output.strip_prefix("puts ").unwrap();
+            if source == "puts \"[list {a b}]\"" {
+                assert_eq!(output, "puts [list {a b}]");
+            }
+            assert!(
+                tcl_syntax::word_rules::lexical_source_word_preserves_components(
+                    &original.commands[0].words[1],
+                    proposed,
+                ),
+                "{source} -> {output}"
+            );
+        }
     }
 
     /// The `$var` reader behind constant folding and the live-name sweep
@@ -4870,10 +4832,7 @@ mod tests {
         );
     }
 
-    /// `is_word_op` recognises the TIP 461 comparisons as well as
-    /// `eq`/`ne`/`in`/`ni`, so a `lt` does not depend on the separate
-    /// `is_word_token(prev) && is_word_token(cur)` heuristic to keep its
-    /// surrounding whitespace.  This pins that spacing.
+    /// Shared TIP 461 word-operator spellings retain canonical spacing.
     #[test]
     fn keeps_tip461_word_operator_spacing() {
         check(
@@ -5410,13 +5369,21 @@ mod selected_scalar_reference_emission_tests {
                 .find(|token| token.kind == TokenType::Var)
                 .copied()
                 .unwrap();
-            let next = tokens
-                .iter()
-                .copied()
-                .find(|next| next.span.start() >= token.span.end() && next.span != token.span);
-            let result =
-                reconstruct_variable_reference(&SourceMap::new(source), token, next, config, false)
-                    .unwrap();
+            let end = tcl_lexer::word_parts::scan_var_ref(
+                source.as_bytes(),
+                token.span.start() as usize,
+                config,
+            )
+            .unwrap()
+            .unwrap()
+            .next;
+            let result = reconstruct_variable_reference(
+                &SourceMap::new(source),
+                token,
+                &source[end..],
+                config,
+            )
+            .unwrap();
             assert_eq!(result, expected, "{dialect}: {source}");
         }
         let source = "${a{b}c}";
@@ -5427,9 +5394,8 @@ mod selected_scalar_reference_emission_tests {
             reconstruct_variable_reference(
                 &SourceMap::new(source),
                 token,
-                None,
-                LexerConfig::for_dialect("tcl9.0"),
-                false
+                "",
+                LexerConfig::for_dialect("tcl9.0")
             )
             .is_none()
         );

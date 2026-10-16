@@ -1,19 +1,17 @@
 ---
 name: explain-flow
 description: >
-  Trace each session in a PCAP through a BIG-IP configuration and explain
-  what the device did to it: matched virtual server, profiles, iRule HUD
-  decisions (the `[HTTP::host]`, `[SSL::extensions]`, `[LB::server]`
-  values the iRule branched on), event firing order, observed pool
-  member and SNAT, termination analysis (TCP RST, F5 reset cause, TLS
-  alert), and — with `simulate=true` — the actual outcome of running
-  the iRule under c-tcl.  Understands `tcpdump -i <vlan>:np` captures
-  that carry both front (client↔VIP) and back (TMM↔pool member) sides
-  of the same conversation, paired via the F5 ethernet trailer.
-  Decrypts TLS when given a NSS-format keylog file.  Use when a user
-  asks "what would BIG-IP do with this capture?", "which iRule events
-  fired for this flow?", "why did this connection reset?", or "explain
-  this PCAP against this bigip.conf".
+  Explain what a BIG-IP configuration and a PCAP show about each session:
+  matched virtual server, profiles, reconstructed source event sequence,
+  connection-state annotations, observed pool member and SNAT, and termination
+  analysis (TCP RST, F5 reset cause, TLS alert). With `simulate=true`, also
+  reports a best-effort run of the iRule in the embedded Tcl VM with captured
+  request state. Understands `tcpdump -i <vlan>:np` captures that carry both
+  front (client↔VIP) and back (TMM↔pool member) sides of the same conversation,
+  paired via the F5 ethernet trailer. Decrypts TLS when given a NSS-format
+  keylog file. Use when a user asks what the capture and static analysis show
+  for a BIG-IP configuration, which source events are relevant, or why a
+  connection reset.
 allowed-tools: mcp__tcl-lsp__explain_flow, Bash, Read
 ---
 
