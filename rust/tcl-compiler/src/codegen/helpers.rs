@@ -370,49 +370,6 @@ pub fn parse_subst_template(
     if parts.is_empty() { None } else { Some(parts) }
 }
 
-/// Convert a simple anchored regex to an equivalent glob pattern.
-///
-/// Handles:
-/// - `{hello}` → `*hello*` (unanchored)
-/// - `{^abc}` → `abc*` (left-anchored)
-/// - `{abc$}` → `*abc` (right-anchored)
-/// - `{^abc$}` → `abc` (fully anchored)
-///
-/// Returns `None` if the pattern contains regex metacharacters that
-/// cannot be expressed as a glob.
-#[must_use]
-pub fn regexp_to_glob(pattern: &str) -> Option<String> {
-    const REGEX_SPECIAL: &[u8] = b".+*?[](){}|\\";
-
-    let pattern = pattern
-        .strip_prefix('{')
-        .and_then(|p| p.strip_suffix('}'))
-        .unwrap_or(pattern);
-
-    if pattern.is_empty() {
-        return None;
-    }
-
-    let left_anchor = pattern.starts_with('^');
-    let right_anchor = pattern.ends_with('$');
-
-    let core = &pattern[usize::from(left_anchor)..pattern.len() - usize::from(right_anchor)];
-    if core.is_empty() {
-        return None;
-    }
-
-    if core.bytes().any(|b| REGEX_SPECIAL.contains(&b)) {
-        return None;
-    }
-
-    Some(match (left_anchor, right_anchor) {
-        (true, true) => core.to_owned(),
-        (true, false) => format!("{core}*"),
-        (false, true) => format!("*{core}"),
-        (false, false) => format!("*{core}*"),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -793,42 +750,5 @@ mod tests {
             parts,
             vec![SubstPart::Lit("$".into()), SubstPart::Var("name".into())]
         );
-    }
-
-    // regexp_to_glob.
-
-    #[test]
-    fn regexp_to_glob_unanchored() {
-        assert_eq!(regexp_to_glob("{hello}"), Some("*hello*".into()));
-    }
-
-    #[test]
-    fn regexp_to_glob_left_anchored() {
-        assert_eq!(regexp_to_glob("{^abc}"), Some("abc*".into()));
-    }
-
-    #[test]
-    fn regexp_to_glob_right_anchored() {
-        assert_eq!(regexp_to_glob("{abc$}"), Some("*abc".into()));
-    }
-
-    #[test]
-    fn regexp_to_glob_fully_anchored() {
-        assert_eq!(regexp_to_glob("{^abc$}"), Some("abc".into()));
-    }
-
-    #[test]
-    fn regexp_to_glob_metachar() {
-        assert_eq!(regexp_to_glob("{a.*b}"), None);
-    }
-
-    #[test]
-    fn regexp_to_glob_empty() {
-        assert_eq!(regexp_to_glob("{}"), None);
-    }
-
-    #[test]
-    fn regexp_to_glob_without_braces() {
-        assert_eq!(regexp_to_glob("^abc$"), Some("abc".into()));
     }
 }

@@ -147,6 +147,7 @@ mod ambient {
     /// construction, before any script executes.
     pub fn set(syntax: NumberSyntax) {
         SYNTAX.with(|c| c.set(syntax));
+        PRINT.with(|c| c.set(None));
     }
 
     /// The installed grammar (Tcl 9.0 until an embedder says otherwise).
@@ -155,12 +156,12 @@ mod ambient {
     }
 
     thread_local! {
-        static PRINT: Cell<DoubleFormat> = const { Cell::new(DoubleFormat::Shortest) };
+        static PRINT: Cell<Option<DoubleFormat>> = const { Cell::new(None) };
         static RELEASE: Cell<Option<TclVersion>> = const { Cell::new(None) };
     }
 
     pub fn set_release(release: TclVersion) {
-        SYNTAX.with(|c| c.set(release.number_syntax()));
+        set(release.number_syntax());
         RELEASE.with(|c| c.set(Some(release)));
     }
 
@@ -171,11 +172,16 @@ mod ambient {
     }
 
     pub fn set_print(format: DoubleFormat) {
-        PRINT.with(|c| c.set(format));
+        PRINT.with(|c| c.set(Some(format)));
     }
 
+    /// The installed print format, or the grammar's own at its default
+    /// precision until a runtime installs one.
     pub fn print() -> DoubleFormat {
-        PRINT.with(Cell::get)
+        PRINT.with(Cell::get).unwrap_or_else(|| {
+            let syntax = get();
+            syntax.double_format(syntax.default_precision())
+        })
     }
 }
 
@@ -210,13 +216,15 @@ pub fn runtime_release() -> Option<tcl_dialect::TclVersion> {
 
 /// Install how this thread's runtime prints a double: C keeps
 /// `tcl_precision` in thread data (`precisionKey`, `tclUtil.c`), so every
-/// interpreter on the thread prints at the one precision.
+/// interpreter on the thread prints at the one precision. Installing a
+/// grammar resets it to that grammar's default.
 pub fn set_runtime_print(format: DoubleFormat) {
     ambient::set_print(format);
 }
 
 /// A double's string rep under the runtime's print format (see
-/// [`set_runtime_print`]): `Tcl_PrintDouble`.
+/// [`set_runtime_print`]): `Tcl_PrintDouble`, so `%.12g` under Tcl 8.4 and
+/// the shortest round-trip from 8.5 at the default precision.
 #[must_use]
 pub fn print_double(f: f64) -> String {
     format_double_with(f, ambient::print())

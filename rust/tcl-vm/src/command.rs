@@ -26,6 +26,7 @@
 use std::rc::Rc;
 
 use tcl_cmd_core::CmdError;
+use tcl_dialect::TclVersion;
 use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
 use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
 use tcl_runtime_api::{Code, Completion, NsId, OoId};
@@ -385,10 +386,8 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = if let [single] = args {
         single.to_str().to_string()
     } else {
-        args.iter()
-            .map(|v| v.to_str().to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
+        let texts: Vec<_> = args.iter().map(Value::to_str).collect();
+        tcl_cmd_core::list::concat_strings(texts.iter().map(|text| &**text))
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
@@ -399,7 +398,8 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // before the error is raised (#1603): C parses one command at a time, so
     // the malformed tail is never reached until the commands ahead of it have
     // run.  `catch`/`try` already prepare their bodies this way.
-    match vm.prepare_script_commands_as(&script, vm.script_evaluation_for("eval", args)) {
+    let evaluation = vm.script_evaluation_for("eval", args);
+    match vm.prepare_script_commands_as(&script, evaluation) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
                 vm.pending.eval = Some(crate::exec::EvalReq {
@@ -560,13 +560,8 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let old_name = old.to_str();
     let new_name = new.to_str();
-    // Tcl rejects a rename onto an existing command (leaving both intact), so
-    // check the destination before removing the source.
-    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
-        return err(format!(
-            "can't rename to \"{new_name}\": command already exists"
-        ));
-    }
+    // C's `TclRenameCommand` looks the source up first, so a missing source is
+    // the error even when the destination is taken.
     let Some((cmd, mut rename)) = vm.prepare_command_rename(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
@@ -574,10 +569,23 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             "rename"
         };
-        return err(format!(
-            "can't {verb} \"{old_name}\": command doesn't exist"
-        ));
+        let message = format!("can't {verb} \"{old_name}\": command doesn't exist");
+        return if vm.runtime_version().has_rename_error_codes() {
+            lookup_error(message, "COMMAND", &old_name)
+        } else {
+            err(message)
+        };
     };
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination before removing the source.
+    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
+        let message = format!("can't rename to \"{new_name}\": command already exists");
+        return if vm.runtime_version().has_rename_error_codes() {
+            err_with_code(message, "TCL OPERATION RENAME TARGET_EXISTS")
+        } else {
+            err(message)
+        };
+    }
     let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,
@@ -786,7 +794,7 @@ fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    let evaluation = crate::value::script_evaluation(scripts);
+    let evaluation = vm.script_evaluation(scripts);
     if p.is_empty() {
         return match vm.eval_source_as(&script, evaluation) {
             Ok(c) => c,
@@ -1535,9 +1543,32 @@ pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completio
     Completion::new(Code::Error, Value::string(message.into()), options)
 }
 
+impl Vm {
+    /// A command core's error as this VM's completion, its error code the one
+    /// the emulated release sets ([`TclVersion::release_error_code`]).
+    pub(crate) fn cmd_error(&self, error: CmdError) -> Completion<Value> {
+        let release = self.runtime_version();
+        let (message, code, info, line) = error.into_details();
+        let code = code.map(|code| {
+            String::from_utf8_lossy(release.release_error_code(code.as_bytes())).into_owned()
+        });
+        completion_from_error_details(message, code, info, line)
+    }
+}
+
 /// Convert a portable command-layer error without losing its Tcl identity.
 pub(crate) fn completion_from_cmd_error(error: CmdError) -> Completion<Value> {
     let (message, code, info, line) = error.into_details();
+    completion_from_error_details(message, code, info, line)
+}
+
+/// The error completion of a message, error code, `errorInfo` and line.
+fn completion_from_error_details(
+    message: String,
+    code: Option<String>,
+    info: Option<Vec<u8>>,
+    line: Option<i64>,
+) -> Completion<Value> {
     if info.is_none() && line.is_none() {
         return match code {
             Some(code) => err_with_code(message, &code),
@@ -1640,41 +1671,33 @@ pub(crate) fn settle_control_options(
 /// An explicit `-errorcode` in the completion's options wins (set by
 /// `error` / `throw` / `return -errorcode`, even when it is the literal
 /// `NONE`). A bare builtin error (`err(...)`, which carries no options) defaults
-/// to `NONE` — except a "wrong # args" usage error, which C's
+/// to `NONE` — except, from 8.6, a "wrong # args" usage error, which C's
 /// `Tcl_WrongNumArgs` tags `TCL WRONGARGS`. Matching that lets the many
 /// `… errors` tests (join-2.1, split-2.1, …) see the right `$errorCode` without
 /// retagging every wrong-args call site.
-pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
+pub(crate) fn resolved_error_code(comp: &Completion<Value>, release: TclVersion) -> Value {
     if let Some(ec) = opt_get(&comp.options, "-errorcode") {
         return ec;
     }
-    Value::string(default_error_code(&comp.result.to_str()))
+    Value::string(default_error_code(&comp.result.to_str(), release))
 }
 
 /// Whether the emulated release's builtins set errorCode `code`
-/// ([`tcl_dialect::TclVersion::has_tcl_error_code`]).
+/// ([`TclVersion::sets_error_code`]).
 fn release_sets_error_code(code: &str) -> bool {
-    let Some(release) = tcl_syntax::number::runtime_release() else {
-        return true;
-    };
-    let mut words = code.split_ascii_whitespace();
-    if words.next() != Some("TCL") {
-        return true;
-    }
-    match words.next() {
-        Some(family) => release.has_tcl_error_code(family, words.next()),
-        None => true,
-    }
+    tcl_syntax::number::runtime_release()
+        .is_none_or(|release| release.sets_error_code(code.as_bytes()))
 }
 
 /// The `errorCode` a bare builtin error (no carried `-errorcode`) defaults to,
 /// keyed off its message — the codes C's `Tcl_WrongNumArgs` / list parser
-/// (`tclUtil.c`) attach. Only consulted when the completion carries no explicit
-/// `-errorcode`, so a user `error msg` (which sets `-errorcode NONE`) is never
-/// reclassified. Anything unrecognised is `NONE`.
-fn default_error_code(message: &str) -> String {
+/// (`tclUtil.c`) attach, where the release sets them
+/// ([`TclVersion::sets_error_code`]). Only consulted when the completion
+/// carries no explicit `-errorcode`, so a user `error msg` (which sets
+/// `-errorcode NONE`) is never reclassified. Anything unrecognised is `NONE`.
+fn default_error_code(message: &str, release: TclVersion) -> String {
     let code = default_error_code_of(message);
-    if release_sets_error_code(&code) {
+    if release.sets_error_code(code.as_bytes()) {
         code
     } else {
         "NONE".to_owned()
@@ -1780,14 +1803,11 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// is rejected, and a last word alone is the result; those options then
 /// mean what they do from 8.5.
 pub(crate) fn cmd_return_command(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if !vm.runtime_version().has_return_options_dictionary() {
-        for pair in args.as_chunks::<2>().0 {
-            let name = pair[0].to_str();
-            if !matches!(&*name, "-code" | "-errorinfo" | "-errorcode") {
-                return err(format!(
-                    "bad option \"{name}\": must be -code, -errorcode, or -errorinfo"
-                ));
-            }
+    let release = vm.runtime_version();
+    for pair in args.as_chunks::<2>().0 {
+        let name = pair[0].to_str();
+        if let Some(message) = tcl_cmd_core::error::return_option_error(name.as_bytes(), release) {
+            return err(message);
         }
     }
     cmd_return(vm, args)
@@ -2189,24 +2209,24 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .release_compiled
         .take()
         .is_some_and(|compiled| compiled.script_word.is_some());
-    // The release's synopsis says how many variables follow the script:
-    // 8.4's `catch command ?varName?` has no options variable.
-    let profile =
-        crate::environment::gate_profile(vm.command_surface_profile(), vm.runtime_version());
-    let dialect = Some(crate::environment::surface_point(profile));
-    let variables = tcl_registry::default_registry()
-        .get_for_surface("catch", dialect)
-        .map_or(2, |spec| {
-            spec.optional_trailing_arg_names(dialect, None).len()
+    let arity = tcl_registry::default_registry()
+        .get("catch")
+        .map_or(tcl_registry::Arity::new(1, 3), |spec| {
+            spec.arity_at(Some(vm.runtime_version().version_string()))
         });
     let (script, resvar, optvar) = match args {
+        _ if !arity.accepts(u16::try_from(args.len()).unwrap_or(u16::MAX)) => {
+            // 8.4's `Tcl_CatchObjCmd` names the words of its narrower form.
+            return err(if arity.max < 3 {
+                "wrong # args: should be \"catch command ?varName?\""
+            } else {
+                "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\""
+            });
+        }
         [s] => (s, None, None),
         [s, r] => (s, Some(r), None),
-        [s, r, o] if variables > 1 => (s, Some(r), Some(o)),
-        _ if variables > 1 => {
-            return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
-        }
-        _ => return err("wrong # args: should be \"catch command ?varName?\""),
+        [s, r, o] => (s, Some(r), Some(o)),
+        _ => unreachable!("every release's catch takes one to three words"),
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
@@ -2214,7 +2234,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // code — is absorbed by `finish_catch` (which binds the result/options vars
     // and yields the status code). Mirrors `cmd_eval`'s pending request, but
     // catch's completion is caught rather than propagated.
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(script));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(script));
     match vm.prepare_script_commands_as(&script.to_str(), evaluation) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.catch = Some(crate::exec::CatchReq {
@@ -2272,7 +2292,7 @@ impl Vm {
         };
         let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
         let error = (code == Code::Error).then(|| ErrorOptions {
-            error_code: Some(resolved_error_code(comp)),
+            error_code: Some(resolved_error_code(comp, self.runtime_version())),
             error_info: active_error.then(|| {
                 self.error_info_value().map_or_else(
                     || opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone()),
@@ -2352,7 +2372,8 @@ impl Vm {
                 || comp.result.to_str().to_string(),
                 |value| value.to_str().to_string(),
             );
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(&comp));
+            let ecode = opt_get(&opts, "-errorcode")
+                .unwrap_or_else(|| resolved_error_code(&comp, self.runtime_version()));
             (einfo, ecode)
         });
         let _ = self.take_error_info();
@@ -2396,7 +2417,8 @@ impl Vm {
                 || comp.result.to_str().to_string(),
                 |value| value.to_str().to_string(),
             );
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(comp));
+            let ecode = opt_get(&opts, "-errorcode")
+                .unwrap_or_else(|| resolved_error_code(comp, self.runtime_version()));
             let _ = self.take_error_info();
             self.publish_error(&einfo, &ecode);
             opts
@@ -2643,11 +2665,12 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if rest.is_empty() {
         return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
     }
-    let script = rest
-        .iter()
-        .map(|v| v.to_str().to_string())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let script = if let [single] = rest {
+        single.to_str().to_string()
+    } else {
+        let texts: Vec<_> = rest.iter().map(Value::to_str).collect();
+        tcl_cmd_core::list::concat_strings(texts.iter().map(|text| &**text))
+    };
     // The body runs on the explicit stack (yieldable), like `eval`
     // (coroutine-1.7/1.8/1.12). Any other level than the current one runs in
     // that frame's namespace, the frames above it carried on the activation

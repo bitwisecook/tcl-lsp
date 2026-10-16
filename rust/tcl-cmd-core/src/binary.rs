@@ -1007,7 +1007,7 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                 for k in 0..n {
                     let off = cur + k * size;
                     let v = read_float(&data[off..off + size], size, end);
-                    vals.push(tcl_syntax::number::format_double(v).into_bytes());
+                    vals.push(tcl_syntax::number::print_double(v).into_bytes());
                 }
                 cur += n * size;
                 out.push(scan_field_result(&count, vals));

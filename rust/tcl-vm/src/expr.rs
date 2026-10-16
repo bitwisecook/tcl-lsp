@@ -272,7 +272,7 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
         return Ok(big_value(&b));
     }
     if let Ok(d) = v.as_double() {
-        return Ok(Value::double(d));
+        return double_result(d);
     }
     // `as_double` rejects a bare `NaN`; as a whole-expression result it is a
     // domain error, not a value that survives.
@@ -339,11 +339,10 @@ fn operand_desc_err(
     op: &str,
 ) -> TclError {
     let release = errors::ambient_release();
-    let message = errors::illegal_operand_message(desc, value, side, op, release);
-    match errors::illegal_operand_error_code(desc, release) {
-        Some(code) => TclError::with_error_code(message, code),
-        None => TclError::new(message),
-    }
+    TclError::with_error_code(
+        errors::illegal_operand_message(desc, value, side, op, release),
+        errors::illegal_operand_error_code(desc, value, release),
+    )
 }
 
 /// The boolean-context error C raises for a value that is neither a number
@@ -494,6 +493,10 @@ fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
 
 fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     use BinOp::{Add, Div, Mul, Pow, Sub};
+    let release = errors::ambient_release();
+    if op == Div && y == 0.0 && release.raises_float_range_errors() {
+        return Err(divzero());
+    }
     let r = match op {
         Add => x + y,
         Sub => x - y,
@@ -525,7 +528,16 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
             errors::DOMAIN_CODE,
         ));
     }
-    Ok(Value::double(r))
+    double_result(r)
+}
+
+/// A double an operation produced, or the error the release raises for it
+/// ([`errors::float_result_error`]).
+pub(crate) fn double_result(value: f64) -> Result<Value, TclError> {
+    match errors::float_result_error(value, errors::ambient_release()) {
+        Some((message, code)) => Err(TclError::with_error_code(message, code)),
+        None => Ok(Value::double(value)),
+    }
 }
 
 /// The integer-only binary operators: a (valid) floating-point operand is itself
@@ -587,16 +599,6 @@ fn classic_operand(v: &Value, side: errors::OperandSide, op: &str) -> Result<Num
     Err(operand_desc_err(&s, desc, side, op))
 }
 
-/// 8.4's check of a double result (`TclExprFloatError`): NaN is a domain
-/// error and an infinity an overflow.
-pub(crate) fn classic_double(r: f64) -> Result<Value, TclError> {
-    if r.is_nan() || r.is_infinite() {
-        let error = tcl_syntax::expr::classic::float_error(r);
-        return Err(TclError::with_error_code(error.message, error.error_code));
-    }
-    Ok(Value::double(r))
-}
-
 /// 8.4's binary arithmetic: 64-bit integers that wrap, shifts by C's rules
 /// (a count of 64 or more gives 0, a negative one is taken modulo 64), and
 /// a double divided by zero or overflowing as an error.
@@ -623,7 +625,7 @@ fn classic_arith(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclErr
         BinOp::Div => x / y,
         _ => return Err(TclError::new("unsupported floating-point operator")),
     };
-    classic_double(result)
+    double_result(result)
 }
 
 /// [`classic_arith`] over two 64-bit integers.
@@ -993,11 +995,9 @@ fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
 /// compiled as `expr {…}` but `NONE` when evaluated from a variable.
 fn call_error(c: &tcl_runtime_api::Completion<Value>) -> TclError {
     let message = c.result.to_str().to_string();
-    let code = crate::command::resolved_error_code(c).to_str().to_string();
-    if code == "NONE" {
-        TclError::new(message)
-    } else {
-        TclError::with_error_code(message, code)
+    match crate::command::opt_get(&c.options, "-errorcode") {
+        Some(code) => TclError::with_error_code(message, code.to_str().to_string()),
+        None => TclError::new(message),
     }
 }
 

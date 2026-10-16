@@ -386,6 +386,17 @@ set r";
     );
 }
 
+/// `string bytelength` counts Tcl's internal modified UTF-8, which spells a
+/// NUL in two bytes and keeps every character within three.
+#[test]
+fn string_bytelength_counts_internal_utf8() {
+    assert_releases(
+        &[TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6],
+        r#"list [string bytelength "a\0b"] [string bytelength [format %c 0xFFFF]] [string bytelength [format %c 0x1F600]]"#,
+        "4 3 3",
+    );
+}
+
 /// `wrong # args` carries `TCL WRONGARGS` from 8.6.
 #[test]
 fn wrong_args_error_code_starts_in_8_6() {

@@ -273,6 +273,9 @@ pub struct CodegenCtx<'r> {
     /// Whether the block being emitted runs a script body the release
     /// evaluates without compiling it (8.4's `eval` and `uplevel`).
     pub(crate) direct_body: bool,
+    /// The commands of the script bodies the release evaluates without
+    /// compiling them ([`Self::direct_body`]), as their blocks are emitted.
+    pub(crate) direct_body_commands: Vec<Span>,
     /// How many expressions enclose the code being emitted. The release
     /// compiles an expression, and the commands in it, even in a command it
     /// evaluates without compiling.
@@ -362,6 +365,7 @@ impl<'r> CodegenCtx<'r> {
             current_span_is_command: false,
             direct_commands: Vec::new(),
             direct_body: false,
+            direct_body_commands: Vec::new(),
             expr_depth: 0,
             release_holds: HashMap::new(),
             current_command_namespace: String::new(),
@@ -420,17 +424,18 @@ impl<'r> CodegenCtx<'r> {
         let args: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
         self.release_binding_of(
             command,
-            &Self::invocation_shape(&args, |index| words[index].1),
+            &self.invocation_shape(&args, |index| words[index].1),
         )
     }
 
     /// The shape of an invocation whose words after the command are `args`,
     /// the word at each index braced where `braced` says so.
     pub(crate) fn invocation_shape<S: AsRef<str>>(
+        &self,
         args: &[S],
         braced: impl Fn(usize) -> bool,
     ) -> tcl_registry::release_compilation::InvocationShape {
-        tcl_registry::release_compilation::InvocationShape::of(args, |index| {
+        tcl_registry::release_compilation::InvocationShape::of(self.vm_release(), args, |index| {
             !tcl_syntax::naming::word_is_dynamic(args[index].as_ref(), braced(index))
         })
     }

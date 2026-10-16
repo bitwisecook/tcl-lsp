@@ -63,14 +63,24 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         let ambiguous = vm
             .eval_expr("o")
             .expect_err("the shared on/off prefix remains ambiguous");
-        // `TCL PARSE EXPR` starts in 8.6; 8.4 and 8.5 leave `NONE`.
-        assert_eq!(
-            ambiguous.error_code.as_deref(),
-            version
-                .has_tcl_error_code("PARSE", Some("EXPR"))
-                .then_some("TCL PARSE EXPR BAREWORD"),
-            "{version:?}"
-        );
+        if version == TclVersion::V8_4 {
+            // tclsh 8.4.20: its own expression parser, and no error code.
+            assert_eq!(
+                ambiguous.message,
+                "syntax error in expression \"o\": variable references require preceding $"
+            );
+            assert_eq!(ambiguous.error_code, None);
+        } else if version == TclVersion::V8_5 {
+            // tclsh 8.5.19: the message, and still no error code.
+            assert!(ambiguous.message.starts_with("invalid bareword \"o\""));
+            assert_eq!(ambiguous.error_code, None);
+        } else {
+            assert_eq!(
+                ambiguous.error_code.as_deref(),
+                Some("TCL PARSE EXPR BAREWORD"),
+                "{version:?}"
+            );
+        }
     }
 }
 

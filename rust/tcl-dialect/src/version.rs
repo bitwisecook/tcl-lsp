@@ -739,7 +739,9 @@ impl TclVersion {
     /// Whether a failed lookup of `kind` carries `TCL LOOKUP <kind> …`. 8.5
     /// sets it for an ensemble, index, namespace, alias, package, channel,
     /// interpreter, encoding, array search or variable lookup, and not for a
-    /// command, dictionary key or variable name, which 8.6 adds. Measured:
+    /// command, dictionary key or variable name, which 8.6 adds everywhere
+    /// (8.5 already sets the first two for `namespace origin` and a nested
+    /// dictionary path, which this does not single out). Measured:
     /// `dict get {a 1} b` and `upvar 0 nosuch::x y` leave `NONE` on tclsh
     /// 8.5.19 and set `TCL LOOKUP DICT b` and `TCL LOOKUP VARNAME
     /// nosuch::x` on 8.6.18.
@@ -766,37 +768,11 @@ impl TclVersion {
         }
     }
 
-    /// Whether any builtin dispatches its subcommands as an ensemble
-    /// (`TclMakeEnsemble`, 8.5): 8.4's `string`, `info` and the rest read
-    /// their option with `Tcl_GetIndexFromObj`, so a miss is `bad option`.
-    #[must_use]
-    pub const fn has_builtin_ensembles(self) -> bool {
-        !matches!(self, Self::V8_4)
-    }
-
-    /// The tail of an ensemble's `wrong # args` usage: `?argument ...?` on
-    /// 8.5, `?arg ...?` from 8.6.
-    #[must_use]
-    pub const fn ensemble_usage_tail(self) -> &'static str {
-        if matches!(self, Self::V8_4 | Self::V8_5) {
-            "?argument ...?"
-        } else {
-            "?arg ...?"
-        }
-    }
-
     /// Whether an operand `expr` cannot use carries `ARITH DOMAIN <desc>`
     /// (8.5). Measured: `expr {"x" + 1}` leaves `NONE` on tclsh 8.4.20.
     #[must_use]
     pub const fn has_illegal_operand_error_codes(self) -> bool {
         !matches!(self, Self::V8_4)
-    }
-
-    /// Whether `expr` is parsed by 8.4's recursive-descent `tclParseExpr.c`,
-    /// whose errors read `syntax error in expression "…": …`.
-    #[must_use]
-    pub const fn parses_expressions_classically(self) -> bool {
-        matches!(self, Self::V8_4)
     }
 
     /// Whether a floating-point `expr` result that is infinite or NaN is an
@@ -878,6 +854,15 @@ impl TclVersion {
         }
     }
 
+    /// Whether `rename` sets a structured `errorCode` for a missing source
+    /// (`TCL LOOKUP COMMAND <name>`) and a taken destination
+    /// (`TCL OPERATION RENAME TARGET_EXISTS`). Measured on tclsh 8.4.20
+    /// through 9.1.0: both arrive at 8.6, earlier releases leave `NONE`.
+    #[must_use]
+    pub fn has_rename_error_codes(self) -> bool {
+        self.has_tcl_error_code("LOOKUP", Some("COMMAND"))
+    }
+
     /// Whether this release exposes TIP 348 structured error stacks.
     ///
     /// Tcl 8.6 introduced both `info errorstack` and the `-errorstack` return
@@ -886,6 +871,72 @@ impl TclVersion {
     #[must_use]
     pub fn has_error_stack(self) -> bool {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+    }
+
+    /// Whether this release tags a `wrong # args` usage error
+    /// (`Tcl_WrongNumArgs`) and a malformed list (`TclFindElement`) with a
+    /// `TCL …` error code. 8.4 and 8.5 set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_usage_error_codes(self) -> bool {
+        self.has_tcl_error_code("WRONGARGS", None)
+    }
+
+    /// Whether a builtin raising errorCode `code` leaves it under this
+    /// release: any code but a `TCL …` one the release does not set yet
+    /// ([`Self::has_tcl_error_code`]).
+    #[must_use]
+    pub fn sets_error_code(self, code: &[u8]) -> bool {
+        let mut words = code
+            .split(u8::is_ascii_whitespace)
+            .filter(|w| !w.is_empty());
+        if words.next() != Some(b"TCL") {
+            return true;
+        }
+        let word = |w: &[u8]| std::str::from_utf8(w).ok().map(str::to_owned);
+        match words.next().and_then(word) {
+            Some(family) => {
+                self.has_tcl_error_code(&family, words.next().and_then(word).as_deref())
+            }
+            None => true,
+        }
+    }
+
+    /// The `-errorcode` a builtin raising `code` leaves under this release:
+    /// `NONE` for a code this release does not set yet
+    /// ([`Self::sets_error_code`]), and `code` otherwise.
+    #[must_use]
+    pub fn release_error_code(self, code: &[u8]) -> &[u8] {
+        if self.sets_error_code(code) {
+            code
+        } else {
+            b"NONE"
+        }
+    }
+
+    /// Whether this release tags an expression's parse error with a
+    /// `TCL PARSE EXPR …` error code. `ParseExpr` sets one from 8.6; 8.4's
+    /// and 8.5's parsers set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_expression_parse_errors(self) -> bool {
+        self.has_tcl_error_code("PARSE", Some("EXPR"))
+    }
+
+    /// Whether a script this release compiles fails whole on a compile
+    /// procedure's error or a parse error, so that none of it runs (8.4's
+    /// `TclCompileScript`). From 8.5 a compile procedure that cannot compile
+    /// a command leaves it to run, and a parse error is raised where it lies.
+    #[must_use]
+    pub fn compile_errors_fail_scripts(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether this release parses an expression with its own
+    /// recursive-descent parser (`tclParseExpr.c`), whose syntax errors read
+    /// `syntax error in expression "…": <reason>` and carry no `(parsing
+    /// expression …)` frame. 8.5 replaced it.
+    #[must_use]
+    pub fn parses_expressions_as_8_4(self) -> bool {
+        matches!(self, Self::V8_4)
     }
 
     /// Does this release revalidate bytecode that is already running? From

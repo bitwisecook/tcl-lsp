@@ -76,6 +76,38 @@ struct Obj {
     /// renders to, so the answer holds for its lifetime and each value is
     /// measured once however often a limit asks.
     measure: Cell<u64>,
+    /// Whether C would hold the value as its string type (`tclStringType`,
+    /// what `Tcl_GetUnicodeFromObj` converts a value to) rather than with no
+    /// type or another. A string command reading by character sets it and a
+    /// list, dict or number read clears it, as each replaces C's type.
+    string_typed: Cell<bool>,
+}
+
+/// The literal words compiled code pushes, one object per text however many
+/// units push it, as C's interp literal table (`TclRegisterLiteral`) shares
+/// them: what one use of a literal does to its type, a later use sees. An
+/// object lives while a unit that pushed it keeps it.
+#[derive(Default)]
+pub(crate) struct LiteralTable {
+    objects: std::collections::HashMap<Rc<str>, std::rc::Weak<Obj>>,
+    /// The size at which the next push sweeps the objects no unit keeps.
+    sweep_at: usize,
+}
+
+impl LiteralTable {
+    /// The object for the literal `text`.
+    pub(crate) fn literal(&mut self, text: &str) -> Value {
+        if let Some(obj) = self.objects.get(text).and_then(std::rc::Weak::upgrade) {
+            return Value(obj);
+        }
+        if self.objects.len() >= self.sweep_at {
+            self.objects.retain(|_, obj| obj.strong_count() > 0);
+            self.sweep_at = (self.objects.len() * 2).max(64);
+        }
+        let value = Value::string(text);
+        self.objects.insert(Rc::from(text), Rc::downgrade(&value.0));
+        value
+    }
 }
 
 /// [`Obj::measure`] before the value is first measured.
@@ -115,6 +147,7 @@ impl Value {
             string: RefCell::new(string),
             intrep: RefCell::new(intrep),
             measure: Cell::new(UNMEASURED),
+            string_typed: Cell::new(false),
         }))
     }
 
@@ -266,6 +299,7 @@ impl Value {
         match number::parse_whole(&s) {
             Some(Number::Int(n)) => {
                 *self.0.intrep.borrow_mut() = IntRep::Int(n);
+                self.0.string_typed.set(false);
                 Ok(n)
             }
             Some(Number::Big { .. }) => Err(TclError::with_error_code(
@@ -419,6 +453,12 @@ impl Value {
     /// The value as a list of elements (`Tcl_ListObjGetElements`), caching the
     /// typed rep on first parse.
     pub fn as_list(&self) -> Result<Rc<Vec<Value>>, TclError> {
+        let items = self.list_rep()?;
+        self.0.string_typed.set(false);
+        Ok(items)
+    }
+
+    fn list_rep(&self) -> Result<Rc<Vec<Value>>, TclError> {
         if let IntRep::List(items) | IntRep::ParsedList(items) = &*self.0.intrep.borrow() {
             return Ok(Rc::clone(items));
         }
@@ -478,6 +518,44 @@ impl Value {
     /// does: the bytecode replaces a list rep, so a canonical list is no longer
     /// one and a later evaluation of the same value compiles it too.
     pub(crate) fn compile_as_script(&self) {
+        self.forget_canonical_list();
+    }
+
+    /// The string as C's character-indexed reads take it (`Tcl_GetCharLength`,
+    /// `Tcl_GetUnicodeFromObj`), which convert the value to a string: a
+    /// canonical list is no longer one, so a later evaluation compiles it.
+    pub(crate) fn to_char_str(&self) -> Rc<str> {
+        self.forget_canonical_list();
+        self.0.string_typed.set(true);
+        self.to_str()
+    }
+
+    /// The string of a value read as a regular expression, which C converts
+    /// to its compiled regexp type (`Tcl_GetRegExpFromObj`): a canonical list
+    /// is no longer one, nor is the value a string.
+    pub(crate) fn to_pattern_str(&self) -> Rc<str> {
+        self.forget_canonical_list();
+        self.0.string_typed.set(false);
+        self.to_str()
+    }
+
+    /// Whether C holds the value as its string type ([`Obj::string_typed`]),
+    /// which `INST_STR_MATCH` asks of either operand before it reads both by
+    /// character.
+    pub(crate) fn is_string_typed(&self) -> bool {
+        self.0.string_typed.get()
+    }
+
+    /// Whether C holds the value with no type or as a string, which
+    /// `TclStringMatchObj` asks of the string before it reads both operands
+    /// by character.
+    pub(crate) fn is_untyped_or_string(&self) -> bool {
+        self.is_string_typed() || matches!(&*self.0.intrep.borrow(), IntRep::Str)
+    }
+
+    /// Keep the list a canonical list holds, read from the string it renders
+    /// to, as it would be once C replaces the list rep.
+    fn forget_canonical_list(&self) {
         if !self.is_canonical_list() {
             return;
         }
@@ -521,6 +599,7 @@ impl Value {
             pairs: pairs.clone(),
             hash_order,
         }));
+        self.0.string_typed.set(false);
         Ok(pairs)
     }
 
@@ -693,6 +772,20 @@ impl std::fmt::Debug for Value {
 /// and compiles anything else. `Tcl_ConcatObj` keeps canonical lists and empty
 /// words a canonical list, but for a later list whose first element starts a
 /// comment.
+/// The words `TclEvalObjEx` runs a script of `words` as where it evaluates
+/// it directly ([`script_evaluation`]): the elements of its canonical lists,
+/// the very values the lists hold, in order.
+pub(crate) fn direct_script_words(words: &[Value]) -> Option<Vec<Value>> {
+    if script_evaluation(words) != CommandEvaluation::Direct {
+        return None;
+    }
+    let mut out = Vec::new();
+    for word in words.iter().filter(|word| word.is_canonical_list()) {
+        out.extend(word.as_list().ok()?.iter().cloned());
+    }
+    Some(out)
+}
+
 pub(crate) fn script_evaluation(words: &[Value]) -> CommandEvaluation {
     let mut started = false;
     for word in words {

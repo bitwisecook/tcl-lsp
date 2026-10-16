@@ -28,6 +28,7 @@
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
+use tcl_dialect::TclVersion;
 use tcl_syntax::number::{self, Number, NumberSyntax, ParseFlags};
 
 /// Canonical class names, in the order Tcl lists them in error messages.
@@ -61,16 +62,76 @@ fn ci(i: usize) -> i64 {
     i64::try_from(i).unwrap_or(i64::MAX)
 }
 
-/// Resolve a (possibly abbreviated) class name via the shared
-/// [`OptionTable`] rule — C's `StringIsCmd` matches its class table with
-/// abbreviations allowed (flags 0), noun `class`. `Err` carries the
-/// bad/ambiguous `CmdError`.
+/// The classes [`CLASSES`] holds that arrived after 8.4, with the release
+/// each arrived in.
+const CLASSES_SINCE: &[(&str, TclVersion)] = &[
+    ("dict", TclVersion::V9_0),
+    ("entier", TclVersion::V8_6),
+    ("list", TclVersion::V8_5),
+    ("wideinteger", TclVersion::V8_5),
+];
+
+/// `release`'s classes, in [`CLASSES`] order.
+#[must_use]
+pub fn classes(release: TclVersion) -> Vec<&'static str> {
+    CLASSES
+        .iter()
+        .copied()
+        .filter(|class| {
+            CLASSES_SINCE
+                .iter()
+                .find(|(name, _)| name == class)
+                .is_none_or(|&(_, since)| release >= since)
+        })
+        .collect()
+}
+
+/// Resolve a (possibly abbreviated) class name among `release`'s
+/// ([`classes`]) via the shared [`OptionTable`] rule — C's `StringIsCmd`
+/// matches its class table with abbreviations allowed (flags 0), noun
+/// `class`. `Err` carries the bad/ambiguous `CmdError`, with
+/// `TCL LOOKUP INDEX class …` from 8.5; 8.4 sets no error code.
 ///
 /// # Errors
-/// `bad class "X"` / `ambiguous class "X"`, enumerating [`CLASSES`].
-pub fn resolve_class(input: &str) -> Result<&'static str, CmdError> {
-    const TABLE: OptionTable<'static> = OptionTable::abbreviating("class", CLASSES);
-    TABLE.index_of_str(input).map(|i| CLASSES[i])
+/// `bad class "X"` / `ambiguous class "X"`, enumerating the release's classes.
+pub fn resolve_class(input: &str, release: TclVersion) -> Result<&'static str, CmdError> {
+    let classes = classes(release);
+    let table = OptionTable::abbreviating("class", &classes);
+    table
+        .index_of_in(input.as_bytes(), release)
+        .map(|i| classes[i])
+}
+
+/// The usage error `string is` raises for `args`, its words after `is`,
+/// where their count is wrong before the class is read: below two, or above
+/// five (`StringIsCmd` checks the count first).
+#[must_use]
+pub fn arity_error(args: usize) -> Option<CmdError> {
+    (!(2..=5).contains(&args))
+        .then(|| CmdError::wrong_args("string is class ?-strict? ?-failindex var? str"))
+}
+
+/// Whether `class` (canonical) tests each character, which 8.6's
+/// `TclCompileStringIsCmd` compiles to `INST_STR_CLASS`, a read of the value
+/// by character; the boolean, numeric and list classes read it otherwise.
+#[must_use]
+pub fn is_character_class(class: &str) -> bool {
+    matches!(
+        class,
+        "alnum"
+            | "alpha"
+            | "ascii"
+            | "control"
+            | "digit"
+            | "graph"
+            | "lower"
+            | "print"
+            | "punct"
+            | "space"
+            | "upper"
+            | "wordchar"
+            | "xdigit"
+    )
 }
 
 /// Classify `s` against `class` (canonical), returning `(is_member, fail_index)`.

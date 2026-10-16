@@ -31,7 +31,6 @@ use tcl_cmd_core::path::{self, PathReading};
 use tcl_platform::Filesystem;
 use tcl_runtime_api::Completion;
 
-use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -169,7 +168,7 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
                 match path::part_name(name.as_bytes(), release, host.env(), host.filesystem()) {
                     Ok(part) if canon == "dirname" => path_str(&path::dirname(&part, reading)),
                     Ok(part) => path_str(&path::tail(&part, reading)),
-                    Err(error) => completion_from_cmd_error(error),
+                    Err(error) => vm.cmd_error(error),
                 }
             }
             _ => err(format!("wrong # args: should be \"file {canon} name\"")),
@@ -202,7 +201,7 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
                 };
                 match built {
                     Ok(built) => path_str(&built),
-                    Err(error) => completion_from_cmd_error(error),
+                    Err(error) => vm.cmd_error(error),
                 }
             }
             _ => err(format!("wrong # args: should be \"file {canon} name\"")),
@@ -229,7 +228,7 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
             };
             match built {
                 Ok(built) => path_str(&built),
-                Err(error) => completion_from_cmd_error(error),
+                Err(error) => vm.cmd_error(error),
             }
         }
         "separator" => ok(Value::string("/")),

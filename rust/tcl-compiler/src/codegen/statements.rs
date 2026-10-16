@@ -505,6 +505,23 @@ impl CodegenCtx<'_> {
             .is_some_and(|ew| ew.iter().any(|&e| e));
         if has_expand {
             let ew = tokens.and_then(|t| t.expand_word.as_ref()).unwrap();
+            if let Some(words) = super::cmd_subst::parse_time_expansion(
+                std::iter::once(command)
+                    .chain(args.iter().map(String::as_str))
+                    .enumerate()
+                    .map(|(index, word)| {
+                        let braced = tokens.is_some_and(|t| {
+                            t.argv_kinds.get(index) == Some(&tcl_lexer::TokenType::Str)
+                                && t.single_token_word.get(index).copied().unwrap_or(false)
+                        });
+                        (word, braced, ew.get(index).copied().unwrap_or(false))
+                    }),
+            ) && let Some(((command, _), args)) = words.split_first()
+            {
+                let args: Vec<String> = args.iter().map(|(word, _)| word.clone()).collect();
+                self.emit_call(command, &args, None, used_generic_invoke);
+                return;
+            }
             self.emit_expanded_call(command, args, ew, tokens);
             *used_generic_invoke = true;
         } else {
@@ -948,7 +965,7 @@ impl CodegenCtx<'_> {
     /// substitution over a name it has already resolved, or it strips a name's
     /// outer braces (`set {{a}} V` creating `a` instead of `{a}`), reads a
     /// `${…}` inside one, and runs a `[…]` inside one. The
-    /// literal bytes are unchanged — only the out-of-band `push_verbatim` flag
+    /// literal bytes are unchanged — only the out-of-band `literal_rep`
     /// differs — so the disassembly is byte-stable.
     ///
     /// `key_is_literal` says whether an array-element key is likewise finished

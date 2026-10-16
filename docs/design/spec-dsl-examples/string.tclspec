@@ -8,7 +8,7 @@
 # prefix acceptance, per-value Tcl-version floors, and constant folders
 # written as Tcl hook bodies.
 
-speclib tcl 1.1 {
+speclib tcl 2.2 {
 
 # The `string is` character classes.  A named table because the shipped spec
 # has the same shape: one `static IS_CLASSES` read both by `arg_values` and by
@@ -128,6 +128,9 @@ if {[string first "World" $s] >= 0} {
         # ambiguous-form bail-outs).  Reproducing it in Tcl would be a
         # re-implementation, not a port, so the named native folder is used.
         const_fold_versioned -native string::is::const_fold_versioned
+
+        # `TclCompileStringIsCmd` arrives in 8.6; before it the command runs.
+        inline_codegen_hook -native StringIs -introduced 8.6
     }
 
     subcommand map {

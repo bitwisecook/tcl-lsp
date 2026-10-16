@@ -72,6 +72,6 @@ fn cmd_clock(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     match core_clock::dispatch(vm, args, &now, &offset, release) {
         Ok(v) => ok(v),
-        Err(e) => crate::command::completion_from_cmd_error(e),
+        Err(e) => vm.cmd_error(e),
     }
 }

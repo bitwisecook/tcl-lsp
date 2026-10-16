@@ -408,6 +408,16 @@ impl CompileService for BytecodeCompileService {
         }
     }
 
+    fn compile_failure_for_profile(
+        &self,
+        source: &str,
+        profile: &'static DialectProfile,
+        unit: tcl_runtime_api::CompileUnit,
+    ) -> Option<tcl_runtime_api::CompileFailure> {
+        let registry = self.registry.registry_for_profile(profile).ok()?;
+        crate::compile_84::compile_failure(source, registry.as_ref(), profile, unit)
+    }
+
     fn compile_procedure_for_profile(
         &self,
         target: ProcedureCompileTarget<'_>,
@@ -506,6 +516,8 @@ fn fatal_tail_frame(
         message,
         command_text,
         line,
+        compile_info: None,
+        error_code: None,
     }
 }
 

@@ -1,0 +1,30 @@
+==== 8.4 file ====
+can't use non-numeric string as operand of "+" |     while executing | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     while executing | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.4 stdin ====
+can't use non-numeric string as operand of "+" |     while executing | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     while executing | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.5 file ====
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.5 stdin ====
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.6 file ====
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 8.6 stdin ====
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+can't use non-numeric string as operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.0 file ====
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.0 stdin ====
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.1 file ====
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+==== 9.1 stdin ====
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {} " |     (procedure "p" line 1) |     invoked from within | "p" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"
+cannot use non-numeric string "a" as left operand of "+" |     invoked from within | "while {"a" + 1} {}" |     ("uplevel" body line 1) |     invoked from within | "uplevel 1 $script"

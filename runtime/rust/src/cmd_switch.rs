@@ -59,10 +59,11 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // A single trailing argument is the `{pattern body ...}` list form; anything
     // else is inline pattern/body words.
+    let compiled = interp.release_compiles_control(argv);
     if rest.len() == 1 {
-        switch_list_form(interp, &opts, value, rest[0])
+        switch_list_form(interp, &opts, value, rest[0], compiled)
     } else {
-        switch_inline_form(interp, &opts, value, rest)
+        switch_inline_form(interp, &opts, value, rest, compiled)
     }
 }
 
@@ -87,6 +88,7 @@ fn switch_inline_form(
     opts: &Options<*mut TclObj>,
     value: *mut TclObj,
     words: &[*mut TclObj],
+    compiled: bool,
 ) -> Code {
     let objc = words.len();
     if objc % 2 != 0 {
@@ -126,9 +128,9 @@ fn switch_inline_form(
     while obj_bytes(words[b * 2 + 1]).as_slice() == b"-" {
         b += 1;
     }
-    let code = interp.eval_control_body(words[b * 2 + 1]);
+    let code = interp.eval_compiled_control_body(words[b * 2 + 1], compiled);
     if code == Code::Error {
-        arm_error_info(interp, &obj_bytes(words[matched * 2]));
+        arm_error_info(interp, &obj_bytes(words[matched * 2]), compiled);
     }
     code
 }
@@ -143,6 +145,7 @@ fn switch_list_form(
     opts: &Options<*mut TclObj>,
     value: *mut TclObj,
     list_obj: *mut TclObj,
+    compiled: bool,
 ) -> Code {
     let list_str = obj_bytes(list_obj);
     let elems = match scan_elements(&list_str) {
@@ -208,6 +211,22 @@ fn switch_list_form(
         b += 1;
     }
     let body_elem = &elems[b * 2 + 1];
+    // A list value's elements are its own objects (`Tcl_ListObjGetElements`):
+    // a body that is a canonical list runs as one, directly.
+    if let Some(list) = crate::list::with_list_rep(list_obj, |items| items.get(b * 2 + 1).copied())
+        .flatten()
+        .filter(|&body| crate::list::is_pure_list(body))
+    {
+        // SAFETY: a live element; this hold keeps it across the evaluation.
+        unsafe { crate::obj::incr_ref_count(list) };
+        let code = interp.eval_control_body(list);
+        // SAFETY: releases the hold taken above.
+        unsafe { crate::obj::decr_ref_count(list) };
+        if code == Code::Error {
+            arm_error_info(interp, &pat_bytes[matched], compiled);
+        }
+        return code;
+    }
     let body = element_value(&list_str, body_elem);
     // Source-track only a literal body in a located list (a body with backslash
     // collapse, or a dynamic list, reverts to body-relative — C sets such lines
@@ -220,25 +239,20 @@ fn switch_list_form(
         _ => interp.eval_unlocated_body(&body),
     };
     if code == Code::Error {
-        arm_error_info(interp, &pat_bytes[matched]);
+        arm_error_info(interp, &pat_bytes[matched], compiled);
     }
     code
 }
 
 /// Append the `("PATTERN" arm line N)` errorInfo frame (C's `SwitchPostProc`),
 /// then clear the logged flag so the enclosing eval logs the `switch` command's
-/// own `invoked from within` frame. `PATTERN` is the matched pattern, truncated
-/// to 50 bytes with a trailing `...` (C's `limit`).
-fn arm_error_info(interp: &mut Interp, pattern: &[u8]) {
-    let overflow = pattern.len() > 50;
-    let mut inner = Vec::with_capacity(pattern.len().min(50) + 8);
-    inner.push(b'"');
-    inner.extend_from_slice(if overflow { &pattern[..50] } else { pattern });
-    if overflow {
-        inner.extend_from_slice(b"...");
+/// own `invoked from within` frame ([`tcl_cmd_core::switch::arm_frame_text`]).
+fn arm_error_info(interp: &mut Interp, pattern: &[u8], compiled: bool) {
+    if compiled {
+        return;
     }
-    inner.extend_from_slice(b"\" arm");
-    interp.append_frame_line(&inner);
+    let text = tcl_cmd_core::switch::arm_frame_text(pattern, interp.runtime_version());
+    interp.append_frame_line(&text);
     interp.clear_error_logged();
 }
 

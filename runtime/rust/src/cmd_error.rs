@@ -50,8 +50,17 @@ pub fn install(interp: &mut Interp) {
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 4 {
-        return interp.wrong_args(b"catch script ?resultVarName? ?optionVarName?");
+    // The release's signature: 8.4's `catch` takes the result variable alone,
+    // and names the words of its narrower form.
+    let arity = interp
+        .release_arity("catch")
+        .unwrap_or(tcl_registry::Arity::new(1, 3));
+    if !arity.accepts(u16::try_from(argv.len() - 1).unwrap_or(u16::MAX)) {
+        return interp.wrong_args(if arity.max < 3 {
+            b"catch command ?varName?"
+        } else {
+            b"catch script ?resultVarName? ?optionVarName?"
+        });
     }
     // The caught body is a fresh completion scope. Commands within it retain
     // carried options until a later command replaces them, but neither the
@@ -64,7 +73,18 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the enclosing frame in a proc (so `info frame` depth and the body-relative
     // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
     // body still evaluates as its own frame.
+    let evaluates_script_word = catch_compiles_script_word(interp, argv);
+    if evaluates_script_word {
+        crate::list::read_as_other_type(argv[1]);
+    }
     let code = interp.eval_control_body(argv[1]);
+    // The compiled `catch` evaluates the script word's value (`INST_EVAL_STK`),
+    // a script of its own, and an error leaving it logs the `catch` before the
+    // range catches it.
+    if code == Code::Error && evaluates_script_word {
+        interp.clear_error_logged();
+        interp.log_current_command();
+    }
     // An `exit` in the body is uncatchable (C's `Tcl_Exit`): re-propagate it
     // instead of turning it into a caught return code.
     if interp.exit_pending() {
@@ -102,6 +122,31 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(code.as_int().to_string().as_bytes());
     Code::Ok
+}
+
+/// Whether the release compiles this `catch` with its substituted script
+/// word (`TclCompileCatchCmd`'s `INST_EVAL_STK`), which compiles the value
+/// whatever it holds. Each variable needs a compiled local: a procedure body
+/// makes one of a plain name, and any other script finds only those of the
+/// procedure frame it runs in (`TclFindCompiledLocal`).
+fn catch_compiles_script_word(interp: &Interp, argv: &[*mut TclObj]) -> bool {
+    let Some(literal) = interp.compiled_words(argv) else {
+        return false;
+    };
+    if literal[1] {
+        return false;
+    }
+    let vars: Vec<Vec<u8>> = argv[2..].iter().map(|&var| obj_bytes(var)).collect();
+    vars.iter()
+        .zip(&literal[2..])
+        .all(|(name, &literal)| literal && is_local_scalar_name(name))
+        && (vars.is_empty() || interp.compiles_locals() || interp.frame_compiled_locals(&vars))
+}
+
+/// Whether a compile procedure can make `name` a local scalar
+/// (`LocalScalarFromToken`): neither qualified nor an array element.
+fn is_local_scalar_name(name: &[u8]) -> bool {
+    !name.windows(2).any(|pair| pair == b"::") && crate::frame::split_array_ref(name).1.is_none()
 }
 
 /// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than
@@ -366,6 +411,9 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"last non-finally clause must not have a body of \"-\"");
     }
 
+    if try_compiles_script_word(interp, argv) {
+        crate::list::read_as_other_type(body);
+    }
     // Run the body, snapshotting its completion code, result, and -errorcode.
     // `eval_control_body` recovers the body literal's TIP 280 source location so
     // an `info frame` inside reports the right `type source` line.
@@ -453,6 +501,51 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     interp.set_result_bytes(&outcome_result);
     outcome_code
+}
+
+/// Whether the release compiles this `try` with its substituted body word
+/// (`TclCompileTryCmd`'s `INST_EVAL_STK`): every handler's selector and
+/// variable list literal, at most two plain variable names, a `trap` selector
+/// a non-empty list, every handler and `finally` script literal, and a
+/// handler only in a procedure body, whose compile makes its locals.
+fn try_compiles_script_word(interp: &Interp, argv: &[*mut TclObj]) -> bool {
+    let Some(literal) = interp.compiled_words(argv) else {
+        return false;
+    };
+    if literal[1] {
+        return false;
+    }
+    let mut j = 2;
+    while j < argv.len() {
+        let Ok(kind) = HANDLER_TYPES.index_of(&obj_bytes(argv[j])) else {
+            return false;
+        };
+        if HANDLER_TYPES.names()[kind] == b"finally" {
+            if !literal.get(j + 1).copied().unwrap_or(false) {
+                return false;
+            }
+            j += 2;
+            continue;
+        }
+        if !interp.compiles_locals() || !literal[j..].iter().take(4).all(|&word| word) {
+            return false;
+        }
+        let (Some(&selector), Some(&vars)) = (argv.get(j + 1), argv.get(j + 2)) else {
+            return false;
+        };
+        let names = crate::parse::split_list(&obj_bytes(vars));
+        let selector_ok = HANDLER_TYPES.names()[kind] != b"trap"
+            || crate::parse::split_list(&obj_bytes(selector)).is_ok_and(|codes| !codes.is_empty());
+        if !selector_ok
+            || !names.is_ok_and(|names| {
+                names.len() <= 2 && names.iter().all(|name| is_local_scalar_name(name))
+            })
+        {
+            return false;
+        }
+        j += 4;
+    }
+    true
 }
 
 /// `bad completion code "X": must be ok, error, return, break, continue, or an
@@ -799,23 +892,39 @@ mod tests {
         });
     }
 
-    /// Pre-TIP runtimes still preserve `-errorstack` as an arbitrary custom
+    /// A pre-TIP runtime still preserves `-errorstack` as an arbitrary custom
     /// return option; only synthesis and validation of its TIP 348 meaning are
-    /// release-gated. Other custom pairs take the same shared path.
+    /// release-gated. Other custom pairs take the same shared path. (8.4's
+    /// `catch` takes no options variable.)
     #[test]
     fn catch_preserves_custom_return_options_on_legacy_releases() {
         use tcl_dialect::TclVersion;
 
         leak_free(|i| {
-            for version in [TclVersion::V8_4, TclVersion::V8_5] {
-                i.set_runtime_version(version);
-                assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
-                assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
+            i.set_runtime_version(TclVersion::V8_5);
+            assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
+            assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
 
-                assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
-                assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
-            }
+            assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
+            assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
             i.eval_str(b"unset -nocomplain m o");
+        });
+    }
+
+    /// 8.4's `catch` takes the result variable alone, as the registry's
+    /// arity window for the release says.
+    #[test]
+    fn eight_four_catch_takes_no_options_variable() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(
+                run(i, b"list [catch {catch {set x 1} r o} m] $m $::errorCode"),
+                b"1 {wrong # args: should be \"catch command ?varName?\"} NONE"
+            );
+            assert_eq!(run(i, b"list [catch {set x 1} r] $r"), b"0 1");
+            i.eval_str(b"unset -nocomplain m r x");
         });
     }
 }

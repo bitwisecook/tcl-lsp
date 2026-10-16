@@ -66,11 +66,16 @@ impl CodegenCtx<'_> {
                 condition,
                 true_target,
                 false_target,
+                span,
                 ..
             } => {
                 let true_target = cfg.block_name(*true_target);
                 let false_target = cfg.block_name(*false_target);
+                let begin = self.instructions.len();
                 self.emit_branch(condition, true_target, false_target, next_block);
+                if let Some(owner) = span.and_then(|span| cfg.condition_owners.get(&span)) {
+                    self.name_condition_command(begin, owner.command);
+                }
             }
             Terminator::Return {
                 value,
@@ -79,6 +84,25 @@ impl CodegenCtx<'_> {
                 ..
             } => {
                 self.emit_return(value.as_deref(), expr.as_ref(), *braced);
+            }
+        }
+    }
+
+    /// Name the command whose condition the instructions from `begin`
+    /// evaluate in their `errorInfo`, as C logs the `if`, `while` or `for`
+    /// an error evaluating its test leaves; an instruction of a command
+    /// substitution in the test keeps naming its own command.
+    fn name_condition_command(&mut self, begin: usize, owner: tcl_lexer::Span) {
+        let text = self.error_info_source_text(owner);
+        let line = self.source_line(owner);
+        for instruction in self.instructions.iter_mut().skip(begin) {
+            if instruction.error_info_command.is_none() && instruction.source_cmd_text.is_empty() {
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.clone(),
+                    line,
+                    nested: false,
+                    enclosing: Vec::new(),
+                });
             }
         }
     }

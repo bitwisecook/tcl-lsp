@@ -630,6 +630,18 @@ mod tests {
             crate::word_parts::EXTRA_AFTER_CLOSE_BRACE,
         ),
         (
+            "bracket-inner-var",
+            "puts pre; list [sfx one] [set y \"a${bcd\"]",
+            1,
+            crate::MISSING_CLOSE_BRACE_FOR_VAR,
+        ),
+        (
+            "bracket-bare-var",
+            "puts pre; list [set y a${bcd]",
+            1,
+            crate::MISSING_CLOSE_BRACE_FOR_VAR,
+        ),
+        (
             "two-before",
             "puts one; puts two; puts \"x${abc\"",
             2,

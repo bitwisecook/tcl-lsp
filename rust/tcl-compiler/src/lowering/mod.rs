@@ -1803,9 +1803,11 @@ impl<'r> Lowerer<'r> {
                 self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_while(seg, namespace))
             }
-            LoweringHookId::Catch => {
-                Some(self.lower_catch_with_binding(seg, namespace, canonical_command))
-            }
+            // A count the release's `catch` refuses is its `wrong # args`, which
+            // the command raises before it runs the body.
+            LoweringHookId::Catch => self
+                .release_admits_arity(canonical_command, args.len())
+                .then(|| self.lower_catch_with_binding(seg, namespace, canonical_command)),
             LoweringHookId::Try => {
                 self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_try(seg, namespace))
@@ -1956,6 +1958,7 @@ impl<'r> Lowerer<'r> {
         resolution_namespace: &str,
         canonical_command: &str,
     ) {
+        let shape = self.invocation_shape(seg);
         let Some(sites) = self.command_binding_site_stack.last_mut() else {
             return;
         };
@@ -1966,16 +1969,31 @@ impl<'r> Lowerer<'r> {
                 seg.name(),
                 canonical_command,
             ),
-            shape: Self::invocation_shape(seg),
+            shape,
         });
+    }
+
+    /// Whether the release's signature of `command` admits `count` arguments.
+    fn release_admits_arity(&self, command: &str, count: usize) -> bool {
+        self.registry.get(command).is_none_or(|spec| {
+            self.registry
+                .release_arity(spec)
+                .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+        })
     }
 
     /// The words after `seg`'s command, as a release's compile reads them.
     fn invocation_shape(
+        &self,
         seg: &SegmentedCommand,
     ) -> tcl_registry::release_compilation::InvocationShape {
+        let release = self
+            .dialect
+            .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                profile.vm_runtime_version
+            });
         let args = seg.texts.get(1..).unwrap_or_default();
-        tcl_registry::release_compilation::InvocationShape::of(args, |index| {
+        tcl_registry::release_compilation::InvocationShape::of(release, args, |index| {
             seg_word_is_static_literal(seg, index + 1)
         })
     }
@@ -2116,14 +2134,15 @@ impl<'r> Lowerer<'r> {
         seg: &SegmentedCommand,
         lowered: ResolvedLowering,
     ) -> Statement {
-        if let Some(binding) = lowered.binding
-            && let Some(sites) = self.command_binding_site_stack.last_mut()
-        {
-            sites.push(CommandBindingSite {
-                span: seg.span,
-                binding,
-                shape: Self::invocation_shape(seg),
-            });
+        if let Some(binding) = lowered.binding {
+            let shape = self.invocation_shape(seg);
+            if let Some(sites) = self.command_binding_site_stack.last_mut() {
+                sites.push(CommandBindingSite {
+                    span: seg.span,
+                    binding,
+                    shape,
+                });
+            }
         }
         lowered.statement
     }
@@ -2825,6 +2844,15 @@ impl<'r> Lowerer<'r> {
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
+            // The script `eval` evaluates at run time is a unit of its own
+            // (8.4 runs it directly), which creates no locals and reaches only
+            // those the procedure compiled (`TclFindCompiledLocal`), and whose
+            // errors name its own commands; folded into the body it would
+            // create them and be logged as the body's text. Analysis keeps the
+            // structure it can see.
+            if self.target.is_bytecode() {
+                return None;
+            }
             let literal = self.const_map_lookup(&args[0])?;
             if body_has_dynamic_barrier(&literal, self.registry, self.config) {
                 return None;

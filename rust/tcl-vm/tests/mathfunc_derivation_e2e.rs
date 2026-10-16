@@ -182,7 +182,9 @@ fn every_shared_mathop_spelling_is_registered() {
 ///
 /// 8.4's `expr` has a fixed C function table rather than an overridable
 /// `::tcl::mathfunc` namespace, so an unknown name never becomes a command
-/// lookup there.
+/// lookup there; its lexer reads the `ne` of `nextafter` as the operator
+/// (tclsh 8.4.20: `syntax error in expression "nextafter(0.5)": unexpected
+/// operator ne`).
 ///
 /// 8.4's lexer reads the leading `ne` of `nextafter` as its operator, so
 /// tclsh 8.4.20 reports `unexpected operator ne` for it rather than an
@@ -202,8 +204,23 @@ fn tip745_functions_are_gated_to_tcl91() {
             TIP745_BATCH.join(" ")
         )
     };
+    let (ok, out) = run_at(
+        TclVersion::V8_4,
+        &format!(
+            "foreach f {{{}}} {{ catch {{expr \"${{f}}(0.5)\"}} m; puts $m }}\n",
+            TIP745_BATCH.join(" ")
+        ),
+    );
+    assert!(ok, "[V8_4] must not error: {out}");
+    for (name, got) in TIP745_BATCH.iter().zip(out.lines()) {
+        let want = if name.starts_with("ne") {
+            format!("syntax error in expression \"{name}(0.5)\": unexpected operator ne")
+        } else {
+            format!("unknown math function \"{name}\"")
+        };
+        assert_eq!(got, want, "[V8_4] {name} must not resolve");
+    }
     for (version, pattern) in [
-        (TclVersion::V8_4, "unknown math function*"),
         (TclVersion::V8_5, "invalid command name*"),
         (TclVersion::V8_6, "invalid command name*"),
         (TclVersion::V9_0, "invalid command name*"),

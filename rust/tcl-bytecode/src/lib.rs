@@ -1323,15 +1323,7 @@ pub struct Instruction {
     /// out-of-band (like `foreach_vars`) so the 9-byte on-disk operand form and
     /// disassembly stay byte-stable. `None` for every other opcode.
     pub dict_vars: Option<Vec<String>>,
-    /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
-    /// word and must be pushed exactly as-is, suppressing the runtime word
-    /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
-    /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
-    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
-    /// so the literal pool and disassembly stay byte-stable (keeps identity
-    /// stable).
-    pub push_verbatim: bool,
-    /// `PUSH1`/`PUSH4` only: the representation the pushed literal carries.
+    /// `PUSH1`/`PUSH4` only: how the VM pushes the literal ([`LiteralRep`]).
     /// Carried out-of-band so the literal pool and disassembly stay
     /// byte-stable.
     pub literal_rep: LiteralRep,
@@ -1350,6 +1342,11 @@ pub struct Instruction {
     /// across a command-table change rather than evaluating the command
     /// afresh.
     pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A boundary of one of the commands of a script the release evaluates
+    /// directly, as `tclsh` evaluates the script file it is given: the
+    /// outermost command running, which C's level-0 evaluation names when it
+    /// turns an unexpected completion code into an error.
+    pub script_command: bool,
     /// Under such a release, the script body this compiler inlined that this
     /// instruction runs part of: `0` for none, otherwise one more than the
     /// body's index in the function.
@@ -1399,6 +1396,16 @@ pub struct ReleaseCompiled {
     /// in place before it invokes, so a canonical list there is no longer
     /// one.
     pub script_word: Option<u8>,
+    /// The words, one bit per index counting the command word, that must name
+    /// compiled locals of the procedure frame the command runs in. A script
+    /// the release compiles outside a procedure body creates no locals and
+    /// reaches only that frame's (`TclFindCompiledLocal` without a
+    /// `procPtr`), so it compiles the command only where every one is.
+    pub frame_local_words: u8,
+    /// Whether the release compiles the command only in a procedure body, so
+    /// a script compiled apart from one compiles it only where it runs as the
+    /// body of a command the release compiled into a procedure body.
+    pub in_procedure_only: bool,
 }
 
 impl Instruction {
@@ -1424,11 +1431,11 @@ impl Instruction {
             foreach_vars: None,
             foreach_collect: false,
             dict_vars: None,
-            push_verbatim: false,
-            literal_rep: LiteralRep::String,
+            literal_rep: LiteralRep::Word,
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             release_binding: None,
             release_hold: None,
+            script_command: false,
             release_body: 0,
             release_body_entry: None,
             entered_command: None,
@@ -1438,12 +1445,17 @@ impl Instruction {
     }
 }
 
-/// The representation a pushed literal carries.
+/// How the VM pushes a literal.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum LiteralRep {
-    /// Its string.
+    /// A word the VM substitutes as it pushes it (see
+    /// `tcl-vm::subst::subst_word`).
     #[default]
-    String,
+    Word,
+    /// Its string exactly as it is, with no word substitution: a braced or
+    /// constant word, or a value the compiler finished. The analogue of the
+    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling.
+    Verbatim,
     /// A list the compiler built from literal words, spelt canonically: C's
     /// `TclCompileListCmd` pushes such a list as its list object, a canonical
     /// list.
@@ -1697,7 +1709,7 @@ impl FunctionAsm {
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the
-/// enclosing command (`eval`/`while`/`for`/`foreach`) would add when its body
+/// enclosing command (`eval`, a loop, `if`, `switch`) would add when its body
 /// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
 /// codegen when it folds a literal body inline (so the LSP keeps its inlined
 /// view), consumed by the executor as an error unwinds (see
@@ -1711,9 +1723,8 @@ pub struct ErrorRegion {
     pub start: u32,
     /// End byte offset of the enclosing command's source span (exclusive).
     pub end: u32,
-    /// The body-frame label — `eval`/`while`/`for`/`foreach` — quoted in the
-    /// `("LABEL" body line N)` frame.
-    pub label: String,
+    /// The frame the body adds before the command is logged.
+    pub frame: ErrorRegionFrame,
     /// The enclosing command's surface text, for its `invoked from within "…"`
     /// frame (truncated to 150 bytes by the logger, as in C).
     pub cmd_text: String,
@@ -1724,6 +1735,23 @@ pub struct ErrorRegion {
     /// The enclosing command's own source line — the line its `invoked from
     /// within` frame contributes to any further-out (proc) frame.
     pub cmd_line: u32,
+    /// Whether the release compiles the command in a procedure body, so the
+    /// region adds no frame where its script runs as part of one.
+    pub compiled_in_procedure: bool,
+}
+
+/// The `errorInfo` frame an [`ErrorRegion`] adds, `N` the failing command's
+/// line within the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorRegionFrame {
+    /// `("LABEL" body line N)`: `eval`, `foreach`, `while`, `for`, `lmap`.
+    Body(String),
+    /// `(TEXT line N)`: a `switch` arm's `"PATTERN" arm`.
+    Line(String),
+    /// `(TEXT)`: `"for" initial command`.
+    Fixed(String),
+    /// None: the command is logged alone (`if`).
+    None,
 }
 
 /// Assembly for an entire module.

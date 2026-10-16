@@ -199,17 +199,75 @@ pub struct LoopNode {
     pub statement: Statement,
 }
 
+/// The command a branch condition belongs to ([`Function::condition_owners`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionOwner {
+    /// The command's source span.
+    pub command: Span,
+    /// Whether the command's compile procedure leaves uncompiled the script a
+    /// condition that is one literal constant never runs (`TclCompileIfCmd`,
+    /// `TclCompileWhileCmd`); `TclCompileForCmd` compiles every clause.
+    pub skips_constant_dead_script: bool,
+}
+
 /// Source site and Tcl error context for a command body flattened into a CFG.
 ///
-/// The semantic context comes from registry resolution during lowering.  It is
-/// retained separately from source text so code generators never need to
-/// recover command identity by parsing the original script.
+/// The semantic context comes from registry resolution or the structured
+/// command lowered.  It is retained separately from source text so code
+/// generators never need to recover command identity by parsing the original
+/// script.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InlineBodyErrorSite {
     /// Source span of the enclosing command whose body was inlined.
     pub span: Span,
-    /// Target-neutral Tcl error context contributed by the inlined body.
-    pub context: tcl_registry::InlineBodyErrorContext,
+    /// The frame an error leaving the body adds before the command is logged.
+    pub context: BodyErrorContext,
+    /// The body or clause the frame covers.
+    pub region: Span,
+    /// Where the release compiles the command, its bodies then code of the
+    /// script holding it with no frame of their own.
+    pub compiled: CompiledAt,
+}
+
+/// The `errorInfo` frame an error leaving an inlined body adds as the command
+/// holding the body runs it ([`InlineBodyErrorSite`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyErrorContext {
+    /// A registry-described body ([`tcl_registry::InlineBodyErrorContext`]).
+    Registry(tcl_registry::InlineBodyErrorContext),
+    /// A loop body: `("LABEL" body line N)`.
+    LoopBody(&'static str),
+    /// A clause of a command that names it with no line:
+    /// `("for" initial command)`.
+    Clause(&'static str),
+    /// A `switch` arm body: `("PATTERN" arm line N)`, the pattern the source
+    /// text at the span.
+    Arm(Span),
+    /// A script the command runs with no frame of its own (`if`).
+    Script,
+}
+
+/// Where the release compiles a command with its compile procedure
+/// ([`tcl_registry::release_compilation::compiles_control`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompiledAt {
+    /// In a procedure body.
+    pub in_procedure: bool,
+    /// In any other script.
+    pub outside_procedure: bool,
+}
+
+impl CompiledAt {
+    /// Compiled nowhere: the command always runs.
+    pub const NEVER: Self = Self {
+        in_procedure: false,
+        outside_procedure: false,
+    };
+    /// Compiled everywhere.
+    pub const ALWAYS: Self = Self {
+        in_procedure: true,
+        outside_procedure: true,
+    };
 }
 
 /// The exception edge from the block before a flattened `catch` or `try`
@@ -310,6 +368,9 @@ pub struct Function {
     /// Exact owning Tcl command for synthetic runtime boundaries emitted at a
     /// block. Absence means compiler-generated control, not a replay point.
     pub command_boundary_sites: HashMap<BlockId, CommandBindingSite>,
+    /// The `if`, `while` or `for` command each branch condition, keyed by its
+    /// span, belongs to: an error its evaluation raises logs that command.
+    pub condition_owners: HashMap<Span, ConditionOwner>,
     /// Continuation block for a structured command whose inline CFG occupies a
     /// region rather than one statement or a recognised loop shape. Codegen
     /// wraps that region in one replayable `START_CMD` boundary.
@@ -379,6 +440,7 @@ impl Function {
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
+            condition_owners: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             branch_command_joins: HashMap::new(),
             body_scripts: Vec::new(),

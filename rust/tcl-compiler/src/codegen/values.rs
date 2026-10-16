@@ -156,6 +156,19 @@ impl CodegenCtx<'_> {
     }
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
+        // The command substitutions of a word substituted at run time are
+        // scripts C compiles with the command, their locals the procedure's.
+        if self.compiles_locals()
+            && value.contains('[')
+            && let Some(parts) =
+                super::helpers::parse_subst_template(value, self.escapes, self.braced_var)
+        {
+            for part in parts {
+                if let super::helpers::SubstPart::Cmd(script) = part {
+                    self.intern_script_locals(&script);
+                }
+            }
+        }
         let idx = self.literals.intern(value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
@@ -168,7 +181,7 @@ impl CodegenCtx<'_> {
     /// Push a *verbatim* literal — a braced / constant word that the VM must
     /// push exactly as-is, suppressing runtime word substitution. Apart from the
     /// brace-word `\<newline>` continuation collapse below, the literal bytes
-    /// match [`push_lit`]; only the out-of-band `push_verbatim` flag differs, so
+    /// match [`push_lit`]; only the out-of-band `literal_rep` differs, so
     /// disassembly stays byte-stable.
     pub fn push_lit_verbatim(&mut self, value: &str) {
         // A braced word's value collapses `\<newline>` continuations even inside
@@ -186,7 +199,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\"", esc(&value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push a *verbatim* literal **byte for byte** — a value that is already
@@ -215,7 +228,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\"", esc(value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push a word's **finished value** — text every word-level rule has
@@ -249,7 +262,7 @@ impl CodegenCtx<'_> {
     /// braced word, so the brace-word `\<newline>` collapse is not its rule —
     /// a quoted word's continuations were folded when its escapes were decoded.
     /// The literal bytes are unchanged either way, so disassembly stays stable
-    /// and only the out-of-band `push_verbatim` flag differs.
+    /// and only the out-of-band `literal_rep` differs.
     pub fn push_word_value(&mut self, value: &str) {
         if value.contains("${") || value.contains('[') {
             self.push_lit(value);
@@ -272,7 +285,7 @@ impl CodegenCtx<'_> {
     /// Push a *verbatim* no-dedup literal — a constant-folded result (e.g.
     /// `[list …]` / `[format …]`) that is already its own final value and must
     /// be pushed exactly, suppressing runtime word substitution. Without the
-    /// `push_verbatim` flag a single-element fold like `[list "a b"]` → `{a b}`
+    /// `literal_rep` a single-element fold like `[list "a b"]` → `{a b}`
     /// is mistaken for a braced literal and the braces are stripped at runtime.
     /// The literal bytes and disassembly comment match [`push_lit_no_dedup`], so
     /// the only difference is the out-of-band flag.
@@ -284,7 +297,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\" #nodedup", esc(value, 40)),
         );
-        self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Emit `startCommand` for non-first specialised commands.
@@ -450,6 +463,48 @@ impl CodegenCtx<'_> {
             // set v $b(\{a\}) -> ESCBRACE   (a substituting push read `b(a)`)
             // ```
             self.push_lit_exact(elem);
+        }
+    }
+
+    /// Make the variable `name` a compiled local of the procedure, as a C
+    /// compile procedure does for each variable word it compiles
+    /// (`TclFindCompiledLocal`) even where it emits no access to it: the
+    /// array an element names, nothing for a qualified name.
+    pub(crate) fn intern_compiled_local(&mut self, name: &str) {
+        if !self.compiles_locals() || is_qualified(name) || name.contains(['$', '[', '\\']) {
+            return;
+        }
+        let base = split_array_ref(name).map_or(name, |(base, _)| base);
+        self.lvt.intern(base);
+    }
+
+    /// Make the compiled locals of `script` locals of this procedure: the
+    /// literal script of a command C compiles with its command, which this
+    /// compiler leaves the command to run.
+    pub(crate) fn intern_script_locals(&mut self, script: &str) {
+        if !self.compiles_locals() {
+            return;
+        }
+        let config = self.lexer_config();
+        let ir = crate::lowering::lower_proc_body_module_for_bytecode(
+            script,
+            "",
+            self.registry,
+            config,
+            self.dialect,
+            false,
+        );
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+            &ir,
+            false,
+            self.registry,
+            config,
+        );
+        let asm = super::emitter::codegen_function(&cfg.top_level, &[], true, self.registry);
+        for name in asm.lvt.entries() {
+            if asm.lvt.is_source_local(name) {
+                self.intern_compiled_local(name);
+            }
         }
     }
 
@@ -976,7 +1031,8 @@ mod tests {
                 .iter()
                 .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
                 .expect("folded literal push")
-                .push_verbatim,
+                .literal_rep
+                != tcl_bytecode::LiteralRep::Word,
             "a folded command result is already a final Tcl value",
         );
     }
@@ -992,7 +1048,7 @@ mod tests {
             .iter()
             .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
             .expect("dict payload push");
-        assert!(push.push_verbatim);
+        assert_eq!(push.literal_rep, tcl_bytecode::LiteralRep::Verbatim);
         assert!(
             ctx.instructions
                 .iter()

@@ -41,7 +41,7 @@
 // version of this same fact, and the hover snippet below for the
 // developer-facing wording.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
@@ -126,6 +126,8 @@ pub fn spec() -> CommandSpec {
             return_value: "varName's new value when value is given, otherwise its current value.",
         }),
         lowering_hook: Some(LoweringHookId::Set),
+        codegen_hook: Some(CodegenHookId::Set),
+        inline_codegen_hook: Some(InlineCodegenHookId::Set),
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Set)),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

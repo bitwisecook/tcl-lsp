@@ -1,0 +1,120 @@
+==== 8.4 file ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 8.4 stdin ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 8.5 file ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 8.5 stdin ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 8.6 file ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 8.6 stdin ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 9.0 file ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 9.0 stdin ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 9.1 file ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4
+==== 9.1 stdin ====
+set: 3
+quoted: 5
+braced: 1+2
+escaped: 3
+command: 20
+proc set: 9
+proc list: 9 9 3*3 6
+proc return: 9
+catch: 0 0.0 1 {divide by zero}
+statement: 5
+top catch: 4

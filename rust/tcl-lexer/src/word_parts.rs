@@ -675,7 +675,7 @@ fn error_inside_unterminated(
                 command_position = true;
                 in_word = false;
             }
-            b'"' if !in_word => match close_quote_offset_bytes(src, i) {
+            b'"' if !in_word => match close_quote_offset_bytes(src, i, config) {
                 Ok(end) => {
                     i = end + 1;
                     command_position = false;
@@ -721,14 +721,24 @@ fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags) -> bool {
 
 /// The index of the `"` closing the quoted word opening at `at`.
 ///
-/// Steps over `\X` pairs and complete `[…]` substitutions. An **incomplete**
-/// nested substitution is the bracket's error, not the quote's: C reports
-/// `missing close-bracket` for `subst {[list "[foo}`.
-fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, &'static str> {
+/// Steps over `\X` pairs, variable references and complete `[…]`
+/// substitutions, as C parses the word's tokens left to right: an
+/// **incomplete** nested substitution is the bracket's error, not the
+/// quote's (`subst {[list "[foo}` is `missing close-bracket`), and an
+/// unterminated `${` is the variable name's.
+fn close_quote_offset_bytes(
+    src: &[u8],
+    at: usize,
+    config: LexerConfig,
+) -> Result<usize, &'static str> {
     let mut i = at + 1;
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
+            b'$' => match scan_var_ref(src, i, config)? {
+                Some(raw) => i = raw.next,
+                None => i += 1,
+            },
             b'[' => match command_substitution_end_bytes(src, i) {
                 Some(end) => i = end,
                 None => return Err(MISSING_CLOSE_BRACKET),

@@ -95,6 +95,6 @@ fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let syntax = vm.runtime_version().number_syntax();
     match tcl_cmd_core::format::format_cmd_with_syntax(vm, args, syntax) {
         Ok(v) => ok(v),
-        Err(e) => crate::command::completion_from_cmd_error(e),
+        Err(e) => vm.cmd_error(e),
     }
 }

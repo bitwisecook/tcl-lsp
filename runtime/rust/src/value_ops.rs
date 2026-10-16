@@ -146,8 +146,18 @@ impl ValueOps for Interp {
         bytes_to_str(&obj_bytes(*v))
     }
 
+    fn as_chars(&mut self, v: &*mut TclObj) -> Rc<str> {
+        list::read_as_string(*v);
+        self.as_str(v)
+    }
+
+    fn is_untyped_or_string(&mut self, v: &*mut TclObj) -> bool {
+        list::is_untyped_or_string(*v)
+    }
+
     fn char_len(&mut self, v: &*mut TclObj) -> usize {
-        string_char_len(&bytes_to_str(&obj_bytes(*v)), self.runtime_version())
+        let chars = self.as_chars(v);
+        string_char_len(&chars, self.runtime_version())
     }
 
     /// `Tcl_GetWideIntFromObj` through the runtime's one typed-read owner, so a
@@ -179,6 +189,11 @@ impl ValueOps for Interp {
     }
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
+        // A held double is its own value (`Tcl_GetDoubleFromObj`), not its
+        // spelling, which 8.4 rounds to twelve digits.
+        if obj::obj_type_ptr(*v) == &obj::TCL_DOUBLE_TYPE && !obj::double_of(*v).is_nan() {
+            return Ok(obj::double_of(*v));
+        }
         let bytes = obj_bytes(*v);
         let s = String::from_utf8_lossy(&bytes);
         match number::parse_whole(s.trim()) {

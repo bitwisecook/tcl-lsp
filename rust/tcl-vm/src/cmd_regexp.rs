@@ -94,7 +94,11 @@ fn cmd_regexp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .collect();
     let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
     let version = vm.runtime_version();
-    match core_re::regexp::<Vm, CrateEngine>(vm, &refs, version) {
+    let result = core_re::regexp::<Vm, CrateEngine>(vm, &refs, version);
+    if result.is_ok() {
+        convert_regexp_operands(args);
+    }
+    match result {
         Ok(RegexpResult::Inline(v)) => ok(v),
         Ok(RegexpResult::Count { assign, count }) => {
             if let Some(pairs) = assign {
@@ -110,8 +114,31 @@ fn cmd_regexp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `Tcl_RegexpObjCmd` converts its pattern to a regexp and reads its string
+/// by character: past the switches (`-start` taking a word, `--` ending
+/// them), a canonical list in either place is one no longer.
+fn convert_regexp_operands(args: &[Value]) {
+    let mut i = 0;
+    while let Some(word) = args.get(i).map(Value::to_str) {
+        if !word.starts_with('-') {
+            break;
+        }
+        i += 1;
+        if &*word == "--" {
+            break;
+        }
+        if word.len() > 1 && "-start".starts_with(&*word) {
+            i += 1;
+        }
+    }
+    if let [pattern, string, ..] = args.get(i..).unwrap_or_default() {
+        pattern.to_pattern_str();
+        string.to_char_str();
+    }
+}
+
 /// A `regexp`/`regsub` failure with the code the core carries.
-fn regex_err(error: &core_re::RegexError) -> Completion<Value> {
+pub(crate) fn regex_err(error: &core_re::RegexError) -> Completion<Value> {
     let message = String::from_utf8_lossy(&error.message).into_owned();
     match &error.code {
         Some(code) => crate::command::err_with_code(message, code),
@@ -120,9 +147,11 @@ fn regex_err(error: &core_re::RegexError) -> Completion<Value> {
 }
 
 fn cmd_regsub(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // C reads every word as a pattern or by character, converting it to a
+    // string or a regexp: a canonical list among them is one no longer.
     let bytes: Vec<Vec<u8>> = args
         .iter()
-        .map(|v| v.to_str().as_bytes().to_vec())
+        .map(|v| v.to_char_str().as_bytes().to_vec())
         .collect();
     let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
     // The core owns `-command` (option table, prefix split, per-match word

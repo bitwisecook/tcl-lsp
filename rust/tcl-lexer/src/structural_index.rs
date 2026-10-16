@@ -443,12 +443,13 @@ impl Builder<'_> {
     }
 
     /// Scan a `[…]` command-substitution interior starting at `start`
-    /// (just past the `[`).
-    /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `#` at
-    /// command position starts an inert comment, and a `]`
-    /// closes only at `blevel == 0 && !in_quotes`, nested `[` / `]`
-    /// recurse. Records nested structural bracket events and inert spans
-    /// for brace interiors / escapes / `${…}`. Returns (offset,
+    /// (just past the `[`), word by word as
+    /// [`crate::ranges::command_substitution_end`] reads it: a `{` or `"`
+    /// opens a braced or quoted word only at the start of a word, a braced
+    /// word is one inert span, a `#` at command position starts an inert
+    /// comment, and a `]` outside a quoted word closes the substitution;
+    /// nested `[` recurse. Records nested structural bracket events and
+    /// inert spans for brace words / escapes / `${…}`. Returns (offset,
     /// terminated): the offset just past the closing `]` (terminated), or
     /// EOF (unterminated).
     ///
@@ -458,31 +459,32 @@ impl Builder<'_> {
     fn scan_cmd_sub(&mut self, start: usize, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
-        let mut blevel: u32 = 0;
         let mut in_quotes = false;
         let mut command_start = true;
+        let mut newword = true;
         let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
-        // Start of the current inert brace run (when blevel transitions
-        // 0 -> >0), so the whole `{…}` is one inert span.
-        let mut brace_run_start: Option<usize> = None;
         while i < n {
-            if self.bytes[i] == b'#' && command_start && !in_quotes && blevel == 0 {
+            if self.bytes[i] == b'#' && command_start && !in_quotes {
                 i = self.scan_comment_inert(i);
                 continue;
             }
             match self.bytes[i] {
-                b'"' if blevel == 0 => {
+                b'"' if in_quotes || newword => {
+                    // A closing quote ends the word; what follows starts the
+                    // next one, as the shared scanner reads it.
+                    newword = in_quotes;
                     in_quotes = !in_quotes;
                     command_start = false;
                     i += 1;
                 }
-                b'[' if blevel == 0 && !in_quotes && !past_cap => {
+                b'[' if !past_cap => {
                     self.push_event(i, 1);
                     let (next_i, _) = self.scan_cmd_sub(i + 1, depth + 1);
                     i = next_i;
+                    newword = false;
                     command_start = false;
                 }
-                b']' if blevel == 0 && !in_quotes => {
+                b']' if !in_quotes => {
                     self.push_event(i, -1);
                     return (i + 1, true); // terminated
                 }
@@ -491,54 +493,41 @@ impl Builder<'_> {
                     let continuation = is_line_continuation(self.source, i);
                     self.push_inert(i, end, true); // escape pair, always terminated
                     i = end;
+                    newword = !in_quotes && continuation;
                     if !continuation {
                         command_start = false;
                     }
                 }
-                b'$' if !in_quotes && blevel == 0 && self.bytes.get(i + 1) == Some(&b'{') => {
+                b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
                     let (end, terminated) = scan_dollar_brace(self.bytes, i);
                     self.push_inert(i, end, terminated);
                     i = end;
+                    newword = false;
                     command_start = false;
                 }
-                b'{' if !in_quotes => {
-                    if blevel == 0 {
-                        brace_run_start = Some(i);
-                        command_start = false;
-                    }
-                    blevel += 1;
-                    i += 1;
-                }
-                b'}' if !in_quotes => {
-                    blevel = blevel.saturating_sub(1);
-                    i += 1;
-                    if blevel == 0
-                        && let Some(s) = brace_run_start.take()
-                    {
-                        // Mark the closed `{…}` run inert for
-                        // brackets (a `]` inside it never counted).
-                        self.push_inert(s, i, true); // terminated
-                    }
+                b'{' if newword && !in_quotes => {
+                    // A brace word: the whole `{…}` is inert for brackets.
+                    let (end, terminated) = scan_brace_word(self.bytes, i);
+                    self.push_inert(i, end, terminated);
+                    i = end;
+                    newword = true;
                     command_start = false;
                 }
-                b'\n' | b';' if blevel == 0 && !in_quotes => {
+                b'\n' | b';' if !in_quotes => {
                     command_start = true;
+                    newword = true;
                     i += 1;
                 }
-                b' ' | b'\t' | b'\r' | 0x0b | 0x0c if blevel == 0 && !in_quotes => {
+                b' ' | b'\t' | b'\r' | 0x0b | 0x0c if !in_quotes => {
+                    newword = true;
                     i += 1;
                 }
                 _ => {
+                    newword = false;
                     command_start = false;
                     i += 1;
                 }
             }
-        }
-        // Unterminated to EOF. If a brace run was still open, the rest
-        // is verbatim/inert; the open `[` stays open (its event was
-        // pushed by the caller), so an inserted `]` closes it.
-        if let Some(s) = brace_run_start {
-            self.push_inert(s, n, false); // unterminated
         }
         (n, false) // unterminated
     }
@@ -1144,6 +1133,38 @@ pub fn script_is_complete(source: &str) -> bool {
         // backslash-newline line continuation (`a\<nl>`).
         Completeness::Closed => !ends_with_line_continuation(b),
     }
+}
+
+/// Where each chunk `tclsh` evaluates from its stdin ends: it reads lines
+/// until the lines read form complete commands (`Tcl_CommandComplete`) and
+/// evaluates them. An incomplete last chunk never runs, so has no end here.
+#[must_use]
+pub fn stdin_chunk_ends(src: &[u8]) -> Vec<usize> {
+    // Completeness reads only the ASCII structure: each other byte stands as
+    // one letter, keeping every offset.
+    let text: String = src
+        .iter()
+        .map(|&byte| {
+            if byte.is_ascii() {
+                char::from(byte)
+            } else {
+                'a'
+            }
+        })
+        .collect();
+    let line_ends = text
+        .match_indices('\n')
+        .map(|(at, _)| at + 1)
+        .chain(std::iter::once(text.len()));
+    let mut ends = Vec::new();
+    let mut start = 0;
+    for end in line_ends {
+        if end > start && script_is_complete(&text[start..end]) {
+            ends.push(end);
+            start = end;
+        }
+    }
+    ends
 }
 
 /// `true` when `b` ends with a backslash-newline continuation: an odd
@@ -2610,6 +2631,16 @@ while {1} {
     }
 
     // Unified script completeness (`script_is_complete` vs `info complete`).
+
+    #[test]
+    fn stdin_chunks_end_where_the_lines_read_complete_commands() {
+        assert_eq!(
+            stdin_chunk_ends(b"set a 1\nset b {\n2}\nputs \"\xe9"),
+            [8, 19]
+        );
+        assert_eq!(stdin_chunk_ends(b"a; b\nc"), [5, 6]);
+        assert_eq!(stdin_chunk_ends(b""), Vec::<usize>::new());
+    }
 
     #[test]
     fn script_is_complete_matches_reference_pins() {

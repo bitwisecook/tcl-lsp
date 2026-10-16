@@ -21,6 +21,9 @@
 //! Frame 0 is the global call level. Procedure frames own local name tables;
 //! namespace variables instead belong to the stable namespace token's table.
 
+use std::rc::Rc;
+
+use tcl_bytecode::FunctionAsm;
 use tcl_runtime_api::NsId;
 
 use crate::value::Value;
@@ -47,6 +50,9 @@ pub(crate) struct CallFrame {
     /// the shared variable resolver. This is what makes `uplevel`/`upvar` into
     /// a namespace-eval body resolve to namespace variables.
     pub ns_eval: Option<String>,
+    /// The compiled body of the procedure this frame activates, whose locals
+    /// a script compiled in the frame can reach (C's `localCachePtr`).
+    pub compiled_body: Option<Rc<FunctionAsm>>,
     /// A `tailcall` scheduled on this procedure frame from a body `uplevel`
     /// redirected here (C's `framePtr->tailcallPtr`): the namespace its
     /// command resolves in and its words. It replaces the procedure's result
@@ -64,6 +70,7 @@ impl CallFrame {
             proc_name,
             call_argv,
             ns_eval: None,
+            compiled_body: None,
             tailcall: None,
         }
     }

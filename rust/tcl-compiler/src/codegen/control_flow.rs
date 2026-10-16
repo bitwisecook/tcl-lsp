@@ -24,6 +24,7 @@
 use tcl_bytecode::ErrorStackContext;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
+use tcl_registry::release_compilation::CompileWord;
 use tcl_registry::{CommandRegistry, Traits, TryClauseKind};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
@@ -222,7 +223,7 @@ impl CodegenCtx<'_> {
     /// The release compiles none of these in a command it evaluates directly,
     /// and binds a handler or result variable only to a local of a procedure
     /// body; a script `eval` compiles in a procedure frame can bind one of the
-    /// procedure's existing locals, which this compile cannot see.
+    /// procedure's existing locals, which the VM checks as the command runs.
     pub(crate) fn release_compiled(
         &mut self,
         command: &str,
@@ -244,44 +245,153 @@ impl CodegenCtx<'_> {
         if resolved.spec.name != command {
             return None;
         }
-        let hook = resolved.lowering_hook?;
         let binding = self.command_binding_identity(command, resolved.spec.name);
-        let compiled = match hook {
-            LoweringHookId::Catch => self.release_compiles_catch(&words),
-            LoweringHookId::Try => self.release_compiles_try(command, &words, &arg_refs),
-            LoweringHookId::For => {
-                matches!(words.as_slice(), [_, test, next, body]
-                    if test.simple() && next.simple() && body.simple())
+        let mut in_procedure_only = false;
+        let frame_local_words = match resolved.lowering_hook {
+            Some(LoweringHookId::Catch) => {
+                let admitted = self.release_admits_arity(command, args.len());
+                let mask = admitted
+                    .then(|| self.release_compiles_catch(&words))
+                    .flatten();
+                // A procedure body's `catch` makes each variable a local
+                // (`LocalScalarFromToken`: an element names its array's, and
+                // stops the compile), and compiles a literal script with it.
+                if admitted && self.compiles_locals() {
+                    for var in words.iter().skip(1) {
+                        if !var.simple() || is_qualified(var.text) {
+                            break;
+                        }
+                        self.intern_compiled_local(var.text);
+                        if super::values::is_array_ref(var.text) {
+                            break;
+                        }
+                    }
+                }
+                if mask == Some(0)
+                    && let Some(script) = words.first().filter(|script| script.simple())
+                {
+                    self.intern_script_locals(script.text);
+                }
+                mask
             }
+            Some(LoweringHookId::Try) => {
+                let compiled = self.release_compiles_try(command, &words, &arg_refs);
+                if compiled {
+                    self.intern_try_variables(command, &arg_refs);
+                }
+                compiled.then_some(0)
+            }
+            // `TclCompileSwitchCmd` compiles each body of a form it takes,
+            // making its locals, and the command logs no error of its own.
+            Some(LoweringHookId::Switch) => {
+                let compile_words: Vec<CompileWord<'_>> = words
+                    .iter()
+                    .map(|word| CompileWord {
+                        text: word.text,
+                        literal: word.simple(),
+                    })
+                    .collect();
+                let bodies = tcl_registry::release_compilation::compiled_switch_scripts(
+                    self.vm_release(),
+                    &compile_words,
+                )?;
+                if self.compiles_locals() {
+                    for body in bodies {
+                        self.intern_script_locals(body);
+                    }
+                }
+                Some(0)
+            }
+            Some(LoweringHookId::For) => matches!(words.as_slice(), [_, test, next, body]
+                    if test.simple() && next.simple() && body.simple())
+            .then_some(0),
             // `TclCompileWhileCmd` compiles a braced test with any body.
-            LoweringHookId::While => matches!(words.as_slice(), [test, _] if test.simple()),
-            _ => false,
-        };
-        if !compiled {
-            return None;
-        }
-        let shape = Self::invocation_shape(&arg_refs, |index| args[index].1);
+            Some(LoweringHookId::While) => {
+                matches!(words.as_slice(), [test, _] if test.simple()).then_some(0)
+            }
+            _ => {
+                in_procedure_only = !self.compiles_locals();
+                self.release_compiles_each_loop(command, &words)
+            }
+        }?;
+        let shape = self.invocation_shape(&arg_refs, |index| args[index].1);
         self.require_invocation_binding(&binding, &shape);
         Some(tcl_bytecode::ReleaseCompiled {
             script_word: words
                 .first()
                 .is_some_and(|script| !script.simple())
                 .then_some(1),
+            frame_local_words,
+            in_procedure_only,
         })
     }
 
-    /// `TclCompileCatchCmd`: a result or options variable needs a procedure
-    /// local.
-    fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> bool {
-        let Some((_, vars)) = words.split_first() else {
-            return false;
-        };
-        vars.len() <= 2
-            && (vars.is_empty()
-                || (self.compiles_locals()
-                    && vars
-                        .iter()
-                        .all(|var| var.simple() && is_release_local_scalar_name(var.text))))
+    /// `foreach`, `lmap`, `dict for` and `dict map` the release compiles: in
+    /// a procedure body, whose locals their loop variables and the body's
+    /// become, and the command logs no error of its own. A script compiled
+    /// apart from a procedure body compiles one only where it runs as part of
+    /// one ([`tcl_bytecode::ReleaseCompiled::in_procedure_only`]).
+    fn release_compiles_each_loop(
+        &mut self,
+        command: &str,
+        words: &[ReleaseWord<'_>],
+    ) -> Option<u8> {
+        let compile_words: Vec<CompileWord<'_>> = words
+            .iter()
+            .map(|word| CompileWord {
+                text: word.text,
+                literal: word.simple(),
+            })
+            .collect();
+        let compiled = tcl_registry::release_compilation::compiles_control(
+            self.vm_release(),
+            command,
+            &compile_words,
+            true,
+        )?;
+        if !compiled {
+            return None;
+        }
+        if !self.compiles_locals() {
+            return Some(0);
+        }
+        for name in
+            tcl_registry::release_compilation::compiled_loop_variables(command, &compile_words)
+        {
+            self.intern_compiled_local(&name);
+        }
+        if let Some(body) = words.last() {
+            self.intern_script_locals(body.text);
+        }
+        Some(0)
+    }
+
+    /// Whether the release's signature of `command` admits `count` arguments.
+    pub(crate) fn release_admits_arity(&self, command: &str, count: usize) -> bool {
+        self.registry.get(command).is_none_or(|spec| {
+            self.registry
+                .release_arity(spec)
+                .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+        })
+    }
+
+    /// `TclCompileCatchCmd`: a result or options variable needs a local. A
+    /// procedure body creates one; any other script finds only those of the
+    /// procedure frame it runs in, so the answer is the words the VM checks
+    /// there ([`tcl_bytecode::ReleaseCompiled::frame_local_words`]).
+    fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> Option<u8> {
+        let (_, vars) = words.split_first()?;
+        if !vars
+            .iter()
+            .all(|var| var.simple() && is_release_local_scalar_name(var.text))
+        {
+            return None;
+        }
+        if self.compiles_locals() {
+            return Some(0);
+        }
+        // The variables follow the command word and the script.
+        Some((2..2 + vars.len()).fold(0, |mask, word| mask | 1 << word))
     }
 
     /// `TclCompileTryCmd`: every handler's selector and variable list known,
@@ -328,6 +438,38 @@ impl CodegenCtx<'_> {
                 });
             self.compiles_locals() && body && selector && variables
         })
+    }
+
+    /// Make each handler variable of a `try` compiled locals, as
+    /// `TclCompileTryCmd` does in a procedure body.
+    fn intern_try_variables(&mut self, command: &str, arg_refs: &[&str]) {
+        let Some(invocation) = self.registry.try_control_invocation(
+            command,
+            arg_refs,
+            self.registry.own_surface_query(),
+        ) else {
+            return;
+        };
+        let names: Vec<String> = invocation
+            .clauses
+            .iter()
+            .filter_map(|clause| clause.variable_list_index)
+            .filter_map(|index| arg_refs.get(index))
+            .filter_map(|list| tcl_syntax::list::split_list(list).ok())
+            .flatten()
+            .map(|name| name.to_string())
+            .collect();
+        for name in names {
+            self.intern_compiled_local(&name);
+        }
+        // Then it compiles the body and each handler with it.
+        let scripts: Vec<&str> = std::iter::once(invocation.body_index)
+            .chain(invocation.clauses.iter().map(|clause| clause.body_index))
+            .filter_map(|index| arg_refs.get(index).copied())
+            .collect();
+        for script in scripts {
+            self.intern_script_locals(script);
+        }
     }
 
     /// Whether the literal-body `catch` specialiser can preserve the exact
@@ -525,6 +667,31 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(0), Operand::Imm(res_slot)];
     }
 
+    /// Lower the body word that ends the current command for inline emission,
+    /// its statements placed where the word holds them in the source so each
+    /// reports its own command text and line.
+    fn lower_inline_body(&self, body_text: &str) -> crate::ir::Module {
+        let mut body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let offset = self.current_span.and_then(|span| {
+            let command = self.source_text(span);
+            let command = command.trim_end();
+            let braced = format!("{{{body_text}}}");
+            let before = if command.ends_with(&braced) {
+                command.len() - braced.len() + 1
+            } else {
+                command.strip_suffix(body_text)?.len()
+            };
+            u32::try_from(before)
+                .ok()
+                .map(|before| span.start() + before)
+        });
+        if let Some(offset) = offset {
+            crate::lattice_rebase::rebase_script(&mut body_ir.top_level, i64::from(offset));
+        }
+        body_ir
+    }
+
     /// Emit a compiled `dict for {k v} DICT { body }` inline, matching C Tcl's
     /// low-level bytecode: `beginCatch4` → `dictFirst <iter>` → `jumpTrue`
     /// (skip empty) → store k/v → inline body → `dictNext` → `jumpFalse` (loop)
@@ -551,12 +718,16 @@ impl CodegenCtx<'_> {
             return false;
         }
         // The body must be a straight-line sequence of simple commands.
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // As `emit_dict_map`.
+            for name in &vnames {
+                self.intern_compiled_local(name);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -660,13 +831,18 @@ impl CodegenCtx<'_> {
         if !self.is_proc {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // `CompileDictEachCmd` compiles any body, its loop variables
+            // locals of the procedure all the same.
+            for name in &vnames {
+                self.intern_compiled_local(name);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -799,13 +975,19 @@ impl CodegenCtx<'_> {
         if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // `TclCompileDictUpdateCmd` compiles any body with the command,
+            // and its variables are locals of the procedure all the same.
+            self.intern_compiled_local(dict_var);
+            for v in &vars {
+                self.intern_compiled_local(v);
+            }
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -900,13 +1082,15 @@ impl CodegenCtx<'_> {
         if !self.compiles_locals() || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
+        let body_ir = self.lower_inline_body(body_text);
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
         {
+            // As `emit_dict_update`: `TclCompileDictWithCmd` compiles any body.
+            self.intern_compiled_local(dict_var);
+            self.intern_script_locals(body_text);
             return false;
         }
 
@@ -1128,7 +1312,7 @@ impl CodegenCtx<'_> {
         let spec = self
             .registry
             .get(body_cmd)
-            .filter(|s| s.name == body_cmd.as_str());
+            .filter(|s| super::cmd_subst::names_builtin(body_cmd, s.name));
 
         // Commands that need startCommand wrapping.
         let needs_start_cmd = spec.is_some_and(|s| s.traits.contains(Traits::NEEDS_START_CMD));
@@ -1166,7 +1350,9 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::Continue) => {
                 self.emit(Op::CONTINUE, vec![]);
             }
-            Some(InlineCodegenHookId::Expr) if body_args.len() == 1 => {
+            Some(InlineCodegenHookId::Expr)
+                if super::cmd_subst::lone_spelled_expression(body_args) =>
+            {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
                 // statement-position `expr`.
@@ -1956,7 +2142,20 @@ mod tests {
             Some(1)
         );
         assert_eq!(word(false, "catch", &[b]), Some(1));
-        assert_eq!(word(false, "catch", &[b, ("r", false)]), None);
+        // Outside a procedure body the variable must already be a local of
+        // the frame the script runs in.
+        assert_eq!(
+            compiled(false, "catch", &[b, ("r", false)]),
+            Some(tcl_bytecode::ReleaseCompiled {
+                script_word: Some(1),
+                frame_local_words: 0b100,
+                in_procedure_only: false,
+            })
+        );
+        assert_eq!(
+            compiled(true, "catch", &[b, ("r", false)]).map(|c| c.frame_local_words),
+            Some(0)
+        );
         assert_eq!(word(true, "catch", &[b, ("::r", false)]), None);
         assert_eq!(word(true, "catch", &[b, ("a(x)", false)]), None);
         assert_eq!(word(true, "catch", &[b, ("$r", false)]), None);
@@ -2020,7 +2219,11 @@ mod tests {
             ("e", true),
             ("list $r", true),
         ];
-        let literal = Some(tcl_bytecode::ReleaseCompiled { script_word: None });
+        let literal = Some(tcl_bytecode::ReleaseCompiled {
+            script_word: None,
+            frame_local_words: 0,
+            in_procedure_only: false,
+        });
         assert_eq!(compiled(true, "try", &falls_through), literal);
         assert_eq!(compiled(false, "try", &falls_through), None);
         let mut dynamic = falls_through;
@@ -2402,19 +2605,22 @@ mod tests {
         );
     }
 
-    /// `::error` resolves in the registry (leading `::` falls back to
-    /// the bare spec), but the retired dispatch keyed on the raw word —
-    /// the qualified spelling must keep the generic invoke and no
-    /// startCommand wrap.
+    /// `::error` names the global builtin, which C compiles as it compiles
+    /// `error` (`TclCompileErrorCmd`).
     #[test]
-    fn catch_body_qualified_error_stays_generic() {
+    fn catch_body_qualified_error_compiles_as_error() {
         let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_catch_body("::error boom");
-        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        assert!(!ops.contains(&Op::RETURN_IMM), "no inline throw: {ops:?}");
-        assert!(!ops.contains(&Op::START_CMD), "no startCommand: {ops:?}");
-        assert!(ops.contains(&Op::INVOKE_STK1), "generic invoke: {ops:?}");
+        let qualified = {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.emit_catch_body("::error boom");
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<Op>>()
+        };
+        let bare = {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.emit_catch_body("error boom");
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<Op>>()
+        };
+        assert_eq!(qualified, bare);
     }
 
     /// `throw` carries `CATCHABLE_THROW` like `error`, but its first

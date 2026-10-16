@@ -180,19 +180,15 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"namespace eval name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
-    // A single body argument keeps its `Tcl_Obj` so a located literal runs as
-    // `type source` (TIP 280); multiple args concatenate into a dynamic body.
-    if argv.len() == 4 {
-        return interp.ns_eval_obj(&name, argv[3]);
-    }
-    let mut body = Vec::new();
-    for (i, &a) in argv[3..].iter().enumerate() {
-        if i > 0 {
-            body.push(b' ');
+    interp.with_script_evaluation("namespace eval", argv.len() - 3, |interp| {
+        // A single body argument keeps its `Tcl_Obj` so a located literal runs
+        // as `type source` (TIP 280); multiple args concatenate into a dynamic
+        // body.
+        if argv.len() == 4 {
+            return interp.ns_eval_obj(&name, argv[3]);
         }
-        body.extend_from_slice(&obj_bytes(a));
-    }
-    interp.ns_eval(&name, &body)
+        interp.ns_eval(&name, &crate::cmd_eval::join_body(&argv[3..]))
+    })
 }
 
 /// `namespace exists name` — whether the namespace resolves.
@@ -621,7 +617,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let script = inscope_script(argv[3], &argv[4..]);
-    interp.ns_eval(&name, &script)
+    interp.ns_inscope(&name, &script)
 }
 
 /// Build the script `ns_inscope` evaluates: `Tcl_ConcatObj(script, list(tail))`.

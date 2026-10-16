@@ -15,7 +15,7 @@
 
 use tcl_bytecode::{FunctionAsm, Instruction, Op, ReleaseBodyEntry};
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_runtime_api::{CommandEvaluation, CompileService, ReleaseBinding};
+use tcl_runtime_api::{CommandEvaluation, CompileService, ReleaseBinding, ScriptCompileTarget};
 
 fn procedure(environment: &str, source: &str, name: &str) -> FunctionAsm {
     let profile = tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
@@ -56,7 +56,7 @@ fn body_entries(asm: &FunctionAsm) -> Vec<(u32, ReleaseBodyEntry)> {
         .collect()
 }
 
-const NESTED: &str = "proc p {} {switch a {a {foreach i {1 2} {puts [expr {1+1}]}}}; \
+const NESTED: &str = "proc p {c} {if \"$c\" {foreach i {1 2} {puts [expr {1+1}]}}; \
                       puts [string length $i]; catch {puts b} m}";
 
 #[test]
@@ -83,13 +83,14 @@ fn eight_four_stamps_how_it_binds_each_command_and_where_bodies_start() {
         "no command of it is specialised"
     );
 
-    // The `switch` arm encloses the `foreach` body; whether either is a unit
-    // of its own is the activation's to decide.
+    // The body of the `if` 8.4 runs (its test is substituted) encloses the
+    // `foreach` body; whether either is a unit of its own is the activation's
+    // to decide.
     let entries = body_entries(&asm);
     let arm = entries
         .iter()
         .find(|(_, entry)| entry.owner == ReleaseBinding::Invoked)
-        .expect("the switch arm starts");
+        .expect("the if body starts");
     assert_eq!(arm.1.parent, 0);
     let loop_body = entries
         .iter()
@@ -123,4 +124,68 @@ fn a_release_that_revalidates_running_bytecode_gets_no_release_units() {
             && instruction.release_body == 0
             && instruction.release_body_entry.is_none()
     }));
+}
+
+#[test]
+fn eight_four_keeps_a_return_only_outside_a_catch_body() {
+    // A `catch` body holding a `return` runs through the `catch` builtin,
+    // whose activation the VM marks as a catch body.
+    let asm = procedure(
+        "tcl8.4",
+        "proc p {} {catch {if {1} {return x}}; return y}",
+        "::p",
+    );
+    assert_eq!(
+        invoke_of(&asm, "catch {if {1} {return x}}", "catch").release_binding,
+        Some(ReleaseBinding::Compiled)
+    );
+    assert_eq!(
+        boundary_of(&asm, "return y").release_hold,
+        Some(ReleaseBinding::CompiledInProcedureOutsideCatch)
+    );
+}
+
+#[test]
+fn a_directly_evaluated_script_marks_its_own_commands() {
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let source = "set x 1\nif {$x} {puts a}\nproc p {} {puts b}\n";
+    let compile = |evaluation| {
+        BytecodeCompileService::for_profile(profile)
+            .compile_script_for_profile(
+                ScriptCompileTarget {
+                    source,
+                    namespace: "",
+                    evaluation,
+                },
+                profile,
+            )
+            .expect("compiles")
+    };
+    let direct = compile(CommandEvaluation::Direct);
+    let marked: Vec<&str> = direct
+        .top_level
+        .instructions
+        .iter()
+        .filter(|instruction| instruction.script_command)
+        .map(|instruction| instruction.source_cmd_text.as_str())
+        .collect();
+    assert_eq!(
+        marked,
+        ["set x 1", "if {$x} {puts a}", "proc p {} {puts b}"]
+    );
+    assert!(
+        direct.procedures["::p"]
+            .instructions
+            .iter()
+            .all(|instruction| !instruction.script_command),
+        "a procedure body is not the script's"
+    );
+    let compiled = compile(CommandEvaluation::Compiled);
+    assert!(
+        compiled
+            .top_level
+            .instructions
+            .iter()
+            .all(|instruction| !instruction.script_command)
+    );
 }

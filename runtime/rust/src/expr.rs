@@ -226,15 +226,15 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
 /// while the `-errorcode ARITH DOMAIN <description>` is invariant.
 fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8]) -> ExprError {
     let release = tcl_syntax::expr::errors::ambient_release();
+    let value = String::from_utf8_lossy(value);
     let message = tcl_syntax::expr::errors::illegal_operand_message(
         desc,
-        &String::from_utf8_lossy(value),
+        &value,
         side,
         &String::from_utf8_lossy(op),
         release,
     );
-    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release)
-        .unwrap_or_else(|| "NONE".to_owned());
+    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, &value, release);
     ExprError::from_parts(message.into_bytes(), code.into_bytes())
 }
 
@@ -385,8 +385,18 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
         .collect();
-    let nums =
-        nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
+    let nums = nums.ok_or_else(|| {
+        let unread = args
+            .iter()
+            .find(|o| crate::bignum::as_math_num(o.ptr()).is_none())
+            .map_or_else(Vec::new, |o| obj::bytes_of(o.ptr()));
+        let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+            &name.to_ascii_lowercase(),
+            &String::from_utf8_lossy(&unread),
+            tcl_syntax::expr::errors::ambient_release(),
+        );
+        ExprError::from_parts(message.into_bytes(), code.as_bytes().to_vec())
+    })?;
     // The standalone evaluator has no interp to ask for a release, so it uses
     // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
     // interp path resolves it from `Interp::runtime_version` in
@@ -453,7 +463,7 @@ impl ExprOps for TowerOps<'_> {
         // Resolve `func(…)` through the context: the interp routes it to the
         // command table (`::tcl::mathfunc::func`, so overrides/renames win — A3),
         // falling back to the shared built-in dispatch for the standalone case.
-        self.ctx.call_function(function, &args)
+        float_result(self.ctx.call_function(function, &args)?)
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
@@ -472,8 +482,16 @@ impl ExprOps for TowerOps<'_> {
             BinOp::RShift => bignum::shr(lp, rp),
             _ => return Err(ExprError::msg(b"unsupported operator")),
         };
+        let release = tcl_syntax::expr::errors::ambient_release();
+        if op == BinOp::Div
+            && release.raises_float_range_errors()
+            && bignum::read_double(rp) == Some(0.0)
+            && bignum::read_double(lp).is_some()
+        {
+            return Err(arith_err(ArithError::DivideByZero));
+        }
         // `left`/`right` stay alive until here, then release.
-        Ok(Owned::fresh(res.map_err(|e| binop_err(e, op, lp, rp))?))
+        float_result(Owned::fresh(res.map_err(|e| binop_err(e, op, lp, rp))?))
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
@@ -563,7 +581,23 @@ impl ExprOps for TowerOps<'_> {
 /// Evaluate `node` over the tower, resolving `$var`/`[cmd]` via `ctx`.
 pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprError> {
     let mut ops = TowerOps { ctx };
-    eval(node, &mut ops)
+    float_result(eval(node, &mut ops)?)
+}
+
+/// `value`, or the error the release raises for a double it holds that is
+/// not finite ([`tcl_syntax::expr::errors::float_result_error`]).
+fn float_result(value: Owned) -> Result<Owned, ExprError> {
+    let release = tcl_syntax::expr::errors::ambient_release();
+    let refused = if bignum::is_integer(value.ptr()) {
+        None
+    } else {
+        bignum::read_double(value.ptr())
+            .and_then(|f| tcl_syntax::expr::errors::float_result_error(f, release))
+    };
+    match refused {
+        Some((message, code)) => Err(ExprError::with_code(message.as_bytes(), code.as_bytes())),
+        None => Ok(value),
+    }
 }
 
 /// Drive `::tcl::mathop::<op>` over the tower: the shared `tcl_cmd_core::mathop`

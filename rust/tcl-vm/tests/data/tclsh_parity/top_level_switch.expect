@@ -1,0 +1,110 @@
+==== 8.4 file ====
+start
+boom
+    while executing
+"error boom "
+    (procedure "e" line 1)
+    invoked from within
+"e"
+    ("a" arm line 2)
+    invoked from within
+"switch -- a {
+    b {}
+    a {
+        e
+    }
+}"
+    (file "parity.tcl" line 5)
+==== 8.4 stdin ====
+start
+unreached
+--- stderr
+boom
+==== 8.5 file ====
+start
+boom
+    while executing
+"error boom "
+    (procedure "e" line 1)
+    invoked from within
+"e"
+    ("a" arm line 2)
+    invoked from within
+"switch -- a {
+    b {}
+    a {
+        e
+    }
+}"
+    (file "parity.tcl" line 5)
+==== 8.5 stdin ====
+start
+unreached
+--- stderr
+boom
+==== 8.6 file ====
+start
+boom
+    while executing
+"error boom "
+    (procedure "e" line 1)
+    invoked from within
+"e"
+    ("a" arm line 2)
+    invoked from within
+"switch -- a {
+    b {}
+    a {
+        e
+    }
+}"
+    (file "parity.tcl" line 5)
+==== 8.6 stdin ====
+start
+unreached
+--- stderr
+boom
+==== 9.0 file ====
+start
+boom
+    while executing
+"error boom "
+    (procedure "e" line 1)
+    invoked from within
+"e"
+    ("a" arm line 2)
+    invoked from within
+"switch -- a {
+    b {}
+    a {
+        e
+    }
+}"
+    (file "parity.tcl" line 5)
+==== 9.0 stdin ====
+start
+unreached
+--- stderr
+boom
+==== 9.1 file ====
+start
+boom
+    while executing
+"error boom "
+    (procedure "e" line 1)
+    invoked from within
+"e"
+    ("a" arm line 2)
+    invoked from within
+"switch -- a {
+    b {}
+    a {
+        e
+    }
+}"
+    (file "parity.tcl" line 5)
+==== 9.1 stdin ====
+start
+unreached
+--- stderr
+boom

@@ -261,7 +261,7 @@ fn binary_scan(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // The unpack grammar is shared; the variable assignment stays here.
     let values = match tcl_cmd_core::binary::scan(&data, &fmt) {
         Ok(v) => v,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return vm.cmd_error(e),
     };
     for (k, val) in values.iter().enumerate() {
         let Some(var) = vars.get(k) else {
