@@ -1,0 +1,15 @@
+{
+  "lossless": true,
+  "members": [
+    {
+      "path": "tcl_spectcl.list",
+      "sha256": "9021cdf82cee38e0b8fcd8653e968d9516b1484fdcf012f5d6fa81f0a0b77d87",
+      "bytes": 20114,
+      "stored": "tcl_spectcl.list.zst",
+      "stored_sha256": "74db6067bdd9f0079975d7719b4f9d8958b7024c68de539f92ea4b2504e2b45f",
+      "stored_bytes": 5634,
+      "roundtrip_verified": true
+    }
+  ],
+  "scope": "Exact original singleton listing bytes only. Compression grants no new execution acceptance."
+}

@@ -246,6 +246,15 @@ pub fn original_project_procedure_arguments<'a>(
     }) {
         return None;
     }
+    if !crate::command_binding::SourceCommandBindings::original_source_prefix_arity_debts(
+        realm.source_bindings_ref(),
+        input,
+        projection.native_words(),
+    )?
+    .is_empty()
+    {
+        return None;
+    }
     let selected = select_project_procedure_header(
         (source, analysis, offset),
         &tokens,
@@ -633,6 +642,82 @@ mod tests {
                 original_project_procedure_arguments(caller_source, &caller, &command, &duplicate)
                     .is_none()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod arity_prefix_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn project_roles_keep_original_prefix_arity_applicability_separate_from_mutations() {
+        for dialect in ["tcl", "tcl8.6", "jim"] {
+            let library = Analyser::new().analyse(
+                "proc reader {name} {upvar 1 $name cell; set cell 1}",
+                dialect,
+            );
+            let providers = [OriginalProjectProcedureRoles::capture(&library).unwrap()];
+            for (source, expected) in [
+                ("llength ONE; reader retained", true),
+                ("llength ONE TWO; reader retained", false),
+                ("reader retained; llength ONE TWO", true),
+                ("proc unrelated {} {llength ONE TWO}; reader retained", true),
+            ] {
+                let caller = Analyser::new().analyse(source, dialect);
+                let command = crate::segmenter::segment_commands_with_offset_and_config(
+                    source,
+                    0,
+                    caller.body_lexer_config.unwrap(),
+                )
+                .into_iter()
+                .find(|command| command.texts.first().is_some_and(|head| head == "reader"))
+                .unwrap();
+                let input = caller.resolved_input.as_ref().unwrap();
+                let tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(source),
+                    input.lexer_config(),
+                    &command,
+                );
+                let original = crate::registry_invocation::original_native_compiler_words(
+                    &SourceImage::document(source),
+                    tokens.words(),
+                    command.argv[0].span.start(),
+                    input.lexer_config(),
+                )
+                .unwrap();
+                let bindings = caller
+                    .retained_command_realm()
+                    .unwrap()
+                    .source_bindings_ref();
+                let debts = bindings
+                    .original_source_prefix_arity_debts(input, &original)
+                    .unwrap();
+                assert_eq!(debts.is_empty(), expected, "{dialect}: {source}");
+                if let Some(debt) = debts.first() {
+                    assert_eq!(debt.command(), "llength");
+                    assert!(debt.uncertain_operations().is_empty());
+                    assert!(debt.obligations().contains(
+                        &crate::command_binding::SourceCommandTransitionObligation::UnacceptedSourceArity,
+                    ));
+                }
+                let wrong_input = Analyser::new()
+                    .analyse("", if dialect == "jim" { "tcl8.6" } else { "jim" })
+                    .resolved_input
+                    .unwrap();
+                assert!(
+                    bindings
+                        .original_source_prefix_arity_debts(&wrong_input, &original)
+                        .is_none()
+                );
+                assert_eq!(
+                    original_project_procedure_arguments(source, &caller, &command, &providers)
+                        .is_some(),
+                    expected,
+                    "{dialect}: {source}",
+                );
+            }
         }
     }
 }

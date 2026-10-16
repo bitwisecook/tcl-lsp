@@ -235,13 +235,13 @@ impl NumericEnvironment for NativeNumericEnvironment {
         if !Self::supported() {
             return Err(NumericEnvironmentUnavailable::Target);
         }
-        // Reviewed libc target bindings describe this host's integer layout.
+        // Rust's target C types describe this host's integer layout.
         // They grant no foreign Tcl build, object or selected-handler authority.
         Ok(NativeCIntegerAbi {
             char_bits: u8::try_from(u8::BITS).map_err(|_| NumericEnvironmentUnavailable::Target)?,
-            int_bytes: u8::try_from(core::mem::size_of::<libc::c_int>())
+            int_bytes: u8::try_from(core::mem::size_of::<core::ffi::c_int>())
                 .map_err(|_| NumericEnvironmentUnavailable::Target)?,
-            long_bytes: u8::try_from(core::mem::size_of::<libc::c_long>())
+            long_bytes: u8::try_from(core::mem::size_of::<core::ffi::c_long>())
                 .map_err(|_| NumericEnvironmentUnavailable::Target)?,
         })
     }

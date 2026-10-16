@@ -1,0 +1,1791 @@
+{
+  "group": "Current input/fixture/editor source batch: union retained exact controls + actual SourcePath/diagnostic/Standalone/SpecTcl source-owner controls",
+  "total_exact_selectors": 220,
+  "groups": {
+    "tcl_compiler": [
+      "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "interprocedural::tests::param_traits_inferred",
+      "interprocedural::tests::call_by_name_param_traits_inferred",
+      "interprocedural::tests::forwarded_to_callee_detected",
+      "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+      "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+      "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+      "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+      "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+      "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+      "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+      "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+      "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+      "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+      "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+      "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+      "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+      "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+      "command_binding::declaration_layout::tests::original_parameter_source_scope_keeps_allocated_and_declared_owners_separate",
+      "registry_invocation::authored_source_bodies::tests::conditional_authored_scalar_geometry_cannot_supply_a_definite_ssa_definition",
+      "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+      "compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency",
+      "parsing::spectcl_source::tests::pack_source_major_query_keeps_numeric_and_supported_questions_separate",
+      "parsing::spectcl_source::tests::pack_source_includes_retain_actual_rows_config_and_wrapped_unicode_extent",
+      "parsing::spectcl_source::tests::pack_source_includes_preserve_whole_config_and_nested_bom_content",
+      "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows",
+      "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image"
+    ],
+    "tcl_registry": [
+      "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening",
+      "state_transition::tests::logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata",
+      "resolved_invocation::logical_source_alias_projection_tests::conditional_no_level_alias_card_keeps_generic_layout_and_target_debt",
+      "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook",
+      "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises"
+    ],
+    "tcl_lsp_core": [
+      "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "diagnostic_report::tests::standalone_findings_keep_actual_file_boundary_for_directives_and_unit",
+      "diagnostic_report::tests::standalone_optimiser_refuses_missing_or_foreign_analysis_context",
+      "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+      "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+      "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+      "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+      "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy",
+      "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths",
+      "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri",
+      "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace",
+      "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+      "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate",
+      "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header",
+      "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress",
+      "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses",
+      "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar",
+      "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend",
+      "tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans",
+      "tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration",
+      "tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source",
+      "source_structure::tests::commands_only_capture_keeps_current_original_regions_without_token_inventory",
+      "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+      "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "references::tests::document_highlights_var_records_write_at_definition",
+      "code_lens::tests::lens_per_class",
+      "code_lens::tests::lens_counts_class_constructor_calls",
+      "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "code_lens::tests::lens_reports_zero_for_unused_property",
+      "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "code_lens::tests::lens_counts_namespaced_class_method",
+      "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "hover::tests::hover_on_proc_qualified_name",
+      "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "hover::tests::hover_on_dollar_var_returns_var_text",
+      "hover::tests::irules_command_hover_lists_valid_events",
+      "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "definition::tests::alias_lookup_accepts_qualified_form",
+      "document_links::tests::pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack",
+      "document_links::tests::pack_include_navigation_withholds_dynamic_and_nested_file_rows",
+      "document_links::tests::a_pack_include_row_links_to_its_sibling_file",
+      "document_links::tests::a_pack_include_does_not_expand_a_tilde",
+      "document_links::tests::a_pack_include_with_path_structure_is_not_a_link",
+      "document_links::tests::a_surface_roster_include_is_not_a_file_link",
+      "document_links::tests::an_ordinary_tcl_include_call_is_not_a_link",
+      "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+      "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+      "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+      "vfs::document_uri_path_tests::virtual_issuer_keeps_authority_counted_data_and_refuses_invalid_uri",
+      "vfs::document_uri_path_tests::registration_is_stronger_and_old_receipt_cannot_revive_or_cross_provider",
+      "vfs::document_uri_path_tests::original_and_service_aliases_share_actual_row_and_withdraw_together",
+      "vfs::document_uri_path_tests::publication_holds_the_actual_mapping_until_continuation_returns",
+      "vfs::document_uri_path_tests::different_counted_path_spelling_is_a_new_registration",
+      "vfs::actual_source_path_origin_tests::virtual_original_path_is_provider_issued_and_never_a_native_path_grant",
+      "vfs::actual_source_path_origin_tests::actual_native_source_path_keeps_original_spelling_without_uri_reconstruction",
+      "package_resolver::tests::auto_qualify_differential_against_tclsh",
+      "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+      "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex"
+    ],
+    "tcl_lsp_db": [
+      "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail"
+    ],
+    "tcl_lsp_server": [
+      "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+      "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path",
+      "tests::canonical_file_uri_preserves_a_posix_question_mark_segment",
+      "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+      "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data",
+      "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data",
+      "uri_norm::tests::a_non_drive_path_is_not_touched",
+      "uri_norm::tests::a_raw_non_ascii_path_is_repaired",
+      "uri_norm::tests::a_relative_path_has_no_rooted_file_uri",
+      "uri_norm::tests::a_repaired_uri_is_canonicalised_too",
+      "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give",
+      "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded",
+      "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path",
+      "uri_norm::tests::a_vscode_form_uri_is_already_canonical",
+      "uri_norm::tests::a_well_formed_uri_needs_no_repair",
+      "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case",
+      "uri_norm::tests::a_windows_extended_drive_uri_is_repaired",
+      "uri_norm::tests::an_unencoded_space_is_repaired",
+      "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure",
+      "uri_norm::tests::canonicalisation_is_idempotent",
+      "uri_norm::tests::existing_escapes_survive_a_repair",
+      "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path",
+      "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment",
+      "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted",
+      "uri_norm::tests::params_are_canonicalised_not_only_repaired",
+      "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears",
+      "uri_norm::tests::path_authority_split_matches_vscode_uri_file",
+      "uri_norm::tests::percent_escape_hex_is_pinned_upper_case",
+      "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata",
+      "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs",
+      "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority",
+      "tests::command_head_gate_distinguishes_head_from_argument",
+      "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+      "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+      "tests::cross_document_definition_resolves_sibling_proc",
+      "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+      "tests::resource_analyser_inputs_apply_every_field",
+      "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "tests::position_encoding_negotiation",
+      "tests::lsp_position_helpers_use_utf16_columns",
+      "original_document_path_admission_tests::source_path_admission_distinguishes_nonfile_unicode_and_refused_file_data",
+      "original_document_path_admission_tests::refused_open_and_unknown_change_publish_no_document_source_or_index",
+      "original_document_path_admission_tests::refused_known_change_retains_exact_prior_document_and_index",
+      "original_document_path_admission_tests::foreign_live_receipt_is_terminal_before_change_or_fresh_cache_reuse",
+      "original_document_path_admission_tests::unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis",
+      "original_document_path_admission_tests::disk_unavailability_preserves_prior_rows_but_genuine_missing_file_retires",
+      "original_document_path_admission_tests::disk_replacement_and_removal_preflight_is_atomic_on_refusal",
+      "original_document_path_admission_tests::malformed_uri_never_reads_the_valid_replacement_character_neighbour",
+      "original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis",
+      "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert",
+      "original_document_path_admission_tests::admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows",
+      "original_document_path_admission_tests::missing_scan_receipt_cannot_retire_a_remapped_uri",
+      "original_document_path_admission_tests::opening_waiting_for_index_cannot_retire_after_mapping_withdrawal",
+      "original_document_path_admission_tests::closed_cached_source_keeps_its_original_mapping_until_genuine_republication",
+      "original_document_path_admission_tests::equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cached_source",
+      "original_document_path_admission_tests::actual_virtual_scan_path_refuses_a_stronger_uri_alias_to_another_path",
+      "current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports",
+      "current_diagnostics::tests::current_diagnostics_cannot_reborrow_a_replaced_equal_path_publication",
+      "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+      "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+      "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle",
+      "current_diagnostics::tests::issued_publication_id_cannot_be_replaced_by_the_actual_legacy_pull_handler",
+      "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+      "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency",
+      "current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context"
+    ]
+  },
+  "expected_group_counts": {
+    "tcl_compiler": 46,
+    "tcl_registry": 5,
+    "tcl_lsp_core": 95,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 68
+  },
+  "execution_order": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::original_parameter_source_scope_keeps_allocated_and_declared_owners_separate",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "state_transition::tests::logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_scalar_geometry_cannot_supply_a_definite_ssa_definition",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::logical_source_alias_projection_tests::conditional_no_level_alias_card_keeps_generic_layout_and_target_debt",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_findings_keep_actual_file_boundary_for_directives_and_unit",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_optimiser_refuses_missing_or_foreign_analysis_context",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_a_posix_question_mark_segment",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_non_drive_path_is_not_touched",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_raw_non_ascii_path_is_repaired",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_relative_path_has_no_rooted_file_uri",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_repaired_uri_is_canonicalised_too",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_vscode_form_uri_is_already_canonical",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_well_formed_uri_needs_no_repair",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_extended_drive_uri_is_repaired",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::an_unencoded_space_is_repaired",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::canonicalisation_is_idempotent",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::existing_escapes_survive_a_repair",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_canonicalised_not_only_repaired",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::path_authority_split_matches_vscode_uri_file",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::percent_escape_hex_is_pinned_upper_case",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::tests::commands_only_capture_keeps_current_original_regions_without_token_inventory",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_distinguishes_head_from_argument",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::cross_document_definition_resolves_sibling_proc",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_records_write_at_definition",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_per_class",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_class_constructor_calls",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_unused_property",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_namespaced_class_method",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_proc_qualified_name",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_dollar_var_returns_var_text",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::irules_command_hover_lists_valid_events",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::resource_analyser_inputs_apply_every_field",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::position_encoding_negotiation",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::lsp_position_helpers_use_utf16_columns",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_major_query_keeps_numeric_and_supported_questions_separate",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_retain_actual_rows_config_and_wrapped_unicode_extent",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_preserve_whole_config_and_nested_bom_content",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::pack_include_navigation_withholds_dynamic_and_nested_file_rows",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_row_links_to_its_sibling_file",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_does_not_expand_a_tilde",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_with_path_structure_is_not_a_link",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_surface_roster_include_is_not_a_file_link",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::an_ordinary_tcl_include_call_is_not_a_link",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+      "purpose": "Exact retained source control; preserve original selector/assertions/budget"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::source_path_admission_distinguishes_nonfile_unicode_and_refused_file_data",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 47,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::refused_open_and_unknown_change_publish_no_document_source_or_index",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 80,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::refused_known_change_retains_exact_prior_document_and_index",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 124,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::foreign_live_receipt_is_terminal_before_change_or_fresh_cache_reuse",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 199,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 233,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::disk_unavailability_preserves_prior_rows_but_genuine_missing_file_retires",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 281,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::disk_replacement_and_removal_preflight_is_atomic_on_refusal",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 362,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::malformed_uri_never_reads_the_valid_replacement_character_neighbour",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 408,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 436,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 497,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 575,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::missing_scan_receipt_cannot_retire_a_remapped_uri",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 624,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::opening_waiting_for_index_cannot_retire_after_mapping_withdrawal",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 691,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::closed_cached_source_keeps_its_original_mapping_until_genuine_republication",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 751,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cached_source",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 806,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::actual_virtual_scan_path_refuses_a_stronger_uri_alias_to_another_path",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "source_line": 884,
+      "source_sha256": "f28c671e862bcc1e8d1506b9aef11b98fb358c0f20dcc49eb0678312569723ca"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 499,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_cannot_reborrow_a_replaced_equal_path_publication",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 594,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 655,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 740,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 825,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::issued_publication_id_cannot_be_replaced_by_the_actual_legacy_pull_handler",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 911,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 1020,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 1087,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context",
+      "purpose": "Actual provider/source/currentness/absence/ABA controls; no Native or host acceptance beyond reached target",
+      "source_path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "source_line": 1122,
+      "source_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::virtual_issuer_keeps_authority_counted_data_and_refuses_invalid_uri",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1056,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::registration_is_stronger_and_old_receipt_cannot_revive_or_cross_provider",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1077,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::original_and_service_aliases_share_actual_row_and_withdraw_together",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1110,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::publication_holds_the_actual_mapping_until_continuation_returns",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1139,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::different_counted_path_spelling_is_a_new_registration",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1175,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::actual_source_path_origin_tests::virtual_original_path_is_provider_issued_and_never_a_native_path_grant",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1213,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "vfs::actual_source_path_origin_tests::actual_native_source_path_keeps_original_spelling_without_uri_reconstruction",
+      "purpose": "Actual Native/Virtual SourceStore ownership, aliases/generations and publication lease",
+      "source_path": "rust/tcl-lsp-core/src/vfs.rs",
+      "source_line": 1229,
+      "source_sha256": "32f5b41f25237700d058611eb53ad6838c5db4758dd52d5fcc981c9a076d4031"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::auto_qualify_differential_against_tclsh",
+      "purpose": "Retained original differential with mandatory original pinned9.0/8.6 provider lanes, genuine complete raw process result",
+      "source_path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+      "source_line": null,
+      "source_sha256": "951d2cc99bc5ec6d95474a046be1ef2678dfcd93fe3108f275bcc91a28a65c3e"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+      "purpose": "Retained original differential with mandatory original pinned9.0/8.6 provider lanes, genuine complete raw process result",
+      "source_path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+      "source_line": null,
+      "source_sha256": "951d2cc99bc5ec6d95474a046be1ef2678dfcd93fe3108f275bcc91a28a65c3e"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex",
+      "purpose": "Retained original differential with mandatory original pinned9.0/8.6 provider lanes, genuine complete raw process result",
+      "source_path": "rust/tcl-lsp-core/src/package_resolver/tests.rs",
+      "source_line": null,
+      "source_sha256": "951d2cc99bc5ec6d95474a046be1ef2678dfcd93fe3108f275bcc91a28a65c3e"
+    }
+  ],
+  "test_timeout_seconds": 180,
+  "listing_timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+    },
+    "unset": []
+  },
+  "source_evidence": [
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3712,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 3727,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2590,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1781,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 1992,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2025,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2061,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "source_path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+      "source_line": 2076,
+      "source_sha256": "bea0f72d04da369d9b0238ec4b9e02bd4577a5af05e1c537808026cc380d1bd1",
+      "purpose": "Actual ProcDef source parameter traits and separate caller-frame level; original formal/fullconfig/frame/lookup/callback refusals"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "source_path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "source_line": 14083,
+      "source_sha256": "080a05c33096df7b510c44246316ce80cbf5fabcfe9709d5a77f68e6e9fc41c1",
+      "purpose": "Logical source local declaration/link reporting without executed alias"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "source_path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+      "source_line": 974,
+      "source_sha256": "0766d1ca0679dc14a58f39f8ab3cc80963b5fe4f2260f1dc4b20b9eae0adc501",
+      "purpose": "Genuine scalar source scope/config and stronger Native refusal dependency"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7401,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7112,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7262,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7668,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7685,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected",
+      "source_path": "rust/tcl-compiler/src/interprocedural.rs",
+      "source_line": 7760,
+      "source_sha256": "05ba23d1d2d457a32ecd777df568bbb31afb1f1a020dbbba820caec796967f69",
+      "purpose": "Formal/alias/callee summary dependency controls only; no CLI end-product or Installed inventory adoption"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2213,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2240,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Original call/formal identity and captured-prefix Written anchor separation"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2515,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Actual expanded argv children, optional/rest formal binding topology"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2798,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "source_path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "source_line": 2837,
+      "source_sha256": "5c65110a404413cd118c4231d13d39678ea5d2228d6f47e495ca965188b2c46d",
+      "purpose": "Logical retained current input/context and exact original nested/prefix ordinals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10194,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10219,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10248,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "Selected actual declaration ProcDef roles after report maps cleared; fullsource currency and namespace occupancy"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "source_path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "source_line": 10283,
+      "source_sha256": "11058c1546ba379977857d143e27812a9b60f9a4525508c20fbaac22ee9cb6c2",
+      "purpose": "ProcDef VarRead/Write roles projected through actual original formal/expanded argv owner"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 990,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1115,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1281,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1156,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "Actual original call/frame declaration joins; alias prefix ordinal and noncaller/unrelated namespace refusals"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1945,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1960,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "source_path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_line": 1992,
+      "source_sha256": "775651a5b142c826d526294daccc974c43d57689099009e59631fc40713230cc",
+      "purpose": "User-visible definition/references and separate actual caller-frame condition"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 59,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 206,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 255,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 420,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    },
+    {
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "source_path": "rust/tcl-lsp-db/src/project_token_inputs/tests.rs",
+      "source_line": 471,
+      "source_sha256": "f1eea79f9594e929b20e664505e205ccabc344ec8f98231f226ea23283ad13ff",
+      "purpose": "Per-file original source/formal/Registry configuration at project semantic tokens/hints; stale/foreign/unavailable barriers"
+    }
+  ],
+  "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+  "predecessor_binding": {
+    "manifest": "/workspace/naming-validation/lsp-source-scope-successor/selection.json",
+    "sha256": "3514eec7bce38bba75e550ed32c2137a0e256de4b90e71afd7ebdfce64fddd98",
+    "selectors_retained": 43
+  },
+  "source_evidence_note": "Exact new selector source positions/hashes and retained selection provenance. Each selector must list exactly once before run; old assertions/budgets unchanged.",
+  "predecessor_bindings": [
+    {
+      "path": "/workspace/naming-validation/lsp-reviewed-82e016-retry4/selection.json",
+      "sha256": "73cb433d1f63d71d1ba7edd996c5a00f4790eba2f60087d3898e85fb79d62104",
+      "count": 57
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-libs-a49f3/retained-selection.json",
+      "sha256": "863fc17ab891e949a42a0f2a6446f14793942be6b1b6b2765a273fd9de7871bb",
+      "count": 65
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-libs-a49f3/new10-selection.json",
+      "sha256": "1cf9b9cca15074b95110de3d5be2ebf27365b993ccc82201b0d9c6ada37a030e",
+      "count": 10
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-libs-a49f3/delta-selection.json",
+      "sha256": "46d370dc4e50f43db4b5b0eb891c46520f179e9a8e3294e693b2d0ddcccef8d8",
+      "count": 45
+    },
+    {
+      "path": "/tmp/compiler-standalone-spectcl-replay-delta-v1/selection.json",
+      "sha256": "00d220c3b9b2433917a3f5c10661f1e36715c395583208e131adc54c6e729399",
+      "count": 25
+    }
+  ],
+  "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included."
+}

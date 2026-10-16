@@ -1,0 +1,6 @@
+
+running 1 test
+test inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3208 filtered out; finished in 0.57s
+

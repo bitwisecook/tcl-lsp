@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames ... 
+thread 'analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames' (195974) panicked at rust/tcl-compiler/src/analyser/variable_alias_templates.rs:309:36:
+genuine Logical source alias: proc p {i} {upvar ::N::array($i) local; puts $local}; proc other {} {puts $local}: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10264 filtered out; finished in 4.44s
+

@@ -25,7 +25,9 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, SourceSegmentationPurpose, TokenType};
+use tcl_lexer::{
+    LeadingBom, LexerConfig, SourceImage, SourceMap, SourceSegmentationPurpose, TokenType,
+};
 
 use super::syntax::{build::build_document, segment::segments_from_document};
 use crate::segmenter::SegmentedCommand;
@@ -49,6 +51,25 @@ pub fn pack_source_lexer_config(purpose: SourceSegmentationPurpose) -> LexerConf
 pub fn pack_source_statements(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     let (document, _warnings) = build_document(source, config);
     segments_from_document(document, &SourceMap::new(source))
+}
+
+// Navigation needs the original complete-command prefix, rather than the loader's
+// deliberately recovered rows. The shared parse-cut owner supplies the ordinal;
+// the original CST rows and full configuration remain the SpecTcl source owner.
+fn complete_pack_source_statements(
+    source: &str,
+    config: LexerConfig,
+) -> Option<Vec<SegmentedCommand>> {
+    let image = SourceImage::document(source);
+    let cut = tcl_lexer::first_parse_cut_image_checked(&image, config).ok()?;
+    let mut rows = pack_source_statements(source, config);
+    if let Some(cut) = cut {
+        if cut.command >= rows.len() {
+            return None;
+        }
+        rows.truncate(cut.command);
+    }
+    Some(rows)
 }
 
 /// Whether a captured source word is already its value on the static loader path.
@@ -188,6 +209,14 @@ pub fn first_pack_source_body(source: &str, config: LexerConfig) -> Option<PackS
     let header = pack_source_statements(source, config)
         .into_iter()
         .find(|row| row.name() == "speclib")?;
+    pack_source_body(source, config, header)
+}
+
+fn pack_source_body(
+    source: &str,
+    config: LexerConfig,
+    header: SegmentedCommand,
+) -> Option<PackSourceBody<'_>> {
     let body = header.argv.get(3)?;
     let base = body.span.start() as usize + usize::from(body.content_offset);
     let end = body.span.end() as usize;
@@ -262,7 +291,12 @@ impl<'a> PackSourceInclude<'a> {
 /// file target. This is not a complete include inventory or registration result.
 #[must_use]
 pub fn pack_source_includes(source: &str, config: LexerConfig) -> Vec<PackSourceInclude<'_>> {
-    let Some(body) = first_pack_source_body(source, config) else {
+    let Some(header) = complete_pack_source_statements(source, config)
+        .and_then(|rows| rows.into_iter().find(|row| row.name() == "speclib"))
+    else {
+        return Vec::new();
+    };
+    let Some(body) = pack_source_body(source, config, header) else {
         return Vec::new();
     };
     let pack = &body.header;
@@ -279,10 +313,13 @@ pub fn pack_source_includes(source: &str, config: LexerConfig) -> Vec<PackSource
     {
         return Vec::new();
     }
+    let Some(rows) = complete_pack_source_statements(body.text(), config.nested()) else {
+        return Vec::new();
+    };
     let body_base = body.base;
     let body = Arc::new(body);
     let mut includes = Vec::new();
-    for row in body.statements() {
+    for row in rows {
         if !is_pack_file_include_row(&row) || !literal_statement(&row) {
             continue;
         }
@@ -418,5 +455,31 @@ mod tests {
         // Braced sigils are literal file-name data; the same unbraced word is dynamic.
         let source = "speclib p 2.0 {include {$file}}";
         assert_eq!(pack_source_includes(source, config)[0].name(), "$file");
+    }
+
+    #[test]
+    fn pack_source_navigation_keeps_complete_prefix_without_loader_recovery() {
+        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
+        let malformed = "speclib p 2.0 {include {unclosed}";
+        // The loader's original recovery projection remains available. It cannot
+        // supply a navigation target without a complete original header.
+        assert!(first_pack_source_body(malformed, config).is_some());
+        assert!(!pack_source_statements(malformed, config).is_empty());
+        assert!(pack_source_includes(malformed, config).is_empty());
+
+        for source in [
+            "speclib p 2.0 {include kept}; trailing {unclosed",
+            "speclib p 2.0 {include kept; include \"unclosed}",
+        ] {
+            assert_eq!(
+                pack_source_includes(source, config)
+                    .iter()
+                    .map(PackSourceInclude::name)
+                    .collect::<Vec<_>>(),
+                ["kept"],
+                "{source}"
+            );
+        }
+        assert!(pack_source_includes("speclib p 2.0 {include \"unclosed}", config).is_empty());
     }
 }

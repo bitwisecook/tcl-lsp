@@ -1,0 +1,26 @@
+{
+  "source_head": "a372766c36e0585b16c7dd4501f0741585b894c9",
+  "rust_diff_sha256": "17d335bbc4546ba0cbb5bf6c6cc82f41d8d5a2f474aa6aa84920da38baa4a458",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 38998,
+  "utc": "2026-10-16T17:28:24.710758+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "SourcePath0f+d8/completionV7/V8 ordinary compiler fixes, explicit Standalone complete-input purpose9476/5077, genuine shared fixtureDBingress, pinned oracle/owned temporary fixtures, actual Zed Registry projection, TclOO V4 configured examples and packV6 editor integration. Source identity, original provider receipts, actual report ID/delivery, full configured input/Registry and None availability retained; paused Runtime/VM/BIGIP migrations unchanged. SourcePath new native/browser/WASI controls require distinct actual target validation.",
+  "exit_code": 0,
+  "build_seconds": 472.309,
+  "input_after_count": 38998,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-16T17:36:17.020072+00:00"
+}

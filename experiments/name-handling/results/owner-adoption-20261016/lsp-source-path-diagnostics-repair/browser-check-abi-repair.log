@@ -1,0 +1,89 @@
+    Checking tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+    Checking scopeguard v1.2.0
+    Checking lock_api v0.4.14
+    Checking tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+    Checking crossbeam-utils v0.8.23
+    Checking parking_lot_core v0.9.12
+    Checking tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tracing-attributes v0.1.31
+    Checking tracing-core v0.1.36
+   Compiling typeid v1.0.3
+   Compiling portable-atomic v1.15.0
+   Compiling thiserror v1.0.69
+   Compiling anyhow v1.0.104
+    Checking tracing v0.1.44
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling thiserror-impl v1.0.69
+   Compiling httparse v1.10.1
+    Checking tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+    Checking parking_lot v0.12.5
+    Checking crossbeam-queue v0.3.14
+    Checking tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+    Checking hashlink v0.12.2
+    Checking inventory v0.3.24
+   Compiling salsa-macros v0.28.5
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+    Checking bytes v1.12.1
+    Checking xxhash-rust v0.8.19
+    Checking tower-layer v0.3.3
+    Checking thin-vec v0.2.20
+    Checking salsa-macro-rules v0.28.5
+    Checking boxcar v0.2.14
+    Checking percent-encoding v2.3.2
+    Checking intrusive-collections v0.10.3
+    Checking tower-service v0.3.3
+    Checking hashbrown v0.14.5
+    Checking sync_wrapper v1.0.2
+    Checking log v0.4.34
+    Checking tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Checking async-codec-lite v0.0.2
+    Checking tower v0.5.3
+    Checking dashmap v6.2.1
+    Checking salsa v0.28.5
+    Checking ls-types v0.0.6
+    Checking futures v0.3.34
+    Checking chrono v0.4.45
+   Compiling tokio-macros v2.7.2
+    Checking tokio v1.53.2
+    Checking tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+    Checking tower-lsp-server v0.23.0
+    Checking tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+    Checking tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+    Checking f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+    Checking tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+    Checking wasm-bindgen-futures v0.4.79
+    Checking gloo-timers v0.4.0
+    Checking tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+warning: methods `publish_disk_results`, `publish_disk_results_while_rehoming_locked`, `original_declaration_reference_locations`, `batch_reindex_from_disk`, `reindex_index_from_disk`, and `merge_workspace_scan_results` are never used
+     --> /workspace/tcl-lsp/rust/tcl-lsp-server/src/lib.rs:10883:14
+      |
+ 9977 | impl Backend {
+      | ------------ methods in this implementation
+...
+10883 |     async fn publish_disk_results(
+      |              ^^^^^^^^^^^^^^^^^^^^
+...
+10949 |     async fn publish_disk_results_while_rehoming_locked<'a>(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+13837 |     async fn original_declaration_reference_locations(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+14505 |     async fn batch_reindex_from_disk(&self, uris: &[Uri]) -> DocumentSourceResult<()> {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^
+...
+14581 |     async fn reindex_index_from_disk(&self, uri: &Uri) -> DocumentSourceResult<()> {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^
+...
+26317 |     async fn merge_workspace_scan_results(
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib) generated 1 warning
+    Checking console_error_panic_hook v0.1.7
+    Checking tcl-lsp-server-wasm v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server-wasm)
+    Finished `dev` profile [unoptimized] target(s) in 50.73s

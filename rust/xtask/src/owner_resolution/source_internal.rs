@@ -155,6 +155,7 @@ fn crate_root(source: &str) -> Result<PathBuf, String> {
 }
 
 impl CrateModules {
+    #[cfg(test)]
     fn load(root: &Path, crate_root: &Path, required: [&str; 2]) -> Result<Self, String> {
         Self::load_with_scope(root, crate_root, required, false)
     }

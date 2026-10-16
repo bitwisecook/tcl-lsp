@@ -1,0 +1,112 @@
+{
+  "status": "SELECTION_CAPTURE_ONLY_NO_ORDINARY_ACCEPTANCE",
+  "selection": "Actual native SpecTcl loader controls for shared source owner",
+  "manifest_sha256": "3c240eb4280be903e5fbdf08e5bd2c2811a302b2ed890e51bb416216315da4ab",
+  "partial_target": null,
+  "expected_selected_count": 3,
+  "full_group_expected_count": 3,
+  "artifacts": {
+    "tcl_spectcl": {
+      "path": "/workspace/naming-validation/lsp-spectcl-e0612/frozen-binaries/tcl_spectcl-e9ce37becc1a066b",
+      "sha256": "77cfbc8784b95b8974189eaea34e78d5e96549d35638de0ce105a4cfe3d9ab2c",
+      "bytes": 137324720
+    }
+  },
+  "environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "runs": [
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-spectcl-e0612/frozen-binaries/tcl_spectcl-e9ce37becc1a066b",
+        "loader::tests::original_pack_include_navigation_and_loader_share_name_and_body_rules",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.007724695002252702,
+      "log": "test-001.log",
+      "log_sha256": "ee42ca7b691ac7497937144059eb14cafdc1334353eb9b27af4a108662d19ba6",
+      "target": "tcl_spectcl",
+      "selector": "loader::tests::original_pack_include_navigation_and_loader_share_name_and_body_rules",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-spectcl-e0612/frozen-binaries/tcl_spectcl-e9ce37becc1a066b",
+        "loader::tests::include_splices_a_fragment_under_the_determinism_contract",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.007642142001714092,
+      "log": "test-002.log",
+      "log_sha256": "67ed9f7d4424e20cec7960480eb835e97a31eb00c6673eccf007db7e05973de3",
+      "target": "tcl_spectcl",
+      "selector": "loader::tests::include_splices_a_fragment_under_the_determinism_contract",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-spectcl-e0612/frozen-binaries/tcl_spectcl-e9ce37becc1a066b",
+        "loader::tests::original_pack_source_facade_separates_file_prologue_from_block_content",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.007639397997991182,
+      "log": "test-003.log",
+      "log_sha256": "3915b734f01407fcf5b6b16275f8813de99efe921c86d18716c3803090e6b620",
+      "target": "tcl_spectcl",
+      "selector": "loader::tests::original_pack_source_facade_separates_file_prologue_from_block_content",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    }
+  ],
+  "errors": [],
+  "artifact_drift": {},
+  "listed_only": false,
+  "selected_vector_complete": true,
+  "full_group_complete": true,
+  "passed_count": 3,
+  "failed_count": 0
+}

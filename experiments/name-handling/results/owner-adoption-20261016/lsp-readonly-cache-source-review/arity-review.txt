@@ -1,0 +1,14 @@
+Independent final source/contract review: CLEAR
+Reviewer /root/sol_compiler
+Exact source V3 SHA256 b363bbb6ad4cedd30917dff87b349913d0adf1797a0fcadd76f40ff332aebb10
+Exact contract V2 SHA256 7e91b65548070fd8c058988bedd17007d3145bee54ecdcd6cfdf327c5ce060e9
+
+Carries forward bounded semantic review of c64c at /tmp/sol-project-arity-debt-v1/independent-sol-compiler-review.txt and exact comment-only V2 verification at /tmp/sol-project-arity-debt-v2/independent-sol-compiler-review.txt. V3 differs only by genuine equivalent UFCS invocation at the actual project adopter, verified independently using released delta472f94af166be41ccd7ef6d56e8fe8d03974f54d2e79025bd4cec4c900a22f1c. Actual realm source bindings, exact analysis input, and projection.native_words remain identical; no authority/algorithm change.
+
+All four source and three contract manifest before/after hashes, exact released patch hashes, independent fuzz-zero applications and afterimage hashes PASS. Details /tmp/sol-project-arity-debt-v3/independent-sol-compiler-verification.json. Original DB tests/modules were independently verified unchanged during V1 review. Main divergences in shared source_transition_advice/body_effects must be unioned by narrow hunks, never full-file replacement.
+
+Scope: this is an extra readonly Source applicability veto. Real selected ordinary Registry schema arity Some(false) creates explicit debt under the authentic source invocation; it is not mutation, reached RuntimeError, successful call or Normal. Root/original/deferred ordinary schema paths and conditional branch unions retain debt; conflicting prefix observations meet to unavailable. Exact current original input/config/channel/allocation/wholeargv/context/Registry are required before project procedure selection. No missing-representation absence, source->Native/Normal or entered frame/cell/effect permission is introduced. Existing receiver/registered/header relation owners, unknown lookup/observer guards and constructor effect coverage remain independent. Empty receipt means only no retained ordinary schema arity debt, not complete argument acceptance or execution coverage. Actual original043 Jim C-style interp schema path is covered;042 remains blocked by the unchanged constructor owner.
+
+Contract V2 accurately extends existing project source role owner/name contract/consumer row and records the actual UFCS call as a static internal owner-resolution route. Source child-module impl resolves the genuine SourceCommandBindings declaration; crate visibility and static associated-call route match existing checker semantics. No checker change or bypass. Existing machine owner-resolution gate still needs Root execution; no gate/build/test/efficacy/count acceptance is claimed by this source review.
+
+Reviewer ran no Cargo, tests, builds, instrumentation, main mutation or Git. Immutable V1/V2 snapshots preserved.

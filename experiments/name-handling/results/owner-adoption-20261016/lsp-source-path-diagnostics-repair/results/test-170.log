@@ -1,0 +1,6 @@
+
+running 1 test
+test compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10264 filtered out; finished in 0.52s
+

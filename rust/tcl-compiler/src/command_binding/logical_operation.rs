@@ -214,7 +214,7 @@ impl LogicalOriginalInvocation {
             let prefix = target.logical_original_prefix.as_ref()?;
             prefix.matches_state(state).then_some(())?;
             let input = state.logical_source_name_advice_input()?;
-            let captured = target.original_logical_prepended_name_inputs(
+            let captured = target.original_logical_prepended_source_inputs(
                 input,
                 state.current_source_origin.as_ref()?.source_image(),
                 context.config,
@@ -754,42 +754,75 @@ fn retain_logical_alias_prefix(
         offset,
     };
     (original.words.first()?.span().start() == offset).then_some(())?;
-    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
-        .authored_name_policy()?;
-    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
-        == Some(policy))
-    .then_some(())?;
-    let purpose =
-        crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-            &input, None, policy,
-        );
-    let captured = arguments
+    let source_arguments = arguments
         .iter()
         .map(|subject| {
             let effective = subject.argument_index()?;
             let value = original.arguments.get(effective)?;
             (subject.literal() == Some(value.as_str())).then_some(())?;
-            let input = if effective < original.target.prepended.len() {
+            let source = if effective < original.target.prepended.len() {
                 original
                     .target
                     .logical_original_prefix
                     .as_ref()?
-                    .inputs()
+                    .source_inputs()
                     .get(effective)?
                     .clone()
             } else {
                 let written = effective
                     .checked_sub(original.target.prepended.len())?
                     .checked_add(1)?;
-                let word = original.words.get(written)?;
-                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
-                    word,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
-                )?)
+                super::OriginalLogicalSourceNameInput::from_original_source_word(
+                    original.words.get(written)?,
+                    &input,
+                )?
             };
-            (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+            (source.bytes() == value.as_bytes()).then_some(source)
         })
         .collect::<Option<Vec<_>>>()?;
+    // The stronger authored-key projection remains independently unavailable
+    // when this Logical source purpose has no naming recipe.
+    let captured = (|| {
+        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            .authored_name_policy()?;
+        (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+            == Some(policy))
+        .then_some(())?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &input, None, policy,
+            );
+        let captured = arguments
+            .iter()
+            .map(|subject| {
+                let effective = subject.argument_index()?;
+                let value = original.arguments.get(effective)?;
+                (subject.literal() == Some(value.as_str())).then_some(())?;
+                let input = if effective < original.target.prepended.len() {
+                    original
+                        .target
+                        .logical_original_prefix
+                        .as_ref()?
+                        .inputs()?
+                        .get(effective)?
+                        .clone()
+                } else {
+                    let written = effective
+                        .checked_sub(original.target.prepended.len())?
+                        .checked_add(1)?;
+                    let word = original.words.get(written)?;
+                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                        purpose.key(
+                            word,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
+                        )?,
+                    )
+                };
+                (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(captured)
+    })();
     let key = state.publication_key_at(
         &SourceNamespaceKey::authored("::"),
         alias.literal()?,
@@ -803,13 +836,16 @@ fn retain_logical_alias_prefix(
         _ => None,
     });
     let target = targets.next()?.clone();
-    (targets.next().is_none() && bindings.len() == 1 && target.prepended.len() == captured.len())
-        .then_some(())?;
+    (targets.next().is_none()
+        && bindings.len() == 1
+        && target.prepended.len() == source_arguments.len())
+    .then_some(())?;
     let receipt = super::logical_prefix::LogicalAliasPrefix {
         input,
         site,
         words: original.words.clone(),
         arguments: captured,
+        source_arguments,
         parent: original.target.logical_original_prefix.clone(),
     };
     Arc::make_mut(&mut state.logical_alias_prefixes).insert(target, Some(Arc::new(receipt)));
@@ -1107,6 +1143,122 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn logical_source_prefix_words_keep_actual_alias_lineage_without_name_key_policy() {
+        let mut profile = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .analyser_profile()
+            .clone();
+        profile.name = "original-logical-source-prefix-without-name-policy";
+        let profile = profile.intern();
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_none()
+        );
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig {
+                escapes: tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .analyser_profile()
+                    .grammar
+                    .escapes,
+                ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+            },
+        );
+        for source in [
+            "interp alias {} idx {} string index held; idx 1",
+            "interp alias {} inner {} string index held; interp alias {} idx {} inner; idx 1",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "presentation-only");
+            let offset = u32::try_from(source.rfind("idx 1").unwrap()).unwrap();
+            let binding = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", offset);
+            let [target] = binding.targets.as_slice() else {
+                panic!("actual single Logical alias target")
+            };
+            let image = tcl_lexer::SourceImage::document(source);
+            let original = target
+                .original_logical_prepended_source_inputs(&input, &image, input.lexer_config())
+                .expect("actual original Source words without a donated naming policy");
+            assert_eq!(
+                original
+                    .iter()
+                    .map(|input| input.bytes())
+                    .collect::<Vec<_>>(),
+                [b"index".as_slice(), b"held".as_slice()]
+            );
+            assert!(
+                original
+                    .iter()
+                    .all(|word| word.original_word().span().start() < offset)
+            );
+            assert!(target.original_prepended_name_inputs().is_none());
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                source, &analysis, offset,
+            )
+            .expect("readonly original alias source schema");
+            assert_eq!(words.command(), "string");
+            assert_eq!(words.arguments().len(), 3);
+            assert!(words.operands()[0].is_none() && words.operands()[1].is_none());
+            assert_eq!(
+                words.operands()[2].as_ref().unwrap().span().start(),
+                offset + 4
+            );
+            let mut config = input.lexer_config();
+            config.strict_quoting ^= true;
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(&input, &image, config)
+                    .is_none()
+            );
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(
+                        &input,
+                        &tcl_lexer::SourceImage::document(&source.replace("held", "away")),
+                        input.lexer_config()
+                    )
+                    .is_none()
+            );
+            let foreign = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                    .default_context_registry(),
+                input.lexer_config(),
+            );
+            assert!(
+                target
+                    .original_logical_prepended_source_inputs(
+                        &foreign,
+                        &image,
+                        input.lexer_config()
+                    )
+                    .is_none()
+            );
+            let mut missing = target.clone();
+            missing.logical_original_prefix = None;
+            assert!(
+                missing
+                    .original_logical_prepended_source_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+        }
     }
 
     #[test]

@@ -702,6 +702,7 @@ impl LogicalBodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         self.context.observe_publication_proposal(graph);
+        tape.retain_arity_prefix(graph, &command.words);
         let retained = self.command_inner(tape, graph, command, scope, depth);
         self.context.observe_publication_proposal(graph);
         retained
@@ -802,6 +803,7 @@ impl LogicalBodyWalk<'_, '_> {
             arguments: &arguments,
             lineage: &lineage,
         };
+        self.context.retain_arity_debt(graph, invocation, &schema)?;
         self.retain_original_deferred_invocation(tape, graph, invocation, &schema, (scope, depth))?;
         self.apply_deferred_invocation_effects(
             tape,

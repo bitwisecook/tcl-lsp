@@ -1,0 +1,73 @@
+{
+  "scope": "Independent source reviews and test-preservation receipts; no execution or completion grant. Source implementation retained by Git, not duplicated here.",
+  "files": [
+    {
+      "path": "arity-review.txt",
+      "sha256": "c2808847f5dd0a59c213728ccda0980b41ec21f712eb30fd6d213227370c290d"
+    },
+    {
+      "path": "c-class-review.txt",
+      "sha256": "8203aa0d1ef01fa2ed0c8444ec62e9ff18231ed51052c8796e7dfc55cdf51e6f"
+    },
+    {
+      "path": "cache-manifest.json",
+      "sha256": "6ddf9217662201d7f649f3886621d70f58206cb07bfcc0a37275ac8c288be48c"
+    },
+    {
+      "path": "cache-review.txt",
+      "sha256": "709b142aefb7c8d2ee1b226085708799b6f9d2c8b32f01fe90951c8b103588c9"
+    },
+    {
+      "path": "combined-manifest.json",
+      "sha256": "b746a878d211b696cecff65b3b2cd1947c766c1e7be796d0c166c738f2f72329"
+    },
+    {
+      "path": "combined-old-test-preservation.json",
+      "sha256": "09104705d45b250f220e17ae9d06275dc1ea3966b9ac01e349018dbe887479a0"
+    },
+    {
+      "path": "combined-prefix-preservation.json",
+      "sha256": "6ee711bc11fbfaffe0c325a76640b12d29634d6f3ee554485b4ff736537685cc"
+    },
+    {
+      "path": "comment-review.txt",
+      "sha256": "ad3870d4b6b7ddfe6bd05cc523d8b5af1d13a79ade5a509543d0a48b4584f536"
+    },
+    {
+      "path": "index-review.txt",
+      "sha256": "17d71792cf705a1f0292b47779c3edffea02257cdc54c8b96e666ccab75dde0b"
+    },
+    {
+      "path": "index-verification.json",
+      "sha256": "8943547757f517d1e21e50972304fef2ecb9804494e2691d4f5bbee7c020e6f6"
+    },
+    {
+      "path": "inlay-review.txt",
+      "sha256": "8ac1b047a20a0999847a3125ce400f78f13d860b4780c3fe2a134d3cb76b51bf"
+    },
+    {
+      "path": "portable-abi-examples-manifest.json",
+      "sha256": "5083d8b09dd3fa948ac7502bf9a2a4115654fd06d2d30e5cd98a0e9e6933bc1e"
+    },
+    {
+      "path": "portable-abi-examples-review.txt",
+      "sha256": "3a4071b06ee19e75d12bf83df038778b30d056afdde95e01a5f5e87cab2187f6"
+    },
+    {
+      "path": "prefix-review.txt",
+      "sha256": "4ff53e86e76b3b2dec0ec62d97a70c315660e8571561673832ce9b74e73a1d17"
+    },
+    {
+      "path": "readonly-member-review.txt",
+      "sha256": "9650b61bb62020e446ee7ee80c268f2153ca08281efabbed2aa59548d44982db"
+    },
+    {
+      "path": "rename-review.txt",
+      "sha256": "dc935fc660dd9d11ce09e6d18ace00969d6ca567a59a1c6b63bd6424a60c5c02"
+    },
+    {
+      "path": "server-wire-review.txt",
+      "sha256": "0e5cae03600e2004c3c687e1d9012875565f58e5cf5c0b976f3a2910cdf8da0d"
+    }
+  ]
+}

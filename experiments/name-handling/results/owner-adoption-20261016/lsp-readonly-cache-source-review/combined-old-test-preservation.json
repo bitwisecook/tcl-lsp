@@ -1,0 +1,52 @@
+[
+  {
+    "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "decea5c74c1e006fa76cae91fbf10ffa179de011a1a50fe0b19750959485c74e"
+  },
+  {
+    "path": "rust/tcl-compiler/src/analyser/utils.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "67ea3e9f1de1aad83d5bb5d712b913c1b66944bcffe46659fc32f390016bc89f"
+  },
+  {
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "2fdb9af8ed785a80b53be39af363a6f5ebce2130944a0d22349c9d8d53d71a1d"
+  },
+  {
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+    "mode": "entire existing test suffix byte-identical after removing exact independently reviewed new annex insertion",
+    "preserved_text_sha256": "172a0a937780ad08c7622e21964a7b147585367dc13ca34a9c4312dd74f38925"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/code_lens.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "347fab66d0aed7d88a329d1aed05cb9b13ea200e0958eb01585f2ba75b1bed1d"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "f5f87ed75e2e85776d1d220283f39f11fd5ccfb2a493c80be2467a6862fe90dc"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "64942d9b1183049814fc8e41afb9376727c97dcb3fc6a3e515e7ffa4cf759115"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/references.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "7117c123006f8d0473f65015107d6cb1069b5cda994988c9aaa608a492faa6d7"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "e82882693515db55c9ce604899e3603f937d1308a42c5084eb2985b8166f2049"
+  },
+  {
+    "path": "rust/tcl-lsp-server/src/lib.rs",
+    "mode": "whole existing test suffix byte-identical",
+    "preserved_text_sha256": "b2c3a82721fcb25895152465901301b985655c11642424f083d282315f26ff10"
+  }
+]

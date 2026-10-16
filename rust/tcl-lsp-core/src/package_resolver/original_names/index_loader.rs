@@ -209,14 +209,17 @@ impl<'a> IndexLoader<'a> {
         origin: WordOrigin,
         directory: &Path,
     ) -> Option<PathBuf> {
+        // naming.package.original-file-candidate-provenance
+        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
         // These words are data for a possible future invocation. Their schema
         // is conditional catalogue advice, never a reached Source command.
         let argument = self.with_schema(words, WordOrigin::LoaderValue, |selected| {
-            let tcl_registry::source_navigation::SourceNavigationOperand::File { argument } =
-                selected.authored_source_navigation_operand()?
-            else {
-                return None;
-            };
+            selected
+                .semantics
+                .arity
+                .accepts(selected.argument_count_for_arity()?)
+                .then_some(())?;
+            let argument = selected.authored_source_file_argument()?;
             let arguments = selected.words.arguments();
             let first = arguments.get(0).and_then(|word| match word {
                 InvocationWord::KnownBytes(bytes) => Some(bytes),
@@ -510,6 +513,97 @@ mod tests {
                     )
                     .is_none(),
                 "{source}",
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod selected_source_form_tests {
+    use super::*;
+
+    #[test]
+    fn index_filename_uses_selected_source_form_before_computed_path_value() {
+        // naming.package.original-file-candidate-provenance
+        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
+        let directory = Path::new("/library");
+        let source = "source -encoding utf-8 [file join $dir {-literal path.tcl}]";
+        let config = tcl_lexer::LexerConfig::default();
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let words = &plan.commands[0].words;
+        let loader = IndexLoader::standalone(source, config);
+        assert_eq!(
+            loader.with_schema(words, WordOrigin::LoaderValue, |selected| {
+                (
+                    selected.authored_source_file_argument(),
+                    selected.words.arguments().get(2) == Some(InvocationWord::Dynamic),
+                )
+            }),
+            Some((Some(2), true))
+        );
+        assert_eq!(
+            loader.source_filename(words, WordOrigin::LoaderValue, directory),
+            Some(directory.join("-literal path.tcl"))
+        );
+        // Authored source metadata is not an accepted native handler. Keep
+        // the original arity refusal even for a SourceFile-tagged descriptor.
+        let custom_source = "load-file p.tcl";
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "load-file",
+            arity: tcl_registry::Arity::exact(0),
+            traits: tcl_registry::Traits::SOURCES_FILE,
+            body_execution: Some(tcl_registry::body_execution::BodyExecutionSpec::SourceFile),
+            analyser_hook: Some(tcl_registry::hooks::AnalyserHookId::Source),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let analysis =
+            crate::source_structure::analyse_document(custom_source, profile, &registry, config);
+        let custom_loader = IndexLoader::new(custom_source, &analysis).unwrap();
+        let custom_plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(custom_source),
+            Span::new(0, u32::try_from(custom_source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let custom_words = &custom_plan.commands[0].words;
+        assert_eq!(
+            custom_loader.with_schema(custom_words, WordOrigin::LoaderValue, |selected| {
+                selected
+                    .argument_count_for_arity()
+                    .map(|count| selected.semantics.arity.accepts(count))
+            }),
+            Some(Some(false))
+        );
+        assert!(
+            custom_loader
+                .source_filename(custom_words, WordOrigin::LoaderValue, directory)
+                .is_none()
+        );
+        for source in [
+            "source -enc utf-8 [file join $dir p.tcl]",
+            "source $option utf-8 [file join $dir p.tcl]",
+            "source -nopkg [file join $dir p.tcl]",
+            "source -encoding utf-8 {*}$paths",
+            "puts -encoding utf-8 [file join $dir p.tcl]",
+        ] {
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                IndexLoader::standalone(source, config)
+                    .source_filename(&plan.commands[0].words, WordOrigin::LoaderValue, directory)
+                    .is_none(),
+                "{source}"
             );
         }
     }

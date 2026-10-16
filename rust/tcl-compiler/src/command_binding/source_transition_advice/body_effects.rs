@@ -923,6 +923,11 @@ impl BodyWalk<'_, '_> {
         }
         graph.unknown_paths.extend(branch.unknown_paths);
         graph.unknown_exports.extend(branch.unknown_exports);
+        for debt in branch.arity_debts {
+            if !graph.arity_debts.contains(&debt) {
+                graph.arity_debts.push(debt);
+            }
+        }
         for operation in branch.uncertain_operations {
             if !graph.uncertain_operations.contains(&operation) {
                 graph.uncertain_operations.push(operation);
@@ -1139,6 +1144,10 @@ impl BodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         self.context.observe_publication_proposal(graph);
+        self.inventory
+            .as_mut()
+            .unwrap_or(&mut self.authored_prefixes)
+            .retain_arity_prefix(graph, &native.words);
         let retained = self.command_inner(graph, native, depth);
         self.context.observe_publication_proposal(graph);
         retained
@@ -1236,6 +1245,7 @@ impl BodyWalk<'_, '_> {
             arguments: &arguments,
             lineage: &lineage,
         };
+        self.context.retain_arity_debt(graph, invocation, &schema)?;
         self.retain_child_schema(graph, invocation, &schema)?;
         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
             self.context.retain_c_source_lifecycle_inventory(
@@ -1314,19 +1324,29 @@ impl BodyWalk<'_, '_> {
             .as_mut()
             .zip(self.source_body.as_ref())
             .and_then(|(tape, body)| {
-                if !matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
-                    return None;
-                }
+                let obligation = match self.context.policy {
+                    AdviceNamingPolicy::Logical(_) => {
+                        SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability
+                    }
+                    AdviceNamingPolicy::Native(policy)
+                        if matches!(
+                            policy.recipe(),
+                            tcl_syntax::naming::NativeNameProtocol::C(_)
+                        ) && self.context.dialect.family()
+                            == Some(tcl_dialect::model::Family::Tcl)
+                            && !graph.native_baseline
+                            && graph.c_source_namespace.is_some() =>
+                    {
+                        SourceCommandTransitionObligation::ConditionalCBodyApplicability
+                    }
+                    AdviceNamingPolicy::Native(_) => return None,
+                };
                 self.context.source_class_declaration_in_body(
                     tape,
                     graph,
                     invocation,
                     schema,
-                    (
-                        body,
-                        SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability,
-                        self.logical_scope.as_ref(),
-                    ),
+                    (body, obligation, self.logical_scope.as_ref()),
                 )
             });
         self.context
@@ -1370,8 +1390,21 @@ impl BodyWalk<'_, '_> {
                             invocation.head.bytes(),
                         )
                         .ok()?;
-                    if selected.namespace_route()
+                    let contextual_self =
+                        body.receiver_grammar(self.context.context)
+                            .is_some_and(|grammar| {
+                                grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                            })
+                            && schema
+                                .semantics
+                                .traits
+                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+                            && self.context.context.commands().method_dispatch_keyword(
+                                std::str::from_utf8(invocation.head.bytes()).ok()?,
+                            ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch);
+                    if (selected.namespace_route()
                         != tcl_syntax::naming::NativeCommandNamespaceRoute::Root
+                        && !contextual_self)
                         || graph.blocks_registry_source(invocation.head)
                         || !body
                             .matches_source(self.context.origin.source_image(), self.context.config)

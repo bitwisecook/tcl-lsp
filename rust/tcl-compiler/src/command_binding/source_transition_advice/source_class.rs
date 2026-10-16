@@ -716,20 +716,43 @@ impl AdviceInvocationContext<'_> {
         };
         let mut factory = self.schema_advice(invocation, graph, schema)?;
         if let Some((body, obligation, scope)) = owner {
-            let AdviceNamingPolicy::Logical(input) = self.policy else {
-                return None;
-            };
             body.matches_source(self.origin.source_image(), self.config)
                 .then_some(())?;
             body.matches_context(self.context).then_some(())?;
-            if let Some(scope) = scope {
-                (scope.matches_input(input)
-                    && scope.body_arc() == body
-                    && scope.owns_words(invocation.native))
+            invocation
+                .native
+                .iter()
+                .all(|word| {
+                    word.span().start() >= body.content_span().start()
+                        && word.span().end() <= body.content_span().end()
+                })
                 .then_some(())?;
+            match self.policy {
+                AdviceNamingPolicy::Logical(input) => {
+                    if let Some(scope) = scope {
+                        (scope.matches_input(input)
+                            && scope.body_arc() == body
+                            && scope.owns_words(invocation.native))
+                        .then_some(())?;
+                    }
+                    factory.logical_body = Some(Arc::clone(body));
+                    factory.logical_scope = scope.cloned();
+                }
+                AdviceNamingPolicy::Native(policy)
+                    if matches!(
+                        policy.recipe(),
+                        tcl_syntax::naming::NativeNameProtocol::C(_)
+                    ) && self.dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                        && !graph.native_baseline
+                        && graph.c_source_namespace.is_some()
+                        && scope.is_none()
+                        && obligation
+                            == SourceCommandTransitionObligation::ConditionalCBodyApplicability =>
+                {
+                    factory.c_source_body = Some(Arc::clone(body));
+                }
+                AdviceNamingPolicy::Native(_) => return None,
             }
-            factory.logical_body = Some(Arc::clone(body));
-            factory.logical_scope = scope.cloned();
             factory.obligations.push(obligation);
         }
         factory
@@ -743,10 +766,21 @@ impl AdviceInvocationContext<'_> {
             }
             let slot = if grammar.family == DefinerFamily::TclOo {
                 match self.policy {
-                    AdviceNamingPolicy::Native(policy) => policy
-                        .recipe()
-                        .oo_object_publication_slot(graph.native_source_context()?, name.bytes())
-                        .ok()?,
+                    AdviceNamingPolicy::Native(policy) => {
+                        // Source namespace geometry supplies no entered Native context.
+                        let context = if !graph.native_baseline
+                            && graph.procedure_namespace.is_none()
+                            && let Some(namespace) = graph.c_source_namespace.as_ref()
+                        {
+                            tcl_syntax::naming::NativeNameContext::new(namespace)
+                        } else {
+                            graph.native_source_context()?
+                        };
+                        policy
+                            .recipe()
+                            .oo_object_publication_slot(context, name.bytes())
+                            .ok()?
+                    }
                     AdviceNamingPolicy::Logical(_) => {
                         graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
                     }
@@ -959,6 +993,73 @@ impl AdviceInvocationContext<'_> {
 mod tests {
     use crate::analyser::Analyser;
     use crate::registry_invocation::source_structure::source_constructor_call_at;
+
+    #[test]
+    fn c_source_namespace_class_declarations_retain_original_body_and_conditional_scope() {
+        // naming.source.original-class-constructor-call
+        // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
+        use super::super::SourceCommandTransitionObligation;
+        use crate::registry_invocation::source_structure::source_class_declaration_at;
+        let source = "namespace eval outer {namespace eval inner {oo::class create Widget {method m {} {}}}}";
+        let offset = u32::try_from(source.find("oo::class").unwrap()).unwrap();
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            assert!(!analysis.allows_lexical_declaration_advice());
+            assert!(analysis.original_completed_command_world().is_none());
+            let declaration = source_class_declaration_at(source, &analysis, offset)
+                .expect("original namespace-body class declaration");
+            let class = declaration
+                .source_class(&analysis)
+                .expect("canonical source class card");
+            assert_eq!(class.metadata().qualified_name, "::outer::inner::Widget");
+            assert!(class.metadata().methods.contains_key("m"));
+            assert!(declaration.factory.c_source_body.is_some());
+            assert!(declaration.factory.logical_source_input().is_none());
+            for obligation in [
+                SourceCommandTransitionObligation::ConditionalCNamespaceApplicability,
+                SourceCommandTransitionObligation::ConditionalCBodyApplicability,
+                SourceCommandTransitionObligation::RegisteredFactoryApplicability,
+            ] {
+                assert!(declaration.factory.obligations().contains(&obligation));
+            }
+            assert!(
+                source_class_declaration_at(&source.replace("Widget", "Gadget"), &analysis, offset)
+                    .is_none()
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Analyser::new()
+                .analyse("puts foreign", "tcl9.1")
+                .resolved_input;
+            assert!(source_class_declaration_at(source, &foreign, offset).is_none());
+        }
+        for source in [
+            "namespace eval $unknown {oo::class create Widget {}}",
+            "namespace eval outer {proc ::oo::class args {}; oo::class create Widget {}}",
+        ] {
+            let offset = u32::try_from(source.rfind("oo::class create").unwrap()).unwrap();
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                source_class_declaration_at(source, &analysis, offset).is_none(),
+                "{source}"
+            );
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let analysis = Analyser::new()
+            .with_source_analysis_entry(std::sync::Arc::new(
+                crate::command_binding::SourceAnalysisEntry {
+                    native_entry: Some(std::sync::Arc::new(entry)),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Default::default()
+                },
+            ))
+            .analyse(source, profile.name);
+        assert!(
+            source_class_declaration_at(source, &analysis, offset).is_none(),
+            "closed Native baseline cannot borrow conditional source-body ownership"
+        );
+    }
 
     #[test]
     fn logical_class_facet_retains_a_same_purpose_occupied_target_refusal() {

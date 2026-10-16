@@ -1,0 +1,16 @@
+{
+  "patch_sha256": "aef42d0d2a10e5eb2eb0f2a03761a44551acc3bc21c28de34edfc358d9de2adf",
+  "all_original_indexloader_tests_verbatim": true,
+  "original_fixture_source_hash_still_matches": true,
+  "rustfmt_check": {
+    "program": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt",
+    "argv": [
+      "--check",
+      "--edition",
+      "2024",
+      "0.after"
+    ],
+    "exit_code": 0
+  },
+  "actual_successor_execution": "Not executed; Root owns ordinary build/tests. No new native oracle."
+}

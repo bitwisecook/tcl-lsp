@@ -1,0 +1,14 @@
+CLEAR — independent bounded source review
+
+Production patch SHA256: 00e701a4a481b6815f7885fe483aa66b8da53f47bec6a3c9503bdb197a5b17a3
+Contract patch SHA256: 98ca9778ada683efd47c5568b21e50b6fb3e95fa327434678037a09e9f391458
+
+All five production before/after hashes and the contract before/after hash verified independently. Both exact patches applied with --fuzz=0 to separate TMP beforeimages and matched every declared afterimage. The complete original logical_operation test module is byte-identical after removing the sole added test. No main/Git/Cargo/tests or instrumentation performed.
+
+The source-word projection is distinct from the optional SignatureSourceNameInput key vector. A missing authored naming policy leaves keys None; it does not manufacture an empty successful key inventory. The old key getter still requires actual key/source correspondence and its unanimous authored policy; Native original_prepended_name_inputs and the generic Registry helper remain unchanged.
+
+The new getter binds the genuine Logical input including ContextRegistry, complete source image/channel, full lexer config, actual alias allocation/header, complete original vector, exact static-word membership, recursively retained parent receipt and ordered concatenated effective prefix. It reprojects only via the existing shared original-static Unicode decoder. Construction remains in the existing selected typed alias transition and actual target publication route; Logical entry, quiet observer/unknown-state, namespace applicability and actual single target checks are retained. No string-to-policy/context inverse appears.
+
+Only LogicalOriginalInvocation::capture and SourceReadScope target/advice correspondence adopt this source facet. The latter still checks selected Registry descriptor identity, complete effective prefix and exact typed tape inputs; captured inputs are not written call-site spans. The former keeps original full-vector/selected target/currentness checks and existing conditional-operation debt gates. There is no Native object/frame, completed alias/lookup, Normal result, observer absence or edit inventory grant.
+
+The new control exercises actual custom Logical input with no authored policy, direct/chained aliases, retained earlier source words and effective ordinals without captured anchors, strict-key refusal, wrong config/source/Registry input and missing-receipt refusal. Original Core041 assertion/source is untouched. The contract extends the existing owner row and declares actual static/parameter/parameter-field private routes rather than changing visibility or resolver acceptance. Count and ordinary execution acceptance remain Root-owned; this receipt grants source admission only.

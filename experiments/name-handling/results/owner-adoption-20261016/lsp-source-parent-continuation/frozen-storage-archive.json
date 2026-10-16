@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-16T17:39:54.129400+00:00",
+  "archive": "/workspace/naming-validation/archives/lsp-source-parent-continuation-frozen.tar.zst",
+  "sha256": "ccbdcc641b7ea0cb0688ae801e7675032dd8a69394255c0ec8438660150ead87",
+  "bytes": 182254586,
+  "members": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_compiler-787a3baf28c99bc0",
+      "sha256": "8ff854e875572b0c5d860e589679470ecd62719076e71998f57f61c968ac71d1",
+      "bytes": 249066872
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_lsp_core-149710703d91c833",
+      "sha256": "758f48420f5443568c72affe65640b16bbdef1a70465127840b073399d86df36",
+      "bytes": 195528016
+    },
+    "tcl_lsp_db": {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_lsp_db-75275b30127e725a",
+      "sha256": "2e31a352aa0b0035ac73896676db526031e8f3b6b165fc3d1afb67cc2461eb70",
+      "bytes": 213118856
+    },
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_lsp_server-e9c37d0f544b8864",
+      "sha256": "b4715ee321355f705c828f1c2ff5634357964fb4c52202842555780f1d97e613",
+      "bytes": 329112528
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/lsp-source-parent-continuation/frozen-binaries/tcl_registry-6f93ef23e9d0ac33",
+      "sha256": "ea460d30d4bef93ebf98915df74d065a2f964b962e4721b6ede9b2e3048b90ab",
+      "bytes": 61750344
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

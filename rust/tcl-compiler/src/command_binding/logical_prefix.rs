@@ -17,7 +17,8 @@ pub(super) struct LogicalAliasPrefix {
     pub(super) input: ResolvedAnalysisInput,
     pub(super) site: CommandAllocationSite,
     pub(super) words: Vec<NativeWord>,
-    pub(super) arguments: Vec<SignatureSourceNameInput>,
+    pub(super) arguments: Option<Vec<SignatureSourceNameInput>>,
+    pub(super) source_arguments: Vec<super::OriginalLogicalSourceNameInput>,
     pub(super) parent: Option<LogicalCapturedCommandPrefix>,
 }
 
@@ -25,7 +26,8 @@ pub(super) struct LogicalAliasPrefix {
 pub(super) struct LogicalCapturedCommandPrefix {
     input: ResolvedAnalysisInput,
     source: Arc<SourceOriginId>,
-    inputs: Vec<SignatureSourceNameInput>,
+    inputs: Option<Vec<SignatureSourceNameInput>>,
+    source_inputs: Vec<super::OriginalLogicalSourceNameInput>,
     recipes: Vec<Arc<LogicalAliasPrefix>>,
 }
 
@@ -45,7 +47,8 @@ impl LogicalCapturedCommandPrefix {
         Some(Self {
             input: input.clone(),
             source: Arc::clone(state.current_source_origin.as_ref()?),
-            inputs: Vec::new(),
+            inputs: Some(Vec::new()),
+            source_inputs: Vec::new(),
             recipes: Vec::new(),
         })
     }
@@ -63,9 +66,9 @@ impl LogicalCapturedCommandPrefix {
                 word.image() != prefix.source.source_image()
                     || word.config() != receipt.input.lexer_config()
             })
-            || receipt.arguments.len() != target.prepended.len()
+            || receipt.source_arguments.len() != target.prepended.len()
             || receipt
-                .arguments
+                .source_arguments
                 .iter()
                 .zip(&target.prepended)
                 .any(|(input, value)| value.literal_bytes() != Some(input.bytes()))
@@ -73,6 +76,7 @@ impl LogicalCapturedCommandPrefix {
             return None;
         }
         prefix.inputs.clone_from(&receipt.arguments);
+        prefix.source_inputs.clone_from(&receipt.source_arguments);
         prefix.recipes.push(Arc::clone(receipt));
         Some(prefix)
     }
@@ -81,7 +85,15 @@ impl LogicalCapturedCommandPrefix {
         if self.input != other.input || self.source != other.source {
             return None;
         }
-        self.inputs.extend(other.inputs.iter().cloned());
+        self.inputs = match (self.inputs.take(), other.inputs.as_ref()) {
+            (Some(mut own), Some(other)) => {
+                own.extend(other.iter().cloned());
+                Some(own)
+            }
+            _ => None,
+        };
+        self.source_inputs
+            .extend(other.source_inputs.iter().cloned());
         self.recipes.extend(other.recipes.iter().cloned());
         Some(())
     }
@@ -91,8 +103,62 @@ impl LogicalCapturedCommandPrefix {
             .is_some_and(|current| self.input == current.input && self.source == current.source)
     }
 
-    pub(super) fn inputs(&self) -> &[SignatureSourceNameInput] {
-        &self.inputs
+    pub(super) fn inputs(&self) -> Option<&[SignatureSourceNameInput]> {
+        self.inputs.as_deref()
+    }
+
+    pub(super) fn source_inputs(&self) -> &[super::OriginalLogicalSourceNameInput] {
+        &self.source_inputs
+    }
+
+    pub(super) fn matches_source_words(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &SourceImage,
+        config: LexerConfig,
+    ) -> bool {
+        input.has_logical_source_name_context()
+            && &self.input == input
+            && config == input.lexer_config()
+            && self.source.source_image() == image
+            && self
+                .recipes
+                .iter()
+                .flat_map(|receipt| receipt.source_arguments.iter())
+                .eq(self.source_inputs.iter())
+            && self.source_inputs.iter().all(|source| {
+                source.original_word().image() == image
+                    && source.original_word().config() == config
+                    && super::OriginalLogicalSourceNameInput::from_original_source_word(
+                        source.original_word(),
+                        input,
+                    )
+                    .as_ref()
+                        == Some(source)
+            })
+            && self.recipes.iter().all(|receipt| {
+                receipt.input == *input
+                    && receipt.site.source == self.source
+                    && receipt
+                        .words
+                        .first()
+                        .is_some_and(|word| word.span().start() == receipt.site.offset)
+                    && receipt
+                        .words
+                        .iter()
+                        .all(|word| word.image() == image && word.config() == config)
+                    && receipt.source_arguments.iter().all(|source| {
+                        receipt.words.contains(source.original_word())
+                            || receipt
+                                .parent
+                                .as_ref()
+                                .is_some_and(|parent| parent.source_inputs.contains(source))
+                    })
+                    && receipt
+                        .parent
+                        .as_ref()
+                        .is_none_or(|parent| parent.matches_source_words(input, image, config))
+            })
     }
 
     pub(super) fn matches_source_input(
@@ -101,6 +167,20 @@ impl LogicalCapturedCommandPrefix {
         image: &SourceImage,
         config: LexerConfig,
     ) -> bool {
+        let Some(inputs) = self.inputs.as_ref() else {
+            return false;
+        };
+        if inputs.len() != self.source_inputs.len()
+            || inputs.iter().zip(&self.source_inputs).any(|(key, source)| {
+                key.bytes() != source.bytes()
+                    || key
+                        .original_word_key()
+                        .is_none_or(|key| key.original_word() != source.original_word())
+            })
+            || !self.matches_source_words(input, image, config)
+        {
+            return false;
+        }
         let Some(policy) = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
             .authored_name_policy()
         else {
@@ -108,7 +188,7 @@ impl LogicalCapturedCommandPrefix {
         };
         input.has_logical_source_name_context()
             && tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy() == Some(policy)
-            && self.inputs.iter().all(|input| {
+            && inputs.iter().all(|input| {
                 let Some(key) = input.original_word_key() else { return false; };
                 let word = key.original_word();
                 word.image() == image && word.config() == config

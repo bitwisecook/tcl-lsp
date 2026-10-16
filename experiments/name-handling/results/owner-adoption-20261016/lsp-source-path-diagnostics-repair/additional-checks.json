@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "logs": [
+        "examples-check.log",
+        "examples-check-repair.log",
+        "examples-check-repair2.log"
+      ],
+      "outcomes": [
+        "FAIL E0599 commands().registry()",
+        "FAIL E0425 missing line_starts/byte_to_line_col",
+        "PASS compile-check"
+      ],
+      "scope": "Actual example compilation only; two subsequent source/import repairs. These repaired sources are separate from the frozen native220 artifact; no example functional-output execution is inferred."
+    },
+    {
+      "log": "zed-query-check.log",
+      "outcome": "PASS generator sync check",
+      "scope": "Actual Registry generated outputs. Tcl/Expect baseline purposes only; incidental shared iApps/iRules projections grant no paused Bigip migration acceptance."
+    },
+    {
+      "logs": [
+        "browser-check.log",
+        "browser-fetch.log",
+        "browser-check-ready.log",
+        "browser-check-abi-repair.log"
+      ],
+      "outcomes": [
+        "FAIL offline missing console_error_panic_hook",
+        "dependency fetch/lock changes, not a check pass",
+        "FAIL E0425 libc c_int/c_long target availability",
+        "PASS compile-check with one Server dead_code warning"
+      ],
+      "actual_command_reported_by_Root": "source /tmp/naming-env.sh; source scripts/dev/wasm-cc-env.sh; export WASI_SDK_PATH=/workspace/.toolchains/wasi-sdk-34.0; wasm_cc_prepare; CARGO_TARGET_DIR=/workspace/tcl-lsp/rust/tcl-lsp-server-wasm/target cargo check --offline --locked --manifest-path rust/tcl-lsp-server-wasm/Cargo.toml --target wasm32-unknown-unknown",
+      "command_basis": "Root supplied exact executed command. Environment file is intentionally not imported; no automated whole-source receipt exists for this check.",
+      "scope": "Separate browser/WASM compilation after dependency readiness and ABI source repair; not the frozen native220 source variant and not actual browser or WASI runtime execution."
+    }
+  ],
+  "source_binding_limit": "Supplemental logs do not themselves include a full per-check input-index/source receipt. Exact original text and hashes are retained; commands/source variants are not silently relabeled as the native e0612 frozen artifact. Later cache/arity/prefix repairs require fresh ordinary validation."
+}

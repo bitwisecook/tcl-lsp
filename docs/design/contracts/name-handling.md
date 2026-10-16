@@ -39,6 +39,14 @@ API grants no completion. A delivered disabled/excluded policy clear is a
 separate suppression receipt and cannot certify clean source analysis. Pending,
 stale, cancelled, degraded, missing-context and failed-provider outcomes remain
 unavailable. This protocol reads the push ledger; diagnostics remain push-only.
+Legacy cache reports retain their actual producer purpose. A direct checked
+provider report is independent from acknowledged push completion; its exact
+original source, optional version, configuration values and report ID cannot be
+recovered from a later buffer or an unrelated cache writer. Workspace projection
+retains one jointly current source/input/provider set. Actual diagnostic
+configuration is retained independently from editing input identity, including
+all selected target ranges and package settings. Missing ownership remains
+unavailable. No direct report or policy outcome can satisfy push completion.
 Configured report completion grants no runtime execution, normal completion,
 edit equivalence or absence of unknown effects.
 
@@ -121,6 +129,22 @@ selected naming policy's source argument roles. Sequential selected-frame
 operations retain their independently selected coordinates. Possible child
 binding changes and unknown namespace path/export effects still withdraw
 subsequent source advice.
+
+The existing source transition tape retains ordinary selected Registry-schema
+arity debts at each authentic whole-command prefix. The root, original-body
+and deferred-body walks retain the actual argv, selected source schema,
+immutable Registry/context and branch prefix separately from mutation
+uncertainty. `SourceCommandBindings::original_source_prefix_arity_debts` checks
+the same complete input, image/allocation, full lexer configuration and whole
+argv before returning this bounded receipt. Missing or conflicting prefix
+ownership remains unavailable. An empty receipt means no retained ordinary
+selected-schema debt; receiver, registered-instance and source-header relation
+alternatives retain their independent owners. It certifies neither universal
+argument acceptance nor reached execution, error, Normal completion or absence
+of effects. `original_project_procedure_arguments` uses nonempty or unavailable
+debt as an additional refusal before its independent external declaration and
+formal selection. Default/inherited constructor-effect coverage remains
+independent; missing coverage cannot become an empty constructor.
 
 The Compiler's `SourceReadScope` obtains declaration/read schemas from the
 original transition catalogue. `CompletePrefix` retains completed source

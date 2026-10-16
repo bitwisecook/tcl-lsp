@@ -1,0 +1,18 @@
+{
+  "capture": "lsp-source-path-diagnostics-repair",
+  "base": "a372766c36e0585b16c7dd4501f0741585b894c9",
+  "equivalent_commit": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+  "git_diff_arguments": [
+    "git",
+    "diff",
+    "a372766c36e0585b16c7dd4501f0741585b894c9",
+    "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+    "--",
+    "rust",
+    "runtime",
+    "Cargo.toml",
+    "Cargo.lock"
+  ],
+  "byte_equal": true,
+  "sha256": "17d335bbc4546ba0cbb5bf6c6cc82f41d8d5a2f474aa6aa84920da38baa4a458"
+}

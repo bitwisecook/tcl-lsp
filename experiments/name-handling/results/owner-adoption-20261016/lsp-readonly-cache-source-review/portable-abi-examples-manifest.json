@@ -1,0 +1,67 @@
+{
+  "verdict": "SOURCE_CLEAR",
+  "scope": "Independent read-only review of Root ABI target-portability repair and two TclOO example adapters",
+  "files": [
+    {
+      "path": "rust/tcl-host-c-abi/src/lib.rs",
+      "base_head_sha256": "af3845ce56bdfcba065ca435f334db5e21d5bd5863c09227c21c93da53913fa7",
+      "reviewed_current_sha256": "fc6ae6fe4b715294a0edc69659f71ff6fb90a5d33b7fc5ab9e762b52af16a834"
+    },
+    {
+      "path": "rust/tcl-lsp-core/examples/tcloo_dispatch.rs",
+      "base_head_sha256": "f156dee73eaa05344bf69de928d1ee863cebf27e2827eb7588a2258c6b70bc0b",
+      "reviewed_current_sha256": "2dc721c495c92e4471aacca433738e3174f0b834c36630cbdbfe9ac29b9a351a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/examples/tcloo_diag.rs",
+      "base_head_sha256": "94d4f196dcd4e5883654fc945444d189b59d93ddfd0058bf6c5d55eb35b54a2e",
+      "reviewed_current_sha256": "789fb4983b1a3b678defab5f2f0d46baff19037c5d6bdd1b0a03796462f98b92"
+    }
+  ],
+  "diff_sha256": "52e63d59bc5f86ebef98e2837f818b25e3c0c0f7256a76b0d82e994985ffca0c",
+  "evidence": [
+    {
+      "path": "/workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/primitives.rs",
+      "sha256": "af323402fee13278461bcaec6a06a15dfca24a02d48b0570c88e2746288d7078",
+      "fact": "Cargo.lock selected libc0.2.190 directly reexports core::ffi c_int and c_long"
+    },
+    {
+      "path": "rust/tcl-lexer/src/line_index.rs",
+      "sha256": "f48f5a5a465584b6b78624e70cf8982ed8a3745be7ef88099d0a18be9818fc7e",
+      "fact": "new indexes LF; position_at_utf16 counts encode_utf16; inverse is separately checked before local_candidate"
+    },
+    {
+      "path": "rust/tcl-registry/src/model/assembly.rs",
+      "sha256": "b7c76cd9c5c96a78683a81e351baf592805d618463e9d34cf803425cfb491be6",
+      "fact": "ContextRegistry::commands returns &Arc<CommandRegistry>; as_ref borrows that exact current registry"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "sha256": "4bb8efbcf827fefed9bc14d0648694faba4d41a75b054cfae36a7c3184fad1de",
+      "fact": "local_candidate uses the shared LineIndex::new byte-offset adapter"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "1317aa820c0946737c2c79978dcedd98f55fd9dcd69a32edc88dce850c9f6a05",
+      "fact": "selected libc version0.2.190"
+    }
+  ],
+  "checks": {
+    "exact_abi_change_only_two_unconditional_sizes_and_comment": true,
+    "supported_guard_unchanged": true,
+    "cfg_native_module_unchanged": true,
+    "candidate_local_queries_keep_strict_utf8_boundary_and_utf16_inverse": true,
+    "project_mode_presentation_only": true,
+    "copied_geometry_helpers_removed": true,
+    "source_stable_during_review": true
+  },
+  "not_executed": [
+    "Cargo",
+    "target binaries",
+    "tests",
+    "builds",
+    "ABI runtime probes"
+  ],
+  "writes": "TMP review snapshots/receipt only",
+  "git_access": "Read-only diff/show comparisons expressly requested; no Git mutations"
+}

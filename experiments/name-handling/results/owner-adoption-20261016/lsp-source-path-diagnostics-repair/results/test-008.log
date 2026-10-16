@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10264 filtered out; finished in 19.39s
+

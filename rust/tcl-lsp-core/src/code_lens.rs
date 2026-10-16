@@ -49,6 +49,8 @@ use crate::definition::LspRange;
 pub struct CodeLens {
     /// Sealed readonly declaration for current source and wire resolution.
     pub identity: Option<crate::original_declaration::OriginalDeclarationIdentity>,
+    /// Conditional source-reference availability, separate from its positive count.
+    pub reference_coverage: Option<crate::original_declaration::ReadonlyReferenceCoverage>,
     /// Anchor range for the lens.
     pub range: LspRange,
     /// Command label shown to the user.
@@ -58,6 +60,24 @@ pub struct CodeLens {
     /// Qualified name of the symbol the lens annotates (`::greet`),
     /// surfaced in the LSP lens `data` for the references-jump command.
     pub qname: String,
+}
+
+/// Render positive counts without presenting an unknown source census as absence.
+#[must_use]
+pub fn readonly_reference_count_title(
+    count: usize,
+    coverage: crate::original_declaration::ReadonlyReferenceCoverage,
+) -> String {
+    use crate::original_declaration::ReadonlyReferenceCoverage;
+    match coverage {
+        ReadonlyReferenceCoverage::ExistingInventory => reference_count_title(count),
+        ReadonlyReferenceCoverage::Partial if count > 0 => {
+            format!("at least {}", reference_count_title(count))
+        }
+        ReadonlyReferenceCoverage::Partial | ReadonlyReferenceCoverage::Unavailable => {
+            "References unavailable".to_owned()
+        }
+    }
 }
 
 /// Compute code lenses for the document.
@@ -93,8 +113,9 @@ pub fn code_lenses(
         let index = LineIndex::new(source);
         return identities.into_iter().filter(|identity| !matches!(identity.role(),
             crate::original_declaration::OriginalDeclarationRole::Document))
-            .map(|identity| {
-                let mut count = crate::original_declaration::reference_spans(&identity, source, analysis, true).len();
+            .filter_map(|identity| {
+                let report = crate::original_declaration::readonly_reference_report(&identity, source, analysis, true)?;
+                let mut count = report.spans().len();
                 if let Some(workspace) = workspace {
                     let declaration = identity.procedure_metadata(analysis).map(|row| row.name())
                         .or_else(|| identity.class_metadata(analysis).filter(|_| identity.role() == crate::original_declaration::OriginalDeclarationRole::Class).map(|row| row.name()));
@@ -105,8 +126,8 @@ pub fn code_lenses(
                         if owners == 1 { count += workspace.original_invocations_of(name, current_uri, true).len(); }
                     }
                 }
-                CodeLens { range: crate::definition::span_to_range(source, &index, identity.span()),
-                    command_title: reference_count_title(count), command: String::new(), qname: identity.label(), identity: Some(identity) }
+                Some(CodeLens { range: crate::definition::span_to_range(source, &index, identity.span()),
+                    command_title: readonly_reference_count_title(count, report.coverage()), command: String::new(), qname: identity.label(), identity: Some(identity), reference_coverage: Some(report.coverage()) })
             }).collect();
     }
     // The lens title is a reference *count*, so it has to agree with the peek
@@ -149,6 +170,7 @@ pub fn code_lenses(
         let end = line_index.position_at_utf16(proc_def.name_span.end(), source);
         lenses.push(CodeLens {
             identity: None,
+            reference_coverage: None,
             range: LspRange {
                 start_line: start.line,
                 start_character: start.character.get(),
@@ -183,6 +205,7 @@ pub fn code_lenses(
         let end = line_index.position_at_utf16(class_def.name_span.end(), source);
         lenses.push(CodeLens {
             identity: None,
+            reference_coverage: None,
             range: LspRange {
                 start_line: start.line,
                 start_character: start.character.get(),
@@ -269,6 +292,7 @@ fn emit_class_member_lenses(
             let end = line_index.position_at_utf16(name_span.end(), source);
             lenses.push(CodeLens {
                 identity: None,
+                reference_coverage: None,
                 range: LspRange {
                     start_line: start.line,
                     start_character: start.character.get(),
@@ -437,6 +461,42 @@ fn count_class_references(
                 && class_def.name_span.end() <= span.end())
         })
         .count()
+}
+
+#[cfg(test)]
+mod readonly_source_count_tests {
+    use super::*;
+    use crate::original_declaration::ReadonlyReferenceCoverage;
+
+    #[test]
+    fn partial_source_lens_titles_do_not_report_unknown_absence() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        assert_eq!(
+            readonly_reference_count_title(2, ReadonlyReferenceCoverage::Partial),
+            "at least 2 references"
+        );
+        assert_eq!(
+            readonly_reference_count_title(1, ReadonlyReferenceCoverage::Partial),
+            "at least 1 reference"
+        );
+        assert_eq!(
+            readonly_reference_count_title(0, ReadonlyReferenceCoverage::Partial),
+            "References unavailable"
+        );
+        assert_eq!(
+            readonly_reference_count_title(3, ReadonlyReferenceCoverage::Unavailable),
+            "References unavailable"
+        );
+        assert_eq!(
+            readonly_reference_count_title(0, ReadonlyReferenceCoverage::ExistingInventory),
+            "0 references"
+        );
+        assert_eq!(
+            readonly_reference_count_title(2, ReadonlyReferenceCoverage::ExistingInventory),
+            "2 references"
+        );
+    }
 }
 
 #[cfg(test)]

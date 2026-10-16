@@ -1,0 +1,51 @@
+{
+  "lossless": true,
+  "members": [
+    {
+      "path": "tcl_compiler.list",
+      "sha256": "bffc5a7732176de02c8cc6d8e7eccef67b5a3a256f38b29dfd4ae1ac885aade2",
+      "bytes": 926832,
+      "stored": "tcl_compiler.list.zst",
+      "stored_sha256": "649535d58cbb870248a7967acac2bdb8c665feecbc6272d394859f543c25c5a1",
+      "stored_bytes": 179891,
+      "roundtrip_verified": true
+    },
+    {
+      "path": "tcl_lsp_core.list",
+      "sha256": "2ad699a68d0b3754186eeb2dcd6fb88cbe888e21ddcba677d41983bbe38c07b5",
+      "bytes": 276651,
+      "stored": "tcl_lsp_core.list.zst",
+      "stored_sha256": "d619045ee25813e562978e8f7fcf9be7cc6cb71e848dcb296f4a81d743bc18a9",
+      "stored_bytes": 57509,
+      "roundtrip_verified": true
+    },
+    {
+      "path": "tcl_lsp_db.list",
+      "sha256": "eb3dd32a577d6de205818dc19e31f96660bb04bacb07e807157552bb67f5e0a3",
+      "bytes": 15543,
+      "stored": "tcl_lsp_db.list.zst",
+      "stored_sha256": "8377a7e4895ba2b4fdb256e45e9da8ed7dbdd35c285efc5a2615e3b2e6d5ef9a",
+      "stored_bytes": 4143,
+      "roundtrip_verified": true
+    },
+    {
+      "path": "tcl_lsp_server.list",
+      "sha256": "0ab1707cd824e865ec57ba94dcab656ca3df034b8f0e52dba6e515b476b81358",
+      "bytes": 52166,
+      "stored": "tcl_lsp_server.list.zst",
+      "stored_sha256": "d6baf0f088fbcaa75a540975764c6f869235645a5b957b16e44adeca39294a1f",
+      "stored_bytes": 13785,
+      "roundtrip_verified": true
+    },
+    {
+      "path": "tcl_registry.list",
+      "sha256": "edb4b0fdf0a423e37b741d34bb5dad2887e9ca686406927a779b4c071767fdf4",
+      "bytes": 160892,
+      "stored": "tcl_registry.list.zst",
+      "stored_sha256": "78b27afd041a8175bed31a1ef3a2b8820c097409a70834fe804b6fb6aa32230b",
+      "stored_bytes": 39455,
+      "roundtrip_verified": true
+    }
+  ],
+  "scope": "Exact original singleton listing bytes only. Compression grants no new execution acceptance."
+}

@@ -1,0 +1,72 @@
+{
+  "patch": "diagnostic-cache-currency-v3.patch",
+  "patch_sha256": "9ccb71aa2f454669cf16c313bff11c333d4866c966ea503c881c3b1b2e367417",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "6f5bc8b641a73753955f9f89679dacf9d6251647a3bf9df6d4192525b41e2472",
+      "after_sha256": "781a013c7d86be7b5fca98d928d34796839d81154c6fc421d7b7a966e1f1084d"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "49795b29868545628eb965fd370a5b0085db641c22ed630b0c6f66970648412d",
+      "after_sha256": "3435936eefacfb17d1ebcbb12af6f3a9d2a4def4f9bd3868defb1bece3b2aa40"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "60596dd19bc90f115f8ae77885563f0daf1a92a294950a86c4e539d501578e24",
+      "after_sha256": "7b289648390702927a9dfdf45e300c29b0a988d3fc6dcbeb71b55d9a2605cc4c"
+    },
+    {
+      "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+      "before_sha256": "170ba30a50221d0021e8de78f416fa460addc9bf170d055e56c6bd076d456923",
+      "after_sha256": "2ae590dce4dd9a4d002853ab434af1884b5757a2e339edec07c0e14f4f8f44f1"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "0a65a3d3c68e10a9cf61ef820b1bafb364ca6b765670efbb8deabf0d2766afe2",
+      "after_sha256": "8df4c95e1bb2e44b8a549956fa702f4e8f9993f766a02cdaa22fc8e8f3b910dc"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "9296b25027d56e16468a91922d718c914054300372a5adceb4dc875250f4fc01",
+      "after_sha256": "b9483ec09f48443cd7273b20a04fcffb407956cc59fd31d521b685a3e7e6d028"
+    }
+  ],
+  "baseline": "lsp-server-diagnostic-cache-purpose-currency",
+  "count": "Existing caller-migration unit, no new issuer count accepted. Related configuration-snapshot correction belongs to existing completed-publication owner contract. Root reconciles partial scope/acceptance.",
+  "version": "V3 immutable successor to87ed V2: final DB-guarded actual configuration comparison for every participant including policy clears; newly listed private helpers moved to implementation narrative under actual facade.",
+  "actual_shared_provider": "Original run_deep_diagnostics provider computation extracted once as compute_deep_diagnostic_report. Existing push wrapper retains publication/degradation/ack behavior; direct path requires genuine provider_completion Ok, successful lift and actual completed analysis/full input/Registry. No fake push or duplication of compiler/name semantics.",
+  "actual_cache_receipt": "PullDiagEntry retains optional DiagnosticCacheReceipt with actual pass source. Publisher origin additionally joins actual current ledger Arc+issued ID+Delivered outcome. Direct origin is minted only from real shared provider result or separately selected direct policy; never alters publisher ledger or claims ack. Final guarded candidate insertion/reborrow binds own minted cache ID, source/rawversion/revision/fullinput/configuration/SourceFile/original provider and generations.",
+  "configuration_fix": "204 is genuine configuration-currency bug: ResolvedAnalysisInput does not retain declared target ranges or other diagnostic option values. DB-owned DiagnosticConfigurationSnapshot retains all8 actual AnalyserConfig fields. DiagnosticPass captures it and every query compares the actual selected current snapshot independently from full editing input and epoch. Original 204 Unavailable assertion untouched; added actual editing-input-equal/configuration-unequal/epoch-equal preconditions prove the missing premise. V3 retains actual per-resource AnalyserConfig handles and compares every retained report configuration under the final DB lock held through actual provider lease/report projection; no split snapshot/revision substitution, including suppression.",
+  "configuration_fields": [
+    "disabled_diagnostics",
+    "non_ascii_mode",
+    "extra_commands",
+    "generic_variable_patterns",
+    "bigip_version",
+    "spec_pack_key",
+    "targets",
+    "package_provides"
+  ],
+  "final_batch": "Actual input/factory read + docs/slots/ledger/cache + final try-only DB guard for every participant, exact actual config-value comparison including suppression, files/original publication sidecar checks for prepared participants; SourceStore with_current lease encloses final cache insertion/report return. No mapping lock across await.",
+  "scope_limits": "Closed/missing/unsupported/model-provider completion or unavailable/cancelled/degraded provider returns typed unavailable/error, never clean empty. No Runtime/VM/Bigip acceptance. Standard diagnosticProvider remains None; no pull capability added. Direct policy is distinct from real delivered Suppressed. Existing display-only helpers retained cfg(test) for original controls, not available as production completed cache producers.",
+  "validation": {
+    "TMP_rustfmt": "PASS modified code parsed/formatted; one unrelated existing Root test formatting hunk deliberately byte-preserved",
+    "independent_zero_fuzz_apply_all6_hashes": "PASS",
+    "original_lib_tests": "Whole module byte-identical after only currency:None adapters and one actual db_set_source synthetic-edit setup adapter; all source/assertions/selectors/budgets retained",
+    "original_current_diagnostic_tests": "Whole module byte-identical after only currency:None adapters and added204 preconditions/comment correction; original actual legacy handler race call/security assertions BYTE IDENTICAL. New4 controls appended.",
+    "actual_AnalyserConfig_schema_census": "PASS all8 fields exact",
+    "cargo_build_tests": "NOT RUN Root sole owner; independent source review required"
+  },
+  "new_tests": [
+    "current_diagnostics::tests::legacy_cache_withdraws_config_only_changes_before_unchanged",
+    "current_diagnostics::tests::workspace_cache_preserves_actual_report_version_and_whole_source",
+    "current_diagnostics::tests::legacy_cache_missing_context_or_closed_owner_cannot_issue_empty_current",
+    "current_diagnostics::tests::legacy_cache_equal_path_replacement_cannot_reuse_completed_payload"
+  ],
+  "test204_log": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/results/test-204.log",
+  "retired_owner_entry": "Only Backend::compiler_diagnostics_for removed from existing supplied-document compiler-findings row: wrapper now test-only with no production consumer. Shared DB owner APIs/other production callers preserved.",
+  "coordination": "No main/Git/Cargo/tests/instrumentation. Server readonly wireV2 independent disjoint hunks await Root. Actual base source hashes authoritative; Root owns rebase/integration/counts.",
+  "independent_review": "V2 reviewer Solvar identified split-snapshot applicability and private owner-entry route issues. Both addressed in V3; requires exact successor independent source review."
+}

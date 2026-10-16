@@ -742,6 +742,42 @@ pub struct AnalyserConfig {
     pub package_provides: Vec<(String, Vec<String>)>,
 }
 
+/// Immutable values of the actual selected diagnostic configuration.
+/// Editing input identity is independent: options such as declared target
+/// ranges change findings without changing the lexer or Registry generation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticConfigurationSnapshot {
+    disabled_diagnostics: Vec<String>,
+    non_ascii_mode: NonAsciiMode,
+    extra_commands: Vec<String>,
+    generic_variable_patterns: Option<Vec<String>>,
+    bigip_version: Option<String>,
+    spec_pack_key: u64,
+    targets: Vec<(String, String)>,
+    package_provides: Vec<(String, Vec<String>)>,
+}
+
+impl AnalyserConfig {
+    /// Retain every actual configuration field independently of the selected
+    /// editing input. This grants no analysis completion or Native policy.
+    #[must_use]
+    pub fn diagnostic_report_configuration(
+        self,
+        db: &dyn salsa::Database,
+    ) -> DiagnosticConfigurationSnapshot {
+        DiagnosticConfigurationSnapshot {
+            disabled_diagnostics: self.disabled_diagnostics(db).clone(),
+            non_ascii_mode: self.non_ascii_mode(db),
+            extra_commands: self.extra_commands(db).clone(),
+            generic_variable_patterns: self.generic_variable_patterns(db).clone(),
+            bigip_version: self.bigip_version(db).clone(),
+            spec_pack_key: self.spec_pack_key(db),
+            targets: self.targets(db).clone(),
+            package_provides: self.package_provides(db).clone(),
+        }
+    }
+}
+
 fn document_analyser(
     db: &dyn salsa::Database,
     file: SourceFile,

@@ -1,0 +1,6 @@
+
+running 1 test
+test current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.12s
+

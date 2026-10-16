@@ -185,7 +185,7 @@ pub(crate) fn source_targets_match_advice(
     else {
         return false;
     };
-    for target in &binding.targets {
+    for target in binding.targets.iter() {
         if !target.registry_backed
             || !context
                 .context()
@@ -200,6 +200,37 @@ pub(crate) fn source_targets_match_advice(
                 != Some(prefix.as_slice())
         {
             return false;
+        }
+        if !prefix.is_empty()
+            && let Some(source) = advice.logical_source_input()
+        {
+            let Some(inputs) = target.original_logical_prepended_source_inputs(
+                source,
+                advice.site().source.source_image(),
+                source.lexer_config(),
+            ) else {
+                return false;
+            };
+            let captured = advice.arguments().iter().filter(|word| {
+                matches!(
+                    word.origin,
+                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+                )
+            });
+            if inputs.len() != prefix.len()
+                || inputs
+                    .iter()
+                    .zip(captured)
+                    .any(|(input, word)| match word.input.as_ref() {
+                        Some(crate::command_binding::SourceAdviceNameInput::Logical(original)) => {
+                            original != input
+                        }
+                        _ => true,
+                    })
+            {
+                return false;
+            }
+            continue;
         }
         if !prefix.is_empty() {
             let inputs = if let Some(input) = advice.logical_source_input() {

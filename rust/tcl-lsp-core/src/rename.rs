@@ -27,7 +27,6 @@
 //! The server validates every participating document before combining shared
 //! plans; an empty result and an explicit safety refusal remain distinct.
 
-use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
@@ -551,7 +550,7 @@ pub fn rename_in_program(
         (&word, new_name),
         def_byte,
     ) {
-        return Ok(edits);
+        return edits;
     }
 
     if let Some(edits) = rename_named_command(
@@ -562,7 +561,7 @@ pub fn rename_in_program(
         (&word, new_name),
         def_byte,
     ) {
-        return Ok(edits);
+        return edits;
     }
     if let Some(edits) = rename_itcl_class_proc(
         source,
@@ -572,7 +571,7 @@ pub fn rename_in_program(
         analysis,
         &line_index,
     ) {
-        return Ok(edits);
+        return edits;
     }
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(selected) =
@@ -596,7 +595,7 @@ pub fn rename_in_program(
             &line_index,
         )
     {
-        return Ok(edits);
+        return edits;
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
@@ -692,7 +691,7 @@ fn rename_definition_operand(
     Some(edits.map_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
         "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
         source, line_index, Some(reference.name_span()),
-    )), Ok))
+    )), |result| result))
 }
 
 fn prepare_list_built_self_method_rename(
@@ -721,7 +720,7 @@ fn rename_list_built_self_method(
     line_index: &LineIndex,
     names: (&str, &str),
     cursor_offset: u32,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (word, new_name) = names;
     let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
         source,
@@ -776,7 +775,7 @@ fn rename_named_command(
     line_index: &LineIndex,
     names: (&str, &str),
     cursor_offset: u32,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (word, new_name) = names;
     rename_proc(
         source,
@@ -839,7 +838,7 @@ fn gated_untargeted_member_rename(
     {
         return Err(refusal);
     }
-    Ok(rename_method(
+    rename_method(
         source,
         dialect,
         word,
@@ -847,7 +846,8 @@ fn gated_untargeted_member_rename(
         analysis,
         cursor_offset,
         line_index,
-    ))
+    )
+    .transpose()
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
@@ -1077,7 +1077,7 @@ fn rename_itcl_class_proc(
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (line, character) = cursor;
     let (class_q, member) =
         crate::definition::itcl_class_proc_target_at(source, dialect, line, character, analysis)?;
@@ -1098,7 +1098,7 @@ fn rename_method_in_class(
     new_name: &str,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let (class_q, method, is_classmethod) = target;
     let family = override_family(analysis, class_q, method);
     if family.is_empty() {
@@ -1122,13 +1122,13 @@ fn rename_method_in_class(
         ) else {
             continue;
         };
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, decl_span),
+        edits.push(PendingRenameEdit {
+            span: decl_span,
             new_text: new_name.to_owned(),
         });
         for span in call_spans {
-            edits.push(TextEdit {
-                range: span_to_range(source, line_index, span),
+            edits.push(PendingRenameEdit {
+                span: span,
                 new_text: new_name.to_owned(),
             });
         }
@@ -1136,8 +1136,7 @@ fn rename_method_in_class(
     if edits.is_empty() {
         return None;
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// When the cursor sits on a renameable `TclOO` **method**, return the
@@ -1592,7 +1591,7 @@ fn rename_proc(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let registry = resolution.registry;
     // Resolve the target the same way go-to-definition does: the proc whose
     // declaration covers the cursor, else C Tcl's namespace-aware call-site
@@ -1605,7 +1604,7 @@ fn rename_proc(
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
     let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
@@ -1628,7 +1627,7 @@ fn rename_proc(
         .keys()
         .any(|qn| qn != &proc_def.qualified_name && qn == &new_qualified)
     {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
     // Provenance gate: an indirect dispatch of this
     // proc whose contributing constants are not all source-writable cannot
@@ -1638,10 +1637,10 @@ fn rename_proc(
         !inv.rename_safe
             && crate::references::invocation_references_proc(analysis, inv, qname, proc_def, source)
     }) {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, proc_def.name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: proc_def.name_span,
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
@@ -1665,13 +1664,12 @@ fn rename_proc(
         }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, inv.range),
+        edits.push(PendingRenameEdit {
+            span: inv.range,
             new_text: replacement,
         });
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Class-rename path — `oo::class create ClassName`
@@ -1689,7 +1687,7 @@ fn rename_class(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     let registry = resolution.registry;
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
@@ -1699,7 +1697,7 @@ fn rename_class(
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
     let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
@@ -1725,10 +1723,10 @@ fn rename_class(
                 analysis, inv, qname, class_def, source,
             )
     }) {
-        return Some(Vec::new());
+        return Some(Ok(Vec::new()));
     }
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, class_def.name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: class_def.name_span,
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
@@ -1760,13 +1758,12 @@ fn rename_class(
         }
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, inv.range),
+        edits.push(PendingRenameEdit {
+            span: inv.range,
             new_text: replacement,
         });
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Method / property rename — locate the class whose body
@@ -1792,7 +1789,7 @@ fn rename_method(
     analysis: &AnalysisResult,
     cursor_offset: u32,
     line_index: &LineIndex,
-) -> Option<Vec<TextEdit>> {
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
     use tcl_lexer::Span;
 
     let class_def = analysis
@@ -1808,8 +1805,8 @@ fn rename_method(
     // `resolve_member_span`.
     let (selected_kind, name_span) = resolve_member_span(class_def, word, cursor_offset)?;
     let is_classmethod = selected_kind == MemberSel::ClassMethod;
-    let mut edits = vec![TextEdit {
-        range: span_to_range(source, line_index, name_span),
+    let mut edits = vec![PendingRenameEdit {
+        span: name_span,
         new_text: new_name.to_owned(),
     }];
     // `command_invocations` records top-level invocations only; method
@@ -1844,14 +1841,14 @@ fn rename_method(
             };
             // The cursor class's own declaration edit is already queued.
             if member != class_def.qualified_name {
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, decl_span),
+                edits.push(PendingRenameEdit {
+                    span: decl_span,
                     new_text: new_name.to_owned(),
                 });
             }
             for span in call_spans {
-                edits.push(TextEdit {
-                    range: span_to_range(source, line_index, span),
+                edits.push(PendingRenameEdit {
+                    span: span,
                     new_text: new_name.to_owned(),
                 });
             }
@@ -1863,14 +1860,13 @@ fn rename_method(
         for span in
             crate::references::scan_my_method_sites(source, analysis, &body_spans, word, None)
         {
-            edits.push(TextEdit {
-                range: span_to_range(source, line_index, span),
+            edits.push(PendingRenameEdit {
+                span: span,
                 new_text: new_name.to_owned(),
             });
         }
     }
-    dedup_edits(&mut edits);
-    Some(edits)
+    Some(finish_rename_edits(source, line_index, edits))
 }
 
 /// Compute the qualified rewrite (`prefix::new`) and the
@@ -2162,17 +2158,54 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
     }
 }
 
-fn dedup_edits(edits: &mut Vec<TextEdit>) {
-    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
-    edits.retain(|e| {
-        let key = (
-            e.range.start_line,
-            e.range.start_character,
-            e.range.end_line,
-            e.range.end_character,
-        );
-        seen.insert(key)
-    });
+/// Compatibility edits retain their actual producer byte geometry until the
+/// complete plan has passed conflict checks. This does not select symbols or
+/// strengthen any source applicability receipt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PendingRenameEdit {
+    span: tcl_lexer::Span,
+    new_text: String,
+}
+
+fn finish_rename_edits(
+    source: &str,
+    line_index: &LineIndex,
+    edits: Vec<PendingRenameEdit>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    if edits
+        .iter()
+        .any(|edit| edit.span.is_empty() || source.get(edit.span.as_range()).is_none())
+    {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "cannot rename: edit ranges are invalid or conflicting".to_owned(),
+            range: None,
+        });
+    }
+    // Check source order without changing the established publication order.
+    // Only identical edits collapse; equal ranges with different text conflict.
+    let mut order: Vec<usize> = (0..edits.len()).collect();
+    order.sort_by_key(|&index| (edits[index].span.start(), edits[index].span.end()));
+    let mut keep = vec![true; edits.len()];
+    for pair in order.windows(2) {
+        let (left, right) = (&edits[pair[0]], &edits[pair[1]]);
+        if left == right {
+            keep[pair[1]] = false;
+        } else if left.span.end() > right.span.start() {
+            return Err(crate::rename_safety::RenameRefusal {
+                reason: "cannot rename: edit ranges are invalid or conflicting".to_owned(),
+                range: Some(span_to_range(source, line_index, right.span)),
+            });
+        }
+    }
+    Ok(edits
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| keep[*index])
+        .map(|(_, edit)| TextEdit {
+            range: span_to_range(source, line_index, edit.span),
+            new_text: edit.new_text,
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -2180,6 +2213,39 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
     use tcl_dialect::model::{Family, SurfaceLayer};
+
+    #[test]
+    fn rename_edit_plan_refuses_conflicts_before_utf16_publication() {
+        use tcl_lexer::Span;
+        let source = "αbc def";
+        let index = LineIndex::new(source);
+        let edit = |start, end, text: &str| PendingRenameEdit {
+            span: Span::new(start, end),
+            new_text: text.to_owned(),
+        };
+        let same = edit(0, 3, "x");
+        let accepted = finish_rename_edits(
+            source,
+            &index,
+            vec![same.clone(), edit(5, 8, "y"), same.clone()],
+        )
+        .unwrap();
+        assert_eq!(accepted.len(), 2);
+        assert_eq!(accepted[0].range.end_character, 2);
+        assert_eq!(accepted[0].new_text, "x");
+        assert!(finish_rename_edits(source, &index, vec![same.clone(), edit(0, 3, "z")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![same.clone(), edit(2, 4, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(0, 8, "x"), same]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(1, 3, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(5, 9, "x")]).is_err());
+        assert!(finish_rename_edits(source, &index, vec![edit(2, 2, "x")]).is_err());
+        assert_eq!(
+            finish_rename_edits(source, &index, vec![edit(2, 3, "x"), edit(3, 4, "y")])
+                .unwrap()
+                .len(),
+            2
+        );
+    }
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();

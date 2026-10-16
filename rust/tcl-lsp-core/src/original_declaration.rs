@@ -909,6 +909,93 @@ pub fn reference_spans(
     }
 }
 
+/// Coverage of the independent conditional source-reference facet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadonlyReferenceCoverage {
+    /// This role uses its existing inventory; no member source facet was requested.
+    ExistingInventory,
+    /// Genuine whole-source ownership retains partial positive occurrences.
+    Partial,
+    /// The independent source facet is unavailable; existing positives remain.
+    Unavailable,
+}
+
+/// Readonly occurrences with explicit independent source coverage.
+/// Neither variant proves an occurrence census, absence or edit coverage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadonlyReferenceReport {
+    spans: Vec<Span>,
+    coverage: ReadonlyReferenceCoverage,
+}
+
+impl ReadonlyReferenceReport {
+    /// Positive source extents only, independently of editable occurrences.
+    #[must_use]
+    pub fn into_spans(self) -> Vec<Span> {
+        self.spans
+    }
+    /// Borrow the positive readonly source extents.
+    #[must_use]
+    pub fn spans(&self) -> &[Span] {
+        &self.spans
+    }
+    /// Partial source availability stays separate from its positive count.
+    #[must_use]
+    pub const fn coverage(&self) -> ReadonlyReferenceCoverage {
+        self.coverage
+    }
+    pub(crate) fn extend(&mut self, spans: impl IntoIterator<Item = Span>) {
+        self.spans.extend(spans);
+        self.spans.sort_by_key(|span| (span.start(), span.end()));
+        self.spans.dedup();
+    }
+}
+
+/// Add conditional original member-body source correspondences for reporting.
+/// Existing declaration/reference and transformation inventories are unchanged.
+#[must_use]
+pub fn readonly_reference_report(
+    identity: &OriginalDeclarationIdentity,
+    source: &str,
+    analysis: &AnalysisResult,
+    follow_links: bool,
+) -> Option<ReadonlyReferenceReport> {
+    identity
+        .is_current(identity.uri(), source, analysis)
+        .then_some(())?;
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let mut report = ReadonlyReferenceReport {
+        spans: reference_spans(identity, source, analysis, follow_links),
+        coverage: ReadonlyReferenceCoverage::ExistingInventory,
+    };
+    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance)
+        || identity.object_owner.is_some()
+    {
+        return Some(report);
+    }
+    let references = tcl_compiler::analyser::class_hierarchy::original_metadata::
+        original_source_self_method_references(source, analysis);
+    match references {
+        Some(references) => {
+            report.coverage = ReadonlyReferenceCoverage::Partial;
+            report.extend(references.into_iter().filter_map(|reference| {
+                (OriginalDeclarationIdentity::for_method(
+                    identity.uri(),
+                    source,
+                    analysis,
+                    reference.declaring_class(),
+                    reference.method(),
+                )
+                .as_ref()
+                    == Some(identity))
+                .then_some(reference.selector_span())
+            }));
+        }
+        None => report.coverage = ReadonlyReferenceCoverage::Unavailable,
+    }
+    Some(report)
+}
+
 /// Compact editor data locating a sealed readonly receipt. Decoding the token
 /// supplies no declaration or native authority until the registry reselects it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1154,6 +1241,80 @@ pub fn declarations(
     }
     rows.dedup();
     Some(rows)
+}
+
+#[cfg(test)]
+mod readonly_source_reference_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn readonly_member_reports_keep_source_spans_out_of_edit_inventories() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let source = "oo::class create C {method ping {} {}; method body {} {my ping; my ping}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let class = analysis.original_class_declarations().next().unwrap();
+        let method = class
+            .metadata()
+            .original_members
+            .declarations()
+            .find(|method| method.original_name_input().bytes() == b"ping")
+            .unwrap();
+        let identity =
+            OriginalDeclarationIdentity::for_method("", source, &analysis, class, method).unwrap();
+        let old = reference_spans(&identity, source, &analysis, true);
+        let report = readonly_reference_report(&identity, source, &analysis, true).unwrap();
+        assert_eq!(report.coverage(), ReadonlyReferenceCoverage::Partial);
+        assert_eq!(report.spans().len(), 2);
+        assert!(
+            report
+                .spans()
+                .iter()
+                .all(|span| &source[span.as_range()] == "ping")
+        );
+        assert!(
+            old.is_empty(),
+            "the pre-existing reference kernel does not acquire the source facet"
+        );
+        let (_, strong) = crate::references::method_references_for_declaration(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &analysis,
+            class.metadata(),
+            method.metadata(),
+            false,
+        );
+        assert!(
+            strong.is_empty(),
+            "source-only selectors cannot enter a transformation inventory"
+        );
+        assert!(
+            crate::references::method_references_for_class(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                "::C",
+                "ping",
+                false,
+            )
+            .is_none()
+        );
+        assert!(
+            crate::rename::method_spans_in_document(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                "::C",
+                "ping",
+                false,
+            )
+            .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(readonly_reference_report(&identity, source, &missing, true).is_none());
+    }
 }
 
 #[cfg(test)]

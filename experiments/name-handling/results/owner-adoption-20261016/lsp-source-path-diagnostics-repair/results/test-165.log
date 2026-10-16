@@ -1,0 +1,6 @@
+
+running 1 test
+test original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.94s
+

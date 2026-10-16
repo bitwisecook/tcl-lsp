@@ -1,0 +1,15 @@
+
+running 1 test
+test definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor ... 
+thread 'definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor' (197380) panicked at rust/tcl-lsp-core/src/definition.rs:6518:9:
+both positive class definitions must be present in the analysis
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3208 filtered out; finished in 0.83s
+

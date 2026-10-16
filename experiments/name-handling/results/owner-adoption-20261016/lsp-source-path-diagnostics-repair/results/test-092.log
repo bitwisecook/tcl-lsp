@@ -1,0 +1,6 @@
+
+running 1 test
+test uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.00s
+

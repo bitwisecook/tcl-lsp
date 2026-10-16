@@ -29,7 +29,7 @@ use std::sync::Arc;
 use tcl_compiler::analyser::{Analyser, ClassDef, ResolvedAnalysisInput, build_class_hierarchy};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 
 #[derive(Default, Clone, Copy)]
 struct Counts {
@@ -59,7 +59,7 @@ fn main() {
     let dialect = "tcl9.0";
     let environment = tcl_registry::model::ingress::resolve_environment(dialect);
     let context = environment.default_context_registry();
-    let registry = context.commands().registry();
+    let registry = context.commands().as_ref();
     let config = LexerConfig::for_file_grammar(environment.grammar());
     let input = ResolvedAnalysisInput::new(
         environment.analyser_profile(),
@@ -151,26 +151,31 @@ fn main() {
             );
             decode_kinds(&semantic_tokens.data)
         });
-        let source_line_starts = line_starts(&src);
-        let line_starts = project_mode.then_some(source_line_starts.as_slice());
+        let line_index = LineIndex::new(&src);
 
         let mut sites = Vec::new();
         collect_sites(&src, 0, config, &mut sites, 0);
         for (form, method_start) in sites {
             let resolved = if project_mode {
-                let starts = line_starts.as_deref().expect("project mode has source lines");
                 let kinds = project_token_kinds
                     .as_ref()
                     .expect("project mode has a merged class hierarchy");
-                let (line, column) = byte_to_line_col(starts, &src, method_start);
-                kinds.get(&(line, column)) == Some(&method_token_idx)
+                let position = line_index.position_at_utf16(method_start, &src);
+                kinds.get(&(position.line, position.character.get())) == Some(&method_token_idx)
             } else {
-                let (line, character) =
-                    byte_to_line_col(&source_line_starts, &src, method_start);
-                let selected = matches!(
-                    tcl_lsp_core::method_symbol::local_candidate(&src, &analysis, line, character),
-                    std::ops::ControlFlow::Break(Some(_)),
-                );
+                let position = line_index.position_at_utf16(method_start, &src);
+                let selected = src.get(..method_start as usize).is_some()
+                    && line_index.offset_at_utf16(position.line, position.character, &src)
+                        == method_start
+                    && matches!(
+                        tcl_lsp_core::method_symbol::local_candidate(
+                            &src,
+                            &analysis,
+                            position.line,
+                            position.character.get()
+                        ),
+                        std::ops::ControlFlow::Break(Some(_)),
+                    );
                 if source_query_spans.contains(&method_start) && !selected {
                     query_without_candidate += 1;
                 }
@@ -183,7 +188,9 @@ fn main() {
 
     println!("# TclOO dispatch selection and presentation report");
     if project_mode {
-        println!("project mode reports semantic-token presentation for cross-file candidates; this is not a typed source-target verdict");
+        println!(
+            "project mode reports semantic-token presentation for cross-file candidates; this is not a typed source-target verdict"
+        );
         println!("files with OO: {files}   dispatch sites: {}", total.total);
         println!();
         println!("| receiver form | method token | sites | rate |");
@@ -211,7 +218,9 @@ fn main() {
         total.rate() * 100.0
     );
     if !project_mode {
-        println!("non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}");
+        println!(
+            "non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}"
+        );
     }
 }
 
@@ -292,30 +301,6 @@ fn decode_kinds(data: &[u32]) -> HashMap<(u32, u32), u32> {
         out.insert((line, col), kind);
     }
     out
-}
-
-fn line_starts(src: &str) -> Vec<usize> {
-    let mut v = vec![0usize];
-    for (i, b) in src.bytes().enumerate() {
-        if b == b'\n' {
-            v.push(i + 1);
-        }
-    }
-    v
-}
-
-/// Byte offset → (line, utf16-ish column).  Columns are counted in UTF-16 code
-/// units to match the semantic-token encoding; corpus files are near-ASCII so
-/// the approximation is exact in practice.
-fn byte_to_line_col(line_starts: &[usize], src: &str, byte: u32) -> (u32, u32) {
-    let byte = byte as usize;
-    let line = line_starts
-        .partition_point(|&s| s <= byte)
-        .saturating_sub(1);
-    let col = src
-        .get(line_starts[line]..byte.min(src.len()))
-        .map_or(0, |s| s.chars().map(|c| c.len_utf16() as u32).sum());
-    (line as u32, col)
 }
 
 fn collect_tcl(p: &Path, out: &mut Vec<std::path::PathBuf>) {

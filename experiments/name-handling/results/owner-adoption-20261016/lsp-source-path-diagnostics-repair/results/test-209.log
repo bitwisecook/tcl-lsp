@@ -1,0 +1,6 @@
+
+running 1 test
+test current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.39s
+

@@ -1,0 +1,77 @@
+    Checking libc v0.2.190
+    Checking subtle v2.6.1
+    Checking hybrid-array v0.4.15
+    Checking ctutils v0.4.2
+    Checking getrandom v0.4.3
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking digest v0.11.3
+    Checking thiserror v2.0.21
+    Checking bitflags v2.13.2
+    Checking crypto-bigint v0.7.5
+    Checking tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+    Checking sha2 v0.11.0
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Checking num-bigint v0.5.1
+    Checking ff v0.14.0
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+    Checking group v0.14.0
+    Checking pkcs8 v0.11.0
+    Checking sec1 v0.8.1
+    Checking serde_core v1.0.229
+    Checking sha1 v0.11.0
+    Checking md-5 v0.11.0
+    Checking hashbrown v0.17.1
+    Checking indexmap v2.14.2
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Checking elliptic-curve v0.14.1
+    Checking primefield v0.14.0
+    Checking hmac v0.13.0
+    Checking signature v3.0.0
+    Checking serde_json v1.0.151
+    Checking asn1-rs v0.7.2
+    Checking serde v1.0.229
+    Checking rfc6979 v0.6.0
+    Checking wnaf v0.14.1
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Checking primeorder v0.14.0
+    Checking ecdsa v0.17.0
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+    Checking getrandom v0.2.17
+    Checking ring v0.17.14
+    Checking ref-cast v1.0.27
+    Checking der-parser v10.0.0
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking oid-registry v0.8.1
+    Checking crypto-primes v0.7.2
+   Compiling futures-macro v0.3.34
+    Checking futures-util v0.3.34
+    Checking x509-parser v0.18.1
+    Checking fluent-uri v0.4.1
+    Checking rsa v0.10.0-rc.18
+    Checking p384 v0.14.0
+    Checking p256 v0.14.0
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking parking_lot_core v0.9.12
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking tokio v1.53.2
+    Checking tower v0.5.3
+    Checking ls-types v0.0.6
+    Checking tokio-util v0.7.19
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking dashmap v6.2.1
+    Checking tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+    Checking futures v0.3.34
+    Checking tower-lsp-server v0.23.0
+    Checking tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error[E0599]: no method named `registry` found for reference `&Arc<CommandRegistry>` in the current scope
+  --> rust/tcl-lsp-core/examples/tcloo_dispatch.rs:62:39
+   |
+62 |     let registry = context.commands().registry();
+   |                                       ^^^^^^^^ method not found in `&Arc<CommandRegistry>`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `tcl-lsp-core` (example "tcloo_dispatch") due to 1 previous error

@@ -1,0 +1,5 @@
+  tcl      169 commands (5 control, 42 keyword, 122 builtin)
+  expect   202 commands (5 control, 42 keyword, 155 builtin)
+  iapps    210 commands (5 control, 42 keyword, 163 builtin)
+  irules  1049 commands (1 control, 10 keyword, 1038 builtin)
+OK: all Zed query files are in sync with the registry.

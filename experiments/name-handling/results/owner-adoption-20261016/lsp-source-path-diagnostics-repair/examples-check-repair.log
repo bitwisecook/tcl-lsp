@@ -1,0 +1,15 @@
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error[E0425]: cannot find function `line_starts` in this scope
+   --> rust/tcl-lsp-core/examples/tcloo_diag.rs:108:27
+    |
+108 |         let line_starts = line_starts(&src);
+    |                           ^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `byte_to_line_col` in this scope
+   --> rust/tcl-lsp-core/examples/tcloo_diag.rs:112:37
+    |
+112 |             let (line, character) = byte_to_line_col(&line_starts, &src, site.method_start);
+    |                                     ^^^^^^^^^^^^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `tcl-lsp-core` (example "tcloo_diag") due to 2 previous errors

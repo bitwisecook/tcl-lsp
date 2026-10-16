@@ -1,0 +1,92 @@
+{
+  "rustfmt_check_exit": 1,
+  "module_prefix_checks": {
+    "compiler_new_module_decl": true,
+    "compiler_new_module_source": true,
+    "server_new_module_decl": true,
+    "server_new_module_source": true
+  },
+  "retained_sources": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "old_test_suffix_sha256": "b2c3a82721fcb25895152465901301b985655c11642424f083d282315f26ff10",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "old_test_suffix_sha256": "347fab66d0aed7d88a329d1aed05cb9b13ea200e0958eb01585f2ba75b1bed1d",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "old_test_suffix_sha256": "e82882693515db55c9ce604899e3603f937d1308a42c5084eb2985b8166f2049",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "old_test_suffix_sha256": "67ea3e9f1de1aad83d5bb5d712b913c1b66944bcffe46659fc32f390016bc89f",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "function": "method_references_for_declaration",
+      "sha256": "99197adba2e35ecbd4073874cfbcd98a6df3d47d446c8cc178abe81d51df0671",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "function": "method_references_for_class",
+      "sha256": "63475a4c858eeb6f13a5a175154db1e19eff0158c344ea96d7d4ac533de0455b",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "function": "reference_spans",
+      "sha256": "ca651eac21b2f6f5d9679405fe983fbba2c30826b25557f0efbef62d1946ca45",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "function": "local_reference_spans",
+      "sha256": "0920f138876dc8a87bfc56bb759a32b22d855dcb29227c3a2d247a5f42cb6371",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "function": "local_candidate",
+      "sha256": "7f37de8bbcd1cc5bea6e7f09865ff9a7611c5069e7f5490f6838a3160f9b3440",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_declaration_reference_locations",
+      "sha256": "1be2a46e8e0b89a20ed9fef1446b3c177b797cb2d832604423ad7a0bab54fc08",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_method_locations_at",
+      "sha256": "e4fe1c6f7dbe359d12080121fa7f7ff7f00a35350fcb44fea86226f21eefcbea",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_method_candidate_at",
+      "sha256": "5f3f512b5fa972ec9d5654e133e0a64e0573cc59850a2afaecf58637c90d51ce",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_declaration_identity_at",
+      "sha256": "0f2d95573d151a0e75ac5143e4d9de545632c82c6bfb90537f1ba00cc5c151e3",
+      "preserved_byte_identical": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_declaration_documents",
+      "sha256": "e6d95e56436c3f0cf5a6f3b8b5a0438cebf31a0567193813a7bff105bfdef5ec",
+      "preserved_byte_identical": true
+    }
+  ],
+  "no_execution": "No test/build/Cargo execution; hashes and Rust formatter parser only."
+}

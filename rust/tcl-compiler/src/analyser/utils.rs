@@ -360,13 +360,29 @@ pub fn script_comment_facts_from_analysis(
     CommentLineWalker::from_analysis(source, analysis)?.collect_original()
 }
 
+/// Lexer-confirmed comments at every original command position, including
+/// inline `;#` comments, under the actual complete analysis and Registry.
+/// Source-body selection remains conditional syntax; this supplies no entered
+/// body, execution, complete command census or source-edit authority.
+#[must_use]
+pub fn script_command_comment_facts_from_analysis(
+    source: &str,
+    analysis: &super::AnalysisResult,
+) -> Option<Vec<ScriptCommentFact>> {
+    // naming.core.original-comment-source-context
+    // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+    let mut walker = CommentLineWalker::from_analysis(source, analysis)?;
+    walker.comment_position = ScriptCommentPosition::CommandPosition;
+    walker.collect_original()
+}
+
 /// One lexer-confirmed command-position comment in a registry-reachable script.
 ///
 /// `span` is an absolute byte range in the whole document and includes the
-/// leading `#`.  A fact only represents a physical comment line (the first
-/// non-horizontal-whitespace token is `#`), never a `;#` tail comment.  The
-/// caller can therefore inspect the exact comment slice without re-reading
-/// source text before the marker.
+/// leading `#`. Physical-line queries retain only markers preceded by horizontal
+/// whitespace on that line; the command-position query also retains inline
+/// comments. The exact slice carries the selected lexical purpose and never
+/// turns a quoted or braced data argument into script.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScriptCommentFact {
     /// Absolute lexer-confirmed comment-token span, including `#`.
@@ -410,6 +426,26 @@ pub fn original_script_comment_facts(
     scripts: &[(Span, u32)],
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ScriptCommentFact>> {
+    original_script_comment_facts_for_position(
+        image,
+        scripts,
+        config,
+        ScriptCommentPosition::PhysicalLine,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScriptCommentPosition {
+    PhysicalLine,
+    CommandPosition,
+}
+
+fn original_script_comment_facts_for_position(
+    image: &tcl_lexer::SourceImage,
+    scripts: &[(Span, u32)],
+    config: tcl_lexer::LexerConfig,
+    position: ScriptCommentPosition,
+) -> Option<Vec<ScriptCommentFact>> {
     // naming.core.original-comment-source-context
     // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
     let source = image.try_text().ok()?;
@@ -431,10 +467,11 @@ pub fn original_script_comment_facts(
             let start = usize::try_from(span.start()).ok()?;
             let before = source.get(..start)?;
             let line_start = before.rfind('\n').map_or(0, |offset| offset + 1);
-            if !source
-                .get(line_start..start)?
-                .bytes()
-                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
+            if position == ScriptCommentPosition::PhysicalLine
+                && !source
+                    .get(line_start..start)?
+                    .bytes()
+                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
             {
                 continue;
             }
@@ -464,6 +501,7 @@ struct CommentLineWalker<'a> {
     availability: Option<SurfaceQuery<'a>>,
     visited: HashSet<(u32, u32)>,
     facts: Vec<ScriptCommentFact>,
+    comment_position: ScriptCommentPosition,
 }
 
 impl<'a> CommentLineWalker<'a> {
@@ -492,6 +530,7 @@ impl<'a> CommentLineWalker<'a> {
                 .map(tcl_dialect::DialectProfile::surface_query),
             visited: HashSet::new(),
             facts: Vec::new(),
+            comment_position: ScriptCommentPosition::PhysicalLine,
         }
     }
 
@@ -512,6 +551,7 @@ impl<'a> CommentLineWalker<'a> {
             availability: Some(input.availability_context().authoring_query()),
             visited: HashSet::new(),
             facts: Vec::new(),
+            comment_position: ScriptCommentPosition::PhysicalLine,
         })
     }
 
@@ -539,11 +579,13 @@ impl<'a> CommentLineWalker<'a> {
         let analysis = self.analysis?;
         let context = analysis.resolved_input.as_ref()?.context_registry();
         let image = tcl_lexer::SourceImage::document(self.whole);
-        self.facts.extend(original_script_comment_facts(
-            &image,
-            &[(region, depth)],
-            self.config,
-        )?);
+        self.facts
+            .extend(original_script_comment_facts_for_position(
+                &image,
+                &[(region, depth)],
+                self.config,
+                self.comment_position,
+            )?);
         let script = self.whole.get(region.as_range())?;
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             script,

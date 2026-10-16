@@ -1,0 +1,15 @@
+
+running 1 test
+test parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows ... 
+thread 'parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows' (198413) panicked at rust/tcl-compiler/src/parsing/spectcl_source.rs:408:13:
+speclib p 2.0 {include {unclosed}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10264 filtered out; finished in 0.00s
+

@@ -1,0 +1,16 @@
+
+running 1 test
+test current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source ... 
+thread 'current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source' (199029) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:678:9:
+assertion failed: matches!(backend.current_diagnostics(&expected).await.unwrap(),
+    CurrentDiagnostics::Unavailable { .. })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.33s
+

@@ -1,0 +1,13 @@
+    Updating crates.io index
+     Locking 2 packages to highest Rust 1.97 compatible versions
+      Adding bytecount v0.6.9
+      Adding tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+ Downloading crates ...
+  Downloaded wasm-bindgen-shared v0.2.129
+  Downloaded wasm-bindgen-macro v0.2.129
+  Downloaded gloo-timers v0.4.0
+  Downloaded wasm-bindgen-futures v0.4.79
+  Downloaded wasm-bindgen v0.2.129
+  Downloaded js-sys v0.3.106
+  Downloaded wasm-bindgen-macro-support v0.2.129
+  Downloaded console_error_panic_hook v0.1.7

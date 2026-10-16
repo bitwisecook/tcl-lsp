@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-16T17:40:26.624938+00:00",
+  "archive": "/workspace/naming-validation/archives/five-library-cd0-frozen.tar.zst",
+  "sha256": "bbfcf5cd415e1310495d138ad4acb5d3cd11056f6a4e159a014c526f310d8edd",
+  "bytes": 267294556,
+  "members": {
+    "tcl_cli_support": {
+      "path": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_cli_support-c4c3631427c24177",
+      "sha256": "cca5f1304e930d8dfba0c24a6a5787bd6d6e9baae663d9746de9a1c140becc71",
+      "bytes": 365251520
+    },
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_compiler-d8de6991bbca4c93",
+      "sha256": "7ad965bc2377ea3e546489eb7dc4e1292d9172a42a83741aa29784c5e0a52cb7",
+      "bytes": 410919504
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_lsp_core-a667c600751d0109",
+      "sha256": "5a83b1edf56193e606c3389284f096813e73002b89d1dd2a062dd2d03a5bbbaf",
+      "bytes": 353259832
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_registry-b16ebab44352cebb",
+      "sha256": "2909e0d8ebd7c1e32372cebc64442e631ba4718d1174add71dbf0210b787f8c3",
+      "bytes": 91167032
+    },
+    "tcl_vm": {
+      "path": "/workspace/naming-validation/five-library-cd0/frozen-binaries/tcl_vm-80b96b754505a5a3",
+      "sha256": "cdc6fb88ab7fabf82afbee1dcc402c1a832c011c89a0c00249e6cd8b899636f5",
+      "bytes": 274520784
+    }
+  },
+  "restoration": "Restore to original frozen-binaries paths and verify original SHA256 before execution. Lossless storage compaction only, no new acceptance."
+}

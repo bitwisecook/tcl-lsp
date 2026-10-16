@@ -1,0 +1,29 @@
+{
+  "capture_status": "COMPLETED_ORIGINAL_BOUNDED_EXECUTION_EVIDENCE",
+  "actual_source_binding": {
+    "utc": "2026-10-16T17:41:21.812482+00:00",
+    "source_head": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+    "ordinary": true,
+    "instrumentation": false,
+    "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-spectcl --lib --no-run",
+    "status": "PASS",
+    "cargo_seconds": 179,
+    "warnings": 0,
+    "source_input_count": 38998,
+    "input_drift": [],
+    "source_base": "Immediately preceding five-library frozen input binding e0612 source bytes; source files stayed frozen through this separate actual SpecTcl build. No source edits; work tracking only.",
+    "scope": "Actual separate native SpecTcl test artifact, not an artifact emitted by preceding five-library command."
+  },
+  "result_status_retained": "SELECTION_CAPTURE_ONLY_NO_ORDINARY_ACCEPTANCE",
+  "execution_counts": {
+    "selected": 3,
+    "PASS": 3,
+    "singleton_rejections": 0,
+    "failed_and_timeout_selectors": []
+  },
+  "source_equivalence": {
+    "equivalent_commit": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+    "basis": "Separate SpecTcl source-binding.json records unchanged immediately preceding five-library input; separate actual artifact/build command."
+  },
+  "limits": "Frozen bounded native Linux controls only. No full repository/issue/Native/runtime/VM/Bigip acceptance; no later cache/arity/Logical-prefix repairs in these frozen binaries. Actual Windows/WASI execution remains separately required. Standard push-only protocol remains unchanged."
+}

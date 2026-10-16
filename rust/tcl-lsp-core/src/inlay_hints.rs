@@ -34,7 +34,7 @@
 //!
 //! Method-call parameter hints inside class bodies are not provided.
 
-use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::ProcedureId;
 use tcl_compiler::types::{TypeKind, TypeLattice};
@@ -159,10 +159,6 @@ pub fn inlay_hints_in_program(
     let registry = analysis
         .resolved_registry()
         .or_else(|| lexical.then_some(resolution.registry).flatten());
-    let resolution = crate::definition::CallResolution {
-        registry,
-        program: resolution.program,
-    };
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
@@ -200,12 +196,12 @@ pub fn inlay_hints_in_program(
         // The segmenter has no sound way to start mid-file (a command
         // boundary requires tracking brace/bracket nesting from the top), so
         // it still walks the whole document. What a requested viewport buys
-        // is skipping the *resolution* work per segment — the namespace walk
-        // (`lookup_proc`) and the registry synopsis lookup — for a command
+        // is skipping original procedure/argument selection and the registry
+        // synopsis query for a command
         // that falls entirely outside the range: cheap span arithmetic on
         // data the segmenter already produced, applied before any of that
         // work runs, not after (the `position_within_range` filter inside
-        // `emit_hints_for_call`/`emit_original_builtin_hints` only ever trimmed the
+        // original procedure/builtin hint emitters only ever trimmed the
         // *output*).
         let range_start_off = line_index.offset_at_utf16(
             range.start_line,
@@ -230,29 +226,13 @@ pub fn inlay_hints_in_program(
             if seg.span.end() <= range_start_off || seg.span.start() >= range_end_off {
                 continue;
             }
-            let cmd_name = &seg.texts[0];
-            // Resolve the call from the namespace its command token sits in, the
-            // way C Tcl would (caller namespace, then global): a proc buried in
-            // an unrelated namespace never captures the argument hints, and a
-            // same-named builtin keeps its own hints unless a proc is visible.
-            let cmd_off = seg.argv[0].span.start();
             if !analysis.allows_lexical_declaration_advice() {
                 if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(source, analysis, seg) {
                     emit_original_procedure_hints(source, &prototype, &line_index, range, &mut out);
                     continue;
                 }
-            } else if let Some(proc_def) =
-                lookup_proc(analysis, source, cmd_off, cmd_name, resolution)
-            {
-                emit_hints_for_call(
-                    source,
-                    seg,
-                    proc_def,
-                    &line_index,
-                    range,
-                    &mut out,
-                    analysis,
-                );
+            } else if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(source, analysis, seg) {
+                emit_original_logical_procedure_hints(source, &prototype, &line_index, range, &mut out);
                 continue;
             }
             // Built-in command — parse the registry synopsis for
@@ -1121,86 +1101,49 @@ fn synopsis_groups(synopsis: &str) -> Vec<String> {
     groups
 }
 
-/// Resolve the proc a call `name` at byte offset `cmd_off` denotes, using C
-/// Tcl's namespace-aware command resolution (the caller's namespace first, then
-/// global; `registry`, when `Some`, gates a same-named builtin so a proc in an
-/// unrelated namespace can't shadow it).  Replaces a namespace-blind
-/// simple-name scan that emitted the wrong proc's parameter hints whenever two
-/// namespaces shared a proc name.
-fn lookup_proc<'a>(
-    analysis: &'a AnalysisResult,
+/// Readonly Logical labels use the selected allocation's exact original formal
+/// topology. Captured values occupy effective slots but have no written anchor.
+fn emit_original_logical_procedure_hints(
     source: &str,
-    cmd_off: u32,
-    name: &str,
-    resolution: crate::definition::CallResolution<'_>,
-) -> Option<&'a ProcDef> {
-    if !analysis.allows_lexical_declaration_advice() {
-        let invocation = analysis
-            .command_invocations
-            .iter()
-            .find(|invocation| invocation.range.start() == cmd_off)?;
-        let input = invocation.original_name_input.as_ref()?;
-        let lookup = invocation.original_lookup.as_ref()?;
-        if lookup.name_input() != input {
-            return None;
-        }
-        let reference = invocation.resolved_command_reference.as_ref()?;
-        if !reference.matches_original_invocation_site(lookup.site()) {
-            return None;
-        }
-        return reference
-            .linked_definition()
-            .or_else(|| reference.definition())
-            .and_then(|definition| analysis.proc_for_definition(definition, source));
-    }
-    let ns = crate::definition::namespace_context_at(
-        &analysis.global_scope,
-        cmd_off,
-        &analysis.namespace_overrides,
-    );
-    crate::definition::resolve_called_proc(analysis, source, &ns, name, cmd_off, resolution)
-}
-
-/// Walk a single segmented command, emit a hint per argument
-/// that falls inside `range`.  Stops at the proc's parameter
-/// count — extra arguments (e.g. an `args`-tail proc) don't
-/// produce hints.
-fn emit_hints_for_call(
-    source: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    proc_def: &ProcDef,
+    prototype: &tcl_compiler::registry_invocation::source_structure::OriginalLogicalProcedureArguments<'_>,
     line_index: &LineIndex,
     range: LspRange,
     out: &mut Vec<InlayHint>,
-    _analysis: &AnalysisResult,
 ) {
-    let positions = (1..seg.argv.len()).map(|ordinal| (ordinal - 1, ordinal));
-    for (param_idx, arg_idx) in positions {
-        let Some(arg_tok) = seg.argv.get(arg_idx) else {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    for binding in prototype.bindings() {
+        let (parameter, argument) = match binding {
+            FormalByteArgumentBinding::Value {
+                parameter,
+                argument,
+            }
+            | FormalByteArgumentBinding::CallerLink {
+                parameter,
+                argument,
+                ..
+            } => (*parameter, *argument),
+            FormalByteArgumentBinding::Default { .. } | FormalByteArgumentBinding::Rest { .. } => {
+                continue;
+            }
+        };
+        // This is display data from the same current original declaration card,
+        // never a reporting-name lookup or an inverse to declaration identity.
+        let Some(parameter) = prototype.declaration().metadata().params.get(parameter) else {
             continue;
         };
-        let Some(param) = proc_def.params.get(param_idx) else {
-            // Past the declared parameter count — proc may
-            // have an `args` tail, but we don't emit hints
-            // for those (no individual name).
-            break;
+        let Some(operand) = prototype.operands().get(argument).and_then(Option::as_ref) else {
+            continue;
         };
-        // `args` is the conventional tail-collector; skip it
-        // even when present.
-        if param.name == "args" {
-            continue;
+        let position = line_index.position_at_utf16(operand.span().start(), source);
+        if position_within_range(position.line, position.character.get(), range) {
+            out.push(InlayHint {
+                position_line: position.line,
+                position_character: position.character.get(),
+                label: format!("{}:", parameter.name),
+                kind: InlayHintKind::Parameter,
+                padding_left: false,
+            });
         }
-        let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character.get(), range) {
-            continue;
-        }
-        out.push(InlayHint {
-            position_line: pos.line,
-            position_character: pos.character.get(),
-            label: format!("{}:", param.name),
-            kind: InlayHintKind::Parameter,
-            padding_left: false,
-        });
     }
 }
 
@@ -1477,7 +1420,7 @@ mod tests {
     }
 
     /// A command whose span falls entirely outside the
-    /// requested range must never reach `lookup_proc` or the registry
+    /// requested range must never reach original procedure selection or the registry
     /// synopsis lookup. There is no call counter to assert against through
     /// the public API, so this is parity: the narrow-range result must equal
     /// the in-range subset of the full-range result, for a document whose
@@ -2792,6 +2735,110 @@ mod retained_hint_context_tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn logical_procedure_parameter_hints_use_original_allocation_and_effective_topology() {
+        for (source, expected) in [
+            (
+                "proc target {first second} {}; target ONE TWO",
+                vec!["first:", "second:"],
+            ),
+            (
+                "proc target {captured written} {}; interp alias {} alias {} target FIXED; alias VALUE",
+                vec!["written:"],
+            ),
+            (
+                "proc target {first {second DEFAULT} args} {}; target ONE",
+                vec!["first:"],
+            ),
+            (
+                "proc target {first {second DEFAULT} args} {}; target ONE TWO THREE",
+                vec!["first:", "second:"],
+            ),
+        ] {
+            let mut analysis = Analyser::new().analyse(source, "tcl");
+            analysis.all_procs.clear();
+            analysis.global_scope.procs.clear();
+            analysis.command_invocations.clear();
+            let start = u32::try_from(source.rfind(';').unwrap() + 1).unwrap();
+            let out = hints(
+                source,
+                &analysis,
+                analysis.resolved_profile().unwrap(),
+                analysis.resolved_registry().unwrap(),
+            );
+            let labels = out
+                .iter()
+                .filter(|hint| {
+                    hint.kind == InlayHintKind::Parameter && hint.position_character >= start
+                })
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(labels, expected, "{source}: {out:?}");
+            if source.contains("alias VALUE") {
+                let actual = out.iter().find(|hint| hint.label == "written:").unwrap();
+                let expected = LineIndex::new(source).position_at_utf16(
+                    u32::try_from(source.rfind("VALUE").unwrap()).unwrap(),
+                    source,
+                );
+                assert_eq!(
+                    (actual.position_line, actual.position_character),
+                    (expected.line, expected.character.get())
+                );
+                assert!(!out.iter().any(|hint| hint.label == "captured:"));
+            }
+        }
+    }
+
+    #[test]
+    fn logical_procedure_parameter_hints_keep_unknown_formals_and_source_currency_terminal() {
+        for source in [
+            "proc target {value} {}; unknown_mutation; target VALUE",
+            "proc target {{optional DEFAULT} required} {}; target ONLY",
+            "proc target {&value} {}; target VALUE",
+            "proc target {args tail} {}; target FIRST SECOND",
+            "proc target {value} {}; rename target {}; target VALUE",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let start = u32::try_from(source.rfind(';').unwrap() + 1).unwrap();
+            let out = hints(
+                source,
+                &analysis,
+                analysis.resolved_profile().unwrap(),
+                analysis.resolved_registry().unwrap(),
+            );
+            assert!(
+                out.iter()
+                    .all(|hint| hint.kind != InlayHintKind::Parameter
+                        || hint.position_character < start),
+                "{source}: {out:?}"
+            );
+        }
+        let source = "proc target {value} {}; target VALUE";
+        let original = Analyser::new().analyse(source, "tcl");
+        let profile = original.resolved_profile().unwrap();
+        let registry = original.resolved_registry().unwrap();
+        assert!(
+            hints(source, &original, profile, registry)
+                .iter()
+                .any(|hint| hint.label == "value:")
+        );
+        assert!(
+            hints(
+                &source.replace("VALUE", "OTHER"),
+                &original,
+                profile,
+                registry
+            )
+            .is_empty()
+        );
+        let mut changed = original.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        assert!(hints(source, &changed, profile, registry).is_empty());
+        changed = original.clone();
+        changed.resolved_input = None;
+        assert!(hints(source, &changed, profile, registry).is_empty());
     }
 
     #[test]

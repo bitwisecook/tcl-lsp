@@ -1,0 +1,21 @@
+Independent source review: CLEAR
+
+Candidate: repair.patch
+Patch SHA-256: aef42d0d2a10e5eb2eb0f2a03761a44551acc3bc21c28de34edfc358d9de2adf
+Manifest SHA-256: 55d1c9b317d0f532cc8bdb9c36a363e6fe90c9a53122a8759d4edcefb721d1c6
+
+I verified all three declared before hashes against the current workspace and independently applied the patch in a fresh temporary partial tree. The resulting files matched all declared after hashes:
+
+- rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs
+  before 6e20c112a8702d7e9aecdadba9631516a0c3c7cbf810f2f0d80f3a82c42d863d
+  after  fed14b2b24df16332f46cbb17b9a12058a08b8d454ee6f08a76ca21eb1158d13
+- docs/design/contracts/shared-utility-contracts-rust.md
+  before aa05455d24bfce1943bffbc80bd52e6e63f7c40630946a4158e26a3d711ccd73
+  after  227c50fbf0ef50154639c94b42e37d41cb7495689ff7a4c817005fad967212d7
+- docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
+  before b5f0b1706aae442f94f8ca3c85b01aa3859055eae19ebcbf533546e672e137e4
+  after  abb107ec6d5589897f5590aa083064c344878af2709f18b3914af9dbe248623b
+
+The caller retains the previous explicit selected-semantics arity check before consuming ResolvedInvocation::authored_source_file_argument. The added control constructs a SourceFile-tagged descriptor with incompatible exact arity and verifies both the raw arity refusal and no filename result. The successful case uses the existing selected SourceFile ordinal for `source -encoding utf-8 [file join $dir {-literal path.tcl}]`; the independent original/standalone grammar selection and existing path resolution remain in place. Unknown/abbreviated selectors, expansion, foreign command descriptors, and unsupported standalone no-package form remain refused. No Native handler, load, or execution authority is introduced.
+
+The diff only changes the IndexLoader source_filename caller, appends a separate test module, and updates the two docs. Its existing test-module and fixture preimages are recorded as unchanged by the author manifest; no original assertions are removed or rewritten. This is source review only: I ran no build, Rust test, or native oracle.

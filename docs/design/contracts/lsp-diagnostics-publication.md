@@ -68,6 +68,30 @@ and report ID. The captured provider Registry snapshot must additionally have
 the same complete structural semantic key as the completed analysis's actual
 Registry; a foreign metadata store cannot borrow source/input currency. It uses
 the configured report before editor display suppression.
+The legacy `textDocument/diagnostic` and `workspace/diagnostic` cache has two
+explicit producer purposes. A publisher entry retains its original pass and
+requires its actual delivered ledger and issued report ID. A direct response
+retains the actual checked provider result and its original source/input owner;
+it never acquires a push acknowledgement or changes publisher completion. Both
+consume one shared analyser/compiler/project/refinement/lift computation, with
+unavailable, cancelled or degraded results distinct from successful empty
+findings. A direct disabled/excluded outcome records selected policy only,
+independently from a delivered suppression receipt.
+
+Each cache entry retains its original source, optional version, server revision,
+editing input, actual immutable diagnostic configuration, SourceFile/provider
+admission, epoch and generations. The configuration snapshot retains all actual
+`AnalyserConfig` fields: options such as declared target ranges are not part of
+editing input identity. Final source/input/report validation and cache commit
+use one guarded batch and current provider lease. Workspace versions belong to
+the reports, never to a later unrelated document snapshot. Closed, missing,
+unsupported or unavailable ownership refuses rather than issuing a current
+empty report. Unsupported model-provider completion remains separate work.
+Neither this compatibility handler nor direct-cache provenance advertises a
+standard diagnostic provider; diagnostics remain push-only. The public
+source-expectation command still requires a client version and accepts only the
+publisher purpose, so direct findings or policy cannot issue its completion.
+
 A completed empty report is different from an unavailable report. The pass
 retains its original SourceFile publication admission. The query joins the
 actual current SourceFile with that retained receipt and checks the selected

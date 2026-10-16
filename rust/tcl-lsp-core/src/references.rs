@@ -787,11 +787,15 @@ pub fn references_in_program(
         crate::method_symbol::local_candidate(source, analysis, line, character)
     {
         return selected.map_or_else(Vec::new, |candidate| {
-            crate::method_symbol::local_reference_spans(
+            crate::method_symbol::readonly_local_reference_report(
                 source,
                 analysis,
                 &candidate,
                 include_declaration,
+            )
+            .map_or_else(
+                Vec::new,
+                crate::original_declaration::ReadonlyReferenceReport::into_spans,
             )
             .into_iter()
             .map(|span| span_to_range(source, &line_index, span))
@@ -802,8 +806,13 @@ pub fn references_in_program(
         crate::original_declaration::select("", source, analysis, line, character)
     {
         return selected.map_or_else(Vec::new, |identity| {
-            let mut spans =
-                crate::original_declaration::reference_spans(&identity, source, analysis, true);
+            let mut spans = crate::original_declaration::readonly_reference_report(
+                &identity, source, analysis, true,
+            )
+            .map_or_else(
+                Vec::new,
+                crate::original_declaration::ReadonlyReferenceReport::into_spans,
+            );
             if include_declaration {
                 spans.push(identity.span());
             }
@@ -4236,7 +4245,13 @@ pub fn document_highlights_in_program(
             original_text_highlights(
                 source,
                 &line_index,
-                crate::method_symbol::local_reference_spans(source, analysis, &candidate, true),
+                crate::method_symbol::readonly_local_reference_report(
+                    source, analysis, &candidate, true,
+                )
+                .map_or_else(
+                    Vec::new,
+                    crate::original_declaration::ReadonlyReferenceReport::into_spans,
+                ),
             )
         });
     }
@@ -4244,10 +4259,15 @@ pub fn document_highlights_in_program(
         crate::original_declaration::select("", source, analysis, line, character)
     {
         return selected.map_or_else(Vec::new, |identity| {
-            let spans =
-                crate::original_declaration::reference_spans(&identity, source, analysis, true)
-                    .into_iter()
-                    .chain(std::iter::once(identity.span()));
+            let spans = crate::original_declaration::readonly_reference_report(
+                &identity, source, analysis, true,
+            )
+            .map_or_else(
+                Vec::new,
+                crate::original_declaration::ReadonlyReferenceReport::into_spans,
+            )
+            .into_iter()
+            .chain(std::iter::once(identity.span()));
             original_text_highlights(source, &line_index, spans)
         });
     }

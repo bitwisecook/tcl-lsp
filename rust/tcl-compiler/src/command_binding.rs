@@ -1719,14 +1719,33 @@ impl SourceCommandTarget {
         config: tcl_lexer::LexerConfig,
     ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
         let prefix = self.logical_original_prefix.as_ref()?;
+        let inputs = prefix.inputs()?;
         (prefix.matches_source_input(input, image, config)
-            && prefix.inputs().len() == self.prepended.len()
-            && prefix
-                .inputs()
+            && inputs.len() == self.prepended.len()
+            && inputs
                 .iter()
                 .zip(&self.prepended)
                 .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
-        .then(|| prefix.inputs())
+        .then_some(inputs)
+    }
+
+    /// Captured Logical source data from the same actual alias allocations.
+    /// This has no Native/authored name-key policy or written call-site anchor.
+    pub(crate) fn original_logical_prepended_source_inputs(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<&[OriginalLogicalSourceNameInput]> {
+        let prefix = self.logical_original_prefix.as_ref()?;
+        let inputs = prefix.source_inputs();
+        (prefix.matches_source_words(input, image, config)
+            && inputs.len() == self.prepended.len()
+            && inputs
+                .iter()
+                .zip(&self.prepended)
+                .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
+        .then_some(inputs)
     }
 
     /// Original registry descriptor identity, independent of the current slot.

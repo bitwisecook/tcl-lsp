@@ -90,13 +90,27 @@ use tcl_registry::{
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext, NativeNameProtocol};
 
 /// A genuine original Logical source word and its independently supported
-/// ASCII presentation. No Native name recipe, value object or slot is issued.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Unicode source presentation. No Native name recipe, value object or slot is issued.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OriginalLogicalSourceNameInput {
     original: NativeWord,
     bytes: Arc<[u8]>,
 }
 impl OriginalLogicalSourceNameInput {
+    pub(super) fn from_original_source_word(
+        original: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        if !input.has_logical_source_name_context() || original.config() != input.lexer_config() {
+            return None;
+        }
+        let bytes = tcl_syntax::word_rules::original_static_word_unicode_value(original)?;
+        (std::str::from_utf8(&bytes).is_ok() && !bytes.contains(&0)).then(|| Self {
+            original: original.clone(),
+            bytes: Arc::from(bytes),
+        })
+    }
+
     /// Whole original word, preserving channel, grouping and full configuration.
     #[must_use]
     pub const fn original_word(&self) -> &NativeWord {
@@ -269,6 +283,9 @@ pub enum SourceCommandTransitionObligation {
     NativeBaselineSourceApplicability,
     /// A prior source operation can mutate commands or namespace lookup.
     UnknownEarlierMutation,
+    /// A source schema in this prefix does not accept its frozen argv.
+    /// This is unavailable source applicability, not a reached runtime error.
+    UnacceptedSourceArity,
     /// Explicit Logical source assistance, without a Native naming/value issuer.
     ExplicitLogicalSourceApplicability,
     /// Actual original declaration entry/frame and before-argv alternatives.
@@ -612,6 +629,7 @@ impl OriginalSourceCommandTransitionAdvice {
                 matches!(
                     obligation,
                     SourceCommandTransitionObligation::UnknownEarlierMutation
+                        | SourceCommandTransitionObligation::UnacceptedSourceArity
                         | SourceCommandTransitionObligation::ConditionalDeclarationApplicability
                 )
             })
@@ -637,6 +655,12 @@ impl OriginalSourceCommandTransitionAdvice {
     ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
         self.procedure_body.as_deref()
     }
+    pub(crate) fn original_definition_member_source_body(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody> {
+        self.member_catalogue_body.as_deref()
+    }
+
     pub(crate) fn original_catalogue_source_body(&self) -> Option<&OriginalSourceCatalogueBody> {
         self.catalogue_body.as_ref()
     }
@@ -692,8 +716,15 @@ enum LogicalProcedureCatalogueRefusal {
     RootLexicalTailUnavailable(u32),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalSourceArityPrefix {
+    original: Arc<[NativeWord]>,
+    debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
+    arity_prefixes: BTreeMap<u32, Option<OriginalSourceArityPrefix>>,
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
     declared: BTreeMap<u32, Option<super::DeclaredSourceSelection>>,
     represented: BTreeSet<u32>,
@@ -1046,6 +1077,12 @@ impl OriginalSourceTransitionAdviceTape {
         self.member_catalogue.get(&offset)?.as_ref()
     }
 
+    pub(crate) fn original_definition_member_source_catalogue(
+        &self,
+    ) -> impl Iterator<Item = &OriginalSourceCommandTransitionAdvice> {
+        self.member_catalogue.values().filter_map(Option::as_ref)
+    }
+
     pub(crate) fn body_catalogue(
         &self,
         offset: u32,
@@ -1071,7 +1108,24 @@ impl OriginalSourceTransitionAdviceTape {
         );
     }
 
+    fn retain_arity_prefix(&mut self, graph: &AdviceGraph, original: &[NativeWord]) {
+        let Some(head) = original.first() else {
+            return;
+        };
+        source_class::merge_receipt(
+            &mut self.arity_prefixes,
+            head.span().start(),
+            Some(OriginalSourceArityPrefix {
+                original: Arc::from(original),
+                debts: graph.arity_debts.clone(),
+            }),
+        );
+    }
+
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, prefix) in other.arity_prefixes {
+            source_class::merge_receipt(&mut self.arity_prefixes, offset, prefix);
+        }
         self.logical_procedure_catalogue_refusals
             .extend(other.logical_procedure_catalogue_refusals);
         for (offset, receipt) in other.native_procedure_may_commands {
@@ -1189,6 +1243,7 @@ struct AdviceGraph {
     c_source_namespace: Option<ByteNamespacePath>,
     dialect: InvocationDialect,
     uncertain_operations: Vec<Arc<[NativeWord]>>,
+    arity_debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     procedure_declarations: Vec<Arc<source_procedure::OriginalSourceProcedureBody>>,
     class_declarations: Vec<Arc<OriginalSourceClassDeclaration>>,
@@ -1260,6 +1315,7 @@ impl AdviceGraph {
             .then(ByteNamespacePath::root),
             dialect,
             uncertain_operations: Vec::new(),
+            arity_debts: Vec::new(),
             handles: Vec::new(),
             class_handles: Vec::new(),
             procedure_body: None,
@@ -2208,6 +2264,28 @@ impl AdviceInvocationContext<'_> {
         }
     }
 
+    fn retain_arity_debt(
+        &self,
+        graph: &mut AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<()> {
+        if schema.facts().arity_accepts_frozen_arguments() == Some(false) {
+            let mut debt = self.schema_advice(invocation, graph, schema)?;
+            if !debt
+                .obligations
+                .contains(&SourceCommandTransitionObligation::UnacceptedSourceArity)
+            {
+                debt.obligations
+                    .push(SourceCommandTransitionObligation::UnacceptedSourceArity);
+            }
+            if !graph.arity_debts.iter().any(|old| old.as_ref() == &debt) {
+                graph.arity_debts.push(Arc::new(debt));
+            }
+        }
+        Some(())
+    }
+
     fn schema_advice(
         &self,
         invocation: AdviceInvocation<'_>,
@@ -2278,6 +2356,9 @@ impl AdviceInvocationContext<'_> {
         }
         if !graph.uncertain_operations.is_empty() {
             obligations.push(SourceCommandTransitionObligation::UnknownEarlierMutation);
+        }
+        if !graph.arity_debts.is_empty() {
+            obligations.push(SourceCommandTransitionObligation::UnacceptedSourceArity);
         }
         Some(OriginalSourceCommandTransitionAdvice {
             site: super::CommandAllocationSite {
@@ -2368,6 +2449,7 @@ impl AdviceInvocationContext<'_> {
         callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
         self.observe_publication_proposal(graph);
+        tape.retain_arity_prefix(graph, &invocation.words);
         let retained =
             self.retain_original_invocation_inner(graph, tape, invocation, callback_scope);
         self.observe_publication_proposal(graph);
@@ -2460,6 +2542,7 @@ impl AdviceInvocationContext<'_> {
             arguments: &arguments,
             lineage: &lineage,
         };
+        self.retain_arity_debt(graph, selected, &schema)?;
         let procedure = self.source_procedure_declaration(graph, selected, &schema);
         self.retain_source_inventory(
             tape,
@@ -2497,6 +2580,50 @@ impl AdviceInvocationContext<'_> {
 }
 
 impl super::SourceCommandBindings {
+    /// Ordinary selected Registry-schema arity debts in this exact source prefix.
+    /// Receiver, registered and source-header alternatives retain independent
+    /// owners. An empty list proves no complete invocation acceptance, reached
+    /// lookup, successful call or Normal result.
+    pub(crate) fn original_source_prefix_arity_debts(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> Option<Vec<Arc<OriginalSourceCommandTransitionAdvice>>> {
+        if self.source_metadata_owner().source_analysis_input() != Some(input) {
+            return None;
+        }
+        let origin = self.source_origin()?;
+        if original.is_empty()
+            || original.iter().any(|word| {
+                word.image() != origin.source_image() || word.config() != input.lexer_config()
+            })
+            || !self.matches_original_source_image(origin.source_image(), input.lexer_config())
+        {
+            return None;
+        }
+        let tape = self.original_source_transition_advice_tape_for(
+            input.borrowed_context_registry(),
+            OriginalSourceCataloguePurpose::CompletePrefix,
+        )?;
+        let prefix = tape
+            .arity_prefixes
+            .get(&original[0].span().start())?
+            .as_ref()?;
+        if prefix.original.as_ref() != original
+            || prefix.debts.iter().any(|debt| {
+                !Arc::ptr_eq(&debt.site.source, origin)
+                    || !debt.matches_source(origin.source_image(), input.lexer_config())
+                    || !debt.matches_context(input.borrowed_context_registry())
+                    || !debt
+                        .obligations
+                        .contains(&SourceCommandTransitionObligation::UnacceptedSourceArity)
+            })
+        {
+            return None;
+        }
+        Some(prefix.debts.clone())
+    }
+
     pub(crate) const fn original_source_lexer_config(&self) -> Option<LexerConfig> {
         self.lexer_config
     }

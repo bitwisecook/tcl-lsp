@@ -1,0 +1,15 @@
+
+running 1 test
+test original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert ... 
+thread 'original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert' (198927) panicked at rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:9:24:
+called `Result::unwrap()` on an `Err` value: ParseError { index: 21, kind: UnexpectedChar }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.00s
+

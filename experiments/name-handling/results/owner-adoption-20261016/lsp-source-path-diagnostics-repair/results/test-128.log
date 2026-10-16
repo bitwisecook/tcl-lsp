@@ -1,0 +1,6 @@
+
+running 1 test
+test tests::cross_document_definition_resolves_sibling_proc ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 2.91s
+

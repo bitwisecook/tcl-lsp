@@ -1,3 +1,21 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use super::tests::test_backend;
 use super::*;
 use tower_lsp_server::ls_types::{
@@ -498,7 +516,11 @@ async fn virtual_registered_path_reaches_actual_source_and_fresh_analysis() {
 async fn unregistered_virtual_open_requires_no_native_host_or_vfs_upsert() {
     let mut backend = test_backend();
     backend.store = Arc::new(vfs::MemoryStore::new());
-    let target = uri("file:///browser/open-é.tcl");
+    let target = uri(&tcl_lsp_core::file_uri::from_path(
+        std::path::Path::new("/browser/open-é.tcl"),
+        tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
+    )
+    .unwrap());
     backend.did_open(opened(&target, "set browser 1")).await;
     let docs = backend.documents.lock("virtual_open_test").await;
     let admission = docs.get(&target).unwrap().path_admission.as_ref().unwrap();

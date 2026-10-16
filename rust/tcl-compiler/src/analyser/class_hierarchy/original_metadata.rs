@@ -10,6 +10,13 @@
 //! call-point table, maker or native delegate attachment. Missing providers and
 //! ambiguous joins abstain.
 
+mod source_method_reference;
+
+pub use source_method_reference::{
+    OriginalSourceSelfMethodReference, OriginalSourceSelfMethodReferenceObligation,
+    original_source_self_method_references,
+};
+
 use crate::analyser::types::{MemberSide, OriginalSourceClassRelationKind};
 use crate::analyser::{AnalysisResult, ClassDef};
 use crate::signature_scan::original_name::SourceDeclarationMetadata;

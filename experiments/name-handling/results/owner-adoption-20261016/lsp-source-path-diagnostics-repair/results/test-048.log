@@ -1,0 +1,6 @@
+
+running 1 test
+test diagnostic_report::tests::standalone_optimiser_refuses_missing_or_foreign_analysis_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3208 filtered out; finished in 0.15s
+

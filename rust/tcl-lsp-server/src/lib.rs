@@ -36,7 +36,8 @@
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
 use current_diagnostics::{
-    DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression, DiagnosticUnavailable,
+    DiagnosticCacheReceipt, DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression,
+    DiagnosticUnavailable,
 };
 mod environment_notice;
 /// The exit watchdog that backstops `Server::serve` returning promptly once
@@ -52,6 +53,7 @@ mod original_document_path_admission_tests;
 mod original_workspace_diagnostics_tests;
 pub mod path_glob;
 mod provider_source;
+mod readonly_reference_reports;
 mod recovery_source;
 #[cfg(test)]
 use recovery_source::widen_recovery_extra_commands;
@@ -3271,6 +3273,7 @@ struct DiagJob {
 /// answered with a cheap `Unchanged` report.
 #[derive(Clone)]
 struct PullDiagEntry {
+    currency: Option<DiagnosticCacheReceipt>,
     result_id: String,
     /// The document revision the cached diagnostics were computed for.  The
     /// pull handler compares it against the live document so a cache entry from
@@ -4488,6 +4491,9 @@ impl DeliveryCtx<'_> {
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
             PullDiagEntry {
+                currency: self
+                    .diagnostic_pass
+                    .map(|pass| DiagnosticCacheReceipt::from_publisher(pass)),
                 result_id: result_id.clone(),
                 revision: self.revision_for_cache(),
                 diagnostics: diags.clone(),
@@ -6542,6 +6548,50 @@ async fn run_deep_diagnostics(
     timing: PublishTiming<'_>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> bool {
+    let produced = match compute_deep_diagnostic_report(
+        delivery.uri,
+        salsa_ctx,
+        lift_inputs,
+        inputs,
+        project,
+        base,
+    )
+    .await
+    {
+        ControlFlow::Continue(produced) => produced,
+        ControlFlow::Break((settled, reason)) => {
+            delivery.diagnostic_pass_unavailable(reason).await;
+            return settled;
+        }
+    };
+    publish_diagnostics_result(
+        delivery,
+        inputs.workspace_index,
+        inputs.rehomed_source_seeds,
+        inputs.rehoming_gate,
+        &produced.analysis,
+        (produced.provider_completion, produced.result),
+        timing,
+    )
+    .await
+}
+
+/// One actual configured provider pass, before either push publication or a
+/// direct cache response. Availability remains separate from display fallback.
+struct ProducedDiagnosticReport {
+    analysis: Arc<AnalysisResult>,
+    provider_completion: Result<(), DiagnosticUnavailable>,
+    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+}
+
+async fn compute_deep_diagnostic_report(
+    uri: &Uri,
+    salsa_ctx: &SalsaAnalysisCtx<'_>,
+    lift_inputs: &LiftInputs<'_>,
+    inputs: &AnalyserPathInputs<'_>,
+    project: Option<tcl_lsp_db::Project>,
+    base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+) -> ControlFlow<(bool, DiagnosticUnavailable), ProducedDiagnosticReport> {
     let base = base.shared();
     let (base_result, compiler_result, project_result) = tokio::join!(
         base.clone(),
@@ -6565,20 +6615,22 @@ async fn run_deep_diagnostics(
     let analysis: Arc<AnalysisResult> = match base_result {
         ControlFlow::Continue(a) => a,
         ControlFlow::Break(settled) => {
-            delivery
-                .diagnostic_pass_unavailable(if settled {
+            return ControlFlow::Break((
+                settled,
+                if settled {
                     DiagnosticUnavailable::ProviderError
                 } else {
                     DiagnosticUnavailable::Cancelled
-                })
-                .await;
-            return settled;
+                },
+            ));
         }
     };
     let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = match compiler_result {
         ControlFlow::Continue(Some(d)) => d,
         // Cancellation → retry the latest state.
-        ControlFlow::Break(false) => return false,
+        ControlFlow::Break(false) => {
+            return ControlFlow::Break((false, DiagnosticUnavailable::Cancelled));
+        }
         // Deterministic worker panic → degrade to no compiler diags but STILL
         // publish below. The fast tier may already have replaced the client's
         // complete set with its reduced subset; an early return here would leave
@@ -6603,7 +6655,9 @@ async fn run_deep_diagnostics(
     let analyser_diags: Vec<_> = match project_result {
         ControlFlow::Continue(Some(d)) => d,
         ControlFlow::Continue(None) | ControlFlow::Break(true) => analysis.diagnostics.clone(),
-        ControlFlow::Break(false) => return false,
+        ControlFlow::Break(false) => {
+            return ControlFlow::Break((false, DiagnosticUnavailable::Cancelled));
+        }
     };
 
     // What the workspace `source` graph contributes to this document (in both
@@ -6625,7 +6679,7 @@ async fn run_deep_diagnostics(
             if needs_inheritance {
                 compute_source_inheritance(
                     &index,
-                    delivery.uri,
+                    uri,
                     &analysis,
                     inputs.entry_points,
                     inputs.folder_root,
@@ -6635,7 +6689,7 @@ async fn run_deep_diagnostics(
                 SourceInheritance::default()
             },
             if needs_settling {
-                settle_cross_file_calls(&index, &analysis, &inputs.registry, delivery.uri.as_str())
+                settle_cross_file_calls(&index, &analysis, &inputs.registry, uri.as_str())
             } else {
                 CrossFileCalls::default()
             },
@@ -6678,16 +6732,11 @@ async fn run_deep_diagnostics(
     )
     .await;
 
-    publish_diagnostics_result(
-        delivery,
-        inputs.workspace_index,
-        inputs.rehomed_source_seeds,
-        inputs.rehoming_gate,
-        &analysis,
-        (provider_completion, result),
-        timing,
-    )
-    .await
+    ControlFlow::Continue(ProducedDiagnosticReport {
+        analysis,
+        provider_completion,
+        result,
+    })
 }
 
 /// Whether a diagnostic code belongs to the workspace-independent **fast tier**
@@ -7124,6 +7173,7 @@ struct RefinementInputs<'a> {
 /// The resolved per-document settings an F5 model dialect's pull report reads
 /// — everything [`Backend::f5_pull_report`] needs beyond the buffers and the
 /// URI.
+#[cfg(test)]
 struct F5PullInputs<'a> {
     profile: &'static tcl_dialect::DialectProfile,
     policy_layers: &'a PolicyLayers,
@@ -17521,14 +17571,12 @@ impl Backend {
                 .await?);
         }
         if let std::ops::ControlFlow::Break(locations) = self
-            .original_method_locations_at(
+            .readonly_original_method_reference_locations_at(
                 uri,
                 &doc.text,
                 analysis,
                 position,
-                tcl_lsp_core::method_symbol::OriginalMethodNavigation::References {
-                    include_declaration,
-                },
+                include_declaration,
             )
             .await?
         {
@@ -17584,8 +17632,9 @@ impl Backend {
                 return Ok(Vec::new());
             };
             return Ok(self
-                .original_declaration_reference_locations(&identity, uri, include_declaration)
-                .await?);
+                .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
+                .await?
+                .map_or_else(Vec::new, |report| report.locations));
         }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -23957,6 +24006,7 @@ impl Backend {
     }
 
     /// Run the compiler-check diagnostics for `text` off the event-loop thread.
+    #[cfg(test)]
     async fn compiler_diagnostics_for(
         &self,
         uri: &Uri,
@@ -23998,6 +24048,7 @@ impl Backend {
     /// alternative report rather than a step of one: it shares only the
     /// resolved settings, and keeping it inline made the Tcl path harder to
     /// read than either is on its own.
+    #[cfg(test)]
     async fn f5_pull_report(
         &self,
         uri: &Uri,
@@ -24040,6 +24091,7 @@ impl Backend {
     /// The union is what the push path publishes (see
     /// [`DiagnosticPublisher::with_pack_notices`]), and a pulled report has to
     /// match a pushed one diagnostic for diagnostic.
+    #[cfg(test)]
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -24053,6 +24105,7 @@ impl Backend {
         Ok(self.diagnostic_publisher.with_pack_notices(uri, analysed))
     }
 
+    #[cfg(test)]
     async fn analysed_diagnostics_for(
         &self,
         uri: &Uri,
@@ -29375,87 +29428,24 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentDiagnosticParams,
     ) -> jsonrpc::Result<DocumentDiagnosticReportResult> {
-        // `S-diagnostics-pipeline`: pull-based diagnostic
-        // report.  Editors that support
-        // `textDocument/diagnostic` request diagnostics on
-        // demand rather than relying on the
-        // `publish_diagnostics` push.  We run the analyser via
-        // the cached-analysis surface (the same shape every
-        // other request uses) and lift each analyser
-        // diagnostic to the LSP wire shape.
-        let uri = params.text_document.uri.clone();
-        let previous = params.previous_result_id;
-        // Read the live document first so a cache entry from an older edit is
-        // never served as current: a pull arriving between `did_change` and the
-        // debounced worker's refresh must recompute, not return stale (or worse,
-        // `Unchanged`) diagnostics for the edited buffer.
-        let Some(doc) = self.read_document(&uri).await? else {
-            return Ok(empty_diagnostic_report());
-        };
-        // BIG-IP config / iApp APL documents carry no general Tcl diagnostics
-        // — the analyser never runs on them.  Their model-level validator
-        // diagnostics (`BIGIP6xxx` / `IAPP7xxx`) are computed by the F5
-        // dispatch inside `full_diagnostics_for` below (mirroring the push
-        // path), so they flow through the same cache + report path as the Tcl
-        // diagnostics rather than being short-circuited to empty here.
-        // Serve from the push-maintained cache only when it matches the live
-        // document revision: pull then mirrors the exact set the editor last
-        // received via `publish_diagnostics`, and an unchanged document is
-        // answered with a cheap `Unchanged` report (no diagnostics re-sent).
-        if let Some(entry) = self.pull_diag_cache.lock().await.get(&uri).cloned()
-            && entry.revision == doc.revision
-        {
-            if previous.as_deref() == Some(entry.result_id.as_str()) {
-                return Ok(DocumentDiagnosticReportResult::Report(
-                    DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
-                        related_documents: None,
-                        unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
-                            result_id: entry.result_id,
-                        },
-                    }),
-                ));
-            }
+        let uri = params.text_document.uri;
+        let report = self.ensure_current_diagnostic_report(&uri).await?;
+        if params.previous_result_id.as_deref() == Some(report.result_id.as_str()) {
             return Ok(DocumentDiagnosticReportResult::Report(
-                DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
                     related_documents: None,
-                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                        result_id: Some(entry.result_id),
-                        items: entry.diagnostics,
+                    unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                        result_id: report.result_id,
                     },
                 }),
             ));
         }
-        // Cache miss or stale (a pull arrived before the push settled, or push
-        // is disabled).  Compute the full set on demand, prime the cache with
-        // the revision it was computed for, and return it.  Mirror the push
-        // path's full set (analyser + compiler/optimiser + source-style) so
-        // pull-mode editors don't lose the compiler / optimiser / style
-        // warnings.
-        let items = self
-            .full_diagnostics_for(
-                // The raw buffer: `full_diagnostics_for` derives the analysis
-                // form itself, and W118 must see the real terminators.
-                &uri,
-                doc.raw_text.clone().unwrap_or_else(|| doc.text.clone()),
-                doc.dialect.clone(),
-                &doc.language_id,
-            )
-            .await?;
-        let result_id = next_pull_diag_result_id();
-        self.pull_diag_cache.lock().await.insert(
-            uri.clone(),
-            PullDiagEntry {
-                result_id: result_id.clone(),
-                revision: doc.revision,
-                diagnostics: items.clone(),
-            },
-        );
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
                 full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                    result_id: Some(result_id),
-                    items,
+                    result_id: Some(report.result_id),
+                    items: report.diagnostics,
                 },
             }),
         ))
@@ -29465,47 +29455,42 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceDiagnosticParams,
     ) -> jsonrpc::Result<WorkspaceDiagnosticReportResult> {
-        // Workspace pull: report every open document's last-published set from
-        // the cache, honouring the per-URI `previousResultId` the client sends
-        // so unchanged documents cost nothing.
         let previous: HashMap<Uri, String> = params
             .previous_result_ids
             .into_iter()
             .map(|p| (p.uri, p.value))
             .collect();
-        // Snapshot the cache (clone out) so we don't hold its lock while also
-        // taking the `documents` lock for versions.
-        let entries: Vec<(Uri, PullDiagEntry)> = self
+        // The cache key set identifies requested participants, not completion.
+        // Each payload must reborrow its own acknowledged original publisher.
+        let uris = self
             .pull_diag_cache
             .lock()
             .await
-            .iter()
-            .map(|(uri, entry)| (uri.clone(), entry.clone()))
-            .collect();
-        let versions: HashMap<Uri, Option<i64>> = {
-            let docs = self.documents.lock("workspace_diagnostic").await;
-            entries
-                .iter()
-                .map(|(uri, _)| {
-                    (
-                        uri.clone(),
-                        docs.get(uri).and_then(|d| d.version.map(i64::from)),
-                    )
-                })
-                .collect()
-        };
-        let items = entries
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        for uri in &uris {
+            self.ensure_current_diagnostic_report(uri).await?;
+        }
+        let reports = self
+            .current_cached_diagnostic_reports(&uris)
+            .await?
+            .map_err(Self::diagnostic_report_unavailable)?;
+        // No await separates the jointly current source/input snapshot from
+        // wire projection. Versions belong to those actual original reports.
+        let items = reports
             .into_iter()
-            .map(|(uri, entry)| {
-                let version = versions.get(&uri).copied().flatten();
-                if previous.get(&uri).map(String::as_str) == Some(entry.result_id.as_str()) {
+            .map(|report| {
+                let uri = report.uri;
+                let version = report.version.map(i64::from);
+                if previous.get(&uri).map(String::as_str) == Some(report.result_id.as_str()) {
                     WorkspaceDocumentDiagnosticReport::Unchanged(
                         WorkspaceUnchangedDocumentDiagnosticReport {
                             uri,
                             version,
                             unchanged_document_diagnostic_report:
                                 UnchangedDocumentDiagnosticReport {
-                                    result_id: entry.result_id,
+                                    result_id: report.result_id,
                                 },
                         },
                     )
@@ -29514,8 +29499,8 @@ impl LanguageServer for Backend {
                         uri,
                         version,
                         full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                            result_id: Some(entry.result_id),
-                            items: entry.diagnostics,
+                            result_id: Some(report.result_id),
+                            items: report.diagnostics,
                         },
                     })
                 }
@@ -30146,6 +30131,10 @@ impl LanguageServer for Backend {
                     continue;
                 };
                 data["uri"] = serde_json::Value::String(uri.to_string());
+                if let Some(coverage) = lens.reference_coverage {
+                    data["sourceReferenceCoverage"] =
+                        serde_json::json!(readonly_reference_reports::coverage_tag(coverage));
+                }
                 lifted.push(CodeLens {
                     range: lift_lsp_range(lens.range),
                     data: Some(data),
@@ -30264,18 +30253,17 @@ impl LanguageServer for Backend {
                 line: selected.line,
                 character: selected.character.get(),
             };
-            let locations = self
-                .original_declaration_reference_locations(&identity, &uri, false)
-                .await?;
-            lens.command = Some(tower_lsp_server::ls_types::Command {
-                title: core_code_lens::reference_count_title(locations.len()),
-                command: "tcl-lsp.showReferences".to_owned(),
-                arguments: Some(vec![
-                    serde_json::Value::String(uri.to_string()),
-                    serde_json::to_value(position).unwrap_or(serde_json::Value::Null),
-                    serde_json::to_value(locations).unwrap_or(serde_json::Value::Null),
-                ]),
-            });
+            let report = self
+                .readonly_original_declaration_reference_report(&identity, &uri, false)
+                .await?
+                .unwrap_or_else(
+                    readonly_reference_reports::OriginalReadonlyReferenceReport::unavailable,
+                );
+            if let Some(data) = lens.data.as_mut() {
+                data["sourceReferenceCoverage"] =
+                    serde_json::json!(readonly_reference_reports::coverage_tag(report.coverage));
+            }
+            lens.command = Some(report.lens_command(uri, position));
             return Ok(lens);
         }
         let Some((qname, uri)) = lens
@@ -44049,6 +44037,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: 0,
                 diagnostics: Vec::new(),
@@ -44123,6 +44112,7 @@ info exists ::N::v\uD800";
             backend.pull_diag_cache.lock().await.insert(
                 uri.clone(),
                 PullDiagEntry {
+                    currency: None,
                     result_id: next_pull_diag_result_id(),
                     revision: 0,
                     diagnostics: Vec::new(),
@@ -44229,6 +44219,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             reopened.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: 0,
                 diagnostics: Vec::new(),
@@ -44474,6 +44465,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: 0,
                 diagnostics: Vec::new(),
@@ -44517,6 +44509,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: sentinel.clone(),
                 revision: 7,
                 diagnostics: Vec::new(),
@@ -44798,6 +44791,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: u64::MAX,
                 diagnostics: vec![tower_lsp_server::ls_types::Diagnostic {
@@ -44844,6 +44838,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: u64::MAX,
                 diagnostics: Vec::new(),
@@ -44890,6 +44885,7 @@ info exists ::N::v\uD800";
         backend.pull_diag_cache.lock().await.insert(
             uri.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: u64::MAX,
                 diagnostics: vec![tower_lsp_server::ls_types::Diagnostic::default()],
@@ -48171,6 +48167,10 @@ proc p {} {
             doc.publication = DocumentPublication::Indexed;
         }
 
+        backend
+            .db_set_source(&uri, "set x 2\n", "tcl8.6".to_owned())
+            .await
+            .expect("the synthetic edit publishes its actual current SourceFile");
         let second = backend
             .diagnostic(doc_diag_params(&uri, Some(&stale_id)))
             .await
@@ -50811,7 +50811,10 @@ proc p {} {
             match std::fs::create_dir(&dir) {
                 Ok(()) => return dir,
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => panic!("creating owned scratch directory {}: {error}", dir.display()),
+                Err(error) => panic!(
+                    "creating owned scratch directory {}: {error}",
+                    dir.display()
+                ),
             }
         }
     }
@@ -61894,6 +61897,7 @@ proc p {} {
         backend.pull_diag_cache.lock().await.insert(
             old.clone(),
             PullDiagEntry {
+                currency: None,
                 result_id: next_pull_diag_result_id(),
                 revision: 0,
                 diagnostics: Vec::new(),

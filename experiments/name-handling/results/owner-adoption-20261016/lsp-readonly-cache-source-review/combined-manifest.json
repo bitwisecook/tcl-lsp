@@ -1,0 +1,401 @@
+{
+  "basis_head": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118 (provided/frozen by Root; no Git commands used)",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md",
+      "before": "base/docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md",
+      "after": "edit/docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md",
+      "before_sha256": "90732eed9ccbc39dd2f7396e0bde59189f7c31e8a525cdb201b95783b7fc4c68",
+      "after_sha256": "376ce8c8cb9c49beebab9d1af69053ec71e08f702d8ef9505316ecf3e869d0b8"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "before": "base/docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "after": "edit/docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "before_sha256": "89bd0eb76e6c64ae79134ed5ed5c552455f247a85918d7a1c606f3dca0dc43fc",
+      "after_sha256": "ed198095f55f676ca957ebf555ef9c0c7ab6762f3fb0b6034630ba9673f32732"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
+      "before": "base/docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
+      "after": "edit/docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
+      "before_sha256": "b26b7d4288917ea01b4788bcaa3722455c776b628c08e97377775dab1103d7ca",
+      "after_sha256": "0a8c2f8a03a728dfee6ad0bbfaf7c3e38ed6998d12f0df04f748045b0ee91865"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md",
+      "before": "base/docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md",
+      "after": "edit/docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md",
+      "before_sha256": "088e38ce8d3054aa27f8839ab7e820fc06d8d941c88b317e1bc72daeac45a987",
+      "after_sha256": "6e72f4663e90f6158bf8cdc613215d3dc1f85b8cf7cac10b458c63a17dff9f69"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before": "base/docs/design/contracts/naming-consumer-matrix.md",
+      "after": "edit/docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "de7bca19309cf12af446327b1441117860b3b55f886a4d6956768d4cf5195e10",
+      "after_sha256": "a8c853ca788a93905e087579e80b1aa722bd1cef51409086ee696b39e4221ea4"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before": "base/docs/design/contracts/shared-utility-contracts-rust.md",
+      "after": "edit/docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "9296b25027d56e16468a91922d718c914054300372a5adceb4dc875250f4fc01",
+      "after_sha256": "5cee484156b37ca8c8d2f31e74d8e1ac9c9dd682195ab295d959348e4f7911bb"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+      "before": "base/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+      "after": "edit/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+      "before_sha256": "d87bbc4e76b21918792a468470be8593b2ca70c69e001c76dc89e5e4bd0fd750",
+      "after_sha256": "1616a23f884f6fef122c9cbfd5371a70da9db5d3674acfc1e518672ba57eed8c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before": null,
+      "after": "edit/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "before_sha256": null,
+      "after_sha256": "1423c9f0515e514c1b53c356472df5eb9cc1ad8283ce87da423f21498831ed7c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "before": "base/rust/tcl-compiler/src/analyser/utils.rs",
+      "after": "edit/rust/tcl-compiler/src/analyser/utils.rs",
+      "before_sha256": "39f157c3c9f9e99d1ba7bffff53338372a806826fee5168c770ca337cba153eb",
+      "after_sha256": "fdda65ec96511c3671c10b3682ca29b06a24f023529167da22e4d2f145ebbae5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before": "base/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after": "edit/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "de82dd046a27e054cd34b18b949f33fdbb85bb6f1d765e388eb07d721790349b",
+      "after_sha256": "99d52b74bb3697e2c2c49cfbe02a085218971ba5e31d5c89ac56960a073785c7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before": "base/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "after": "edit/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before_sha256": "7b77984e2476eb0be158d7d71965057934acf2954aa8852d73bb515a45de8f4d",
+      "after_sha256": "4484f62aef29127555af7cda5d203ab3bbad4c94cf2767b491225776de3c8510"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "before": "base/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "after": "edit/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "before_sha256": "2479adf2762dd5157d7338eb8ab40d26e046bc159a9e98f3b24289f310b7d78c",
+      "after_sha256": "36f1b6be2bffe43e9f19ad7c566b83911656120c6b16123790cdf2b4b74023ca"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "before": "base/rust/tcl-lsp-core/src/code_lens.rs",
+      "after": "edit/rust/tcl-lsp-core/src/code_lens.rs",
+      "before_sha256": "570ff78a84fdf0d85a6c9d39177b3056e18560dcf60b85912c783b89ba6e66e8",
+      "after_sha256": "e174824dbf56ce866c0354cd582f9313b94d639a15d2b8297c3d5ee9b9e13849"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "before": "base/rust/tcl-lsp-core/src/method_symbol.rs",
+      "after": "edit/rust/tcl-lsp-core/src/method_symbol.rs",
+      "before_sha256": "494a01a3293116a188d73492bbca72e44b40c830f6bb500aed6b28825a771efa",
+      "after_sha256": "4bb8efbcf827fefed9bc14d0648694faba4d41a75b054cfae36a7c3184fad1de"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before": "base/rust/tcl-lsp-core/src/original_declaration.rs",
+      "after": "edit/rust/tcl-lsp-core/src/original_declaration.rs",
+      "before_sha256": "6be2b36dd6d75d00e54590bc8ff81f300abf4aeadc27e502ab890a931812187a",
+      "after_sha256": "4d0002bb60fe2891ecd5429f61f117e2ce2bbce6a9fb8ff6122d4f04c8b42799"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "before": "base/rust/tcl-lsp-core/src/references.rs",
+      "after": "edit/rust/tcl-lsp-core/src/references.rs",
+      "before_sha256": "9a7931fe475d6e3e2508c48ff75ce5b0c28a84c78e52e25905ab607938bb64b0",
+      "after_sha256": "80c13214698320a5d2996593e6e216a2d081af7535c5c13443122feddf3cd11c"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "before": "base/rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "after": "edit/rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "before_sha256": "7137300a8b12c86d53fc8c358e57e8c8ac2d92764afa72633acb89728a82817b",
+      "after_sha256": "7deb5f7d3586958ae54d8b9390fe4b60356e548fda625c44c90a0836805eb506"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before": "base/rust/tcl-lsp-server/src/lib.rs",
+      "after": "edit/rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "6f5bc8b641a73753955f9f89679dacf9d6251647a3bf9df6d4192525b41e2472",
+      "after_sha256": "66db3cb22cedb6903bc75ec3749025b3a320e8bb2323dc3fe61fa839747c2eab"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before": null,
+      "after": "edit/rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": null,
+      "after_sha256": "07dbf6dd417077a5d3c8e0e6800275c2d8bf644ad4554333b431014e0f2e788b"
+    }
+  ],
+  "patch_sha256": "0bb2232eb3f81ac14d31cd744de4eb6ef7eeed4578250a136d12b94594b71068",
+  "components": [
+    {
+      "name": "Cclass",
+      "folder": "/tmp/sol-lsp-member-c-source-producer-v2-contract-20261016",
+      "patch": "/tmp/sol-lsp-member-c-source-producer-v2-contract-20261016/repair.patch",
+      "patch_sha256": "13824886994a0823c915c6d69b0e45072da2cb64e2ba25233507d299e1c652b7",
+      "reviews": [
+        "/tmp/sol-lsp-member-c-source-producer-v2-contract-20261016/independent-review-CLEAR.txt"
+      ],
+      "review_receipts": [
+        {
+          "path": "/tmp/sol-lsp-member-c-source-producer-v2-contract-20261016/independent-review-CLEAR.txt",
+          "sha256": "8203aa0d1ef01fa2ed0c8444ec62e9ff18231ed51052c8796e7dfc55cdf51e6f",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        }
+      ]
+    },
+    {
+      "name": "CclassGate",
+      "folder": "/tmp/sol-lsp-member-c-source-gate-registration-v1",
+      "patch": "/tmp/sol-lsp-member-c-source-gate-registration-v1/member-c-source-gate-registration.a3a1562de2a53e82e6f6ec62b18feb468ac703cb7e7191cb9cd9b1cc856e6352.patch",
+      "patch_sha256": "a3a1562de2a53e82e6f6ec62b18feb468ac703cb7e7191cb9cd9b1cc856e6352",
+      "reviews": [],
+      "review_receipts": []
+    },
+    {
+      "name": "CoreReadonlyV3",
+      "folder": "/tmp/sol-lsp-readonly-member-reference-v3-20261016",
+      "patch": "/tmp/sol-lsp-readonly-member-reference-v3-20261016/repair.patch",
+      "patch_sha256": "80176b89313bbeca4b324f995109af23d909422165cd6e879a0615f79236fb3d",
+      "reviews": [
+        "/tmp/sol-lsp-readonly-member-reference-v3-20261016/independent-review-CLEAR.txt",
+        "/tmp/sol-lsp-readonly-member-reference-v3-20261016/independent-variable-order-review-V3-CLEAR.txt"
+      ],
+      "review_receipts": [
+        {
+          "path": "/tmp/sol-lsp-readonly-member-reference-v3-20261016/independent-review-CLEAR.txt",
+          "sha256": "fba0e795c803fd7429baca402d2692ba08a39d3d635e874d6488455735c1e3bd",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        },
+        {
+          "path": "/tmp/sol-lsp-readonly-member-reference-v3-20261016/independent-variable-order-review-V3-CLEAR.txt",
+          "sha256": "9650b61bb62020e446ee7ee80c268f2153ca08281efabbed2aa59548d44982db",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        }
+      ]
+    },
+    {
+      "name": "ServerWireV2",
+      "folder": "/tmp/sol-lsp-readonly-server-wire-v2-20261016",
+      "patch": "/tmp/sol-lsp-readonly-server-wire-v2-20261016/repair.patch",
+      "patch_sha256": "04c655ab93901922fcb68e11f73cc8cf06479131157bdf59cca6008dc57f243d",
+      "reviews": [
+        "/tmp/sol-lsp-readonly-server-wire-v2-20261016/independent-review-CLEAR.txt"
+      ],
+      "review_receipts": [
+        {
+          "path": "/tmp/sol-lsp-readonly-server-wire-v2-20261016/independent-review-CLEAR.txt",
+          "sha256": "0e5cae03600e2004c3c687e1d9012875565f58e5cf5c0b976f3a2910cdf8da0d",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        }
+      ]
+    },
+    {
+      "name": "SemanticComments",
+      "folder": "/tmp/sol-lsp-semantic-comment-owner-20261016",
+      "patch": "/tmp/sol-lsp-semantic-comment-owner-20261016/repair.patch",
+      "patch_sha256": "93bf5505c39ac2752e3b41082a9599477bb9449edf096c059196eecefa1f98c4",
+      "reviews": [
+        "/tmp/sol-lsp-semantic-comment-owner-20261016/independent-review-CLEAR.txt",
+        "/tmp/luna-semantic-comment-review/independent-review-CLEAR.txt"
+      ],
+      "review_receipts": [
+        {
+          "path": "/tmp/sol-lsp-semantic-comment-owner-20261016/independent-review-CLEAR.txt",
+          "sha256": "ad3870d4b6b7ddfe6bd05cc523d8b5af1d13a79ade5a509543d0a48b4584f536",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        },
+        {
+          "path": "/tmp/luna-semantic-comment-review/independent-review-CLEAR.txt",
+          "sha256": "ad3870d4b6b7ddfe6bd05cc523d8b5af1d13a79ade5a509543d0a48b4584f536",
+          "binding": "Review exact hash/scope stated in receipt; Cclass138 includes unchanged01fdd production plus recommended new-control assertions and docs; sourcegatea3 is Root-reviewed docs/schema supplement."
+        }
+      ]
+    }
+  ],
+  "applications": [
+    {
+      "component": "Cclass",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs\n"
+    },
+    {
+      "component": "Cclass",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs\n"
+    },
+    {
+      "component": "Cclass",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\nHunk #1 succeeded at 606 (offset 2 lines).\n"
+    },
+    {
+      "component": "Cclass",
+      "path": "docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md\n"
+    },
+    {
+      "component": "Cclass",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/naming-consumer-matrix.md\n"
+    },
+    {
+      "component": "CclassGate",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "mode": "minimal exact canonical documentation row/text rebase; unchanged added/removed text",
+      "patch_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\nHunk #1 succeeded at 606 (offset 2 lines).\nHunk #2 FAILED at 657.\nHunk #3 FAILED at 2535.\n2 out of 3 hunks FAILED -- saving rejects to file docs/design/contracts/shared-utility-contracts-rust.md.rej\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs\nHunk #1 succeeded at 1380 (offset 10 lines).\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/command_binding/source_transition_advice.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-core/src/references.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-core/src/original_declaration.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-core/src/method_symbol.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-core/src/code_lens.rs\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\nHunk #1 succeeded at 540 (offset 2 lines).\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "docs/design/analysis/name-resolution-proofs/original-method-candidates.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/analysis/name-resolution-proofs/original-method-candidates.md\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/naming-consumer-matrix.md\n"
+    },
+    {
+      "component": "CoreReadonlyV3",
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs\n"
+    },
+    {
+      "component": "ServerWireV2",
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-server/src/lib.rs\nHunk #4 succeeded at 30146 (offset 2 lines).\nHunk #5 succeeded at 30268 (offset 2 lines).\n"
+    },
+    {
+      "component": "ServerWireV2",
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-server/src/readonly_reference_reports.rs\n"
+    },
+    {
+      "component": "ServerWireV2",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\nHunk #1 succeeded at 540 (offset 1 line).\n"
+    },
+    {
+      "component": "ServerWireV2",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/naming-consumer-matrix.md\n"
+    },
+    {
+      "component": "ServerWireV2",
+      "path": "docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md\n"
+    },
+    {
+      "component": "SemanticComments",
+      "path": "rust/tcl-compiler/src/analyser/utils.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-compiler/src/analyser/utils.rs\n"
+    },
+    {
+      "component": "SemanticComments",
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file rust/tcl-lsp-core/src/semantic_tokens.rs\n"
+    },
+    {
+      "component": "SemanticComments",
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/shared-utility-contracts-rust.md\nHunk #1 succeeded at 2310 (offset 2 lines).\n"
+    },
+    {
+      "component": "SemanticComments",
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/contracts/naming-consumer-matrix.md\nHunk #1 succeeded at 404 (offset 1 line).\n"
+    },
+    {
+      "component": "SemanticComments",
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md",
+      "mode": "original reviewed patch; zero fuzz, offsets only",
+      "patch_output": "patching file docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md\n"
+    }
+  ],
+  "scope": "Exact reviewed source changes only; no source logic/assertion edits. Shared source body_effects retains independent C-body class projection and Registry-selected self-selector transport additions. Minimal canonical doc-row context rebases only when needed. Root remains sole main/Git/Cargo/build/count writer. No rename54/inlayc502 included.",
+  "semantic_conflicts": [],
+  "checks": "All component Rust patches apply zero fuzz with offsets only. Exact shared canonical Cclass gate row/header insertion contexts minimally rebased. Both body_effects additions union without semantic conflict. Module-prefix/new-file checks and original test/function byte hashes recorded; no build/test/Cargo/Git execution.",
+  "formatting": {
+    "combined_exit": 1,
+    "baseline_exit": 1,
+    "same_preexisting_discrepancy": true,
+    "path": "rust/tcl-lsp-server/src/lib.rs",
+    "function": "tests::unique_scratch_dir",
+    "detail": "Only Root current beforeimage scratch-dir panic line wraps; reviewed source deltas themselves have no formatting drift. It remains untouched to preserve all original test bytes and each reviewed source delta."
+  },
+  "source_currentness": "Root source freeze e061 supplied; exact per-file current before hashes authoritative; all target current main files were copied read-only into TMP."
+}

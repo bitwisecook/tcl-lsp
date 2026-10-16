@@ -975,6 +975,150 @@
         "verified_complete": false
       },
       "implementation_scope": "Exact ceeef source patch independently CLEAR by Luna and Sol; fresh actual library execution pending."
+    },
+    {
+      "id": "compiler.source.conditional-c-namespace-class-body-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          "symbol": "source_class_declaration_in_body"
+        }
+      ],
+      "rationale": "Distinct conditional C-source namespace-body class declaration facet, preserving original full body/schema/factory applicability debts; pure coordinate does not issue Native entry or Normal. Logical producer purpose remains separate.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "compiler.source.readonly-member-self-reference-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "symbol": "original_source_self_method_references"
+        }
+      ],
+      "rationale": "Actual retained whole member/argv/body/formal/parent/source/input/context and selected receiver grammar yield readonly source positives with explicit partial/unavailable coverage. Strong edit/reference/hierarchy inventories remain separate.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "compiler.source.command-position-comment-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/utils.rs",
+          "symbol": "script_command_comment_facts_from_analysis"
+        }
+      ],
+      "rationale": "One demonstrated all-command-position comment fact facet for semantic rendering, including inline tails. Existing physical-line W115/noqa query retains its distinct purpose; shared lexer/parser source phase and full context retained.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "compiler.source.logical-alias-original-word-prefix-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/logical_prefix.rs",
+          "symbol": "LogicalCapturedCommandPrefix"
+        }
+      ],
+      "rationale": "Distinct original Logical source-word prefix transport for positively Logical policies without Native authored keys. Actual alias allocation, parent/vector/source/full input/config retained; Native/key/procedure/generic queries stay terminal, captured data gets no call-site anchor.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "compiler.source.original-prefix-arity-applicability-owner",
+      "kind": "shared_owner_extension",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "symbol": "original_source_arity_debts_before_words"
+        }
+      ],
+      "rationale": "One exact retained ordinary selected-schema prefix arity applicability debt, distinct from mutation, executed failure and Normal. Root/body/deferred/branch transport and project source-role adopter share the same facet. Empty only means no retained ordinary-schema debt; receiver/registered/header paths and constructor/effect debts remain independent.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "lsp.references.readonly-source-may-report-adopter",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "references_in_program"
+        }
+      ],
+      "rationale": "Distinct actual readonly reference-location caller adopts conditional member source reports. Existing old Native reference validation records are outside baseline remaining changes and do not contain this missing SourceMay adopter; no edit authority.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "lsp.highlights.readonly-source-may-report-adopter",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "document_highlights_in_program"
+        }
+      ],
+      "rationale": "Separate readonly document highlight feature consumes the same authentic source report. Semantic token role record is a different source file/purpose; one adopter count, no helper/test multiplication.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "lsp.codelens.readonly-source-may-report-adopter",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "symbol": "code_lenses original Native branch"
+        }
+      ],
+      "rationale": "Actual Native-original lens presentation consumes SourceMay positive count/partial/unavailable coverage and retains opaque declaration identity. No complete absence or Logical lens closure is inferred; legacy exact title expectations remain visibly unaccepted.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
+    },
+    {
+      "id": "lsp.server.readonly-source-may-wire-adopter",
+      "kind": "caller_migration",
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "readonly_original_declaration_reference_report; lens_command"
+        }
+      ],
+      "rationale": "Distinct actual final Server current-owner/source/input/provider/publication joint reborrow and UTF16/wire projection. Carries actual spans/count/clickability/coverage to client, preserves strong hierarchy inventory. Existing remaining Logical lens currency unit remains open.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Independently source-cleared exact component bundles and composed afterimages; native/platform/retained tests and required gates pending. No completion from source review."
     }
   ],
   "unverified_or_open": [
@@ -986,28 +1130,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T17:32:36.618361+00:00",
+  "utc": "2026-10-16T18:04:48.462030+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 43,
+    "semantic_code_changes": 52,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 44,
+    "all_required_changes": 53,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 23,
-      "caller_migration": 10,
+      "shared_owner_extension": 28,
+      "caller_migration": 14,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1842,
+    "semantic_code_changes": 1851,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2202
+    "all_required_changes": 2211
   },
   "implementation_progress": {
-    "implemented_pending_validation": 43,
+    "implemented_pending_validation": 52,
     "not_integrated": 1,
     "verified_complete": 0
   }

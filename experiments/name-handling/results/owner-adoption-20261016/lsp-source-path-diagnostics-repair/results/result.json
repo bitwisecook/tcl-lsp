@@ -1,0 +1,5985 @@
+{
+  "status": "SELECTION_CAPTURE_ONLY_NO_ORDINARY_ACCEPTANCE",
+  "selection": "Current input/fixture/editor source batch: union retained exact controls + actual SourcePath/diagnostic/Standalone/SpecTcl source-owner controls",
+  "manifest_sha256": "00c1454194b16e2019dbf12192ef1978d06c5c05da25282e51d1367532137805",
+  "partial_target": null,
+  "expected_selected_count": 220,
+  "full_group_expected_count": 220,
+  "artifacts": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+      "sha256": "e27e26d88c46110f265c5366ab939aa8f3c17ec08a4098772eaf46b7042721e6",
+      "bytes": 249555128
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+      "sha256": "e0231f3c466bc88810ed5a0a5f49ee0d231a240040f2ea5c78c8d558b5b6a812",
+      "bytes": 61765280
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+      "sha256": "b8a187e5ebdab6603dcececd9ae75f7b6c98bbd386c403d758c2bd8752128794",
+      "bytes": 196534792
+    },
+    "tcl_lsp_db": {
+      "path": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+      "sha256": "1aee30eced73f936ea1085343ece52a183070f8f01354e1d88d1dd01712b3373",
+      "bytes": 213560848
+    },
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+      "sha256": "a46e1d7116caca98accaa9bc80abce39d7fa0088324984b1bb00b25b2f21b977",
+      "bytes": 332447936
+    }
+  },
+  "environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "runs": [
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2687457480060402,
+      "log": "test-001.log",
+      "log_sha256": "1665832edfdb8a93e87b2e1eda2d5ff6c34fc3ebedc6fa0090d09324cc3f0ad7",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 13.858799823996378,
+      "log": "test-002.log",
+      "log_sha256": "5f17f7bfc713548f275c4084fb9842c44e208d5bcd98230f7e82a11c4bcc7a94",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.2146230150028714,
+      "log": "test-003.log",
+      "log_sha256": "efbc0dc0b75d7e01c737c58a447a31852954e68634f5113bf1ed4659a97454a7",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::caller_frame_params_is_narrower_than_the_var_traits",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.621758364002744,
+      "log": "test-004.log",
+      "log_sha256": "9457b5495b2b9a0b7ddc9e53c3c5bc90150b7611e4bef16194de84c699e92a54",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_authored_body_and_formals_without_entry",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.568724716998986,
+      "log": "test-005.log",
+      "log_sha256": "d5c3a3e440402ed2726fc64167f03732d51ef598a152853a7afb50ee44779482",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_require_original_formal_order_before_role_application",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 11.857541548000881,
+      "log": "test-006.log",
+      "log_sha256": "7925dcf45e9701f0602ffa66a9ed84c70324182f42d234e03029248852a188dc",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_keep_nested_frames_separate_from_same_frame_bodies",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 4.008493739995174,
+      "log": "test-007.log",
+      "log_sha256": "a55a9753e3fe2fd139c0f39c379a1f15d88670f21d20aa511f5b7374a00e89a9",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::original_logical_parameter_roles_preserve_actual_body_lookup_barriers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 19.446261648001382,
+      "log": "test-008.log",
+      "log_sha256": "fe330dd84db99ccb6d2a3930bfe842f7ac94a4de0e2dd6249d7192785fc680fa",
+      "target": "tcl_compiler",
+      "selector": "analyser::param_traits::tests::conditional_parameter_source_prefix_keeps_unknown_callbacks_and_scope_mutations_terminal",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.8751320189985563,
+      "log": "test-009.log",
+      "log_sha256": "b3220fa6121c17d1cb30150f574dc67fc8deb28914f3cd8fa1963a2c73501de6",
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_upvar_targets_share_literal_scalar_and_element_geometry",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46573951200116426,
+      "log": "test-010.log",
+      "log_sha256": "e90b370caadcbda732215c7844c63ca1f8d1b8aa7ea2f4521222a64ae1b072b2",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_name_roles::tests::scalar_source_name_roles_keep_original_declaration_scope_and_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46544966300280066,
+      "log": "test-011.log",
+      "log_sha256": "6d3f39f2220741615efacb0c62a28f5b12e8ecd4617c9dbf3d11f947599d438d",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.8238209880000795,
+      "log": "test-012.log",
+      "log_sha256": "8ba42c98858ea9b3dbb61eebde9a637eae402f8588768035bf10064c35ae5b36",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.5693912310016458,
+      "log": "test-013.log",
+      "log_sha256": "aaef6140bbb5aea3554009759004679f54e17143bc69a05e8a13f68ab5d498b3",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::param_traits_inferred",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.36520310700143455,
+      "log": "test-014.log",
+      "log_sha256": "fe648547b9c3dd535890478f50fca9d5228670e038b339b63eb7583be1ca2289",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::param_traits_inferred",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::call_by_name_param_traits_inferred",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.1175380499989842,
+      "log": "test-015.log",
+      "log_sha256": "b932a0224388cafd89351e5fe2e38a6df569901f506fbaeebf4010ec152f8cf0",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::call_by_name_param_traits_inferred",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "interprocedural::tests::forwarded_to_callee_detected",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6157335079988115,
+      "log": "test-016.log",
+      "log_sha256": "70520bad5172ea3fa2900039d24b18c3a75ce66ad759afcafedfa8d8a075692b",
+      "target": "tcl_compiler",
+      "selector": "interprocedural::tests::forwarded_to_callee_detected",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.8665765069963527,
+      "log": "test-017.log",
+      "log_sha256": "ca77fdcbaed0a28a70ba92a40b5b168e309420d86ea1037e7e9b7d0f443643b1",
+      "target": "tcl_compiler",
+      "selector": "analyser::handlers::tests::logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.422265328001231,
+      "log": "test-018.log",
+      "log_sha256": "01be44d7bff1728e5047482aff0bf79d09d785dfb7288bfeb1ab259fed1e10fe",
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_keep_source_coverage_and_variable_edit_obligations",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 11.584602358001575,
+      "log": "test-019.log",
+      "log_sha256": "a525daff2bb2e44918a91eec8da6e2deee3f8b9f566a012b7fe0ea623f7eb503",
+      "target": "tcl_compiler",
+      "selector": "analyser::scope::logical_alias_occurrence_tests::logical_alias_reads_preserve_competing_unknown_and_frame_barriers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 4.477607545995852,
+      "log": "test-020.log",
+      "log_sha256": "9ec41f150d76784ca3ed361346ed40e345433cfb0d21bcd679070bf3353f1900",
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 3.826627914997516,
+      "log": "test-021.log",
+      "log_sha256": "4af4b3cf1b27a8a15f6a4c2f891bfc2d4446f62f1a5dd8ae3cd37f85e1e6c335",
+      "target": "tcl_compiler",
+      "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5656360939974547,
+      "log": "test-022.log",
+      "log_sha256": "89a2f73ff2cefcfe8928e43ad3ea1c78f0351e379cb3f620711f82283d502a56",
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_keeps_installed_function_input_and_unique_store",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4652636739992886,
+      "log": "test-023.log",
+      "log_sha256": "5a02f9bcce52594f3c0892ecdb6ec709d3a51ac42b3878d07213e78234f119f9",
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_preserves_both_actual_analysis_inventories",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46546122900326736,
+      "log": "test-024.log",
+      "log_sha256": "05aecea95266abedb2748e9a012d30312d764223858439b39f2b2a595cc6fafd",
+      "target": "tcl_compiler",
+      "selector": "body_analysis_capsule::readonly_authored_coverage::tests::readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4653783459943952,
+      "log": "test-025.log",
+      "log_sha256": "39240d5b15225f4b592cb0972cbdcf83c6294a6c0b3481388b95f093554ec362",
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::authored_source_parent_tests::authored_source_parent_reborrow_keeps_allocated_and_uninstalled_body_owners",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7162794299947564,
+      "log": "test-026.log",
+      "log_sha256": "a945c7a88a64beb3f2a1c3a519f835ee9b20d63839a15cedfa9148f691792402",
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.21466900799714494,
+      "log": "test-027.log",
+      "log_sha256": "413211a12db6c57cc186463c0f6f0c65e7c361c2ac755544465149b5777d02b8",
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::mapped_source_continuation_keeps_original_prefix_and_observer_debt",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.4654482170008123,
+      "log": "test-028.log",
+      "log_sha256": "0e7b6734dea46597dab15e6d87ab61421f6cf8f87528dfda7ef4bd1abb10e621",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.21476620600151364,
+      "log": "test-029.log",
+      "log_sha256": "90f2dbdbc5418d5757e2e66d3936cc6fde339c2249bda3ec264a35fa86418fa8",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_return_refuses_combined_arrays_and_nul_names",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46572202799870865,
+      "log": "test-030.log",
+      "log_sha256": "8e2908dc7085fb77d67a1ea7e6a274efcea610d1f8e0a6d19483368b8fcf1e71",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7157412729939097,
+      "log": "test-031.log",
+      "log_sha256": "f3b954a178afba227192c51e5af2ef7e117a24df0ebe3abb1e90b37fcd4882db",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_keeps_alias_array_computed_and_expanded_cases_generic",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6659322580017033,
+      "log": "test-032.log",
+      "log_sha256": "868a1fbc4c27e90b70cfc4db844d13be2f39b791dcdd04c10ffbe53d8d493eba",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_source_stamp_keeps_actual_parent_rows_and_terminal_points",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.1675431929979823,
+      "log": "test-033.log",
+      "log_sha256": "42843c3c209a60bf2286275d2e1149b033178d3ac96365d02db5e437cfe3485f",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_controls::tests::authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2675357370026177,
+      "log": "test-034.log",
+      "log_sha256": "a7a3422ff24cfcc3e04107d99935998b271d05128054ef0f322e4838a8cf10c8",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_declarations_keep_actual_source_frame_and_ordinary_widening",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 20.091021241998533,
+      "log": "test-035.log",
+      "log_sha256": "a6d6d82a841da6cb1b4b3204414ebb887de9edcd67c85a83ef7decc94a36f8c0",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::declaration_assistance::original_alias_source_schema_tests::logical_alias_name_obligations_keep_actual_dynamic_targets_and_frame_noops",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7176655729999766,
+      "log": "test-036.log",
+      "log_sha256": "a1bbd6130e32451de6fda62ae1384ac242858c41aba52bcedc0bc76fd0a7a86d",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.0187337169991224,
+      "log": "test-037.log",
+      "log_sha256": "7c1be162a00025d5fb4d70cfc44ff37d2b296b19ef9d9c7090008c273f859bd7",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::original_body_parameter_source_tests::original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "command_binding::declaration_layout::tests::original_parameter_source_scope_keeps_allocated_and_declared_owners_separate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.0169015770006808,
+      "log": "test-038.log",
+      "log_sha256": "403abf89ffaee2b2954897888300b416de646f0bbeec3b18ebb6ad73895f9610",
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_layout::tests::original_parameter_source_scope_keeps_allocated_and_declared_owners_separate",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016236388000834268,
+      "log": "test-039.log",
+      "log_sha256": "d2ba4beebc286f2c41b5fe32ffcd1f72c6cbd243d35b911ab9fb7466d761059c",
+      "target": "tcl_registry",
+      "selector": "state_transition::tests::logical_alias_dynamic_target_keeps_source_relation_and_original_widening",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "state_transition::tests::logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.00761336600407958,
+      "log": "test-040.log",
+      "log_sha256": "0a5bc5d3f21e07f3822494199f6ab0d8d5669cb564e6b44faeacbe40cdc72757",
+      "target": "tcl_registry",
+      "selector": "state_transition::tests::logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 5.116797356000461,
+      "log": "test-041.log",
+      "log_sha256": "d43ed0b6c5abdfd543c74e053b7d9cb2bc3ff020618a3ced3c56f6b224683cbe",
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 1.075923343996692,
+      "log": "test-042.log",
+      "log_sha256": "9b824a056c176817a2ee46217d092b1ef03cbe700545c1cf9c8e85a4f7b0803e",
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 16.29211362999922,
+      "log": "test-043.log",
+      "log_sha256": "5cbe659ee69b603a80e3c759c0624a351933965fb2dd07262c3b023248be8544",
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_source_bodies::tests::conditional_authored_scalar_geometry_cannot_supply_a_definite_ssa_definition",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.21478123999986565,
+      "log": "test-044.log",
+      "log_sha256": "4fb18ec2a57f60ca27058e43aca03021e8660f6e3b5a6ede69877ac6fa0c6f5d",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_scalar_geometry_cannot_supply_a_definite_ssa_definition",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.26470455399976345,
+      "log": "test-045.log",
+      "log_sha256": "5d5e83e4ac5e5af86682d2f62c52032c39acc88f7cc4c59d06ff5061c7141857",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "resolved_invocation::logical_source_alias_projection_tests::conditional_no_level_alias_card_keeps_generic_layout_and_target_debt",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.11437024800397921,
+      "log": "test-046.log",
+      "log_sha256": "33bfa8a1053d26496d0c2a4fb725a50b5997fb53a88dc29c319412118c29e8ee",
+      "target": "tcl_registry",
+      "selector": "resolved_invocation::logical_source_alias_projection_tests::conditional_no_level_alias_card_keeps_generic_layout_and_target_debt",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::standalone_findings_keep_actual_file_boundary_for_directives_and_unit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2675133010052377,
+      "log": "test-047.log",
+      "log_sha256": "3dfb3b6165649868e656bb9483c7a8cdfb348d38221cf88fbdcef6e47a7267dd",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_findings_keep_actual_file_boundary_for_directives_and_unit",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::standalone_optimiser_refuses_missing_or_foreign_analysis_context",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.16456756299885456,
+      "log": "test-048.log",
+      "log_sha256": "c9617e336a24da3274b030f6994e6b3b126eb0efeb748891e2cca2f1baf44d29",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_optimiser_refuses_missing_or_foreign_analysis_context",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 1.7197532770005637,
+      "log": "test-049.log",
+      "log_sha256": "5988e4519786a8bca5540f55b6274772543d15b34ef31fb223c7d02632b865ea",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8698399259956204,
+      "log": "test-050.log",
+      "log_sha256": "90d01aa0c09e60cc85d6cab9e875ae83e86972fe2242e1dbd16ed3927ad57323",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 2.421454821000225,
+      "log": "test-051.log",
+      "log_sha256": "e8bb3a304747ece94955cd39dfd823be0b7a30849f3926d0f5ef87e1cf2908be",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 2.4745142169995233,
+      "log": "test-052.log",
+      "log_sha256": "1548dc733168f1adc18b4046ff443e39be80eec50ca524339ea8c415b92f32c3",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.7663256209998508,
+      "log": "test-053.log",
+      "log_sha256": "937d75b772522d011d00152d63d3038ec230acd390678b91ef38e0ad351ee0e2",
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.1257561150050606,
+      "log": "test-054.log",
+      "log_sha256": "b91ba64a03d3324dfcb04a55c00410d74a1ff8efa8485b644ae9405a1abf8bdf",
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8666061770054512,
+      "log": "test-055.log",
+      "log_sha256": "d51bd3829d671553498a83f4b9e7ff41961d0a157c39b2397edcb87101f0d5e1",
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.9167397759956657,
+      "log": "test-056.log",
+      "log_sha256": "068d3f7b70105ae5f29f12abe9c1bf98d6dcf6099595e546fa0c348ae76f0a3a",
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.171301278998726,
+      "log": "test-057.log",
+      "log_sha256": "8f3c098f98fe55a8586d43a5200b1905e525dcd3ce5e9afd6303957e3665ffee",
+      "target": "tcl_lsp_core",
+      "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.615633308996621,
+      "log": "test-058.log",
+      "log_sha256": "8317470df9fe18f5e033f5c478d946aee849a442dc7309e178ff3a849c15470e",
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_parameter_hints_preserve_opaque_call_identity_and_source_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6154686410009163,
+      "log": "test-059.log",
+      "log_sha256": "d04506313b3f800d085a7ad8831437600a5652c7e30601f6a660582043b81af6",
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_hint_tests::original_alias_parameter_hints_map_captured_prefix_before_written_arguments",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2679251929948805,
+      "log": "test-060.log",
+      "log_sha256": "c4dbff3971c2babf6d28ffe8991b83cf7559aa5275ee86588a83e91635c8dfe5",
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::original_procedure_topology_hint_tests::original_procedure_hints_share_expanded_children_and_formal_binding_topology",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.669331017001241,
+      "log": "test-061.log",
+      "log_sha256": "23f68770cde1ff1bf75d8a7fe463744df44ba2f686942e0039d7e37af1bb71e7",
+      "target": "tcl_lsp_core",
+      "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.1201416929980041,
+      "log": "test-062.log",
+      "log_sha256": "88d7d34c9fbe0c30ffbd29a3ab8bdd5cdfb2b7be85fb005270a9170f683400ea",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7680474820008385,
+      "log": "test-063.log",
+      "log_sha256": "b069494d660d72c6aeaf8117991a397a8b469908a6acf17c499bfb6b95e4fea6",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.3283871140010888,
+      "log": "test-064.log",
+      "log_sha256": "98e68e6b7625e6cf38c7d674561103b2c4e20474b5d5f26dde7cab36679f56ce",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.7945146600031876,
+      "log": "test-065.log",
+      "log_sha256": "b0b2c77718a3ca41eac858296156a4c39f4daef3cce3ca67081b42663c7e649d",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 6.049936478993914,
+      "log": "test-066.log",
+      "log_sha256": "7f935b9c5099789b4a0f52fc5613287278e607937956726a12d64445bdb1568f",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::original_caller_templates_keep_full_input_bom_namespace_and_source_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.072520005000115,
+      "log": "test-067.log",
+      "log_sha256": "835110b3d5f5b628bdc317270f3070dd459156ba807768f7cef2962c36808254",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::conditional_caller_template_maps_original_arguments_after_alias_prefixes",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 5.965833852998912,
+      "log": "test-068.log",
+      "log_sha256": "25fcebc13de17384f100fb48032471c8739ebe5bb92f7f46bb656ed485121291",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::only_a_caller_frame_upvar_level_binds_here",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.357391721001477,
+      "log": "test-069.log",
+      "log_sha256": "57debdf924de0876c99a3f9438b3603afc9992cdaa207f42614f3382addd5019",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::tests::caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2687517060039681,
+      "log": "test-070.log",
+      "log_sha256": "bd1164649e294acf58f937d1bf6083dbb5449325d4101bc8484fa5d5d037d6da",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::definition_on_a_caller_frame_read_reaches_the_call_site_word",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.1671628019976197,
+      "log": "test-071.log",
+      "log_sha256": "ea5137ae7d2929823b2790b971775ab44bb0c8b6b70de855efc0c9c574bc97de",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::references_link_the_call_site_word_and_the_read",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.422145778997219,
+      "log": "test-072.log",
+      "log_sha256": "1a4d67085cb085570e4539de32603eebf97443000b4cea6579d99932c85ae70c",
+      "target": "tcl_lsp_core",
+      "selector": "caller_frame::caller_frame_navigation_tests::a_non_caller_frame_upvar_level_draws_no_navigation",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.007745314993371721,
+      "log": "test-073.log",
+      "log_sha256": "dd81cc93383aba318282e9cf0cbc1128e0861c842bedd10d3727dec2586e6cb6",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.007748178999463562,
+      "log": "test-074.log",
+      "log_sha256": "fee329fae626074ad1028ccc47d1b416b716ea08a9f4d4c23923403b18ef50ef",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015794169004948344,
+      "log": "test-075.log",
+      "log_sha256": "bd1648cee768d957ad9f2844bf322a5977e4c4b5ee485a56356831dfd0aa1006",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01585760499438038,
+      "log": "test-076.log",
+      "log_sha256": "44c863ad0efa7ef86f0aaa47381ef7155fe635e02c7c1240c7bd20411a1f2408",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01575435500126332,
+      "log": "test-077.log",
+      "log_sha256": "70070788c86f5e1458eaba81562380bac9590516cfc8962293f850240be41cd2",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.8685131609963719,
+      "log": "test-078.log",
+      "log_sha256": "d6de63928c84706772c9c2173bc9f20fb851d04c8074e6b3526ca20878f51348",
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 3.2774715759951505,
+      "log": "test-079.log",
+      "log_sha256": "e9152eb7ef213f9c7ff3bb4df13ccdb32cb09219ee738e8deb896caae3b9a2cf",
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 3.2776620750009897,
+      "log": "test-080.log",
+      "log_sha256": "35c0ee803d0262c706f3063caf655919dcdf39f57a9ed0c0ff8c5bc435dfca0d",
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 4.486808704001305,
+      "log": "test-081.log",
+      "log_sha256": "15206af1088f9cdc5b47570600656aa4042b04d0c8865b646dc80052620ff475",
+      "target": "tcl_lsp_core",
+      "selector": "procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4651473660051124,
+      "log": "test-082.log",
+      "log_sha256": "66467702bdbb434d73356cbb6be61bac97331dd05d1bcf3654bfbaf39e714c25",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.03217802700237371,
+      "log": "test-083.log",
+      "log_sha256": "a8b7f77aa931a4e28e36f0baf512eba5bec34757be17e14d1c90fa49a543904c",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.176325648004422,
+      "log": "test-084.log",
+      "log_sha256": "c06547cbb6d121d5f1352bb10f8b41410af140b6398079edc5914494ed3d9e02",
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4656513670051936,
+      "log": "test-085.log",
+      "log_sha256": "7d070b9e92c1ab42665e8d97bb9fcb2f9754fae8ff4b3181f960543bcac2fc6b",
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 4.445826754999871,
+      "log": "test-086.log",
+      "log_sha256": "0cbe3730fb480f5eb8e36e7bdb6ecaf1e9ae47486d7b3256500af26a604bc150",
+      "target": "tcl_lsp_db",
+      "selector": "project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015878295002039522,
+      "log": "test-087.log",
+      "log_sha256": "83472a041e45a47891d162e5e566deb687835003934ce3f237c1367d29c291e9",
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015949638000165578,
+      "log": "test-088.log",
+      "log_sha256": "6dcb2256d2a11171ddab342b1146593804b73c9a378eb50c68e21bead967395a",
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_matches_vscode_for_a_posix_double_slash_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::canonical_file_uri_preserves_a_posix_question_mark_segment",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015957028001139406,
+      "log": "test-089.log",
+      "log_sha256": "e0f6ebc13abfb49eed7871dc63e1ba902511de91e426cc38ec21efb893ba10b5",
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_a_posix_question_mark_segment",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015897764002147596,
+      "log": "test-090.log",
+      "log_sha256": "89a76c60810b63c4ff7e023a86a0baa570c7710ad58070b9ebe9373b48b68404",
+      "target": "tcl_lsp_server",
+      "selector": "tests::canonical_file_uri_preserves_absolute_and_relative_existence_policy",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015953557995089795,
+      "log": "test-091.log",
+      "log_sha256": "cb03b6c12c309eae61d3e9563d40b020e912afa82105563f2c5be7010a79c00c",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_preserve_actual_posix_path_data",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015801895002368838,
+      "log": "test-092.log",
+      "log_sha256": "96166ad89bafbf5351ff2deada1f6d076d9b86c2eaa7207edefa831f115d1f75",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::file_action_path_tests::incoming_file_action_paths_reject_lossy_or_unrepresented_uri_data",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_non_drive_path_is_not_touched",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015931304995319806,
+      "log": "test-093.log",
+      "log_sha256": "bf07fc59ff66de398c4812f4996c49ec92482e04df1dd840eaba44f9f904dd7f",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_non_drive_path_is_not_touched",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_raw_non_ascii_path_is_repaired",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01579302200116217,
+      "log": "test-094.log",
+      "log_sha256": "d1afa9d8000e38dbbc09a404b4757eb459f4c0efaa02d9b8ff55b2d4b87e8a6a",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_raw_non_ascii_path_is_repaired",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_relative_path_has_no_rooted_file_uri",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015815416001714766,
+      "log": "test-095.log",
+      "log_sha256": "101e6848498fc780f46ee360a0c149d26518636ebc77c11f2523c23229291034",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_relative_path_has_no_rooted_file_uri",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_repaired_uri_is_canonicalised_too",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015874102995439898,
+      "log": "test-096.log",
+      "log_sha256": "daa0ca36e546d53e70e0bbe95ebb0cc10505902a5fdd13d073498a22b3a59403",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_repaired_uri_is_canonicalised_too",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015877478996117134,
+      "log": "test-097.log",
+      "log_sha256": "ba978ef0ad6b9ab5311ace3246e9aec81628f881713d5df4c7b780c89ede160d",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_gets_the_same_uri_from_file_path_would_give",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016708680996089242,
+      "log": "test-098.log",
+      "log_sha256": "ad3b52640c24f16a2e317de92fda8ec544150e1ee0d9487bdc3562b195056b7f",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_rooted_path_with_a_space_is_percent_encoded",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.0157676039962098,
+      "log": "test-099.log",
+      "log_sha256": "35debb90b5256b51f5d280b7dba3ba745c576f7094cfad9db0f832d694644724",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_string_that_is_not_a_uri_at_all_is_left_to_the_error_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_vscode_form_uri_is_already_canonical",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015789226999913808,
+      "log": "test-100.log",
+      "log_sha256": "261e727f6751cb9324e6547b767f040478ae365da8636c9c66b1535c83c67235",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_vscode_form_uri_is_already_canonical",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_well_formed_uri_needs_no_repair",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015772377999383025,
+      "log": "test-101.log",
+      "log_sha256": "3d35720055389d61dd435b515f4d3d9cd115141958cce6b2d80819b7fa8d2d30",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_well_formed_uri_needs_no_repair",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015790096003911458,
+      "log": "test-102.log",
+      "log_sha256": "ca4634025f98601f885e555d2ea728d80c9fe64d9255f3241222c88bf078c7de",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_drive_letter_is_pinned_lower_case",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::a_windows_extended_drive_uri_is_repaired",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015836983002373017,
+      "log": "test-103.log",
+      "log_sha256": "2b8916f4c71337a58bab71d821ab5ace4babb1e1b07c3e4a7f87d928ded1c8f9",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::a_windows_extended_drive_uri_is_repaired",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::an_unencoded_space_is_repaired",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01581609600543743,
+      "log": "test-104.log",
+      "log_sha256": "6273f4396b69cca975dd112d9d66e7eb1019927f6c5c33863c8813e0c3a93624",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::an_unencoded_space_is_repaired",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015856566998991184,
+      "log": "test-105.log",
+      "log_sha256": "5f1d4ea18e2791eb6250e36b7852660802dad194727e630bf73ae664884e399a",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::browser_and_virtual_workspace_uris_keep_their_structure",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::canonicalisation_is_idempotent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01578088699898217,
+      "log": "test-106.log",
+      "log_sha256": "fcb87efa502b5c2e44664c4bd2640ccb7883c59133b27c020586cd49a5a26d7b",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::canonicalisation_is_idempotent",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::existing_escapes_survive_a_repair",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015868977003265172,
+      "log": "test-107.log",
+      "log_sha256": "f306f79a605d698b763b6b5d6a92ef48ea0e19928c0bbfc9b3eaa5529653515b",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::existing_escapes_survive_a_repair",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015797406995261554,
+      "log": "test-108.log",
+      "log_sha256": "01f95db5858096935a7c91eb82f827185f15c47e379b576f6eaadbd16ad456d1",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_double_slash_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015846337002585642,
+      "log": "test-109.log",
+      "log_sha256": "4cf7a05d86f7fa923d9955e6e168b4ca8684b5d78292a001cf898905d75c49c4",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::generic_canonicalisation_preserves_posix_question_mark_segment",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016076318002888,
+      "log": "test-110.log",
+      "log_sha256": "268d7a6063e52d7f407f689a8654124cdb0a54e4d762108edba68924c4ca92c4",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::params_are_canonicalised_not_only_repaired",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015814448001037817,
+      "log": "test-111.log",
+      "log_sha256": "726849badaa21cfbe6771c25148713d08b418e7a80a63629d12fbd970ca46f26",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_canonicalised_not_only_repaired",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015740540002298076,
+      "log": "test-112.log",
+      "log_sha256": "bbb99b598845c64ecedc355cd120465c08b66a3d27adf66b491f938c40a6148c",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::params_are_normalised_wherever_a_uri_key_appears",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::path_authority_split_matches_vscode_uri_file",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015852240001549944,
+      "log": "test-113.log",
+      "log_sha256": "4388e4608a8359681353caa6143cd2f96452b52a8e243aad971d00b0265f4fe0",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::path_authority_split_matches_vscode_uri_file",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::percent_escape_hex_is_pinned_upper_case",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01587046900385758,
+      "log": "test-114.log",
+      "log_sha256": "25ff07ffedddc1f59fb4272fe509254e5e21ce906b9477e9851bcac2f35fad90",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::percent_escape_hex_is_pinned_upper_case",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015905510997981764,
+      "log": "test-115.log",
+      "log_sha256": "6649f2d64526c0786c581839e74fccbe6fa7e84b2dacf8c8a01725c53a9df195",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::posix_double_slash_question_mark_is_not_windows_metadata",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01581862899911357,
+      "log": "test-116.log",
+      "log_sha256": "9d0b73338e192a1f0ce624b7205c7375b1975fcd6e43e360447e0fc4ab0a4e8c",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::rooted_host_paths_keep_literal_backslashes_and_percent_signs",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015769044002809096,
+      "log": "test-117.log",
+      "log_sha256": "21c04ca7bf1f0a59d3447d5685f4f4551f569a80eda61e97121b6afe6935f96a",
+      "target": "tcl_lsp_server",
+      "selector": "uri_norm::tests::windows_unc_uri_shapes_gain_an_authority",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.11423422699590446,
+      "log": "test-118.log",
+      "log_sha256": "93689d658e4b2d067cabe4d5238a3285cd63c4bfacf2c215e76c154d7ad0e4bc",
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_registry-cd1f97b64f8e3752",
+        "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.11432335299468832,
+      "log": "test-119.log",
+      "log_sha256": "01b9fb7d9ee3f79fb84675d082d300c684f98b9703011b5817dd2e62b1e7dd40",
+      "target": "tcl_registry",
+      "selector": "source_operation::tests::source_result_coverage_retains_raw_writes_residual_reads_and_unmet_premises",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6158694210025715,
+      "log": "test-120.log",
+      "log_sha256": "81c41571d81b4cc042c9b5b8261c8bfc05360d3938f88caba8e971345dbca4d5",
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.167850953002926,
+      "log": "test-121.log",
+      "log_sha256": "06b77a3b6e77991bb789a584390778e8701b59798685b68c83a5115de62e490a",
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.421492829998897,
+      "log": "test-122.log",
+      "log_sha256": "02f4082e0fc0ed085b5fe23a6dac835d10da5baf22287d440b573890d72280e7",
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "source_structure::tests::commands_only_capture_keeps_current_original_regions_without_token_inventory",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6659664629987674,
+      "log": "test-123.log",
+      "log_sha256": "0e4da0da07c2a6aced64ee54008127ef297d5072f578a99ca7c9355869536f02",
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::tests::commands_only_capture_keeps_current_original_regions_without_token_inventory",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.6159553289980977,
+      "log": "test-124.log",
+      "log_sha256": "ae35ece309b2c2d8244d9822f07e4d7148533521da7f5b1cf2b8ca9845dd6881",
+      "target": "tcl_lsp_core",
+      "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::command_head_gate_distinguishes_head_from_argument",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5664427240044461,
+      "log": "test-125.log",
+      "log_sha256": "f5530973705a3b547ca65bb103bf24a93b1f7227b7bc0a95280ea33f1ab68ed0",
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_distinguishes_head_from_argument",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2178875999961747,
+      "log": "test-126.log",
+      "log_sha256": "64da654cafe1aa9e7ace3c2207154b0abe4d2f0ddd4625e78261ab8047afc699",
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_uses_whole_original_words_and_exact_utf16_positions",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5156221209981595,
+      "log": "test-127.log",
+      "log_sha256": "dcef8e565006b8cf19c7f250f8c66f7f575a2f2282ff32bf609783537af109c1",
+      "target": "tcl_lsp_server",
+      "selector": "tests::command_head_gate_withdraws_stale_inputs_and_nonhead_report_rows",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::cross_document_definition_resolves_sibling_proc",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.92861905600148,
+      "log": "test-128.log",
+      "log_sha256": "dfb8ef6ff609e83fc39fa4f65719f0a789f1232e783c5f012a9f911aa98cf205",
+      "target": "tcl_lsp_server",
+      "selector": "tests::cross_document_definition_resolves_sibling_proc",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01896069000213174,
+      "log": "test-129.log",
+      "log_sha256": "be47f9b9320a96963e38e7db191d6e64a09bb43beba77c0cca4bda7d87dc220d",
+      "target": "tcl_lsp_server",
+      "selector": "tests::tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015908446002868004,
+      "log": "test-130.log",
+      "log_sha256": "d20fc7b7da45d93208a811431d1e7aea2383d5acefb0f3b8e3bbafe0ad38d526",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01651588800450554,
+      "log": "test-131.log",
+      "log_sha256": "03aae3001e49d21da7495ecdcf748577552ef64e8c49846ac4cc5c8a66559064",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015857242993661202,
+      "log": "test-132.log",
+      "log_sha256": "5421c1c9741eb46db19665c6085a1536b854ffc78db0b760082092f5c6fb70a0",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016087363997939974,
+      "log": "test-133.log",
+      "log_sha256": "c7f2f16268393bf2e084b8cd9804932dc467bbda3196e6c5c7bc8d36f2ca85e6",
+      "target": "tcl_lsp_core",
+      "selector": "file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.8749284069999703,
+      "log": "test-134.log",
+      "log_sha256": "1e846101c0a2744dc56a2b54bf66f93b8e0d73886fefb5ae003775d48bf2ede0",
+      "target": "tcl_lsp_core",
+      "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.4187201429958805,
+      "log": "test-135.log",
+      "log_sha256": "68d5d403d9e9bb59666ff16db6d1e8513e2f56b2f5e6722fd20b985e1fb49a7e",
+      "target": "tcl_lsp_core",
+      "selector": "semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4659928469991428,
+      "log": "test-136.log",
+      "log_sha256": "c274d466e967041d2ce59e5caffaad1a5659ae60ecbd3efa5c50f321fee90060",
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.5778078180010198,
+      "log": "test-137.log",
+      "log_sha256": "e0db3dd0b7c62482bb0adb5ae8e783ecea20a0d45d41c92d8af1191880a8bfb4",
+      "target": "tcl_lsp_core",
+      "selector": "namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.019349331996636465,
+      "log": "test-138.log",
+      "log_sha256": "a71764c8bbc0ee3f9b1ada6403d9b23b192a5fb2bbf4395100dd37b32e4e6d86",
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_read_kind_is_correctly_tagged",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "references::tests::document_highlights_var_records_write_at_definition",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.5787897670015809,
+      "log": "test-139.log",
+      "log_sha256": "0ed3fcc8717b9a8c343da6d58f64e751d0fbf6962a398c63a59e118cf352ce62",
+      "target": "tcl_lsp_core",
+      "selector": "references::tests::document_highlights_var_records_write_at_definition",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_per_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.77058492499782,
+      "log": "test-140.log",
+      "log_sha256": "4cf27c68a740a58aa2e24ae1652cdf13bea666838d43f0ce07259f7367fb6eeb",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_per_class",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_class_constructor_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6204734479979379,
+      "log": "test-141.log",
+      "log_sha256": "889cfab8e538bdf2ca663d59980bb4679813dab658c2fb233ee531ee62622e5e",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_class_constructor_calls",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_method_calls_within_class_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.5670881049954914,
+      "log": "test-142.log",
+      "log_sha256": "324d2ff08aab35aebc832b881037526ca84f9388f010aaf139020fe994f71a3e",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_method_calls_within_class_body",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5655906530009815,
+      "log": "test-143.log",
+      "log_sha256": "c13cd7411187f275eadaabdb2a801d877f5e0f65010965fcbaec2eff6411885a",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_reports_zero_for_uncalled_method",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4165701509991777,
+      "log": "test-144.log",
+      "log_sha256": "09c1ee333ab1bd0b821f660b2c8657a804050df84cc4d76e4c1120cd7e6a4cee",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.7162564800019027,
+      "log": "test-145.log",
+      "log_sha256": "ca491d508a02f6c090dcf4f9d9667a1705682954085ad5d5242996f0c960f0fe",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_reports_zero_for_unused_property",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.41533619099936914,
+      "log": "test-146.log",
+      "log_sha256": "c576f291f86f9e51826473202d736345bb0d8bbf46a93760b46a54c7e96cbf38",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_reports_zero_for_unused_property",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.9167271670012269,
+      "log": "test-147.log",
+      "log_sha256": "cb95d1ebf631ac09f5ebdafc1fb3f48b6440f5cea9c753748b9621fcce79a83b",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_obj_method_from_create_instance",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6159362320031505,
+      "log": "test-148.log",
+      "log_sha256": "b13b3add4e6594807e50e5eb689bfd7a2f8121acc6d7f59ff7fbbe9d27a10d49",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.817093712001224,
+      "log": "test-149.log",
+      "log_sha256": "58b4c27ac6cef2cbbfb0b0974d4892e5990a3f4db9ffcbea56a5bc8d7b3e305f",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8669295759973465,
+      "log": "test-150.log",
+      "log_sha256": "a5e431988c2e13a08f9666c92e1a7ad64f7a3f0a619528527b92290807631916",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_namespaced_class_method",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8169298539942247,
+      "log": "test-151.log",
+      "log_sha256": "09d7faa873aac427c7fc1a363b2ded7c1951c392f98c0a17fcd21f6fcb2ae69e",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_namespaced_class_method",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8666283269994892,
+      "log": "test-152.log",
+      "log_sha256": "02ac4c1af10f7de8301dd305d61c22fa669541fcf773abbe02220653378f38f6",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5658563839970157,
+      "log": "test-153.log",
+      "log_sha256": "3dd6e2f61ea84e7eb324d92a903cbccaeba21e7e5f795e34914761b0166a64cf",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4155275459997938,
+      "log": "test-154.log",
+      "log_sha256": "ea606febbba3d88d61e71562cddc74f116437284e3609962a43a297f09a93748",
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::tests::lens_qname_exists_finds_a_plain_class",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "hover::tests::hover_on_proc_qualified_name",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6159167139994679,
+      "log": "test-155.log",
+      "log_sha256": "1e98b16c722ab19109119e3e7ed17547575de652016e81244f1ca26cd6b8f9c0",
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_proc_qualified_name",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "hover::tests::hover_on_class_name_returns_metaclass_signature",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46529965700028697,
+      "log": "test-156.log",
+      "log_sha256": "9babc016e74aa6662174345ab5390f40f73dcd001a11bbeb402c9f48eb99730b",
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_class_name_returns_metaclass_signature",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "hover::tests::hover_on_dollar_var_returns_var_text",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5657176739987335,
+      "log": "test-157.log",
+      "log_sha256": "e8d9d551c568549620b82a045743d22aeb6398df502d8f4b9929c7c96623a9e4",
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::hover_on_dollar_var_returns_var_text",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "hover::tests::irules_command_hover_lists_valid_events",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.2646581560038612,
+      "log": "test-158.log",
+      "log_sha256": "c06541ace4146ffdb86dd925c84c759e3acc8255a4b93e6e6b228f777bdaf17d",
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::irules_command_hover_lists_valid_events",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "hover::tests::class_hover_text_lists_methods_alphabetically",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4652952140022535,
+      "log": "test-159.log",
+      "log_sha256": "c6206b5830ced6cccf287abae9d6b24f5fda8ba2de9011b36c4a16bf7ff8aade",
+      "target": "tcl_lsp_core",
+      "selector": "hover::tests::class_hover_text_lists_methods_alphabetically",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8667320150052547,
+      "log": "test-160.log",
+      "log_sha256": "63fc9d77d19132250b2e9a23b6520d376b2065c81b0a7ce7ee6747ae56ac03b4",
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "definition::tests::alias_lookup_accepts_qualified_form",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6155595180025557,
+      "log": "test-161.log",
+      "log_sha256": "2defc9f757060eb53a66a172d7c93c24e5d97bae91c5dcf7a3efbdf1f81fc23e",
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::alias_lookup_accepts_qualified_form",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_db-c55af6efd9493cee",
+        "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.8165183020028053,
+      "log": "test-162.log",
+      "log_sha256": "1af21d3c47f20cd538bd07fdcc6fb3b9df5be404607361a3b1540f6a7bdf86f0",
+      "target": "tcl_lsp_db",
+      "selector": "tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::resource_analyser_inputs_apply_every_field",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01620307600387605,
+      "log": "test-163.log",
+      "log_sha256": "69a657351a1273e4a2377fb9cda1365e3049f3744a26d94fa27bb4ef581cbd28",
+      "target": "tcl_lsp_server",
+      "selector": "tests::resource_analyser_inputs_apply_every_field",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 2.0249760939987027,
+      "log": "test-164.log",
+      "log_sha256": "ca8379b8730420dd29d66bb48a832d3fba2067eb96830b102c084158edf7e7fe",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.969060201998218,
+      "log": "test-165.log",
+      "log_sha256": "01592e939e252c9ac906bcbc45f042d216bf70314a7e30c3e5fda0d87a56ec9f",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": -9,
+      "timed_out": true,
+      "seconds": 180.01311372199416,
+      "log": "test-166.log",
+      "log_sha256": "c4977ac07087d8fb1248490aa9a39d203c2aa01e22dc6969f38a4f66f24508d8",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.41869919400051003,
+      "log": "test-167.log",
+      "log_sha256": "9d0aa1bfa77c39b3ae2bbb0d0fe214902831d1792a0a4e102cf1d3cce6e27c5d",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::position_encoding_negotiation",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016031936000217684,
+      "log": "test-168.log",
+      "log_sha256": "24b017db841010d4513360ae2a2df02c7105182810d1ca8a01ddc09c85be834a",
+      "target": "tcl_lsp_server",
+      "selector": "tests::position_encoding_negotiation",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "tests::lsp_position_helpers_use_utf16_columns",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.016013669002859388,
+      "log": "test-169.log",
+      "log_sha256": "86b81503ed4fff17144071a2cdabd8b153dc227060fb619d14701d4a09d67340",
+      "target": "tcl_lsp_server",
+      "selector": "tests::lsp_position_helpers_use_utf16_columns",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5657250279982691,
+      "log": "test-170.log",
+      "log_sha256": "b0ea710af436f35997bc4a4fe31b66b7ce87de8a84643c04ecf4793634a8344b",
+      "target": "tcl_compiler",
+      "selector": "compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "parsing::spectcl_source::tests::pack_source_major_query_keeps_numeric_and_supported_questions_separate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015928354994684923,
+      "log": "test-171.log",
+      "log_sha256": "79a1f5a59f1eed7e12f9b792093493a443249d92fb2298fd568167e959240ef0",
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_major_query_keeps_numeric_and_supported_questions_separate",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "parsing::spectcl_source::tests::pack_source_includes_retain_actual_rows_config_and_wrapped_unicode_extent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015866077999817207,
+      "log": "test-172.log",
+      "log_sha256": "70bc9dfe35f09f8d36c5c53127f9f803a42306bf1161edfd326698530aae0a02",
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_retain_actual_rows_config_and_wrapped_unicode_extent",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "parsing::spectcl_source::tests::pack_source_includes_preserve_whole_config_and_nested_bom_content",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01583395000488963,
+      "log": "test-173.log",
+      "log_sha256": "03183e3b7ae6be480ca9b9b916fcad8d9030320e4fc85c6d22e8875846bb3d7b",
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_preserve_whole_config_and_nested_bom_content",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.015959107004164252,
+      "log": "test-174.log",
+      "log_sha256": "96ef86b3917ecd11428d26bcc4733cc25baab99325bc00dcc4396ff059287703",
+      "target": "tcl_compiler",
+      "selector": "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_compiler-8207aa965502e4cf",
+        "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 5.798609946999932,
+      "log": "test-175.log",
+      "log_sha256": "264cb1cf323cf4dd16f1faef533701a44bcf9cbc645c084101f3dce878e451cb",
+      "target": "tcl_compiler",
+      "selector": "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6659025760018267,
+      "log": "test-176.log",
+      "log_sha256": "1121bd04dd1951ecfab38f982015ae8a07de2b5c626178dfea0e5b357e15e806",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::pack_include_navigation_withholds_dynamic_and_nested_file_rows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.819759117999638,
+      "log": "test-177.log",
+      "log_sha256": "1c336b6a5ddad39a6eee74045cb3000ac70f51c8b07408f483b1bb3a2a1497ff",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::pack_include_navigation_withholds_dynamic_and_nested_file_rows",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::a_pack_include_row_links_to_its_sibling_file",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4716981269957614,
+      "log": "test-178.log",
+      "log_sha256": "8d16242ee9f28ec451e6c630173a3f8ead4db832677979e0ce204b4d96905168",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_row_links_to_its_sibling_file",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::a_pack_include_does_not_expand_a_tilde",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6205517990019871,
+      "log": "test-179.log",
+      "log_sha256": "90c7b7ca8753f04cdcac97f067fdeca89c49db7d2e57926cdb60a809513912b5",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_does_not_expand_a_tilde",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::a_pack_include_with_path_structure_is_not_a_link",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.9668455050050397,
+      "log": "test-180.log",
+      "log_sha256": "da502382e2458dc796d8caf7ebc0052116bef4a32e0d09ec6f198dcb232531cd",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_pack_include_with_path_structure_is_not_a_link",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::a_surface_roster_include_is_not_a_file_link",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5659311580020585,
+      "log": "test-181.log",
+      "log_sha256": "2e4ccc5eecf87a5ae34af1d813fa0404f35094d4213e1c1f28a6dae2c48e1df6",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::a_surface_roster_include_is_not_a_file_link",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::tests::an_ordinary_tcl_include_call_is_not_a_link",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.46539436199964257,
+      "log": "test-182.log",
+      "log_sha256": "9aec203fbe8e3bd00e67f3e3f23e6e90e74db86acaf5ae56d519bfe9f0fb0a1d",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::tests::an_ordinary_tcl_include_call_is_not_a_link",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5167250220038113,
+      "log": "test-183.log",
+      "log_sha256": "57981837ea5a1be204c7e8868e84aebcfe4ffadffb24ddf3df8f0c6157cca8a4",
+      "target": "tcl_lsp_core",
+      "selector": "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 20.801022160994762,
+      "log": "test-184.log",
+      "log_sha256": "94199ccdac3be3b1253c1db000a4f741be0e4b05fd05c58e928c07b9071eeae2",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 26.573932520994276,
+      "log": "test-185.log",
+      "log_sha256": "ab98efdff933546893280f627bdc678fc419cd51819eadb8c808f58e0bee934d",
+      "target": "tcl_lsp_core",
+      "selector": "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::source_path_admission_distinguishes_nonfile_unicode_and_refused_file_data",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01589382899692282,
+      "log": "test-186.log",
+      "log_sha256": "e80720ba063b20c40a731689e0618df339c882d58142b16c27f11dc54b775745",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::source_path_admission_distinguishes_nonfile_unicode_and_refused_file_data",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::refused_open_and_unknown_change_publish_no_document_source_or_index",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.031950541997503024,
+      "log": "test-187.log",
+      "log_sha256": "ffed3413660e44562bf6ac06a00dd123fdec556d96d8a146e4c775f639ca5b65",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::refused_open_and_unknown_change_publish_no_document_source_or_index",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::refused_known_change_retains_exact_prior_document_and_index",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5673363149981014,
+      "log": "test-188.log",
+      "log_sha256": "22eae59361b9f19e5d50ea8def4e1a5eee4da68426e360a6e50b47b42af4c8f3",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::refused_known_change_retains_exact_prior_document_and_index",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::foreign_live_receipt_is_terminal_before_change_or_fresh_cache_reuse",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01597514600143768,
+      "log": "test-189.log",
+      "log_sha256": "e0dae5a853979abfdca3a22caecdc59d376f7d0d96b719c554db04cbaa7f7b78",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::foreign_live_receipt_is_terminal_before_change_or_fresh_cache_reuse",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.6810716489999322,
+      "log": "test-190.log",
+      "log_sha256": "7c572395a01299f8c681bea78981e6934347552b33ca80663695ad1c8a173fed",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::disk_unavailability_preserves_prior_rows_but_genuine_missing_file_retires",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7159930310008349,
+      "log": "test-191.log",
+      "log_sha256": "51ae63db539b5ccf32b8f9b4e4c09ba0adfdd4e36cad89716fd8610c2f3cd9de",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::disk_unavailability_preserves_prior_rows_but_genuine_missing_file_retires",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::disk_replacement_and_removal_preflight_is_atomic_on_refusal",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7163695240014931,
+      "log": "test-192.log",
+      "log_sha256": "26a6bda369fe63f2c29116d844b8340baee649123c7a40af832c61db640f7383",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::disk_replacement_and_removal_preflight_is_atomic_on_refusal",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::malformed_uri_never_reads_the_valid_replacement_character_neighbour",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01610483600234147,
+      "log": "test-193.log",
+      "log_sha256": "501440c6a7a12528995bdd4da2b4ec0ee063156acad7766e8aedb1301237dac1",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::malformed_uri_never_reads_the_valid_replacement_character_neighbour",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.7751119470049161,
+      "log": "test-194.log",
+      "log_sha256": "1a9d51753f2d6825710076ddbf4b2882563b2b3e81480c449c61ff99aff64af4",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.015960220000124536,
+      "log": "test-195.log",
+      "log_sha256": "c607b5a737237e5e2322c107de79bd3a3aed0e6c000c6f224a49cded8fd81dad",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5205348460003734,
+      "log": "test-196.log",
+      "log_sha256": "266009469e2b4c796747f0e6a20f951bc55caa715e697a42eb22974eea4fc45e",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::missing_scan_receipt_cannot_retire_a_remapped_uri",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.5188807590020588,
+      "log": "test-197.log",
+      "log_sha256": "41c68a52d1a7f04fbe8d9cc3e5541e920a2ca6ba215dffe444067a749d5295a3",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::missing_scan_receipt_cannot_retire_a_remapped_uri",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::opening_waiting_for_index_cannot_retire_after_mapping_withdrawal",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4690688849950675,
+      "log": "test-198.log",
+      "log_sha256": "d5cdcd81ddd0810e6a596500f44424ef9371b52be5c430f09a5fa956b430d983",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::opening_waiting_for_index_cannot_retire_after_mapping_withdrawal",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::closed_cached_source_keeps_its_original_mapping_until_genuine_republication",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.0674274609991699,
+      "log": "test-199.log",
+      "log_sha256": "90ff115bccecf6a440205abda5f8f59b6bb834184e0078f5d905a6f32d594a18",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::closed_cached_source_keeps_its_original_mapping_until_genuine_republication",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cached_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.9672180010020384,
+      "log": "test-200.log",
+      "log_sha256": "1754f5213d2d82bf0d27e92401a409a1ccb5581bd40bbfd8971698240c80d21b",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::equal_path_aba_and_equal_foreign_provider_cannot_authenticate_old_cached_source",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "original_document_path_admission_tests::actual_virtual_scan_path_refuses_a_stronger_uri_alias_to_another_path",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015877794998232275,
+      "log": "test-201.log",
+      "log_sha256": "8fcc6d179296aae503759ae21ff8db4df24ec1e59bb4c558572c35942abfd0f7",
+      "target": "tcl_lsp_server",
+      "selector": "original_document_path_admission_tests::actual_virtual_scan_path_refuses_a_stronger_uri_alias_to_another_path",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.2745377450046362,
+      "log": "test-202.log",
+      "log_sha256": "4de22513d179eea92b3e6f497ed9202e2ca10f72dbc975e88f65c5805c50a345",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_requires_an_actual_completed_provider_even_for_empty_reports",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::current_diagnostics_cannot_reborrow_a_replaced_equal_path_publication",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.6191646419974859,
+      "log": "test-203.log",
+      "log_sha256": "0433007db2d9f0bc03114d9c0e941f8825b689cd733ace7f4286b616ad0de2e9",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_cannot_reborrow_a_replaced_equal_path_publication",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.3713796750016627,
+      "log": "test-204.log",
+      "log_sha256": "51ae602a58222596ec95f89cd1a9775d2ebfffe868bab6489be26b2b747a4169",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.31651240800420055,
+      "log": "test-205.log",
+      "log_sha256": "230e0655a165602889b8ba95fc6d992c7eedec9c45a2cb0eef32c2132300a551",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.11577274899900658,
+      "log": "test-206.log",
+      "log_sha256": "682febdc26491e74a6ff0386e56a5fa51fe60c155ce3fae04982692dcbfa26f9",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::issued_publication_id_cannot_be_replaced_by_the_actual_legacy_pull_handler",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.4689060890013934,
+      "log": "test-207.log",
+      "log_sha256": "6edf8f22d1c71de269cd4b1242ce34e2c539433d734caf395f18ecd73a25ad7b",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::issued_publication_id_cannot_be_replaced_by_the_actual_legacy_pull_handler",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.3685734769969713,
+      "log": "test-208.log",
+      "log_sha256": "3bb68d3b3836b2a885b7f12e34f8f1acaf55c8288f23fce7fca773996a707015",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.41845664699940244,
+      "log": "test-209.log",
+      "log_sha256": "d4b41abfa909bfdb669c78af63e32a585251d55dc054f9ca4fde086e43e89f83",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_server-f29bc34dc668f467",
+        "current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.1646143280013348,
+      "log": "test-210.log",
+      "log_sha256": "f0cd4689882729416c98a1456ad97a1424110571603f2321536a8ba9e2bc3800",
+      "target": "tcl_lsp_server",
+      "selector": "current_diagnostics::tests::delivered_policy_suppression_does_not_claim_missing_analysis_context",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::document_uri_path_tests::virtual_issuer_keeps_authority_counted_data_and_refuses_invalid_uri",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015930286004731897,
+      "log": "test-211.log",
+      "log_sha256": "7f33d5ff113e53a01a7e2a586564295a6f53cd62074d19dfe936d9293a62115e",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::virtual_issuer_keeps_authority_counted_data_and_refuses_invalid_uri",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::document_uri_path_tests::registration_is_stronger_and_old_receipt_cannot_revive_or_cross_provider",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01594679000118049,
+      "log": "test-212.log",
+      "log_sha256": "13fac8df450618f4ef11626f041b9cb7000d8a249340823f55d2052a498a943c",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::registration_is_stronger_and_old_receipt_cannot_revive_or_cross_provider",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::document_uri_path_tests::original_and_service_aliases_share_actual_row_and_withdraw_together",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01588091199664632,
+      "log": "test-213.log",
+      "log_sha256": "c9369a21d8c117774e6d5947ba4471e410d7f393e44b245535d5b58537f09be3",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::original_and_service_aliases_share_actual_row_and_withdraw_together",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::document_uri_path_tests::publication_holds_the_actual_mapping_until_continuation_returns",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015858828999625985,
+      "log": "test-214.log",
+      "log_sha256": "65dce0ca8656b4deba26e30a9a92d5f1979122459bb2b68366afc4db16fc49c3",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::publication_holds_the_actual_mapping_until_continuation_returns",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::document_uri_path_tests::different_counted_path_spelling_is_a_new_registration",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.0160096949985018,
+      "log": "test-215.log",
+      "log_sha256": "2507bc2828eb9e27939db3a81ad67050450f207ae86df60ab065d9bbdd29e0e4",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::document_uri_path_tests::different_counted_path_spelling_is_a_new_registration",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::actual_source_path_origin_tests::virtual_original_path_is_provider_issued_and_never_a_native_path_grant",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.01608326399582438,
+      "log": "test-216.log",
+      "log_sha256": "1f8639b2271c1f57f15e3046bfb267a78e51044a229829533a6f05c41d90c6f2",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::actual_source_path_origin_tests::virtual_original_path_is_provider_issued_and_never_a_native_path_grant",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "vfs::actual_source_path_origin_tests::actual_native_source_path_keeps_original_spelling_without_uri_reconstruction",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.015923466002277564,
+      "log": "test-217.log",
+      "log_sha256": "124a65379ea5318299292d2fcc6dab5c3a84eff909724e6e466a1a56bf921ffb",
+      "target": "tcl_lsp_core",
+      "selector": "vfs::actual_source_path_origin_tests::actual_native_source_path_keeps_original_spelling_without_uri_reconstruction",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "package_resolver::tests::auto_qualify_differential_against_tclsh",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.16809753599955002,
+      "log": "test-218.log",
+      "log_sha256": "92f9be89c0abad1448d192a616dd0471474a56b3e4913a8041792b19b1e3fd25",
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::auto_qualify_differential_against_tclsh",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.11423004899552325,
+      "log": "test-219.log",
+      "log_sha256": "64268475ffe43140036695a50273928b9b04df6b8776fe2dd44ff17e1af37773",
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    {
+      "argv": [
+        "/workspace/naming-validation/lsp-source-path-diagnostics-repair/frozen-binaries/tcl_lsp_core-c99aeb680176971a",
+        "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.11433151000528596,
+      "log": "test-220.log",
+      "log_sha256": "3c3d9c4f1d9aefd7b69e0471d9be9fd37d6ba7986962594ba1a6332245b3bf39",
+      "target": "tcl_lsp_core",
+      "selector": "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    }
+  ],
+  "errors": [],
+  "artifact_drift": {},
+  "listed_only": false,
+  "selected_vector_complete": true,
+  "full_group_complete": true,
+  "passed_count": 191,
+  "failed_count": 29
+}

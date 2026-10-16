@@ -1,0 +1,182 @@
+   Compiling unicode-ident v1.0.26
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling syn v3.0.6
+   Compiling wasm-bindgen-shared v0.2.129
+   Compiling rustversion v1.0.23
+    Checking cfg-if v1.0.5
+    Checking once_cell v1.21.4
+   Compiling bumpalo v3.20.3
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling wasm-bindgen v0.2.129
+   Compiling wasm-bindgen-macro v0.2.129
+   Compiling autocfg v1.5.1
+    Checking zeroize v1.9.0
+   Compiling num-traits v0.2.19
+    Checking subtle v2.6.1
+    Checking rand_core v0.10.1
+    Checking typenum v1.20.1
+    Checking hybrid-array v0.4.15
+   Compiling getrandom v0.4.3
+    Checking cmov v0.5.4
+    Checking ctutils v0.4.2
+    Checking const-oid v0.10.2
+    Checking memchr v2.8.3
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking digest v0.11.3
+   Compiling thiserror v2.0.21
+   Compiling thiserror-impl v2.0.21
+    Checking num-integer v0.1.47
+    Checking bitflags v2.13.2
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+    Checking pin-project-lite v0.2.17
+    Checking tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling libm v0.2.16
+    Checking futures-sink v0.3.34
+    Checking bytecount v0.6.9
+    Checking futures-core v0.3.34
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Checking num-bigint v0.5.1
+   Compiling syn v2.0.119
+    Checking futures-io v0.3.34
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Checking futures-channel v0.3.34
+    Checking sha2 v0.11.0
+   Compiling futures-macro v0.3.34
+    Checking futures-task v0.3.34
+    Checking slab v0.4.12
+    Checking futures-util v0.3.34
+    Checking base64ct v1.8.3
+   Compiling shlex v2.0.1
+    Checking smallvec v1.16.2
+   Compiling find-msvc-tools v0.1.14
+   Compiling cc v1.6.0
+    Checking pem-rfc7468 v1.0.0
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+    Checking tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+    Checking cpubits v0.1.1
+    Checking crypto-bigint v0.7.5
+    Checking der v0.8.2
+    Checking foldhash v0.2.0
+    Checking equivalent v1.0.2
+    Checking allocator-api2 v0.2.21
+    Checking hashbrown v0.17.1
+    Checking md-5 v0.11.0
+    Checking sha1 v0.11.0
+   Compiling serde_core v1.0.229
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Checking spki v0.8.0
+    Checking js-sys v0.3.106
+    Checking aho-corasick v1.1.5
+    Checking ff v0.14.0
+    Checking rustc-hash v2.1.3
+   Compiling zmij v1.0.23
+    Checking regex-syntax v0.8.11
+    Checking regex-automata v0.4.18
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+    Checking indexmap v2.14.2
+   Compiling serde_json v1.0.151
+   Compiling unicode-general-category v1.1.0
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Checking regex v1.13.1
+    Checking group v0.14.0
+    Checking pkcs8 v0.11.0
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+    Checking minimal-lexical v0.2.1
+   Compiling serde v1.0.229
+   Compiling num-conv v0.2.2
+    Checking base16ct v1.0.0
+   Compiling time-core v0.1.9
+    Checking itoa v1.0.18
+   Compiling time-macros v0.2.32
+    Checking sec1 v0.8.1
+    Checking nom v7.1.3
+   Compiling synstructure v0.13.2
+   Compiling serde_derive v1.0.229
+    Checking deranged v0.5.8
+    Checking powerfmt v0.2.0
+    Checking time v0.3.55
+   Compiling asn1-rs-derive v0.6.0
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Checking rusticata-macros v4.1.0
+    Checking elliptic-curve v0.14.1
+    Checking primefield v0.14.0
+   Compiling asn1-rs-impl v0.2.0
+    Checking signature v3.0.0
+    Checking hmac v0.13.0
+   Compiling displaydoc v0.2.7
+    Checking asn1-rs v0.7.2
+    Checking rfc6979 v0.6.0
+    Checking wnaf v0.14.1
+   Compiling ring v0.17.14
+   Compiling oid-registry v0.8.1
+    Checking primeorder v0.14.0
+    Checking ecdsa v0.17.0
+    Checking getrandom v0.2.17
+    Checking num-bigint v0.4.8
+   Compiling ref-cast v1.0.27
+    Checking untrusted v0.9.0
+    Checking der-parser v10.0.0
+    Checking pkcs1 v0.8.0-rc.4
+    Checking crypto-primes v0.7.2
+   Compiling ref-cast-impl v1.0.27
+    Checking lazy_static v1.5.1
+   Compiling libc v0.2.190
+    Checking data-encoding v2.11.1
+    Checking x509-parser v0.18.1
+    Checking rsa v0.10.0-rc.18
+    Checking p256 v0.14.0
+    Checking p384 v0.14.0
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+    Checking base64 v0.23.1
+    Checking borrow-or-share v0.2.4
+    Checking fluent-uri v0.4.1
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling crossbeam-utils v0.8.23
+    Checking ipnet v2.12.2
+   Compiling parking_lot_core v0.9.12
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+error[E0425]: cannot find type `c_int` in crate `libc`
+   --> /workspace/tcl-lsp/rust/tcl-host-c-abi/src/lib.rs:242:64
+    |
+242 |             int_bytes: u8::try_from(core::mem::size_of::<libc::c_int>())
+    |                                                                ^^^^^ not found in `libc`
+    |
+help: consider importing one of these type aliases
+    |
+  5 + use std::ffi::c_int;
+    |
+  5 + use std::os::raw::c_int;
+    |
+  5 + use core::ffi::c_int;
+    |
+help: if you import `c_int`, refer to it directly
+    |
+242 -             int_bytes: u8::try_from(core::mem::size_of::<libc::c_int>())
+242 +             int_bytes: u8::try_from(core::mem::size_of::<c_int>())
+    |
+
+error[E0425]: cannot find type `c_long` in crate `libc`
+   --> /workspace/tcl-lsp/rust/tcl-host-c-abi/src/lib.rs:244:65
+    |
+244 |             long_bytes: u8::try_from(core::mem::size_of::<libc::c_long>())
+    |                                                                 ^^^^^^ not found in `libc`
+    |
+help: consider importing one of these type aliases
+    |
+  5 + use std::ffi::c_long;
+    |
+  5 + use std::os::raw::c_long;
+    |
+  5 + use core::ffi::c_long;
+    |
+help: if you import `c_long`, refer to it directly
+    |
+244 -             long_bytes: u8::try_from(core::mem::size_of::<libc::c_long>())
+244 +             long_bytes: u8::try_from(core::mem::size_of::<c_long>())
+    |
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `tcl-host-c-abi` (lib) due to 2 previous errors

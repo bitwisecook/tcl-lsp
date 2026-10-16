@@ -1,0 +1,13 @@
+CLEAR — independent source review, not execution/gate acceptance.
+Source patch c5026f4f0949dfbea75b97136b69e60ece602ddf4bfdf3fbfca185e12cfbbedd.
+Contract patch 0e91cc0c406ba0abbb7ea5b285f12f45f4bf246627b36cd0a2e9106d6e7ed148.
+
+Verified immutable patch hashes and source manifest before/after hashes. Parsed both actual source images; only existing function inlay_hints_in_program changes. Deleted helpers are precisely reportresolver lookup_proc/raw-ordinal emit_hints_for_call. Every other preexisting function, including all existing test functions/assertions/fixtures, is byte-identical. Two added controls use genuine analysed current source and retained allocation, independently clearing only reporting inventories to distinguish authority.
+
+The adopted existing Compiler issuer authenticates actual whole source/full config/input/Registry/realm, original full segmented projection and NativeWord vector, selected current implementation allocation/body card and unique same-body declaration metadata, earlier mutation and operand-effect guards, and captured-prefix lineage. logical_source_procedure_declaration_for_body checks actual Arc body identity, current context and original_header_matches. Its formals bind only on exact Tcl/Jim grammar agreement. No new Compiler owner or public API is introduced.
+
+Emitter indexes only accepted Value/CallerLink bindings into that same selected header's params and effective operand vector. Captured prefix slots remain operands(None), defaults/rest are omitted, written slots use actual operand byte start before existing UTF16/viewport conversion. This is readonly display, not binding/activation/edit authority. Native original_procedure_arguments branch, complete source guard, selected dialect/registry ownership, and viewport prefilter remain unchanged. Builtin fallback still uses its existing independent source_registry_words owner, rather than borrowing a failed procedure's identity. Custom positively Logical prefix producer deficiency is separate and not claimed fixed.
+
+Contract accurately extends existing Logical procedure source operands owner with one actual Core consumer; existing public Compiler issuer route remains unchanged. No unsupported private gate entry, visibility/checker relaxation or new owner requirement is introduced. Existing baseline lsp-inlay-logical-procedure-formal-argv-transport is the caller scope; counts/integration remain Root's responsibility.
+
+No concrete source blocker found. No Cargo/main/Git/build/tests/gate execution. Original procedure/builtin/alias/default/rest/viewport tests and new controls require fresh ordinary validation; source review does not establish unchanged positive efficacy or performance.

@@ -1,0 +1,6 @@
+
+running 1 test
+test loader::tests::original_pack_include_navigation_and_loader_share_name_and_body_rules ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 265 filtered out; finished in 0.00s
+

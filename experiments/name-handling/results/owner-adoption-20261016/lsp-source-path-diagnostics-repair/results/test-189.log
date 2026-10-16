@@ -1,0 +1,6 @@
+
+running 1 test
+test original_document_path_admission_tests::foreign_live_receipt_is_terminal_before_change_or_fresh_cache_reuse ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.00s
+

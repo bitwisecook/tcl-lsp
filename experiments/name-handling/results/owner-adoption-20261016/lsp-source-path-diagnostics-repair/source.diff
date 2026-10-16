@@ -1,0 +1,2548 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 3fe2f6f1d..c61bae538 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4512,6 +4512,7 @@ dependencies = [
+  "tcl-registry",
+  "tcl-sslictcl",
+  "tcl-syntax",
++ "tcl-test-support",
+  "tower-lsp-server",
+ ]
+ 
+@@ -4543,6 +4544,7 @@ dependencies = [
+  "gloo-timers",
+  "js-sys",
+  "salsa",
++ "serde",
+  "serde_json",
+  "sha2 0.11.0",
+  "tcl-bigip",
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+index 26eb85f56..bd2f8fa28 100644
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -361,8 +361,7 @@ fn connection_scoped_names(
+     let arrays: Vec<String> = names
+         .iter()
+         .filter_map(|name| {
+-            tcl_syntax::naming::split_element_ref(name)
+-                .map(|(base, _)| base.to_owned())
++            tcl_syntax::naming::split_element_ref(name).map(|(base, _)| base.to_owned())
+         })
+         .collect();
+     names.extend(arrays);
+@@ -2625,6 +2624,7 @@ fn lower_and_build_cfg(
+     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+     input: Option<&crate::analyser::ResolvedAnalysisInput>,
++    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+ ) -> (
+     IrModule,
+     CfgModule,
+@@ -2639,7 +2639,9 @@ fn lower_and_build_cfg(
+     let mut lower_trace = SourcePipelineTrace::new("lower-cfg", source.len());
+     #[cfg(any(test, debug_assertions))]
+     lower_trace.phase("initial");
+-    let mut lowerer = if source_entry.is_none() && context.is_none() && input.is_none() {
++    let mut lowerer = if let Some(owner) = standalone {
++        crate::lowering::Lowerer::for_standalone_source_with_input(owner)
++    } else if source_entry.is_none() && context.is_none() && input.is_none() {
+         // The default build API selects authoring. Explicit supplied or driver
+         // ingress keeps its own purpose even when source metadata is missing.
+         crate::lowering::Lowerer::for_standalone_source(registry, options.config, options.dialect)
+@@ -2660,13 +2662,12 @@ fn lower_and_build_cfg(
+             )
+         });
+     let input = input.or(context_input.as_ref());
+-    if let Some(input) = input {
++    if let Some(input) = input.filter(|_| standalone.is_none()) {
+         lowerer = lowerer.with_resolved_analysis_input(input.clone());
+     } else if let Some(context) = context {
+         lowerer = lowerer.with_context_registry(context);
+     }
+-    let supplied_entry = source_entry
+-        .is_none()
++    let supplied_entry = (source_entry.is_none() && standalone.is_none())
+         .then(|| {
+             input.map(|input| {
+                 crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+@@ -3504,6 +3505,7 @@ impl CompilationUnit {
+             None,
+             input,
+             Some(source_body_cache),
++            None,
+         )
+     }
+ 
+@@ -3553,6 +3555,36 @@ impl CompilationUnit {
+         Self::build_with_retained_entry(source, options, None, None, entry, None, Some(input))
+     }
+ 
++    /// Build an explicitly Standalone authoring request with its complete source
++    /// metadata. Availability does not choose this purpose: the caller selects it
++    /// independently. Missing/foreign store, profile or full grammar refuses.
++    /// Supplied-document and driver-entry builders retain their existing purposes;
++    /// this constructor supplies no runtime entry or Native activation.
++    #[must_use]
++    pub fn build_standalone_with_analysis_input(
++        source: &str,
++        options: UnitBuildOptions<'_>,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> Option<Self> {
++        let owner = crate::lowering::StandaloneSourceInput::retain(
++            options.registry,
++            input,
++            options.config,
++            options.dialect,
++        )?;
++        Some(Self::build_with_retained_entry_and_source_syntax(
++            source,
++            options,
++            None,
++            None,
++            None,
++            None,
++            Some(input),
++            None,
++            Some(owner),
++        ))
++    }
++
+     fn build_with_entry(
+         source: &str,
+         options: UnitBuildOptions<'_>,
+@@ -3574,7 +3606,7 @@ impl CompilationUnit {
+         input: Option<&crate::analyser::ResolvedAnalysisInput>,
+     ) -> Self {
+         Self::build_with_retained_entry_and_source_syntax(
+-            source, options, cache, body_cache, entry, context, input, None,
++            source, options, cache, body_cache, entry, context, input, None, None,
+         )
+     }
+ 
+@@ -3587,6 +3619,7 @@ impl CompilationUnit {
+         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+         input: Option<&crate::analyser::ResolvedAnalysisInput>,
+         source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
++        standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+     ) -> Self {
+         let UnitBuildOptions {
+             registry, dialect, ..
+@@ -3604,6 +3637,7 @@ impl CompilationUnit {
+                 entry,
+                 context,
+                 input,
++                standalone,
+             );
+         #[cfg(any(test, debug_assertions))]
+         {
+@@ -5138,6 +5172,111 @@ mod tests {
+ 
+     use super::*;
+ 
++    #[test]
++    fn standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency() {
++        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
++        let mut store = CommandRegistry::build_default();
++        store.insert(tcl_registry::CommandSpec {
++            name: "standaloneRetainedStoreMarker",
++            ..tcl_registry::CommandSpec::DEFAULT
++        });
++        let store = Arc::new(store);
++        let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
++            .default_context_registry()
++            .with_command_store(Arc::clone(&store));
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            Arc::new(context),
++            tcl_lexer::LexerConfig {
++                leading_bom: tcl_lexer::LeadingBom::Content,
++                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
++            },
++        );
++        let source = "set value [expr {1 + 2}]";
++        let options = UnitBuildOptions {
++            registry: &store,
++            defer_top_level: false,
++            config: input.lexer_config(),
++            dialect: Some(profile),
++            external_call_sites: None,
++            declared_commands: None,
++        };
++        let standalone =
++            CompilationUnit::build_standalone_with_analysis_input(source, options, &input)
++                .expect("explicit Standalone source request with actual complete input");
++        assert_eq!(
++            standalone.ir_module.source_metadata_input.as_ref(),
++            Some(&input)
++        );
++        assert_eq!(
++            standalone.ir_module.registry_snapshot.as_ref(),
++            Some(&store.snapshot())
++        );
++        assert_eq!(standalone.ir_module.lexer_config, input.lexer_config());
++        assert!(standalone.ir_module.source_entry.native_entry.is_none());
++        assert!(!standalone.ir_module.source_entry.unknown_entry);
++        assert!(
++            standalone
++                .ir_module
++                .source_entry
++                .invocation_dialect
++                .is_some()
++        );
++        assert!(
++            standalone
++                .ir_module
++                .source_entry
++                .logical_source_input
++                .is_none()
++        );
++        // The same metadata does not promote an ordinary supplied-document request.
++        let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
++        assert_eq!(
++            supplied.ir_module.source_metadata_input.as_ref(),
++            Some(&input)
++        );
++        assert!(supplied.ir_module.source_entry.native_entry.is_none());
++        assert!(supplied.ir_module.source_entry.unknown_entry);
++        assert!(supplied.ir_module.source_entry.invocation_dialect.is_none());
++        let mut changed_config = options.config;
++        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
++        assert!(
++            CompilationUnit::build_standalone_with_analysis_input(
++                source,
++                UnitBuildOptions {
++                    config: changed_config,
++                    ..options
++                },
++                &input
++            )
++            .is_none()
++        );
++        assert!(
++            CompilationUnit::build_standalone_with_analysis_input(
++                source,
++                UnitBuildOptions {
++                    dialect: tcl_dialect::DialectProfile::find("tcl8.6"),
++                    ..options
++                },
++                &input
++            )
++            .is_none()
++        );
++        let foreign_store = CommandRegistry::build_default();
++        assert!(
++            CompilationUnit::build_standalone_with_analysis_input(
++                source,
++                UnitBuildOptions {
++                    registry: &foreign_store,
++                    ..options
++                },
++                &input
++            )
++            .is_none()
++        );
++    }
++
+     #[test]
+     fn function_consumers_keep_the_actual_generation_and_grammar() {
+         // naming.compiler.original-analysis-metadata-context
+@@ -5371,7 +5510,7 @@ mod tests {
+             declared_commands: None,
+         };
+         let (module, cfg, _, prepared) =
+-            lower_and_build_cfg(source, options, None, None, None, None, None);
++            lower_and_build_cfg(source, options, None, None, None, None, None, None);
+         assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
+         let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
+         assert_eq!(
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 40d5b9f57..4c7fafaaf 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -1002,6 +1002,31 @@ enum SourceEntryOrigin {
+     Driver,
+ }
+ 
++/// Complete source metadata retained independently of an explicitly selected
++/// Standalone authoring driver. It supplies no runtime or Native entry.
++#[derive(Clone, Copy)]
++pub(crate) struct StandaloneSourceInput<'a> {
++    registry: &'a CommandRegistry,
++    input: &'a crate::analyser::ResolvedAnalysisInput,
++}
++
++impl<'a> StandaloneSourceInput<'a> {
++    pub(crate) fn retain(
++        registry: &'a CommandRegistry,
++        input: &'a crate::analyser::ResolvedAnalysisInput,
++        config: tcl_lexer::LexerConfig,
++        profile: Option<&tcl_dialect::DialectProfile>,
++    ) -> Option<Self> {
++        if config != input.lexer_config() {
++            return None;
++        }
++        crate::registry_invocation::InvocationMetadataContext::for_source_input(
++            registry, input, config, profile,
++        )?;
++        Some(Self { registry, input })
++    }
++}
++
+ use tcl_lexer::SourceSegmentationPurpose;
+ 
+ /// The lowering engine — accumulates procedures and IR statements.
+@@ -1443,6 +1468,31 @@ impl<'r> Lowerer<'r> {
+         lowerer
+     }
+ 
++    /// Explicit Standalone driver with complete, independently retained metadata.
++    /// Supplied-document ingress never calls this constructor or obtains its model.
++    pub(crate) fn for_standalone_source_with_input(owner: StandaloneSourceInput<'r>) -> Self {
++        let input = owner.input.clone();
++        let mut lowerer = Self::for_standalone_source(
++            owner.registry,
++            input.lexer_config(),
++            Some(input.unit_profile()),
++        );
++        lowerer.dialect_context = Some(input.context_registry());
++        lowerer.retain_standalone_source_metadata(input);
++        lowerer
++    }
++
++    fn retain_standalone_source_metadata(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
++        if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
++            self.retain_resolved_analysis_input(input);
++        } else {
++            // The explicit driver already selected authoring independently. Metadata
++            // retains its exact store/configuration without replacing that purpose.
++            self.metadata_input = Some(input);
++            self.metadata_origin = LoweringMetadataOrigin::Supplied;
++        }
++    }
++
+     /// Use the caller's complete availability context for conditional source
+     /// metadata. A foreign command generation declines instead of resolving
+     /// a replacement from the profile label.
+@@ -1652,14 +1702,7 @@ impl<'r> Lowerer<'r> {
+         {
+             let input =
+                 crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, self.config);
+-            if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
+-                self.retain_resolved_analysis_input(input);
+-            } else {
+-                // This driver already selected its authored simulation independently.
+-                // Complete source ownership does not replace its entry contract.
+-                self.metadata_input = Some(input);
+-                self.metadata_origin = LoweringMetadataOrigin::Supplied;
+-            }
++            self.retain_standalone_source_metadata(input);
+         }
+         self.module.top_level_namespace_context = None;
+         self.module_source_bindings = None;
+diff --git a/rust/tcl-compiler/src/optimiser/manager.rs b/rust/tcl-compiler/src/optimiser/manager.rs
+index 28da46628..eb2cd3d1f 100644
+--- a/rust/tcl-compiler/src/optimiser/manager.rs
++++ b/rust/tcl-compiler/src/optimiser/manager.rs
+@@ -1005,6 +1005,57 @@ pub fn optimise_source_multipass_admitting_with_analysis_input<F>(
+     max_iterations: usize,
+     admit: F,
+ ) -> (String, Vec<Optimisation>, usize)
++where
++    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
++{
++    optimise_source_multipass_with_input(
++        source,
++        registry,
++        input,
++        max_iterations,
++        OptimisationSourcePurpose::Supplied,
++        admit,
++    )
++}
++
++/// Multipass optimisation for an explicitly Standalone authoring request, with
++/// the actual complete source metadata/configuration retained on every new image.
++/// The supplied-document facade remains separate and cannot reopen this purpose.
++#[must_use]
++pub fn optimise_source_multipass_admitting_standalone_with_analysis_input<F>(
++    source: &str,
++    registry: &CommandRegistry,
++    input: Option<&crate::analyser::ResolvedAnalysisInput>,
++    max_iterations: usize,
++    admit: F,
++) -> (String, Vec<Optimisation>, usize)
++where
++    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
++{
++    optimise_source_multipass_with_input(
++        source,
++        registry,
++        input,
++        max_iterations,
++        OptimisationSourcePurpose::Standalone,
++        admit,
++    )
++}
++
++#[derive(Clone, Copy)]
++enum OptimisationSourcePurpose {
++    Supplied,
++    Standalone,
++}
++
++fn optimise_source_multipass_with_input<F>(
++    source: &str,
++    registry: &CommandRegistry,
++    input: Option<&crate::analyser::ResolvedAnalysisInput>,
++    max_iterations: usize,
++    purpose: OptimisationSourcePurpose,
++    admit: F,
++) -> (String, Vec<Optimisation>, usize)
+ where
+     F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+ {
+@@ -1023,30 +1074,43 @@ where
+         source,
+         max_iterations,
+         |current| {
+-            let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+-                registry,
+-                input,
+-                input.lexer_config(),
+-                Some(input.unit_profile()),
+-            );
+             let declared = crate::analyser::utils::document_declared_surface(
+                 current,
+                 None,
+                 input.analyser_profile().name,
+             );
+-            let unit = CompilationUnit::build_with_analysis_input(
+-                current,
+-                crate::compilation_unit::UnitBuildOptions {
+-                    registry,
+-                    defer_top_level: false,
+-                    config: input.lexer_config(),
+-                    dialect: Some(input.unit_profile()),
+-                    external_call_sites: None,
+-                    declared_commands: Some(&declared),
+-                },
+-                Some(&entry),
+-                input,
+-            )
++            let options = crate::compilation_unit::UnitBuildOptions {
++                registry,
++                defer_top_level: false,
++                config: input.lexer_config(),
++                dialect: Some(input.unit_profile()),
++                external_call_sites: None,
++                declared_commands: Some(&declared),
++            };
++            let unit = match purpose {
++                OptimisationSourcePurpose::Standalone => {
++                    let Some(unit) = CompilationUnit::build_standalone_with_analysis_input(
++                        current, options, input,
++                    ) else {
++                        return Vec::new();
++                    };
++                    unit
++                }
++                OptimisationSourcePurpose::Supplied => {
++                    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
++                        registry,
++                        input,
++                        input.lexer_config(),
++                        Some(input.unit_profile()),
++                    );
++                    CompilationUnit::build_with_analysis_input(
++                        current,
++                        options,
++                        Some(&entry),
++                        input,
++                    )
++                }
++            }
+             .with_interprocedural(registry, Some(input.unit_profile()));
+             optimise_unit(&unit, registry, Some(input.unit_profile()))
+         },
+diff --git a/rust/tcl-compiler/src/optimiser/mod.rs b/rust/tcl-compiler/src/optimiser/mod.rs
+index d67777cd9..1eca3f6ab 100644
+--- a/rust/tcl-compiler/src/optimiser/mod.rs
++++ b/rust/tcl-compiler/src/optimiser/mod.rs
+@@ -68,8 +68,10 @@ pub use elimination::DeadStore;
+ pub use manager::{
+     apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
+     optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
+-    optimise_source_multipass_admitting, optimise_source_multipass_admitting_with_analysis_input,
+-    optimise_source_multipass_filtered, optimise_unit, optimise_unit_raw, optimise_with_dialect,
++    optimise_source_multipass_admitting,
++    optimise_source_multipass_admitting_standalone_with_analysis_input,
++    optimise_source_multipass_admitting_with_analysis_input, optimise_source_multipass_filtered,
++    optimise_unit, optimise_unit_raw, optimise_with_dialect,
+ };
+ 
+ use std::collections::{HashMap, HashSet};
+diff --git a/rust/tcl-compiler/src/parsing/mod.rs b/rust/tcl-compiler/src/parsing/mod.rs
+index 482cbd514..eb85a9e7a 100644
+--- a/rust/tcl-compiler/src/parsing/mod.rs
++++ b/rust/tcl-compiler/src/parsing/mod.rs
+@@ -24,3 +24,6 @@
+ //! `docs/design/compiler/syntax-tree.md`.
+ 
+ pub mod syntax;
++
++/// Pure configured SpecTcl source syntax shared by its loader and navigation.
++pub mod spectcl_source;
+diff --git a/rust/tcl-compiler/src/parsing/spectcl_source.rs b/rust/tcl-compiler/src/parsing/spectcl_source.rs
+new file mode 100644
+index 000000000..c72cd0dd9
+--- /dev/null
++++ b/rust/tcl-compiler/src/parsing/spectcl_source.rs
+@@ -0,0 +1,422 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Pure SpecTcl source rows shared by the loader and source navigation.
++//!
++//! This module lives below both consumers because SpecTcl depends on Core's
++//! VFS. It owns no loader, filesystem access, registration or execution facts.
++
++use std::ops::Range;
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++
++use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, SourceSegmentationPurpose, TokenType};
++
++use super::syntax::{build::build_document, segment::segments_from_document};
++use crate::segmenter::SegmentedCommand;
++
++/// The newest major vocabulary interpreted by the SpecTcl loader.
++pub const NEWEST_SUPPORTED_MAJOR: u32 = 2;
++
++/// Fixed SpecTcl file grammar, with an explicit whole-file or nested purpose.
++#[must_use]
++pub fn pack_source_lexer_config(purpose: SourceSegmentationPurpose) -> LexerConfig {
++    purpose.config(LexerConfig {
++        leading_bom: LeadingBom::Skip,
++        // dialect-drift-ok: fixed SpecTcl DSL grammar, independently of its target.
++        ..LexerConfig::default()
++    })
++}
++
++/// The loader's configured CST statement reader, retaining original word tokens.
++/// The supplied configuration is used whole; extracted bodies use `nested()`.
++#[must_use]
++pub fn pack_source_statements(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
++    let (document, _warnings) = build_document(source, config);
++    segments_from_document(document, &SourceMap::new(source))
++}
++
++/// Whether a captured source word is already its value on the static loader path.
++/// Braced content is verbatim; other substitution and escape forms need evaluation.
++#[must_use]
++pub fn pack_source_word_is_literal(text: &str, braced: bool) -> bool {
++    braced || !(text.contains('$') || text.contains('[') || text.contains('\\'))
++}
++
++/// The loader's classification of a block-shaped captured value.
++#[must_use]
++pub fn pack_value_is_block(text: &str) -> bool {
++    text.is_empty() || text.contains(char::is_whitespace)
++}
++
++/// Why a row's arguments do not name one included file.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum IncludeNameUnavailable {
++    /// Exactly one nonempty argument is required.
++    Arity,
++    /// File names cannot carry separators or a parent-path component spelling.
++    PathStructure,
++}
++
++/// The single include-name admission rule, before any resolver is called.
++/// Surface-versus-file row classification is independent of this name predicate.
++///
++/// # Errors
++///
++/// Returns `Arity` unless exactly one nonempty word is supplied, or
++/// `PathStructure` when that word contains a separator or `..`.
++pub fn include_file_name<'a>(words: &[&'a str]) -> Result<&'a str, IncludeNameUnavailable> {
++    let [name] = words else {
++        return Err(IncludeNameUnavailable::Arity);
++    };
++    if name.is_empty() {
++        return Err(IncludeNameUnavailable::Arity);
++    }
++    if name.contains(['/', '\\']) || name.contains("..") {
++        return Err(IncludeNameUnavailable::PathStructure);
++    }
++    Ok(name)
++}
++
++/// The loader's sibling-file policy, without reading or testing the path.
++/// There is no tilde expansion, workspace fallback or canonicalisation.
++#[must_use]
++pub fn include_file_path(including_file: &Path, name: &str) -> Option<PathBuf> {
++    let name = include_file_name(&[name]).ok()?;
++    Some(including_file.parent()?.join(name))
++}
++
++/// The numeric major component, independently of vocabulary support or currency.
++#[must_use]
++pub fn declared_pack_major(version: &str) -> Option<u32> {
++    version
++        .split('.')
++        .next()
++        .and_then(|major| major.parse().ok())
++}
++
++/// Whether a declared vocabulary major fails the loader closed.
++#[must_use]
++pub fn unsupported_pack_major(version: &str) -> bool {
++    declared_pack_major(version).is_some_and(|major| major > NEWEST_SUPPORTED_MAJOR)
++}
++
++fn literal_statement(row: &SegmentedCommand) -> bool {
++    !row.is_partial
++        && row
++            .expand_word
++            .as_ref()
++            .is_none_or(|expanded| !expanded.iter().any(|v| *v))
++        && row.texts.len() == row.argv.len()
++        && row.texts.iter().zip(&row.argv).all(|(text, token)| {
++            pack_source_word_is_literal(text, token.kind == TokenType::Str && !token.in_quote)
++        })
++}
++
++fn source_line(source: &str, offset: usize) -> u32 {
++    u32::try_from(
++        source[..offset]
++            .bytes()
++            .filter(|byte| *byte == b'\n')
++            .count(),
++    )
++    .unwrap_or(u32::MAX)
++    .saturating_add(1)
++}
++
++/// The first pack's body word selected by the shared source grammar.
++/// No interpreter dispatch or registration is implied by this source container.
++#[derive(Debug)]
++pub struct PackSourceBody<'a> {
++    source: &'a str,
++    config: LexerConfig,
++    header: SegmentedCommand,
++    base: usize,
++    end: usize,
++}
++
++impl PackSourceBody<'_> {
++    /// Body text exactly as the loader's existing CST row reader captured it.
++    #[must_use]
++    pub fn text(&self) -> &str {
++        &self.header.texts[3]
++    }
++    /// Whether the actual body token is braced, as required by the verbatim index.
++    #[must_use]
++    pub fn is_braced(&self) -> bool {
++        self.header
++            .argv
++            .get(3)
++            .is_some_and(|token| token.kind == TokenType::Str && !token.in_quote)
++    }
++    /// One-based line of the original header command.
++    #[must_use]
++    pub fn statement_line(&self) -> u32 {
++        source_line(self.source, self.header.argv[0].span.start() as usize)
++    }
++    /// One-based line of the original body word's opening delimiter.
++    #[must_use]
++    pub fn body_line(&self) -> u32 {
++        source_line(self.source, self.header.argv[3].span.start() as usize)
++    }
++    /// Immediate captured body rows, with body-relative spans and nested purpose.
++    #[must_use]
++    pub fn statements(&self) -> Vec<SegmentedCommand> {
++        pack_source_statements(self.text(), self.config.nested())
++    }
++}
++
++/// Select the first authored `speclib NAME VERSION BODY` source container.
++/// Captured body text remains separate from its original raw source extent.
++#[must_use]
++pub fn first_pack_source_body(source: &str, config: LexerConfig) -> Option<PackSourceBody<'_>> {
++    let header = pack_source_statements(source, config)
++        .into_iter()
++        .find(|row| row.name() == "speclib")?;
++    let body = header.argv.get(3)?;
++    let base = body.span.start() as usize + usize::from(body.content_offset);
++    let end = body.span.end() as usize;
++    header.texts.get(3)?;
++    source.get(base..end)?;
++    Some(PackSourceBody {
++        source,
++        config,
++        header,
++        base,
++        end,
++    })
++}
++
++/// Whether an immediate pack row has the file-include form rather than a roster.
++/// Name/cardinality admission remains a separate shared query.
++#[must_use]
++pub fn is_pack_file_include_row(row: &SegmentedCommand) -> bool {
++    row.name() == "include" && row.texts.get(1).is_none_or(|word| word != "from")
++}
++
++/// An original static file-include row in the first authored pack body.
++/// Its name extent belongs to this exact source/configuration, never decoded data.
++#[derive(Debug)]
++pub struct PackSourceInclude<'a> {
++    parent: Arc<PackSourceBody<'a>>,
++    row: SegmentedCommand,
++    name: String,
++    name_span: Range<usize>,
++}
++
++impl<'a> PackSourceInclude<'a> {
++    /// Complete original document from which this row was parsed.
++    #[must_use]
++    pub fn source(&self) -> &'a str {
++        self.parent.source
++    }
++    /// The complete supplied document parser configuration.
++    #[must_use]
++    pub fn config(&self) -> LexerConfig {
++        self.parent.config
++    }
++    /// The complete actual source row, with body-relative word spans.
++    #[must_use]
++    pub const fn original_row(&self) -> &SegmentedCommand {
++        &self.row
++    }
++    /// Original body base for the retained row.
++    #[must_use]
++    pub fn body_base(&self) -> usize {
++        self.parent.base
++    }
++    /// The loader-admitted literal include file name.
++    #[must_use]
++    pub fn name(&self) -> &str {
++        &self.name
++    }
++    /// Original content extent, excluding only the actual opening/closing wrapper.
++    #[must_use]
++    pub fn name_span(&self) -> Range<usize> {
++        self.name_span.clone()
++    }
++    /// The sibling the loader would ask its file context to read, without IO.
++    #[must_use]
++    pub fn sibling_path(&self, including_file: &Path) -> Option<PathBuf> {
++        include_file_path(including_file, &self.name)
++    }
++}
++
++/// Literal file-include syntax in the first pack, without running its program.
++/// Dynamic/malformed rows, nested command bodies and surface includes supply no
++/// file target. This is not a complete include inventory or registration result.
++#[must_use]
++pub fn pack_source_includes(source: &str, config: LexerConfig) -> Vec<PackSourceInclude<'_>> {
++    let Some(body) = first_pack_source_body(source, config) else {
++        return Vec::new();
++    };
++    let pack = &body.header;
++    if body.source.get(body.base..body.end) != Some(body.text())
++        || !literal_statement(pack)
++        || pack
++            .texts
++            .get(1)
++            .is_none_or(|name| !name.is_empty() && pack_value_is_block(name))
++        || pack
++            .texts
++            .get(2)
++            .is_none_or(|version| unsupported_pack_major(version))
++    {
++        return Vec::new();
++    }
++    let body_base = body.base;
++    let body = Arc::new(body);
++    let mut includes = Vec::new();
++    for row in body.statements() {
++        if !is_pack_file_include_row(&row) || !literal_statement(&row) {
++            continue;
++        }
++        let arguments: Vec<&str> = row.texts.iter().skip(1).map(String::as_str).collect();
++        let Ok(name) = include_file_name(&arguments) else {
++            continue;
++        };
++        let Some(token) = row.argv.get(1) else {
++            continue;
++        };
++        let start = body_base + token.span.start() as usize + usize::from(token.content_offset);
++        let end = body_base + token.span.end() as usize;
++        // Preserve original extent even when wrappers differ; no label-to-span inverse.
++        if source.get(start..end).is_none() {
++            continue;
++        }
++        let name = name.to_owned();
++        includes.push(PackSourceInclude {
++            parent: Arc::clone(&body),
++            row,
++            name,
++            name_span: start..end,
++        });
++    }
++    includes
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn pack_source_major_query_keeps_numeric_and_supported_questions_separate() {
++        for (text, numeric, unsupported) in [
++            ("2.1", Some(2), false),
++            ("3.0", Some(3), true),
++            ("0.15", Some(0), false),
++            ("", None, false),
++            ("future", None, false),
++        ] {
++            assert_eq!(declared_pack_major(text), numeric);
++            assert_eq!(unsupported_pack_major(text), unsupported);
++        }
++        // Bare name admission remains separate from the actual roster-row selector.
++        assert_eq!(include_file_name(&["from"]), Ok("from"));
++        assert_eq!(
++            include_file_name(&["from", "tcl"]),
++            Err(IncludeNameUnavailable::Arity)
++        );
++        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
++        assert!(pack_source_includes("speclib p 2.0 {include from}", config).is_empty());
++    }
++
++    #[test]
++    fn pack_source_includes_retain_actual_rows_config_and_wrapped_unicode_extent() {
++        let source =
++            "\u{feff}speclib \u{03c0} 2.0 {\n include {shared \u{03b1}.tclspec}\n include \"~\"\n}"
++                .to_owned();
++        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
++        let rows = pack_source_includes(&source, config);
++        assert_eq!(rows.len(), 2);
++        assert!(std::ptr::eq(rows[0].source(), source.as_str()));
++        assert_eq!(rows[0].config(), config);
++        assert_eq!(rows[0].name(), "shared \u{03b1}.tclspec");
++        assert_eq!(&source[rows[0].name_span()], rows[0].name());
++        assert_eq!(&source[rows[1].name_span()], "~");
++        assert_eq!(
++            rows[0].original_row().texts,
++            ["include", "shared \u{03b1}.tclspec"]
++        );
++        assert_eq!(
++            rows[0].sibling_path(Path::new("/packs/p.tclspec")),
++            Some(PathBuf::from("/packs/shared \u{03b1}.tclspec"))
++        );
++        assert_eq!(
++            rows[1].sibling_path(Path::new("/packs/p.tclspec")),
++            Some(PathBuf::from("/packs/~"))
++        );
++        assert!(rows[0].sibling_path(Path::new("/")).is_none());
++    }
++
++    #[test]
++    fn pack_source_includes_preserve_whole_config_and_nested_bom_content() {
++        let source = "\u{feff}speclib p 2.0 {\u{feff}include hidden; include shown}";
++        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
++        let rows = pack_source_includes(source, config);
++        assert_eq!(
++            rows.iter().map(PackSourceInclude::name).collect::<Vec<_>>(),
++            ["shown"]
++        );
++        let content = LexerConfig {
++            leading_bom: LeadingBom::Content,
++            ..config
++        };
++        assert!(pack_source_includes(source, content).is_empty());
++        assert_eq!(rows[0].config(), config);
++    }
++
++    #[test]
++    fn pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows() {
++        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
++        for row in [
++            "include $file",
++            "include [set file]",
++            "include ../outside",
++            "include sub/file",
++            "include {}",
++            "include one two",
++            "include from",
++            "include from tcl into jim {a}",
++            "command c {include hidden}",
++            "{*}include expanded",
++        ] {
++            let source = format!("speclib p 2.0 {{{row}}}");
++            assert!(pack_source_includes(&source, config).is_empty(), "{row}");
++        }
++        for source in [
++            "speclib p 3.0 {include hidden}",
++            "speclib {not a name} 2.0 {include hidden}",
++            "speclib p 2.0 {include {unclosed}",
++            "speclib $p 2.0 {include hidden}",
++        ] {
++            assert!(pack_source_includes(source, config).is_empty(), "{source}");
++        }
++        let source = "speclib p 2.0 {include first}; speclib q 2.0 {include second}";
++        assert_eq!(
++            pack_source_includes(source, config)
++                .iter()
++                .map(PackSourceInclude::name)
++                .collect::<Vec<_>>(),
++            ["first"]
++        );
++        // Braced sigils are literal file-name data; the same unbraced word is dynamic.
++        let source = "speclib p 2.0 {include {$file}}";
++        assert_eq!(pack_source_includes(source, config)[0].name(), "$file");
++    }
++}
+diff --git a/rust/tcl-lsp-core/Cargo.toml b/rust/tcl-lsp-core/Cargo.toml
+index 26a703412..4cd109d17 100644
+--- a/rust/tcl-lsp-core/Cargo.toml
++++ b/rust/tcl-lsp-core/Cargo.toml
+@@ -56,6 +56,8 @@ serde_json = "1"
+ fluent-uri = { version = "0.4.1", features = ["net"] }
+ 
+ [dev-dependencies]
++# Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
++tcl-test-support = { path = "../tcl-test-support" }
+ # The runtime ARE engine, used as an oracle in the semantic-token regex tests:
+ # every pattern the tokenizer sub-tokenises is confirmed to be valid ARE by the
+ # same engine Tcl uses at runtime, tying the two to one source of truth.
+diff --git a/rust/tcl-lsp-core/examples/tcloo_diag.rs b/rust/tcl-lsp-core/examples/tcloo_diag.rs
+index a2241024a..046e9e8ef 100644
+--- a/rust/tcl-lsp-core/examples/tcloo_diag.rs
++++ b/rust/tcl-lsp-core/examples/tcloo_diag.rs
+@@ -26,9 +26,10 @@
+ 
+ use std::collections::{HashMap, HashSet};
+ use std::path::Path;
++use std::sync::Arc;
+ 
+-use tcl_compiler::analyser::Analyser;
+-use tcl_compiler::compilation_unit::CompilationUnit;
++use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
++use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+ use tcl_compiler::ir::Statement;
+ use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+ use tcl_compiler::value_shapes::parse_command_substitution_with_config;
+@@ -41,12 +42,17 @@ fn main() {
+         eprintln!("usage: tcloo_diag <dir|file>...");
+         std::process::exit(2);
+     }
+-    let registry = CommandRegistry::build_default();
+-    let func_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
+-        .iter()
+-        .position(|t| *t == "function")
+-        .expect("function token type in legend") as u32;
+     let dialect = "tcl9.0";
++    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
++    let context = environment.default_context_registry();
++    let registry = context.commands().registry();
++    let config = LexerConfig::for_file_grammar(environment.grammar());
++    let input = ResolvedAnalysisInput::new(
++        environment.analyser_profile(),
++        environment.unit_profile(),
++        Arc::clone(&context),
++        config,
++    );
+ 
+     let mut paths = Vec::new();
+     for d in &args {
+@@ -58,6 +64,7 @@ fn main() {
+     let mut cmd_cats: HashMap<&'static str, usize> = HashMap::new();
+     let mut unresolved_var = 0usize;
+     let mut unresolved_cmd = 0usize;
++    let mut query_without_candidate = 0usize;
+     let mut files = 0usize;
+     let mut unbound_names: HashMap<String, usize> = HashMap::new();
+ 
+@@ -69,17 +76,28 @@ fn main() {
+             continue;
+         }
+         files += 1;
+-        let cu = CompilationUnit::build_for(&src, &registry, false);
+-        let analysis = Analyser::new().analyse(&src, dialect);
+-        let st = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
++        let cu = CompilationUnit::build_with_analysis_input(
+             &src,
+-            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+-            &registry,
+-            Some(&cu),
+-            Some(&analysis),
++            UnitBuildOptions {
++                registry,
++                defer_top_level: false,
++                config,
++                dialect: Some(input.unit_profile()),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            None,
++            &input,
+         );
+-        let kinds = decode_kinds(&st.data);
+-        let line_starts = line_starts(&src);
++        let analysis = Analyser::new()
++            .with_resolved_input(input.clone())
++            .analyse(&src, environment.id());
++        let source_query_spans: HashSet<u32> =
++            tcl_lsp_core::method_symbol::source_queries(&analysis)
++                .into_iter()
++                .filter(|query| !query.is_declaration())
++                .map(|query| query.span().start())
++                .collect();
+ 
+         // Var-binding category map over the whole CU (name-keyed, object-
+         // insensitive — the same economy the provenance passes use).
+@@ -87,12 +105,19 @@ fn main() {
+         // Parameter names (proc + method).
+         let params = param_names(&cu);
+ 
++        let line_starts = line_starts(&src);
+         let mut sites = Vec::new();
+-        collect_sites(&src, 0, dialect, &mut sites, 0);
++        collect_sites(&src, 0, config, &mut sites, 0);
+         for site in sites {
+-            let (line, col) = byte_to_line_col(&line_starts, &src, site.method_start);
+-            let resolved = kinds.get(&(line, col)) == Some(&func_idx);
+-            if resolved {
++            let (line, character) = byte_to_line_col(&line_starts, &src, site.method_start);
++            let selected = matches!(
++                tcl_lsp_core::method_symbol::local_candidate(&src, &analysis, line, character),
++                std::ops::ControlFlow::Break(Some(_)),
++            );
++            if source_query_spans.contains(&site.method_start) && !selected {
++                query_without_candidate += 1;
++            }
++            if selected {
+                 continue;
+             }
+             match site.form {
+@@ -120,6 +145,8 @@ fn main() {
+     print_hist("$var receivers (unresolved)", unresolved_var, &var_cats);
+     println!();
+     print_hist("[cmd] receivers (unresolved)", unresolved_cmd, &cmd_cats);
++    println!();
++    println!("non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}");
+ 
+     println!();
+     println!("## top 30 unbound $var receiver names");
+@@ -284,15 +311,13 @@ fn cmd_head_category(head: &str) -> &'static str {
+     }
+ }
+ 
+-fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, depth: u32) {
++fn collect_sites(source: &str, base: u32, config: LexerConfig, out: &mut Vec<Site>, depth: u32) {
+     if depth > 40 {
+         return;
+     }
+-    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
+-    {
++    for seg in segment_commands_with_offset_and_config(source, 0, config) {
+         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
+-            && let Some((form, receiver)) =
+-                receiver_form(head, &seg, LexerConfig::for_dialect(dialect))
++            && let Some((form, receiver)) = receiver_form(head, &seg, config)
+         {
+             out.push(Site {
+                 form,
+@@ -319,7 +344,7 @@ fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, de
+                 collect_sites(
+                     inner,
+                     base + u32::try_from(s).unwrap_or(0),
+-                    dialect,
++                    config,
+                     out,
+                     depth + 1,
+                 );
+@@ -355,45 +380,6 @@ fn receiver_form(
+     }
+ }
+ 
+-fn decode_kinds(data: &[u32]) -> HashMap<(u32, u32), u32> {
+-    let mut out = HashMap::new();
+-    let (mut line, mut col) = (0u32, 0u32);
+-    for c in data.chunks(5) {
+-        let [dl, dc, _len, kind, _mods] = *c else {
+-            break;
+-        };
+-        if dl > 0 {
+-            line += dl;
+-            col = dc;
+-        } else {
+-            col += dc;
+-        }
+-        out.insert((line, col), kind);
+-    }
+-    out
+-}
+-
+-fn line_starts(src: &str) -> Vec<usize> {
+-    let mut v = vec![0usize];
+-    for (i, b) in src.bytes().enumerate() {
+-        if b == b'\n' {
+-            v.push(i + 1);
+-        }
+-    }
+-    v
+-}
+-
+-fn byte_to_line_col(line_starts: &[usize], src: &str, byte: u32) -> (u32, u32) {
+-    let byte = byte as usize;
+-    let line = line_starts
+-        .partition_point(|&s| s <= byte)
+-        .saturating_sub(1);
+-    let col = src
+-        .get(line_starts[line]..byte.min(src.len()))
+-        .map_or(0, |s| s.chars().map(|c| c.len_utf16() as u32).sum());
+-    (line as u32, col)
+-}
+-
+ fn collect_tcl(p: &Path, out: &mut Vec<std::path::PathBuf>) {
+     if p.is_dir() {
+         if let Ok(rd) = std::fs::read_dir(p) {
+diff --git a/rust/tcl-lsp-core/examples/tcloo_dispatch.rs b/rust/tcl-lsp-core/examples/tcloo_dispatch.rs
+index 8c2625ffa..8919eeb5a 100644
+--- a/rust/tcl-lsp-core/examples/tcloo_dispatch.rs
++++ b/rust/tcl-lsp-core/examples/tcloo_dispatch.rs
+@@ -24,12 +24,12 @@
+ 
+ use std::collections::HashMap;
+ use std::path::Path;
++use std::sync::Arc;
+ 
+-use tcl_compiler::analyser::{Analyser, ClassDef, build_class_hierarchy};
+-use tcl_compiler::compilation_unit::CompilationUnit;
++use tcl_compiler::analyser::{Analyser, ClassDef, ResolvedAnalysisInput, build_class_hierarchy};
++use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+ use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+ use tcl_lexer::{LexerConfig, TokenType};
+-use tcl_registry::CommandRegistry;
+ 
+ #[derive(Default, Clone, Copy)]
+ struct Counts {
+@@ -56,18 +56,28 @@ fn main() {
+         eprintln!("usage: tcloo_dispatch <dir|file>...");
+         std::process::exit(2);
+     }
+-    let registry = CommandRegistry::build_default();
+-    let func_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
++    let dialect = "tcl9.0";
++    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
++    let context = environment.default_context_registry();
++    let registry = context.commands().registry();
++    let config = LexerConfig::for_file_grammar(environment.grammar());
++    let input = ResolvedAnalysisInput::new(
++        environment.analyser_profile(),
++        environment.unit_profile(),
++        Arc::clone(&context),
++        config,
++    );
++    let method_token_idx = tcl_lsp_core::semantic_tokens::legend_token_types()
+         .iter()
+-        .position(|t| *t == "function")
+-        .expect("function token type in legend") as u32;
++        .position(|token| *token == "method")
++        .expect("method token type in legend") as u32;
+ 
+     // Per receiver-form and overall tallies.
+     let mut by_form: HashMap<&'static str, Counts> = HashMap::new();
+     let mut total = Counts::default();
++    let mut query_without_candidate = 0usize;
+     let mut files = 0usize;
+ 
+-    let dialect = "tcl9.0";
+     let mut args = dirs;
+     // `--project` builds a workspace-merged class hierarchy across all files
+     // (the shipping server's cross-file mode); default is single-file local.
+@@ -85,7 +95,10 @@ fn main() {
+         let mut merged: HashMap<String, ClassDef> = HashMap::new();
+         for path in &paths {
+             if let Ok(src) = std::fs::read_to_string(path) {
+-                for (name, class) in Analyser::new().analyse(&src, dialect).all_classes {
++                let analysis = Analyser::new()
++                    .with_resolved_input(input.clone())
++                    .analyse(&src, environment.id());
++                for (name, class) in analysis.all_classes {
+                     merged.entry(name).or_insert(class);
+                 }
+             }
+@@ -102,40 +115,84 @@ fn main() {
+             continue;
+         }
+         files += 1;
+-        let cu = CompilationUnit::build_for(&src, &registry, false);
+-        let analysis = Analyser::new().analyse(&src, dialect);
+-        let st = match &project_hierarchy {
+-            Some(h) => tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
+-                &src,
+-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+-                &registry,
+-                Some(&cu),
+-                Some(h),
+-            ),
+-            None => tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
++        let cu = CompilationUnit::build_with_analysis_input(
++            &src,
++            UnitBuildOptions {
++                registry,
++                defer_top_level: false,
++                config,
++                dialect: Some(input.unit_profile()),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            None,
++            &input,
++        );
++        let analysis = Analyser::new()
++            .with_resolved_input(input.clone())
++            .analyse(&src, environment.id());
++        let source_query_spans: std::collections::HashSet<u32> =
++            tcl_lsp_core::method_symbol::source_queries(&analysis)
++                .into_iter()
++                .filter(|query| !query.is_declaration())
++                .map(|query| query.span().start())
++                .collect();
++        let project_token_kinds = project_hierarchy.as_ref().map(|hierarchy| {
++            let semantic_tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
+                 &src,
+-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+-                &registry,
++                input.analyser_profile(),
++                registry,
+                 Some(&cu),
+-                Some(&analysis),
+-            ),
+-        };
+-        let kinds = decode_kinds(&st.data);
+-        let line_starts = line_starts(&src);
++                tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
++                    classes: Some(hierarchy),
++                    analysis: Some(&analysis),
++                    ..Default::default()
++                },
++            );
++            decode_kinds(&semantic_tokens.data)
++        });
++        let source_line_starts = line_starts(&src);
++        let line_starts = project_mode.then_some(source_line_starts.as_slice());
++
+         let mut sites = Vec::new();
+-        collect_sites(&src, 0, dialect, &mut sites, 0);
++        collect_sites(&src, 0, config, &mut sites, 0);
+         for (form, method_start) in sites {
+-            let (line, col) = byte_to_line_col(&line_starts, &src, method_start);
+-            let resolved = kinds.get(&(line, col)) == Some(&func_idx);
++            let resolved = if project_mode {
++                let starts = line_starts.as_deref().expect("project mode has source lines");
++                let kinds = project_token_kinds
++                    .as_ref()
++                    .expect("project mode has a merged class hierarchy");
++                let (line, column) = byte_to_line_col(starts, &src, method_start);
++                kinds.get(&(line, column)) == Some(&method_token_idx)
++            } else {
++                let (line, character) =
++                    byte_to_line_col(&source_line_starts, &src, method_start);
++                let selected = matches!(
++                    tcl_lsp_core::method_symbol::local_candidate(&src, &analysis, line, character),
++                    std::ops::ControlFlow::Break(Some(_)),
++                );
++                if source_query_spans.contains(&method_start) && !selected {
++                    query_without_candidate += 1;
++                }
++                selected
++            };
+             by_form.entry(form).or_default().add(resolved);
+             total.add(resolved);
+         }
+     }
+ 
+-    println!("# TclOO dispatch resolution rate");
+-    println!("files with OO: {files}   dispatch sites: {}", total.total);
+-    println!();
+-    println!("| receiver form | resolved | sites | rate |");
++    println!("# TclOO dispatch selection and presentation report");
++    if project_mode {
++        println!("project mode reports semantic-token presentation for cross-file candidates; this is not a typed source-target verdict");
++        println!("files with OO: {files}   dispatch sites: {}", total.total);
++        println!();
++        println!("| receiver form | method token | sites | rate |");
++    } else {
++        println!("single-file mode counts actual typed source-method queries");
++        println!("files with OO: {files}   dispatch sites: {}", total.total);
++        println!();
++        println!("| receiver form | selected target | sites | rate |");
++    }
+     println!("|---|--:|--:|--:|");
+     let mut forms: Vec<_> = by_form.iter().collect();
+     forms.sort_by_key(|(_, c)| std::cmp::Reverse(c.total));
+@@ -153,6 +210,9 @@ fn main() {
+         total.total,
+         total.rate() * 100.0
+     );
++    if !project_mode {
++        println!("non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}");
++    }
+ }
+ 
+ /// Recursively segment `text` and record each object-dispatch site as
+@@ -161,7 +221,7 @@ fn main() {
+ fn collect_sites(
+     source: &str,
+     base: u32,
+-    dialect: &str,
++    config: LexerConfig,
+     out: &mut Vec<(&'static str, u32)>,
+     depth: u32,
+ ) {
+@@ -170,8 +230,7 @@ fn collect_sites(
+     }
+     // Segment with local spans (offset 0); `base` is the absolute byte offset of
+     // `source`, added only when recording an absolute position.
+-    for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
+-    {
++    for seg in segment_commands_with_offset_and_config(source, 0, config) {
+         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
+             && let Some(form) = receiver_form(head, &seg)
+         {
+@@ -197,7 +256,7 @@ fn collect_sites(
+                 collect_sites(
+                     inner,
+                     base + u32::try_from(s).unwrap_or(0),
+-                    dialect,
++                    config,
+                     out,
+                     depth + 1,
+                 );
+diff --git a/rust/tcl-lsp-core/src/diagnostic_report.rs b/rust/tcl-lsp-core/src/diagnostic_report.rs
+index 612b0ad6e..9676e75fe 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_report.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_report.rs
+@@ -44,7 +44,8 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics}
+ use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+ use tcl_compiler::compiler_checks::run_all_checks;
+ use tcl_compiler::optimiser::{
+-    Optimisation, optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
++    Optimisation, optimise_source_multipass_admitting_standalone_with_analysis_input,
++    optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
+ };
+ use tcl_compiler::unit_scope::CallSiteEvidence;
+ use tcl_core_types::{DiagCode, Severity};
+@@ -389,7 +390,7 @@ pub struct OptimisedSource {
+ ///
+ /// This explicit standalone facade serves `tcl opt` and the MCP `optimize`
+ /// tool. Current document callers use [`optimise_under_policy_from_analysis`].
+-/// The loop is the optimiser's ([`optimise_source_multipass_admitting_with_analysis_input`]), which re-runs the
++/// The loop is the optimiser's ([`optimise_source_multipass_admitting_standalone_with_analysis_input`]), which re-runs the
+ /// optimiser over each pass's text; this function is what it admits on a
+ /// pass, so the multipass loop has one owner.
+ #[must_use]
+@@ -415,7 +416,7 @@ pub fn optimise_under_policy(
+             iterations: 0,
+         };
+     };
+-    let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
++    let (text, applied, iterations) = optimise_source_multipass_admitting_standalone_with_analysis_input(
+         source,
+         registry,
+         Some(input),
+diff --git a/rust/tcl-lsp-core/src/document_links.rs b/rust/tcl-lsp-core/src/document_links.rs
+index 68762093c..0de8a6bd6 100644
+--- a/rust/tcl-lsp-core/src/document_links.rs
++++ b/rust/tcl-lsp-core/src/document_links.rs
+@@ -626,10 +626,9 @@ fn lexical_navigation_link(
+ ///
+ /// A pack's `include` row is the one statement in the `SpecTcl` vocabulary
+ /// that names another file, and the link has to land where the *loader* reads
+-/// — anywhere else it navigates to a file the pack never included. So this
+-/// spells out `IncludeContext::for_file`'s rule and only that rule: the name is
+-/// joined to the including document's own directory, with no tilde expansion
+-/// and no `workspace_root` fallback. The general `source <path>` resolver does
++/// if that row is evaluated. The shared SpecTcl source facet retains the actual
++/// row/name extent and applies the same sibling-path rule as the loader's
++/// `IncludeContext::for_file`, without IO, evaluation or an availability claim. The general `source <path>` resolver does
+ /// both, and `include ~` under it linked to the user's home directory while the
+ /// loader read a sibling literally named `~`.
+ ///
+@@ -661,63 +660,30 @@ fn pack_include_links(
+     {
+         return Vec::new();
+     }
+-    // The loader's anchor is `path.parent()` of the including pack; a document
+-    // with no path of its own has no such directory and so no include to link.
+-    let Some(dir) = script_path
+-        .map(std::path::Path::new)
+-        .and_then(std::path::Path::parent)
+-    else {
++    let Some(path) = script_path.map(std::path::Path::new) else {
+         return Vec::new();
+     };
+     let mut links = Vec::new();
+-    for pack in segment_commands_with_offset_and_config(source, 0, config) {
+-        // `speclib NAME VERSION { … }` — the pack body is the fourth word, and
+-        // the document grammar admits no other statement at the root.
+-        // value-transfer-ok: irreducible — the pack grammar's own statements
+-        if pack.texts.first().is_none_or(|head| head != "speclib") {
+-            continue;
+-        }
+-        let Some(body) = pack.argv.get(3) else {
++    for include in tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config) {
++        let Some(path) = include.sibling_path(path) else {
+             continue;
+         };
+-        let body_start = body.span.start() + u32::from(body.content_offset);
+-        let Some(body_text) = source
+-            .get(body_start as usize..)
+-            .and_then(|rest| rest.get(..body.span.end().saturating_sub(body_start) as usize))
++        let Some(target) =
++            crate::file_uri::from_path(&path, crate::file_uri::FileUriEscaping::PathCharacters)
+         else {
+             continue;
+         };
+-        for row in segment_commands_with_offset_and_config(body_text, body_start, config.nested()) {
+-            // value-transfer-ok: irreducible — the pack grammar's own statements
+-            if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
+-                continue;
+-            }
+-            let name = &row.texts[1];
+-            if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
+-                continue;
+-            }
+-            let Some(target) = crate::file_uri::from_path(
+-                &dir.join(name),
+-                crate::file_uri::FileUriEscaping::PathCharacters,
+-            ) else {
+-                continue;
+-            };
+-            let Some(tok) = row.argv.get(1) else { continue };
+-            let Some((anchor_start, anchor_end)) = link_anchor_with_config(source, config, tok)
+-            else {
+-                continue;
+-            };
+-            let start = line_index.position_at_utf16(anchor_start, source);
+-            let end = line_index.position_at_utf16(anchor_end, source);
+-            links.push(DocumentLink {
+-                start_line: start.line,
+-                start_character: start.character.get(),
+-                end_line: end.line,
+-                end_character: end.character.get(),
+-                target,
+-                tooltip: Some(name.clone()),
+-            });
+-        }
++        let anchor = include.name_span();
++        let start = line_index.position_at_utf16(anchor.start as u32, source);
++        let end = line_index.position_at_utf16(anchor.end as u32, source);
++        links.push(DocumentLink {
++            start_line: start.line,
++            start_character: start.character.get(),
++            end_line: end.line,
++            end_character: end.character.get(),
++            target,
++            tooltip: Some(include.name().to_owned()),
++        });
+     }
+     links
+ }
+@@ -871,6 +837,44 @@ mod tests {
+         )
+     }
+ 
++    #[test]
++    fn pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack() {
++        let src = "speclib p 2.0 {include {shared α.tclspec}}; speclib q 2.0 {include ignored}";
++        let links = pack_links(src, crate::profile_for_dialect("spectcl"));
++        assert_eq!(links.len(), 1, "{links:?}");
++        assert_eq!(
++            links[0].target,
++            "file:///home/user/project/.tcl-lsp/shared%20%CE%B1.tclspec"
++        );
++        let start = src.find("shared").unwrap() as u32;
++        let end = start + "shared α.tclspec".len() as u32;
++        let index = LineIndex::new(src);
++        assert_eq!(
++            links[0].start_character,
++            index.position_at_utf16(start, src).character.get()
++        );
++        assert_eq!(
++            links[0].end_character,
++            index.position_at_utf16(end, src).character.get()
++        );
++    }
++
++    #[test]
++    fn pack_include_navigation_withholds_dynamic_and_nested_file_rows() {
++        for row in [
++            "include $file",
++            "include [set file]",
++            "command c {include hidden}",
++            "include from",
++        ] {
++            let src = format!("speclib p 2.0 {{{row}}}");
++            assert!(
++                pack_links(&src, crate::profile_for_dialect("spectcl")).is_empty(),
++                "{row}"
++            );
++        }
++    }
++
+     /// A pack's `include NAME` row links to the sibling file the loader would
+     /// read, anchored on the name alone.
+     #[test]
+diff --git a/rust/tcl-lsp-core/src/package_resolver/tests.rs b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+index 8075c71fb..683f964d2 100644
+--- a/rust/tcl-lsp-core/src/package_resolver/tests.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+@@ -22,11 +22,10 @@
+ //! The differential tests generate genuine `pkgIndex.tcl` / `tclIndex` files
+ //! with C Tcl's own `pkg_mkIndex` / `auto_mkindex`, and query C Tcl's own
+ //! `auto_qualify`, then assert we produce the same result. They
+-//! skip cleanly when no `tclsh` is on `PATH` (so CI without Tcl still passes),
+-//! while the pure unit tests always run.
++//! skip cleanly when neither pinned C Tcl reference release is available (so CI
++//! without Tcl still passes), while the pure unit tests always run.
+ 
+ use std::path::{Path, PathBuf};
+-use std::process::{Command, Stdio};
+ use std::sync::atomic::{AtomicUsize, Ordering};
+ 
+ use super::*;
+@@ -67,30 +66,25 @@ fn write(path: &Path, content: &str) {
+     std::fs::write(path, content).expect("write file");
+ }
+ 
+-/// The first usable `tclsh` on `PATH`, or `None` (tests then skip).
+-fn find_tclsh() -> Option<&'static str> {
+-    ["tclsh9.0", "tclsh8.6", "tclsh"]
+-        .into_iter()
+-        .find(|&sh| run_tclsh(sh, "puts ok").as_deref().map(str::trim) == Some("ok"))
+-        .map(|v| v as _)
++/// Select the preferred validated C Tcl reference interpreter, or skip the
++/// optional differential when neither pinned release is installed.
++fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
++    // Ask the owner about both preferred lanes before choosing: a configured
++    // required lane must fail as missing rather than being skipped because
++    // the other preferred interpreter happened to be available.
++    let tcl_9_0 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0);
++    let tcl_8_6 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6);
++    tcl_9_0.or(tcl_8_6)
+ }
+ 
+-/// Run `script` through `tclsh` (fed on stdin), returning trimmed stdout.
+-fn run_tclsh(sh: &str, script: &str) -> Option<String> {
+-    use std::io::Write as _;
+-    let mut child = Command::new(sh)
+-        .stdin(Stdio::piped())
+-        .stdout(Stdio::piped())
+-        .stderr(Stdio::null())
+-        .spawn()
+-        .ok()?;
+-    child.stdin.take()?.write_all(script.as_bytes()).ok()?;
+-    let out = child.wait_with_output().ok()?;
+-    if out.status.success() {
+-        Some(String::from_utf8_lossy(&out.stdout).into_owned())
+-    } else {
+-        None
+-    }
++/// Run `script` through the shared validated-interpreter owner, retaining its
++/// exit status and byte channels until the strict text assertion boundary.
++fn run_tclsh(sh: &tcl_test_support::Tclsh, script: &str) -> Option<String> {
++    let outcome = tcl_test_support::run_script(&sh.path, script.as_bytes())
++        .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
++    Some(outcome.strict_text().unwrap_or_else(|error| {
++        panic!("Tcl oracle failed ({error}); full process outcome: {outcome:?}")
++    }))
+ }
+ 
+ fn always_exists(_: &Path) -> bool {
+@@ -126,7 +120,7 @@ fn auto_qualify_matches_c_tcl_documented_cases() {
+ #[test]
+ fn auto_qualify_differential_against_tclsh() {
+     let Some(sh) = find_tclsh() else {
+-        eprintln!("skipping auto_qualify differential: no tclsh on PATH");
++        eprintln!("skipping auto_qualify differential: no pinned Tcl reference interpreter");
+         return;
+     };
+     let cases = [
+@@ -144,7 +138,7 @@ fn auto_qualify_differential_against_tclsh() {
+     ];
+     for (cmd, ns) in cases {
+         let script = format!("puts [auto_qualify {{{cmd}}} {{{ns}}}]");
+-        let Some(reference) = run_tclsh(sh, &script) else {
++        let Some(reference) = run_tclsh(&sh, &script) else {
+             panic!("tclsh failed for auto_qualify {cmd} {ns}");
+         };
+         let ours = auto_qualify(cmd, ns).join(" ");
+@@ -265,7 +259,7 @@ fn parse_pkg_index_rejects_bad_version_and_falls_back_to_dir_listing() {
+ #[test]
+ fn parse_pkg_index_differential_against_pkg_mkindex() {
+     let Some(sh) = find_tclsh() else {
+-        eprintln!("skipping pkg_mkIndex differential: no tclsh on PATH");
++        eprintln!("skipping pkg_mkIndex differential: no pinned Tcl reference interpreter");
+         return;
+     };
+     let td = TempDir::new("pkgmk");
+@@ -276,7 +270,7 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
+     );
+     // Generate a real pkgIndex.tcl with C Tcl's own pkg_mkIndex.
+     let script = format!("pkg_mkIndex {{{}}} *.tcl", pkg_dir.display());
+-    assert!(run_tclsh(sh, &script).is_some(), "pkg_mkIndex failed");
++    assert!(run_tclsh(&sh, &script).is_some(), "pkg_mkIndex failed");
+     let index_path = pkg_dir.join("pkgIndex.tcl");
+     let content = std::fs::read_to_string(&index_path).expect("read generated pkgIndex.tcl");
+ 
+@@ -323,7 +317,7 @@ fn parse_tcl_index_v2_and_old_formats() {
+ #[test]
+ fn parse_tcl_index_differential_against_auto_mkindex() {
+     let Some(sh) = find_tclsh() else {
+-        eprintln!("skipping auto_mkindex differential: no tclsh on PATH");
++        eprintln!("skipping auto_mkindex differential: no pinned Tcl reference interpreter");
+         return;
+     };
+     let td = TempDir::new("automk");
+@@ -333,7 +327,7 @@ fn parse_tcl_index_differential_against_auto_mkindex() {
+         "proc ::myns::helper {} {}\nproc globalcmd {} {}\n",
+     );
+     let script = format!("auto_mkindex {{{}}} *.tcl", dir.display());
+-    assert!(run_tclsh(sh, &script).is_some(), "auto_mkindex failed");
++    assert!(run_tclsh(&sh, &script).is_some(), "auto_mkindex failed");
+     let content = std::fs::read_to_string(dir.join("tclIndex")).expect("read tclIndex");
+ 
+     let entries = parse_tcl_index(&content, dir, &|p| p.is_file());
+diff --git a/rust/tcl-lsp-server/Cargo.toml b/rust/tcl-lsp-server/Cargo.toml
+index 2880f067c..88979346e 100644
+--- a/rust/tcl-lsp-server/Cargo.toml
++++ b/rust/tcl-lsp-server/Cargo.toml
+@@ -61,6 +61,7 @@ tcl-diagram = { path = "../tcl-diagram" }
+ # unions features across the graph, so a defaults-on dependant puts rayon
+ # straight back.
+ salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
++serde = { workspace = true }
+ serde_json = "1"
+ sha2 = "0.11"
+ # `FutureExt::shared` (progressive diagnostics): the base per-file analysis
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index e647ca048..268aea907 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -13792,28 +13792,28 @@ impl Backend {
+         &self,
+         item: core_call_hierarchy::CallHierarchyItem,
+     ) -> DocumentSourceResult<Option<CallHierarchyItem>> {
+-        let identity = (match item.identity.as_ref() {
++        let identity = match item.identity.as_ref() {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
+-        let uri = (match identity.uri().parse::<Uri>().ok() {
++        };
++        let uri = match identity.uri().parse::<Uri>().ok() {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
+-        let doc = (match self.read_document(&uri).await? {
++        };
++        let doc = match self.read_document(&uri).await? {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let analysis = self
+             .analysis_for(&uri, doc.text.clone(), doc.dialect)
+             .await?;
+-        let data = (match self
++        let data = match self
+             .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
+             .await
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let kind = match identity.role() {
+             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Class => SymbolKind::CLASS,
+             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Method(_) => {
+@@ -13926,10 +13926,10 @@ impl Backend {
+     ) -> DocumentSourceResult<Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity>>
+     {
+         let inputs_epoch = self.diag_inputs_epoch();
+-        let config = (match analysis.body_lexer_config {
++        let config = match analysis.body_lexer_config {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         if !analysis
+             .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+         {
+@@ -13949,10 +13949,10 @@ impl Backend {
+             return Ok(None);
+         }
+         let documents = self.original_declaration_documents(uri).await?;
+-        let selected = (match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
++        let selected = match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         if selected.1.as_ref() != source || selected.2.body_lexer_config != Some(config) {
+             return Ok(None);
+         }
+@@ -13975,7 +13975,7 @@ impl Backend {
+             Some(&workspace),
+         )
+         .into_iter();
+-        let identity = (match (match selected.next() {
++        let identity = match (match selected.next() {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+         })
+@@ -13983,7 +13983,7 @@ impl Backend {
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         Ok(
+             (selected.next().is_none() && self.diag_inputs_epoch() == inputs_epoch)
+                 .then_some(identity),
+@@ -15184,10 +15184,10 @@ impl Backend {
+             .with_analysis(&analysis)
+             .with_open_documents(&open)
+             .with_plugins(&plugins);
+-        let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
++        let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let target = core_ilx::definition(document, ctx, &call);
+         Ok(Some((call, target)))
+     }
+@@ -15264,16 +15264,16 @@ impl Backend {
+             plugins: &plugins,
+         };
+         let found = if js_end {
+-            let registration = (match core_ilx::registration_at(document, pos.line, pos.character) {
++            let registration = match core_ilx::registration_at(document, pos.line, pos.character) {
+                 Some(__source_value) => __source_value,
+                 None => return Ok(None),
+-            });
++            };
+             core_ilx::references_from_registration(document, ctx, &registration)
+         } else {
+-            let call = (match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
++            let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
+                 Some(__source_value) => __source_value,
+                 None => return Ok(None),
+-            });
++            };
+             core_ilx::references(document, ctx, &call)
+         };
+         Ok(Some(
+@@ -15377,10 +15377,10 @@ impl Backend {
+             None => return Ok(None),
+         })
+         .into_owned();
+-        let (_, target) = (match self.ilx_method_at(uri, doc, &path, pos).await? {
++        let (_, target) = match self.ilx_method_at(uri, doc, &path, pos).await? {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         Ok(Some(match target {
+             core_ilx::IlxTarget::Resolved(location) => {
+                 Self::ilx_location(&location).into_iter().collect()
+@@ -15902,10 +15902,10 @@ impl Backend {
+         symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
+     ) -> DocumentSourceResult<Option<CoreHover>> {
+         let context =
+-            (match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
++            match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
+                 Some(__source_value) => __source_value,
+                 None => return Ok(None),
+-            });
++            };
+         let capture = |owner: &str,
+                        context: &core_workspace_index::WorkspaceDiagnosticSourceContext,
+                        row: &tcl_compiler::analyser::types::NamespaceRef| {
+@@ -15953,16 +15953,16 @@ impl Backend {
+             documents.insert(target.uri().to_owned());
+         }
+         facts.documents = documents.len();
+-        let label = (match symbol.source_word(
++        let label = match symbol.source_word(
+             tcl_lexer::SourceChannel::Document,
+-            (match analysis.body_lexer_config {
++            match analysis.body_lexer_config {
+                 Some(__source_value) => __source_value,
+                 None => return Ok(None),
+-            }),
++            },
+         ) {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         Ok(
+             core_namespace_symbol::namespace_hover_markdown(&label, facts).map(|value| CoreHover {
+                 value,
+@@ -16698,14 +16698,14 @@ impl Backend {
+         &self,
+         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+     ) -> DocumentSourceResult<Option<CoreHover>> {
+-        let owner = (match identity.uri().parse::<Uri>().ok() {
++        let owner = match identity.uri().parse::<Uri>().ok() {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
+-        let document = (match self.read_document(&owner).await? {
++        };
++        let document = match self.read_document(&owner).await? {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let current = self
+             .analysis_for(&owner, document.text.clone(), document.dialect)
+             .await?;
+@@ -16746,13 +16746,13 @@ impl Backend {
+         analysis: &AnalysisResult,
+     ) -> DocumentSourceResult<Option<CoreHover>> {
+         if !analysis.allows_retained_logical_declaration_advice() {
+-            let identity = (match self
++            let identity = match self
+                 .original_declaration_identity_at(uri, source, analysis, pos)
+                 .await?
+             {
+                 Some(__source_value) => __source_value,
+                 None => return Ok(None),
+-            });
++            };
+             return Ok(self.hover_for_original_declaration(&identity).await?);
+         }
+         // Cross-document tier: a proc / class defined in a sibling document
+@@ -16771,7 +16771,7 @@ impl Backend {
+         // defines it.  `ensure_autoload_indexed`
+         // merges that file into the workspace index, so the render below reads
+         // it exactly like any other indexed document.
+-        let (word, namespace) = (match core_definition::command_head_and_namespace_at(
++        let (word, namespace) = match core_definition::command_head_and_namespace_at(
+             source,
+             analysis,
+             pos.line,
+@@ -16779,14 +16779,14 @@ impl Backend {
+         ) {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
+-        let qualified = (match self
++        };
++        let qualified = match self
+             .ensure_library_indexed(uri, analysis, &word, &namespace)
+             .await?
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         Ok(self.hover_for_indexed_symbol(&qualified).await?)
+     }
+ 
+@@ -16849,7 +16849,7 @@ impl Backend {
+                 ),
+             }));
+         }
+-        let cell = (match Self::qualified_variable_cell(
++        let cell = match Self::qualified_variable_cell(
+             source,
+             tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+             analysis,
+@@ -16857,7 +16857,7 @@ impl Backend {
+         ) {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let rehoming_guard = self.rehomed_index_guard().await?;
+         let target_uris: Vec<String> = {
+             let index = self.workspace_index.read().await;
+@@ -18366,13 +18366,13 @@ impl Backend {
+         {
+             return Ok(None);
+         }
+-        let (seed_class, method, is_classmethod) = (match self
++        let (seed_class, method, is_classmethod) = match self
+             .resolve_method_rename_target(uri, doc, analysis, pos)
+             .await?
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let changes = self
+             .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
+             .await?;
+@@ -18784,13 +18784,13 @@ impl Backend {
+         pos: Position,
+         new_name: &str,
+     ) -> DocumentSourceResult<Option<core_rename_safety::RenameRefusal>> {
+-        let (seed_class, method, is_classmethod) = (match self
++        let (seed_class, method, is_classmethod) = match self
+             .resolve_method_rename_target(uri, doc, analysis, pos)
+             .await?
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let plan = self
+             .consumer_scan_plan(
+                 tcl_lsp_core::profile_for_dialect(&doc.dialect),
+@@ -19331,7 +19331,7 @@ impl Backend {
+         analysis: &AnalysisResult,
+         pos: Position,
+     ) -> DocumentSourceResult<Option<CoreHover>> {
+-        let (class_q, method, is_classmethod, access) = (match self
++        let (class_q, method, is_classmethod, access) = match self
+             .resolve_method_target(
+                 uri,
+                 &doc.text,
+@@ -19343,7 +19343,7 @@ impl Backend {
+         {
+             Some(__source_value) => __source_value,
+             None => return Ok(None),
+-        });
++        };
+         let chain: Vec<(String, String)> = {
+             let index = self.workspace_index.read().await;
+             if is_classmethod {
+@@ -23570,6 +23570,10 @@ impl Backend {
+                     .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
+                 out.push(serde_json::json!({
+                     "extension": row.extension,
++                    "association_glob": format!(
++                        "*.{}",
++                        tcl_registry::dialects::fold_case_in_glob(&row.extension)
++                    ),
+                     "dialect": row.dialect,
+                     "language_id": language_id,
+                     "display_name": row.display_name,
+@@ -25944,9 +25948,7 @@ impl Backend {
+                 sources,
+             });
+         }
+-        Ok(unreachable!(
+-            "the bounded source-snapshot loop always returns"
+-        ))
++        unreachable!("the bounded source-snapshot loop always returns")
+     }
+ 
+     async fn scan_workspace_folders(&self) -> DocumentSourceResult<()> {
+@@ -35848,11 +35850,16 @@ mod tests {
+         fn new(tag: &str) -> Self {
+             use std::sync::atomic::{AtomicUsize, Ordering};
+             static C: AtomicUsize = AtomicUsize::new(0);
+-            let n = C.fetch_add(1, Ordering::Relaxed);
+-            let mut p = std::env::temp_dir();
+-            p.push(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
+-            std::fs::create_dir_all(&p).unwrap();
+-            Self(p)
++            loop {
++                let n = C.fetch_add(1, Ordering::Relaxed);
++                let p = std::env::temp_dir()
++                    .join(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
++                match std::fs::create_dir(&p) {
++                    Ok(()) => return Self(p),
++                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
++                    Err(error) => panic!("creating owned test directory {}: {error}", p.display()),
++                }
++            }
+         }
+         fn write(&self, rel: &str, content: &str) {
+             let path = self.0.join(rel);
+@@ -41645,11 +41652,16 @@ info exists ::N::v\uD800";
+         assert!(
+             callback_pull_report(&backend, &caller, source)
+                 .await
++                .unwrap()
+                 .is_empty()
+         );
+         set_callback_project_advice(&backend, true).await;
+         assert_eq!(
+-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
++            diag_codes(
++                &callback_pull_report(&backend, &caller, source)
++                    .await
++                    .unwrap()
++            ),
+             ["E003"]
+         );
+         let old_analysis = backend
+@@ -41660,7 +41672,11 @@ info exists ::N::v\uD800";
+             .await
+             .unwrap();
+         assert_eq!(
+-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
++            diag_codes(
++                &callback_pull_report(&backend, &caller, source)
++                    .await
++                    .unwrap()
++            ),
+             ["E002"]
+         );
+         let current_source = "lsort -command {::external EXTRA MORE} {2 1}";
+@@ -41670,6 +41686,7 @@ info exists ::N::v\uD800";
+         assert!(
+             callback_pull_report(&backend, &caller, current_source)
+                 .await
++                .unwrap()
+                 .is_empty()
+         );
+         let stale = backend
+@@ -41719,6 +41736,7 @@ info exists ::N::v\uD800";
+         assert!(
+             callback_pull_report(&backend, &caller, source)
+                 .await
++                .unwrap()
+                 .is_empty()
+         );
+         let analysis = backend
+@@ -41805,7 +41823,11 @@ info exists ::N::v\uD800";
+             "readonly source callback subjects cannot license a naming edit"
+         );
+         assert_eq!(
+-            diag_codes(&callback_pull_report(&backend, &caller, source).await),
++            diag_codes(
++                &callback_pull_report(&backend, &caller, source)
++                    .await
++                    .unwrap()
++            ),
+             ["E002"]
+         );
+     }
+@@ -50782,11 +50804,16 @@ proc p {} {
+     fn unique_scratch_dir(tag: &str) -> PathBuf {
+         use std::sync::atomic::{AtomicU64, Ordering};
+         static COUNTER: AtomicU64 = AtomicU64::new(0);
+-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+-        let dir =
+-            std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
+-        std::fs::create_dir_all(&dir).unwrap();
+-        dir
++        loop {
++            let n = COUNTER.fetch_add(1, Ordering::Relaxed);
++            let dir =
++                std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
++            match std::fs::create_dir(&dir) {
++                Ok(()) => return dir,
++                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
++                Err(error) => panic!("creating owned scratch directory {}: {error}", dir.display()),
++            }
++        }
+     }
+ 
+     #[test]
+@@ -53574,8 +53601,14 @@ proc p {} {
+             uri.clone(),
+             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
+         );
+-        let mut a = Analyser::new();
+-        let analysis = a.analyse(src, "tcl8.6").clone();
++        backend
++            .db_set_source(uri, src, "tcl8.6".to_owned())
++            .await
++            .expect("the fixture retains its actual checked SourceFile owner");
++        let analysis = backend
++            .analysis_for(uri, Arc::from(src), "tcl8.6".to_owned())
++            .await
++            .expect("the fixture analyses its actual current source and full input");
+         backend
+             .workspace_index
+             .write()
+@@ -55319,7 +55352,8 @@ proc p {} {
+                 ),
+             )
+             .await
+-            .expect("the live publisher must not wait for the disk-only seed store"),
++            .expect("the live publisher must not wait for the disk-only seed store")
++            .unwrap(),
+             "the unrelated current live source must publish",
+         );
+         assert!(
+@@ -57375,7 +57409,7 @@ proc p {} {
+         drop(database);
+ 
+         assert!(matches!(
+-            snapshot.await.expect("snapshot task panicked"),
++            snapshot.await.expect("snapshot task panicked").unwrap(),
+             RehomingDocumentSnapshot::Pending
+         ));
+     }
+@@ -57406,15 +57440,17 @@ proc p {} {
+             .insert(uri.clone(), 42);
+         let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+         let analyser_inputs_epoch = backend.diag_inputs_epoch();
++        let path_admission = backend.document_path_admission(&uri).await.unwrap();
+ 
+         assert!(
+             backend
+                 .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
+-                    FreshAnalysisSeed {
++                    Ok(FreshAnalysisSeed {
++                        path_admission,
+                         analysis,
+                         analyser_inputs_epoch,
+                         class_factory_generation: 0,
+-                    }
++                    })
+                 })
+                 .await
+                 .unwrap()
+diff --git a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+index cc1240d0f..ce44846f0 100644
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -708,6 +708,7 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
+         });
+     for analysis in [missing, stale, foreign, unavailable_with_receipts] {
+         let seed = FreshAnalysisSeed {
++            path_admission: Arc::clone(&current.path_admission),
+             analysis: Arc::new(analysis),
+             analyser_inputs_epoch: current.analyser_inputs_epoch,
+             class_factory_generation: current.class_factory_generation,
+@@ -1161,8 +1162,19 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
+     drop(snapshot);
+     drop(folder_guard);
+     let second_uri = Uri::from_str("file:///project-publication354/second.tcl").unwrap();
++    let admission = backend.document_path_admission(&second_uri).await.unwrap();
+     let locks = backend.try_live_source_locks().ok().unwrap();
+-    Backend::set_live_db_source_locked(locks, &second_uri, "proc second {} {}", "tcl", true);
++    Backend::set_live_db_source_locked(
++        locks,
++        &admission,
++        "proc second {} {}",
++        "tcl",
++        true,
++        backend.store.as_ref(),
++        &mut || {},
++        backend.source_path_admissions.as_ref(),
++    )
++    .unwrap();
+     let second = *backend.db_files.lock().await.get(&second_uri).unwrap();
+     let snapshot = backend
+         .db
+diff --git a/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs b/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+index 8a29ad681..21bec71da 100644
+--- a/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+@@ -1,6 +1,9 @@
+ use super::tests::test_backend;
+ use super::*;
+-use vfs::SourceStore as _;
++use tower_lsp_server::ls_types::{
++    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
++    VersionedTextDocumentIdentifier,
++};
+ 
+ fn uri(raw: &str) -> Uri {
+     Uri::from_str(raw).unwrap()
+@@ -604,7 +607,7 @@ async fn admitted_provider_read_failure_is_unavailable_and_cannot_retire_rows()
+             .await
+             .is_err()
+     );
+-    assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
++    assert!(backend.db_files.lock().await.get(&target) == Some(&file));
+     assert_eq!(
+         file.text(&*backend.db.lock().await),
+         "proc retained_path_row {} {}"
+@@ -675,7 +678,7 @@ async fn missing_scan_receipt_cannot_retire_a_remapped_uri() {
+             .await
+             .is_err()
+     );
+-    assert_eq!(backend.db_files.lock().await.get(&target), Some(&file));
++    assert!(backend.db_files.lock().await.get(&target) == Some(&file));
+     assert!(
+         backend
+             .workspace_index
+diff --git a/rust/tcl-spectcl/src/loader.rs b/rust/tcl-spectcl/src/loader.rs
+index d71945a82..5873d309b 100644
+--- a/rust/tcl-spectcl/src/loader.rs
++++ b/rust/tcl-spectcl/src/loader.rs
+@@ -88,11 +88,14 @@ use std::collections::{BTreeMap, HashSet};
+ use std::fmt;
+ use std::sync::{LazyLock, Mutex};
+ 
+-use tcl_compiler::parsing::syntax::build::build_document;
+-use tcl_compiler::parsing::syntax::segment::segments_from_document;
++pub use tcl_compiler::parsing::spectcl_source::pack_source_lexer_config;
++use tcl_compiler::parsing::spectcl_source::{
++    IncludeNameUnavailable, declared_pack_major as declared_major, include_file_name,
++    include_file_path, pack_source_statements, unsupported_pack_major,
++};
+ use tcl_core_types::DiagCode;
+ use tcl_dialect::TclVersion;
+-use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, TokenType};
++use tcl_lexer::{LeadingBom, LexerConfig, TokenType};
+ use tcl_registry::ScriptLookupScope;
+ use tcl_registry::abbrev::PrefixMatching;
+ use tcl_registry::arg_role::{AppendedArity, ArgRole};
+@@ -517,14 +520,6 @@ pub(crate) enum FileBom {
+ }
+ 
+ impl FileBom {
+-    /// The lexer's own spelling of the same question.
+-    fn leading(self) -> LeadingBom {
+-        match self {
+-            FileBom::Skip => LeadingBom::Skip,
+-            FileBom::Content => LeadingBom::Content,
+-        }
+-    }
+-
+     /// A discriminator for the memo key. Two segmentations of the same bytes
+     /// under different dispositions are different answers, so they cannot
+     /// share a cache slot.
+@@ -536,20 +531,6 @@ impl FileBom {
+     }
+ }
+ 
+-/// The fixed SpecTcl pack-source grammar for an explicitly selected region.
+-/// Whole pack files share the loader's file-prologue treatment; extracted
+-/// blocks retain a leading mark as content, including at local byte zero.
+-/// This readonly parser configuration supplies no target Tcl dialect,
+-/// command registration, execution entry or native capability.
+-#[must_use]
+-pub fn pack_source_lexer_config(purpose: tcl_lexer::SourceSegmentationPurpose) -> LexerConfig {
+-    purpose.config(LexerConfig {
+-        leading_bom: FileBom::Skip.leading(),
+-        // dialect-drift-ok: fixed SpecTcl DSL grammar, independently of its target.
+-        ..LexerConfig::default()
+-    })
+-}
+-
+ /// Segment `source` into statements, numbering lines from `base_line`.
+ ///
+ /// Comments, `;` separators, and line continuations are handled by the lexer,
+@@ -578,8 +559,7 @@ pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt
+ 
+ /// The uncached segmentation — [`statements`] minus the memo.
+ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
+-    let source_map = SourceMap::new(source);
+-    let (document, _warnings) = build_document(
++    let parsed = pack_source_statements(
+         source,
+         pack_source_lexer_config(match bom {
+             FileBom::Skip => tcl_lexer::SourceSegmentationPurpose::WholeInput,
+@@ -600,7 +580,7 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
+         base_line + u32::try_from(index).unwrap_or(u32::MAX)
+     };
+ 
+-    segments_from_document(document, &source_map)
++    parsed
+         .into_iter()
+         .map(|segment| {
+             let words: Vec<Word> = segment
+@@ -655,12 +635,10 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
+ /// wrong span.
+ #[must_use]
+ pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
+-    let source_map = SourceMap::new(source);
+-    let (document, _warnings) = build_document(
++    for segment in pack_source_statements(
+         source,
+         pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput),
+-    );
+-    for segment in segments_from_document(document, &source_map) {
++    ) {
+         if segment.texts.first().map(String::as_str) != Some("speclib") {
+             continue;
+         }
+@@ -1514,7 +1492,7 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "2.2";
+ /// ever additive — but a major says the meaning of words this loader thinks it
+ /// knows has changed, and reading them anyway is exactly the "stronger,
+ /// safer-looking result" the contract forbids.
+-const NEWEST_SUPPORTED_MAJOR: u32 = 2;
++const NEWEST_SUPPORTED_MAJOR: u32 = tcl_compiler::parsing::spectcl_source::NEWEST_SUPPORTED_MAJOR;
+ 
+ /// A scoping flag for `ambient_package`, recognised
+ /// only so it can be **refused**.
+@@ -1927,12 +1905,12 @@ impl IncludeContext {
+     /// directory even by a hostile name.
+     #[must_use]
+     pub fn for_file(path: &std::path::Path) -> Self {
+-        let dir = path.parent().map(std::path::Path::to_path_buf);
++        let including_file = path.to_path_buf();
+         Self::new(move |name| {
+-            let Some(dir) = &dir else {
++            let Some(path) = include_file_path(&including_file, name) else {
+                 return Err("the including pack has no parent directory".to_owned());
+             };
+-            std::fs::read_to_string(dir.join(name)).map_err(|e| e.to_string())
++            std::fs::read_to_string(path).map_err(|e| e.to_string())
+         })
+     }
+ 
+@@ -1956,22 +1934,14 @@ pub(crate) fn uses_include(source: &str) -> bool {
+     if !source.contains("include") {
+         return false;
+     }
+-    let top = pack_statements(source);
+-    let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
+-        return false;
+-    };
+-    let Some(body) = speclib.arg(3) else {
++    let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
++    let Some(body) = tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
++    else {
+         return false;
+     };
+-    block(body).iter().any(|stmt| {
+-        if stmt.word_text(0) != "include" {
+-            return false;
+-        }
+-        // The surface form (`include from … into …`, Q6) resolves no
+-        // file, so it neither needs nor deserves the uncached
+-        // file-system route the file form takes.
+-        stmt.word_text(1) != "from"
+-    })
++    body.statements()
++        .iter()
++        .any(tcl_compiler::parsing::spectcl_source::is_pack_file_include_row)
+ }
+ 
+ /// Why one `include NAME` word is unusable, or `Ok` with the name.
+@@ -1987,29 +1957,21 @@ pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice>
+         message,
+         class: VocabularyClass::Semantic,
+     };
+-    if words.len() != 1 || words[0].is_empty() {
+-        return Err(reject(
++    match include_file_name(words) {
++        Ok(name) => Ok(name.to_owned()),
++        Err(IncludeNameUnavailable::PathStructure) => {
++            let name = words[0];
++            Err(reject(format!(
++                "`include {name}` is not a plain file name (no path separators, no `..`); \
++                 the row is dropped and its declarations are not loaded"
++            )))
++        }
++        Err(IncludeNameUnavailable::Arity) => Err(reject(
+             "`include` takes exactly one file name; the row is dropped and its \
+              declarations are not loaded"
+                 .to_owned(),
+-        ));
+-    }
+-    let name = words[0];
+-    if name.contains(['/', '\\']) || name.contains("..") {
+-        return Err(reject(format!(
+-            "`include {name}` is not a plain file name (no path separators, no `..`); \
+-             the row is dropped and its declarations are not loaded"
+-        )));
++        )),
+     }
+-    Ok(name.to_owned())
+-}
+-
+-/// The major component of a `speclib` version word, when it has one.
+-fn declared_major(declared: &str) -> Option<u32> {
+-    declared
+-        .split('.')
+-        .next()
+-        .and_then(|major| major.parse().ok())
+ }
+ 
+ /// Warn when `speclib`'s version word is not a vocabulary this build knows,
+@@ -2024,7 +1986,7 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
+     if declared.is_empty() || KNOWN_VOCABULARY_VERSIONS.contains(&declared) {
+         return false;
+     }
+-    if declared_major(declared).is_some_and(|major| major > NEWEST_SUPPORTED_MAJOR) {
++    if unsupported_pack_major(declared) {
+         log.say(
+             line,
+             format!(
+@@ -12798,6 +12760,34 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn original_pack_include_navigation_and_loader_share_name_and_body_rules() {
++        use std::cell::RefCell;
++        use std::rc::Rc;
++        let source = "\u{feff}speclib p 2.0 {include {shared α}; include ~; include ../outside; command c {include nested}}";
++        let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
++        let rows = tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config);
++        let calls = Rc::new(RefCell::new(Vec::new()));
++        let reached = Rc::clone(&calls);
++        let context = Rc::new(IncludeContext::new(move |name| {
++            reached.borrow_mut().push(name.to_owned());
++            Ok(String::new())
++        }));
++        let _pack = evaluate_pack_in(source, &EvalOptions::default(), Some(context));
++        assert_eq!(
++            *calls.borrow(),
++            rows.iter()
++                .map(|row| row.name().to_owned())
++                .collect::<Vec<_>>()
++        );
++        assert_eq!(*calls.borrow(), ["shared α", "~"]);
++        assert!(uses_include(source));
++        assert!(!uses_include(
++            "speclib p 2.0 {include from tcl into jim {a}}"
++        ));
++        assert!(!uses_include("speclib p 2.0 {command c {include nested}}"));
++    }
++
+     #[test]
+     fn original_pack_source_facade_separates_file_prologue_from_block_content() {
+         // naming.source.original-configured-script-completeness
+diff --git a/rust/tcl-spectcl/src/loader/eval.rs b/rust/tcl-spectcl/src/loader/eval.rs
+index 0f2d63201..d7b7954ba 100644
+--- a/rust/tcl-spectcl/src/loader/eval.rs
++++ b/rust/tcl-spectcl/src/loader/eval.rs
+@@ -557,17 +557,18 @@ impl VerbatimIndex {
+             source: Rc::from(source),
+             ..Self::default()
+         };
+-        let top = pack_statements(source);
+-        let Some(speclib) = top.into_iter().find(|stmt| stmt.word_text(0) == "speclib") else {
+-            return index;
+-        };
+-        let Some(body) = speclib.arg(3).filter(|word| word.braced) else {
++        let config =
++            super::pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
++        let Some(body) =
++            tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
++                .filter(|body| body.is_braced())
++        else {
+             return index;
+         };
+         index.speclib = Some(VerbatimBody {
+-            stmt_line: speclib.line,
+-            text: body.text.clone(),
+-            body_line: body.line,
++            stmt_line: body.statement_line(),
++            text: body.text().to_owned(),
++            body_line: body.body_line(),
+         });
+         index
+     }
+@@ -782,7 +783,7 @@ impl State {
+ /// braced-ness, so it is reconstructed from the one property that matters
+ /// to every consumer — a name is one whitespace-free word, a block is not.
+ fn blockish(text: &str) -> bool {
+-    text.is_empty() || text.contains(char::is_whitespace)
++    tcl_compiler::parsing::spectcl_source::pack_value_is_block(text)
+ }
+ 
+ /// Rebuild a [`Stmt`] — the shape a segmented source statement has — from
+@@ -1470,8 +1471,7 @@ pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
+ /// row that substitutes.
+ fn substitution_free(stmt: &Stmt) -> bool {
+     stmt.words.iter().all(|word| {
+-        word.braced
+-            || !(word.text.contains('$') || word.text.contains('[') || word.text.contains('\\'))
++        tcl_compiler::parsing::spectcl_source::pack_source_word_is_literal(&word.text, word.braced)
+     })
+ }
+ 
+diff --git a/rust/xtask/src/gen_zed_queries.rs b/rust/xtask/src/gen_zed_queries.rs
+index 7ccf6753e..584d7292a 100644
+--- a/rust/xtask/src/gen_zed_queries.rs
++++ b/rust/xtask/src/gen_zed_queries.rs
+@@ -242,6 +242,15 @@ fn classify(
+     b
+ }
+ 
++/// Derive the generated lexical special-variable bucket from the shared
++/// Registry catalogue, restricted to the language's provider union.
++fn variable_spellings(reg: &CommandRegistry, providers: &[SpecProvider]) -> BTreeSet<String> {
++    reg.special_vars()
++        .filter(|spec| surface_provided_by(spec.surface, providers))
++        .map(|spec| spec.name.to_owned())
++        .collect()
++}
++
+ /// Derive the generated `@operator` bucket from shared expression operators,
+ /// restricted to the supplied providers.
+ fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
+@@ -288,6 +297,7 @@ fn render(
+     providers: &'static [SpecProvider],
+ ) -> String {
+     let b = classify(reg, context, providers);
++    let variables = variable_spellings(reg, providers);
+     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
+         operator_spellings(providers)
+             .into_iter()
+@@ -324,13 +334,10 @@ fn render(
+ (argument
+   name: (_) @variable.parameter)
+ 
+-; Tcl built-in variables
++; Tcl built-in variables from the shared special-variable catalogue
+ ((simple_word) @variable.builtin
+   (#any-of? @variable.builtin
+-    "argc" "argv" "argv0" "auto_path" "env" "errorCode" "errorInfo"
+-    "tcl_interactive" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel"
+-    "tcl_pkgPath" "tcl_platform" "tcl_precision" "tcl_rcFileName"
+-    "tcl_traceCompile" "tcl_traceExec" "tcl_wordchars" "tcl_version"))
++{variables}))
+ 
+ ; Procedure definitions
+ "proc" @keyword.function
+@@ -393,6 +400,7 @@ fn render(
+ "#,
+         control = render_any_of(&b.control),
+         keyword = render_any_of(&b.keyword),
++        variables = render_any_of(&variables),
+         builtin = render_any_of(&b.builtin),
+         literal_ops = render_any_of(&literal_ops),
+         word_ops = render_any_of(&word_ops),
+@@ -504,6 +512,18 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn special_variable_highlights_follow_shared_dialect_catalogue() {
++        let tcl_providers = [SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")];
++        let tcl = variable_spellings(
++            registry_for(crate::environment::profile_for_dialect("tcl")),
++            &tcl_providers,
++        );
++        assert!(tcl.contains("auto_index"));
++        assert!(tcl.contains("tcl_libPath"));
++        assert!(!tcl.contains("static"));
++    }
++
+     #[test]
+     fn irules_surface_exceeds_plain_tcl() {
+         // Loading the iRules dialect must add the F5 command surface on top of

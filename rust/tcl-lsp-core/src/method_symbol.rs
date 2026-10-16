@@ -1123,6 +1123,32 @@ pub fn local_reference_spans(
     spans
 }
 
+/// Reporting-only source occurrences under an exact canonical member identity.
+/// Conditional body references cannot enter the legacy edit-span inventory.
+#[must_use]
+pub fn readonly_local_reference_report(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: &OriginalMethodCandidate,
+    include_declaration: bool,
+) -> Option<crate::original_declaration::ReadonlyReferenceReport> {
+    if !target.uri().is_empty() || !current(source, analysis) {
+        return None;
+    }
+    let identity = crate::original_declaration::OriginalDeclarationIdentity::for_member_candidate(
+        "", source, analysis, target,
+    )?;
+    let mut report =
+        crate::original_declaration::readonly_reference_report(&identity, source, analysis, true)?;
+    report.extend(local_reference_spans(
+        source,
+        analysis,
+        target,
+        include_declaration,
+    ));
+    Some(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

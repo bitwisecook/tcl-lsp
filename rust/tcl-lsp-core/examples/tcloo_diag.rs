@@ -33,7 +33,7 @@ use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_compiler::value_shapes::parse_command_substitution_with_config;
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 use tcl_registry::CommandRegistry;
 
 fn main() {
@@ -45,7 +45,7 @@ fn main() {
     let dialect = "tcl9.0";
     let environment = tcl_registry::model::ingress::resolve_environment(dialect);
     let context = environment.default_context_registry();
-    let registry = context.commands().registry();
+    let registry = context.commands().as_ref();
     let config = LexerConfig::for_file_grammar(environment.grammar());
     let input = ResolvedAnalysisInput::new(
         environment.analyser_profile(),
@@ -105,15 +105,23 @@ fn main() {
         // Parameter names (proc + method).
         let params = param_names(&cu);
 
-        let line_starts = line_starts(&src);
+        let line_index = LineIndex::new(&src);
         let mut sites = Vec::new();
         collect_sites(&src, 0, config, &mut sites, 0);
         for site in sites {
-            let (line, character) = byte_to_line_col(&line_starts, &src, site.method_start);
-            let selected = matches!(
-                tcl_lsp_core::method_symbol::local_candidate(&src, &analysis, line, character),
-                std::ops::ControlFlow::Break(Some(_)),
-            );
+            let position = line_index.position_at_utf16(site.method_start, &src);
+            let selected = src.get(..site.method_start as usize).is_some()
+                && line_index.offset_at_utf16(position.line, position.character, &src)
+                    == site.method_start
+                && matches!(
+                    tcl_lsp_core::method_symbol::local_candidate(
+                        &src,
+                        &analysis,
+                        position.line,
+                        position.character.get()
+                    ),
+                    std::ops::ControlFlow::Break(Some(_)),
+                );
             if source_query_spans.contains(&site.method_start) && !selected {
                 query_without_candidate += 1;
             }
@@ -146,7 +154,9 @@ fn main() {
     println!();
     print_hist("[cmd] receivers (unresolved)", unresolved_cmd, &cmd_cats);
     println!();
-    println!("non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}");
+    println!(
+        "non-declaration source queries without a selected candidate at a dispatch site: {query_without_candidate}"
+    );
 
     println!();
     println!("## top 30 unbound $var receiver names");

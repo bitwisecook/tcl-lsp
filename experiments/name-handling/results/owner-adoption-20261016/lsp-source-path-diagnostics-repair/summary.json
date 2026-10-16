@@ -1,0 +1,290 @@
+{
+  "capture_status": "COMPLETED_ORIGINAL_BOUNDED_EXECUTION_EVIDENCE",
+  "actual_source_binding": {
+    "source_head": "a372766c36e0585b16c7dd4501f0741585b894c9",
+    "rust_diff_sha256": "17d335bbc4546ba0cbb5bf6c6cc82f41d8d5a2f474aa6aa84920da38baa4a458",
+    "ordinary": true,
+    "instrumentation": false,
+    "single_job": true,
+    "test_debug": 0,
+    "packages": [
+      "tcl-compiler",
+      "tcl-lsp-core",
+      "tcl-lsp-db",
+      "tcl-registry",
+      "tcl-lsp-server"
+    ],
+    "status": "PASS_FIVE_LIBRARY_BUILD",
+    "input_before_count": 38998,
+    "utc": "2026-10-16T17:28:24.710758+00:00",
+    "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+    "scope": "SourcePath0f+d8/completionV7/V8 ordinary compiler fixes, explicit Standalone complete-input purpose9476/5077, genuine shared fixtureDBingress, pinned oracle/owned temporary fixtures, actual Zed Registry projection, TclOO V4 configured examples and packV6 editor integration. Source identity, original provider receipts, actual report ID/delivery, full configured input/Registry and None availability retained; paused Runtime/VM/BIGIP migrations unchanged. SourcePath new native/browser/WASI controls require distinct actual target validation.",
+    "exit_code": 0,
+    "build_seconds": 472.309,
+    "input_after_count": 38998,
+    "input_drift_count": 0,
+    "input_drift": [],
+    "completed_utc": "2026-10-16T17:36:17.020072+00:00"
+  },
+  "result_status_retained": "SELECTION_CAPTURE_ONLY_NO_ORDINARY_ACCEPTANCE",
+  "execution_counts": {
+    "selected": 220,
+    "PASS": 191,
+    "FAIL": 28,
+    "TIMEOUT": 1,
+    "singleton_rejections": 0,
+    "failed_and_timeout_selectors": [
+      {
+        "target": "tcl_compiler",
+        "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 4.477607545995852,
+        "log": "test-020.log"
+      },
+      {
+        "target": "tcl_compiler",
+        "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 3.826627914997516,
+        "log": "test-021.log"
+      },
+      {
+        "target": "tcl_compiler",
+        "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.4654482170008123,
+        "log": "test-028.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 5.116797356000461,
+        "log": "test-041.log"
+      },
+      {
+        "target": "tcl_lsp_db",
+        "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 1.075923343996692,
+        "log": "test-042.log"
+      },
+      {
+        "target": "tcl_lsp_db",
+        "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 16.29211362999922,
+        "log": "test-043.log"
+      },
+      {
+        "target": "tcl_compiler",
+        "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.26470455399976345,
+        "log": "test-045.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 1.7197532770005637,
+        "log": "test-049.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8698399259956204,
+        "log": "test-050.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 2.421454821000225,
+        "log": "test-051.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 2.4745142169995233,
+        "log": "test-052.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.7663256209998508,
+        "log": "test-053.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8666061770054512,
+        "log": "test-055.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.9167397759956657,
+        "log": "test-056.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.6159553289980977,
+        "log": "test-124.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "references::tests::document_highlights_var_records_write_at_definition",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.5787897670015809,
+        "log": "test-139.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "code_lens::tests::lens_counts_method_calls_within_class_body",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.5670881049954914,
+        "log": "test-142.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.7162564800019027,
+        "log": "test-145.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8669295759973465,
+        "log": "test-150.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "code_lens::tests::lens_counts_namespaced_class_method",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8169298539942247,
+        "log": "test-151.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8666283269994892,
+        "log": "test-152.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "definition::tests::jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.8667320150052547,
+        "log": "test-160.log"
+      },
+      {
+        "target": "tcl_lsp_server",
+        "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+        "outcome": "TIMEOUT",
+        "exit_code": -9,
+        "seconds": 180.01311372199416,
+        "log": "test-166.log"
+      },
+      {
+        "target": "tcl_lsp_server",
+        "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.41869919400051003,
+        "log": "test-167.log"
+      },
+      {
+        "target": "tcl_compiler",
+        "selector": "parsing::spectcl_source::tests::pack_source_includes_withhold_dynamic_malformed_nested_and_unloaded_rows",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.015959107004164252,
+        "log": "test-174.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 20.801022160994762,
+        "log": "test-184.log"
+      },
+      {
+        "target": "tcl_lsp_server",
+        "selector": "original_document_path_admission_tests::unregistered_virtual_open_requires_no_native_host_or_vfs_upsert",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.015960220000124536,
+        "log": "test-195.log"
+      },
+      {
+        "target": "tcl_lsp_server",
+        "selector": "current_diagnostics::tests::current_diagnostics_withdraws_changed_inputs_generation_and_source",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.3713796750016627,
+        "log": "test-204.log"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex",
+        "outcome": "FAIL",
+        "exit_code": 101,
+        "seconds": 0.11433151000528596,
+        "log": "test-220.log"
+      }
+    ]
+  },
+  "source_equivalence": {
+    "capture": "lsp-source-path-diagnostics-repair",
+    "base": "a372766c36e0585b16c7dd4501f0741585b894c9",
+    "equivalent_commit": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+    "git_diff_arguments": [
+      "git",
+      "diff",
+      "a372766c36e0585b16c7dd4501f0741585b894c9",
+      "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+      "--",
+      "rust",
+      "runtime",
+      "Cargo.toml",
+      "Cargo.lock"
+    ],
+    "byte_equal": true,
+    "sha256": "17d335bbc4546ba0cbb5bf6c6cc82f41d8d5a2f474aa6aa84920da38baa4a458"
+  },
+  "limits": "Frozen bounded native Linux controls only. No full repository/issue/Native/runtime/VM/Bigip acceptance; no later cache/arity/Logical-prefix repairs in these frozen binaries. Actual Windows/WASI execution remains separately required. Standard push-only protocol remains unchanged."
+}

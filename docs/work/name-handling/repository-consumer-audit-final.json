@@ -10917,9 +10917,10 @@
       "required_change": "Authentic cross-file source-role/formal owner and selected original call transport remain absent; report VarNameArgRoles maps cannot reconstruct role authority or Native frame/command identity.",
       "links": {},
       "implementation": {
-        "status": "implemented_pending_validation",
+        "status": "partially_implemented_pending_validation",
         "checkpoint": "successor of 2a86f7dfd171d49eb72b70a31f7a8f1043c17d82",
-        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open."
+        "validation": "Reviewed source integration, compile and scoped controls pending; generated drift and required gates remain open.",
+        "remaining": "Actual original project positive after a default constructor remains blocked by existing selected-definition deferred-storage effect/observer coverage. Genuine source arity prefix debt repairs a separate Jim false-positive premise; no quiet/absence inference."
       }
     },
     {
@@ -20863,7 +20864,12 @@
       "required_change": [
         "Plan must reject conflicting replacements/overlap from differing identities rather than silently choosing first range; retain byte span/source owner through publication, then convert UTF16 for display. No demonstrated conflict fixture executed here."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed readonly/cache successor of e0612d373",
+        "validation": "Independent source CLEAR, new native ordinary build and exact controls pending; no source-only acceptance."
+      }
     },
     {
       "area": "lsp",
@@ -20891,7 +20897,12 @@
       "required_change": [
         "Migrate live Logical parameter hints to actual producer formal/effective argv topology; captured values have no written anchors, rest/default no individual label. Do not equate literal spelling args anywhere with the selected grammar rest slot, or use final report proc lookup as callee selection. DB coordination sent."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed readonly/cache successor of e0612d373",
+        "validation": "Independent source CLEAR, new native ordinary build and exact controls pending; no source-only acceptance."
+      }
     },
     {
       "area": "lsp",
@@ -21143,7 +21154,12 @@
       "required_change": [
         "Use original comment token/region owner, not absence of another colour as proof comment phase. Inert source/missing token representation and custom comment/continuation grammar remain distinct; no observed rendering outcome executed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed readonly/cache successor of e0612d373",
+        "validation": "Independent source CLEAR, new native ordinary build and exact controls pending; no source-only acceptance."
+      }
     },
     {
       "area": "lsp",
@@ -22126,7 +22142,12 @@
       "required_change": [
         "Preserve actual cached diagnostic version/input generation through pull and workspace report. Same source revision after config change may still serve Unchanged old findings; workspace maps latest version onto earlier cached report without entry.revision join. Strong action subject refresh guards do not authenticate report ranges/currency by themselves."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed readonly/cache successor of e0612d373",
+        "validation": "Independent source CLEAR, new native ordinary build and exact controls pending; no source-only acceptance."
+      }
     },
     {
       "area": "lsp",
@@ -132071,12 +132092,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T17:32:36.618361+00:00",
+    "utc": "2026-10-16T18:14:15.837147+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 244,
+    "implemented_pending_validation": 248,
     "verified_complete": 0,
-    "not_started": 1914,
+    "not_started": 1910,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -132236,7 +132257,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "44 annex requirements:43 integrated pending validation,1 blocked. Two new genuine shared owner facets and one distinct shared fixture validation ingress. Zed shared generator and two target projections retain exact baseline purposes; incidental BIGIP outputs add zero.",
+    "owner_facet_reconciliation": "53 annex obligations:52 integrated/1 blocked. Five genuine producer facets and four separately needed SourceMay reference/highlight/lens/Server-wire adopters counted once. Existing Native validation records are outside remaining baseline; no Logical-lens credit.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -132329,19 +132350,20 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 44,
-      "implemented_pending_validation": 43,
+      "required": 53,
+      "implemented_pending_validation": 52,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2202,
-    "effective_implemented_pending_validation": 287,
+    "effective_required_units": 2211,
+    "effective_implemented_pending_validation": 300,
     "effective_verified_complete": 0,
     "incoming_remote": {
-      "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
-      "rechecked_utc": "2026-10-16T15:50:00Z",
-      "status": "UNMERGED_UNADMITTED",
-      "scope": "#2487 includes new pre-scan wait separate from10s scan budget and first-query test; LSP publication/scanning overlap inspected; VM changes deferred; no source/evidence donation."
+      "utc": "2026-10-16T18:11:00Z",
+      "rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "work": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+      "admitted": false,
+      "merge": false
     },
     "ordinary_workspace_build": {
       "status": "PASS",
@@ -132504,8 +132526,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 238,
-    "partially_implemented_pending_validation": 6,
+    "fully_implemented_pending_validation": 241,
+    "partially_implemented_pending_validation": 7,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -132670,14 +132692,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 115,
+      "lsp_integrated_pending_validation": 119,
       "lsp_by_kind_integrated": {
-        "semantic": 30,
+        "semantic": 34,
         "validation": 83,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 210,
+      "lsp_without_integrated_implementation": 206,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -132784,19 +132806,24 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T17:06:00Z",
-      "next_utc": "2026-10-16T17:36:00Z",
-      "LSP_integrated": 99,
+      "last_utc": "2026-10-16T18:06:00Z",
+      "next_utc": "2026-10-16T18:36:00Z",
+      "LSP_integrated": 119,
       "LSP_required": 325,
-      "LSP_semantic_integrated": 18,
-      "LSP_validation_integrated": 79,
+      "LSP_semantic_integrated": 34,
+      "LSP_validation_integrated": 83,
       "LSP_documentation_integrated": 2,
-      "LSP_without_integrated": 226,
+      "LSP_without_integrated": 206,
       "verified_complete": 0,
-      "new_control_results": null,
-      "build": "three actual compile failures in new fixtures retained; one rejected-argument invocation before compilation; repaired retry4 running",
-      "next_batch": "source-cleared SourcePath and gate registration, diagnostic completion V7, member reporting V3, SpecTcl include V2, Zed and other bounded callers remain outside main awaiting current freeze release",
-      "scope": "RuntimeVM/BIGIP deferred; no execution/gate acceptance from source review"
+      "delta_from_last_report": 4,
+      "effective_integrated": 300,
+      "effective_required": 2211,
+      "source_commit": "e0612d373",
+      "build": "Next ordinary native build preparing for newly integrated readonly/cache/source-owner successor. Earlier e0612 five-library build PASS472.309s/0warnings/38998no drift.",
+      "latest_completed_controls": "220 exact:191PASS/28FAIL/1TIMEOUT,0singletonrejection/0artifactdrift; all old57+120 retained,2gains against120,0priorPASSregressions.",
+      "editor": "Actual e0612 main TypeScript/format PASS; unintegratedsourcewriteV6hasraceHOLD, TS+Node/browserbundlesPASSonly.",
+      "next": "New native replay, current browser/WASI/owner checks and source-write lease races. Existing default constructor/SSA/native-result allocation authorities remain open.",
+      "scope": "Runtime/VM/BIGIP migrations remain deferred; uncoveredBIGIP Tcl8.4 assumption separate from measured evidence."
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -133150,6 +133177,57 @@
       "seconds": 63.313,
       "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-path-diagnostics",
       "repair": "Missing declared serde dependency and old fixture APIs; bounded genuine receipt adapters and warnings repaired. Cargo-owned lockfile adds only existing serde and tcl-test-support edges."
+    },
+    "readonly_cache_batch": {
+      "baseline_new": [
+        "lsp-inlay-logical-procedure-formal-argv-transport",
+        "lsp-rename-edit-overlap-conflict-disposition",
+        "lsp-semantic-comment-phase-owner",
+        "lsp-server-diagnostic-cache-purpose-currency"
+      ],
+      "annex_new": [
+        "compiler.source.conditional-c-namespace-class-body-owner",
+        "compiler.source.readonly-member-self-reference-owner",
+        "compiler.source.command-position-comment-owner",
+        "compiler.source.logical-alias-original-word-prefix-owner",
+        "compiler.source.original-prefix-arity-applicability-owner",
+        "lsp.references.readonly-source-may-report-adopter",
+        "lsp.highlights.readonly-source-may-report-adopter",
+        "lsp.codelens.readonly-source-may-report-adopter",
+        "lsp.server.readonly-source-may-wire-adopter"
+      ],
+      "status": "integrated_pending_validation",
+      "DB_project_partial": "Existing default/inherited constructor coverage remains blocked, original positive retained.",
+      "pending": "Fresh ordinary five-library build running from18:12UTC in /workspace/naming-validation/lsp-readonly-cache-successor. All220 previous controls retained in expanded successor. Index source-form repair independently CLEAR and integrated without new count. Editor source-write V7 remains unintegrated with predecessor-override cleanup HOLD; V8 in progress. Current owner/proof/host/repository gates remain required."
+    },
+    "readonly_cache_build": {
+      "status": "running",
+      "started_utc": "2026-10-16T18:12:00Z",
+      "capture": "/workspace/naming-validation/lsp-readonly-cache-successor",
+      "single_job": true,
+      "ordinary": true
+    },
+    "e0612_actual_validation": {
+      "capture": "experiments/name-handling/results/owner-adoption-20261016/lsp-source-path-diagnostics-repair",
+      "ordinary_build": "PASS",
+      "seconds": 472.309,
+      "warnings": 0,
+      "input_count": 38998,
+      "input_drift": 0,
+      "source_equivalent_commit": "e0612d3736aa9a3d170cf207c84b3c85ec1a0118",
+      "results": {
+        "PASS": 191,
+        "FAIL": 28,
+        "TIMEOUT": 1,
+        "singleton_rejections": 0
+      },
+      "retained57": 57,
+      "retained120": 120,
+      "prior120_gains": 2,
+      "previous_PASS_regressions": 0,
+      "spectcl_separate": "3PASS",
+      "owner_gate": "FAIL309errors",
+      "limits": "Actual scoped predecessor only; successor build and required gates pending."
     }
   }
 }

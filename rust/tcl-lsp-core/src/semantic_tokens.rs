@@ -4853,10 +4853,9 @@ fn collect_entries(
     };
     collect_script(ctx, source, 0, &mut entries, 0, false);
 
-    // Comments aren't in the segmenter's command stream
-    // (it strips them).  Scan the source for `#` comments
-    // separately.
-    push_comment_tokens(source, &line_index, &mut entries);
+    // The shared original source walker retains comment phase independently
+    // of the semantic colours already emitted for other source roles.
+    push_comment_tokens(source, &line_index, analysis, &mut entries);
 
     // BIG-IP object references (iRules dialect): overlay `object` tokens
     // at recognised pool / data-group / virtual / … name positions.
@@ -5050,102 +5049,38 @@ fn is_number_literal(text: &str, numbers: NumberSyntax) -> bool {
     tcl_syntax::number::is_whole_number(text, numbers)
 }
 
-/// Scan `source` for `#` comment lines and push each one as
-/// a Comment-kind entry.
-fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
-    let bytes = source.as_bytes();
-    let mut line_start = true;
-    // Byte offset up to which the rest of an already-emitted comment line is
-    // skipped.  Derived from `char_indices` so the cursor never desyncs from
-    // the iterator — the previous hand-incremented `byte_pos` drifted past the
-    // buffer end on multi-comment files, slicing out of bounds (panic).
-    let mut skip_until: usize = 0;
-    for (idx, c) in source.char_indices() {
-        if idx < skip_until {
-            continue;
+/// Emit genuine original comment tokens without overlapping another colour.
+fn push_comment_tokens(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: Option<&AnalysisResult>,
+    entries: &mut Vec<Entry>,
+) {
+    let Some(comments) = analysis.and_then(|analysis| {
+        tcl_compiler::analyser::utils::script_command_comment_facts_from_analysis(source, analysis)
+    }) else {
+        return;
+    };
+    for comment in comments {
+        let pos = line_index.position_at_utf16(comment.span.start(), source);
+        // This is only a rendering conflict check: the retained lexer token
+        // already established command-position comment phase.
+        let already_covered = entries.iter().any(|(line, column, length, _, _)| {
+            *line == pos.line
+                && *column <= pos.character.get()
+                && pos.character.get() < *column + *length
+        });
+        if !already_covered {
+            push_span_entries(
+                source,
+                line_index,
+                comment.span.start() as usize,
+                &comment.text,
+                TokenKind::Comment,
+                0,
+                entries,
+            );
         }
-        if c == '\n' {
-            line_start = true;
-            continue;
-        }
-        if c.is_whitespace() {
-            continue;
-        }
-        if line_start && c == '#' {
-            // Find the end of the comment, honouring backslash line
-            // continuation: a physical line ending in an *odd* run of
-            // backslashes (before the newline) continues the comment onto the
-            // next physical line, matching Tcl's parser.  An even
-            // run (e.g. `\\`) is an escaped backslash and terminates the line.
-            let mut p = idx;
-            loop {
-                let content_start = p;
-                while p < bytes.len() && bytes[p] != b'\n' {
-                    p += 1;
-                }
-                // Trailing backslashes on this physical line, ignoring a CRLF
-                // `\r` immediately before the newline.
-                let mut end = p;
-                if end > content_start && bytes[end - 1] == b'\r' {
-                    end -= 1;
-                }
-                let mut backslashes = 0usize;
-                while end > content_start && bytes[end - 1] == b'\\' {
-                    backslashes += 1;
-                    end -= 1;
-                }
-                if backslashes % 2 == 1 && p < bytes.len() {
-                    p += 1; // consume the `\n` and continue on the next line
-                    continue;
-                }
-                break;
-            }
-            let comment_start = u32::try_from(idx).unwrap_or(0);
-            let pos = line_index.position_at_utf16(comment_start, source);
-            // A `#` is only a Tcl comment in command position.  This naive scan
-            // can't see command position, but a physical line already covered by
-            // an emitted token is inside a multi-line string / braced literal
-            // (whose per-line entries are pushed before this scan), or is a
-            // `switch` case-list `#` pattern element (not a comment — Tcl's
-            // "comments don't work in switch" gotcha), so the `#` there is not a
-            // comment.  The overlap test is per-*position* (not per-line) so a
-            // genuine `;#` tail comment — whose line also carries code tokens —
-            // still survives.  Suppress it to avoid an overlapping token the LSP
-            // client would reject.
-            let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
-                *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
-            });
-            if !already_covered {
-                // Emit one entry per covered line: a continuation comment spans
-                // several physical lines and the LSP encoding cannot represent a
-                // token crossing a newline.  `push_span_entries` also strips the
-                // line-ending `\r` from each segment.
-                push_span_entries(
-                    source,
-                    line_index,
-                    idx,
-                    &source[idx..p],
-                    TokenKind::Comment,
-                    0,
-                    entries,
-                );
-            }
-            // Skip the remainder of the comment; the terminating `\n` (at `p`)
-            // is processed normally and resets `line_start`.
-            skip_until = p;
-            line_start = false;
-            continue;
-        }
-        // A command separator `;` returns us to command position, so a `#`
-        // right after it is a trailing comment (`puts hi ;# tail`) — matching
-        // Tcl and the TextMate grammar.  A `;` inside a
-        // string / braced literal is harmless here: the `#` it exposes is
-        // already covered by that literal's tokens and suppressed above.
-        if c == ';' {
-            line_start = true;
-            continue;
-        }
-        line_start = false;
     }
 }
 
@@ -11195,5 +11130,99 @@ mod configured_semantic_receiver_tests {
         handles.clear();
         augment_loop_var_handles(stale, &current, &collections, &mut handles);
         assert!(!handles.contains_key("out"));
+    }
+}
+
+#[cfg(test)]
+mod original_comment_token_tests {
+    use super::*;
+
+    fn analysis(source: &str) -> AnalysisResult {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "held-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = crate::profile_for_dialect("tcl8.6");
+        crate::source_structure::analyse_document(
+            source,
+            profile,
+            &registry,
+            tcl_lexer::LexerConfig {
+                strict_quoting: true,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            },
+        )
+    }
+
+    fn comments(source: &str, analysis: &AnalysisResult) -> Vec<String> {
+        let index = LineIndex::new(source);
+        let mut entries = Vec::new();
+        push_comment_tokens(source, &index, Some(analysis), &mut entries);
+        entries
+            .into_iter()
+            .map(|(line, column, length, kind, _)| {
+                assert_eq!(kind, TokenKind::Comment);
+                let start = index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(column), source);
+                let end =
+                    index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(column + length), source);
+                source[start as usize..end as usize].to_owned()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn original_comment_tokens_share_real_phase_and_preserve_inline_comments() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "set data {\n# inert brace\n}\nset data \"quoted\n# inert quote\"\n# physical\nputs ok ;# tail\nheld-script {\n# selected body\nputs é ;# selected tail\n}\nunknown-script {\n# unavailable body\n}\n";
+        let analysis = analysis(source);
+        assert_eq!(
+            comments(source, &analysis),
+            vec!["# physical", "# tail", "# selected body", "# selected tail"]
+        );
+        let physical =
+            tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, &analysis)
+                .unwrap();
+        assert_eq!(
+            physical
+                .iter()
+                .map(|fact| fact.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["# physical", "# selected body"]
+        );
+        let shadowed = "proc held-script args {}\nheld-script {\n# no selected body\n}\nputs ok ;# still a tail\n";
+        let shadowed_analysis = self::analysis(shadowed);
+        assert_eq!(
+            comments(shadowed, &shadowed_analysis),
+            vec!["# still a tail"]
+        );
+    }
+
+    #[test]
+    fn original_comment_tokens_refuse_foreign_source_or_missing_full_context() {
+        // naming.core.original-comment-source-context
+        // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+        let source = "# retained\nheld-script {\n# owned\n}\n";
+        let analysis = analysis(source);
+        assert_eq!(comments(source, &analysis), vec!["# retained", "# owned"]);
+        assert!(comments(&format!("{source} "), &analysis).is_empty());
+        let mut changed = analysis.clone();
+        changed.resolved_input = None;
+        assert!(comments(source, &changed).is_empty());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting = false;
+        assert!(comments(source, &changed).is_empty());
+        let mut changed = analysis.clone();
+        let profile = crate::profile_for_dialect("tcl8.6");
+        changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::context_for_profile(profile),
+            analysis.body_lexer_config.unwrap(),
+        ));
+        assert!(comments(source, &changed).is_empty());
     }
 }
