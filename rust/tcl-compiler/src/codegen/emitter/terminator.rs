@@ -95,13 +95,25 @@ impl CodegenCtx<'_> {
     fn name_condition_command(&mut self, begin: usize, owner: tcl_lexer::Span) {
         let text = self.error_info_source_text(owner);
         let line = self.source_line(owner);
+        // Evaluated directly, the command is invoked, and logs its own level
+        // after a substitution in its test logs the command inside; it
+        // evaluates the test as it runs, with no fold to fail.
+        let direct = self.evaluates_directly(owner);
+        let enclosing = if direct {
+            vec![(text.clone(), line)]
+        } else {
+            Vec::new()
+        };
         for instruction in self.instructions.iter_mut().skip(begin) {
+            if direct {
+                instruction.error_origin = tcl_bytecode::ErrorOrigin::Execution;
+            }
             if instruction.error_info_command.is_none() && instruction.source_cmd_text.is_empty() {
                 instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
                     text: text.clone(),
                     line,
                     nested: false,
-                    enclosing: Vec::new(),
+                    enclosing: enclosing.clone(),
                 });
             }
         }

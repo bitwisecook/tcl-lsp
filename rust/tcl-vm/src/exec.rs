@@ -193,6 +193,10 @@ pub(crate) struct Frame {
     /// enclosing loop rather than unwinding through it. Mutually exclusive with
     /// `is_proc`.
     is_script: bool,
+    /// For a command substitution's script, the line of the enclosing body
+    /// before the one the script starts on: C compiles the script into that
+    /// body, so `errorLine` counts the body's lines.
+    script_line_base: u32,
     /// Ambient frame namespace replaced by a transparent boundary-replay
     /// activation.  Replay changes command resolution without adding a Tcl
     /// call frame, so the namespace entry at the current frame depth is
@@ -459,6 +463,7 @@ impl Frame {
             is_proc,
             part_of_procedure: false,
             is_script: false,
+            script_line_base: 0,
             replay_namespace_restore: None,
             body_label: None,
             body_invocation: None,
@@ -1663,6 +1668,7 @@ impl Vm {
                 namespace,
             } => {
                 let mut frame = Frame::new_script(script, label);
+                frame.script_line_base = std::mem::take(&mut self.pending.script_line_base);
                 frame.cleanup_proc = cleanup_proc;
                 frame.fatal_tail = fatal_tail;
                 match namespace {
@@ -2236,6 +2242,9 @@ impl Vm {
         } else if let Some(label) = act.body_label {
             self.append_body_frame(label);
         } else {
+            if act.script_line_base > 0 {
+                self.set_error_line(self.error_line() + act.script_line_base);
+            }
             // A command substitution's script in a directly evaluated
             // statement is logged again by the commands enclosing it.
             if act.is_script
@@ -3420,8 +3429,31 @@ impl Vm {
                         // substitution propagates with its own code (an enclosing
                         // loop's exception range / a proc boundary handles it).
                         Err(e) => {
+                            let code = e.code.unwrap_or(Code::Error);
+                            // Evaluated directly, the commands enclosing the
+                            // substitution are levels of their own, which log
+                            // after the command inside it logged; 8.4's
+                            // `Tcl_ExprObj` keeps the error logged past them.
+                            if code == Code::Error && !instr.error_info_enclosing().is_empty() {
+                                if self
+                                    .runtime_version()
+                                    .keeps_expression_substitution_errors_logged()
+                                {
+                                    self.mark_error_logged_through_frames();
+                                } else {
+                                    let (text, line) = instr.error_info_text();
+                                    self.clear_error_logged();
+                                    self.log_command_with_enclosing(
+                                        text,
+                                        Value::string(text),
+                                        instr.error_info_enclosing(),
+                                        &e.message,
+                                        line,
+                                    );
+                                }
+                            }
                             return Tick::Return(Completion::new(
-                                e.code.unwrap_or(Code::Error),
+                                code,
                                 Value::string(e.message),
                                 Value::empty(),
                             ));
@@ -5579,8 +5611,20 @@ impl Vm {
                 // is delivered to this frame by `unwind` exactly as the old inline
                 // push/`Tick::Return` did.
                 let script = pop(f).to_str().to_string();
+                // A command substitution's script: where in the statement it
+                // starts, which `errorLine` counts from.
+                let line_base =
+                    instr
+                        .source_cmd_text
+                        .find(&format!("[{script}]"))
+                        .map_or(0, |at| {
+                            let before = instr.source_cmd_text[..at].matches('\n').count();
+                            (instr.source_line + u32::try_from(before).unwrap_or(0))
+                                .saturating_sub(1)
+                        });
                 match self.compile_script_cached(&script) {
                     Ok(script) => {
+                        self.pending.script_line_base = line_base;
                         return Tick::PushScript {
                             script,
                             label: None,

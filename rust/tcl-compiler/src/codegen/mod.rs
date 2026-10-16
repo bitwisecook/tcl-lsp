@@ -977,11 +977,18 @@ impl<'r> CodegenCtx<'r> {
         }
     }
 
+    /// Whether the statement being emitted is one the release evaluates
+    /// without compiling it.
+    pub(crate) fn in_direct_statement(&self) -> bool {
+        self.current_span
+            .is_some_and(|span| self.current_span_is_command && self.evaluates_directly(span))
+    }
+
     /// The command `errorInfo` names for the statement being emitted when
     /// the release evaluates it without compiling it.
     fn direct_statement_error_info(&self) -> Option<(String, u32)> {
         self.current_span
-            .filter(|span| self.current_span_is_command && self.direct_commands.contains(span))
+            .filter(|_| self.in_direct_statement())
             .map(|span| (self.error_info_source_text(span), self.span_line()))
     }
 
