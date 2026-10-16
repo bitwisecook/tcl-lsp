@@ -147,19 +147,16 @@ pub fn check_bad_octal(value: &str, octal_prefix: bool) -> bool {
 }
 
 /// 8.4's `IllegalExprOperandType` test for a value that looks formally like
-/// an integer: after any space and sign, a hexadecimal `0x` numeral or
-/// decimal digits, then only space.
+/// an integer ([`tcl_dialect::tcl84_formal_integer_end`]): after any space
+/// and sign, the integer's text, then only space.
 fn looks_like_integer_84(value: &str) -> bool {
     let rest = value.trim_start_matches(is_c_space);
     let rest = rest.strip_prefix(['+', '-']).unwrap_or(rest);
     if rest.is_empty() {
         return false;
     }
-    let digits = match rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")) {
-        Some(hex) => hex.trim_start_matches(|c: char| c.is_ascii_hexdigit()),
-        None => rest.trim_start_matches(|c: char| c.is_ascii_digit()),
-    };
-    digits.trim_start_matches(is_c_space).is_empty()
+    let end = tcl_dialect::tcl84_formal_integer_end(rest.as_bytes(), 0);
+    rest[end..].trim_start_matches(is_c_space).is_empty()
 }
 
 /// C's `isspace` in the "C" locale.
