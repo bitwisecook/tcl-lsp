@@ -1,6 +1,6 @@
 # Continue centralised name handling with sub-agents
 
-Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 01:12 UTC checkpoint retains **8,032 provisional purpose records / 1,471 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
+Audit resumed at the user’s request. Six disjoint lanes continue actual source/operational/generated/guidance review. The 2026-10-16 01:23 UTC checkpoint retains **8,166 provisional purpose records / 1,530 hash-verified members**, not a repository migration total. Root has mapped its 330 records to a separate proposed work-unit catalogue; independent and cross-owner reconciliation remain unfinished. See [the current audit status](audit-status.md). Source/build freeze and original validation limits remain.
 
 **RESUMED: finish the source audit and reconcile remaining migration scale; keep source/build freeze until integration is coordinated.**
 
