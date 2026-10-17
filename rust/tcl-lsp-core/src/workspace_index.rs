@@ -8685,8 +8685,42 @@ impl<'a> WildcardImportIndex<'a> {
                 == Some(std::cmp::Ordering::Less)
                 && !ns_eq(other_source, source_ns)
                 && other_exported.covers(name)
-                && self.alias_live_at(ns, other_source, name, other_site, call)
+                && self.alias_certainly_live_at(ns, other_source, name, other_site, call)
         })
+    }
+
+    /// [`Self::alias_live_at`] for the conflict premise: the earlier alias
+    /// must be certainly live at the later import, so a removal whose position
+    /// is unknown (another document, a deferred body, a conditional branch)
+    /// leaves it possibly dead and the later install stands
+    /// ([`crate::namespace_import::alias_certainly_live`]).
+    fn alias_certainly_live_at(
+        &self,
+        importing_ns: &str,
+        source_ns: &str,
+        name: &str,
+        install_at: ImportSite<'_>,
+        call: CallSite<'_>,
+    ) -> bool {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let install = std::iter::once(AliasEvent {
+            kind: AliasEventKind::Install,
+            at: install_at.point(),
+        });
+        let mut events =
+            install.chain(
+                self.removal_events(importing_ns, source_ns, name, install_at, |d| RunPoint {
+                    uri: d.uri.as_str(),
+                    at: d.at,
+                    enclosing_body: None,
+                }),
+            );
+        crate::namespace_import::alias_certainly_live(
+            &mut events,
+            &self.order,
+            call.point(),
+            self.purpose,
+        )
     }
 
     /// Whether an **exact** import link is still installed, with no call site
@@ -8701,16 +8735,16 @@ impl<'a> WildcardImportIndex<'a> {
     /// resolve `::dst::p`.
     ///
     /// The question a link answers is "does this alias exist for navigation",
-    /// which has no query point of its own, so every recorded removal counts
-    /// as having run (the order predicate is unconditionally true) and the
-    /// ordering that remains is the removal's position relative to the
-    /// **import**:
+    /// which has no query point of its own.
     ///
-    /// - A forget or redefinition in the import's own document orders against
-    ///   it: one written *after* the import revokes the link, one written
-    ///   before is undone by the import itself (a re-import after a forget
-    ///   reinstalls — oracle).
-    /// - One in another document has no static load order and revokes
+    /// - On workspace navigation no forget or redefinition is applied here:
+    ///   with no query point the source order stays conditional, for exact and
+    ///   glob imports alike, so the link stays live.
+    /// - Only an explicitly constructed order treats every recorded removal
+    ///   as having run and orders it against the **import**: one written
+    ///   *after* the import in the import's own document revokes the link,
+    ///   one written before is undone by the import itself (a re-import after
+    ///   a forget reinstalls — oracle), and one in another document revokes
     ///   nothing, exactly as in [`Self::alias_live_at`].
     /// - A destroyed source command revokes regardless, and is **not** put on
     ///   the timeline at all: the command object is gone workspace-wide
@@ -8757,7 +8791,7 @@ impl<'a> WildcardImportIndex<'a> {
     ///
     /// Delegates to [`crate::namespace_import::exported_at_import_site`] — the
     /// same function the same-document resolver
-    /// (`definition::exported_original_slot_at_import`) calls, so the two tiers cannot
+    /// (`definition::exported_original_slot_at_import_in`) calls, so the two tiers cannot
     /// disagree about what an import site sees. The only tier-specific part
     /// is which events are *ordered* against the import: those in the
     /// import's own document, compared by offset. An export in another
@@ -12739,6 +12773,107 @@ p\uD801";
         );
     }
 
+    /// The later import of `p` from `::B` against an earlier `::A` alias whose
+    /// forget sits where its position is unknown, as `src` is laid out.
+    fn later_import_after_an_unplaced_forget(src: &str, forget: Option<&str>) -> Option<String> {
+        let (a, b) = two_exporting_sources();
+        let dst = analyse(src);
+        let forget = analyse(forget.unwrap_or(""));
+        let index = sourced_index([
+            ("file:///p/a.tcl", &a),
+            ("file:///p/b.tcl", &b),
+            ("file:///p/forgetA.tcl", &forget),
+            ("file:///p/dst.tcl", &dst),
+        ]);
+        let call = u32::try_from(app_src_offset(src, "\np\n") + 1).expect("tiny source");
+        index.resolve_wildcard_import(
+            "p",
+            &["::dst::p".to_string(), "::p".to_string()],
+            call_at("file:///p/dst.tcl", call),
+        )
+    }
+
+    #[test]
+    fn a_sourced_forget_between_two_imports_does_not_make_the_later_one_conflict() {
+        // tclsh 8.6 / 9.0: `namespace import ::A::*`, then `source forgetA.tcl`
+        // (which forgets `::A::p`), then `namespace import ::B::*` leaves
+        // `namespace origin ::dst::p` at `::B::p`. The forget is in another
+        // document, so the earlier alias is not certainly live at the later
+        // import and no conflict cancels the install Tcl performs.
+        let src = "namespace eval ::dst { namespace import ::A::* }\nsource forgetA.tcl\nnamespace eval ::dst { namespace import ::B::* }\np\n";
+        assert_eq!(
+            later_import_after_an_unplaced_forget(
+                src,
+                Some("namespace eval ::dst { namespace forget ::A::p }\n")
+            )
+            .as_deref(),
+            Some("::B::p"),
+        );
+    }
+
+    #[test]
+    fn a_branch_forget_between_two_imports_does_not_make_the_later_one_conflict() {
+        // tclsh 8.6 / 9.0 with the branch taken: `::B::p`. A forget inside an
+        // `if` body is not straight-line sequence, so it keeps the earlier
+        // alias possibly dead and the later install stands.
+        let src = "namespace eval ::dst { namespace import ::A::* }\nif {1} { namespace eval ::dst { namespace forget ::A::p } }\nnamespace eval ::dst { namespace import ::B::* }\np\n";
+        assert_eq!(
+            later_import_after_an_unplaced_forget(src, None).as_deref(),
+            Some("::B::p"),
+        );
+    }
+
+    #[test]
+    fn a_clear_in_the_sourcing_document_stays_conditional_for_the_sourced_export() {
+        // Cross-document order stays conditional even along a `source` edge:
+        // the clear in `app.tcl` is not ordered after the pattern `lib.tcl`
+        // exports, so it revokes nothing.
+        let lib =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        let app_src = "source lib.tcl\nnamespace eval ::mymod { namespace export -clear }\n";
+        let app = analyse(app_src);
+        let declaration = lib
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name()
+            .clone();
+        let pattern = lib.original_namespace_exports().next().unwrap().span();
+        let tombstone = app.original_namespace_exports().next().unwrap().span();
+        let index = sourced_index([("file:///p/lib.tcl", &lib), ("file:///p/app.tcl", &app)]);
+        let order = index.run_order();
+        let first = RunPoint {
+            uri: "file:///p/lib.tcl",
+            at: pattern.start(),
+            enclosing_body: None,
+        };
+        let clear = RunPoint {
+            uri: "file:///p/app.tcl",
+            at: tombstone.start(),
+            enclosing_body: None,
+        };
+        for (a, b) in [(first, clear), (clear, first)] {
+            assert!(order.navigation_precedence(a, b).is_none_or(|relation| {
+                relation.purpose() == crate::source_graph::SourceNavigationOrderPurpose::Conditional
+                    && relation.modeled_source_exclusion().is_none()
+            }));
+        }
+        let query = RunPoint {
+            uri: "file:///p/app.tcl",
+            at: u32::try_from(app_src.len()).unwrap(),
+            enclosing_body: None,
+        };
+        assert_eq!(
+            crate::namespace_import::NamespaceExportOracle::exported_at_original(
+                &*index.export_snapshot(),
+                declaration.slot(),
+                declaration.policy(),
+                query
+            ),
+            ExportVerdict::Exported
+        );
+    }
+
     #[test]
     fn a_top_level_import_is_not_conflicted_by_a_later_top_level_one() {
         // TN guard — at load level the offsets *are* execution order, so the
@@ -16178,6 +16313,12 @@ mod original_source_order_transport_tests {
 
     #[test]
     fn workspace_order_keeps_original_export_evidence_without_conditional_clear_completion() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        // Within one document the source sequence is known, so this
+        // same-document unconditional `-clear` follows the pattern and revokes
+        // it. The cross-document shape keeps the conditional answer: see
+        // `workspace_order_keeps_cross_document_clear_conditional`.
         let source = "proc p {} {}; namespace export p; namespace export -clear\n";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         let declaration = analysis
@@ -16210,13 +16351,70 @@ mod original_source_order_transport_tests {
         let relation = order.navigation_precedence(first, clear).unwrap();
         assert_eq!(
             relation.purpose(),
-            SourceNavigationOrderPurpose::Conditional
+            SourceNavigationOrderPurpose::DocumentSequence
         );
-        assert_eq!(relation.modeled_source_exclusion(), None);
+        assert_eq!(relation.modeled_source_exclusion(), Some(true));
         assert_eq!(order.has_run(first, clear), None);
         let query = RunPoint {
             uri,
             at: u32::try_from(source.len()).unwrap(),
+            enclosing_body: None,
+        };
+        assert_eq!(
+            index.export_snapshot().exported_at_original(
+                declaration.slot(),
+                declaration.policy(),
+                query
+            ),
+            ExportVerdict::NotExported
+        );
+    }
+
+    #[test]
+    fn workspace_order_keeps_cross_document_clear_conditional() {
+        // Implementation contract: naming.namespace.original-export-source-advice
+        // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
+        // Which of two documents runs first is not a static fact, so a
+        // `-clear` in another document is never ordered after the pattern and
+        // cannot revoke the original export evidence.
+        let library = "proc p {} {}; namespace export p\n";
+        let clearing = "namespace export -clear\n";
+        let mut lib = Analyser::new().analyse(library, "tcl8.6");
+        let mut clr = Analyser::new().analyse(clearing, "tcl8.6");
+        let declaration = lib
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name()
+            .clone();
+        let pattern = lib.original_namespace_exports().next().unwrap().span();
+        let tombstone = clr.original_namespace_exports().next().unwrap().span();
+        for analysis in [&mut lib, &mut clr] {
+            analysis.namespace_exports.clear();
+            analysis.command_invocations.clear();
+        }
+        let (lib_uri, clr_uri) = ("file:///original-lib.tcl", "file:///original-clear.tcl");
+        let index = WorkspaceIndex::from_documents([(lib_uri, &lib), (clr_uri, &clr)]);
+        let order = index.run_order();
+        let first = RunPoint {
+            uri: lib_uri,
+            at: pattern.start(),
+            enclosing_body: None,
+        };
+        let clear = RunPoint {
+            uri: clr_uri,
+            at: tombstone.start(),
+            enclosing_body: None,
+        };
+        for (a, b) in [(first, clear), (clear, first)] {
+            assert!(order.navigation_precedence(a, b).is_none_or(|relation| {
+                relation.purpose() == SourceNavigationOrderPurpose::Conditional
+                    && relation.modeled_source_exclusion().is_none()
+            }));
+        }
+        let query = RunPoint {
+            uri: lib_uri,
+            at: u32::try_from(library.len()).unwrap(),
             enclosing_body: None,
         };
         assert_eq!(

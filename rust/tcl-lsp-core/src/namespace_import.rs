@@ -143,8 +143,10 @@
 //! 9.0.4 and 8.6.14; the transcripts sit on the individual items.
 
 // Workspace source order is conditional navigation, not event completion.
-// Its typed adapter cannot remove a candidate using a source-only tombstone;
-// explicitly constructed compatibility inputs retain their original model.
+// Its typed adapter cannot remove a candidate using a source-only tombstone,
+// except between straight-line positions of one document, whose own sequence
+// orders them; explicitly constructed compatibility
+// inputs retain their original model.
 use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
@@ -190,6 +192,26 @@ impl NamespaceStatementPurpose {
             Self::SourceHorizon => {
                 query.is_none_or(|query| self.precedence(order, event, query).unwrap_or(true))
             }
+        }
+    }
+    /// The gate for a removal (`-clear` tombstone, forget, redefinition,
+    /// source deletion) when it may revoke a candidate. On workspace
+    /// navigation a removal applies only at a query point against which its
+    /// own position is known, so a conditional or unplaced removal never pairs
+    /// with a known [`Self::after`]; with no query point none applies, which
+    /// is the conditional answer. Constructed models and SourceHorizon keep
+    /// [`Self::in_effect`].
+    fn removal_in_effect(
+        self,
+        order: &RunOrder,
+        event: RunPoint<'_>,
+        query: Option<RunPoint<'_>>,
+    ) -> bool {
+        match self {
+            Self::Modeled if order.is_source_navigation() => {
+                query.is_some_and(|query| self.precedence(order, event, query) == Some(true))
+            }
+            _ => self.in_effect(order, event, query),
         }
     }
     fn after(self, order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bool {
@@ -316,9 +338,10 @@ pub struct ExportEvent<'a, P = &'a str> {
     pub at: RunPoint<'a>,
 }
 
-/// Whether the explicit constructed model authorizes its existing removal.
-/// Genuine source navigation relations retain their unresolved completion and
-/// return false here, preserving candidates and unknown barriers.
+/// Whether the explicit constructed model, or one document's straight-line
+/// sequence, authorizes the removal. Every other genuine source navigation
+/// relation retains its unresolved completion and returns false here,
+/// preserving candidates and unknown barriers.
 ///
 /// The one direction both folds below need, stated once over
 /// [`RunOrder::has_run`] so the gate ("had this run by the query point?") and
@@ -335,8 +358,9 @@ fn ran_after(order: &RunOrder, later: RunPoint<'_>, earlier: RunPoint<'_>) -> bo
         == Some(false)
 }
 
-/// Admit a candidate unless an explicitly constructed model excludes it.
-/// Conditional original source order never supplies a negative completion.
+/// Admit a candidate unless an explicitly constructed model, or one
+/// document's straight-line sequence, excludes it. Conditional original
+/// source order never supplies a negative completion.
 fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_>>) -> bool {
     query.is_none_or(|q| {
         order
@@ -451,7 +475,12 @@ pub(crate) fn export_patterns_for_purpose<'e, P>(
     let mut patterns = Vec::new();
     let mut clears = Vec::new();
     for ev in events {
-        if !purpose.in_effect(order, ev.at, Some(import_site)) {
+        let in_effect = if ev.clears {
+            purpose.removal_in_effect(order, ev.at, Some(import_site))
+        } else {
+            purpose.in_effect(order, ev.at, Some(import_site))
+        };
+        if !in_effect {
             continue;
         }
         if ev.clears {
@@ -728,7 +757,11 @@ pub(crate) fn alias_for_purpose(
     let mut installs: Vec<RunPoint<'_>> = Vec::new();
     let mut removals: Vec<RunPoint<'_>> = Vec::new();
     for ev in events {
-        if !purpose.in_effect(order, ev.at, query) {
+        let in_effect = match ev.kind {
+            AliasEventKind::Install => purpose.in_effect(order, ev.at, query),
+            AliasEventKind::Remove => purpose.removal_in_effect(order, ev.at, query),
+        };
+        if !in_effect {
             continue;
         }
         match ev.kind {
@@ -739,6 +772,45 @@ pub(crate) fn alias_for_purpose(
     installs
         .iter()
         .any(|&i| !removals.iter().any(|&r| purpose.after(order, r, i)))
+}
+
+/// Whether the alias is **certainly** live at `query` — the premise an
+/// import conflict needs, since a conflict cancels a later install.
+///
+/// On workspace navigation an install must be known to have run at `query`,
+/// and every removal is possibly in effect unless it is known not to have run
+/// at `query` or known to have run before that install (which the install
+/// then undoes). A removal in another document, a deferred body or a
+/// conditional branch therefore leaves the alias possibly dead, and no
+/// install Tcl would perform is dropped. Constructed models and SourceHorizon
+/// keep [`alias_for_purpose`].
+pub(crate) fn alias_certainly_live(
+    events: &mut dyn Iterator<Item = AliasEvent<'_>>,
+    order: &RunOrder,
+    query: RunPoint<'_>,
+    purpose: NamespaceStatementPurpose,
+) -> bool {
+    if purpose != NamespaceStatementPurpose::Modeled || !order.is_source_navigation() {
+        return alias_for_purpose(events, order, Some(query), purpose);
+    }
+    let mut installs: Vec<RunPoint<'_>> = Vec::new();
+    let mut removals: Vec<RunPoint<'_>> = Vec::new();
+    for ev in events {
+        match ev.kind {
+            AliasEventKind::Install => {
+                if purpose.precedence(order, ev.at, query) == Some(true) {
+                    installs.push(ev.at);
+                }
+            }
+            AliasEventKind::Remove => removals.push(ev.at),
+        }
+    }
+    installs.iter().any(|&install| {
+        removals.iter().all(|&removal| {
+            purpose.precedence(order, removal, query) == Some(false)
+                || purpose.precedence(order, removal, install) == Some(true)
+        })
+    })
 }
 
 #[cfg(test)]

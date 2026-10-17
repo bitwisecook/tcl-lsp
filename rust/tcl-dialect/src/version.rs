@@ -142,7 +142,7 @@ impl StringCharacterModel {
 pub enum CorePackageRole {
     /// The interpreter release itself (including its authored aliases).
     InterpreterRelease,
-    /// The separately versioned TclOO package.
+    /// The separately versioned `TclOO` package.
     ObjectSystem,
 }
 

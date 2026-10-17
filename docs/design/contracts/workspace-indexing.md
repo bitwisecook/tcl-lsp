@@ -564,7 +564,11 @@ source order and index revision. Its selected target is an independently held
 source publication matched through the actual final import pattern, not a
 report-name lookup. The existing temporal fold kernel is reused with a private
 source-horizon purpose; `modeled_source_exclusion`, Native export oracles,
-ordinary settlement and binding/edit folds retain their stronger purpose.
+ordinary settlement and binding/edit folds retain their stronger purpose. The
+only order `modeled_source_exclusion` admits from source navigation is the
+same-document straight-line sequence of
+[import-order-source-graph.md §8.1](../analysis/import-order-source-graph.md),
+for folds with a query point.
 
 A written query uses its genuine source statement. The legacy report-only
 `u32::MAX` query spelling declares an end-of-document source horizon using the

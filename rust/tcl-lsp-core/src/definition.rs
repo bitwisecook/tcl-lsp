@@ -3057,13 +3057,15 @@ fn export_verdict(
     source_ns: &str,
     word: &str,
     import_at: u32,
+    order: &DocumentOrderCell,
 ) -> ExportVerdict {
     let Some(name) = original_export_command(analysis, source_ns, word) else {
         return ExportVerdict::Unknown;
     };
-    export_verdict_for_slot(analysis, ctx, name.slot(), name.policy(), import_at)
+    export_verdict_for_slot_in(analysis, ctx, name.slot(), name.policy(), import_at, order)
 }
 
+#[cfg(test)]
 fn export_verdict_for_slot(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
@@ -3071,7 +3073,25 @@ fn export_verdict_for_slot(
     policy: tcl_syntax::naming::NamePolicyProtocol,
     import_at: u32,
 ) -> ExportVerdict {
-    let local = exported_original_slot_at_import(analysis, ctx, slot, policy, import_at);
+    export_verdict_for_slot_in(
+        analysis,
+        ctx,
+        slot,
+        policy,
+        import_at,
+        &DocumentOrderCell::new(),
+    )
+}
+
+fn export_verdict_for_slot_in(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    import_at: u32,
+    order: &DocumentOrderCell,
+) -> ExportVerdict {
+    let local = exported_original_slot_at_import_in(analysis, ctx, slot, policy, import_at, order);
     if local == ExportVerdict::Exported {
         return local;
     }
@@ -3397,7 +3417,8 @@ fn live_import_at(
     query: ImportQuery,
 ) -> Option<String> {
     use crate::namespace_import::{AliasEvent, AliasEventKind};
-    let events = slot_events(analysis, ctx, importing_ns, word, query, call_off);
+    let order = DocumentOrderCell::new();
+    let events = slot_events(analysis, ctx, importing_ns, word, query, call_off, &order);
     // Which imports actually install something: an unforced import onto a
     // slot the namespace already holds (a local declaration, or a live alias
     // from a *different* source) raises `already exists` and binds nothing.
@@ -3498,7 +3519,7 @@ fn live_import_at(
         .into_iter();
     crate::namespace_import::alias_live_at(
         &mut log,
-        &in_document_source_order(analysis, ctx),
+        document_order(&order, analysis, ctx),
         Some(in_document_point(analysis, ctx, call_off)),
     )
     .then(|| source_ns.to_owned())
@@ -3590,6 +3611,7 @@ fn slot_events<'a>(
     word: &str,
     query: ImportQuery,
     call_off: u32,
+    order: &DocumentOrderCell,
 ) -> Vec<SlotEvent<'a>> {
     let mut events: Vec<SlotEvent<'a>> = Vec::new();
     #[cfg(debug_assertions)]
@@ -3667,7 +3689,7 @@ fn slot_events<'a>(
             if original.matches_imported_command(&slot, first.policy()) != Some(true) {
                 continue;
             }
-            export_verdict_for_slot(analysis, ctx, &slot, first.policy(), at)
+            export_verdict_for_slot_in(analysis, ctx, &slot, first.policy(), at, order)
         } else if let Some(original) = original {
             // Explicit authored query labels associate existing original
             // publication tails; they cannot produce native name bytes.
@@ -3696,14 +3718,14 @@ fn slot_events<'a>(
             if original.matches_imported_command(&slot, first.policy()) != Some(true) {
                 continue;
             }
-            export_verdict_for_slot(analysis, ctx, &slot, first.policy(), at)
+            export_verdict_for_slot_in(analysis, ctx, &slot, first.policy(), at, order)
         } else {
             if !analysis.allows_lexical_declaration_advice()
                 || !tcl_syntax::glob::string_match(export_tail, word)
             {
                 continue;
             }
-            export_verdict(analysis, ctx, source_ns, word, at)
+            export_verdict(analysis, ctx, source_ns, word, at, order)
         };
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
@@ -3768,8 +3790,23 @@ fn slot_events<'a>(
     events
 }
 
+/// One lazily captured in-document source order per resolution, shared by
+/// every import site's export snapshot and the alias lifecycle fold.
+type DocumentOrderCell = std::cell::OnceCell<RunOrder>;
+
+fn document_order<'o>(
+    order: &'o DocumentOrderCell,
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+) -> &'o RunOrder {
+    order.get_or_init(|| in_document_source_order(analysis, ctx))
+}
+
 /// Retain the actual analysis owner even without an attached workspace view.
 /// Missing source transport stays conditional/unavailable, never constructed.
+/// Straight-line positions of this document are ordered by its own sequence;
+/// deferred bodies, conditional branches and possible early exits stay
+/// Conditional.
 fn in_document_source_order(analysis: &AnalysisResult, ctx: CallResolution<'_>) -> RunOrder {
     RunOrder::for_source_navigation(
         &[],
@@ -3779,6 +3816,7 @@ fn in_document_source_order(analysis: &AnalysisResult, ctx: CallResolution<'_>) 
     )
 }
 
+#[cfg(test)]
 fn exported_original_slot_at_import(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
@@ -3786,8 +3824,26 @@ fn exported_original_slot_at_import(
     policy: tcl_syntax::naming::NamePolicyProtocol,
     import_at: u32,
 ) -> ExportVerdict {
+    exported_original_slot_at_import_in(
+        analysis,
+        ctx,
+        slot,
+        policy,
+        import_at,
+        &DocumentOrderCell::new(),
+    )
+}
+
+fn exported_original_slot_at_import_in(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    import_at: u32,
+    order: &DocumentOrderCell,
+) -> ExportVerdict {
     let site = in_document_point(analysis, ctx, import_at);
-    let order = in_document_source_order(analysis, ctx);
+    let order = document_order(order, analysis, ctx);
     if analysis
         .original_namespace_export_unknowns()
         .iter()
@@ -3809,7 +3865,7 @@ fn exported_original_slot_at_import(
         }),
         slot,
         policy,
-        &order,
+        order,
         site,
     )
 }
@@ -10046,6 +10102,10 @@ mod original_document_source_order_tests {
 
     #[test]
     fn document_export_adopter_keeps_conditional_clear_and_missing_input_unknown() {
+        // One document's straight-line sequence orders its own removals, so
+        // an unconditional top-level `-clear` written after the pattern
+        // revokes it at the document end (tclsh 8.6/9.0: `namespace export`
+        // answers empty after `namespace export p; namespace export -clear`).
         let source = "proc p {} {}; namespace export p; namespace export -clear\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let declaration = analysis
@@ -10061,6 +10121,26 @@ mod original_document_source_order_tests {
                 declaration.slot(),
                 declaration.policy(),
                 u32::try_from(source.len()).unwrap()
+            ),
+            ExportVerdict::NotExported
+        );
+        // A clear in a conditional branch is not straight-line sequence: it
+        // stays withheld and the positive export evidence remains.
+        let conditional = "proc p {} {}; namespace export p; if {$x} {namespace export -clear}\n";
+        let branch = Analyser::new().analyse(conditional, "tcl8.6");
+        assert_eq!(branch.original_namespace_exports().count(), 2);
+        let declaration = branch
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name();
+        assert_eq!(
+            exported_original_slot_at_import(
+                &branch,
+                ctx,
+                declaration.slot(),
+                declaration.policy(),
+                u32::try_from(conditional.len()).unwrap()
             ),
             ExportVerdict::Exported
         );

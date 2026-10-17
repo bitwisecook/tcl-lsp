@@ -52,14 +52,13 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
+        let script_layout = own_object_definition_layout(native, facts)?;
         if state.has_opaque_domain()
             || state.source_step_observed()
             || state.source_execution_observed(None)
             || !native.target.registry_backed
             || !native.target.prepended.is_empty()
             || native.target.implementation_generation != 0
-            || native.invocation.arguments().exact_argv_len() != Some(2)
-            || !facts.arg_roles.contains(&(1, tcl_registry::ArgRole::Body))
         {
             return None;
         }
@@ -110,13 +109,7 @@ impl SourceCommandBindings {
         let grammar = selected;
         let parameters = dialect.parameter_grammar()?;
         let policy = state.baseline.execution_name_policy?.native_recipe()?;
-        let body = super::retained_script_operand(
-            1,
-            native.script_operands(),
-            state,
-            native.segment.span.start(),
-            context.config,
-        )?;
+        let body = own_object_definition(script_layout, native, grammar, state, context.config)?;
         let transfers = own_object_method_transfers(
             grammar,
             &body,
@@ -147,6 +140,93 @@ impl SourceCommandBindings {
         outcomes.publish(state);
         Some(outcomes)
     }
+}
+
+/// Whether the definition is the script layout's body operand. Otherwise the
+/// inline member layout needs every selected role resolved; its words are
+/// separately required to be static literals.
+fn own_object_definition_layout(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+) -> Option<bool> {
+    let script = native.invocation.arguments().exact_argv_len() == Some(2)
+        && facts.arg_roles.contains(&(1, tcl_registry::ArgRole::Body));
+    (script || facts.arg_roles_complete).then_some(script)
+}
+
+/// The definition script either layout evaluates.
+fn own_object_definition(
+    script_layout: bool,
+    native: SourceNativeInvocation<'_>,
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    state: &ModuleCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<super::ExecutedScriptSource> {
+    if script_layout {
+        super::retained_script_operand(
+            1,
+            native.script_operands(),
+            state,
+            native.segment.span.start(),
+            config,
+        )
+    } else {
+        inline_member_definition(native, grammar, state, config)
+    }
+}
+
+/// The inline layout `definer target member arg…` evaluates exactly the one
+/// member command its script layout would. The selected grammar names that
+/// member; every member word must be a static source literal, and re-parsing
+/// their contiguous source must reproduce exactly those words, so the shared
+/// transfer reads the same argv and declaration geometry as the script layout.
+fn inline_member_definition(
+    native: SourceNativeInvocation<'_>,
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    state: &ModuleCommandBindings,
+    config: tcl_lexer::LexerConfig,
+) -> Option<super::ExecutedScriptSource> {
+    let count = native.invocation.arguments().exact_argv_len()?;
+    let members = native.words.get(2..)?;
+    if native.words.len() != count.checked_add(1)?
+        || native
+            .segment
+            .expand_word
+            .as_ref()
+            .is_some_and(|expanded| expanded.contains(&true))
+    {
+        return None;
+    }
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    let values = members
+        .iter()
+        .map(|word| {
+            (word.source().provenance == crate::ir::Provenance::Source).then(|| {
+                crate::registry_invocation::effective_invocation_word(word, config.escapes, rules)
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if values.iter().any(|value| value.literal_bytes().is_none()) {
+        return None;
+    }
+    grammar.member(values.first()?.as_registry_word().literal()?)?;
+    let origin = state.current_source_origin.as_ref()?;
+    let source = origin.try_text().ok()?;
+    let start = members.first()?.original_written_span(source)?.start();
+    let end = native.segment.execution_span(source).end();
+    let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
+    let definition = super::ExecutedScriptSource::contiguous(Arc::clone(origin), text, start)?;
+    let map = tcl_lexer::SourceMap::from_image(&definition.text).with_base(start, 0, 0);
+    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        &definition.text,
+        start,
+        config.nested(),
+    )?;
+    let [command] = commands.as_slice() else {
+        return None;
+    };
+    let words = crate::ir::CommandTokens::from_segmented(&map, config, command);
+    (!command.is_partial && words.words() == members).then_some(definition)
 }
 
 fn own_object_configuration_target(facts: &InvocationFacts) -> Option<usize> {
@@ -474,6 +554,75 @@ mod tests {
                 binding.captured_method_prefix_arguments().count(),
                 expected,
                 "{configuration}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_own_object_inline_member_installs_the_script_layout_entry() {
+        // Implementation contract: naming.tcloo.original-own-object-method-transfer
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-own-object-method-transfer.md
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let installed = [
+                r"oo::objdefine d {method p\uD800 {a} {return $a}}",
+                r"oo::objdefine d method p\uD800 {a} {return $a}",
+            ]
+            .map(|definition| {
+                let source = format!(
+                    r"oo::class create C {{method shared {{}} {{}}}}; C create d; {definition}; d p\uD800 1"
+                );
+                let bindings = analyse(&source, dialect);
+                let offset = u32::try_from(source.rfind(r"d p\uD800").unwrap()).unwrap();
+                let binding = bindings.invocation_at_source("d", offset);
+                let proof = binding.named_object_instance_at_dispatch().expect(dialect);
+                let (_, entry, _) = binding
+                    .named_object_receiver_method_entry()
+                    .expect(&source);
+                assert_eq!(entry.declaring_object(), Some(proof.allocation()), "{source}");
+                assert!(entry.declaring_class().is_none(), "{source}");
+                let (_, entries) = binding
+                    .own_object_method_entries_at_dispatch()
+                    .expect(&source);
+                assert_eq!(entries.len(), 1, "{source}");
+                let member = u32::try_from(source.find(r"method p\uD800").unwrap()).unwrap();
+                assert_eq!(entry.declaration().offset, member, "{source}");
+                let name = entry.name_source().span;
+                assert_eq!(name.start(), member + 7, "{source}");
+                (
+                    entry.original_name_input().bytes().to_vec(),
+                    entry.receiver(),
+                    entry.is_exported(),
+                    entry.formals().to_vec(),
+                    entry.body().text.bytes().to_vec(),
+                    name.end() - member,
+                )
+            });
+            assert_eq!(installed[0], installed[1], "{dialect}");
+            assert_eq!(installed[0].0, b"p\xed\xa0\x80", "{dialect}");
+            assert_eq!(installed[0].4, b"return $a", "{dialect}");
+        }
+        for definition in [
+            "oo::objdefine d $m p {} {}",
+            "oo::objdefine d method [list p] {} {}",
+            "oo::objdefine d method \"p$m\" {} {}",
+            "oo::objdefine d {*}{method p {} {}}",
+            "oo::objdefine d method p {} {} extra",
+            "oo::objdefine d forward p ::list",
+            "rename ::oo::objdefine::method ::oldWorker; proc ::oo::objdefine::method args {}; oo::objdefine d method p {} {}",
+        ] {
+            let source = format!(
+                "oo::class create C {{method shared {{}} {{}}}}; C create d; set m method; {definition}; d p"
+            );
+            let bindings = analyse(&source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("d p").unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("d", offset);
+            assert!(
+                binding.named_object_receiver_method_entry().is_none(),
+                "{definition}"
+            );
+            assert!(
+                binding.own_object_method_entries_at_dispatch().is_none(),
+                "{definition}"
             );
         }
     }

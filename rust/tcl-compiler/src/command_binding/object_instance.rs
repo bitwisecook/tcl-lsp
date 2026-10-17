@@ -992,8 +992,12 @@ mod tests {
             ("set unrelated VALUE; ", true),
             ("oo::objdefine $object class B; ", false),
             (
+                "oo::objdefine $object {method valid {} {return CUSTOM}}; ",
+                true,
+            ),
+            (
                 "oo::objdefine $object method valid {} {return CUSTOM}; ",
-                false,
+                true,
             ),
             ("set object TEXT; ", false),
         ] {

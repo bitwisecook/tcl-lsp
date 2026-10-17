@@ -1,0 +1,285 @@
+{
+  "build": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/w/lsp-build-39",
+  "artifacts_sha256": "1455488fa04e6cb566f98fffea8d15c7ab9de42234b133a03f77315e690001da",
+  "runs": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "code_lens::native_lens_presentation_tests::native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.02,
+      "log": "test-001.log",
+      "log_sha256": "ae3872b94e0b3ca9ee0ba0eaad75a982d5f8f6a6640d51200161aed6dcf5039f"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "completion::original_own_object_completion_tests::original_own_object_completion_keeps_allocations_and_opaque_routes_after_reporting_clear",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.42,
+      "log": "test-002.log",
+      "log_sha256": "bf5b3204a8d7fc89d9b810e1a6567b58d65398efbb6613dedfdf7c3f52bd58a6"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "completion::original_own_object_completion_tests::original_own_object_completion_requires_the_actual_generation_and_canonical_declaration",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.62,
+      "log": "test-003.log",
+      "log_sha256": "38d16d000e00679cc5449faca9a506fb4d25f8a40644f11ca4d8bff2154f040a"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::original_document_source_order_tests::document_export_adopter_keeps_conditional_clear_and_missing_input_unknown",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.62,
+      "log": "test-004.log",
+      "log_sha256": "94c33e799a7b837e383ce0ebbe939989db0d4e8818eb7da26064d4a12ee58048"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_forget_after_the_import_stops_resolving_the_alias",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.67,
+      "log": "test-005.log",
+      "log_sha256": "45cf4fbf2d8dc723138961d3691bc29f0dd7e8842c5da7a6a3c10bc06f7bc257"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_redefinition_ends_a_forced_import_shadow",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.67,
+      "log": "test-006.log",
+      "log_sha256": "01bba22cf16beda21c400510fb0d4c5da1d0a6c1d10e690e89942043e878f05c"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::a_top_level_call_before_its_own_import_resolves_nothing",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.27,
+      "log": "test-007.log",
+      "log_sha256": "d68d6ecfc844e1279bd4da2375b5b6c450ca5eeed33155e908b7cf5348ae39b9"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.47,
+      "log": "test-008.log",
+      "log_sha256": "099eed7a71ff211f37813e0ee807ee29f8adc08e4156d9687d365c7543df9821"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "method_symbol::own_object_tests::original_own_object_generation_and_private_entries_block_class_advice",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 3.38,
+      "log": "test-009.log",
+      "log_sha256": "6026463dd25a76cc71c913c56b2c707aaac8fb006624842429b9b0f9378660bf"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.12,
+      "log": "test-010.log",
+      "log_sha256": "5949e871cdd34bd10dcd193ed3fc83eff0470547697ecc27209f48dd79dd2b6a"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.07,
+      "log": "test-011.log",
+      "log_sha256": "5d2aa01449063b47eed05993d1df8a7660f3d7709bd410a65c7f9e08068992b6"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.07,
+      "log": "test-012.log",
+      "log_sha256": "5fa5740f4a6111826fd5cb5b4bcca3651e010c4af7c10a0907a2b6d701a140e4"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::document_end_is_after_normal_completion_only",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 7.5,
+      "log": "test-013.log",
+      "log_sha256": "63be0f4feb83e5e4cd8a4a2d1bf95352b37769693db964bcc2089aa1e3fad208"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::document_sequence_ends_at_a_possible_early_exit",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 2.22,
+      "log": "test-014.log",
+      "log_sha256": "faed63d947a0d81b9d65cb6a07809db7378fe2fa2b9f52696d186d5ec40753a0"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::document_sequence_orders_straight_line_bodies_and_withholds_branches",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.47,
+      "log": "test-015.log",
+      "log_sha256": "e14149bb1da70f585992a6dcb565542e322dbb2b13871543bc2c4151c5a28d67"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::document_sequence_refuses_shadowed_or_namespace_local_entering_commands",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 3.38,
+      "log": "test-016.log",
+      "log_sha256": "44f6fc9f4a20b66b79b4b967272da1ac092a62a8c9c901006c69256ba4f0d6fd"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_graph::original_source_navigation_order_tests::original_workspace_order_retains_conditional_purpose_without_tombstone_authority",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.77,
+      "log": "test-017.log",
+      "log_sha256": "e554f8722ae7afa5409e66d90cf7fd452130ab566c33c3d6ae2709e3b5670e34"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.99,
+      "log": "test-018.log",
+      "log_sha256": "4748fc2f5c76514b1f1aec87cb0b4df96947d38407b10aca8c939db96c4d3d80"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_source_order_transport_tests::workspace_order_keeps_cross_document_clear_conditional",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.07,
+      "log": "test-019.log",
+      "log_sha256": "5c245ebb5004d56fe7d0ad3eb404bf6acafff7f88a67daab2effe44b75070443"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.92,
+      "log": "test-020.log",
+      "log_sha256": "f502ecd78cca18e1f1d1be69a93c65f32041cf7872fcc5826324aaaf6b0e4272"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_branch_forget_between_two_imports_does_not_make_the_later_one_conflict",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 2.88,
+      "log": "test-021.log",
+      "log_sha256": "6be9dead6b20d227e54974740053b8c75a8aad9d1ab7394fb5179333fed137dc"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_same_file_forget_after_the_import_still_revokes",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.82,
+      "log": "test-022.log",
+      "log_sha256": "dff9f04b182bd275e1180bea9dd9b78fcf431223ad6c0e755c98fd1e448d7063"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_sourced_forget_between_two_imports_does_not_make_the_later_one_conflict",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 2.88,
+      "log": "test-023.log",
+      "log_sha256": "c782959627b594e734f4e8312fc8767993b6e3b6a8cb742d19f93f04b0465289"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.42,
+      "log": "test-024.log",
+      "log_sha256": "ec41db8926bac9f719ff03f53346a138304216e07a02c3551a9e4ebcad72cbfb"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.47,
+      "log": "test-025.log",
+      "log_sha256": "3b4d510e166078b08426e0d5da7cc533ee8adca19da34795f9574abcbd2b4220"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::an_exact_import_link_dies_when_the_imported_name_is_redefined",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.47,
+      "log": "test-026.log",
+      "log_sha256": "b040c1bfb911607bb057b228ff3ecb38086f82a9293cd5f1ae61b89a3939cf79"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::an_exact_import_link_dies_when_the_source_command_is_destroyed",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.92,
+      "log": "test-027.log",
+      "log_sha256": "b54dd46ece1c1f26b7cd7adb79fb3d790f7011f2d5b83b0260aca4c9766411a5"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::exact_import_ignores_an_export_written_after_it",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.72,
+      "log": "test-028.log",
+      "log_sha256": "a6b0c45ae2eae0428e374ccacd70ebffa2e42182435946f6b607e973386ceb42"
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import",
+      "passed": false,
+      "timed_out": false,
+      "seconds": 1.77,
+      "log": "test-029.log",
+      "log_sha256": "cead5d799d4678d064557b2c8b43fb5382713b06f7cece07d5493ae1147b0a91"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::object_instance::tests::object_read_requires_its_allocation_and_current_dispatch",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.82,
+      "log": "test-030.log",
+      "log_sha256": "c8822e5faf28423b024267e68c998d47a8a192066d62f6b7d31b8a5cf33624f1"
+    },
+    {
+      "target": "tcl_compiler",
+      "selector": "command_binding::own_object_configuration::tests::original_own_object_inline_member_installs_the_script_layout_entry",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 2.32,
+      "log": "test-031.log",
+      "log_sha256": "d0ec03cec4cb94f2bd3a626e3719e07dae334168178b485f7138c7d35601e531"
+    }
+  ]
+}
