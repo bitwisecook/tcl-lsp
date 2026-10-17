@@ -1,0 +1,68 @@
+{
+  "status": "IMMUTABLE_ACTUAL_SOURCE_INVENTORY_AND_PROPOSED_PLAN_ONLY_NOT_BOUND_OR_EXECUTED",
+  "native_changed_existing_test_bodies": 33,
+  "new_native_E2E_control": 1,
+  "native_proposed_total": 34,
+  "target_counts": {
+    "e2e": 24,
+    "preview_tickets_e2e": 10
+  },
+  "V6_packagePath2": "StandardCore facts separately recorded, already1024; no native target fabrication.",
+  "input_count": 39100,
+  "current_actual_admission": {
+    "path": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6-repair3/admission.json",
+    "sha256": "2050cdade094da8bbc2be9cb2c1ef435ce53a3f8eb2aa135bed8248aad28763b"
+  },
+  "full_input_bytes_prepost": "EXACT",
+  "source_tools": {
+    "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/source_tools.py",
+    "sha256": "f3cdd5205b70b11f1854a426bfcbd470c0db04ac443116874d3fe7187ce41498"
+  },
+  "canonical_runner": {
+    "path": "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3"
+  },
+  "actual_standard_parent": {
+    "path": "/workspace/naming-validation/lsp-next-consumer-actual-source1024-v3/manifest.json",
+    "sha256": "666a728b76a8664bf0f79ca31ba06cb937515b8ed8a89f27e94a2ee6f3d48d88"
+  },
+  "files": {
+    "helper-donors.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/helper-donors.json",
+      "sha256": "a0c86934f80bbb28313fe34f4c0f4b892cae7a2e50130fac617097ee36585d2a"
+    },
+    "package-path-standard-library-facts.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/package-path-standard-library-facts.json",
+      "sha256": "02943aba5d96dd667cacefb564ae0cb977b1633f76dd0eeaa77c0f105a1df1a9"
+    },
+    "helper-chain-resolution.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/helper-chain-resolution.json",
+      "sha256": "ed420c25fab2c762200212ae6055ceb5746b84ed4b3051ede8b8482846031831"
+    },
+    "changed-test-donors.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/changed-test-donors.json",
+      "sha256": "aec47c2ce957339d6c547f63ea23f58cb64cd0d712312f4082c6d5e119e2eb2f"
+    },
+    "ingredient-checks.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/ingredient-checks.json",
+      "sha256": "8efcf0dcbfa12c54bbc2f9db8a229c68bd3a3335c30926bbf2ff4324cf3c50ad"
+    },
+    "proposed-native-plan.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/proposed-native-plan.json",
+      "sha256": "b2bf8b4307054f4504c6c45adf545c1b565b3e8d1d5399eceb2c3bf6df00af70"
+    },
+    "future-binding-contract.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/future-binding-contract.json",
+      "sha256": "4296bb34a12ae4429ff19d664bd4713ce37ef6d376cdbdc744a84cc6790f775b"
+    },
+    "actual-module-routes.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/actual-module-routes.json",
+      "sha256": "9fd37b3ef3a1f44516d7ba8c4400da7258cc02dc9781a1214e8379a6926264bf"
+    },
+    "actual-source-inventory.json": {
+      "path": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/actual-source-inventory.json",
+      "sha256": "ca2bf45102ce0336c54682e7b388cc92e124d7b0d56b625073df66fbb64aa218"
+    }
+  },
+  "scope": "Read-only Main source/packet provenance, AST/module attributes, SourceIndex source facts and written plan only. No builds/tests/listings/traces/ELF/binding/Main/Git mutation or count claim."
+}

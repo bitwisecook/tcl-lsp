@@ -1,0 +1,78 @@
+{
+  "actual_before_fact": {
+    "target": "tcl_lsp_core",
+    "selector": "minify::original::tests::logical_barriers_use_complete_selected_form_and_unknown_coverage",
+    "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+    "source_line": 1996,
+    "source_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d",
+    "purpose": "Exact existing test genuine global Scope API adapter; not a new control.",
+    "module_route": [
+      {
+        "source_path": "rust/tcl-lsp-core/src/lib.rs",
+        "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+        "source_line": 79,
+        "module": "minify"
+      },
+      {
+        "source_path": "rust/tcl-lsp-core/src/minify.rs",
+        "source_sha256": "13747eb3621d8e67617ecc266d1f115f08a82707e060fa37bf7c51290edf06c0",
+        "source_line": 135,
+        "module": "original"
+      },
+      {
+        "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+        "source_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d",
+        "source_line": 657,
+        "module": "tests"
+      }
+    ],
+    "function_attributes": "#[test]",
+    "cfg_expressions": [
+      "test"
+    ],
+    "current_native_linux_source_eligible": true,
+    "actual_test_function_sha256": "120699ae0848ea4b5f290dc77e2634f6cd948675b4df06406fa2071c48b64c90",
+    "checked_module_route": [
+      {
+        "source_path": "rust/tcl-lsp-core/src/lib.rs",
+        "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+        "source_line": 79,
+        "module": "minify",
+        "attributes": "",
+        "cfg_expressions": []
+      },
+      {
+        "source_path": "rust/tcl-lsp-core/src/minify.rs",
+        "source_sha256": "13747eb3621d8e67617ecc266d1f115f08a82707e060fa37bf7c51290edf06c0",
+        "source_line": 135,
+        "module": "original",
+        "attributes": "",
+        "cfg_expressions": []
+      },
+      {
+        "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+        "source_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d",
+        "source_line": 657,
+        "module": "tests",
+        "attributes": "#[cfg(test)]",
+        "cfg_expressions": [
+          "test"
+        ]
+      }
+    ],
+    "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+  },
+  "selected_in_actual1024": false,
+  "before_test_body_sha256": "120699ae0848ea4b5f290dc77e2634f6cd948675b4df06406fa2071c48b64c90",
+  "proposed_test_body_sha256": "e505401dcc59695a094a00bd448cf061c6f13f5bbb8b74fd573bd02a45cfd57d",
+  "assertion_normalization": {
+    "exact_old": "assert!(!barriers.allows_scope(\"::\"), \"{source}\");",
+    "exact_new": "assert!(!barriers.allows_scope(&analysis.global_scope), \"{source}\");",
+    "allowed_delta": "ONLY argument string :: becomes borrow of the very same analysis.global_scope passed to barrier construction; negation/message/fixtures unchanged."
+  },
+  "all_other_bytes_exact": true,
+  "AST_zero_errors": true,
+  "fresh_fuzz0_forward_inverse_exact": true,
+  "source_overrides": false,
+  "execution": false
+}

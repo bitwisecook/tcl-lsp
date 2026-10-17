@@ -1,0 +1,112 @@
+{
+  "scheduled_utc": "2026-10-17T04:37:00Z",
+  "last_utc": "2026-10-17T04:37:06.212356+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T05:07:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 229,
+  "lsp_required": 325,
+  "lsp_by_kind_integrated": {
+    "semantic": 116,
+    "validation": 111,
+    "documentation": 2
+  },
+  "lsp_without_integration": 96,
+  "gains_since_previous_report": {
+    "LSP": 17,
+    "baseline": 18,
+    "annex": 2,
+    "effective": 20
+  },
+  "baseline_integrated": 363,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 327,
+  "baseline_partial": 36,
+  "baseline_without_integration": 1795,
+  "annex_integrated": 63,
+  "annex_required": 64,
+  "effective_integrated_at_report": 426,
+  "effective_required": 2222,
+  "effective_without_integration": 1796,
+  "verified": 0,
+  "current_actual_build": {
+    "status": "FAIL",
+    "source_inputs": 39100,
+    "source_admission_paths": 205,
+    "seconds": 265.271,
+    "exit_code": 101,
+    "drift": 0,
+    "completed_utc": "2026-10-17T04:34:30.621059+00:00",
+    "path": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair2/source-binding.json"
+  },
+  "current_actual_editor": {
+    "status": "PASS",
+    "inputs": 443,
+    "drift": 0,
+    "scope": "TypeScript, configured scoped formatting, worker syntax, Node/browser bundles and Studio web typecheck. Actual hosts pending."
+  },
+  "actual_failed_predecessor_builds": [
+    {
+      "seconds": 64.43,
+      "errors": 3,
+      "cause": "Missing public enum variant documentation",
+      "source_drift": 0
+    },
+    {
+      "seconds": 190.392,
+      "errors": 3,
+      "cause": "Unqualified genuine types in new packconfiguration test fixture",
+      "source_drift": 0
+    }
+  ],
+  "latest_minifier_adapter_pending": "Retry2 failed265.271s on one old minifier assertion String-to-Scope API mismatch; exact actual global Scope adapter in review. Source remains frozen for fullproof postflight.",
+  "compile_repairs": "Exact three documentation comments and test type qualification/import, independently reviewed and applied. Every original assertion, fixture, selector, budget and provider/source/Native guard retained.",
+  "previous_completed_standard994": {
+    "counts": {
+      "PASS": 795,
+      "FAIL": 197,
+      "TIMEOUT": 2
+    },
+    "retained962_gains": 5,
+    "prior_PASS_regressions": 0,
+    "new32": {
+      "PASS": 27,
+      "FAIL": 5
+    },
+    "all39058_source_fiveELFs_provider_final_postflights_match": true,
+    "continuous_source_freeze": true,
+    "ordinary_acceptance": false
+  },
+  "previous_completed_extra18": {
+    "counts": {
+      "PASS": 17,
+      "FAIL": 1
+    },
+    "gains": 1,
+    "prior_PASS_regressions": 0,
+    "all39058_source_nineELFs_provider_final_postflights_match": true,
+    "remaining": "Native command-name protocol unavailable; Runtime/VM deferred."
+  },
+  "next_actual_selection": {
+    "standard": 1024,
+    "exact_previous_prefix": 994,
+    "new_standard": 30,
+    "extra_original": 18,
+    "additional_external_controls": 7,
+    "scope": "Fresh actual SourceIndex without overrides and independent source peer. Exact extra18 and external7 remain separate. Requires actual artifact/binder/listing/provider gates before execution."
+  },
+  "current_proof_gate": {
+    "status": "RUNNING",
+    "scope": "Full original checker; no structure-only or write-inventory flags."
+  },
+  "source_capsule": {
+    "bytes": 301547,
+    "sha256": "edefb8c5ede871f09ee5139218d2ff9d7d64d86e43bd0502b3fe5d4b39d15f76",
+    "all171_archive_member_hashes_roundtrip_verified": true,
+    "binaries_and_full_input_indexes_outside_git": true
+  },
+  "held_next_source": "Workspace/refactor source packets outside main uncounted;633 wholeconsumer HOLD corrects earlier bounded source oversight: Logical projection must not depend on unavailable Native protocol. New generic reference coverage/orphan dependency consumers in progress outside main.",
+  "deferred_scope": "Runtime/VM and dedicated BIG-IP/iRules/ILX remain deferred. Uncovered BIG-IP Tcl8.4 is an assumption only.",
+  "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr and actual nativeE2E/preview/IDEhosts not all green. NoPR/merge/#2286closure.",
+  "latest_push": "7c57c91cae0dee2b5e50b91c2d773aa9c7ae1724"
+}

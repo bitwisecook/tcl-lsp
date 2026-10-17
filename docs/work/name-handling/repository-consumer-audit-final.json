@@ -132823,7 +132823,7 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T04:23:59.704968+00:00",
+    "utc": "2026-10-17T04:37:06.212356+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
     "implemented_pending_validation": 363,
@@ -133537,208 +133537,116 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "scheduled_utc": "2026-10-17T04:07:00Z",
-      "last_utc": "2026-10-17T04:07:39.631305+00:00",
+      "scheduled_utc": "2026-10-17T04:37:00Z",
+      "last_utc": "2026-10-17T04:37:06.212356+00:00",
       "delivery": "Chat and repository only; external guide unchanged.",
-      "next_utc": "2026-10-17T04:37:00Z",
+      "next_utc": "2026-10-17T05:07:00Z",
       "cadence_minutes": 30,
-      "lsp_integrated_at_report": 212,
+      "lsp_integrated_at_report": 229,
       "lsp_required": 325,
       "lsp_by_kind_integrated": {
-        "semantic": 107,
-        "validation": 103,
+        "semantic": 116,
+        "validation": 111,
         "documentation": 2
       },
-      "lsp_without_integration": 113,
+      "lsp_without_integration": 96,
       "gains_since_previous_report": {
-        "LSP": 0,
-        "effective": 0,
-        "reason": "Full source freeze for actual994/18 capture; next source packets remain outside main and uncounted."
+        "LSP": 17,
+        "baseline": 18,
+        "annex": 2,
+        "effective": 20
       },
-      "baseline_integrated": 345,
+      "baseline_integrated": 363,
       "baseline_required": 2158,
-      "baseline_fullscope_pending": 317,
-      "baseline_partial": 28,
-      "baseline_without_integration": 1813,
-      "annex_integrated": 61,
-      "annex_required": 62,
-      "effective_integrated_at_report": 406,
-      "effective_required": 2220,
-      "effective_without_integration": 1814,
+      "baseline_fullscope_pending": 327,
+      "baseline_partial": 36,
+      "baseline_without_integration": 1795,
+      "annex_integrated": 63,
+      "annex_required": 64,
+      "effective_integrated_at_report": 426,
+      "effective_required": 2222,
+      "effective_without_integration": 1796,
       "verified": 0,
-      "actual_standard994": {
-        "selected": 994,
+      "current_actual_build": {
+        "status": "FAIL",
+        "source_inputs": 39100,
+        "source_admission_paths": 205,
+        "seconds": 265.271,
+        "exit_code": 101,
+        "drift": 0,
+        "completed_utc": "2026-10-17T04:34:30.621059+00:00",
+        "path": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair2/source-binding.json"
+      },
+      "current_actual_editor": {
+        "status": "PASS",
+        "inputs": 443,
+        "drift": 0,
+        "scope": "TypeScript, configured scoped formatting, worker syntax, Node/browser bundles and Studio web typecheck. Actual hosts pending."
+      },
+      "actual_failed_predecessor_builds": [
+        {
+          "seconds": 64.43,
+          "errors": 3,
+          "cause": "Missing public enum variant documentation",
+          "source_drift": 0
+        },
+        {
+          "seconds": 190.392,
+          "errors": 3,
+          "cause": "Unqualified genuine types in new packconfiguration test fixture",
+          "source_drift": 0
+        }
+      ],
+      "latest_minifier_adapter_pending": "Retry2 failed265.271s on one old minifier assertion String-to-Scope API mismatch; exact actual global Scope adapter in review. Source remains frozen for fullproof postflight.",
+      "compile_repairs": "Exact three documentation comments and test type qualification/import, independently reviewed and applied. Every original assertion, fixture, selector, budget and provider/source/Native guard retained.",
+      "previous_completed_standard994": {
         "counts": {
           "PASS": 795,
           "FAIL": 197,
           "TIMEOUT": 2
         },
-        "retained962_counts": {
-          "PASS": 768,
-          "FAIL": 192,
-          "TIMEOUT": 2
-        },
-        "new32_counts": {
+        "retained962_gains": 5,
+        "prior_PASS_regressions": 0,
+        "new32": {
           "PASS": 27,
           "FAIL": 5
         },
-        "retained962_status_changes": [
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_completion_preserves_unicode_utf16_and_selected_store",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_server",
-            "selector": "studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry",
-            "before": "TIMEOUT",
-            "after": "PASS"
-          }
-        ],
-        "prior_PASS_regressions": [],
-        "harness_errors": [],
-        "artifact_drift": {},
-        "actual_wrapper_exit_code": 1,
-        "actual_invocation_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
-        "completed_utc": "2026-10-17T04:05:51.498876+00:00",
-        "all39058_inputs_five_ELFs_providers_final_pre_postflight_match": true,
+        "all39058_source_fiveELFs_provider_final_postflights_match": true,
         "continuous_source_freeze": true,
-        "historical962_continuous_source_freeze": false,
-        "historical962_exception": "Previous962 transient two-file edit/restoration retained in its immutable capsule; current repair2 run is a separate source freeze.",
-        "new_owner_control": {
-          "argv": [
-            "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_core-894b7574946ed478",
-            "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-            "--exact",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 0,
-          "timed_out": false,
-          "seconds": 0.9676600860111648,
-          "log": "test-938.log",
-          "log_sha256": "d07d1d26bd64be7687fe568a4ed0af445a7e59addf5fd11a390c756943a20481",
-          "target": "tcl_lsp_core",
-          "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-          "running_counts": [
-            "1"
-          ],
-          "summaries": [
-            [
-              "ok",
-              "1",
-              "0"
-            ]
-          ],
-          "test_passed": true
-        },
-        "focused2": "Actual repaired nested parent transport and Studio retirement retry both passed beforefull994; final fullselection outcomes recorded here.",
-        "ordinary_acceptance": false,
-        "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, all current source/provider/artifact postflights equal. Historical962 exception retained separately. Global/host/integration/required gates not accepted; no verified completion."
+        "ordinary_acceptance": false
       },
-      "actual_extra18": {
-        "selected": 18,
+      "previous_completed_extra18": {
         "counts": {
           "PASS": 17,
           "FAIL": 1
         },
-        "by_target": {
-          "tcl_lexer": {
-            "PASS": 6
-          },
-          "tcl_syntax": {
-            "PASS": 3
-          },
-          "tcl_spectcl": {
-            "PASS": 5,
-            "FAIL": 1
-          },
-          "xtask": {
-            "PASS": 3
-          }
-        },
-        "harness_errors": [],
-        "actual_wrapper_exit_code": 1,
-        "completed_utc": "2026-10-17T03:49:44.925392+00:00",
-        "all39058_inputs_nine_ELFs_providers_postflight_match": true,
-        "retained_extra18_status_changes": [
-          {
-            "target": "tcl_spectcl",
-            "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
-            "before": "FAIL",
-            "after": "PASS"
-          }
-        ],
-        "prior_PASS_regressions": [],
-        "ordinary_acceptance": false,
-        "limits": "One original SpecTcl Native command-name protocol refusal remains; all original assertions and guards preserved. Standard994 separately running; global/host gates pending.",
-        "launch_preparation_error": "Initial Root invocation supplied a mistyped binding SHA and was refused before capture; corrected exact independently peered SHA launched successfully. No selections or outputs from rejected invocation."
+        "gains": 1,
+        "prior_PASS_regressions": 0,
+        "all39058_source_nineELFs_provider_final_postflights_match": true,
+        "remaining": "Native command-name protocol unavailable; Runtime/VM deferred."
       },
-      "actual_builds": {
-        "standard5": "PASS323.055s",
-        "extra3libraries": "PASS201.675s",
-        "xtaskBIN": "PASS213.169s",
-        "source_inputs": 39058,
-        "admitted_paths": 151,
-        "actual_ELFs": 9,
-        "build_source_drift": 0
+      "next_actual_selection": {
+        "standard": 1024,
+        "exact_previous_prefix": 994,
+        "new_standard": 30,
+        "extra_original": 18,
+        "additional_external_controls": 7,
+        "scope": "Fresh actual SourceIndex without overrides and independent source peer. Exact extra18 and external7 remain separate. Requires actual artifact/binder/listing/provider gates before execution."
       },
-      "actual_focused2": {
-        "counts": {
-          "PASS": 2
-        },
-        "completed_utc": "2026-10-17T03:29:29.275119+00:00",
-        "all39058_source_fiveELFs_provider_prepost_match": true
+      "current_proof_gate": {
+        "status": "RUNNING",
+        "scope": "Full original checker; no structure-only or write-inventory flags."
       },
-      "actual_native_e2e_build": {
-        "status": "FAIL_NATIVE_E2E_BUILD",
-        "exit_code": 101,
-        "seconds": 246.436,
-        "completed_utc": "2026-10-17T03:59:42.240771+00:00",
-        "source_inputs": 39058,
-        "all_nine_ELFs_providers_prepost_equal": true,
-        "compile_errors": 6,
-        "cause": "Existing tracked nonblocking try_read method is cfg(test)-only, but five readonly reference and one current-diagnostic production callers require it. Exact existing method availability repair independently source-cleared outside main.",
-        "tests_executed": 0
+      "source_capsule": {
+        "bytes": 301547,
+        "sha256": "edefb8c5ede871f09ee5139218d2ff9d7d64d86e43bd0502b3fe5d4b39d15f76",
+        "all171_archive_member_hashes_roundtrip_verified": true,
+        "binaries_and_full_input_indexes_outside_git": true
       },
-      "actual_editor": {
-        "status": "PASS",
-        "inputs": 443,
-        "drift": 0,
-        "scope": "Both TypeScriptprojects/configured scopedformat/worker/Node+browserbundles; actual IDEhosts pending."
-      },
-      "actual_full_proof_gate": {
-        "exit_code": 1,
-        "structural_errors": 2094,
-        "seconds": 317.636,
-        "source_inputs": 39058,
-        "captured_checker_inputs": 73450,
-        "drift": 0
-      },
-      "next_source": "Prospective compositionV3 39files source-only Rootwhole-review pending, including16LSP purposes plus packconfiguration validation, existingTkRegistry owner, genuine selected-form correspondence facet and narrow productiontry_read repair. No counts until actualRootintegration. Additional generic diagnostic caller/refactor/633 packets held for review or correction.",
-      "deferred_scope": "F5/iRules-specific multifolder03.05 fourpurposes and ILX explicitly excluded after exact source reborrow. Dedicated BIG-IP and Runtime/VM remain deferred; uncovered BIG-IP Tcl8.4 is assumption only.",
-      "historical962_exception": "Prior962 temporary two-file source edit/restoration remains in its immutable capsule and ordinaryacceptancefalse. Current994 is separate: source remained frozen and all final checks equal.",
-      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr not all green; actual nativeE2E build failed before execution; VSCode/browser/JetBrains hosts pending. NoPR/merge/#2286closure.",
-      "latest_push": "eb3581f7e30ffa81b1914c4021c8f16c082cce6e"
+      "held_next_source": "Workspace/refactor source packets outside main uncounted;633 wholeconsumer HOLD corrects earlier bounded source oversight: Logical projection must not depend on unavailable Native protocol. New generic reference coverage/orphan dependency consumers in progress outside main.",
+      "deferred_scope": "Runtime/VM and dedicated BIG-IP/iRules/ILX remain deferred. Uncovered BIG-IP Tcl8.4 is an assumption only.",
+      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr and actual nativeE2E/preview/IDEhosts not all green. NoPR/merge/#2286closure.",
+      "latest_push": "7c57c91cae0dee2b5e50b91c2d773aa9c7ae1724"
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -134266,208 +134174,116 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "scheduled_utc": "2026-10-17T04:07:00Z",
-      "last_utc": "2026-10-17T04:07:39.631305+00:00",
+      "scheduled_utc": "2026-10-17T04:37:00Z",
+      "last_utc": "2026-10-17T04:37:06.212356+00:00",
       "delivery": "Chat and repository only; external guide unchanged.",
-      "next_utc": "2026-10-17T04:37:00Z",
+      "next_utc": "2026-10-17T05:07:00Z",
       "cadence_minutes": 30,
-      "lsp_integrated_at_report": 212,
+      "lsp_integrated_at_report": 229,
       "lsp_required": 325,
       "lsp_by_kind_integrated": {
-        "semantic": 107,
-        "validation": 103,
+        "semantic": 116,
+        "validation": 111,
         "documentation": 2
       },
-      "lsp_without_integration": 113,
+      "lsp_without_integration": 96,
       "gains_since_previous_report": {
-        "LSP": 0,
-        "effective": 0,
-        "reason": "Full source freeze for actual994/18 capture; next source packets remain outside main and uncounted."
+        "LSP": 17,
+        "baseline": 18,
+        "annex": 2,
+        "effective": 20
       },
-      "baseline_integrated": 345,
+      "baseline_integrated": 363,
       "baseline_required": 2158,
-      "baseline_fullscope_pending": 317,
-      "baseline_partial": 28,
-      "baseline_without_integration": 1813,
-      "annex_integrated": 61,
-      "annex_required": 62,
-      "effective_integrated_at_report": 406,
-      "effective_required": 2220,
-      "effective_without_integration": 1814,
+      "baseline_fullscope_pending": 327,
+      "baseline_partial": 36,
+      "baseline_without_integration": 1795,
+      "annex_integrated": 63,
+      "annex_required": 64,
+      "effective_integrated_at_report": 426,
+      "effective_required": 2222,
+      "effective_without_integration": 1796,
       "verified": 0,
-      "actual_standard994": {
-        "selected": 994,
+      "current_actual_build": {
+        "status": "FAIL",
+        "source_inputs": 39100,
+        "source_admission_paths": 205,
+        "seconds": 265.271,
+        "exit_code": 101,
+        "drift": 0,
+        "completed_utc": "2026-10-17T04:34:30.621059+00:00",
+        "path": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair2/source-binding.json"
+      },
+      "current_actual_editor": {
+        "status": "PASS",
+        "inputs": 443,
+        "drift": 0,
+        "scope": "TypeScript, configured scoped formatting, worker syntax, Node/browser bundles and Studio web typecheck. Actual hosts pending."
+      },
+      "actual_failed_predecessor_builds": [
+        {
+          "seconds": 64.43,
+          "errors": 3,
+          "cause": "Missing public enum variant documentation",
+          "source_drift": 0
+        },
+        {
+          "seconds": 190.392,
+          "errors": 3,
+          "cause": "Unqualified genuine types in new packconfiguration test fixture",
+          "source_drift": 0
+        }
+      ],
+      "latest_minifier_adapter_pending": "Retry2 failed265.271s on one old minifier assertion String-to-Scope API mismatch; exact actual global Scope adapter in review. Source remains frozen for fullproof postflight.",
+      "compile_repairs": "Exact three documentation comments and test type qualification/import, independently reviewed and applied. Every original assertion, fixture, selector, budget and provider/source/Native guard retained.",
+      "previous_completed_standard994": {
         "counts": {
           "PASS": 795,
           "FAIL": 197,
           "TIMEOUT": 2
         },
-        "retained962_counts": {
-          "PASS": 768,
-          "FAIL": 192,
-          "TIMEOUT": 2
-        },
-        "new32_counts": {
+        "retained962_gains": 5,
+        "prior_PASS_regressions": 0,
+        "new32": {
           "PASS": 27,
           "FAIL": 5
         },
-        "retained962_status_changes": [
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_completion_preserves_unicode_utf16_and_selected_store",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_core",
-            "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-            "before": "FAIL",
-            "after": "PASS"
-          },
-          {
-            "target": "tcl_lsp_server",
-            "selector": "studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry",
-            "before": "TIMEOUT",
-            "after": "PASS"
-          }
-        ],
-        "prior_PASS_regressions": [],
-        "harness_errors": [],
-        "artifact_drift": {},
-        "actual_wrapper_exit_code": 1,
-        "actual_invocation_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
-        "completed_utc": "2026-10-17T04:05:51.498876+00:00",
-        "all39058_inputs_five_ELFs_providers_final_pre_postflight_match": true,
+        "all39058_source_fiveELFs_provider_final_postflights_match": true,
         "continuous_source_freeze": true,
-        "historical962_continuous_source_freeze": false,
-        "historical962_exception": "Previous962 transient two-file edit/restoration retained in its immutable capsule; current repair2 run is a separate source freeze.",
-        "new_owner_control": {
-          "argv": [
-            "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_core-894b7574946ed478",
-            "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-            "--exact",
-            "--nocapture",
-            "--test-threads=1"
-          ],
-          "exit_code": 0,
-          "timed_out": false,
-          "seconds": 0.9676600860111648,
-          "log": "test-938.log",
-          "log_sha256": "d07d1d26bd64be7687fe568a4ed0af445a7e59addf5fd11a390c756943a20481",
-          "target": "tcl_lsp_core",
-          "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
-          "running_counts": [
-            "1"
-          ],
-          "summaries": [
-            [
-              "ok",
-              "1",
-              "0"
-            ]
-          ],
-          "test_passed": true
-        },
-        "focused2": "Actual repaired nested parent transport and Studio retirement retry both passed beforefull994; final fullselection outcomes recorded here.",
-        "ordinary_acceptance": false,
-        "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, all current source/provider/artifact postflights equal. Historical962 exception retained separately. Global/host/integration/required gates not accepted; no verified completion."
+        "ordinary_acceptance": false
       },
-      "actual_extra18": {
-        "selected": 18,
+      "previous_completed_extra18": {
         "counts": {
           "PASS": 17,
           "FAIL": 1
         },
-        "by_target": {
-          "tcl_lexer": {
-            "PASS": 6
-          },
-          "tcl_syntax": {
-            "PASS": 3
-          },
-          "tcl_spectcl": {
-            "PASS": 5,
-            "FAIL": 1
-          },
-          "xtask": {
-            "PASS": 3
-          }
-        },
-        "harness_errors": [],
-        "actual_wrapper_exit_code": 1,
-        "completed_utc": "2026-10-17T03:49:44.925392+00:00",
-        "all39058_inputs_nine_ELFs_providers_postflight_match": true,
-        "retained_extra18_status_changes": [
-          {
-            "target": "tcl_spectcl",
-            "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
-            "before": "FAIL",
-            "after": "PASS"
-          }
-        ],
-        "prior_PASS_regressions": [],
-        "ordinary_acceptance": false,
-        "limits": "One original SpecTcl Native command-name protocol refusal remains; all original assertions and guards preserved. Standard994 separately running; global/host gates pending.",
-        "launch_preparation_error": "Initial Root invocation supplied a mistyped binding SHA and was refused before capture; corrected exact independently peered SHA launched successfully. No selections or outputs from rejected invocation."
+        "gains": 1,
+        "prior_PASS_regressions": 0,
+        "all39058_source_nineELFs_provider_final_postflights_match": true,
+        "remaining": "Native command-name protocol unavailable; Runtime/VM deferred."
       },
-      "actual_builds": {
-        "standard5": "PASS323.055s",
-        "extra3libraries": "PASS201.675s",
-        "xtaskBIN": "PASS213.169s",
-        "source_inputs": 39058,
-        "admitted_paths": 151,
-        "actual_ELFs": 9,
-        "build_source_drift": 0
+      "next_actual_selection": {
+        "standard": 1024,
+        "exact_previous_prefix": 994,
+        "new_standard": 30,
+        "extra_original": 18,
+        "additional_external_controls": 7,
+        "scope": "Fresh actual SourceIndex without overrides and independent source peer. Exact extra18 and external7 remain separate. Requires actual artifact/binder/listing/provider gates before execution."
       },
-      "actual_focused2": {
-        "counts": {
-          "PASS": 2
-        },
-        "completed_utc": "2026-10-17T03:29:29.275119+00:00",
-        "all39058_source_fiveELFs_provider_prepost_match": true
+      "current_proof_gate": {
+        "status": "RUNNING",
+        "scope": "Full original checker; no structure-only or write-inventory flags."
       },
-      "actual_native_e2e_build": {
-        "status": "FAIL_NATIVE_E2E_BUILD",
-        "exit_code": 101,
-        "seconds": 246.436,
-        "completed_utc": "2026-10-17T03:59:42.240771+00:00",
-        "source_inputs": 39058,
-        "all_nine_ELFs_providers_prepost_equal": true,
-        "compile_errors": 6,
-        "cause": "Existing tracked nonblocking try_read method is cfg(test)-only, but five readonly reference and one current-diagnostic production callers require it. Exact existing method availability repair independently source-cleared outside main.",
-        "tests_executed": 0
+      "source_capsule": {
+        "bytes": 301547,
+        "sha256": "edefb8c5ede871f09ee5139218d2ff9d7d64d86e43bd0502b3fe5d4b39d15f76",
+        "all171_archive_member_hashes_roundtrip_verified": true,
+        "binaries_and_full_input_indexes_outside_git": true
       },
-      "actual_editor": {
-        "status": "PASS",
-        "inputs": 443,
-        "drift": 0,
-        "scope": "Both TypeScriptprojects/configured scopedformat/worker/Node+browserbundles; actual IDEhosts pending."
-      },
-      "actual_full_proof_gate": {
-        "exit_code": 1,
-        "structural_errors": 2094,
-        "seconds": 317.636,
-        "source_inputs": 39058,
-        "captured_checker_inputs": 73450,
-        "drift": 0
-      },
-      "next_source": "Prospective compositionV3 39files source-only Rootwhole-review pending, including16LSP purposes plus packconfiguration validation, existingTkRegistry owner, genuine selected-form correspondence facet and narrow productiontry_read repair. No counts until actualRootintegration. Additional generic diagnostic caller/refactor/633 packets held for review or correction.",
-      "deferred_scope": "F5/iRules-specific multifolder03.05 fourpurposes and ILX explicitly excluded after exact source reborrow. Dedicated BIG-IP and Runtime/VM remain deferred; uncovered BIG-IP Tcl8.4 is assumption only.",
-      "historical962_exception": "Prior962 temporary two-file source edit/restoration remains in its immutable capsule and ordinaryacceptancefalse. Current994 is separate: source remained frozen and all final checks equal.",
-      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr not all green; actual nativeE2E build failed before execution; VSCode/browser/JetBrains hosts pending. NoPR/merge/#2286closure.",
-      "latest_push": "eb3581f7e30ffa81b1914c4021c8f16c082cce6e"
+      "held_next_source": "Workspace/refactor source packets outside main uncounted;633 wholeconsumer HOLD corrects earlier bounded source oversight: Logical projection must not depend on unavailable Native protocol. New generic reference coverage/orphan dependency consumers in progress outside main.",
+      "deferred_scope": "Runtime/VM and dedicated BIG-IP/iRules/ILX remain deferred. Uncovered BIG-IP Tcl8.4 is an assumption only.",
+      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr and actual nativeE2E/preview/IDEhosts not all green. NoPR/merge/#2286closure.",
+      "latest_push": "7c57c91cae0dee2b5e50b91c2d773aa9c7ae1724"
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -136042,7 +135858,7 @@
       "existing_LSP_purposes": 17,
       "existing_DB_purposes": 1,
       "new_shared_owner_purposes": 2,
-      "actual_build": "RUNNING /workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair2 after two narrow independently reviewed compile repairs",
+      "actual_build": "RUNNING actualrepair3 after exact minifier same-global-Scope test API adapter; no selected1024body changes",
       "source_frozen": true,
       "verified_complete": 0,
       "prospective_standard_selection": 1024,
@@ -136059,8 +135875,8 @@
         "inputs": 39100,
         "drift": 0
       },
-      "current_source_admission": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6-repair2/admission.json",
-      "current_source_admission_sha256": "b61629b2db57075b7f979de5322a98c12e97c3de31055f2edf1e0dada05135f4",
+      "current_source_admission": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6-repair3/admission.json",
+      "current_source_admission_sha256": "2050cdade094da8bbc2be9cb2c1ef435ce53a3f8eb2aa135bed8248aad28763b",
       "actual_editor": {
         "status": "PASS",
         "inputs": 443,
@@ -136086,6 +135902,44 @@
         "sha256": "edefb8c5ede871f09ee5139218d2ff9d7d64d86e43bd0502b3fe5d4b39d15f76",
         "bytes": 301547,
         "all171archive_member_hashes_roundtrip_verified": true
+      },
+      "failed_retry2_build": {
+        "exit_code": 101,
+        "seconds": 265.271,
+        "errors": 1,
+        "inputs": 39100,
+        "drift": 0,
+        "cause": "Old global scope barrier assertion passes display label to migrated actual Scope API. Typed same-global-Scope adapter pending, all assertion meaning/fixtures retained."
+      },
+      "current_proof_gate": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "structural_errors": 2094,
+        "seconds": 344.996,
+        "source_inputs": 39100,
+        "checker_inputs": 73526,
+        "drift": 0,
+        "scope": "Original full checker; source/evidence digests not rewritten. Runtime/BIGIP deferred failures retained."
+      },
+      "latest_development_push": "7c57c91ca",
+      "current_build_dir": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair3",
+      "minifier_api_adapter": {
+        "source": "Same analysis.global_scope, negation/message/fixtures/allotherbytes exact. Test absent1024; separate focused6 sourcefacts includeit.",
+        "peer_sha256": "93f73c19855bbe7f839920ccabfe29030df4580e390cf8a6b0365511bff5e97c",
+        "no_count_change": true
+      },
+      "root_preparation_exception": "After exactadapterapply, Rootassert incorrectly expected new206th member; actualfilealreadyin205. Completion verifiessole reviewedsource delta/all39100otherbytes and updatesexistingrow. No build/runningfreeze was active during exception. Originalscript retained.",
+      "native_e2e_source_inventory": {
+        "manifest": "/workspace/naming-validation/agent-work/lsp-native-e2e-source-inventory-v1/manifest.json",
+        "sha256": "85908d7ee842b6d2a147e1c225ca41cbcc035ec2e16404395f0538ddf706e1bf",
+        "existing_changed": 33,
+        "new": 1,
+        "by_target": {
+          "e2e": 24,
+          "preview_tickets_e2e": 10
+        },
+        "independent_peer": "RUNNING",
+        "scope": "Source-only; earlier11 not supported by exactpacketinventory. V6packagepath2 belongCorelibrary1024; dedicatedirulesdeferred. Actualbothbuilds/server/provider/listing/binding/execution owed."
       }
     }
   }

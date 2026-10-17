@@ -2013,7 +2013,7 @@ mod tests {
             };
             let commands = super::super::lexical_metadata::commands(source, env).unwrap();
             let barriers = super::super::find_rename_barriers(&analysis, env, &commands, true);
-            assert!(!barriers.allows_scope("::"), "{source}");
+            assert!(!barriers.allows_scope(&analysis.global_scope), "{source}");
             if source.contains('$') || source.contains("mystery") {
                 assert!(barriers.procs);
             }

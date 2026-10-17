@@ -1,0 +1,21 @@
+{
+  "status": "IMMUTABLE_SOURCE_ONLY_TYPED_TEST_API_ADAPTER_PENDING_PEER_ROOT_APPLY",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "before_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d",
+      "after_sha256": "7f8aa5284c09d1eac651317f85c44548c69effb624f3ce13f91f7eac8b369e9d"
+    }
+  ],
+  "patch": {
+    "path": "/tmp/lsp-minify-global-scope-test-api-adapter-v1/repair.patch",
+    "sha256": "8496b019567c909a5d04c11912dee7d7d6366a46ccdedd510dec43760df9665e"
+  },
+  "proof": {
+    "path": "/tmp/lsp-minify-global-scope-test-api-adapter-v1/source-proof.json",
+    "sha256": "38638c61ea62b803ef439f5006a3aca972c697f52c3840e071fa03aca5353501"
+  },
+  "scope": "Only existing test API argument adapts textual root scope :: to authentic analysis.global_scope retained by find_rename_barriers. Scope::global() produces Global kind name ::; current allows_scope requires actual &Scope and pointer-based barred owner. No production or semantic guard change. Test is NOT selected in1024; no selection/body-hash waiver or count increase. All old fixture strings/negation/message/budgets exact except the explicitly normalized typed argument.",
+  "main_mutation": false,
+  "tests_builds_typecheck_execution": false
+}

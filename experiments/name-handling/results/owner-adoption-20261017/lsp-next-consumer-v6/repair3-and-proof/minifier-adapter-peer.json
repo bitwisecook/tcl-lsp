@@ -1,0 +1,10 @@
+{
+  "status": "BOUNDED_SOURCE_CLEAR_TEST_API_OPERAND_ADAPTER",
+  "manifest_sha256": "3efb9b07b336ad8572bb5e91e76e5f41c93bb3981a32b3ae27bb7acd7d72821e",
+  "patch_sha256": "8496b019567c909a5d04c11912dee7d7d6366a46ccdedd510dec43760df9665e",
+  "exact_change": "Only allows_scope assertion operand textual :: \u2192 &analysis.global_scope. Negation, assertion macro kind, message and every other body/source byte exact. Explicit operand change is not falsely claimed macro-byte-exact.",
+  "genuine_semantics": "Current allows_scope(&Scope) tests actual Scope pointer membership plus ScopeKind::Global/global_variables. Same analysis.global_scope belongs to the analysis passed to find_rename_barriers and is the genuine root allocation, not a reconstructed same-label Scope. Scope::global has name::/kindGlobal.",
+  "selection": "Control absent current1024/extras18/external7; no selectedbody waiver/order/count change. Root may separately capture focused additional originalcontrol under genuine current SourceIndex/actualbuild evidence.",
+  "checks": "Allpins/currentbefore/RustAST/rustfmt/freshforwardinversefuzz0PASS",
+  "limits": "Source-only. No Main/Git/build/test/typecheck/ELF/listing/trace/count acceptance. Repair2source/template receipts stay pinned toprevioussource afterlateradmission."
+}
