@@ -5,13 +5,14 @@ I worked statically only. I did not run cargo, any test binary or gdb, and I did
 - `nice -n 19 rustfmt --edition 2024 --emit stdout` on stdin
 - `python3 -I` for text edits and a JSON validity check
 
-Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `60051c3c2`.
+Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `60051c3c2`. The four touched files are byte-identical at the current HEAD `1433f2ffe` (integration38), and `git apply --check` passes there.
 
 ## Deliverable
-- **Patch:** `inline-objdefine-producer-v1.patch` (`diff -ruN a b`). `git apply --check` passes against `/home/user/tcl-lsp`.
+- **Patch:** `inline-objdefine-producer-v2.patch` (`diff -ruN a b`). It supersedes v1. `git apply --check` passes against `/home/user/tcl-lsp`.
+- **v2 change (Luna-10 C1, `clippy::too_many_lines`):** the layout choice now lives in a small helper, `own_object_definition_layout` (`Option<bool>`; `Some(true)` means the script layout), and so does the body choice (`own_object_definition`). Semantics are unchanged. By Luna's `clippy_tml.py`, the walker now counts 89 clippy lines (HEAD 96, v1 102); the helpers count 5 and 13, and `inline_member_definition` 43.
 - **rustfmt:** both touched `.rs` files are unchanged by rustfmt (edition 2024).
 - **No `#[allow]`** anywhere in the patch.
-- **Not run:** clippy.
+- **Not run:** clippy. The line counts above come from Luna's counter script, not from clippy.
 - **Files:**
   - `rust/tcl-compiler/src/command_binding/own_object_configuration.rs`: the producer change and a new fixed-input test.
   - `rust/tcl-compiler/src/command_binding/object_instance.rs`: one fixture row flips, and a script-form row is added beside it.
@@ -21,7 +22,7 @@ Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `
 `walk_closed_own_object_method_configuration` now selects one of two layouts. Everything after body selection is unchanged and shared: `own_object_method_transfers`, `install_own_object_method_transfers` and `register_original_method_bodies`.
 
 - **Script layout (unchanged):** `exact_argv_len == Some(2)` and `facts.arg_roles` contains `(1, Body)`. The body comes from `retained_script_operand(1, …)`.
-- **Inline member layout (new):** only when `facts.arg_roles_complete` holds, meaning the registry resolver ran on all-literal argv. The new `inline_member_definition(native, selected_grammar, state, config)`:
+- **Inline member layout (new):** only when `facts.arg_roles_complete` holds. That is a precondition only: complete roles do not imply an all-literal argv. A resolver may complete from frozen known values (for example a `$m` holding `method`), so step 2 below is the actual literal guard. The new `inline_member_definition(native, selected_grammar, state, config)`:
   1. **Word shape.** It requires an exact argv, `native.words.len() == argc + 1`, no `{*}` word (`segment.expand_word`), and an empty `prepended`. The caller already checks `prepended`.
   2. **Static literals.** Every member word (`native.words[2..]`) must have `Provenance::Source`, and its `effective_invocation_word` must be `Literal` or `ByteLiteral`. Escapes such as `p\uD800` are allowed, exactly as inside a braced script body. Variable, command or template substitution, `Opaque` and `Expanded` words are refused.
   3. **Member keyword.** The first member word must be a member of the selected descriptor's `definition_body` grammar (`grammar.member`). This is registry data, not a command name.
@@ -44,7 +45,7 @@ Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `
   - What gets installed comes from `native_deferred_method_setter` (exact three-operand `method` only).
 
 ## Refusal cases (install nothing; fall through to the existing generic or opaque path)
-- **Roles incomplete:** any non-literal argument makes `arg_roles_complete` false.
+- **Roles incomplete:** `arg_roles_complete` is false. A complete role set is not a literal guarantee, so step 2's per-word literal check refuses any substituted word independently.
 - **Inline-specific refusals:**
   - an expansion word, or an argv/word count mismatch
   - any member word that is substituted, opaque, derived or expanded
@@ -74,7 +75,7 @@ Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `
 - **New test:** `command_binding::own_object_configuration::tests::original_own_object_inline_member_installs_the_script_layout_entry`.
   - **Equivalence half:** for 8.6, 9.0 and 9.1, the script and inline forms give equal entry projections: name bytes, receiver, exported flag, formals, body bytes and name-span length. The declaration offset equals the `method` word in each source.
   - **Refusal half:** `$m`, `[list p]`, `"p$m"`, `{*}`, extra operand, `forward`, and a replaced worker each yield no own entry.
-- **Deliberately changed:** `command_binding::object_instance::tests::object_read_requires_its_allocation_and_current_dispatch`.
+- **Deliberately changed:** `command_binding::object_instance::tests::object_read_requires_its_allocation_and_current_dispatch`. Luna-10 confirmed this row is not an original assertion, so it must land together with the producer.
   - **Inline row:** `oo::objdefine $object method valid {…}` goes from `false` to `true`.
   - **New script-form row:** `oo::objdefine $object {method valid {…}}` added with `true`.
   - **Reasoning:** a represented own-method install restamps the store proof (`object_instance.rs:409-442`) and does not invalidate dispatch. The existing script-form test `original_own_object_readonly_target_retains_no_generated_name` relies on exactly this for `$object own…`. The old `false` was the opaque fallback.
@@ -89,11 +90,11 @@ Line numbers refer to HEAD `bb7277d82`, which contains integration37 candidate `
 1. **Equality of `native.words` and re-parsed words.** This is the main runtime uncertainty. The outer words come from the walker's map over the origin image; the inner words come from a `NativeValue` image with `with_base(start)`. Both use the same lexer on the same bytes and are shifted to absolute offsets, so `WordExpr` equality should hold. If some walker path builds outer words differently (other map or channel), the check refuses and the target tests stay red. That is safe, but the fix would not take effect. A quick probe if the target tests stay red: `TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1` and a `dbg!` of the two vectors.
 2. **`name_span` join for `p\uD800`.** It relies on the argv-token-span versus `WordExpr`-span relationship being identical at both nesting levels, as it already is for the script form. Not executed.
 3. **Producer cost.** Inline objdefine forms with complete roles now go past the early guard into the receiver and grammar lookups (all read-only) before refusing. For non-objdefine definitions, `own_object_configuration_target` still returns early.
-4. **Clippy pedantic not run.** I avoided `!(a || b)` (`layout_selected`) and used no `#[allow]`.
+4. **Clippy pedantic not run.** C1 (`too_many_lines`) is addressed in v2, as described above. The patch has no `#[allow]`.
 5. **Docs edited by hand.** `manifest.json` (still valid JSON) and the rendered `.md` were edited consistently: scope text, plus one test binding inserted after `…replacement_retires_prior_captured_prefix`. Run `scripts/dev/check-name-resolution-proofs.py`; if a render-drift check exists, re-render through `scripts/dev/update-name-resolution-proof-index.py`. The `## Conclusion` text is unchanged and still accurate.
 6. **Analyser and compiler refusal mismatch.** Where the compiler refuses but the analyser accepts, for example the `$m` head handled by `handlers.rs:6352`, the analyser still records declarations, and LSP finds no realm entry. This is the same as today's behaviour for every inline form.
 
 ## Files
-- `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-10/inline-objdefine-producer-v1.patch`
+- `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-10/inline-objdefine-producer-v2.patch` (current; v1 is kept only for reference)
 - `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-10/a/`, `.../b/`: pre- and post-patch copies
 - `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-10/probe2.tcl`, `probe2-86.tcl`: tclsh semantics probes
