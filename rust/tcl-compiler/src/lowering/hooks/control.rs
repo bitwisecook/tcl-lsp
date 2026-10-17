@@ -36,7 +36,7 @@
 //! can emit the value directly.
 
 use crate::alias::CommandAliasMap;
-use crate::expr_parser::parse_expr_for_profile;
+use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
     ArgTokenKind, LoweringCommand, extract_proved_expr_arg, has_expansion,
@@ -69,7 +69,8 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     ) {
         return None;
     }
-    let expr = parse_expr_for_profile(&cmd.args[0], cmd.dialect);
+    let expr =
+        parse_expr_for_profile_with_lexer_config(&cmd.args[0], cmd.dialect, cmd.lexer_config);
     // Anchor the expression text absolutely when the arg word's content is
     // a verbatim source slice (see `word_content_base`) so consumers can map
     // expression-AST leaf offsets to source operand spans.
@@ -228,7 +229,11 @@ fn lower_return_value(
                         cmd.lexer_config,
                     )
                 {
-                    expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
+                    expr = Some(parse_expr_for_profile_with_lexer_config(
+                        &expr_arg,
+                        cmd.dialect,
+                        cmd.lexer_config,
+                    ));
                     expr_base = cmd.tokens.as_ref().and_then(|tokens| {
                         let base = crate::lowering_hooks::word_content_base(
                             *tokens.argv.get(1)?,
@@ -258,7 +263,11 @@ fn lower_return_value(
                     .strip_prefix("$(")
                     .and_then(|s| s.strip_suffix(')'))
                 {
-                    expr = Some(parse_expr_for_profile(body, cmd.dialect));
+                    expr = Some(parse_expr_for_profile_with_lexer_config(
+                        body,
+                        cmd.dialect,
+                        cmd.lexer_config,
+                    ));
                     expr_base = cmd.tokens.as_ref().and_then(|tokens| {
                         let span = *tokens.argv.get(1)?;
                         let raw_len = span.end().checked_sub(span.start())?;

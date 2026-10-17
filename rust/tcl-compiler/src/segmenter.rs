@@ -1068,9 +1068,9 @@ pub fn segment_with_recovery(
     for _ in 0..MAX_GHOST_RECOVERY_PASSES {
         let mut new_ghost = false;
         for cmd in &current {
-            for diag in
-                crate::analyser::syntax_checks::unterminated_bracket_diagnostics(cmd, source, known)
-            {
+            for diag in crate::analyser::syntax_checks::unterminated_bracket_diagnostics(
+                cmd, source, known, config,
+            ) {
                 let bracket_off = diag.span.start();
                 // A heuristic case carries a `]`-insertion fix whose offset
                 // is the ghost offset; a bare fallback has no fix and stays

@@ -366,12 +366,11 @@ impl<'a> PassContext<'a> {
     /// misses the use, and a missed use is a wrong transform — a live write
     /// reported dead (O109/W211) or a statement sunk past a real read.
     ///
-    /// With no explicit dialect the document was lexed under
-    /// [`tcl_dialect::BracedVarStyle::default`], so that is what the fallback
-    /// returns; anything else would contradict the spans the pass is reading.
+    /// The complete retained source grammar takes precedence over catalogue
+    /// defaults, including independently selected braced-variable rules.
     #[must_use]
     pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
-        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
+        self.lexer_config().braced_var
     }
 
     /// Complete metadata supplied by this exact compilation module.
@@ -873,5 +872,22 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run_passes(&mut ctx, &cu, &[]);
         assert_eq!(ctx.optimisations, [] as [crate::optimiser::Optimisation; 0]);
+    }
+
+    #[test]
+    fn pass_braced_variable_style_uses_actual_full_source_config() {
+        let mut ctx = PassContext::new("", InterproceduralAnalysis::default());
+        ctx.dialect = tcl_dialect::DialectProfile::find("tcl8.6");
+        assert_eq!(ctx.braced_var(), tcl_dialect::BracedVarStyle::FirstClose);
+        let mut config = ctx.lexer_config();
+        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        ctx.source_lexer_config = Some(config);
+        assert_eq!(ctx.braced_var(), tcl_dialect::BracedVarStyle::Tcl9Nesting);
+        ctx.dialect = tcl_dialect::DialectProfile::find("tcl9.0");
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        ctx.source_lexer_config = Some(config);
+        assert_eq!(ctx.braced_var(), tcl_dialect::BracedVarStyle::FirstClose);
+        ctx.source_lexer_config = None;
+        assert_eq!(ctx.braced_var(), tcl_dialect::BracedVarStyle::Tcl9Nesting);
     }
 }

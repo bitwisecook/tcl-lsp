@@ -52,6 +52,7 @@ pub(crate) fn unterminated_bracket_diagnostics(
     cmd: &SegmentedCommand,
     source: &str,
     known: &super::utils::RecoveryKnownCommands,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for tok in &cmd.all_tokens {
@@ -66,7 +67,13 @@ pub(crate) fn unterminated_bracket_diagnostics(
         } else {
             ""
         };
-        out.push(detect_e201(content, content_start, bracket_off, known));
+        out.push(detect_e201(
+            content,
+            content_start,
+            bracket_off,
+            known,
+            config.nested(),
+        ));
     }
     out
 }
@@ -100,6 +107,7 @@ fn detect_e201(
     content_start: u32,
     bracket_off: u32,
     known: &super::utils::RecoveryKnownCommands,
+    config: tcl_lexer::LexerConfig,
 ) -> Diagnostic {
     // The heuristics *propose* an insertion offset (semantic); the
     // structural index *validates* it (syntactic). A proposed `]` that
@@ -112,7 +120,7 @@ fn detect_e201(
     // signal (it never marks a structural position inert), so this can
     // only remove wrong fixes, never good ones. The index is built over
     // the bracket interior (`content`), so offsets are content-relative.
-    let index = tcl_lexer::BracketIndex::build(content);
+    let index = tcl_lexer::BracketIndex::build_with_config(content, config);
     let accept = |d: Diagnostic| -> Option<Diagnostic> {
         if let Some(fix) = d.fixes.first() {
             let rel = fix.span.start().saturating_sub(content_start);

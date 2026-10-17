@@ -465,7 +465,18 @@ fn located(version: TclVersion) -> Result<Option<Tclsh>, String> {
 
 /// Whether [`REQUIRE_TCLSH`] requires the release `version`.
 fn requires_release(version: TclVersion) -> bool {
-    requires(std::env::var(REQUIRE_TCLSH).ok().as_deref(), version)
+    requires_os(std::env::var_os(REQUIRE_TCLSH).as_deref(), version)
+}
+
+/// Whether an actual OS-level requirement value requires `version`.
+/// A present non-Unicode value cannot be interpreted as an optional skip.
+fn requires_os(required: Option<&std::ffi::OsStr>, version: TclVersion) -> bool {
+    match required {
+        None => false,
+        Some(required) => required
+            .to_str()
+            .is_none_or(|required| requires(Some(required), version)),
+    }
 }
 
 /// Whether a [`REQUIRE_TCLSH`] value `required` requires `version`: the
@@ -846,8 +857,8 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 mod tests {
     use super::{
         OracleError, locate_source_tree, patchlevel_from_header, reference_patchlevel,
-        reference_source_tag, requires, upstream_test_definition, validate_reference_source_tree,
-        validate_source_tree,
+        reference_source_tag, requires, requires_os, upstream_test_definition,
+        validate_reference_source_tree, validate_source_tree,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -914,6 +925,18 @@ mod tests {
         assert!(requires(Some("8.6, 9.0"), TclVersion::V8_6));
         assert!(requires(Some("1"), TclVersion::V8_4));
         assert!(requires(Some(""), TclVersion::V9_1));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_present_non_unicode_requirement_fails_closed_for_every_release() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let required = std::ffi::OsStr::from_bytes(b"\xff");
+        for version in TclVersion::ALL {
+            assert!(requires_os(Some(required), version));
+        }
+        assert!(!requires_os(None, TclVersion::V9_0));
     }
 
     const SOURCE_ENV_CHILD: &str = "TCL_TEST_SUPPORT_SOURCE_ENV_CHILD";

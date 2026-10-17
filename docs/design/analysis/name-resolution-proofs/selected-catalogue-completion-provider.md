@@ -72,3 +72,14 @@ A named selector is unexecuted coverage, not a provider or Rust result. All orig
 Root owns ordinary build, exact binary singleton listing, execution and count reconciliation. The original two and added three selectors are validation annexes to the one existing caller purpose; neither is a new semantic owner or per-helper count. Preserve all original completion operator, method-context, package, grammar, source/currentness and provider controls.
 
 The additional `completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster` selector retains a genuine Jim 0.79 Logical editing input. A Tcl surface edge alone admits the superclass descriptor, while the actual inherited command roster excludes it. Full context resolution, including roster and invocation realm, must select that exact descriptor before any method or package floor is projected. This new control remains unexecuted.
+
+
+## Current index binding
+
+Stable proof ID: `naming.consumer.selected-catalogue-completion-provider`.
+
+## Problem statement
+
+A same-name provider selected by ambient Registry lookup can replace the descriptor selected by actual completion availability.
+
+Existing Question, Conclusion and Scope above are the exact indexed fields. All seven provider rows are not-tested; named controls are linked, not executed by this update.

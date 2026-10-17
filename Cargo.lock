@@ -6014,6 +6014,7 @@ dependencies = [
  "chrono",
  "clap",
  "jsonc-parser",
+ "pulldown-cmark",
  "regex",
  "rustc_lexer",
  "serde",
@@ -6035,6 +6036,7 @@ dependencies = [
  "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
+ "toml",
 ]
 
 [[package]]

@@ -2378,6 +2378,7 @@ mod tests {
     #[test]
     fn original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies() {
         // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
         // This control stops at the genuine selected source-owner boundary;
         // it does not depend on quick-fix diagnostics or candidate spelling.
         for source in [

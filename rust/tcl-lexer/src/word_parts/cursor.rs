@@ -20,7 +20,7 @@
 
 use super::{
     ArrayIndexEnd, BracedVarEnd, LexerConfig, SubstFlags, TemplateVariableSyntax, WordPart,
-    braced_var_name_end, scan_array_index, scan_var_ref_with_term, shallow_spanned_parts,
+    braced_var_name_end, scan_array_index_in, scan_var_ref_with_term, shallow_spanned_parts,
 };
 use crate::{ParseIssueKind, SourceImage, Span, TokenType};
 
@@ -520,12 +520,7 @@ fn prefix_at(
                     }
                     None
                 } else {
-                    Some(scan_array_index(
-                        prefix,
-                        end,
-                        config.array_index,
-                        config.braced_var,
-                    ))
+                    Some(scan_array_index_in(prefix, end, config))
                 };
                 if scan.is_some_and(|scan| scan.invalid.is_some()) {
                     return Err(VariableCursorUnavailable::IndexSubstitution);

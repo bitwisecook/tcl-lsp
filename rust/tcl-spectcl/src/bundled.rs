@@ -80,6 +80,33 @@ pub fn load_from(dir: &Path) -> PackSet {
     crate::pack::load(&files)
 }
 
+/// Load required bundled generation input through the existing discovery,
+/// read, evaluator and merge owners. Directory/read/evaluation failures refuse
+/// the entire projection; ordinary authoring notices remain independent.
+/// This source-generation entry does not publish global extension routes and
+/// makes no filesystem atomicity or installed-registry currentness claim.
+pub fn load_from_required(dir: &Path) -> Result<PackSet, String> {
+    let store = tcl_lsp_core::vfs::NativeStore;
+    let files = crate::discovery::required_bundled_files(&store, dir)?;
+    let read = crate::pack::read_sources_with_inputs(&store, &files);
+    if read.inputs.unretained_nested_inputs {
+        return Err("a required selected bundled source could not be read".to_owned());
+    }
+    let set = crate::pack::load_sources_unpublished(
+        read.sources,
+        read.notices,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+        Some(&store),
+    );
+    if let Some((path, error)) = set.load_errors.first() {
+        return Err(format!(
+            "required bundled source {}: {error:?}",
+            path.display()
+        ));
+    }
+    Ok(set)
+}
+
 /// The eight shipped EDA loadables' `.tclspec` sources, compiled into the
 /// binary — see "The embedded fallback" above for why this exists.
 ///
@@ -965,5 +992,32 @@ mod retained_unreadable_loader_phase_tests {
         );
         assert!(inputs.retained_paths().is_empty());
         assert!(inputs.selected(&inputs.retained_paths()).is_none());
+    }
+}
+
+#[cfg(test)]
+mod required_generation_input_tests {
+    use super::*;
+
+    #[test]
+    fn required_generation_refuses_missing_unreadable_and_failed_selected_input() {
+        let _cache = crate::cache::REDIRECT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let root = std::env::temp_dir().join(format!(
+            "required-bundled-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        assert!(load_from_required(&root).is_err());
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("pack.tclspec");
+        std::fs::write(&path, [0xff]).unwrap();
+        assert!(load_from_required(&root).is_err());
+        std::fs::write(&path, "speclib broken {").unwrap();
+        assert!(load_from_required(&root).is_err());
+        std::fs::write(&path, "speclib original 1 {}\n").unwrap();
+        assert!(load_from_required(&root).is_ok());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

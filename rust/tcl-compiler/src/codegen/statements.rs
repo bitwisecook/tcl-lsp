@@ -1721,6 +1721,7 @@ impl CodegenCtx<'_> {
         let command = tcl_lexer::NativeScriptCommandWords {
             span: tcl_lexer::Span::new(first.span().start(), last.span().end()),
             source_extent: None,
+            terminator: None,
             words: original.to_vec(),
         };
         let end = self.begin_original_compiler_selection(
@@ -1790,6 +1791,7 @@ impl CodegenCtx<'_> {
         let command = tcl_lexer::NativeScriptCommandWords {
             span: tcl_lexer::Span::new(first.span().start(), words.last().unwrap().span().end()),
             source_extent: None,
+            terminator: None,
             words: words.to_vec(),
         };
         self.run_native_emission(vec![NativeEmissionTask::Command(command)]);

@@ -203,6 +203,7 @@ pub fn statement_delete_rewrite_range(
 /// opening the inner `"b"`, so O129's auto-fix replaces that truncated
 /// prefix and leaves `]c"` behind.
 #[must_use]
+#[cfg(test)]
 pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
     let Some(close) = tcl_lexer::close_quote_offset(source, argv_span.start() as usize) else {
         return argv_span;
@@ -234,6 +235,7 @@ pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
 /// span is the argv span untouched, so there is nothing to cross-check and it
 /// passes through.
 #[must_use]
+#[cfg(test)]
 pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> Option<Span> {
     let span = full_quoted_string_span(source, argv_span);
     if source.as_bytes().get(argv_span.start() as usize) != Some(&b'"') {
@@ -245,6 +247,38 @@ pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> 
         return None;
     }
     (written.as_str() == inside).then_some(span)
+}
+
+/// Exact original quoted-word geometry from the retained lowering source.
+/// This carries no substitution, effect, equivalence or rewrite permission.
+#[must_use]
+pub fn original_quoted_word_rewrite_span(
+    ctx: &crate::optimiser::PassContext<'_>,
+    argv_span: Span,
+    inside: &str,
+) -> Option<Span> {
+    let module = ctx.ir_module?;
+    let registry = ctx.registry?;
+    let config = ctx.lexer_config();
+    if module.source.try_text().ok()? != ctx.source || module.lexer_config != config {
+        return None;
+    }
+    let bindings = module
+        .retained_source_bindings
+        .as_ref()?
+        .positioned_for_module(module, registry)?;
+    let (word, _) =
+        bindings.original_written_word_at_span_in_source(&module.source, argv_span, config)?;
+    let span = word.span();
+    let written = ctx.source.get(span.as_range())?;
+    if !written.starts_with('"') {
+        return (written == inside).then_some(span);
+    }
+    let mut chars = written.chars();
+    if chars.next() != Some('"') || chars.next_back() != Some('"') {
+        return None;
+    }
+    (chars.as_str() == inside).then_some(span)
 }
 
 #[cfg(test)]
@@ -474,5 +508,36 @@ mod tests {
         // should only consume 1.
         let source = "[cmd]]]";
         assert_eq!(full_rewrite_span(source, Span::new(0, 4)), Span::new(0, 5));
+    }
+
+    #[test]
+    fn retained_original_interpolation_extent_requires_same_source_config_and_inside() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "puts \"a[format %s b]$value\"";
+        let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+        let mut ctx = crate::optimiser::PassContext::new(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+        );
+        ctx.registry = Some(registry);
+        ctx.ir_module = Some(&unit.ir_module);
+        let start = u32::try_from(source.find('"').unwrap()).unwrap();
+        let span = Span::new(start, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            super::original_quoted_word_rewrite_span(&ctx, span, "a[format %s b]$value"),
+            Some(Span::new(start, u32::try_from(source.len()).unwrap()))
+        );
+        assert!(super::original_quoted_word_rewrite_span(&ctx, span, "a[format %s b]").is_none());
+        ctx.source = "puts \"a[format %s b]$other\"";
+        assert!(
+            super::original_quoted_word_rewrite_span(&ctx, span, "a[format %s b]$value").is_none()
+        );
+        ctx.source = source;
+        let mut config = ctx.lexer_config();
+        config.expand_syntax = !config.expand_syntax;
+        ctx.source_lexer_config = Some(config);
+        assert!(
+            super::original_quoted_word_rewrite_span(&ctx, span, "a[format %s b]$value").is_none()
+        );
     }
 }

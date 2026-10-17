@@ -1014,6 +1014,13 @@ struct ReadonlyDeclarationTarget {
 
 enum ReadonlyDeclarationLocation {
     Original(Box<OriginalIndexedSourceLocation>),
+    OriginalMethod {
+        location: Box<OriginalIndexedSourceLocation>,
+        caller_uri: String,
+        input: tcl_compiler::analyser::ResolvedAnalysisInput,
+        query: Box<tcl_lsp_core::method_symbol::OriginalMethodQuery>,
+        candidate: Box<tcl_lsp_core::method_symbol::OriginalMethodCandidate>,
+    },
     Logical {
         location: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedDeclarationLocation>,
         call: Box<core_workspace_index::WorkspaceLogicalCommandCall>,
@@ -1026,6 +1033,10 @@ enum ReadonlyDeclarationLocation {
         location: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedNamespaceLocation>,
         caller: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedNamespaceLocation>,
     },
+    LogicalSelfMember {
+        location: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation>,
+        caller: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation>,
+    },
     LogicalMember {
         location: Box<tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation>,
         call: Box<core_workspace_index::WorkspaceLogicalCommandCall>,
@@ -1036,6 +1047,22 @@ impl ReadonlyDeclarationLocation {
     fn retained_in(&self, index: &core_workspace_index::WorkspaceIndex) -> bool {
         match self {
             Self::Original(_) => true,
+            Self::OriginalMethod {
+                caller_uri,
+                input,
+                query,
+                candidate,
+                ..
+            } => {
+                index.source_analysis_input(caller_uri) == Some(input)
+                    && index.source_analysis_input(candidate.uri()) == Some(input)
+                    && matches!(tcl_lsp_core::method_symbol::candidate(index, caller_uri, query),
+                    std::ops::ControlFlow::Break(Some(current)) if current == **candidate)
+            }
+            Self::LogicalSelfMember { location, caller } => {
+                index.logical_member_location_is_retained(caller)
+                    && index.logical_member_location_is_retained(location)
+            }
             Self::LogicalMember { location, call } => {
                 call.is_retained_in(index) && index.logical_member_location_is_retained(location)
             }
@@ -1056,21 +1083,27 @@ impl ReadonlyDeclarationLocation {
 
     fn uri(&self) -> &str {
         match self {
-            Self::Original(location) => location.uri(),
+            Self::Original(location) | Self::OriginalMethod { location, .. } => location.uri(),
             Self::Logical { location, .. } => location.uri(),
             Self::LogicalVariable { location, .. } => location.uri(),
             Self::LogicalNamespace { location, .. } => location.uri(),
-            Self::LogicalMember { location, .. } => location.uri(),
+            Self::LogicalMember { location, .. } | Self::LogicalSelfMember { location, .. } => {
+                location.uri()
+            }
         }
     }
 
     fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<tcl_lexer::Span> {
         match self {
-            Self::Original(location) => location.validated_span(source, analysis),
+            Self::Original(location) | Self::OriginalMethod { location, .. } => {
+                location.validated_span(source, analysis)
+            }
             Self::Logical { location, .. } => location.validated_span(source, analysis),
             Self::LogicalVariable { location, .. } => location.validated_span(source, analysis),
             Self::LogicalNamespace { location, .. } => location.validated_span(source, analysis),
-            Self::LogicalMember { location, .. } => location.validated_span(source, analysis),
+            Self::LogicalMember { location, .. } | Self::LogicalSelfMember { location, .. } => {
+                location.validated_span(source, analysis)
+            }
         }
     }
 }
@@ -16407,12 +16440,11 @@ impl Backend {
                 .await?);
         }
         if let std::ops::ControlFlow::Break(locations) = self
-            .original_method_locations_at(
-                uri,
-                &doc.text,
+            .original_method_locations_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
                 &analysis,
                 pos,
-                tcl_lsp_core::method_symbol::OriginalMethodNavigation::Declaration,
+                source_epoch,
             )
             .await?
         {
@@ -16506,21 +16538,27 @@ impl Backend {
         // oracle-aware so a pure-consumer receiver (class defined elsewhere)
         // still identifies the method, and access-context-aware so an
         // external call resolves the exported dispatch entry only.
-        if let Some((class_q, method, is_classmethod, access)) = self
-            .resolve_method_target(
-                uri,
-                &doc.text,
-                tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                &analysis,
-                pos,
-            )
-            .await?
+        if analysis
+            .resolved_input
+            .as_ref()
+            .is_some_and(|input| tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(&input.borrowed_context_registry().context().environment.id).is_some_and(tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::is_appliance_hosted))
         {
-            let method_defs = self
-                .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
-                .await?;
-            if !method_defs.is_empty() {
-                return Ok(method_defs);
+            if let Some((class_q, method, is_classmethod, access)) = self
+                .resolve_method_target(
+                    uri,
+                    &doc.text,
+                    tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                    &analysis,
+                    pos,
+                )
+                .await?
+            {
+                let method_defs = self
+                    .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
+                    .await?;
+                if !method_defs.is_empty() {
+                    return Ok(method_defs);
+                }
             }
         }
         // Cross-file namespace variable: `$::NS::var` whose declaring
@@ -16624,6 +16662,139 @@ impl Backend {
         ))
     }
 
+    async fn original_method_source_target(
+        &self,
+        caller: &(Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<ReadonlyDeclarationTarget>>> {
+        use std::ops::ControlFlow;
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let query = match tcl_lsp_core::method_symbol::select(
+            &caller.1.text,
+            analysis,
+            position.line,
+            position.character,
+        ) {
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
+            ControlFlow::Break(Some(query)) => query,
+        };
+        let candidate = {
+            let _rehoming = self.rehomed_index_guard().await?;
+            let index = self.workspace_index.read().await;
+            if index.source_analysis_input(caller.0.as_str()) != Some(input) {
+                return Ok(ControlFlow::Break(None));
+            }
+            match tcl_lsp_core::method_symbol::candidate(&index, caller.0.as_str(), &query) {
+                ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+                ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
+                ControlFlow::Break(Some(candidate)) => candidate,
+            }
+        };
+        let Ok(uri) = candidate.uri().parse::<Uri>() else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let generation = self.live_publication_uri_generation(&uri);
+        let Some(document) = self.read_document(&uri).await? else {
+            return Ok(ControlFlow::Break(None));
+        };
+        if candidate.declaration_image() != &tcl_lexer::SourceImage::document(&document.text) {
+            return Ok(ControlFlow::Break(None));
+        }
+        let current = self
+            .analysis_for(&uri, document.text.clone(), document.dialect.clone())
+            .await?;
+        if current.resolved_input.as_ref() != Some(input) {
+            return Ok(ControlFlow::Break(None));
+        }
+        let Some(identity) =
+            tcl_lsp_core::original_declaration::OriginalDeclarationIdentity::for_member_candidate(
+                uri.as_str(),
+                &document.text,
+                &current,
+                &candidate,
+            )
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let Some(context) =
+            core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&current)
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let Some(location) = OriginalIndexedSourceLocation::from_declaration(&context, &identity)
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        Ok(ControlFlow::Break(Some(ReadonlyDeclarationTarget {
+            uri,
+            document,
+            analysis: current,
+            generation,
+            location: ReadonlyDeclarationLocation::OriginalMethod {
+                location: Box::new(location),
+                caller_uri: caller.0.as_str().to_owned(),
+                input: input.clone(),
+                query: Box::new(query),
+                candidate: Box::new(candidate),
+            },
+        })))
+    }
+
+    async fn original_method_locations_for_snapshot(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+        epoch: u64,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Vec<Location>>> {
+        use std::ops::ControlFlow;
+        let target = match self
+            .original_method_source_target(&caller, analysis, position)
+            .await?
+        {
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(Vec::new())),
+            ControlFlow::Break(Some(target)) => target,
+        };
+        Ok(ControlFlow::Break(
+            self.resolve_current_declaration_locations(caller, vec![target], epoch)
+                .await?,
+        ))
+    }
+
+    async fn original_method_hover_for_snapshot(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+        epoch: u64,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<CoreHover>>> {
+        use std::ops::ControlFlow;
+        let target = match self
+            .original_method_source_target(&caller, analysis, position)
+            .await?
+        {
+            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
+            ControlFlow::Break(Some(target)) => target,
+        };
+        let ReadonlyDeclarationLocation::OriginalMethod { candidate, .. } = &target.location else {
+            return Ok(ControlFlow::Break(None));
+        };
+        let hover = candidate.hover();
+        let mut rendered = self
+            .with_current_declaration_sources(caller, vec![target], epoch, |_, _, _, _| {
+                hover.clone()
+            })
+            .await?;
+        Ok(ControlFlow::Break(rendered.pop()))
+    }
+
+    #[cfg(test)]
     async fn original_method_locations_at(
         &self,
         uri: &Uri,
@@ -16632,6 +16803,24 @@ impl Backend {
         position: Position,
         navigation: tcl_lsp_core::method_symbol::OriginalMethodNavigation,
     ) -> DocumentSourceResult<std::ops::ControlFlow<Vec<Location>>> {
+        if navigation == tcl_lsp_core::method_symbol::OriginalMethodNavigation::Declaration {
+            let epoch = self.diag_inputs_epoch();
+            let generation = self.live_publication_uri_generation(uri);
+            let Some(document) = self.read_document(uri).await? else {
+                return Ok(std::ops::ControlFlow::Break(Vec::new()));
+            };
+            if document.text.as_ref() != source {
+                return Ok(std::ops::ControlFlow::Break(Vec::new()));
+            }
+            return self
+                .original_method_locations_for_snapshot(
+                    (uri.clone(), document, generation),
+                    analysis,
+                    position,
+                    epoch,
+                )
+                .await;
+        }
         use std::ops::ControlFlow;
         let target = match self
             .original_method_candidate_at(uri, source, analysis, position)
@@ -16695,6 +16884,7 @@ impl Backend {
         Ok(ControlFlow::Break(locations))
     }
 
+    #[cfg(test)]
     async fn original_method_hover_at(
         &self,
         uri: &Uri,
@@ -16702,33 +16892,21 @@ impl Backend {
         analysis: &AnalysisResult,
         position: Position,
     ) -> DocumentSourceResult<std::ops::ControlFlow<Option<CoreHover>>> {
-        use std::ops::ControlFlow;
-        let target = match self
-            .original_method_candidate_at(uri, source, analysis, position)
-            .await?
-        {
-            ControlFlow::Continue(()) => return Ok(ControlFlow::Continue(())),
-            ControlFlow::Break(None) => return Ok(ControlFlow::Break(None)),
-            ControlFlow::Break(Some(target)) => target,
+        let epoch = self.diag_inputs_epoch();
+        let generation = self.live_publication_uri_generation(uri);
+        let Some(document) = self.read_document(uri).await? else {
+            return Ok(std::ops::ControlFlow::Break(None));
         };
-        let Ok(owner) = Uri::from_str(target.uri()) else {
-            return Ok(ControlFlow::Break(None));
-        };
-        let Some(document) = self.read_document(&owner).await? else {
-            return Ok(ControlFlow::Break(None));
-        };
-        if target.declaration_image() != &tcl_lexer::SourceImage::document(&document.text) {
-            return Ok(ControlFlow::Break(None));
+        if document.text.as_ref() != source {
+            return Ok(std::ops::ControlFlow::Break(None));
         }
-        let owner_analysis = self
-            .analysis_for(&owner, document.text.clone(), document.dialect.clone())
-            .await?;
-        if !owner_analysis
-            .matches_original_source_image(target.declaration_image(), target.declaration_config())
-        {
-            return Ok(ControlFlow::Break(None));
-        }
-        Ok(ControlFlow::Break(target.hover()))
+        self.original_method_hover_for_snapshot(
+            (uri.clone(), document, generation),
+            analysis,
+            position,
+            epoch,
+        )
+        .await
     }
 
     /// The `::`-rooted namespace-variable cell the cursor names, or `None`
@@ -18424,13 +18602,12 @@ impl Backend {
             .await
     }
 
-    async fn logical_class_member_locations_for_snapshot(
+    async fn logical_member_source_targets_for_snapshot(
         &self,
-        caller: (Uri, DocumentState, u64),
+        caller: &(Uri, DocumentState, u64),
         analysis: &AnalysisResult,
         position: Position,
-        epoch: u64,
-    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+    ) -> DocumentSourceResult<Option<Vec<ReadonlyDeclarationTarget>>> {
         let Some(offset) = line_col_to_byte_offset_indexed(
             &caller.1.line_index,
             &caller.1.text,
@@ -18447,23 +18624,37 @@ impl Backend {
         if actual.line != position.line || actual.character.get() != position.character {
             return Ok(None);
         }
+        #[derive(Clone)]
+        enum Caller {
+            Command(core_workspace_index::WorkspaceLogicalCommandCall),
+            Member(tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation),
+        }
         let selected = {
             let _rehoming = self.rehomed_index_guard().await?;
-            self.workspace_index
-                .read()
-                .await
-                .logical_class_member_targets_at(
-                    caller.0.as_str(),
-                    &caller.1.text,
-                    analysis,
-                    offset,
-                )
+            let index = self.workspace_index.read().await;
+            if let Some(selected) = index.logical_class_member_targets_at(
+                caller.0.as_str(),
+                &caller.1.text,
+                analysis,
+                offset,
+            ) {
+                Some((Caller::Command(selected.call), selected.targets))
+            } else {
+                index
+                    .logical_self_member_targets_at(
+                        caller.0.as_str(),
+                        &caller.1.text,
+                        analysis,
+                        offset,
+                    )
+                    .map(|selected| (Caller::Member(selected.caller), selected.targets))
+            }
         };
-        let Some(selected) = selected else {
+        let Some((original_caller, selected_targets)) = selected else {
             return Ok(None);
         };
         let mut targets = Vec::new();
-        for location in selected.targets {
+        for location in selected_targets {
             let Ok(uri) = location.uri().parse::<Uri>() else {
                 continue;
             };
@@ -18479,16 +18670,102 @@ impl Backend {
                 document,
                 analysis: current,
                 generation,
-                location: ReadonlyDeclarationLocation::LogicalMember {
-                    location: Box::new(location),
-                    call: Box::new(selected.call.clone()),
+                location: match &original_caller {
+                    Caller::Command(call) => ReadonlyDeclarationLocation::LogicalMember {
+                        location: Box::new(location),
+                        call: Box::new(call.clone()),
+                    },
+                    Caller::Member(caller) => ReadonlyDeclarationLocation::LogicalSelfMember {
+                        location: Box::new(location),
+                        caller: Box::new(caller.clone()),
+                    },
                 },
             });
         }
+        Ok(Some(targets))
+    }
+
+    async fn logical_class_member_locations_for_snapshot(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+        epoch: u64,
+    ) -> DocumentSourceResult<Option<Vec<Location>>> {
+        let Some(targets) = self
+            .logical_member_source_targets_for_snapshot(&caller, analysis, position)
+            .await?
+        else {
+            return Ok(None);
+        };
         Ok(Some(
             self.resolve_current_declaration_locations(caller, targets, epoch)
                 .await?,
         ))
+    }
+
+    async fn logical_member_source_hover(
+        &self,
+        uri: &Uri,
+        document: &DocumentState,
+        analysis: &AnalysisResult,
+        position: Position,
+    ) -> DocumentSourceResult<Option<CoreHover>> {
+        let epoch = self.diag_inputs_epoch();
+        let caller = (
+            uri.clone(),
+            document.clone(),
+            self.live_publication_uri_generation(uri),
+        );
+        let Some(targets) = self
+            .logical_member_source_targets_for_snapshot(&caller, analysis, position)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let cards = targets
+            .iter()
+            .filter_map(|target| {
+                let (ReadonlyDeclarationLocation::LogicalMember { location, .. }
+                | ReadonlyDeclarationLocation::LogicalSelfMember { location, .. }) =
+                    &target.location
+                else {
+                    return None;
+                };
+                let member = location.source_member();
+                let span = member.original_name_word()?.span();
+                let label =
+                    if member.side() == tcl_compiler::analyser::types::MemberSide::ClassObject {
+                        "classmethod"
+                    } else {
+                        "method"
+                    };
+                Some((
+                    target.uri.clone(),
+                    span,
+                    format!(
+                        "**{label}** `{}::{}` ({} param(s))",
+                        member.class().metadata().qualified_name,
+                        member.metadata().name,
+                        member.metadata().params.len()
+                    ),
+                ))
+            })
+            .collect::<Vec<_>>();
+        let mut rendered = self
+            .with_current_declaration_sources(caller, targets, epoch, |uri, _, _, span| {
+                cards
+                    .iter()
+                    .find(|(owner, selected, _)| owner == uri && *selected == span)
+                    .map(|(_, _, text)| text.clone())
+            })
+            .await?;
+        rendered.sort();
+        rendered.dedup();
+        Ok((!rendered.is_empty()).then(|| CoreHover {
+            value: format!("Possible source declarations\n\n{}", rendered.join("\n\n")),
+            kind: CoreHoverKind::Markdown,
+        }))
     }
 
     async fn logical_indexed_definition_targets(
@@ -21168,6 +21445,24 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> DocumentSourceResult<Option<CoreHover>> {
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return Ok(None);
+        };
+        if input.has_logical_source_name_context() {
+            return self
+                .logical_member_source_hover(uri, doc, analysis, pos)
+                .await;
+        }
+        // Hosted semantics remain in their separately deferred consumer. Generic
+        // source advice cannot seed this report-selected dispatch implementation.
+        if !tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+            &input.borrowed_context_registry().context().environment.id,
+        )
+        .is_some_and(
+            tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::is_appliance_hosted,
+        ) {
+            return Ok(None);
+        }
         let (class_q, method, is_classmethod, access) = match self
             .resolve_method_target(
                 uri,
@@ -25678,10 +25973,10 @@ impl Backend {
                     .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
                 out.push(serde_json::json!({
                     "extension": row.extension,
-                    "association_glob": format!(
-                        "*.{}",
-                        tcl_registry::dialects::fold_case_in_glob(&row.extension)
-                    ),
+                    "association_glob": tcl_registry::dialects::extension_globs_any_case([row.extension.as_str()])
+                            .ok()
+                            .and_then(|patterns| patterns.into_iter().next())
+                            .map(|pattern| pattern.strip_prefix("**/").unwrap_or(&pattern).to_owned()),
                     "dialect": row.dialect,
                     "language_id": language_id,
                     "display_name": row.display_name,
@@ -27278,6 +27573,8 @@ impl Backend {
         const DID_RENAME_METHOD: &str = "workspace/didRenameFiles";
 
         let extensions = tcl_registry::dialects::pack_source_extensions();
+        let watch_globs =
+            tcl_registry::dialects::extension_globs_any_case(extensions.iter().map(String::as_str));
         let had_registrations = {
             let mut current = self.pack_source_extensions.lock().await;
             if *current == extensions {
@@ -27308,49 +27605,61 @@ impl Backend {
             }
         }
 
-        let Some(watch_glob) = tcl_registry::dialects::extension_glob_any_case_opt(
-            extensions.iter().map(String::as_str),
-        ) else {
-            // Every pack extension retired; the unregisters above are the
-            // whole of the work.
-            return true;
+        let watch_globs = match watch_globs {
+            Ok(patterns) => patterns,
+            Err(reason) => {
+                self.client.log_message(MessageType::WARNING,
+                    format!("pack extensions cannot be represented as exact editor globs: {reason:?}")).await;
+                // The source-extension identity changed even though client glob
+                // registration was refused. Keep the independent index rescan.
+                return true;
+            }
         };
+
+        if watch_globs.is_empty() {
+            // Every pack extension retired; this is distinct from rendering refusal.
+            return true;
+        }
 
         let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
         let mut registrations = vec![Registration {
             id: WATCH_ID.to_owned(),
             method: WATCH_METHOD.to_owned(),
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
-                watchers: vec![FileSystemWatcher {
-                    // Case-folded per character for the same reason the static
-                    // watcher is: watcher registrations carry no
-                    // `ignoreCase` option and a client matches them
-                    // case-sensitively on Linux.
-                    glob_pattern: GlobPattern::String(watch_glob),
-                    kind: all_kinds,
-                }],
+                watchers: watch_globs
+                    .iter()
+                    .map(|watch_glob| FileSystemWatcher {
+                        // Case-folded per character for the same reason the static
+                        // watcher is: watcher registrations carry no
+                        // `ignoreCase` option and a client matches them
+                        // case-sensitively on Linux.
+                        glob_pattern: GlobPattern::String(watch_glob.clone()),
+                        kind: all_kinds,
+                    })
+                    .collect(),
             })
             .ok(),
         }];
 
-        // The rename filters take the protocol's own `ignoreCase`, so they use
-        // the plain lower-case glob — matching how `rename_file_operation_options`
-        // pairs `tcl_source_glob` with that option rather than folding case
-        // into the pattern.
+        // Rename filters use the same literal target encoding as watchers;
+        // ignoreCase remains the protocol option independently of that encoding.
         let rename_options = FileOperationRegistrationOptions {
-            filters: vec![FileOperationFilter {
-                scheme: Some("file".to_owned()),
-                pattern: FileOperationPattern {
-                    glob: format!("**/*.{{{}}}", extensions.join(",")),
-                    // `None`, exactly as the static filter leaves it: the glob
-                    // ends in an extension, so a directory cannot match it and
-                    // naming a kind would only be a second way to say so.
-                    matches: None,
-                    options: Some(FileOperationPatternOptions {
-                        ignore_case: Some(true),
-                    }),
-                },
-            }],
+            filters: watch_globs
+                .iter()
+                .map(|glob| FileOperationFilter {
+                    scheme: Some("file".to_owned()),
+                    pattern: FileOperationPattern {
+                        glob: glob.clone(),
+                        // `None`, exactly as the static filter leaves it: the glob
+                        // ends in an extension, so a directory cannot match it and
+                        // naming a kind would only be a second way to say so.
+                        matches: None,
+                        options: Some(FileOperationPatternOptions {
+                            ignore_case: Some(true),
+                        }),
+                    },
+                })
+                .collect(),
         };
         for (id, method) in [
             (WILL_RENAME_ID, WILL_RENAME_METHOD),
@@ -33846,6 +34155,8 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
+        let source_epoch = self.diag_inputs_epoch();
+        let source_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
@@ -33908,7 +34219,12 @@ impl LanguageServer for Backend {
             })));
         }
         if let std::ops::ControlFlow::Break(hover) = self
-            .original_method_hover_at(&uri, &doc.text, &analysis, pos)
+            .original_method_hover_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
+                &analysis,
+                pos,
+                source_epoch,
+            )
             .await?
         {
             return Ok(hover.map(lift_hover));
@@ -63554,14 +63870,7 @@ proc p {} {
         )
         .await;
         let defs = backend
-            .cross_file_method_definition(
-                &dog,
-                "::Dog",
-                "speak",
-                core_workspace_index::MethodAccess::External,
-                // `$d speak` — an instance dispatch, so the instance-side chain.
-                false,
-            )
+            .compute_definition(&dog, Position::new(4, 4))
             .await
             .unwrap();
         assert_eq!(defs.len(), 1, "{defs:?}");
@@ -66862,5 +67171,70 @@ mod orphan_dependency_currency_tests {
                 .unwrap()
                 .may_read_commands(&uri, &document)
         );
+    }
+}
+
+#[cfg(test)]
+mod original_method_final_source_batch_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn actual_native_member_candidate_cannot_renew_a_dependency_revision() {
+        let backend = tests::test_backend();
+        let uri: Uri = "file:///native-member-final-source.tcl".parse().unwrap();
+        let source = "oo::class create C {method member {} {return ok}}";
+        backend
+            .documents
+            .lock("native member fixture")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(source.to_owned(), "tcl8.6".to_owned()),
+            );
+        backend
+            .db_set_source(&uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let analysis = backend
+            .analysis_for(&uri, Arc::from(source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+        let document = backend.read_document(&uri).await.unwrap().unwrap();
+        let generation = backend.live_publication_uri_generation(&uri);
+        let caller = (uri.clone(), document, generation);
+        let position = Position::new(0, u32::try_from(source.find("member").unwrap()).unwrap());
+        let epoch = backend.diag_inputs_epoch();
+        let first = backend
+            .original_method_locations_for_snapshot(caller.clone(), &analysis, position, epoch)
+            .await
+            .unwrap();
+        assert!(
+            matches!(first, std::ops::ControlFlow::Break(ref locations) if locations.len() == 1)
+        );
+        let target = match backend
+            .original_method_source_target(&caller, &analysis, position)
+            .await
+            .unwrap()
+        {
+            std::ops::ControlFlow::Break(Some(target)) => target,
+            _ => panic!("actual original Native declaration source candidate"),
+        };
+        backend
+            .documents
+            .lock("same source dependency revision")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .bump_analysis_generation();
+        let stale = backend
+            .resolve_current_declaration_locations(caller, vec![target], epoch)
+            .await
+            .unwrap();
+        assert!(stale.is_empty());
     }
 }

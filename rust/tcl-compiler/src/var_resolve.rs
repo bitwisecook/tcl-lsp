@@ -504,6 +504,19 @@ pub struct PendingNamespaceRetirement {
     pub conditional: bool,
 }
 
+/// Original lexical configuration for protective source reads, independent of
+/// entered-frame, command selection, or cell identity authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub(crate) enum SourceReadConfiguration {
+    /// Explicit compatibility contexts without an original source issuer.
+    #[default]
+    Standalone,
+    /// Configuration retained at the actual original source entry.
+    Selected(tcl_lexer::LexerConfig),
+    /// Differing source configurations cannot be reconstructed from a profile.
+    Unavailable,
+}
+
 /// Per-frame scope context for resolving a variable reference.
 ///
 /// Built once per proc/method/namespace scope and reused, the same way the
@@ -534,6 +547,8 @@ pub struct ResolveContext {
     pub namespace_known: bool,
     /// Explicit core policies, independent of catalogue availability.
     pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    /// Original source lexical recipe, not a runtime or naming-policy grant.
+    pub(crate) source_read_configuration: SourceReadConfiguration,
     /// Foreign frame selected for this region, if it cannot be the current frame.
     pub selected_frame: Option<tcl_registry::FrameLevel>,
     /// Proven current activation allocation site, when supplied by source execution.
@@ -1551,6 +1566,7 @@ impl Hash for ResolveContext {
         self.authored_tmm_static.hash(state);
         self.namespace_known.hash(state);
         self.invocation_dialect.hash(state);
+        self.source_read_configuration.hash(state);
         self.selected_frame.hash(state);
         self.activation.hash(state);
         hash_set(&self.globals, state);
@@ -1623,6 +1639,7 @@ impl Default for ResolveContext {
             authored_tmm_static: None,
             namespace_known: true,
             invocation_dialect: None,
+            source_read_configuration: SourceReadConfiguration::Standalone,
             selected_frame: None,
             activation: None,
             globals: HashSet::new(),
@@ -1683,6 +1700,22 @@ impl Default for ResolveContext {
 }
 
 impl ResolveContext {
+    /// Reborrow exact original syntax; only explicit standalone utilities may
+    /// select a compatibility grammar from their independently supplied profile.
+    pub(crate) fn read_lexer_config(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<tcl_lexer::LexerConfig> {
+        match self.source_read_configuration {
+            SourceReadConfiguration::Selected(config) => Some(config),
+            SourceReadConfiguration::Unavailable => None,
+            SourceReadConfiguration::Standalone => Some(self.invocation_dialect.map_or_else(
+                || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )),
+        }
+    }
+
     /// Pure purpose-selected naming advice. This supplies no cell or native slot.
     ///
     /// # Errors
@@ -1785,8 +1818,9 @@ impl ResolveContext {
             return selected;
         }
         if let VariableExecutionFrame::Selected { selector, .. } = frame
-            && let Some(selected) = self.selected_frame_context(*selector)
+            && let Some(mut selected) = self.selected_frame_context(*selector)
         {
+            selected.source_read_configuration = self.source_read_configuration;
             return selected;
         }
         let mut selected = match frame {
@@ -1996,6 +2030,7 @@ impl ResolveContext {
             .clone_from(&self.closed_array_roots);
         selected.contents_kinds.clone_from(&self.contents_kinds);
         selected.invocation_dialect = self.invocation_dialect;
+        selected.source_read_configuration = self.source_read_configuration;
         selected.namespace_cells.clone_from(&self.namespace_cells);
         selected
             .pending_namespace_retirements
@@ -2106,6 +2141,7 @@ impl ResolveContext {
             current = current.caller.as_deref()?;
         }
         let mut selected = current.clone();
+        selected.source_read_configuration = self.source_read_configuration;
         selected.captured_cells.clone_from(&self.captured_cells);
         selected
             .possible_trace_registrations
@@ -3297,6 +3333,9 @@ impl ResolveContext {
     /// Join incoming binding states. A binding is precise only when all
     /// executable predecessors agree on the same immutable cell address.
     pub fn join(&mut self, other: &Self) {
+        if self.source_read_configuration != other.source_read_configuration {
+            self.source_read_configuration = SourceReadConfiguration::Unavailable;
+        }
         let execution_disagrees = self.execution != other.execution
             || self.interpreter != other.interpreter
             || self.hosted_execution_context != other.hosted_execution_context;
@@ -3953,10 +3992,9 @@ fn has_subst(text: &str) -> bool {
 /// Protective lexical dependencies of a dynamic index or name.
 /// Detached command text retains an unknown read rather than by-name cells.
 fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistry) -> Vec<Place> {
-    let config = ctx.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    );
+    let Some(config) = ctx.read_lexer_config(registry) else {
+        return vec![place::unknown_top()];
+    };
     let mut scanner = VarReferenceScanner::with_config(
         VarScanOptions {
             include_var_read_roles: false,
@@ -5086,10 +5124,9 @@ pub fn resolve_substitution_access(
     registry: &CommandRegistry,
     operation: tcl_registry::TraceOperation,
 ) -> Place {
-    let config = ctx.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    );
+    let Some(config) = ctx.read_lexer_config(registry) else {
+        return place::unknown_top();
+    };
     let name = tcl_syntax::naming::var_reference_for_style(spelling, config.braced_var);
     let braced = tcl_syntax::naming::split_braced_var_ref(spelling, config.braced_var).is_some();
     project_access(
@@ -6913,5 +6950,64 @@ mod namespace_simple_projection_tests {
         );
         assert_eq!(namespace_variable_simple_name(&local), None);
         assert_eq!(root_namespace_variable_simple_name(&local), None);
+    }
+}
+
+#[cfg(test)]
+mod original_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn actual_source_configuration_survives_frames_and_conflicting_join_is_unavailable() {
+        let registry = CommandRegistry::build_default();
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        config.strict_quoting = true;
+        let mut context = ResolveContext::default();
+        context.source_read_configuration = SourceReadConfiguration::Selected(config);
+        let frame = context.in_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".to_owned(),
+            identity: "actual-source-frame".to_owned(),
+        });
+        assert_eq!(frame.read_lexer_config(&registry), Some(config));
+        let names = inner_read_places("${a{b}c}", &frame, &registry);
+        assert!(names.iter().any(|place| place.name == "a{b"));
+        assert!(!names.iter().any(|place| place.name == "a{b}c"));
+        let mut alternate = frame.clone();
+        config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        alternate.source_read_configuration = SourceReadConfiguration::Selected(config);
+        let mut joined = frame;
+        joined.join(&alternate);
+        assert_eq!(joined.read_lexer_config(&registry), None);
+        assert_eq!(
+            inner_read_places("$known", &joined, &registry),
+            vec![place::unknown_top()]
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_frame_source_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn direct_selected_frame_keeps_current_script_configuration_not_caller_grammar() {
+        let registry = CommandRegistry::build_default();
+        let parent_config = tcl_lexer::LexerConfig::default();
+        let mut child_config = parent_config;
+        child_config.strict_quoting = !parent_config.strict_quoting;
+        let mut parent = ResolveContext::for_function("::parent");
+        parent.source_read_configuration = SourceReadConfiguration::Selected(parent_config);
+        let mut child = ResolveContext::for_function("::child");
+        child.source_read_configuration = SourceReadConfiguration::Selected(child_config);
+        child.caller = Some(std::sync::Arc::new(parent));
+        let selected = child
+            .selected_frame_context(FrameLevel::Relative(1))
+            .unwrap();
+        assert_eq!(selected.read_lexer_config(&registry), Some(child_config));
+        assert_eq!(
+            child.caller.as_ref().unwrap().read_lexer_config(&registry),
+            Some(parent_config)
+        );
     }
 }

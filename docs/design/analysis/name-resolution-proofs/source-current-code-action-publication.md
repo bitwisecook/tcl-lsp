@@ -47,3 +47,26 @@ provider replacement. Editor controls cover the actual checked source writer,
 original-document selection, one-use receipts, edit/revert ABA, bare rename
 coordinates and a source change during provider await. These controls require
 ordinary execution; source inspection alone establishes no passing result.
+
+
+## Current index binding
+
+Stable proof ID: `naming.editor.original-code-action-source-publication`.
+
+## Problem statement
+
+Versionless editor conversion can discard the server source/version intent of a code action.
+
+## Question
+
+How do ordinary server and editor code actions retain their actual source and session through publication and checked application?
+
+## Conclusion
+
+Server publication captures the actual source/input/provider owners and versioned document changes. Existing editor middleware retains that exact plan under a one-use local action receipt and the original checked document writer rejoins source/session/settings before application.
+
+## Scope
+
+Ordinary Tcl action currency and transport only. Core edit-subject/equivalence guards remain independent; dedicated BIG-IP adapters and Native execution are not admitted by this record.
+
+All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.

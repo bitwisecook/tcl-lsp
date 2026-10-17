@@ -44,6 +44,47 @@ pub struct LogicalSourceMemberDeclaration {
     method: MethodDef,
 }
 
+/// A written self-selector joined to its actual callable source member body.
+/// This carries conditional source advice, not an entered receiver or MRO entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalSourceSelfSelector {
+    caller: LogicalSourceMemberDeclaration,
+    command_start: u32,
+    selector: tcl_lexer::NativeWord,
+    relations: Vec<
+        LogicalSourceRelationStatement<
+            crate::command_binding::LogicalSourceClassRelationCandidates,
+        >,
+    >,
+}
+impl LogicalSourceSelfSelector {
+    /// Actual retained declaring class and side of the surrounding member body.
+    #[must_use]
+    pub fn caller(&self) -> &LogicalSourceMemberDeclaration {
+        &self.caller
+    }
+    /// Original whole selector operand; no evaluated selector is manufactured.
+    #[must_use]
+    pub fn original_selector(&self) -> &tcl_lexer::NativeWord {
+        &self.selector
+    }
+    /// Actual original relation statements and their unresolved-source debt.
+    /// These supply conditional alternatives, never a loaded relation census.
+    #[must_use]
+    pub fn relations(
+        &self,
+    ) -> &[LogicalSourceRelationStatement<
+        crate::command_binding::LogicalSourceClassRelationCandidates,
+    >] {
+        &self.relations
+    }
+    /// Actual selected original invocation head offset for index membership.
+    #[must_use]
+    pub const fn command_start(&self) -> u32 {
+        self.command_start
+    }
+}
+
 /// One actual Registry relation slot operation with independently selected operands.
 /// The carrier preserves source order and grants no executed member-table effect.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -392,12 +433,12 @@ impl AnalysisResult {
             .original_members
             .logical_name_operand(side, method, &class_owner.input, &class_owner.image)?
             .clone();
-        let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(&original)?;
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(&original)?;
         if value.contains(&0) || value.as_slice() != method.name.as_bytes() {
             return None;
         }
         let name = String::from_utf8(value).ok()?;
-        let word = tcl_syntax::word_rules::lexical_ascii_source_word(&name, config)?;
+        let word = tcl_syntax::word_rules::lexical_unicode_source_word(&name, config)?;
         Some(LogicalSourceMemberInsertion { name, word })
     }
 
@@ -538,33 +579,39 @@ impl AnalysisResult {
         selected
     }
 
-    fn logical_self_selector_at(
+    /// Retain the genuine Registry self-dispatch operand and original member
+    /// catalogue body, independently of entered receiver-frame availability.
+    #[must_use]
+    pub fn logical_source_self_selector_at(
         &self,
-        image: &SourceImage,
-        config: tcl_lexer::LexerConfig,
+        source: &str,
         cursor: u32,
-        input: &ResolvedAnalysisInput,
-    ) -> Option<LogicalSourceMemberDeclaration> {
+    ) -> Option<LogicalSourceSelfSelector> {
+        let image = SourceImage::document(source);
+        let input = self.resolved_input.as_ref()?;
+        let config = input.lexer_config();
+        (self.allows_retained_logical_declaration_advice()
+            && self.matches_original_source_image(&image, config))
+        .then_some(())?;
         let realm = self.retained_command_realm()?;
         let registry = self.resolved_registry()?;
         let bindings = realm.source_bindings_ref();
-        let contains =
-            |word: &tcl_lexer::NativeWord| word.span().as_range().contains(&(cursor as usize));
         let mut selected = None;
-        let caller = self.logical_source_member_frame_at(image, config, cursor)?;
-        let caller_class = self.logical_source_member_class(&caller)?;
         for invocation in &self.command_invocations {
             let Some(command) = bindings.original_logical_source_command_at_in_source(
                 input,
-                image,
+                &image,
                 invocation.range.start(),
                 config,
             ) else {
                 continue;
             };
-            let Some(selector) = command.native_words().get(1).filter(|word| contains(word)) else {
+            let Some(selector) = command.native_words().get(1).filter(|word| {
+                !word.group().expand && word.span().start() <= cursor && cursor < word.span().end()
+            }) else {
                 continue;
             };
+            tcl_syntax::word_rules::original_static_word_unicode_value(selector)?;
             let mut tokens = crate::ir::CommandTokens::from_segmented(
                 &image.source_map(),
                 config,
@@ -588,39 +635,76 @@ impl AnalysisResult {
             {
                 return None;
             }
-            let selector_value =
-                tcl_syntax::word_rules::original_static_word_unicode_value(selector)?;
-            for class in self.all_classes.values() {
-                let Some(owner) = self.logical_source_class_declaration(class) else {
-                    continue;
-                };
-                for (side, members) in [
-                    (MemberSide::Instance, &class.methods),
-                    (MemberSide::ClassObject, &class.class_methods),
-                ] {
-                    if !std::ptr::eq(class, caller_class) || side != caller.side() {
-                        continue;
-                    }
-                    for method in members.values() {
-                        let Some(name) = class
-                            .original_members
-                            .logical_name_operand(side, method, input, image)
-                        else {
-                            continue;
-                        };
-                        if tcl_syntax::word_rules::original_static_word_unicode_value(name).as_ref()
-                            != Some(&selector_value)
-                        {
-                            continue;
-                        }
-                        let member = owner.member(side, method)?;
-                        if selected.is_some() {
-                            return None;
-                        }
-                        selected = Some(member);
-                    }
-                }
+            let body = crate::registry_invocation::source_structure::source_registry_words_at(
+                source, self, invocation.range.start(),
+            ).and_then(|words| match words.source() {
+                crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) =>
+                    advice.original_definition_member_source_body().cloned(),
+                _ => None,
+            }).or_else(|| {
+                crate::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(
+                    source, self, invocation.range.start(),
+                ).and_then(|candidate| candidate.original_member_source_body().cloned())
+            })?;
+            let caller = self.logical_source_member_for_original_body(&body)?;
+            if selected.is_some() {
+                return None;
             }
+            let relations = if caller.side() == MemberSide::Instance {
+                self.logical_source_class_relation_candidates(
+                    self.logical_source_member_class(&caller)?,
+                )?
+            } else {
+                Vec::new()
+            };
+            selected = Some(LogicalSourceSelfSelector {
+                relations,
+                caller,
+                command_start: invocation.range.start(),
+                selector: selector.clone(),
+            });
+        }
+        selected
+    }
+
+    fn logical_self_selector_at(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        cursor: u32,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<LogicalSourceMemberDeclaration> {
+        (config == input.lexer_config() && self.resolved_input.as_ref() == Some(input))
+            .then_some(())?;
+        let request = self.logical_source_self_selector_at(image.try_text().ok()?, cursor)?;
+        let class = self.logical_source_member_class(request.caller())?;
+        let owner = self.logical_source_class_declaration(class)?;
+        let selector = tcl_syntax::word_rules::original_static_word_unicode_value(
+            request.original_selector(),
+        )?;
+        let members = match request.caller().side() {
+            MemberSide::Instance => &class.methods,
+            MemberSide::ClassObject => &class.class_methods,
+        };
+        let mut selected = None;
+        for method in members.values() {
+            let Some(name) = class.original_members.logical_name_operand(
+                request.caller().side(),
+                method,
+                input,
+                image,
+            ) else {
+                continue;
+            };
+            if tcl_syntax::word_rules::original_static_word_unicode_value(name).as_ref()
+                != Some(&selector)
+            {
+                continue;
+            }
+            if selected.is_some() {
+                return None;
+            }
+            selected = owner.member(request.caller().side(), method);
         }
         selected
     }
@@ -1509,5 +1593,42 @@ mod logical_class_object_source_visibility_tests {
             .member(MemberSide::Instance, &class.methods["ping"])
             .unwrap();
         assert!(member.class_object_source_visibility().is_none());
+    }
+}
+
+#[cfg(test)]
+mod unicode_member_insertion_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_unicode_member_names_use_configured_source_construction() {
+        for source in [
+            "oo::class create C {method café {} {}}",
+            "oo::class create C {method {two café words} {} {}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let class = &analysis.all_classes["::C"];
+            let method = class.methods.values().next().unwrap();
+            let insertion = analysis
+                .logical_source_member_insertion(class, MemberSide::Instance, method)
+                .unwrap();
+            assert_eq!(insertion.name(), method.name);
+            assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                insertion.source_word(),
+                &method.name,
+                analysis.body_lexer_config.unwrap()
+            ));
+            assert!(
+                analysis
+                    .logical_source_member_insertion(class, MemberSide::ClassObject, method)
+                    .is_none()
+            );
+            assert!(
+                analysis
+                    .logical_source_member_insertion(class, MemberSide::Instance, &method.clone())
+                    .is_none()
+            );
+        }
     }
 }

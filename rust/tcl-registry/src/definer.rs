@@ -2421,6 +2421,7 @@ impl DefinitionBodyGrammar {
             args.len(),
             &|index| args.get(index).map(AsRef::as_ref),
             dialect,
+            false,
         )
     }
 
@@ -2429,18 +2430,20 @@ impl DefinitionBodyGrammar {
         count: usize,
         word_at: &dyn Fn(usize) -> Option<&'w [u8]>,
         dialect: Option<SurfaceQuery<'_>>,
+        source_layout: bool,
     ) -> Option<Vec<SourcePropertyDeclaration>> {
         use crate::commands::tcl::{
             TclOoPropertyKind, TclOoPropertyOption, resolve_tcloo_property_kind,
             resolve_tcloo_property_option,
         };
-        let dialect = Some(dialect?);
+        let dialect = if source_layout { None } else { Some(dialect?) };
         let member = self.member("property")?;
         if self.family != DefinerFamily::TclOo
             || member.kind != MemberKind::FlagKeyed
-            || member
-                .surface
-                .is_some_and(|surface| !surface_admits(surface, dialect.as_ref()))
+            || (!source_layout
+                && member
+                    .surface
+                    .is_some_and(|surface| !surface_admits(surface, dialect.as_ref())))
         {
             return None;
         }
@@ -3373,6 +3376,7 @@ impl DefinitionBodyGrammar {
                 dialect,
                 &|candidate| candidate == role,
                 false,
+                false,
             )?
             .into_iter()
             .map(SourceDefinitionMemberScriptArgument::argument)
@@ -3487,6 +3491,7 @@ impl DefinitionBodyGrammar {
             dialect,
             admit,
             false,
+            false,
         )
         .unwrap_or_default()
         .into_iter()
@@ -3530,6 +3535,7 @@ impl DefinitionBodyGrammar {
             dialect,
             &ArgRole::carries_script,
             false,
+            false,
         )
     }
 
@@ -3548,6 +3554,27 @@ impl DefinitionBodyGrammar {
             dialect,
             &ArgRole::carries_script,
             true,
+            false,
+        )
+    }
+
+    /// Complete source script layout from this grammar's authored member geometry,
+    /// independent of whether the selected interpreter release installs that
+    /// member. This reports operand roles only; it grants no dispatch or
+    /// execution authority.
+    #[must_use]
+    pub fn source_member_script_layout_arguments(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+    ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
+        self.source_member_indices_where(
+            std::str::from_utf8(keyword).ok()?,
+            args,
+            None,
+            &ArgRole::carries_script,
+            true,
+            true,
         )
     }
 
@@ -3558,9 +3585,15 @@ impl DefinitionBodyGrammar {
         dialect: Option<SurfaceQuery<'_>>,
         admit: &dyn Fn(ArgRole) -> bool,
         complete: bool,
+        source_layout: bool,
     ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
         let count = args.exact_argv_len()?;
-        let Some(member) = self.source_member_in(keyword.as_bytes(), dialect) else {
+        let member = if source_layout {
+            self.member(keyword)
+        } else {
+            self.source_member_in(keyword.as_bytes(), dialect)
+        };
+        let Some(member) = member else {
             return (!complete).then(Vec::new);
         };
         let word_at = |index| {
@@ -3575,10 +3608,10 @@ impl DefinitionBodyGrammar {
                 let word = word_at(usize::from(optional.position))?;
                 let known = optional.value_for_word_in(word, None);
                 let admitted = optional.value_for_word_in(word, dialect);
-                if known.is_some() && admitted.is_none() {
+                if !source_layout && known.is_some() && admitted.is_none() {
                     return (!complete).then(Vec::new);
                 }
-                admitted
+                if source_layout { known } else { admitted }
             } else {
                 None
             }
@@ -3634,7 +3667,8 @@ impl DefinitionBodyGrammar {
                 if let Ok(inner) = std::str::from_utf8(inner)
                     && self.member(inner).is_some()
                 {
-                    if self.source_member_in(inner.as_bytes(), dialect).is_none() {
+                    if !source_layout && self.source_member_in(inner.as_bytes(), dialect).is_none()
+                    {
                         return (!complete).then(Vec::new);
                     }
                     let mut indices = self
@@ -3644,6 +3678,7 @@ impl DefinitionBodyGrammar {
                             dialect,
                             admit,
                             complete,
+                            source_layout,
                         )?
                         .into_iter()
                         .map(|mut argument| {
@@ -3675,7 +3710,7 @@ impl DefinitionBodyGrammar {
                 }
             }
             MemberKind::FlagKeyed => self
-                .source_property_declarations_where(count, &word_at, dialect)?
+                .source_property_declarations_where(count, &word_at, dialect, source_layout)?
                 .into_iter()
                 .flat_map(|declaration| declaration.selected_indices_where(admit))
                 .map(script_argument)

@@ -24,6 +24,7 @@
 // browser, the pack's export, the file tray, the GitHub issue, and the
 // package importer.
 
+import { artifactIssueSection } from "./packExport.js";
 import {
   byId,
   clear,
@@ -212,6 +213,12 @@ interface PackState {
 interface Visit {
   name: string;
   where: "pack" | "registry";
+  dialect: string;
+  wasm: StudioWasm;
+  index: IndexEntry[];
+  pack: PackState;
+  source: string;
+  view: PackStoreView | null;
 }
 
 interface State {
@@ -261,6 +268,54 @@ let editors: Record<string, Editor>;
 let packExport: PackExport | null = null;
 /** Exact DSL source that produced `packExport`; kept with stale exports until replaced. */
 let packExportSource: string | null = null;
+interface ExportPublication {
+  result: PackExport;
+  source: string;
+  dialect: string;
+  directory: string;
+  wasm: StudioWasm;
+  document: PackState;
+  view: PackStoreView;
+}
+let exportPublication: ExportPublication | null = null;
+const stagedExportOwners = new WeakMap<
+  StagedFile,
+  { publication: ExportPublication; file: ExportFile; source: string }
+>();
+
+function currentExportPublication(): ExportPublication | null {
+  const held = exportPublication;
+  return held &&
+    held.result === packExport &&
+    held.wasm === wasm &&
+    held.document === state.pack &&
+    held.source === state.pack.source &&
+    held.source === byId<HTMLTextAreaElement>("dslText").value &&
+    held.view === state.pack.view &&
+    held.view.dialect === held.dialect &&
+    held.dialect === state.dialect &&
+    held.directory === packDir()
+    ? held
+    : null;
+}
+
+function exportCanPublish(): boolean {
+  const held = currentExportPublication();
+  if (
+    !held ||
+    !held.result.commands ||
+    !Array.isArray(held.result.collisions) ||
+    held.result.collisions.length !== 0
+  )
+    return false;
+  const paths = new Set<string>();
+  return visibleFiles(held.result.files, stubView()).every((file) => {
+    if (paths.has(file.path)) return false;
+    paths.add(file.path);
+    return true;
+  });
+}
+
 const generatedOutputOrigins = new GeneratedOutputOrigins();
 let shownExportPath: string | null = null;
 /**
@@ -1356,11 +1411,47 @@ function renderExport(): void {
     exportTimer = undefined;
   }
   const source = state.pack.source;
+  const dialect = state.dialect;
+  const directory = packDir();
+  const provider = wasm;
+  const document = state.pack;
+  const view = state.pack.view;
   try {
-    const rendered = unwrap<PackExport>(wasm.pack_export(source, packDir(), state.dialect));
+    if (
+      !view ||
+      view.dialect !== dialect ||
+      source !== byId<HTMLTextAreaElement>("dslText").value
+    ) {
+      throw new Error("the original pack source is not currently loaded");
+    }
+    const rendered = unwrap<PackExport>(provider.pack_export(source, directory, dialect));
+    if (
+      provider !== wasm ||
+      document !== state.pack ||
+      source !== state.pack.source ||
+      dialect !== state.dialect ||
+      directory !== packDir() ||
+      rendered.dialect !== dialect ||
+      view !== state.pack.view
+    ) {
+      throw new Error("the export source context changed");
+    }
     packExport = rendered;
     packExportSource = source;
+    exportPublication = {
+      result: rendered,
+      source,
+      dialect,
+      directory,
+      wasm: provider,
+      document,
+      view,
+    };
   } catch (e) {
+    packExport = null;
+    packExportSource = null;
+    exportPublication = null;
+    renderExportList();
     setStatus("exportSummary", `could not export the pack: ${message(e)}`, "err");
     return;
   }
@@ -1369,7 +1460,8 @@ function renderExport(): void {
 
 /** Every file the pane is currently offering, in list order. */
 function listedExportFiles(): ExportFile[] {
-  return packExport ? visibleFiles(packExport.files, stubView()) : [];
+  const held = currentExportPublication();
+  return held ? visibleFiles(held.result.files, stubView()) : [];
 }
 
 /** Where in the list the reader is, or -1 when they are nowhere. */
@@ -1399,10 +1491,13 @@ function exportRowId(path: string, at: number): string {
 }
 
 function renderExportList(): void {
-  const exp = packExport;
+  const exp = currentExportPublication()?.result;
   const list = byId("exportList");
   clear(list);
-  if (!exp) return;
+  if (!exp) {
+    setExportActionsEnabled(false);
+    return;
+  }
 
   const files = listedExportFiles();
   setStatus("exportSummary", exportSummary(exp, dialectLabel(state.dialect), files.length));
@@ -1422,7 +1517,7 @@ function renderExportList(): void {
   empty.hidden = exp.commands > 0;
   empty.textContent = exp.commands ? "" : emptyExportNotice(exp);
   byId("exportBody").hidden = exp.commands === 0;
-  setExportActionsEnabled(exp.commands > 0);
+  setExportActionsEnabled(exportCanPublish());
   if (!exp.commands) {
     shownExportPath = null;
     shownExportIndex = -1;
@@ -1564,15 +1659,46 @@ function addFile(path: string, source: string): void {
  * be the same signatures twice in one issue.
  */
 function stageExport(): void {
+  const held = currentExportPublication();
   const files = listedExportFiles();
-  if (!files.length) {
-    setStatus("status", "there is nothing to stage yet", "err");
+  if (!held || !exportCanPublish() || !files.length) {
+    setStatus("status", "the current export is unavailable or has colliding target files", "err");
     return;
   }
+  const staged: Array<{ file: ExportFile; previous?: StagedFile }> = [];
   for (const file of files) {
-    const existing = state.files.find((staged) => staged.path === file.path);
-    if (existing) existing.source = file.source;
-    else state.files.push({ path: file.path, source: file.source });
+    if (!held.result.files.includes(file)) return;
+    const matches = state.files.filter((previous) => previous.path === file.path);
+    if (matches.length > 1) return;
+    const previous = matches[0];
+    const owner = previous && stagedExportOwners.get(previous);
+    if (
+      previous &&
+      previous.source !== file.source &&
+      (!owner ||
+        owner.publication.document !== held.document ||
+        owner.publication.wasm !== held.wasm ||
+        owner.publication.dialect !== held.dialect ||
+        owner.publication.directory !== held.directory ||
+        owner.file.kind !== file.kind ||
+        owner.file.command !== file.command ||
+        previous.source !== owner.source)
+    ) {
+      setStatus(
+        "status",
+        `remove the independently staged ${file.path} before replacing it`,
+        "err",
+      );
+      return;
+    }
+    staged.push({ file, previous });
+  }
+  if (currentExportPublication() !== held) return;
+  for (const { file, previous } of staged) {
+    const destination = previous ?? { path: file.path, source: file.source };
+    destination.source = file.source;
+    if (!previous) state.files.push(destination);
+    stagedExportOwners.set(destination, { publication: held, file, source: file.source });
   }
   renderFiles();
   setStatus("status", `${files.length} file(s) staged in Files & issue`, "ok");
@@ -1622,9 +1748,7 @@ function issueBody(): string {
     "",
   ];
   for (const file of state.files) {
-    const ext = file.path.slice(file.path.lastIndexOf(".") + 1);
-    const lang = ext === "rs" ? "rust" : ext === "stubs" || ext === "tcl" ? "tcl" : "";
-    parts.push(`### \`${file.path}\``, "", "```" + lang, file.source.replace(/\r/g, ""), "```", "");
+    parts.push(artifactIssueSection(file), "");
   }
   return parts.join("\n");
 }
@@ -1944,11 +2068,7 @@ function renderTestReport(): void {
   const s = report.summary;
   if (report.source_available === false || !report.tokens || !s) {
     byId("testSummary").textContent = "Sample source analysis unavailable.";
-    setStatus(
-      "testStatus",
-      "sample source analysis is unavailable",
-      "err",
-    );
+    setStatus("testStatus", "sample source analysis is unavailable", "err");
     return;
   }
   byId("testSummary").textContent =
@@ -1981,17 +2101,62 @@ function insertSampleCall(): void {
     setStatus("testStatus", "the pack has no commands to call yet", "err");
     return;
   }
-  let min = 0;
+  const provider = wasm;
+  const packSource = state.pack.source;
+  const view = state.pack.view;
+  const dialect = state.dialect;
+  const sampleSource = byId<HTMLTextAreaElement>("testText").value;
   try {
-    const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
-    const arity = asRecord(asRecord(view.pack ?? {}).arity);
-    min = typeof arity.min === "number" ? arity.min : 0;
-  } catch {
-    min = 0;
+    if (
+      !view ||
+      view.dialect !== dialect ||
+      packSource !== byId<HTMLTextAreaElement>("dslText").value
+    ) {
+      throw new Error("the original pack source is not currently loaded");
+    }
+    const rendered = unwrap<{
+      source: string;
+      call_source: string;
+      sample_source: string;
+      pack_source: string;
+      name: string;
+      dialect: string;
+      minimum_arguments: number;
+      declaration_line: number;
+      origin: string;
+      expanded: boolean;
+    }>(provider.sample_call_source(packSource, name, dialect, sampleSource));
+    if (
+      rendered.pack_source !== packSource ||
+      rendered.sample_source !== sampleSource ||
+      rendered.name !== name ||
+      rendered.dialect !== dialect ||
+      typeof rendered.source !== "string" ||
+      typeof rendered.call_source !== "string" ||
+      !rendered.call_source.endsWith("\n") ||
+      !rendered.source.startsWith(sampleSource) ||
+      !rendered.source.endsWith(rendered.call_source) ||
+      !Number.isSafeInteger(rendered.minimum_arguments) ||
+      rendered.minimum_arguments < 0 ||
+      !Number.isSafeInteger(rendered.declaration_line) ||
+      rendered.declaration_line < 1 ||
+      typeof rendered.origin !== "string" ||
+      typeof rendered.expanded !== "boolean" ||
+      provider !== wasm ||
+      state.pack.view !== view ||
+      byId<HTMLTextAreaElement>("dslText").value !== packSource ||
+      state.pack.source !== packSource ||
+      state.dialect !== dialect ||
+      (state.pack.open ?? state.pack.view?.commands[0]?.name) !== name ||
+      byId<HTMLTextAreaElement>("testText").value !== sampleSource
+    ) {
+      throw new Error("the selected sample source context is unavailable");
+    }
+    writeSample(rendered.source);
+  } catch (e) {
+    setStatus("testStatus", `could not insert the selected call: ${message(e)}`, "err");
+    return;
   }
-  const args = Array.from({ length: min }, (_, i) => `arg${i + 1}`).join(" ");
-  const text = byId<HTMLTextAreaElement>("testText").value.replace(/\s*$/, "");
-  writeSample(`${text ? `${text}\n` : ""}${name}${args ? ` ${args}` : ""}\n`);
   runTest();
 }
 
@@ -2557,10 +2722,25 @@ function choosePalette(index: number): void {
 }
 
 /** Record a command as visited, unless history itself is doing the opening. */
-function pushHistory(visit: Visit): void {
+function pushHistory(selected: Pick<Visit, "name" | "where">): void {
   if (navigating) return;
+  const visit: Visit = {
+    ...selected,
+    dialect: state.dialect,
+    wasm,
+    index: state.index,
+    pack: state.pack,
+    source: state.pack.source,
+    view: state.pack.view,
+  };
   const current = state.history[state.historyAt];
-  if (current && current.name === visit.name && current.where === visit.where) return;
+  if (
+    current &&
+    visitIsCurrent(current) &&
+    current.name === visit.name &&
+    current.where === visit.where
+  )
+    return;
   // A new move truncates whatever was ahead — the browser's own rule, and
   // `pushState` applies it to the session history at the same moment.
   state.history = state.history.slice(0, state.historyAt + 1);
@@ -3162,7 +3342,7 @@ function openCommandName(): string | null {
 
 /** The route for a visited command. */
 function visitRoute(visit: Visit): Route {
-  return { view: "command", dialect: state.dialect, command: visit.name, field: null };
+  return { view: "command", dialect: visit.dialect, command: visit.name, field: null };
 }
 
 /**
@@ -3239,10 +3419,36 @@ function routedField(key: string | null): string | null {
   return key === null ? null : ownerField(state.schema, key);
 }
 
+/** A remembered source view never borrows another dialect/provider's labels. */
+function visitIsCurrent(visit: Visit): boolean {
+  return (
+    visit.wasm === wasm &&
+    visit.dialect === state.dialect &&
+    visit.index === state.index &&
+    visit.pack === state.pack &&
+    visit.source === state.pack.source &&
+    visit.view === state.pack.view &&
+    visit.source === byId<HTMLTextAreaElement>("dslText").value
+  );
+}
+
 /** Open the visit at `at` without recording it as a new one. */
 function openVisit(at: number): void {
   const visit = state.history[at];
   if (!visit) return;
+  if (!visitIsCurrent(visit)) {
+    // Reselect the explicit address under its own dialect as a fresh route;
+    // this does not relabel the retained historical view as current.
+    state.historyAt = at;
+    navigating = true;
+    try {
+      applyRoute(visitRoute(visit), true);
+    } finally {
+      navigating = false;
+    }
+    renderHistoryButtons();
+    return;
+  }
   state.historyAt = at;
   navigating = true;
   try {
@@ -3255,9 +3461,13 @@ function openVisit(at: number): void {
 }
 
 /** Restore whatever a fragment names — on load, and on an untagged popstate. */
-function applyRoute(route: Route): void {
+function applyRoute(route: Route, reselect = false): void {
   if (route.view === "reference") {
     openReferenceEntry(route.catalogue, route.variant);
+    return;
+  }
+  if (!dialectLabels.has(route.dialect)) {
+    setStatus("status", `the route's dialect ${route.dialect} is unavailable`, "err");
     return;
   }
   if (route.dialect !== state.dialect && dialectLabels.has(route.dialect)) {
@@ -3266,7 +3476,7 @@ function applyRoute(route: Route): void {
     byId<HTMLSelectElement>("dialect").value = route.dialect;
     byId("dialect").dispatchEvent(new Event("change"));
   }
-  if (openCommandName() !== route.command) openCommand(route.command);
+  if (reselect || openCommandName() !== route.command) openCommand(route.command);
   else selectTab("editor");
   if (route.field) revealField(route.field);
   else {
@@ -3287,14 +3497,21 @@ function bindRouting(): void {
     const restore = restoreFor(
       route,
       visit,
-      (visit === null ? null : state.history[visit]?.name) ?? null,
+      (visit === null
+        ? null
+        : (() => {
+            const retained = state.history[visit];
+            return retained && retained.dialect === route.dialect && visitIsCurrent(retained)
+              ? retained.name
+              : null;
+          })()) ?? null,
     );
     if (restore.kind === "visit") {
       openVisit(restore.visit);
       if (restore.field) revealField(restore.field);
       return;
     }
-    if (restore.kind === "route") applyRoute(restore.route);
+    if (restore.kind === "route") applyRoute(restore.route, visit !== null);
   });
 }
 
@@ -3617,13 +3834,21 @@ function bindUi(): void {
 
   byId("exportCopy").addEventListener("click", () => {
     const file = shownExportFile();
-    if (file) copyText(file.source, "status");
+    if (file && exportCanPublish()) copyText(file.source, "status");
   });
   byId("exportDownload").addEventListener("click", () => {
     const file = shownExportFile();
-    if (file) download(file.path, file.source);
+    if (file && exportCanPublish()) download(file.path, file.source);
   });
-  byId("exportDownloadAll").addEventListener("click", () => downloadAll(listedExportFiles()));
+  byId("exportDownloadAll").addEventListener("click", () => {
+    const held = currentExportPublication();
+    if (held && exportCanPublish()) {
+      downloadAll(
+        listedExportFiles(),
+        () => currentExportPublication() === held && exportCanPublish(),
+      );
+    }
+  });
   byId("exportStage").addEventListener("click", stageExport);
   byId("exportList").addEventListener("keydown", (event) => {
     const moves: Record<string, number | "first" | "last"> = {

@@ -166,7 +166,7 @@ impl LogicalSourceProcedureDeclaration {
     pub fn source_word(&self, config: LexerConfig) -> Option<String> {
         let value =
             tcl_syntax::naming::authored_source_command_spelling(self.body.summary_coordinate())?;
-        tcl_syntax::word_rules::lexical_ascii_source_word(&value, config)
+        tcl_syntax::word_rules::lexical_unicode_source_word(&value, config)
     }
 
     /// Current original body geometry for source readers. This does not
@@ -838,5 +838,51 @@ mod empty_body_header_tests {
                     .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod unicode_procedure_insertion_controls {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_unicode_procedure_coordinate_is_source_data_not_display_label() {
+        let source = "namespace eval N {proc café {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let procedure = &analysis.all_procs["::N::café"];
+        let declaration = analysis
+            .logical_source_procedure_declaration(procedure)
+            .unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let word = declaration.source_word(config).unwrap();
+        assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+            &word,
+            "::N::café",
+            config
+        ));
+        assert!(
+            analysis
+                .logical_source_procedure_declaration(&procedure.clone())
+                .is_none()
+        );
+        let mut labels = analysis.clone();
+        labels
+            .all_procs
+            .get_mut("::N::café")
+            .unwrap()
+            .qualified_name = "::foreign::label".into();
+        let declaration = labels
+            .logical_source_procedure_declaration(&labels.all_procs["::N::café"])
+            .unwrap();
+        assert_eq!(
+            declaration.source_word(config).as_deref(),
+            Some(word.as_str())
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            native
+                .logical_source_procedure_declaration(&native.all_procs["::N::café"])
+                .is_none()
+        );
     }
 }

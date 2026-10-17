@@ -2404,6 +2404,13 @@ pub fn original_package_require_insert_offset(
         .matches_original_source_image(&image, config)
         .then_some(())?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
+    let source_end = u32::try_from(source.len()).ok()?;
+    let original_commands = tcl_lexer::native_script_words_in(
+        image.clone(),
+        tcl_lexer::Span::new(0, source_end),
+        config,
+    )
+    .ok()?;
     let mut end =
         if config.leading_bom == tcl_lexer::LeadingBom::Skip && source.starts_with('\u{feff}') {
             3
@@ -2416,12 +2423,30 @@ pub fn original_package_require_insert_offset(
             .find('\n')
             .map_or(source.len(), |newline| end + newline + 1);
     }
-    for segment in crate::segmenter::segment_commands_with_offset_and_config(source, 0, config) {
+    for (command_index, segment) in
+        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .enumerate()
+    {
         let Some(words) = source_registry_words(source, analysis, &segment) else {
             break;
         };
         let head = words.head_source()?.word()?;
         let start = usize::try_from(head.span().start()).ok()?;
+        let original = original_commands.commands.get(command_index)?;
+        let source_extent = original.source_extent?;
+        if original.span.start() != segment.span.start()
+            || original.span.end() < segment.execution_span(source).end()
+            || source_extent.start() != segment.span.start()
+        {
+            return None;
+        }
+        let insertion_end = match original.terminator {
+            Some(terminator) if terminator.start() == source_extent.end() => terminator.end(),
+            Some(_) => return None,
+            None if source_extent.end() == source_end => source_extent.end(),
+            None => return None,
+        };
         if start < end {
             continue;
         }
@@ -2432,21 +2457,7 @@ pub fn original_package_require_insert_offset(
         {
             break;
         }
-        let last = words
-            .operands()
-            .iter()
-            .flatten()
-            .filter_map(OriginalOperandSource::word)
-            .map(|word| word.span().end())
-            .max()?;
-        let mut after = usize::try_from(last).ok()?;
-        while after < source.len() && source.as_bytes()[after] != b'\n' {
-            after += 1;
-        }
-        if after < source.len() {
-            after += 1;
-        }
-        end = after;
+        end = usize::try_from(insertion_end).ok()?;
     }
     u32::try_from(end).ok()
 }
@@ -5965,6 +5976,17 @@ set x 1
                 .is_none()
             );
         }
+    }
+
+    #[test]
+    fn original_package_insertion_includes_actual_command_terminator() {
+        let source = "package require bar; http::get /resource\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let after_semicolon = source.find(';').unwrap() + 1;
+        assert_eq!(
+            super::original_package_require_insert_offset(source, &analysis),
+            Some(u32::try_from(after_semicolon).unwrap())
+        );
     }
 }
 

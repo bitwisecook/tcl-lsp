@@ -3364,8 +3364,8 @@ pub fn serialise_structural_index(
         )
     }
 
-    let brackets = BracketIndex::build(source);
-    let braces = BraceIndex::build(source);
+    let brackets = BracketIndex::build_with_config(source, config);
+    let braces = BraceIndex::build_with_config(source, config);
     let boundaries: Vec<Value> = command_boundaries(source)
         .iter()
         .map(|&off| pos(li, off))

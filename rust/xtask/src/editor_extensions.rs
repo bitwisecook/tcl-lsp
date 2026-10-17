@@ -399,7 +399,8 @@ fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
 /// in selectable order, then the extra languages.
 pub fn languages() -> Result<Vec<Language>> {
     let root = repo_root();
-    let set = tcl_spectcl::bundled::load_from(&root.join("specs"));
+    let set = tcl_spectcl::bundled::load_from_required(&root.join("specs"))
+        .map_err(anyhow::Error::msg)?;
     let registry = EnvironmentRegistry::compiled();
     let lenient = registry
         .resolve(LENIENT_ENVIRONMENT_ID)
@@ -584,7 +585,12 @@ fn contributed_language(lang: &Language, configuration: &str) -> Value {
                 Value::Array(
                     lang.filenames
                         .iter()
-                        .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
+                        .map(|name| {
+                            Value::String(
+                                tcl_registry::dialects::literal_basename_glob_any_case(name)
+                                    .expect("catalogue basename must have an exact editor glob"),
+                            )
+                        })
                         .collect(),
                 ),
             );
@@ -1010,8 +1016,16 @@ fn render_jetbrains(original: &str, langs: &[Language]) -> Result<String> {
         .filter(|l| !is_irule(l))
         .flat_map(|l| l.extensions.clone())
         .collect();
-    let text = set_jetbrains_filetype_extensions(original, "Tcl", &main.join(";"))?;
-    set_jetbrains_filetype_extensions(&text, "iRule", &irule.join(";"))
+    let text = set_jetbrains_filetype_extensions(
+        original,
+        "Tcl",
+        &crate::util::source_literals::xml_extension_list(&main)?,
+    )?;
+    set_jetbrains_filetype_extensions(
+        &text,
+        "iRule",
+        &crate::util::source_literals::xml_extension_list(&irule)?,
+    )
 }
 
 /// Every registered extension, for the single-syntax editors.
@@ -1025,7 +1039,11 @@ pub fn all_extensions(langs: &[Language]) -> Vec<String> {
 fn render_jetbrains_kotlin(original: &str, langs: &[Language]) -> Result<String> {
     let mut rows = String::new();
     for ext in all_extensions(langs) {
-        let _ = writeln!(rows, "            \"{ext}\",");
+        let _ = writeln!(
+            rows,
+            "            {},",
+            crate::util::source_literals::kotlin_string(&ext)?
+        );
     }
     let body = format!("        private val SUPPORTED_EXTENSIONS = setOf(\n{rows}        )\n");
     replace_marked_block(
@@ -1084,51 +1102,71 @@ fn render_jetbrains_textmate(original: &str, langs: &[Language]) -> Result<Strin
 
 /// Rewrite a Zed `config.toml`'s `path_suffixes = […]` array.
 fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
-    let start = original
-        .find("path_suffixes = [")
+    let fields = toml_source_fields(original)?;
+    let (_, value) = fields
+        .iter()
+        .find(|(key, _)| key.get_ref() == "path_suffixes")
         .context("missing path_suffixes")?;
-    let end = original[start..]
-        .find(']')
-        .map(|n| start + n + 1)
-        .context("unterminated path_suffixes")?;
-    let quoted: Vec<String> = extensions.iter().map(|e| format!("\"{e}\"")).collect();
-    Ok(format!(
-        "{}path_suffixes = [{}]{}",
-        &original[..start],
-        quoted.join(", "),
-        &original[end..]
-    ))
+    let values = value
+        .get_ref()
+        .as_array()
+        .context("path_suffixes must be an array")?;
+    if values.iter().any(|value| value.as_str().is_none()) {
+        bail!("path_suffixes must contain only strings");
+    }
+    let mut rendered = original.to_owned();
+    rendered.replace_range(
+        value.span(),
+        &crate::util::source_literals::toml_array(extensions)?,
+    );
+    Ok(rendered)
 }
 
-/// Set a Zed `config.toml`'s `first_line_pattern`, inserting the key after
-/// `path_suffixes` when the file has none, or dropping it when there is no
-/// pattern to state.
+type TomlSourceFields = BTreeMap<toml::Spanned<String>, toml::Spanned<toml::Value>>;
+
+fn toml_source_fields(original: &str) -> Result<TomlSourceFields> {
+    toml::from_str(original).context("parsing the original Zed TOML source")
+}
+
+/// Rewrite only the actual root field selected by the TOML parser. Comment,
+/// quoted-key and nested-table decoys cannot donate a textual match.
 fn set_zed_first_line(original: &str, pattern: Option<&str>) -> Result<String> {
-    let key = "first_line_pattern = ";
-    if let Some(start) = original.find(key) {
-        let end = original[start..]
-            .find('\n')
-            .map_or(original.len(), |n| start + n + 1);
-        let replacement = pattern.map_or_else(String::new, |p| format!("{key}\"{p}\"\n"));
-        return Ok(format!(
-            "{}{replacement}{}",
-            &original[..start],
-            &original[end..]
-        ));
+    let fields = toml_source_fields(original)?;
+    if let Some((key, value)) = fields
+        .iter()
+        .find(|(key, _)| key.get_ref() == "first_line_pattern")
+    {
+        value
+            .get_ref()
+            .as_str()
+            .context("first_line_pattern must be a string")?;
+        let mut rendered = original.to_owned();
+        if let Some(pattern) = pattern {
+            rendered.replace_range(
+                value.span(),
+                &crate::util::source_literals::toml_string(pattern)?,
+            );
+        } else {
+            rendered.replace_range(key.span().start..value.span().end, "");
+        }
+        return Ok(rendered);
     }
     let Some(pattern) = pattern else {
         return Ok(original.to_owned());
     };
-    let suffixes = original
-        .find("path_suffixes = [")
+    let (_, suffixes) = fields
+        .iter()
+        .find(|(key, _)| key.get_ref() == "path_suffixes")
         .context("missing path_suffixes")?;
-    let line_end = original[suffixes..]
+    let end = suffixes.span().end;
+    let line_end = original[end..]
         .find('\n')
-        .map(|n| suffixes + n + 1)
+        .map(|n| end + n + 1)
         .context("path_suffixes must end in a newline")?;
     Ok(format!(
-        "{}{key}\"{pattern}\"\n{}",
+        "{}first_line_pattern = {}\n{}",
         &original[..line_end],
+        crate::util::source_literals::toml_string(pattern)?,
         &original[line_end..]
     ))
 }
@@ -1166,7 +1204,11 @@ fn zed_union_shebang_words() -> Vec<String> {
 fn render_sublime_plugin(original: &str, langs: &[Language]) -> Result<String> {
     let mut rows = String::new();
     for extension in all_extensions(langs) {
-        let _ = writeln!(rows, "    \"{extension}\",");
+        let _ = writeln!(
+            rows,
+            "    {},",
+            crate::util::source_literals::python_string(&extension)?
+        );
     }
     replace_marked_block(
         original,
@@ -1224,9 +1266,13 @@ pub fn zed_config_path(zed: &ZedLanguage) -> String {
 /// Every language the manifest contributes must also have an `onLanguage:`
 /// activation event, and nothing else may — or opening a file of that language
 /// activates nothing.
+#[cfg(test)]
 fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -> Result<()> {
-    let manifest: Value = serde_json::from_str(&fs::read_to_string(root.join(VSCODE_PACKAGE))?)
-        .context("parsing VS Code package.json")?;
+    verify_language_activation_manifest(&fs::read_to_string(root.join(VSCODE_PACKAGE))?, langs)
+}
+
+fn verify_language_activation_manifest(text: &str, langs: &[Language]) -> Result<()> {
+    let manifest: Value = serde_json::from_str(text).context("parsing VS Code package.json")?;
     let events: Vec<&str> = manifest["activationEvents"]
         .as_array()
         .context("activationEvents must be an array")?
@@ -1278,10 +1324,19 @@ fn verify_every_zed_directory_is_wired(root: &std::path::Path) -> Result<()> {
     let zed = root.join(ZED_LANGUAGES_DIR);
     for entry in fs::read_dir(&zed).with_context(|| format!("reading {}", zed.display()))? {
         let entry = entry?;
-        if !entry.path().join("config.toml").is_file() {
-            continue;
+        let config = entry.path().join("config.toml");
+        match fs::metadata(&config) {
+            Ok(metadata) if metadata.is_file() => {}
+            Ok(_) => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(error).with_context(|| format!("reading {}", config.display()));
+            }
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| anyhow!("a Zed language directory name is not Unicode"))?;
         if !ZED_LANGUAGES.iter().any(|z| z.dir == name) {
             bail!(
                 "{ZED_LANGUAGES_DIR}/{name} is a Zed language directory that ZED_LANGUAGES does \
@@ -1290,7 +1345,11 @@ fn verify_every_zed_directory_is_wired(root: &std::path::Path) -> Result<()> {
         }
     }
     for entry in ZED_LANGUAGES {
-        if !root.join(zed_config_path(entry)).is_file() {
+        let path = root.join(zed_config_path(entry));
+        if !fs::metadata(&path)
+            .with_context(|| format!("reading {}", path.display()))?
+            .is_file()
+        {
             bail!(
                 "ZED_LANGUAGES names {}, which has no config.toml",
                 entry.dir
@@ -1361,28 +1420,34 @@ fn render_targets() -> Vec<(String, Render)> {
 }
 
 pub fn run(check: bool) -> Result<ExitCode> {
-    let root = repo_root();
-    let langs = languages()?;
-    let renders = render_targets();
+    run_with_languages(&repo_root(), &languages()?, check)
+}
 
-    let mut drifted: Vec<String> = Vec::new();
+fn run_with_languages(root: &std::path::Path, langs: &[Language], check: bool) -> Result<ExitCode> {
+    let renders = render_targets();
+    // Multiple owners update distinct marked fields in the same file. Each
+    // renderer consumes the previous staged afterimage, never the old disk
+    // image again, and no output is published before complete validation.
+    let mut staged = BTreeMap::<String, (String, String)>::new();
     for (rel, render) in renders {
-        let path = root.join(&rel);
-        let original =
-            fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
-        let rendered = render(&original, &langs).with_context(|| format!("rendering {rel}"))?;
-        if rendered == original {
-            continue;
-        }
-        if check {
-            if !drifted.contains(&rel) {
-                drifted.push(rel);
+        let contents = match staged.get(&rel) {
+            Some((_, contents)) => contents.clone(),
+            None => {
+                fs::read_to_string(root.join(&rel)).with_context(|| format!("reading {rel}"))?
             }
+        };
+        let rendered = render(&contents, langs).with_context(|| format!("rendering {rel}"))?;
+        if let Some((_, contents)) = staged.get_mut(&rel) {
+            *contents = rendered;
         } else {
-            fs::write(&path, rendered).with_context(|| format!("writing {}", path.display()))?;
-            println!("gen-editor-extensions: wrote {rel}");
+            staged.insert(rel, (contents, rendered));
         }
     }
+    let drifted = staged
+        .iter()
+        .filter(|(_, (before, after))| before != after)
+        .map(|(rel, _)| rel.clone())
+        .collect::<Vec<_>>();
 
     // Belt and braces: the model itself must be one-owner-per-extension
     // (the registry's invariant tests cover the environments; two packs could
@@ -1390,7 +1455,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let mut owners: BTreeMap<String, String> = BTreeMap::new();
     let mut named: BTreeMap<String, String> = BTreeMap::new();
     let mut ids: BTreeSet<&str> = BTreeSet::new();
-    for lang in &langs {
+    for lang in langs {
         if !ids.insert(&lang.id) {
             bail!("language id {:?} is registered twice", lang.id);
         }
@@ -1418,14 +1483,24 @@ pub fn run(check: bool) -> Result<ExitCode> {
     // catches a *stale* projection but not a *missing* one. These
     // assert the structural facts the projections exist to guarantee, against
     // the committed tree, in both modes.
-    verify_every_language_activates(&root, &langs)?;
-    verify_every_zed_directory_is_wired(&root)?;
+    let (_, manifest) = staged
+        .get(VSCODE_PACKAGE)
+        .context("the generator has no staged VS Code manifest")?;
+    verify_language_activation_manifest(manifest, langs)?;
+    verify_every_zed_directory_is_wired(root)?;
 
     if check && !drifted.is_empty() {
         for rel in &drifted {
             eprintln!("gen-editor-extensions: {rel} is out of sync");
         }
         bail!("run `cargo xtask gen-editor-extensions` and commit the result");
+    }
+    if !check {
+        for (rel, (_, rendered)) in staged {
+            if crate::util::write_if_changed(&root.join(&rel), rendered)? {
+                println!("gen-editor-extensions: wrote {rel}");
+            }
+        }
     }
     println!(
         "gen-editor-extensions: {} languages, {} extensions{}",
@@ -1828,5 +1903,58 @@ mod tests {
             render_jetbrains_reconciler(&broken, &langs).unwrap(),
             original
         );
+    }
+}
+
+#[cfg(test)]
+mod checked_editor_publication_tests {
+    use super::*;
+
+    #[test]
+    fn toml_projection_uses_real_root_value_extents_not_textual_decoys() {
+        let original = "# path_suffixes = [\"decoy\"]\npath_suffixes = [\"]\"]\n[nested]\npath_suffixes = [\"inert\"]\n";
+        let extensions = vec!["quote\"slash\\]🙂".to_owned()];
+        let rendered = set_zed_suffixes(original, &extensions).unwrap();
+        let rendered = set_zed_first_line(&rendered, Some("^#!\\x$\n")).unwrap();
+        let table: toml::Table = toml::from_str(&rendered).unwrap();
+        assert_eq!(
+            table["path_suffixes"][0].as_str(),
+            Some(extensions[0].as_str())
+        );
+        assert_eq!(table["first_line_pattern"].as_str(), Some("^#!\\x$\n"));
+        assert_eq!(table["nested"]["path_suffixes"][0].as_str(), Some("inert"));
+        assert!(rendered.starts_with("# path_suffixes = [\"decoy\"]"));
+    }
+
+    #[test]
+    fn complete_model_failure_precedes_every_editor_target_write() {
+        let root = std::env::temp_dir().join(format!(
+            "tcl-editor-publication-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        fs::create_dir(&root).unwrap();
+        let mut before = BTreeMap::new();
+        for (rel, _) in render_targets() {
+            if before.contains_key(&rel) {
+                continue;
+            }
+            let text = fs::read_to_string(repo_root().join(&rel)).unwrap();
+            let destination = root.join(&rel);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::write(&destination, &text).unwrap();
+            before.insert(rel, text);
+        }
+        let mut langs = languages().unwrap();
+        langs.push(langs[0].clone());
+        assert!(run_with_languages(&root, &langs, false).is_err());
+        for (rel, original) in before {
+            assert_eq!(
+                fs::read_to_string(root.join(&rel)).unwrap(),
+                original,
+                "{rel}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 }

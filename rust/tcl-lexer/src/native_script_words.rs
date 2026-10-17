@@ -16,6 +16,11 @@ pub struct NativeScriptCommandWords {
     /// Absent for a vector assembled without its containing lexical region.
     /// This supplies no native frame, execution or command-log authority.
     pub source_extent: Option<Span>,
+    /// Exact original `Eol` token that terminates this command, when the
+    /// selected source region contains one. EOF-terminated commands have no
+    /// token; synthetic vectors without a containing region also use `None`.
+    /// The span includes the source delimiter and grants no execution fact.
+    pub terminator: Option<Span>,
     /// Original lexical words and their authoritative executable arenas.
     pub words: Vec<NativeWord>,
 }
@@ -254,11 +259,32 @@ fn capture_native_script_words(
             rebase_span(extent, region)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let terminators = groups
+        .iter()
+        .take(complete_count)
+        .map(|command| {
+            command
+                .terminator
+                .map(|index| {
+                    let token = tokens
+                        .get(index)
+                        .filter(|token| token.kind == crate::TokenType::Eol)
+                        .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
+                    rebase_span(token.span, region)
+                })
+                .transpose()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     for token in &mut tokens {
         token.span = rebase_span(token.span, region)?;
     }
     let mut commands = Vec::with_capacity(complete_count);
-    for (command, source_extent) in groups.iter().take(complete_count).zip(source_extents) {
+    for ((command, source_extent), terminator) in groups
+        .iter()
+        .take(complete_count)
+        .zip(source_extents)
+        .zip(terminators)
+    {
         let words = command
             .words
             .iter()
@@ -274,6 +300,7 @@ fn capture_native_script_words(
         commands.push(NativeScriptCommandWords {
             span: Span::new(start, end),
             source_extent: Some(source_extent),
+            terminator,
             words,
         });
     }

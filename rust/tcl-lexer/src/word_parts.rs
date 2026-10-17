@@ -48,7 +48,7 @@ use tcl_dialect::EscapeSyntax;
 
 use crate::ParseIssueKind;
 use crate::lexer::LexerConfig;
-use crate::ranges::{ArrayIndexEnd, BracedVarEnd, braced_var_name_end, scan_array_index};
+use crate::ranges::{ArrayIndexEnd, BracedVarEnd, braced_var_name_end, scan_array_index_in};
 use crate::substitution::backslash_subst_bytes_in;
 
 pub use crate::executable_parts::{
@@ -729,7 +729,7 @@ fn scan_var_ref_with_term(
                 next: end + 1,
             }));
         }
-        let scan = scan_array_index(src, name_end, config.array_index, config.braced_var);
+        let scan = scan_array_index_in(src, name_end, config);
         if let Some(term) = scan.invalid {
             return Err(ComponentParseError::new(
                 ParseIssueKind::InvalidArrayIndexCharacter,

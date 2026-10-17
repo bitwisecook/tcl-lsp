@@ -774872,9 +774872,9 @@
           "purpose": "Use genuine current procedure identity and identical plain written terminal components for linked editing."
         },
         {
-          "path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
-          "symbol": "original_command_tail_span",
-          "purpose": "Map independently selected native command component extents through the genuine source word; qualifiers and escape-dependent components do not gain edits."
+          "path": "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+          "symbol": "OriginalLinkedSourceSpelling::capture",
+          "purpose": "The actual source-spelling owner supersedes original_command_tail_span, retaining original declaration/call correspondence and checked spelling. Source intent remains separate from Native identity."
         }
       ],
       "replay": {
@@ -776790,8 +776790,8 @@
         },
         {
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "symbol": "needs_workspace_command_names",
-          "purpose": "Request the reporting name memo only for the same independently selected lexical advice branch."
+          "symbol": "WorkspaceCommandQueries",
+          "purpose": "The actual diagnostic producers retain NoRead/Broad query demand rather than the removed needs_workspace_command_names heuristic. This is analysis-read dependency, not runtime absence."
         },
         {
           "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
@@ -776855,12 +776855,130 @@
       }
     },
     {
+      "id": "naming.consumer.selected-catalogue-completion-provider",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md",
+      "problem_statement": "A same-name provider selected by ambient Registry lookup can replace the descriptor selected by actual completion availability.",
+      "question": "How do command-head and definition-member completion render the descriptor selected by the actual document availability without allowing another same-name provider to decide a filter or its documentation?",
+      "conclusion": "The existing DocumentFloor context and ResolvedContext::resolve_spec select each catalogue descriptor once. Builtin completion carries that descriptor through operator/member-only traits, the existing OoFrame requirement predicate, Tk advice, owning-package lifecycle floor and detail/documentation rendering. The old name-query OoFrame adapter and the selected-descriptor adapter share one private predicate; no frame classification or callability rule changes. Grammar membership still comes from the actual DefinitionBodyGrammar source_member_in and full authoring query. Its optional command metadata comes from resolve_spec in the same context; a genuine grammar-only row stays a vocabulary candidate with no invented descriptor documentation.",
+      "scope": "Exact existing catalogue unit: lsp-completion-catalogue-selected-provider-filter, bounded builtin_completions, grammar_member_completions and registry_method_items caller facets. Actual unchanged full input/configuration and context ingress remain required. Metadata spelling and usage ranking are source advice and display. Registry inherited instance-method providers retain their actual owning CommandSpec and independent package floor. Linked editing, runtime command occupancy, successful dispatch, physical method frame, Normal, and edit permission remain independent. No Runtime/VM/BIG-IP source is changed or executed.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "selector": "builtin_filters_keep_the_actual_selected_provider_through_every_gate",
+          "assertion": "Authored source/API control builtin_filters_keep_the_actual_selected_provider_through_every_gate is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "selector": "grammar_member_details_use_the_same_current_availability_context",
+          "assertion": "Authored source/API control grammar_member_details_use_the_same_current_availability_context is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "builtin_completions",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "grammar_member_completions",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "registry_method_items",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API controls are linked only. No Rust test, Native provider, runtime probe, gate acceptance or ordinary executable result is claimed by this catalogue update."
+      }
+    },
+    {
       "id": "naming.consumer.typed-spec-pack-notice-actions",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/typed-spec-pack-notice-actions.md",
       "problem_statement": "Extracting a DSL property or flag from diagnostic prose can choose a different word, reuse a stale notice or turn a forged message into an edit. Producer parsing configuration and current consumer configuration are independent owners.",
       "question": "Which retained loader subject and independently current source/configuration/Registry must agree before a SpecTcl property or flag notice supplies a source quick fix?",
-      "conclusion": "The loader retains the actual complete original source, its selected parser configuration, the typed Property or Flag subject, and one uniquely identified literal word at the notice line. The source span comes from shared original word geometry, without message parsing or text search. An opaque bounded local handle transports that subject after retaining the actual consumer configuration and Registry semantic key. Core reselects the existing subject and validates complete source/channel, both parsing configurations, current Registry, typed notice kind and exact line/word geometry before a property or flag action. Missing, forged, evicted, stale or ambiguous subjects decline. Diagnostic presentation can change without selecting another subject. These interfaces provide bounded DSL source advice; they supply no Native name, runtime lookup, evaluation, Normal, insertion or transformation-equivalence capability. Nested document vocabulary comes from the actual selected document grammar, an admitted member of the same family and its Registry-authored child grammar. This readonly projection does not require execution resolution and cannot substitute for command or handler authority.",
+      "conclusion": "The production loader retains the actual complete original source, selected parser configuration and complete CST row/word vector. Its actual unknown-property/flag detector privately selects the rejected original word, ordinal and braced-container path; line/name text is not used to recover that identity. The public Core subject carries source geometry and kind metadata only: it does not certify loader causality or grant an edit. The source span comes from the shared configured CST parser and original NativeWord geometry, without message parsing or a recursive all-braces search. Detached evaluated values, cooked bodies and ambiguous evaluated-row correspondences retain notice reporting without a source subject. Disk cache format/version remain unchanged; cached values receive new geometry only after whole current parsed-row/word correspondence, never from serialised offsets. An opaque bounded local handle transports that subject after retaining the actual consumer configuration and Registry semantic key. Core reborrows only the retained selected source path under its independently current full configuration and validates complete source/channel, both parsing configurations, current Registry, typed notice kind and exact line/word geometry before a property or flag action. Missing, forged, evicted, stale or ambiguous subjects decline. Diagnostic presentation can change without selecting another subject. These interfaces provide bounded DSL source advice; they supply no Native name, runtime lookup, evaluation, Normal, insertion or transformation-equivalence capability. Nested document vocabulary comes from the actual selected document grammar, an admitted member of the same family and its Registry-authored child grammar. This readonly projection does not require execution resolution and cannot substitute for command or handler authority.",
       "scope": "Current SpecTcl loader notices, Core diagnostic transport/source actions and Server publication/request lifting. Fixed controls use actual loader evaluation, typed property and flag subjects, changed or empty message text, absent/forged handles, ambiguous same-line words, stale complete source and changed full configuration. All seven native providers are not-tested for this Rust source-action contract; no executed Rust receipt is attached. Selected SpecTcl document-to-pack-to-command grammar controls separately reject wrong parents, ordinary command words, foreign document families and Native contexts lacking that document grammar.",
       "providers": [
         {
@@ -778525,6 +778643,18 @@
           "selector": "inert_text::tests::original_comment_cursor_declines_stale_or_unowned_analysis",
           "assertion": "Current exact original comment facts retain applicability; stale image/configuration, absent actual input and default/unowned analysis decline without line-scanner recapture.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "selector": "original_comment_tokens_share_real_phase_and_preserve_inline_comments",
+          "assertion": "Authored source/API control original_comment_tokens_share_real_phase_and_preserve_inline_comments is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "selector": "original_comment_tokens_refuse_foreign_source_or_missing_full_context",
+          "assertion": "Authored source/API control original_comment_tokens_refuse_foreign_source_or_missing_full_context is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -778999,6 +779129,162 @@
       "replay": {
         "command": [],
         "limitations": "Real named Rust selectors bind retained source ownership and independent Logical fallback only. Execution results require their own exact validation receipt; no provider execution or successful assertion is claimed."
+      }
+    },
+    {
+      "id": "naming.core.original-definition-grammar-cursor",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md",
+      "problem_statement": "An unowned or incomplete nested definition body can reuse a parent grammar and manufacture a source edit vocabulary.",
+      "question": "How does the genuine original definition cursor retain complete source/input/configuration and distinguish selected, ordinary and unavailable body contexts?",
+      "conclusion": "SourceStructure retains real original body/member containers and selected authored parent/child grammars under the same complete Document input. Missing correspondence, unavailable child coverage and depth exhaustion do not select the prior grammar.",
+      "scope": "Source vocabulary and checked editor correspondence only; no handler, entered frame, closed effects, Native naming or execution grant. Named source controls are linked, not executed by this index update.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_joins_nested_member_parents_and_drops_method_script_context",
+          "assertion": "Authored source/API control original_cursor_joins_nested_member_parents_and_drops_method_script_context is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary",
+          "assertion": "Authored source/API control original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_withdraws_shadowed_dynamic_and_equal_spelled_data_bodies",
+          "assertion": "Authored source/API control original_cursor_withdraws_shadowed_dynamic_and_equal_spelled_data_bodies is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_root_authoring_retains_unavailable_child_without_donating_edit_grammar",
+          "assertion": "Authored source/API control original_root_authoring_retains_unavailable_child_without_donating_edit_grammar is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_reborrows_full_input_image_and_configuration",
+          "assertion": "Authored source/API control original_cursor_reborrows_full_input_image_and_configuration is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_depth_limit_and_malformed_regions_never_reuse_prior_grammar",
+          "assertion": "Authored source/API control original_cursor_depth_limit_and_malformed_regions_never_reuse_prior_grammar is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_uses_the_actual_overlay_body_grammar_and_rejects_foreign_reborrow",
+          "assertion": "Authored source/API control original_cursor_uses_the_actual_overlay_body_grammar_and_rejects_foreign_reborrow is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_completion_preserves_unicode_utf16_and_selected_store",
+          "assertion": "Authored source/API control original_cursor_completion_preserves_unicode_utf16_and_selected_store is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/oo_body.rs",
+          "selector": "original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject",
+          "assertion": "Authored source/API control original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "selector": "original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+          "assertion": "Authored source/API control original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "symbol": "SourceStructure",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API controls are linked only. No Rust test, Native provider, runtime probe, gate acceptance or ordinary executable result is claimed by this catalogue update."
       }
     },
     {
@@ -824243,6 +824529,106 @@
       }
     },
     {
+      "id": "naming.editor.original-code-action-source-publication",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "problem_statement": "Versionless editor conversion can discard the server source/version intent of a code action.",
+      "question": "How do ordinary server and editor code actions retain their actual source and session through publication and checked application?",
+      "conclusion": "Server publication captures the actual source/input/provider owners and versioned document changes. Existing editor middleware retains that exact plan under a one-use local action receipt and the original checked document writer rejoins source/session/settings before application.",
+      "scope": "Ordinary Tcl action currency and transport only. Core edit-subject/equivalence guards remain independent; dedicated BIG-IP adapters and Native execution are not admitted by this record.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "capture_code_action_source",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "symbol": "finish_code_action_response",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API controls are linked only. No Rust test, Native provider, runtime probe, gate acceptance or ordinary executable result is claimed by this catalogue update."
+      }
+    },
+    {
       "id": "naming.editor.original-command-rename-plans",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/original-command-rename-plans.md",
@@ -825434,6 +825820,42 @@
           "path": "rust/tcl-lsp-core/src/method_symbol.rs",
           "selector": "method_symbol::tests::original_method_lookup_owner_absence_is_terminal_before_reporting_assistance",
           "assertion": "A retained non-variable original method operand declines after removing its original lookup or substituting a lookup from a foreign source; local public definition, references and hover do not borrow reporting assistance.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "selector": "readonly_self_selectors_retain_own_and_inherited_source_members",
+          "assertion": "Authored source/API control readonly_self_selectors_retain_own_and_inherited_source_members is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "selector": "readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources",
+          "assertion": "Authored source/API control readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "selector": "readonly_member_correspondence_retains_both_issuers_and_strong_query_result",
+          "assertion": "Authored source/API control readonly_member_correspondence_retains_both_issuers_and_strong_query_result is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs",
+          "selector": "readonly_member_parent_retains_written_and_selected_head_issuers",
+          "assertion": "Authored source/API control readonly_member_parent_retains_written_and_selected_head_issuers is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens.rs",
+          "selector": "partial_source_lens_titles_do_not_report_unknown_absence",
+          "assertion": "Authored source/API control partial_source_lens_titles_do_not_report_unknown_absence is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "selector": "readonly_member_reports_keep_source_spans_out_of_edit_inventories",
+          "assertion": "Authored source/API control readonly_member_reports_keep_source_spans_out_of_edit_inventories is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
           "status": "linked"
         }
       ],
@@ -1021724,6 +1022146,106 @@
       }
     },
     {
+      "id": "naming.lsp.original-document-transform-currency",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/source-current-document-transforms.md",
+      "problem_statement": "Whole-document transformation responses can outlive the source, worker configuration and client session that issued them.",
+      "question": "How do existing document-transform issuers and application owners preserve the same full source/input and one-use response lineage?",
+      "conclusion": "TransformRequest and TransformWorkerSource retain the actual source and configured worker. Node/browser document-transform owners capture the original document/context and validate the existing one-use server ledger immediately before their checked edit.",
+      "scope": "Source/input/response currency only. Transformation safety, Normal, runtime equivalence, frame/effect closure and Native admission stay with independent owners; provider observations and execution are not claimed here.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-lsp-server/src/document_transform.rs",
+          "symbol": "TransformRequest",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/document_transform.rs",
+          "symbol": "TransformWorkerSource",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API controls are linked only. No Rust test, Native provider, runtime probe, gate acceptance or ordinary executable result is claimed by this catalogue update."
+      }
+    },
+    {
       "id": "naming.matcher.original-output-retention-public-values",
       "kind": "native-observation",
       "document": "docs/design/analysis/name-resolution-proofs/matcher-original-output-retention-public-values.md",
@@ -1025681,6 +1026203,30 @@
           "selector": "signature_scan::ctx::original_source_name_purpose_tests::original_source_name_purpose_preserves_native_entry_recipe_and_hosted_barriers",
           "status": "linked",
           "assertion": "Held genuine software Native entry, separately authored NativeRecipe and actual hosted availability cannot donate Logical source naming. Versioned Native word policy remains independent; dynamic/duplicate original words and a conflicting release/point cannot fall back to Symbolic metadata. These source controls observe no external Native SDK or operation chronology."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+          "selector": "minifier_source_census_owns_selected_full_vectors_and_complete_regions",
+          "assertion": "Authored source/API control minifier_source_census_owns_selected_full_vectors_and_complete_regions is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+          "selector": "minifier_source_census_retains_partial_candidates_without_barrier_absence",
+          "assertion": "Authored source/API control minifier_source_census_retains_partial_candidates_without_barrier_absence is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+          "selector": "minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete",
+          "assertion": "Authored source/API control minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/lexical_metadata.rs",
+          "selector": "minifier_source_census_refuses_foreign_analysis_realm_and_full_config",
+          "assertion": "Authored source/API control minifier_source_census_refuses_foreign_analysis_realm_and_full_config is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -1050395,6 +1050941,36 @@
           "selector": "value_transfer::path::original_argument_coordinates_tests::original_path_coordinates_keep_unknown_first_values_and_platform_declines_terminal",
           "status": "linked",
           "assertion": "Actual LiteralInputs retain their first unknown value at offset zero or one. Shared path evaluation declines unproved values and independent drive/platform shapes without supplying a runtime filename or filesystem observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "selector": "logical_operand_prefix_retains_only_static_earlier_written_words",
+          "assertion": "Authored source/API control logical_operand_prefix_retains_only_static_earlier_written_words is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "selector": "logical_path_links_use_the_original_prefix_before_invocation_effects",
+          "assertion": "Authored source/API control logical_path_links_use_the_original_prefix_before_invocation_effects is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "selector": "logical_path_link_anchors_use_authentic_static_tail_words",
+          "assertion": "Authored source/API control logical_path_link_anchors_use_authentic_static_tail_words is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "selector": "logical_path_prefix_constants_require_static_earlier_written_operands",
+          "assertion": "Authored source/API control logical_path_prefix_constants_require_static_earlier_written_operands is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "selector": "authored_jim_path_advice_keeps_scope_without_becoming_public_native_value",
+          "assertion": "Authored source/API control authored_jim_path_advice_keeps_scope_without_becoming_public_native_value is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -1075316,14 +1075892,14 @@
           "purpose": "Validate the exact complete original command vector and supplied grammar, then project its canonical written head before the selected Registry package registration/body-role query."
         },
         {
-          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
-          "symbol": "ScriptWalker::walk_script",
-          "purpose": "Reuse selected Registry control/body metadata after written-head projection, retaining existing symbolic branch and completion conditions."
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "symbol": "Walker::script",
+          "purpose": "The existing original Walker supersedes ScriptWalker::walk_script, retaining typed current source control/body/advertisement owners and sticky coverage rather than a parallel nominal parser."
         },
         {
-          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
-          "symbol": "body_may_terminate",
-          "purpose": "Use the same written-head projection before the existing Registry may-termination query; no native handler or completion follows."
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "symbol": "Walker::control",
+          "purpose": "Actual selected invocation completion and typed source-control premises supersede body_may_terminate; unavailable completion cannot prune and source survey does not issue Native success."
         },
         {
           "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
@@ -1080230,6 +1080806,12 @@
           "selector": "package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation",
           "assertion": "Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs",
+          "selector": "index_filename_uses_selected_source_form_before_computed_path_value",
+          "assertion": "Authored source/API control index_filename_uses_selected_source_form_before_computed_path_value is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ]
     },
@@ -1080530,6 +1081112,101 @@
       "replay": {
         "command": [],
         "limitations": "The exact named Rust selectors are linked coverage. No Rust execution receipt or native provider observation is attached to this implementation contract."
+      }
+    },
+    {
+      "id": "naming.package.original-target-source-survey",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/package-target-source-survey.md",
+      "problem_statement": "Package-index source guards cannot infer physical provision, successful operands or runtime completion from nominal command names.",
+      "question": "Which existing Logical source points, selected Registry query metadata and original body lineage support an explicitly hypothetical target-release survey?",
+      "conclusion": "OriginalPackageIndexSourceSurvey retains the same original source/input/Registry and genuine point/history premises. Conditional target-release guards, source advertisements, controls and retained bodies stay separate from actual provision and Native completion.",
+      "scope": "Explicit hypothetical source survey and existing standalone consumer ownership only. Physical provision, load success, Native execution, old fixture efficacy and elapsed-time improvement remain unproved by this record.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "not tested",
+          "input_channel": "not tested",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.",
+          "evidence": []
+        }
+      ],
+      "evidence": [],
+      "source_anchors": [],
+      "tests": [],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs",
+          "symbol": "OriginalPackageIndexSourceSurvey",
+          "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API controls are linked only. No Rust test, Native provider, runtime probe, gate acceptance or ordinary executable result is claimed by this catalogue update."
       }
     },
     {
@@ -1116082,7 +1116759,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
       "problem_statement": "Cross-document references and reference lenses can disagree when one consumer selects original byte declarations and another reparses a displayed qualified name. Equal display text, namespace siblings and copied provider documents can then create unrelated locations or hide ambiguity.",
       "question": "How do workspace reference, declaration and reference-lens consumers select the same independently current original source owner without reparsing reporting names?",
-      "conclusion": "The shared server selector prepares a sealed readonly declaration identity from the complete participating source inventory and genuine original caller lookup. Reference and lens locations reuse that identity through the canonical source reference kernel. Declaration inclusion is explicit, and each returned span is lifted against its independent URI and rechecked current source after asynchronous reads. Duplicate providers, missing original selection and stale source decline the whole advice path; Native misses do not enter reporting-name resolution. This selects source declarations and occurrences, not native dispatch.",
+      "conclusion": "The shared server selector prepares a sealed readonly declaration identity from the complete participating source inventory and genuine original caller lookup. Reference locations and resolved lenses use a reporting-only wrapper around the canonical source reference kernel. Original method source correspondences remain in this separate partial report; the strong hierarchy and transformation inventories retain their existing purposes. Declaration inclusion is explicit, and each returned span is lifted against its independent URI and rechecked current source after asynchronous reads. Duplicate providers, missing original selection and stale source decline the whole advice path; Native misses do not enter reporting-name resolution. Each reporting participant retains its actual URI, SourceFile, full checked input/configuration, original published SourcePath admission and actual source publication. Metadata is freshly issued under that same retained provider. A final joint snapshot holds input/factory guards, the complete open-document map, DB/file/publication and per-URI invalidation-map guards and the SourceStore provider lease through UTF-16 projection. Equal-path replacement, changed revisions or missing current owners withdraw advice. Partial positive method counts say \"at least\"; zero partial or unavailable coverage says \"References unavailable\" without a clickable empty census. Wire coverage tags are presentation only and resolve recomputes them from the retained identity. This selects source declarations and occurrences, not native dispatch.",
       "scope": "Rust server workspace source-selection and location transport. Fixed C8.6 source-analysis controls preserve opaque sibling keys, namespace priority, independent provider URI ownership, inclusion policy and duplicate-provider refusal. Missing operands and counterfactual report entries remain terminal. The linked tests compare the shared reference helper and cross-document declaration path; they do not execute an interpreter, assert native object state, or certify a wire handle from client labels.",
       "providers": [
         {
@@ -1116207,6 +1116884,30 @@
           "selector": "tests::original_workspace_reference_misses_never_reparse_reporting_names",
           "status": "linked",
           "assertion": "Counterfactual reporting entries cannot repair a missing original query; changed source cannot reissue an existing provider identity."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "selector": "readonly_member_wire_retains_owner_and_partial_coverage",
+          "assertion": "Authored source/API control readonly_member_wire_retains_owner_and_partial_coverage is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "selector": "readonly_member_wire_withdraws_missing_or_replaced_source_owners",
+          "assertion": "Authored source/API control readonly_member_wire_withdraws_missing_or_replaced_source_owners is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "selector": "readonly_member_wire_rejects_equal_path_provider_republication",
+          "assertion": "Authored source/API control readonly_member_wire_rejects_equal_path_provider_republication is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "selector": "unavailable_member_wire_has_no_clickable_empty_census",
+          "assertion": "Authored source/API control unavailable_member_wire_has_no_clickable_empty_census is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -1122667,6 +1123368,12 @@
           "selector": "command_binding::declaration_layout::logical_purpose_tests::logical_class_metadata_requires_original_correspondence_and_unique_inventory",
           "status": "linked",
           "assertion": "Logical class metadata requires original correspondence and unique inventory. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          "selector": "c_source_namespace_class_declarations_retain_original_body_and_conditional_scope",
+          "assertion": "Authored source/API control c_source_namespace_class_declarations_retain_original_body_and_conditional_scope is linked to this exact original question and document; its actual source assertions remain authoritative. This binding does not claim execution, success, or a Native observation.",
+          "status": "linked"
         }
       ],
       "owners": [
@@ -1243694,7 +1244401,7 @@
       "problem_statement": "A complete original upvar operand can name a fixed array root while its substituted index stays unknown. Physical alias matching correctly lacks a selected element cell, but readonly definitions, hover and references still need to share the genuine written local-to-root relationship without promoting that relationship into an executed alias or an editable reference set.",
       "question": "Which authentic source inputs, frame correspondence and source-order barriers can support conditional navigation from a local alias declaration and later local roots to a fixed target root while leaving array index, target cell, successful alias and binding continuity unproved?",
       "conclusion": "AnalysisResult::original_variable_alias_templates_in_source requires the complete current image, full retained resolved input/configuration and genuine original declaration frame. Registry-selected alias purpose uses the shared original_variable_alias_local_name projection. The sealed template retains its own local input and authentic target producer; a compound target keeps its unknown evaluated index separate. Nearest preceding direct source declarations and exact newer alias operands determine conditional source relationships; dynamic later targets and intervening conditional declarations block stale later anchors. Same-frame original read/write roots supply their own geometry. Core NavigationVariable uses one separate Alias arm for readonly definitions, hover and references. Existing actual-cell matching and original-only rename selection are unchanged. Typed VariableCellAlias original subject/local argument ordinals are projected through the retained actual OriginalRegistryWords source schema and its complete ContextRegistry. Only Written effective origins with a genuine whole NativeWord contribute source spans; captured prefix and expanded element origins cannot borrow spans. The sealed source operand facet remains retained separately through per-item merging and clearing. The native alias receipt still independently requires an original declaration frame, local input and matching target input policy. Unknown target values, array indices and cells are not selected. Original source alias operands consume the selected Registry successful-layout transition recipe conditionally. The ordinary pre-dispatch transition remains unknown for computed upvar targets in Tcl 8.4/8.5; source pair operands can still describe the written relationship if that handler completes successfully. No successful edge, target cell, installed alias, Native allocation or mutation continuity is established. The genuine whole source schema and Written operand origins remain necessary; computed target element indices stay unknown.",
-      "scope": "Authored Rust controls in C8.4, C8.5, C8.6, C9.0 and C9.1 source contexts. No new native interpreter result or Rust execution receipt is inferred. The template always carries WrittenAliasApplicability, UnavailableTargetCell and UnprovedBindingContinuity. It issues no current alias, entered activation, evaluated index, selected element, store completion, Normal, Native compilation or refactoring coverage. Jim and BIG-IP are not measured by these selectors.",
+      "scope": "Authored Rust controls in C8.4, C8.5, C8.6, C9.0 and C9.1 source contexts, plus independently selected unversioned Logical source geometry. No new native interpreter result or Rust execution receipt is inferred. The template always carries WrittenAliasApplicability, UnavailableTargetCell and UnprovedBindingContinuity. It issues no current alias, entered activation, evaluated index, selected element, store completion, Normal, Native compilation or refactoring coverage. Jim and BIG-IP are not measured by these selectors.",
       "document": "docs/design/analysis/name-resolution-proofs/original-alias-source-template.md",
       "providers": [
         {

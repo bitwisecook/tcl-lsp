@@ -44,3 +44,26 @@ configuration and image reborrow; malformed and deep cutoff refusal; Unicode
 UTF16 position geometry; and actual completion/quick-fix adopters. Original
 fixtures and assertions remain unchanged. Source review is independent of later
 Root-owned compilation and test execution.
+
+
+## Current index binding
+
+Stable proof ID: `naming.core.original-definition-grammar-cursor`.
+
+## Problem statement
+
+An unowned or incomplete nested definition body can reuse a parent grammar and manufacture a source edit vocabulary.
+
+## Question
+
+How does the genuine original definition cursor retain complete source/input/configuration and distinguish selected, ordinary and unavailable body contexts?
+
+## Conclusion
+
+SourceStructure retains real original body/member containers and selected authored parent/child grammars under the same complete Document input. Missing correspondence, unavailable child coverage and depth exhaustion do not select the prior grammar.
+
+## Scope
+
+Source vocabulary and checked editor correspondence only; no handler, entered frame, closed effects, Native naming or execution grant. Named source controls are linked, not executed by this index update.
+
+All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.

@@ -1559,3 +1559,147 @@ mod tests {
         });
     }
 }
+
+impl Resolution<'_> {
+    /// Construct one sample argv from the actual installed command descriptor.
+    /// This authors source syntax, without promising runtime success or dispatch.
+    #[must_use]
+    pub fn sample_call_source(&self, name: &str, sample: &str) -> Option<Value> {
+        let site = self.store().declaration_site(name)?;
+        let registry = self.registry();
+        let profile = crate::environment::profile_for_dialect(self.builtins().dialect());
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let selected = registry
+            .resolve_structured_invocation(
+                tcl_registry::InvocationWords::literals(name, &[]).with_dialect(dialect),
+                dialect.authoring_query(),
+            )
+            .resolved()?;
+        let signature = selected.authored_source_arity()?;
+        let arity = if signature.windows.is_empty() {
+            signature.arity
+        } else {
+            tcl_registry::arity::ArityWindow::select(
+                signature.windows,
+                selected.semantics.options.availability.package_version,
+            )?
+            .arity
+        };
+        let mut words = vec![tcl_syntax::word_rules::lexical_unicode_source_word(
+            name, config,
+        )?];
+        for ordinal in 1..=arity.min {
+            words.push(tcl_syntax::word_rules::lexical_unicode_source_word(
+                &format!("arg{ordinal}"),
+                config,
+            )?);
+        }
+        let call_source = format!("{}\n", words.join(" "));
+        let source = append_sample_command(sample, &call_source, config)?;
+        Some(json!({
+            "source": source,
+            "call_source": call_source,
+            "sample_source": sample,
+            "pack_source": self.store().source(),
+            "name": name,
+            "dialect": self.builtins().dialect(),
+            "minimum_arguments": arity.min,
+            "origin": self.origin(name)?.key(),
+            "declaration_line": site.line,
+            "expanded": site.expanded,
+        }))
+    }
+}
+
+fn append_sample_command(
+    sample: &str,
+    call: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let capture = |source: &str| {
+        let image = tcl_lexer::SourceImage::document(source);
+        tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+            config,
+        )
+        .ok()
+    };
+    let before = capture(sample)?;
+    before.fatal_tail.is_none().then_some(())?;
+    let separator = if sample.is_empty() || sample.ends_with('\n') || sample.ends_with('\r') {
+        ""
+    } else {
+        "\n"
+    };
+    let call_start = sample.len().checked_add(separator.len())?;
+    let source = format!("{sample}{separator}{call}");
+    let after = capture(&source)?;
+    (after.fatal_tail.is_none()
+        && after.commands.len() == before.commands.len().checked_add(1)?
+        && after.commands.last()?.span.start() as usize == call_start)
+        .then_some(())?;
+    for (original, current) in before.commands.iter().zip(&after.commands) {
+        if original.span != current.span
+            || original.words.len() != current.words.len()
+            || original.words.iter().zip(&current.words).any(|(old, new)| {
+                old.span() != new.span()
+                    || old.tokens() != new.tokens()
+                    || old.group() != new.group()
+            })
+        {
+            return None;
+        }
+    }
+    Some(source)
+}
+
+#[cfg(test)]
+mod original_sample_call_source_tests {
+    use super::*;
+    use crate::store::{Builtins, PackStore};
+
+    #[test]
+    fn sample_call_uses_actual_descriptor_and_preserves_the_original_prefix() {
+        let pack = "speclib demo 1.0 {command {odd name} {arity 2}}";
+        let store = PackStore::from_source(pack);
+        let resolution = Resolution::new(Builtins::for_dialect("tcl8.6"), &store);
+        let sample = "# keep exact source\nset original {🙂};";
+        let result = resolution.sample_call_source("odd name", sample).unwrap();
+        let source = result["source"].as_str().unwrap();
+        assert!(source.starts_with(sample));
+        assert_eq!(result["sample_source"], sample);
+        assert_eq!(result["pack_source"], pack);
+        assert_eq!(result["minimum_arguments"], 2);
+        let call = result["call_source"].as_str().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(
+            crate::environment::profile_for_dialect("tcl8.6"),
+        ));
+        let image = tcl_lexer::SourceImage::document(call);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(call.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].words.len(), 3);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_unicode_value(&plan.commands[0].words[0])
+                .unwrap(),
+            b"odd name"
+        );
+        assert!(resolution.sample_call_source("missing", sample).is_none());
+        assert!(
+            resolution
+                .sample_call_source("odd name", "set incomplete {")
+                .is_none()
+        );
+        assert!(
+            resolution
+                .sample_call_source("odd name", "# continued \\\n")
+                .is_none()
+        );
+    }
+}

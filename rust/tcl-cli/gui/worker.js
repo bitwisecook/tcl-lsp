@@ -73,29 +73,40 @@ function readMeta() {
 
 // `optimisations` is the comma-separated codegen-pass selection from the
 // toggle panel — "" for the generic lowering. `compile_with_optimisations`
-// arrived after `compile`, so a module built before it falls back to the
-// unoptimised entry point rather than failing to compile at all.
-function compile(source, dialect, optimisations) {
+// arrived after `compile`; an older module still supports generic lowering,
+// but cannot truthfully return a result for a requested optimisation set.
+function compile(source, dialect, optimisations, reply) {
+  const send = (message) =>
+    reply ? reply.postMessage(message) : postMessage(message);
   if (!ready) {
-    postMessage({ type: "error", error: "Compiler not ready yet" });
+    send({ type: "error", error: "Compiler not ready yet" });
     return;
   }
 
   try {
-    const resultJson =
-      optimisations && typeof wasm_bindgen.compile_with_optimisations === "function"
-        ? wasm_bindgen.compile_with_optimisations(source, dialect, optimisations)
-        : wasm_bindgen.compile(source, dialect);
+    const withOptimisations =
+      typeof wasm_bindgen.compile_with_optimisations === "function";
+    if (optimisations && !withOptimisations) {
+      send({
+        type: "error",
+        error:
+          "This compiler does not support the requested optimisation configuration",
+      });
+      return;
+    }
+    const resultJson = optimisations
+      ? wasm_bindgen.compile_with_optimisations(source, dialect, optimisations)
+      : wasm_bindgen.compile(source, dialect);
     const data = JSON.parse(resultJson);
     // `compile` returns a JSON {error: ...} object on a pipeline failure
     // rather than throwing.
     if (data && typeof data === "object" && data.error) {
-      postMessage({ type: "error", error: data.error });
+      send({ type: "error", error: data.error });
       return;
     }
-    postMessage({ type: "result", data });
+    send({ type: "result", data });
   } catch (err) {
-    postMessage({
+    send({
       type: "error",
       error: err.message || String(err),
       traceback: err.stack || "",
@@ -106,13 +117,19 @@ function compile(source, dialect, optimisations) {
 onmessage = function (e) {
   const msg = e.data;
   if (msg.type === "compile") {
-    compile(msg.source, msg.dialect, msg.optimisations || "");
+    const reply = e.ports[0];
+    try {
+      compile(msg.source, msg.dialect, msg.optimisations || "", reply);
+    } finally {
+      if (reply) reply.close();
+    }
   }
 };
 
 init().catch((err) => {
   postMessage({
     type: "error",
-    error: "Failed to initialise WASM compiler: " + (err.message || String(err)),
+    error:
+      "Failed to initialise WASM compiler: " + (err.message || String(err)),
   });
 });

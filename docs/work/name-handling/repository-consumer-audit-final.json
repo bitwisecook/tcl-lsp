@@ -316,7 +316,18 @@
       ],
       "api": "Existing original_static_word_unicode_value and lexical_unicode_source_word under full retained config",
       "required_change": "Adopt existing Unicode source decoding/construction here; preserve explicit NUL refusal, actual source/image/config and exact metadata/currentness guards. No Native name, dispatch or edit grant. Distinct from existing MRO/report-order consumer debt.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -338,7 +349,18 @@
       ],
       "api": "Existing lexical_unicode_source_word; genuine authored_source_command_spelling and original Logical header coordinate",
       "required_change": "Use existing full-config Unicode source constructor while retaining original coordinate/source-value admission and no execution/identity grant; actual encoded-byte versus Unicode source meaning must stay explicit.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -420,7 +442,18 @@
       ],
       "api": "Existing full NativeWord geometry; lexer close_quote_offset_in under genuine retained LexerConfig",
       "required_change": "Transport actual original word/config into shared whole-word owner, extending existing configured public facet only if genuine missing requirement. Preserve exact inside equality, selected substitutions and rewrite authority; no replacement of source permission with span availability.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "compiler",
@@ -450,7 +483,18 @@
       ],
       "api": "Existing selected ExprParseContext/parse_expr_with_syntax_context and retained LoweringCommand.lexer_config",
       "required_change": "Transport genuine selected full expression/config context through existing parse owner. Preserve original whole operand/expr-base correspondence, source/Native preparation and successful-handler guards; this is one adapter boundary/edit point, shared expression-config family.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -488,7 +532,18 @@
       ],
       "api": "Existing parse_expr_with_syntax_context; original proved nested expression / Jim expression-sugar geometry",
       "required_change": "Pass actual selected expression syntax context into both actual variants, retaining original field/word base and inner binding. One Return adapter boundary with two exact edit points; not two new parsers or execution proofs.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -526,7 +581,18 @@
       ],
       "api": "Existing actual layout.config/original_lexer_config_for_tokens + configured shared scan_var_ref and naming::is_qualified",
       "required_change": "Use authentic selected full config and shared byte qualifier predicate at this one original-read advice boundary; keep actual source/frame/alias/formal/context/opaque-owner guards and conditional symbolic-value purpose. One consumer purpose with multiple edit points, not a new physical read API.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -790,7 +856,18 @@
       ],
       "api": "Existing shared selected-root requirement and authentic source command/separator geometry owner",
       "required_change": "Concrete1671 newline scan advancesfromlastrequireoperand overanysame-line secondcommand; next1653start<endskipsit. Thus selectedleading package require bar; http::get canreceive suggestedrequireaftergetline, violatingleadingrootheadercontract. Repairexisting sharedownerusingactualwholecommand/separator bounds, preservingBOM/shebang/fullinput/selectedPackageReference and insertiontextdelimitercontract. ActualCore842/analyserunresolved533 dependencies, noextraadopterwithoutAPIchange. Static sourceproof, no executedproviderpositive orfabricatedexpectedconformance.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -1228,7 +1305,18 @@
       ],
       "api": "Existing braced_var_name_end using actual retained lexical configuration",
       "required_change": "Actual1492 reads self.profile.grammar.braced_var while1357returnsinput.config and1734explicitlycustomizesingressgrammar. split_braced_head1516 calls this wrongaxis, so customconfig first/nested style can differ fromactualoriginaltokens. Fix existing facade toactual config.braced_var (or actual grammar()), keepownerbraced_var_name_end andbodytext/sourcepurpose. Existing callers unchangeddependencies unlessinterfacechanges.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -1258,7 +1346,18 @@
       ],
       "api": "Actual ContextRegistry/selected semantics generation and source builtin inventory",
       "required_change": "Cachekey3025/3035 onlyprofile.name; clear_run_state3472\u20133504 doesnotclearbuiltin_names/dialect. with_pack_overlay1666 invalidatesregistry/context butkeepscache; reusedsameprofileanalyser can therefore use old overlaidcatalogue inventory. Cachemustbindactualselectedcontext/store generation (or invalidateatmatchingownerentry); not displaydialect. Real consumersscope1696/handlers2341. Actualruntimecallabilitystillnotgrantedbyregistrynameinventory.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -1518,7 +1617,18 @@
       ],
       "api": "Existing quoted_word_rewrite_span/full_quoted_string_span helper source geometry owner with actual config or genuine original wholeword",
       "required_change": "Actual2846 and2989 adapters still use quote span helpers that drop fullconfig. Root already established close_quote_offset default-vs-config owner gap; this consumer must pass real original configured word/container geometry, while exact inside bytes2863 protects one branch but does not establish grammar availability.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "compiler",
@@ -1668,7 +1778,18 @@
       ],
       "api": "scan_array_index; command_substitution_end_bytes_in; braced_var_name_end",
       "required_change": "Index owner accepts actual BracedVarStyle, but bracket branch invokes default-config command_substitution_end_bytes; repair actual full config transport through index/bracket owner, preserve Native/source purpose guards at callers.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration18",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-18/composition.json",
+          "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+        },
+        "verified_complete": false,
+        "scope": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+        "validation": "Reviewed source admission, no fresh Cargo/test ELF. Array V1 and actual cursor V2 admitted as one existing unit; oo_objdefine adopts the same combined existing TclOO source body unit, not a new counter."
+      }
     },
     {
       "area": "compiler",
@@ -1706,7 +1827,18 @@
       ],
       "api": "Existing braced_var_name_end; configured Lexer/ExecutablePartArena; currently private Tcl9 scans",
       "required_change": "Private Tcl9 name scanners and dialect-blind public index inputs omit actual config. Main actual detect_e201115 uses is_inert to veto fixes; source grammar transport must reach structural variable-name geometry.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "compiler",
@@ -2033,7 +2165,18 @@
       ],
       "api": "WordValueRules::collapse_braced_word/split_list; find_element default; backslash_subst default; shared formal_params owners available",
       "required_change": "Use actual selected formal/source field purpose through shared nested list/formal owner; keep tolerant display results separate from semantic formal binding/admission. Existing controls unexecuted.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed source admission integration17",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-17/composition.json",
+          "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic source target grammar/selected formal receiver/recording actual-process or required-env presence purpose; no execution/Native binding grant.",
+        "validation": "Source-reviewed and admitted; actual mandatory gates remain owed. Required-env is counted once from integration15, now reconciled explicitly."
+      }
     },
     {
       "area": "compiler",
@@ -5581,7 +5724,19 @@
       ],
       "api": "PassContext::lexer_config retains actual source config; shared braced_var_name_end already used downstream",
       "required_change": "Pass actual complete config.braced_var rather than reconstructing BracedVarStyle solely from catalogue profile. One actual consumer boundary at code_sinking161; helper is a code change site, not another consumer.\nReplace ASCII bare variable scanner and report-name AST equality with actual original configured source-reference/read footprint. Retain unknown rather than false on unavailable geometry. PassContext.braced_var/profile and RHS grammar at207 also need actual full config. These are editpoints of one actual source-motion read boundary, not each helper a consumer.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed.",
+        "remaining": "Only retained PassContext.braced_var fa\u00e7ade adopted. Same original row still requires actual configured source-reference/read footprint, unavailable-vs-false handling and RHS/source-motion consumer; no blanket closure."
+      }
     },
     {
       "area": "compiler",
@@ -5701,7 +5856,18 @@
       ],
       "api": "tcl_syntax::naming::is_qualified / shared byte qualifier geometry",
       "required_change": "Actual .filter(target.contains(::)) rederives shared qualifier predicate on source hazard labels. Migrate genuine source qualifiedness classification to existing owner while preserving supplied metadata and source-policy purpose; this does not reconstruct a Native namespace identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "compiler",
@@ -11510,7 +11676,18 @@
       ],
       "api": "EnvironmentRegistry::resolve / identity_of on held environments() Arc",
       "required_change": "Known-name predicate and returned resolution read separate live registries; source retirement between them can return Some(lenient fallback), or new target under same name. Capture actual matching definition+identity from one held registry observation. No Native currentness donation.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole reviewed integration21 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-21/composition.json",
+          "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+        },
+        "verified_complete": false,
+        "scope": "Exact actual single-held environment resolution/profile promotion or opaque OS-path input cache key purpose; no physical liveness/Native/execution grant.",
+        "validation": "Root whole source review, targeted7file formatting PASS; fresh ordinary ELF/test gates owed."
+      }
     },
     {
       "area": "db",
@@ -11531,7 +11708,18 @@
       ],
       "api": "DocumentEnvironment; PromotionKey; context_for_profile; ContextRegistry",
       "required_change": "promotion_key(resolve_environment(profile.name)) uses a separate live observation from context_for_profile(profile) used to build handle. Concurrent dynamic source replacement can pair old generation key with different context value. Transport same held resolved environment/context through existing cache owner, preserve full profile key and independent actual release/availability.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole reviewed integration21 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-21/composition.json",
+          "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+        },
+        "verified_complete": false,
+        "scope": "Exact actual single-held environment resolution/profile promotion or opaque OS-path input cache key purpose; no physical liveness/Native/execution grant.",
+        "validation": "Root whole source review, targeted7file formatting PASS; fresh ordinary ELF/test gates owed."
+      }
     },
     {
       "area": "db",
@@ -11994,7 +12182,18 @@
       ],
       "api": "Actual PackFile.path PathBuf; existing pack/cache identity owner",
       "required_change": "to_string_lossy collapses distinct opaque OS paths to the same key before registry overlay caching; actual source location and package-relative ownership must retain original OS units or explicitly refuse unsupported representation. Display conversion cannot name the cache input.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole reviewed integration21 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-21/composition.json",
+          "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+        },
+        "verified_complete": false,
+        "scope": "Exact actual single-held environment resolution/profile promotion or opaque OS-path input cache key purpose; no physical liveness/Native/execution grant.",
+        "validation": "Root whole source review, targeted7file formatting PASS; fresh ordinary ELF/test gates owed."
+      }
     },
     {
       "area": "db",
@@ -12400,7 +12599,18 @@
       ],
       "api": "loader::pack_source_lexer_config; Lexer/SourceMap; existing lexer highlight recursion and Syntax original word/container geometry",
       "required_change": "recurse manually strips opening/degenerate closing delimiters and recursive segmentation instead of shared original container geometry; extending original byte-span/highlight owner avoids copied rules. Readonly display purpose remains separate from semantic binding/edit authority.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -12435,7 +12645,18 @@
       ],
       "api": "Studio schema::command_field/subcommand_field/catalogues; actual loader DSL descriptor metadata",
       "required_change": "Local structural/flat head tables and singular/plural/lifecycle alias construction restate source DSL vocabulary beside actual Registry/loader declarations. Migrate exact declared source roles/field aliases/keyword help to existing metadata owner; no report head grammar should silently invent aliases or hide newly registered bodies.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -12919,7 +13140,18 @@
       ],
       "api": "Core CompletionItem.text_edit; completion::switch_completions source-aware full container span; original_properties actual native_literal_source_word/original_name_input_edits; Server lift_completion_item",
       "required_change": "Consumer ignores actual LSP item.textEdit/range/newText and recomputes replacement with model.getWordUntilPosition, then inserts insertText or display label. Consume actual source-owned protocol replacement edits and retain independent snippet/source formats; fallback only when issuer has no explicit edit and actual purpose permits it. Do not reconstruct Tcl word/name boundaries with Monaco generic word selection.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -12947,7 +13179,18 @@
       ],
       "api": "github::listTags(ref); github::fetchZipball(ref,tag); typed RepoRef and original TagRef",
       "required_change": "loadTags publishes panel.repo before await but leaves old panel.tags/selected on failure; fetchSelected later reads new repo with old tag roster. Concurrent load requests can likewise publish tags under a different currently selected repository. Publish/retain original successful repository and complete tag roster as one provider receipt, or withdraw selection while unavailable; never reconstruct provider from labels/version suggestions.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -12989,7 +13232,18 @@
       ],
       "api": "docsDock::Route/restoreFor; actual state.dialect and wasm load_command(name,dialect)",
       "required_change": "Visit retains name/pack-or-registry only. restoreFor admits a stored visit when command labels match while ignoring route.dialect, and openVisit uses current state; the real dialect change handler does not clear/rebind this inventory. Retain actual selected dialect/provider context with each visit and validate full route correspondence before reopening; exact command display equality cannot recover catalogue context.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -13288,7 +13542,18 @@
       ],
       "api": "Actual compiler source byte-span and existing LineIndex/byte-to-UTF16 geometry transport; Monaco model.getPositionAt expects UTF16 offsets",
       "required_change": "setHighlights directly passes naked {start,end} to Monaco getPositionAt without source-byte-to-UTF16 projection or held revision correspondence; highlightRanges759 delegates unchanged. Root full Explorer producer read confirms actual data.range.startOffset/endOffset are bytes and passed unchanged. Preserve actual original source/current document and shared geometry rather than infer offsets from labels; do not infer unreviewed other DTO units.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -13309,7 +13574,18 @@
       ],
       "api": "Existing WASM/Studio source publication owner plus shared original scalar Tcl-source word constructor and complete argv correspondence under actual source config",
       "required_change": "Decoded selected command name is interpolated directly into new Tcl source1982. Whitespace, separators, braces, brackets and substitution syntax can alter intended original argv; minimum arity lookup failure silently manufactures zero. Carry actual current pack declaration/input/config and render exact command-word data through shared source constructor, refuse unavailable shape rather than inventing source.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -13344,7 +13620,18 @@
       ],
       "api": "Existing pack_export typed files plus explicit collisions; retain actual selected export/source revision and noninjective path admission",
       "required_change": "stageExport identifies files solely by generated path1561 and overwrites source on equality1562; two distinct commands whose stems collide are merged despite existing explicit collision metadata/notice1408. Export actions remain enabled for any commands1418. renderExport failure also leaves previous packExport attached without current source provenance. Keep collision reporting, require genuine admissible artifact identity/current source before stage/save rather than treating rendered path as original command identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -13365,7 +13652,18 @@
       ],
       "api": "Existing structured staged file/source owner plus lossless Markdown code-fence/source publication purpose",
       "required_change": "issueBody1615 globally removes CR from file.source before embedding, including literal command/package/value bytes where CR may be meaningful. Preserve original artifact source bytes through shared target publication/encoding owner or explicitly refuse unsupported representation; do not normalize all source as line-ending text. Actual download retains original source1660 and is independently correct.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "db",
@@ -14273,7 +14571,18 @@
       ],
       "api": "Existing Registry extension glob owner; actual LSP/VSCode GlobPattern receiver grammar; SpecTcl file_extension producer",
       "required_change": "fold_case_in_glob copies nonletters verbatim inside brace/class glob syntax. Accepted pack extensions only reject dot/whitespace (loader1843\u20131848), so literal comma/bracket/star/question/brace changes generated matcher language. Extend same owner with target-specific literal glob encoding or explicit unsupported-representation refusal, keeping exact extension identity and empty/missing distinctions; do not paste Tcl glob/source quoting.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed source admission integration17",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-17/composition.json",
+          "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic source target grammar/selected formal receiver/recording actual-process or required-env presence purpose; no execution/Native binding grant.",
+        "validation": "Source-reviewed and admitted; actual mandatory gates remain owed. Required-env is counted once from integration15, now reconciled explicitly."
+      }
     },
     {
       "area": "db",
@@ -14639,7 +14948,18 @@
       ],
       "api": "Existing OptionSpec selected option/value ordinal owner; actual SpecTcl loader::object_class_row3541; DefinitionBodyGrammar source owner",
       "required_change": "Retain actual selected option-run/value geometry and original optional trailing body before issuing Body role. `object_class C -superclass {A B}` ends with braced option data, which loader consumes as superclasses; count-only last-word issuer labels it member body. Whole malformed/unknown/expanded invocation must decline rather than promote list/name data to declaration scope. This is source-role authority only, no Native entry claim.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration18",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-18/composition.json",
+          "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+        },
+        "verified_complete": false,
+        "scope": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+        "validation": "Reviewed source admission, no fresh Cargo/test ELF. Array V1 and actual cursor V2 admitted as one existing unit; oo_objdefine adopts the same combined existing TclOO source body unit, not a new counter."
+      }
     },
     {
       "area": "db",
@@ -14814,7 +15134,18 @@
       ],
       "api": "DefinitionBodyGrammar::source_member_script_arguments_in / source_property_declarations_where; selected source member/optional/receiver layouts and counted byte values",
       "required_change": "Local OO_DEFINE_SUBCOMMANDS and match roster duplicate central member vocabulary/layout; method bodies are selected by last argv rather than authentic selected role/optional form, and property helper scans every operand for -get/-set instead of consuming actual option/value pairs. Retain original selected definition-member/receiver and exact operand cardinality/value states through existing central layout owner, refusing unsupported/unknown shape rather than guessing from spelling. Keep nominal catalogue availability and actual Native worker/currentness separate.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration18",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-18/composition.json",
+          "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+        },
+        "verified_complete": false,
+        "scope": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+        "validation": "Reviewed source admission, no fresh Cargo/test ELF. Array V1 and actual cursor V2 admitted as one existing unit; oo_objdefine adopts the same combined existing TclOO source body unit, not a new counter."
+      }
     },
     {
       "area": "db",
@@ -14835,7 +15166,18 @@
       ],
       "api": "ResolvedInvocation selected OptionFacts/InvocationOptions and authentic effective argument ordinals; existing central WHICH_OPTIONS and selected Native namespace reference protocols",
       "required_change": "The literal callback separately scans every argv for a -variable prefix and chooses the last value not starting dash. It loses actual selected leading option run/final name ordinal and cannot represent a final dash-leading command/variable name or selector overridden by later selected flag. Extend/use actual selected layout owner and original operands, preserving unknown/expansion and CommandNameProbe policy; do not infer live target or absence.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration18",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-18/composition.json",
+          "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+        },
+        "verified_complete": false,
+        "scope": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+        "validation": "Reviewed source admission, no fresh Cargo/test ELF. Array V1 and actual cursor V2 admitted as one existing unit; oo_objdefine adopts the same combined existing TclOO source body unit, not a new counter."
+      }
     },
     {
       "area": "db",
@@ -22721,7 +23063,17 @@
       "required_change": [
         "Use held original provider/side/source declaration through target resolution. Disagreement cannot select opposite-side method or later chain provider as though actual dispatch entry; absent owner remains unavailable, source-MAY alternatives explicit."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed method entry V1 through V4 admitted in integration15",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-15/composition.json",
+          "sha256": "984b08deb5cad7f405dba03fe1a142bb2b75f3bb415ede755da4e4937710f85b"
+        },
+        "verified_complete": false,
+        "remaining": "Conservative source advice with genuine SelfSelector carrier and separate Native gate; no executed MRO or general runtime identity/completion claim. Actual gates remain owed."
+      }
     },
     {
       "area": "lsp",
@@ -57136,7 +57488,18 @@
       ],
       "api": "std::env::var_os + explicit release flag policy",
       "required_change": "Use actual OS value/presence or setup error; nonUnicode present mandatory flag cannot enable optional skip.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed source admission integration15",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-15/composition.json",
+          "sha256": "984b08deb5cad7f405dba03fe1a142bb2b75f3bb415ede755da4e4937710f85b"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic source target grammar/selected formal receiver/recording actual-process or required-env presence purpose; no execution/Native binding grant.",
+        "validation": "Source-reviewed and admitted; actual mandatory gates remain owed. Required-env is counted once from integration15, now reconciled explicitly."
+      }
     },
     {
       "area": "audit",
@@ -57384,7 +57747,18 @@
       ],
       "api": "Actual PackSet loader status and original environment declarations",
       "required_change": "Consume actual PackSet.load_errors and unreadable source categories before complete seed publication; ordinary notices independently classified.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "audit",
@@ -58948,7 +59322,18 @@
       ],
       "api": "Existing util::replace_marked_block",
       "required_change": "Delegate strict util::replace_marked_block and propagate missing markers; unchanged rendering on absent markers cannot pass drift check. Preserve indentation/newline parity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "audit",
@@ -60070,7 +60455,18 @@
       ],
       "api": "Actual TOML source codec and selected editor registration model",
       "required_change": "Use genuine TOML string/array serialization for bundled extension values, preserving explicit language union purpose. Fixed IDs are not arbitrary registration.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "audit",
@@ -60093,7 +60489,18 @@
       ],
       "api": "Actual Elisp string source and literal regexp constructors",
       "required_change": "Treat actual extension as literal filename suffix, then encode regexp in genuine Elisp string/list source across extension_regexp/dolist/plain-concat stages. Distinct grammar layers retained, no mode-ID normalize debt.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "audit",
@@ -60116,7 +60523,18 @@
       ],
       "api": "Target Lua source literal owner and actual registration data",
       "required_change": "Use genuine Lua string literal for actual extension branch including apostrophe; fixed ASCII-identifier keys remain separate valid branch.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed integration20 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+        },
+        "verified_complete": false,
+        "scope": "Existing exact generic target/source geometry/configured grammar or shared qualifier purpose. No Native/Normal/source-motion/equivalence authority.",
+        "validation": "Independent bounded source review and Root admission only; formatting running, new actual build/generator/tests owed."
+      }
     },
     {
       "area": "audit",
@@ -60139,7 +60557,18 @@
       ],
       "api": "Existing PackSet status/completeness projection",
       "required_change": "Consume actual load_errors/unreadable source status, distinguish ordinary notices; surviving packs are not complete claimed source model.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60162,7 +60591,18 @@
       ],
       "api": "Existing registration validation and staged generation/publish owner",
       "required_change": "Preserve all collision/unknown guards and validate complete actual model/rendered targets before output publication; failed control must not leave invalid usable metadata.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60185,7 +60625,18 @@
       ],
       "api": "Actual filesystem metadata Result and expected language directory roster",
       "required_change": "Distinguish real NotFound/nonfile from permissions/IO unknown at required metadata queries; cannot claim all language directories wired after omitted unknown.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60236,7 +60687,18 @@
       ],
       "api": "Existing target Kotlin generator source owner/facet",
       "required_change": "Use actual Kotlin string source/value constructor with dollar interpolation and control admission; JSON alone not Kotlin grammar.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60259,7 +60721,18 @@
       ],
       "api": "Target Python source literal owner",
       "required_change": "Use genuine Python source literal or compatible exact source encoding, preserving original Unicode/control/value correspondence; no raw quoted format.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60282,7 +60755,18 @@
       ],
       "api": "TOML serializer/current registration target schema",
       "required_change": "Adopt actual TOML source value/array codec; required input completeness handled separately.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -60305,7 +60789,18 @@
       ],
       "api": "Target XML attribute and actual JetBrains extension-list schema",
       "required_change": "Use genuine XML attribute encoding plus target delimiter/list semantic admission; unrepresentable target value refuses without mutating valid source extension.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root whole source review and integration16 admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+        },
+        "verified_complete": false,
+        "scope": "Exact original audited generic source/configured syntax/target literal/publication purpose only; no Native execution, Normal completion, equivalence or physical currentness grant.",
+        "validation": "Reviewed source adoption; no fresh tests or generator execution for these integration16 additions. Further current gates owed."
+      }
     },
     {
       "area": "audit",
@@ -62853,7 +63348,18 @@
       ],
       "api": "Actual Emacs getenv/value filename APIs or genuine printed Elisp string; native Bash argv/env",
       "required_change": "Pass actual selected ELPA pathname via native argv/environment and Emacs getenv/value handling or genuine Elisp printer. Shell argv quoting is not Elisp string source construction. Keep current original package-provider/capability gates and original assertions unchanged.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root source reviewed integration19",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic configured structural geometry, supplied ELPA process-path data, Studio source/vocabulary/coordinate/context/publication boundary. No Native binding, runtime identity or semantic equivalence grant.",
+        "validation": "Independent bounded source review and Root admission. No fresh Cargo/test ELF; formatting reported running. Helper/header implementation-byte preservation adds no extra unit."
+      }
     },
     {
       "area": "audit",
@@ -62939,7 +63445,18 @@
       ],
       "api": "Existing Emacs JSONRPC connection/process/events buffer APIs and actual buffer-live-p/session state",
       "required_change": "At existing recorder retain actual supplied JSONRPC conn plus authentic selected session/buffer handles through outgoing advice, idle callback and post-stop save. Refuse unavailable/stale session rather than copying regex-named replacement buffers; incoming existing process checks and original public commands remain.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Root reviewed source admission integration17",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-17/composition.json",
+          "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+        },
+        "verified_complete": false,
+        "scope": "Exact existing generic source target grammar/selected formal receiver/recording actual-process or required-env presence purpose; no execution/Native binding grant.",
+        "validation": "Source-reviewed and admitted; actual mandatory gates remain owed. Required-env is counted once from integration15, now reconciled explicitly."
+      }
     },
     {
       "area": "audit",
@@ -133266,14 +133783,14 @@
     },
     "utc": "2026-10-17T12:07:57.639013+00:00",
     "total_required_units": 2158,
-    "implemented_pending_validation": 423,
-    "fully_implemented_pending_validation": 360,
-    "partially_implemented_pending_validation": 63,
+    "implemented_pending_validation": 470,
+    "fully_implemented_pending_validation": 405,
+    "partially_implemented_pending_validation": 65,
     "verified_complete": 0,
-    "not_started": 1735,
+    "not_started": 1688,
     "remaining_unverified_or_unimplemented": 2158,
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 493,
+    "effective_implemented_pending_validation": 540,
     "effective_verified_complete": 0,
     "required_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
     "proof_check": {
@@ -133291,23 +133808,23 @@
       "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
     },
     "current_snapshot": {
-      "utc": "2026-10-17T12:12:13.616332+00:00",
-      "source_head": "Integration14 admitted on recorded base fe7fe4d3a5d4e027defe7dc98ec73795393100d2; later causal metadata/Debug repairs as separately recorded, no new ordinary acceptance",
+      "utc": "2026-10-17T12:55:30.241005+00:00",
+      "source_head": "Reviewed source admissions through integration21; ordinary10crate source freeze, composition base f3308dda40da10fe3031fca6f6f480dfa612aa4c plus admitted source; no fresh artifacts accepted.",
       "original_LSP": {
         "required": 325,
-        "integrated": 289,
-        "semantic_integrated": 166,
+        "integrated": 290,
+        "semantic_integrated": 167,
         "validation_integrated": 121,
         "documentation_integrated": 2,
-        "without_integration": 36,
+        "without_integration": 35,
         "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 423,
-        "full_scope_pending": 360,
-        "partial": 63,
-        "without_integration": 1735
+        "integrated": 470,
+        "full_scope_pending": 405,
+        "partial": 65,
+        "without_integration": 1688
       },
       "annex": {
         "required": 71,
@@ -133317,44 +133834,83 @@
       },
       "effective": {
         "required": 2229,
-        "integrated": 493,
-        "without_integration": 1736,
+        "integrated": 540,
+        "without_integration": 1689,
         "verified_complete": 0
       },
       "last_report": {
-        "path": "docs/work/name-handling/progress-report-20261017T1209Z.json",
-        "sha256": "eb3fc276265a0c89a7a7305a6b58a550ed40e966abc44d021de84175817cd0c5",
-        "frozen_LSP_integrated": 287
+        "path": "docs/work/name-handling/progress-report-20261017T1239Z.json",
+        "sha256": "461a78ecd37790e5bb12571966c43df93d62894707c3750858217f81a25898b4",
+        "frozen_LSP_integrated": 290
       },
       "new_since_report": {
-        "integrated_LSP": 2,
-        "semantic": 2,
+        "integrated_LSP": 0,
+        "semantic": 0,
         "validation": 0,
         "documentation": 0,
+        "additional_baseline_integrated": 27,
         "admissions": {
-          "textmate": {
-            "unit_ids": [
-              "lsp-vscode-textmate-static-name-role-residue",
-              "lsp-jetbrains-textmate-static-name-role-residue"
+          "18": {
+            "path": "/workspace/naming-work/integration-18/composition.json",
+            "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87",
+            "new_baseline_unit_ids": [
+              "db.unit.registry.namespace.which-original-option-layout",
+              "db.unit.registry.spectcl.object-class-original-body-position",
+              "db.unit.registry.tcloo-definition-source-body-layout",
+              "compiler.source.configured-original-variable-geometry:169"
             ],
-            "evidence": [
-              {
-                "path": "/workspace/naming-work/sol-textmate-source-roles-v2/manifest.json",
-                "sha256": "b63f7d2da173935610f8fb9b08a96ef0537d614be9c1b08b73bb36542575e3e5"
-              },
-              {
-                "path": "/workspace/naming-work/sol-textmate-source-roles-v2/change.patch",
-                "sha256": "8ed068b416e20c4a114aa69afd262c1fd6396ce1a40f0c13e1b855f3e70b2284"
-              },
-              {
-                "path": "/workspace/naming-work/sol-textmate-registry-causal-v2/manifest.json",
-                "sha256": "4ba2ba36c3684b4316461a458d8db061ccde75d548418a64e70e70266621b385"
-              },
-              {
-                "path": "/workspace/naming-work/logs/textmate-generation-repaired.log",
-                "sha256": "ea24274a8d5bd0b4e610eb1b41d6cb66ac4ba4cd025a884b3f6fed2e8d7e7e4f"
-              }
-            ]
+            "original_LSP_delta": 0,
+            "oo_objdefine_separate_unit_count": 0
+          },
+          "19": {
+            "path": "/workspace/naming-work/integration-19/composition.json",
+            "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e",
+            "new_baseline_unit_ids": [
+              "compiler.source.configured-original-variable-geometry:590",
+              "audit:eglot-elpa-native-path-value",
+              "db.unit.studio.wasm.dsl-byte-geometry",
+              "db.unit.studio.wasm.dsl-vocabulary-context",
+              "db.unit.studio.web.completion-edit-geometry",
+              "db.unit.studio.web.release-tag-provider-correspondence",
+              "db.unit.studio.web.history-dialect-correspondence",
+              "db.unit.studio.web.explorer-byte-range",
+              "db.unit.studio.web.sample-call-source-constructor",
+              "db.unit.studio.web.export-file-publication-identity",
+              "db.unit.studio.web.issue-source-byte-publication"
+            ],
+            "original_LSP_delta": 0,
+            "helper_count": 0
+          },
+          "20": {
+            "path": "/workspace/naming-work/integration-20/composition.json",
+            "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a",
+            "new_baseline_unit_ids": [
+              "audit:helix-toml-extension-source",
+              "audit:emacs-literal-extension-source",
+              "audit:neovim-lua-extension-key",
+              "audit:bundled-environment-complete-seeds",
+              "audit:jetbrains-strict-marker-owner",
+              "compiler.source.original-rewrite-word-extent:206",
+              "compiler.source.original-rewrite-word-extent:2846",
+              "compiler.source.configured-original-variable-geometry:341",
+              "compiler.primitive.qualified-name-predicate-adoption:1776"
+            ],
+            "partial_unit_ids": [
+              "compiler.source.configured-original-variable-geometry:341"
+            ],
+            "original_LSP_delta": 0,
+            "helper_count": 0
+          },
+          "21": {
+            "path": "/workspace/naming-work/integration-21/composition.json",
+            "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef",
+            "new_baseline_unit_ids": [
+              "db.unit.registry.checked-environment-observation",
+              "db.unit.registry.profile-promotion-generation-join",
+              "db.unit.spectcl.pack.path-cache-identity"
+            ],
+            "original_LSP_delta": 0,
+            "configured_read_and_SSA_facets": "Author confirmed count0: necessary dependency facets of retained-terminator-and-index-read-consumers, original-read-purpose-consumers, ssa-literal-name-projections in outstanding-consumer-audit.json. No exact finiteCompiler341 consumer row; original341 source-motion read footprint,1736 executable inventory and82 physical mutation/query remain open."
           }
         }
       },
@@ -133502,6 +134058,106 @@
               "output": "patching file rust/tcl-lsp-server/src/lib.rs\nHunk #1 succeeded at 3386 (offset 2 lines).\nHunk #2 succeeded at 10123 (offset 212 lines).\nHunk #3 succeeded at 28075 (offset 144 lines).\nHunk #4 succeeded at 28405 (offset 144 lines).\n\npatching file rust/tcl-lsp-server/tests/e2e/document_symbols.rs\n"
             }
           ]
+        },
+        "15": {
+          "path": "/workspace/naming-work/integration-15/composition.json",
+          "sha256": "984b08deb5cad7f405dba03fe1a142bb2b75f3bb415ede755da4e4937710f85b",
+          "required_environment_reconciled_unit": "audit:test-required-env-presence"
+        },
+        "16": {
+          "path": "/workspace/naming-work/integration-16/composition.json",
+          "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079",
+          "new_baseline_unit_ids": [
+            "audit:editor-complete-bundled-input",
+            "audit:editor-validate-before-publication",
+            "audit:editor-zed-complete-config-inventory",
+            "audit:editor-kotlin-extension-source",
+            "audit:editor-python-extension-source",
+            "audit:editor-zed-toml-extension-source",
+            "audit:editor-xml-extension-list-source",
+            "compiler.source.original-word-selected-config:2622",
+            "compiler.source.expression-selected-config:72",
+            "compiler.source.expression-selected-config:231",
+            "compiler.source.analyser-retained-braced-variable-axis:1492",
+            "compiler.source.analyser-selected-builtin-inventory-cache:3024",
+            "compiler.source.package-header-insertion-geometry:1653",
+            "compiler.source.logical-unicode-insertion:211",
+            "compiler.source.logical-unicode-insertion:113"
+          ],
+          "original_LSP_delta": 0,
+          "semantic_proof_repair_delta": 0
+        },
+        "17": {
+          "path": "/workspace/naming-work/integration-17/composition.json",
+          "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657",
+          "new_baseline_unit_ids": [
+            "db.unit.registry.dialects.literal-extension-glob-rendering",
+            "compiler.source.original-formal-topology:125",
+            "audit:eglot-recording-session-context"
+          ],
+          "original_LSP_delta": 0
+        },
+        "18": {
+          "path": "/workspace/naming-work/integration-18/composition.json",
+          "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87",
+          "new_baseline_unit_ids": [
+            "db.unit.registry.namespace.which-original-option-layout",
+            "db.unit.registry.spectcl.object-class-original-body-position",
+            "db.unit.registry.tcloo-definition-source-body-layout",
+            "compiler.source.configured-original-variable-geometry:169"
+          ],
+          "original_LSP_delta": 0,
+          "oo_objdefine_separate_unit_count": 0
+        },
+        "19": {
+          "path": "/workspace/naming-work/integration-19/composition.json",
+          "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:590",
+            "audit:eglot-elpa-native-path-value",
+            "db.unit.studio.wasm.dsl-byte-geometry",
+            "db.unit.studio.wasm.dsl-vocabulary-context",
+            "db.unit.studio.web.completion-edit-geometry",
+            "db.unit.studio.web.release-tag-provider-correspondence",
+            "db.unit.studio.web.history-dialect-correspondence",
+            "db.unit.studio.web.explorer-byte-range",
+            "db.unit.studio.web.sample-call-source-constructor",
+            "db.unit.studio.web.export-file-publication-identity",
+            "db.unit.studio.web.issue-source-byte-publication"
+          ],
+          "original_LSP_delta": 0,
+          "helper_count": 0
+        },
+        "20": {
+          "path": "/workspace/naming-work/integration-20/composition.json",
+          "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a",
+          "new_baseline_unit_ids": [
+            "audit:helix-toml-extension-source",
+            "audit:emacs-literal-extension-source",
+            "audit:neovim-lua-extension-key",
+            "audit:bundled-environment-complete-seeds",
+            "audit:jetbrains-strict-marker-owner",
+            "compiler.source.original-rewrite-word-extent:206",
+            "compiler.source.original-rewrite-word-extent:2846",
+            "compiler.source.configured-original-variable-geometry:341",
+            "compiler.primitive.qualified-name-predicate-adoption:1776"
+          ],
+          "partial_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:341"
+          ],
+          "original_LSP_delta": 0,
+          "helper_count": 0
+        },
+        "21": {
+          "path": "/workspace/naming-work/integration-21/composition.json",
+          "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef",
+          "new_baseline_unit_ids": [
+            "db.unit.registry.checked-environment-observation",
+            "db.unit.registry.profile-promotion-generation-join",
+            "db.unit.spectcl.pack.path-cache-identity"
+          ],
+          "original_LSP_delta": 0,
+          "configured_read_and_SSA_facets": "Author confirmed count0: necessary dependency facets of retained-terminator-and-index-read-consumers, original-read-purpose-consumers, ssa-literal-name-projections in outstanding-consumer-audit.json. No exact finiteCompiler341 consumer row; original341 source-motion read footprint,1736 executable inventory and82 physical mutation/query remain open."
         }
       },
       "validation": {
@@ -133594,6 +134250,111 @@
             "sha256": "0f834f1c6812026435902684df0ef4366ad5bd9fdec77fb7eca86bc4f22af396"
           },
           "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
+        },
+        "proof_source_restoration": {
+          "status": "9270 actual hash-verified local Git bytes installed without overwrites; Root reported",
+          "receipt": {
+            "path": "/workspace/naming-work/proof-restore-installed.json",
+            "sha256": "d2091d744d3e0bb8d6e45116ea23c9e412c055a9443c1395e7aff0c0362bba4e"
+          },
+          "limits": "Does not clear prior evidence hash/census/binding drift or substitute for fresh proof preflight."
+        },
+        "current_clippy": {
+          "status": "FAIL",
+          "root_session": 35353,
+          "exit_code": 101,
+          "reported_cause": "E0624 method hover constructor private; Root causal repair admitted using existing public fields. About1890 warnings before stop, including deferred code. No new ordinary regression ELF acceptance.",
+          "postflight": "Root reports source input52866 exact PASS [] and same six provider pins."
+        },
+        "integration16": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-16/composition.json",
+            "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+          },
+          "new_unit_ids": [
+            "audit:editor-complete-bundled-input",
+            "audit:editor-validate-before-publication",
+            "audit:editor-zed-complete-config-inventory",
+            "audit:editor-kotlin-extension-source",
+            "audit:editor-python-extension-source",
+            "audit:editor-zed-toml-extension-source",
+            "audit:editor-xml-extension-list-source",
+            "compiler.source.original-word-selected-config:2622",
+            "compiler.source.expression-selected-config:72",
+            "compiler.source.expression-selected-config:231",
+            "compiler.source.analyser-retained-braced-variable-axis:1492",
+            "compiler.source.analyser-selected-builtin-inventory-cache:3024",
+            "compiler.source.package-header-insertion-geometry:1653",
+            "compiler.source.logical-unicode-insertion:211",
+            "compiler.source.logical-unicode-insertion:113"
+          ],
+          "helper_proof_metadata_count": 0,
+          "limits": "Compiler family closure remains open; provider adoption does not clear held Luna generator consumer V1/V2/V3."
+        },
+        "integration17": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-17/composition.json",
+            "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+          },
+          "unit_ids": [
+            "db.unit.registry.dialects.literal-extension-glob-rendering",
+            "compiler.source.original-formal-topology:125",
+            "audit:eglot-recording-session-context"
+          ],
+          "format": "pending per Root; integration16 format PASS",
+          "array": "ArrayV1 excluded pending actual cursor V2 peer/completechain.",
+          "limits": "No fresh Cargo/test/generator acceptance. Existing Eglot native ELPA path unit not changed or counted."
+        },
+        "integration18": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-18/composition.json",
+            "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+          },
+          "format": "Root session82164 running at report update",
+          "execution": "No fresh Cargo/test artifacts.",
+          "formal_report_boundary": "12:39 report froze only already-reconciled admissions through17, conservatively excludes18 although source admission occurred12:39:40."
+        },
+        "emacs_recorder_source_load": {
+          "status": "PASS_ROOT_REPORTED",
+          "environment": "Actual Emacs30.2 built and installed outside Main. Absolute-command V2 recorder reader/load passed; initial relative-path driver failure separately retained.",
+          "limits": "Reader/load success, no full Eglot recording runtime or allhost acceptance."
+        },
+        "integration19": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-19/composition.json",
+            "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+          },
+          "format": "Root session65377 running at update",
+          "limits": "No fresh Cargo/test ELF; exact old units only, no helper/header count."
+        },
+        "integration20": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-20/composition.json",
+            "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+          },
+          "format": "Root session86174 running at update",
+          "limits": "Actual10 ordinary libraryELF build planned, not complete. GeneratorV5 source-cleared and admitted; actual output/drift gates owed."
+        },
+        "fresh_proof_after_restore": {
+          "status": "RUNNING_NOT_ACCEPTED",
+          "root_session": 17658,
+          "basis": "Through integration19 after real source restoration and proof metadata repairs.",
+          "limits": "Root reported99%CPU after6minutes; no PASS inferred."
+        },
+        "integration21": {
+          "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+          "admission": {
+            "path": "/workspace/naming-work/integration-21/composition.json",
+            "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+          },
+          "format": "Targeted7file check PASS; fullworkspace20format PASS before21",
+          "freeze": "Root freezes source for fresh ordinary10crate ELF build; no Cargo execution or artifact success inferred.",
+          "limits": "TaintV1\u2013V4 held outsideMain; lambda/statement/remainingDB packets outsideMain. Configured-read+SSA are confirmed aggregate dependency facets, zero extra unit counts and no341 closure."
         }
       },
       "remaining_LSP_unintegrated": [
@@ -133758,11 +134519,6 @@
           "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
         },
         {
-          "id": "lsp-server-method-dispatch-entry-report-fallback",
-          "classification": "generic_unintegrated",
-          "reason": "Cross-document facet is preparatory only; full method-dispatch fallback remains unadopted."
-        },
-        {
           "id": "lsp-server-irules-metadata-commands",
           "classification": "deferred_bigip_related",
           "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
@@ -133780,15 +134536,20 @@
       ],
       "remaining_classification_counts": {
         "deferred_bigip_related": 35,
-        "generic_unintegrated": 1,
+        "generic_unintegrated": 0,
         "source_diagnostic_boundary_scope_review": 0
       },
       "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
-      "next_report_utc": "2026-10-17T12:39:49Z",
+      "next_report_utc": "2026-10-17T13:09:49Z",
       "green_PR": false,
       "merge_or_issue_closure": false,
-      "pending_generator_boundaries": "Five additional generic xtask editor generator boundaries outside original325 remain pending review; no counts. Authoritative V1 sealed patch replay only; private afterimage drift excluded.",
-      "method_entry_pending": "V1/V2 outside Main pending V3 genuine SelfSelector carrier repair; no count."
+      "pending_generator_boundaries": "Five companion generator source consumers V5 admitted, actual generator/drift checks remain owed. Remaining generic Compiler/DB/Registry/Syntax dependencies explicitly open; no blanket completion.",
+      "method_entry_admitted_partial": {
+        "unit_id": "lsp-server-method-dispatch-entry-report-fallback",
+        "path": "/workspace/naming-work/integration-15/composition.json",
+        "sha256": "984b08deb5cad7f405dba03fe1a142bb2b75f3bb415ede755da4e4937710f85b",
+        "limits": "Source advice only; no executed MRO grant."
+      }
     },
     "historical_provenance": {
       "scope": "Prior build-by-build history only; no old PASS is current acceptance. All catalogue rows/original count contracts and current annex/per-unit remaining obligations are retained unchanged except the three explicitly admitted units.",

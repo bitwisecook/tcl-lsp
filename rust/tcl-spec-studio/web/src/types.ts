@@ -544,6 +544,7 @@ export interface StudioWasm {
      browser holds exactly one piece of state and Rust stays a pure function
      of it — which is what makes the DSL pane and the form two projections of
      one thing rather than two stores to reconcile. */
+  sample_call_source(source: string, name: string, dialect: string, sampleSource: string): string;
   pack_new(packName: string): string;
   pack_load(source: string, dialect: string): string;
   pack_command(source: string, name: string, dialect: string): string;

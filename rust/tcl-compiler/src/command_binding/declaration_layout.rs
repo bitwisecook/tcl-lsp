@@ -3350,7 +3350,7 @@ impl super::SourceInvocationBinding {
         let observations =
             original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
         let end = tokens.words().last()?.source().span.end();
-        let config = tcl_lexer::LexerConfig::from_grammar(layout.dialect().lexer_grammar);
+        let config = layout.config;
         let mut reads = Vec::new();
         for access in &tokens.variable_accesses {
             if !direct_declaration_operand_owner(&access.owner, site)
@@ -3390,7 +3390,7 @@ impl super::SourceInvocationBinding {
                         .all(|observation| observation.entry.owns_original_context(context))
                 })
                 .collect::<Vec<_>>();
-            if name.contains("::")
+            if tcl_syntax::naming::is_qualified(reference.name)
                 || contexts.is_empty()
                 || contexts
                     .iter()

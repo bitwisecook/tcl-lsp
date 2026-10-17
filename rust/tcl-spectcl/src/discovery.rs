@@ -595,10 +595,28 @@ fn collect_dir_except(
     skip: &dyn Fn(&Path) -> bool,
     out: &mut BTreeSet<PackFile>,
 ) {
+    let _ = collect_dir_except_with_errors(store, dir, tier, origin, skip, out);
+}
+
+/// The existing recursive selector with explicit required-input failures.
+/// Compatibility discovery still keeps its independently useful positive prefix.
+fn collect_dir_except_with_errors(
+    store: &dyn SourceStore,
+    dir: &Path,
+    tier: Tier,
+    origin: Origin,
+    skip: &dyn Fn(&Path) -> bool,
+    out: &mut BTreeSet<PackFile>,
+) -> Vec<(PathBuf, std::io::Error)> {
+    let mut errors = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let Ok(entries) = store.read_dir(&current) else {
-            continue;
+        let entries = match store.read_dir(&current) {
+            Ok(entries) => entries,
+            Err(error) => {
+                errors.push((current, error));
+                continue;
+            }
         };
         for entry in entries {
             if entry.is_dir {
@@ -615,6 +633,31 @@ fn collect_dir_except(
             }
         }
     }
+    errors
+}
+
+/// Required bundled generation uses the same native selector and skip policy;
+/// a missing or unreadable directory cannot issue a complete selected roster.
+pub(crate) fn required_bundled_files(
+    store: &dyn SourceStore,
+    dir: &Path,
+) -> Result<Vec<PackFile>, String> {
+    let mut files = BTreeSet::new();
+    let errors = collect_dir_except_with_errors(
+        store,
+        dir,
+        Tier::Bundled,
+        Origin::Bundled,
+        &|_| false,
+        &mut files,
+    );
+    if let Some((path, error)) = errors.first() {
+        return Err(format!(
+            "required bundled directory {}: {error}",
+            path.display()
+        ));
+    }
+    Ok(files.into_iter().collect())
 }
 
 /// Add the packs that sit beside each `tclpkg.tcl` under `root`.

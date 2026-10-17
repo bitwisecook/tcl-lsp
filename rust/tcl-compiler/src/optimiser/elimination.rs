@@ -1773,7 +1773,7 @@ pub(crate) fn scan_module_traced_globals_with_metadata_context(
     cu.all_body_function_units()
         .flat_map(|unit| unit.cfg.blocks.values().flat_map(|block| &block.statements))
         .flat_map(|statement| statement_write_trace_targets(statement, registry, Some(context)))
-        .filter(|target| target.contains("::"))
+        .filter(|target| tcl_syntax::naming::is_qualified(target.as_bytes()))
         .collect()
 }
 

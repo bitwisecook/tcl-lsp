@@ -226,3 +226,15 @@ export function fileDir(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut < 0 ? "" : path.slice(0, cut);
 }
+
+/** Publish the original artifact bytes inside an unambiguous Markdown fence.
+ * The heading is a display label; it cannot define the artifact's identity. */
+export function artifactIssueSection(file: { path: string; source: string }): string {
+  const ext = file.path.slice(file.path.lastIndexOf(".") + 1);
+  const language = ext === "rs" ? "rust" : ext === "stubs" || ext === "tcl" ? "tcl" : "";
+  let fence = "```";
+  for (const run of file.source.matchAll(/`+/g)) {
+    if (run[0].length >= fence.length) fence = "`".repeat(run[0].length + 1);
+  }
+  return [`### ${JSON.stringify(file.path)}`, "", fence + language, file.source, fence].join("\n");
+}

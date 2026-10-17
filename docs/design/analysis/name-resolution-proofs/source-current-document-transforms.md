@@ -128,3 +128,26 @@ before the queued EDT write. The host rejoins the actual SDK publication and
 local source/settings immediately inside the write action, but does not claim
 to hold Server provider state across that gap. Worker equivalence and edit
 safety remain independent, and no stronger distributed atomicity is promised.
+
+
+## Current index binding
+
+Stable proof ID: `naming.lsp.original-document-transform-currency`.
+
+## Problem statement
+
+Whole-document transformation responses can outlive the source, worker configuration and client session that issued them.
+
+## Question
+
+How do existing document-transform issuers and application owners preserve the same full source/input and one-use response lineage?
+
+## Conclusion
+
+TransformRequest and TransformWorkerSource retain the actual source and configured worker. Node/browser document-transform owners capture the original document/context and validate the existing one-use server ledger immediately before their checked edit.
+
+## Scope
+
+Source/input/response currency only. Transformation safety, Normal, runtime equivalence, frame/effect closure and Native admission stay with independent owners; provider observations and execution are not claimed here.
+
+All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.

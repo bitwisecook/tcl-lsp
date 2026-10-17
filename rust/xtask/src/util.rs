@@ -18,6 +18,8 @@
 
 //! Small shared helpers for the xtask subcommands.
 
+pub(crate) mod source_literals;
+
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};

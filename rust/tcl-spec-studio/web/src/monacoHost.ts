@@ -58,6 +58,7 @@ import type {
 } from "./editorHost.js";
 import { LspClient, startLspClient } from "./lspClient.js";
 import { registerTclGrammar } from "./textmateHost.js";
+import { sourceByteBoundaries } from "./sourceCoordinates.js";
 
 /** The Monaco language id both surfaces' models are registered under. */
 const SPECTCL_LANGUAGE = "spectcl";
@@ -197,6 +198,41 @@ function positionOf(text: string, needle: string): { line: number; character: nu
   return { line: lines.length - 1, character: lines[lines.length - 1]?.length ?? 0 };
 }
 
+/** Strict protocol positions: Monaco's clamping is not source correspondence. */
+function checkedCompletionRange(
+  model: monaco.editor.ITextModel,
+  range: LspTextEdit["range"],
+): monaco.IRange | null {
+  const valid = (position: LspTextEdit["range"]["start"]): boolean => {
+    if (
+      !Number.isSafeInteger(position.line) ||
+      !Number.isSafeInteger(position.character) ||
+      position.line < 0 ||
+      position.line >= model.getLineCount() ||
+      position.character < 0
+    )
+      return false;
+    const line = model.getLineContent(position.line + 1);
+    if (position.character > line.length) return false;
+    const before = line.charCodeAt(position.character - 1);
+    const after = line.charCodeAt(position.character);
+    return !(before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff);
+  };
+  if (
+    !valid(range.start) ||
+    !valid(range.end) ||
+    range.end.line < range.start.line ||
+    (range.end.line === range.start.line && range.end.character < range.start.character)
+  )
+    return null;
+  return {
+    startLineNumber: range.start.line + 1,
+    startColumn: range.start.character + 1,
+    endLineNumber: range.end.line + 1,
+    endColumn: range.end.character + 1,
+  };
+}
+
 /**
  * Register every provider that forwards to the server.
  *
@@ -259,32 +295,109 @@ function registerProviders(client: LspClient): void {
     monaco.languages.registerCompletionItemProvider(language, {
       triggerCharacters: ["$", "-", ":"],
       provideCompletionItems: async (model, position) => {
-        const reply = await client.completion(
-          model.uri.toString(),
-          position.lineNumber - 1,
-          position.column - 1,
-        );
+        const uri = model.uri.toString();
+        const version = model.getVersionId();
+        const text = model.getValue();
+        const issued = client.captureDocumentSource(uri, text);
+        if (!issued) return { suggestions: [] };
+        const reply = await client.completion(uri, position.lineNumber - 1, position.column - 1);
+        if (
+          model.isDisposed() ||
+          model.uri.toString() !== uri ||
+          model.getVersionId() !== version ||
+          model.getValue() !== text ||
+          !issued.isCurrent()
+        )
+          return { suggestions: [] };
+        const defaults = reply && !Array.isArray(reply) ? reply.itemDefaults : undefined;
         const word = model.getWordUntilPosition(position);
-        const range = {
+        const fallback = {
           startLineNumber: position.lineNumber,
           endLineNumber: position.lineNumber,
           startColumn: word.startColumn,
           endColumn: word.endColumn,
         };
-        return {
-          suggestions: completionItems(reply).map((item) => ({
+        const containsCursor = (range: monaco.IRange): boolean =>
+          range.startLineNumber === position.lineNumber &&
+          range.endLineNumber === position.lineNumber &&
+          range.startColumn <= position.column &&
+          position.column <= range.endColumn;
+        const suggestions: monaco.languages.CompletionItem[] = [];
+        for (const item of completionItems(reply)) {
+          const selected = item.textEdit;
+          const protocolRange = selected
+            ? "range" in selected
+              ? selected.range
+              : { insert: selected.insert, replace: selected.replace }
+            : defaults?.editRange;
+          let range: monaco.IRange | monaco.languages.CompletionItemRanges = fallback;
+          if (protocolRange) {
+            if ("insert" in protocolRange) {
+              const insert = checkedCompletionRange(model, protocolRange.insert);
+              const replace = checkedCompletionRange(model, protocolRange.replace);
+              if (
+                !insert ||
+                !replace ||
+                !containsCursor(insert) ||
+                !containsCursor(replace) ||
+                insert.startColumn !== replace.startColumn ||
+                insert.endColumn > replace.endColumn
+              )
+                continue;
+              range = { insert, replace };
+            } else {
+              const checked = checkedCompletionRange(model, protocolRange);
+              if (!checked || !containsCursor(checked)) continue;
+              range = checked;
+            }
+          }
+          const additionalTextEdits: monaco.languages.TextEdit[] = [];
+          let complete = true;
+          for (const edit of item.additionalTextEdits ?? []) {
+            const range = checkedCompletionRange(model, edit.range);
+            if (!range) {
+              complete = false;
+              break;
+            }
+            additionalTextEdits.push({ range, text: edit.newText });
+          }
+          if (!complete || (!selected && !defaults?.editRange && item.textEditText !== undefined))
+            continue;
+          const main = "replace" in range ? range.replace : range;
+          const edits = [main, ...additionalTextEdits.map((edit) => edit.range)].sort(
+            (a, b) => a.startLineNumber - b.startLineNumber || a.startColumn - b.startColumn,
+          );
+          if (
+            edits.some(
+              (edit, index) =>
+                index > 0 &&
+                (edits[index - 1]!.endLineNumber > edit.startLineNumber ||
+                  (edits[index - 1]!.endLineNumber === edit.startLineNumber &&
+                    edits[index - 1]!.endColumn > edit.startColumn)),
+            )
+          )
+            continue;
+          let rules =
+            (item.insertTextFormat ?? defaults?.insertTextFormat) === 2
+              ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+              : 0;
+          if ((item.insertTextMode ?? defaults?.insertTextMode) === 1) {
+            rules |= monaco.languages.CompletionItemInsertTextRule.KeepWhitespace;
+          }
+          suggestions.push({
             label: item.label,
-            // LSP's `CompletionItemKind` is 1-based over the same ordered set
-            // Monaco enumerates from 0, so the offset is the whole conversion.
             kind: (item.kind ?? 1) - 1,
-            insertText: item.insertText ?? item.label,
+            insertText: selected?.newText ?? item.textEditText ?? item.insertText ?? item.label,
+            insertTextRules: rules || undefined,
             detail: item.detail,
             documentation: item.documentation ? toMarkdown(item.documentation) : undefined,
             sortText: item.sortText,
             filterText: item.filterText,
             range,
-          })),
-        };
+            additionalTextEdits,
+          });
+        }
+        return { suggestions, incomplete: !Array.isArray(reply) && !!reply?.isIncomplete };
       },
     });
 
@@ -379,6 +492,12 @@ async function loadStylesheet(href: string): Promise<void> {
   });
 }
 
+/** Source presentation coordinates from one actual mounted model revision. */
+export interface SourceSnapshot {
+  readonly source: string;
+  readonly dialect: string;
+}
+
 /** One mounted surface: its editor, its model, and its change plumbing. */
 class Surface {
   readonly editor: monaco.editor.IStandaloneCodeEditor;
@@ -397,6 +516,49 @@ class Surface {
   private timer: number | undefined;
 
   private readonly highlights: monaco.editor.IEditorDecorationsCollection;
+
+  private readonly sourceSnapshots = new WeakMap<
+    SourceSnapshot,
+    {
+      model: monaco.editor.ITextModel;
+      version: number;
+      source: string;
+      dialect: string;
+      bytes: ReadonlyMap<number, number>;
+    }
+  >();
+
+  captureSource(): SourceSnapshot | null {
+    const model = this.editor.getModel();
+    if (!model || model.isDisposed()) return null;
+    const source = model.getValue();
+    if (source !== this.spec.textarea.value) return null;
+    const bytes = sourceByteBoundaries(source);
+    if (!bytes) return null;
+    const snapshot = Object.freeze({ source, dialect: this.languageId });
+    this.sourceSnapshots.set(snapshot, {
+      model,
+      version: model.getVersionId(),
+      source,
+      dialect: this.languageId,
+      bytes,
+    });
+    return snapshot;
+  }
+
+  sourceIsCurrent(snapshot: SourceSnapshot): boolean {
+    const held = this.sourceSnapshots.get(snapshot);
+    const model = this.editor.getModel();
+    return (
+      !!held &&
+      model === held.model &&
+      !model.isDisposed() &&
+      model.getVersionId() === held.version &&
+      model.getValue() === held.source &&
+      this.spec.textarea.value === held.source &&
+      this.languageId === held.dialect
+    );
+  }
 
   constructor(
     spec: SurfaceSpec,
@@ -486,27 +648,38 @@ class Surface {
   }
 
   /** Highlight compiler-result source ranges in the shared Explorer editor. */
-  setHighlights(ranges: Array<{ start: number; end: number }>): void {
-    const model = this.editor.getModel();
-    if (!model) return;
+  setHighlights(
+    ranges: Array<{ start: number; end: number }>,
+    snapshot?: SourceSnapshot | null,
+  ): void {
+    this.highlights.clear();
+    if (!ranges.length || !snapshot || !this.sourceIsCurrent(snapshot)) return;
+    const held = this.sourceSnapshots.get(snapshot);
+    if (!held) return;
+    const checked: monaco.Range[] = [];
+    for (const range of ranges) {
+      if (
+        !Number.isSafeInteger(range.start) ||
+        !Number.isSafeInteger(range.end) ||
+        range.start < 0 ||
+        range.end < range.start
+      )
+        return;
+      const start = held.bytes.get(range.start);
+      const end = held.bytes.get(range.end);
+      if (start === undefined || end === undefined) return;
+      const begin = held.model.getPositionAt(start);
+      const finish = held.model.getPositionAt(end);
+      if (held.model.getOffsetAt(begin) !== start || held.model.getOffsetAt(finish) !== end) return;
+      checked.push(monaco.Range.fromPositions(begin, finish));
+    }
     this.highlights.set(
-      ranges.map((range) => ({
-        range: monaco.Range.fromPositions(
-          model.getPositionAt(range.start),
-          model.getPositionAt(range.end),
-        ),
+      checked.map((range) => ({
+        range,
         options: { inlineClassName: "tcl-explorer-source-highlight" },
       })),
     );
-    const first = ranges[0];
-    if (first) {
-      this.editor.revealRangeInCenter(
-        monaco.Range.fromPositions(
-          model.getPositionAt(first.start),
-          model.getPositionAt(first.end),
-        ),
-      );
-    }
+    if (checked[0]) this.editor.revealRangeInCenter(checked[0]);
   }
 
   /** Paint the server's diagnostics for this document. */
@@ -719,7 +892,12 @@ export interface TclEditorOptions {
 /** Mount the same Monaco/TextMate/LSP stack for Compiler Explorer on Pages. */
 export async function mountTclEditor(options: TclEditorOptions): Promise<{
   setDialect(dialect: string): void;
-  highlightRanges(ranges: Array<{ start: number; end: number }>): void;
+  captureSource(): SourceSnapshot | null;
+  sourceIsCurrent(snapshot: SourceSnapshot): boolean;
+  highlightRanges(
+    ranges: Array<{ start: number; end: number }>,
+    snapshot?: SourceSnapshot | null,
+  ): void;
   layout(): void;
   readonly lspReady: boolean;
 }> {
@@ -756,7 +934,9 @@ export async function mountTclEditor(options: TclEditorOptions): Promise<{
   if (ready) options.report?.("using the shared Tcl Monaco editor", "ok");
   return {
     setDialect: (dialect) => surface.setLanguageId(dialect),
-    highlightRanges: (ranges) => surface.setHighlights(ranges),
+    captureSource: () => surface.captureSource(),
+    sourceIsCurrent: (snapshot) => surface.sourceIsCurrent(snapshot),
+    highlightRanges: (ranges, snapshot) => surface.setHighlights(ranges, snapshot),
     layout: () => surface.layout(),
     get lspReady() {
       return ready;

@@ -100,8 +100,8 @@ fi
 
 if [ "$have_eglot" -eq 0 ]; then
   echo "Installing eglot from GNU ELPA into $elpa (need >= 1.20)..." >&2
-  emacs -Q --batch \
-    --eval "(setq package-user-dir \"$elpa\")" \
+  TCL_LSP_EGLOT_ELPA_DIR="$elpa" emacs -Q --batch \
+    --eval '(setq package-user-dir (getenv "TCL_LSP_EGLOT_ELPA_DIR"))' \
     --eval "(require 'package)" \
     --eval "(setq package-archives '((\"gnu\" . \"https://elpa.gnu.org/packages/\")))" \
     --eval "(setq package-install-upgrade-built-in t)" \

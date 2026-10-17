@@ -254,21 +254,31 @@ static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
 /// the probe existence policy keeps it out of the W123 unresolved-command
 /// pass, so a perfectly valid existence check
 /// (`if {[namespace which -command foo] eq ""} …`) of a command the
-/// analyser cannot see is never flagged.  `args` are the words after the
-/// `which` subcommand.
-fn namespace_which_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let is_variable = args
+/// analyser cannot see is never flagged. The selected option run and original
+/// word ordinals determine the role; the final word remains the name even when
+/// it begins with `-`. This describes the source probe, not its lookup result.
+fn namespace_which_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let occurrences = options.prefix_occurrences(args)?;
+    let name = options.leading_word_count(args)?;
+    if name.checked_add(1)? != count {
+        return None;
+    }
+    let is_variable = occurrences
         .iter()
-        .any(|a| a.len() > 1 && "-variable".starts_with(*a));
-    let Some(idx) = args.iter().rposition(|a| !a.starts_with('-')) else {
-        return Vec::new();
-    };
+        .filter_map(|occurrence| occurrence.option)
+        .filter(|option| option.name == "-variable" || option.name == "-command")
+        .last()
+        .is_some_and(|option| option.name == "-variable");
     let role = if is_variable {
         ArgRole::VarRead
     } else {
         ArgRole::CommandNameProbe
     };
-    u8::try_from(idx).map_or_else(|_| Vec::new(), |i| vec![(i, role)])
+    Some(vec![(u8::try_from(name).ok()?, role)])
 }
 
 static WHICH_OPTIONS: &[OptionSpec] = &[
@@ -1505,7 +1515,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,
-        arg_role_resolver: Some(namespace_which_arg_roles),
+        reserved_trailing_words: 1,
+        arg_role_layout_resolver: Some(namespace_which_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
         pure: true,
         return_type: Some(TclType::String),
@@ -1630,8 +1641,8 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use super::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
-        fold_qualifiers, fold_tail, namespace_delete_state_transitions,
-        namespace_path_state_transitions, spec,
+        WHICH_OPTIONS, fold_qualifiers, fold_tail, namespace_delete_state_transitions,
+        namespace_path_state_transitions, namespace_which_arg_roles, spec,
     };
     use crate::prelude::SideEffectTarget;
     use crate::{
@@ -1641,6 +1652,44 @@ mod tests {
     };
     use tcl_dialect::model::surface_admits;
     use tcl_dialect::model::{Family, SurfaceQuery};
+
+    #[test]
+    fn which_roles_use_the_selected_option_order_and_reserved_final_name() {
+        let options = crate::resolved_invocation::InvocationOptions {
+            availability: crate::resolved_invocation::InvocationAvailability::default(),
+            parent_surface: None,
+            form_surface: None,
+            prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+            positional_prefix_words: 0,
+            reserved_trailing_words: 1,
+            case_list: None,
+            base: WHICH_OPTIONS,
+            form: &[],
+        };
+        assert_eq!(
+            namespace_which_arg_roles(
+                crate::InvocationArguments::literals(&["-variable", "-command", "-dash"]),
+                options,
+            ),
+            Some(vec![(2, crate::arg_role::ArgRole::CommandNameProbe)])
+        );
+        assert_eq!(
+            namespace_which_arg_roles(
+                crate::InvocationArguments::literals(&["-command", "-variable", "-dash"]),
+                options,
+            ),
+            Some(vec![(2, crate::arg_role::ArgRole::VarRead)])
+        );
+        let expanded = [
+            crate::InvocationWord::Literal("-variable"),
+            crate::InvocationWord::Expanded,
+            crate::InvocationWord::Literal("name"),
+        ];
+        assert!(
+            namespace_which_arg_roles(crate::InvocationArguments::structured(&expanded), options,)
+                .is_none()
+        );
+    }
 
     #[test]
     fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_binding() {

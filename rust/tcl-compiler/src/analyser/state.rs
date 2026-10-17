@@ -1489,7 +1489,7 @@ impl Analyser {
     /// mentions.
     #[must_use]
     pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
-        self.profile.grammar.braced_var
+        self.lexer_config().braced_var
     }
 
     /// Split a `${…}`-headed `Var` token's text (as
@@ -1666,6 +1666,8 @@ impl Analyser {
     pub fn with_pack_overlay(mut self, key: u64) -> Self {
         self.pack_overlay = key;
         if self.resolved_input.is_none() {
+            self.builtin_names = None;
+            self.builtin_dialect = None;
             self.context = None;
             self.registry = None;
             self.result.analysis_context_unavailable = None;
@@ -2010,6 +2012,8 @@ impl Analyser {
     /// no display-name lookup replaces its grammar or command generation.
     #[must_use]
     pub fn with_resolved_input(mut self, input: super::input::ResolvedAnalysisInput) -> Self {
+        self.builtin_names = None;
+        self.builtin_dialect = None;
         self.resolved_input = Some(input);
         self
     }
@@ -2524,6 +2528,7 @@ impl Analyser {
                 cmd,
                 &self.source,
                 &self.recovery_known_commands,
+                self.lexer_config(),
             );
             self.result.diagnostics.extend(e201);
         }
@@ -3470,6 +3475,10 @@ impl Analyser {
     }
 
     pub(super) fn clear_run_state(&mut self) {
+        // Command inventory is scoped to this resolved context, not a profile
+        // display label shared by distinct pack generations.
+        self.builtin_names = None;
+        self.builtin_dialect = None;
         self.registry = None;
         self.context = None;
         self.environment = None;
@@ -7569,5 +7578,36 @@ mod tests {
         let mut af2 = Analyser::new();
         let full2 = af2.analyse(stubbed, "tcl8.6");
         assert_eq!(project_result(&inc2), project_result(&full2));
+    }
+}
+
+#[cfg(test)]
+mod retained_configuration_consumer_tests {
+    use super::*;
+
+    #[test]
+    fn braced_head_split_uses_supplied_axis_and_reuse_retires_inventory() {
+        let mut analyser = Analyser::new();
+        let mut input = analyser.prepare_analysis_input("tcl9.0").unwrap();
+        input.config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let mut analyser = analyser.with_resolved_input(input.clone());
+        assert_eq!(
+            analyser.split_braced_head("a{b}c}::tail"),
+            ("a{b", "c}::tail")
+        );
+        assert!(!analyser.builtin_command_names().is_empty());
+        assert!(analyser.builtin_names.is_some());
+        let mut analyser = analyser.with_resolved_input(input);
+        assert!(analyser.builtin_names.is_none());
+        assert!(!analyser.builtin_command_names().is_empty());
+        analyser.clear_run_state();
+        assert!(analyser.builtin_names.is_none());
+        assert!(analyser.builtin_dialect.is_none());
+        let mut analyser = Analyser::new();
+        analyser.prepare_analysis_input("tcl9.0").unwrap();
+        assert!(!analyser.builtin_command_names().is_empty());
+        let analyser = analyser.with_pack_overlay(u64::MAX);
+        assert!(analyser.builtin_names.is_none());
+        assert!(analyser.builtin_dialect.is_none());
     }
 }

@@ -798,12 +798,13 @@ impl SourceStore for NativeStore {
 
     fn read_dir(&self, path: &Path) -> io::Result<Vec<DirEntry>> {
         let mut out = Vec::new();
-        for entry in std::fs::read_dir(path)?.flatten() {
-            let kind = entry.file_type();
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
             out.push(DirEntry {
                 path: entry.path(),
-                is_dir: kind.as_ref().is_ok_and(std::fs::FileType::is_dir),
-                is_file: kind.as_ref().is_ok_and(std::fs::FileType::is_file),
+                is_dir: kind.is_dir(),
+                is_file: kind.is_file(),
             });
         }
         Ok(out)

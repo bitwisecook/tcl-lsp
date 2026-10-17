@@ -824,6 +824,7 @@ struct BindingBaseline {
     /// Explicit module-declared frame effects, independent of native cells.
     declared: Arc<crate::ir::DeclaredFrameEffects>,
     logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    source_read_config: crate::var_resolve::SourceReadConfiguration,
     vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
@@ -855,6 +856,7 @@ struct BindingBaseline {
 impl PartialEq for BindingBaseline {
     fn eq(&self, other: &Self) -> bool {
         self.metadata_context == other.metadata_context
+            && self.source_read_config == other.source_read_config
             && self.logical_source_input == other.logical_source_input
             && self.vendor_source_input == other.vendor_source_input
             && self.hosted_execution_context == other.hosted_execution_context
@@ -902,6 +904,7 @@ impl BindingBaseline {
                 crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
             declared: Arc::new(crate::ir::DeclaredFrameEffects::default()),
             logical_source_input: None,
+            source_read_config: crate::var_resolve::SourceReadConfiguration::Standalone,
             vendor_source_input: None,
             hosted_execution_context: None,
             execution_name_policy: registry
@@ -963,6 +966,7 @@ impl BindingBaseline {
         self.execution_name_policy.hash(&mut state);
         self.metadata_context.hash(&mut state);
         self.declared.hash(&mut state);
+        self.source_read_config.hash(&mut state);
         self.logical_source_input.hash(&mut state);
         self.vendor_source_input.hash(&mut state);
         self.hosted_execution_context.hash(&mut state);
@@ -7236,6 +7240,7 @@ impl SourceCommandBindings {
         } else if let Some(event) = &root.event {
             let mut entry = crate::connection_scope::event_resolve_context(event);
             entry.invocation_dialect = branch.baseline.dialect;
+            entry.source_read_configuration = parent.source_read_configuration;
             entry.namespace_cells = parent.namespace_cells.clone();
             let frame = if entry.dynamic_bindings {
                 VariableExecutionFrame::Unknown
@@ -13921,6 +13926,10 @@ impl ModuleCommandBindings {
             baseline.execution_name_policy = options.execution_name_policy();
         }
         baseline.metadata_context = options.retained_metadata_context();
+        baseline.source_read_config = config.map_or(
+            crate::var_resolve::SourceReadConfiguration::Standalone,
+            crate::var_resolve::SourceReadConfiguration::Selected,
+        );
         baseline.logical_source_input = options.retained_logical_source_input(registry, config);
         baseline.vendor_source_input = options.retained_vendor_source_input(registry, config);
         baseline.hosted_execution_context = options.hosted_execution_context;
@@ -13985,6 +13994,7 @@ impl ModuleCommandBindings {
         let mut variables = crate::var_resolve::ResolveContext::for_namespace("::");
         variables.frame_kind = crate::var_resolve::VariableFrameKind::Global;
         variables.invocation_dialect = state.baseline.dialect;
+        variables.source_read_configuration = state.baseline.source_read_config;
         variables.execution_name_policy = state.baseline.execution_name_policy;
         variables.hosted_execution_context = state.baseline.hosted_execution_context;
         variables.namespace_identities = state.namespaces.iter().cloned().collect();
@@ -19670,6 +19680,11 @@ pub struct CommandBinding<'a> {
 
 fn unavailable_cfg_entry(registry: &CommandRegistry) -> ModuleCommandBindings {
     let mut unknown = ModuleCommandBindings::initial(registry);
+    let baseline = Arc::make_mut(&mut unknown.baseline);
+    baseline.source_read_config = crate::var_resolve::SourceReadConfiguration::Unavailable;
+    baseline.refresh_fingerprint();
+    Arc::make_mut(&mut unknown.source_variables).source_read_configuration =
+        crate::var_resolve::SourceReadConfiguration::Unavailable;
     unknown.mark_opaque_binding_mutation();
     unknown.loader_handler_unknown = true;
     unknown
@@ -24744,5 +24759,64 @@ mod logical_source_advice_join_tests {
                 .original_logical_source_words(&joined, input, registry)
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_source_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn source_entry_and_baseline_rebuild_keep_actual_full_lexer_config() {
+        let registry = CommandRegistry::build_default();
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.strict_quoting = true;
+        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let selected = ModuleCommandBindings::initial_with_options(
+            &registry,
+            SourceAnalysisOptions::default(),
+            Some(config),
+        );
+        assert_eq!(
+            selected.source_variables.read_lexer_config(&registry),
+            Some(config)
+        );
+        let rebuilt = ModuleCommandBindings::initial_entry_from_baseline(
+            &registry,
+            Arc::clone(&selected.baseline),
+        );
+        assert_eq!(
+            rebuilt.source_variables.read_lexer_config(&registry),
+            Some(config)
+        );
+        let mut changed = config;
+        changed.strict_quoting = false;
+        let alternate = ModuleCommandBindings::initial_with_options(
+            &registry,
+            SourceAnalysisOptions::default(),
+            Some(changed),
+        );
+        assert_ne!(selected.baseline, alternate.baseline);
+    }
+}
+
+#[cfg(test)]
+mod unavailable_source_read_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn actual_unavailable_cfg_entry_cannot_reconstruct_source_config_on_rebuild() {
+        let registry = CommandRegistry::build_default();
+        let refused = unavailable_cfg_entry(&registry);
+        assert_eq!(refused.source_variables.read_lexer_config(&registry), None);
+        let rebuilt = ModuleCommandBindings::initial_entry_from_baseline(
+            &registry,
+            Arc::clone(&refused.baseline),
+        );
+        assert_eq!(rebuilt.source_variables.read_lexer_config(&registry), None);
+        let child = rebuilt
+            .source_variables
+            .in_frame(&crate::var_resolve::VariableExecutionFrame::Global);
+        assert_eq!(child.read_lexer_config(&registry), None);
     }
 }

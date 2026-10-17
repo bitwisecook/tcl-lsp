@@ -28,6 +28,9 @@
 // Run with `npm test` (which bundles this file first — it imports the same
 // TypeScript sources the browser bundle does).
 
+import { sourceByteBoundaries } from "../src/sourceCoordinates.js";
+import { LspClient } from "../src/lspClient.js";
+import { artifactIssueSection } from "../src/packExport.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { mountEditors } from "../src/nativeEditorHost.js";
@@ -2331,4 +2334,66 @@ describe("the pack export", () => {
     assert.equal(fileBase("mylib.tclspec"), "mylib.tclspec");
     assert.equal(fileDir("mylib.tclspec"), "");
   });
+});
+
+describe("actual Studio source correspondence", () => {
+  it("projects complete Unicode/CR source boundaries and refuses replacement or interior bytes", () => {
+    const source = "aé🙂\r\nx";
+    const boundaries = sourceByteBoundaries(source)!;
+    assert.deepEqual(
+      [...boundaries],
+      [
+        [0, 0],
+        [1, 1],
+        [3, 2],
+        [7, 4],
+        [8, 5],
+        [9, 6],
+        [10, 7],
+      ],
+    );
+    assert.equal(boundaries.get(2), undefined);
+    assert.equal(boundaries.get(5), undefined);
+    assert.equal(boundaries.get(11), undefined);
+    assert.equal(sourceByteBoundaries("x\ud800"), null);
+  });
+
+  it("retires the actual client document receipt on same-text change, dialect reopen and stop", async () => {
+    // Only IO is stubbed; all document issuance/currentness uses the real client.
+    const connection = {
+      onNotification() {},
+      onClose() {},
+      onDispose() {},
+      sendNotification() {},
+      sendRequest: async () => undefined,
+      dispose() {},
+    };
+    const client = Reflect.construct(LspClient, [
+      connection,
+      { terminate() {} },
+      { tokenTypes: [], tokenModifiers: [] },
+    ]) as LspClient;
+    const uri = "file:///original-studio-source.tcl";
+    client.openDocument(uri, "tcl8.6", "puts VALUE");
+    const first = client.captureDocumentSource(uri, "puts VALUE")!;
+    assert.equal(first.isCurrent(), true);
+    assert.equal(client.captureDocumentSource(uri, "puts OTHER"), null);
+    client.changeDocument(uri, "puts VALUE");
+    assert.equal(first.isCurrent(), false);
+    const second = client.captureDocumentSource(uri, "puts VALUE")!;
+    client.openDocument(uri, "tcl9.0", "puts VALUE");
+    assert.equal(second.isCurrent(), false);
+    const third = client.captureDocumentSource(uri, "puts VALUE")!;
+    const stopping = client.stop();
+    assert.equal(third.isCurrent(), false);
+    await stopping;
+  });
+});
+
+it("issue artifact publication preserves original CR bytes and contains embedded fences", () => {
+  const source = "set x {original\rvalue}\r\n```\nputs $x";
+  const section = artifactIssueSection({ path: "command.tcl", source });
+  assert.ok(section.includes(source));
+  assert.ok(section.includes("\n````tcl\n"));
+  assert.ok(section.endsWith("\n````"));
 });

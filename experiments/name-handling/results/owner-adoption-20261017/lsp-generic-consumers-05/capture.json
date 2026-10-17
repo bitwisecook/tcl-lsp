@@ -1,0 +1,32 @@
+{
+  "status": "REVIEWED_SOURCE_PENDING_FRESH_REGRESSION_ACCEPTANCE",
+  "source_base": "f3308dda40da10fe3031fca6f6f480dfa612aa4c",
+  "admissions": [
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "LSP_integrated": 290,
+  "LSP_required_original": 325,
+  "baseline_integrated": 458,
+  "baseline_required": 2158,
+  "verified_complete": 0,
+  "scope": "Generic LSP plus necessary cross-area Compiler/DB/Registry/Syntax/editor/Studio owners; Runtime/VM and dedicated BIG-IP deferred. Additional source families remain open.",
+  "validation": {
+    "clippy15": "Collection exited101 at actual private CoreHover constructor E0624; public fields causal repair admitted. Warnings retained verbatim, not a strict Clippy pass.",
+    "clippy15_inputs": "52866 hashes; snapshot SHAec3f400d39d0ea2bf8834b899244a8d2c968f3534124b554cce22db41cc507b0; actual postflight returned no changed paths before causal source repair. Full hash map remains external to this compact source-only capture.",
+    "proof_restore": "9270 actual SHA-verified retained local Git blobs installed absent-only,325521812bytes; no hash renewal or semantic execution. Fresh full gate pending.",
+    "format": "cargo fmt --all passed through19.",
+    "Emacs": "Official GNU30.2 source built and installed outside repository; actual EglotV2 check-parens and load passed. Initial relative-path driver failure retained separately. make test-emacs still owed.",
+    "ordinary_regressions": "No new ordinary test ELF/run supersedes e739 Core519/664. Fresh build/replay owed."
+  },
+  "archive": {
+    "name": "source-receipts.tar.zst",
+    "sha256": "15e858fcfda2e4535e5236ff099969e4938eddd0b268301c67c47677b4acb77c",
+    "bytes": 358274,
+    "members": 37
+  },
+  "limits": "No full source trees, toolchains, providers or restored corpus duplicated. No green PR, merge, issue closure or runtime/equivalence grant."
+}

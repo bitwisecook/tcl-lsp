@@ -338,6 +338,7 @@ impl Analyser {
                 cmd_ref,
                 &self.source,
                 &self.recovery_known_commands,
+                self.lexer_config(),
             );
             self.result.diagnostics.extend(e201);
             // E202 (unterminated `"`) / E203 (unterminated `{`) inside a

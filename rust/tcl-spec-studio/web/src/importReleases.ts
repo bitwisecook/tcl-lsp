@@ -98,6 +98,12 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
     shown: TAG_PAGE,
     selected: new Set(),
   };
+  let tagsRequest: RepoRef | null = null;
+  let tagsReceipt: { repo: RepoRef; tags: TagRef[] } | null = null;
+  const selectedRepository = (repo: RepoRef): boolean => {
+    const selected = parseRepoRef(byId<HTMLInputElement>("ghRepo").value);
+    return selected?.owner === repo.owner && selected.repo === repo.repo;
+  };
 
   // Staging archives
 
@@ -345,11 +351,18 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
       setStatus("ghStatus", "give a repository as owner/repo, or paste its GitHub URL", "err");
       return;
     }
-    panel.repo = ref;
+    tagsRequest = ref;
+    tagsReceipt = null;
+    panel.repo = null;
+    panel.tags = [];
+    panel.selected = new Set();
+    renderTags();
     setStatus("ghStatus", `asking api.github.com for ${ref.owner}/${ref.repo}'s tags…`);
+    let tags: TagRef[];
     try {
-      panel.tags = await listTags(http, ref, limit);
+      tags = await listTags(http, ref, limit);
     } catch (e) {
+      if (tagsRequest !== ref || !selectedRepository(ref)) return;
       setStatus(
         "ghStatus",
         `${e instanceof Error ? e.message : String(e)} You can still do this offline: download the release archives from GitHub yourself and drop them on the box above.`,
@@ -357,6 +370,10 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
       );
       return;
     }
+    if (tagsRequest !== ref || !selectedRepository(ref)) return;
+    tagsReceipt = { repo: ref, tags };
+    panel.repo = ref;
+    panel.tags = tags;
     if (!panel.tags.length) {
       setStatus(
         "ghStatus",
@@ -379,21 +396,48 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
   }
 
   async function fetchSelected(): Promise<void> {
-    const ref = panel.repo;
-    if (!ref) return;
-    const chosen = panel.tags.filter((tag) => panel.selected.has(tag.tag));
+    const receipt = tagsReceipt;
+    if (
+      !receipt ||
+      receipt.repo !== panel.repo ||
+      receipt.tags !== panel.tags ||
+      !selectedRepository(receipt.repo)
+    )
+      return;
+    const ref = receipt.repo;
+    const selection = panel.selected;
+    const chosen = receipt.tags
+      .filter((tag) => selection.has(tag.tag))
+      .map((tag) => ({ original: tag, tag: tag.tag, version: tag.version }));
+    const current = (): boolean =>
+      tagsReceipt === receipt &&
+      panel.repo === ref &&
+      panel.tags === receipt.tags &&
+      panel.selected === selection &&
+      selectedRepository(ref) &&
+      selection.size === chosen.length &&
+      chosen.every(
+        (tag) =>
+          receipt.tags.includes(tag.original) &&
+          tag.original.tag === tag.tag &&
+          tag.original.version === tag.version &&
+          selection.has(tag.tag),
+      );
     if (!chosen.length) {
       setStatus("ghStatus", "select at least one tag", "err");
       return;
     }
     let done = 0;
     for (const tag of chosen) {
+      if (!current()) return;
       setStatus("ghStatus", `downloading ${tag.tag} (${done + 1} of ${chosen.length})…`);
       try {
         const bytes = await fetchZipball(http, ref, tag.tag);
+        if (!current()) return;
         stage(`${ref.owner}/${ref.repo}@${tag.tag}`, bytes, tag.version);
         done += 1;
       } catch (e) {
+        if (!current()) return;
         setStatus(
           "ghStatus",
           `${e instanceof Error ? e.message : String(e)} ${done} of ${chosen.length} downloaded. Download the rest from GitHub yourself and drop them on the box above.`,

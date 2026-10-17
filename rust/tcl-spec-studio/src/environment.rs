@@ -48,6 +48,15 @@ pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
 }
 
+/// Resolve an explicitly selected catalogue dialect without a fallback.
+/// Unknown names and model-only contexts cannot select another provider.
+#[must_use]
+pub fn known_catalogue_dialect(name: &str) -> Option<&'static str> {
+    tcl_registry::model::ingress::resolve_known_environment(name)?
+        .catalogue_profile()
+        .map(|profile| profile.name)
+}
+
 /// The **catalogue** name `name` selects, as a `&'static str`, falling back
 /// to [`DEFAULT_DIALECT`] when it names no catalogue entry.
 ///

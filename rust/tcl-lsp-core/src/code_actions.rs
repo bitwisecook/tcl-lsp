@@ -3186,6 +3186,38 @@ mod tests {
         assert_eq!(act.edits[0].range.start_character, 0);
     }
 
+    #[test]
+    fn package_require_action_inserts_between_original_terminated_commands() {
+        let cases = [
+            (
+                "package require existing; http::get /resource\n",
+                "package require existing;package require http\n http::get /resource\n",
+            ),
+            (
+                "package require existing\nhttp::get /resource\n",
+                "package require existing\npackage require http\nhttp::get /resource\n",
+            ),
+            (
+                "package require existing; # retained comment\nhttp::get /resource\n",
+                "package require existing;package require http\n # retained comment\nhttp::get /resource\n",
+            ),
+            (
+                "package \\\n require existing\nhttp::get /resource\n",
+                "package \\\n require existing\npackage require http\nhttp::get /resource\n",
+            ),
+        ];
+        for (source, expected) in cases {
+            let cursor = u32::try_from(source.find("http::get").unwrap()).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(cursor, source);
+            let actions = package_actions(source, at(position.line, position.character.get()));
+            let action = actions
+                .iter()
+                .find(|action| action.title == "Add 'package require http'")
+                .expect("the original unresolved namespaced head supports the package action");
+            assert_eq!(apply_single_edit(source, action), expected, "{source:?}");
+        }
+    }
+
     fn at(line: u32, character: u32) -> LspRange {
         LspRange {
             start_line: line,

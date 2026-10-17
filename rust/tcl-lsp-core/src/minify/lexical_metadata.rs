@@ -212,6 +212,7 @@ pub(super) fn command_census<'a>(source: &str, env: MinifyEnv<'a>) -> Option<Com
         commands.push(NativeScriptCommandWords {
             span: command.span,
             source_extent: None,
+            terminator: None,
             words: original,
         });
     }

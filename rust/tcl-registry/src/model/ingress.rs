@@ -114,7 +114,20 @@ pub fn is_known_environment_name(name: &str) -> bool {
 /// "plain Tcl" (an empty dialect string, an absent setting).
 #[must_use]
 pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
-    is_known_environment_name(name).then(|| resolve_environment(name))
+    let registry = environments();
+    resolve_known_environment_in(&registry, name)
+}
+
+fn resolve_known_environment_in(
+    registry: &EnvironmentRegistry,
+    name: &str,
+) -> Option<DocumentEnvironment> {
+    let definition = registry.resolve(name)?;
+    let identity = registry.identity_of(&definition);
+    Some(DocumentEnvironment {
+        definition,
+        identity,
+    })
 }
 
 /// Resolve a client's `languageId` to the environment it names: a canonical
@@ -384,11 +397,23 @@ impl DocumentEnvironment {
 /// cache key; projected releases must not collapse onto the default release.
 #[must_use]
 pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
+    let environment = resolve_environment(profile.name);
+    let key = promotion_key(&environment);
+    context_for_profile_in(profile, &environment, key)
+}
+
+// Both Arc and static promotion consume this same held environment and exact
+// generation observation. Re-resolving a display name here could pair a retired
+// key with a replacement definition under that name.
+fn context_for_profile_in(
+    profile: &DialectProfile,
+    environment: &DocumentEnvironment,
+    generation: PromotionKey,
+) -> Arc<ContextRegistry> {
     type ProfileContextKey = (PromotionKey, DialectProfileKey);
     static CONTEXTS: OnceLock<Mutex<FxHashMap<ProfileContextKey, Arc<ContextRegistry>>>> =
         OnceLock::new();
-    let environment = resolve_environment(profile.name);
-    let key = (promotion_key(&environment), profile.cache_key());
+    let key = (generation, profile.cache_key());
     let cache = CONTEXTS.get_or_init(Default::default);
     if let Some(context) = cache.lock().expect("profile context mutex").get(&key) {
         return Arc::clone(context);
@@ -515,10 +540,9 @@ pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextR
     type ProfilePromotionKey = (PromotionKey, DialectProfileKey);
     static PROFILES: OnceLock<Mutex<FxHashMap<ProfilePromotionKey, &'static ContextRegistry>>> =
         OnceLock::new();
-    let key = (
-        promotion_key(&resolve_environment(profile.name)),
-        profile.cache_key(),
-    );
+    let environment = resolve_environment(profile.name);
+    let generation = promotion_key(&environment);
+    let key = (generation.clone(), profile.cache_key());
     let cache = PROFILES.get_or_init(Default::default);
     if let Some(context) = cache
         .lock()
@@ -527,7 +551,7 @@ pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextR
     {
         return context;
     }
-    let handle = context_for_profile(profile);
+    let handle = context_for_profile_in(profile, &environment, generation);
     let mut profiles = cache.lock().expect("static profile context mutex");
     profiles
         .entry(key)
@@ -1041,5 +1065,44 @@ mod explicit_profile_snapshot_tests {
             &context_for_profile(profile),
             &resolve_environment(profile.name).default_context_registry()
         ));
+    }
+}
+
+#[cfg(test)]
+mod held_environment_observation_tests {
+    use super::*;
+
+    #[test]
+    fn checked_resolution_retains_one_actual_registry_definition_and_identity() {
+        let compiled = EnvironmentRegistry::compiled();
+        let tcl = compiled.resolve("tcl").unwrap();
+        let tk = compiled.resolve("tk").unwrap();
+        let before = EnvironmentRegistry::new(vec![(*tcl).clone(), (*tk).clone()], 41).unwrap();
+        let after = EnvironmentRegistry::new(vec![(*tcl).clone()], 42).unwrap();
+        let held = resolve_known_environment_in(&before, "wish").unwrap();
+        assert!(Arc::ptr_eq(
+            &held.definition,
+            &before.resolve("tk").unwrap()
+        ));
+        assert_eq!(held.identity.generation, 41);
+        assert!(resolve_known_environment_in(&after, "wish").is_none());
+        assert_eq!(held.id(), "tk");
+        assert_eq!(held.identity.generation, 41);
+        assert!(resolve_known_environment_in(&before, "unknown").is_none());
+    }
+
+    #[test]
+    fn profile_arc_and_static_paths_share_one_held_generation_recipe() {
+        let environment = resolve_environment("jim");
+        let profile = environment.unit_profile();
+        let generation = promotion_key(&environment);
+        let first = context_for_profile_in(profile, &environment, generation.clone());
+        let second = context_for_profile_in(profile, &environment, generation);
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(
+            first.commands().profile().unwrap().cache_key(),
+            profile.cache_key()
+        );
+        assert_eq!(first.context().environment.point(), environment.point());
     }
 }

@@ -374,6 +374,24 @@ pub fn pack_command(source: &str, name: &str, dialect: &str) -> String {
     })
 }
 
+/// Author one literal sample call from the selected pack and installed registry.
+/// Missing source declarations, unknown dialects and unavailable words refuse.
+#[wasm_bindgen]
+#[must_use]
+pub fn sample_call_source(source: &str, name: &str, dialect: &str, sample_source: &str) -> String {
+    let Some(dialect) = tcl_spec_studio::environment::known_catalogue_dialect(dialect) else {
+        return error("the selected sample dialect is unavailable");
+    };
+    with_store(source, |store| {
+        Resolution::new(Builtins::for_dialect(dialect), store)
+            .sample_call_source(name, sample_source)
+            .map_or_else(
+                || error("the selected source command has no sample-call descriptor"),
+                |value| to_string(&value),
+            )
+    })
+}
+
 /// Write `draft_json` back as the definition of `name`, returning the new
 /// document.
 ///

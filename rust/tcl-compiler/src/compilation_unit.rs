@@ -5283,6 +5283,10 @@ fn conditional_function_source_entry(
         crate::var_resolve::BindingIdentity::Bound,
         input.map(crate::command_binding::source_input_dialect),
     );
+    entry.source_read_configuration = input.map_or(
+        crate::var_resolve::SourceReadConfiguration::Unavailable,
+        |input| crate::var_resolve::SourceReadConfiguration::Selected(input.lexer_config()),
+    );
     entry.namespace_known = false;
     if let Some(namespace) = cfg.namespace_context.as_deref() {
         entry = entry.with_namespace_identity(namespace.clone());

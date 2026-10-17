@@ -2644,3 +2644,132 @@ owned restore before emitting that action. Generic ownership work does not
 claim Native execution, effect/observer equivalence, or implementation of
 dedicated BIG-IP transformation semantics. Existing test fixtures/assertions
 and operation budgets remain unchanged; new fixed controls require execution.
+
+
+### Required editor generation input and target literal publication
+
+The existing editor generators require complete selected bundled input. `bundled::load_from_required` reuses discovery selection, source reading, evaluator and merge owners; missing/unreadable selected directories or source, and actual load errors, refuse projection. Ordinary notices are independent. Native directory enumeration propagates original entry and file-type IO errors. The required generation entry does not publish global extension routes or claim physical filesystem atomicity, current installed Registry identity, or runtime capability.
+
+The xtask template owner constructs target literal data centrally: serde quoted-string construction with token-aware Kotlin dollar/form-feed and Lua escape adapters; the supported JSON quoted-string subset for Python and Emacs Lisp; actual TOML serialization; and XML 1.0 attribute data with semicolon-list admission. XML-unrepresentable extensions refuse that target without altering shared source metadata. Literal constructors do not issue source names, selected commands, registration identity or execution authority. Zed root field geometry comes from the actual TOML parser's retained key/value spans, not textual marker occurrences.
+
+Editor extension generation stages every renderer over the preceding staged afterimage for that same target, validates the complete language model, staged activation manifest and actual Zed directory census, then publishes files through the existing staged file writer. It does not promise multi-file atomic rollback after an IO failure. All original fixtures/assertions remain; fixed new controls are source-only until independently executed.
+
+Existing catalogue purposes: audit:editor-complete-bundled-input, audit:editor-validate-before-publication, audit:editor-zed-complete-config-inventory, audit:editor-kotlin-extension-source, audit:editor-python-extension-source, audit:editor-zed-toml-extension-source and audit:editor-xml-extension-list-source. Companion generator callers retain their own existing seed/marker/Helix/Emacs/Neovim units. Shared helper/API/test multiplicity adds no automatic catalogue units; any genuinely missing shared-owner purpose is reconciled once.
+
+
+### Literal editor extension globs
+
+`db.unit.registry.dialects.literal-extension-glob-rendering` uses Registry's
+checked VSCode/LSP filename-component renderer. ASCII case alternatives preserve
+the extension's authored identity; glob metacharacters are encoded as literal
+classes, never Tcl quoting. Separator/NUL and empty-extension refusals are typed
+and distinct from an empty successful extension inventory. Basename patterns
+also refuse leading matcher negation/comment directives. No refusal creates a
+broad watcher or a different extension.
+
+Literal braces or commas require separate precise extension patterns because
+the actual VSCode and language-client parsers do not agree on those classes
+inside outer alternatives. Watch and rename registrations share these exact
+patterns. Refused registration still retires prior filters and preserves the
+independent changed-extension index rescan. Advertisements retain the actual
+extension and an unavailable association glob rather than inventing a match.
+The generator's known basenames use the same checked target owner. Compatibility
+single-pattern wrappers are bounded to static representable callers and do not
+replace the checked plural API for loaded claims. This target projection grants
+no Tcl source, Native identity, provider availability or execution authority.
+
+
+### Studio web original-source publication boundaries
+
+The seven existing Studio web audit purposes (completion-edit-geometry,
+explorer-byte-range, history-dialect-correspondence,
+release-tag-provider-correspondence, sample-call-source-constructor,
+export-file-publication-identity, and issue-source-byte-publication under
+`db.unit.studio.web`) retain their actual source and issuing provider. Completion
+uses the issued LSP edit geometry under the original client document allocation
+and version. Explorer replies use a transferred reply channel belonging to the
+actual source/dialect/optimisation request; positive highlighting additionally
+requires the retained Monaco model/version and exact Unicode byte boundaries.
+These are presentation and source-publication receipts, not Native execution,
+lookup, equivalence, or edit-permission certificates.
+
+History does not reuse a retired provider/source selection as a current visit.
+Release selections retain their actual repository/tag roster through download.
+Sample insertion delegates to the shared Rust original-script constructor and
+checks its original pack/sample inputs before publishing its full postimage.
+Export staging validates the current source/view/provider and complete collision
+preflight before synchronous tray changes. Existing owned artifact replacement
+uses the same export document/provider/dialect/directory and issued artifact
+intent; this does not identify a runtime command. Timed downloads recheck the
+retained publication. Issue formatting preserves the original source bytes and
+contains embedded Markdown fences.
+
+Unsupported provider optimisation capabilities, invalid UTF16/byte coordinates,
+unpaired surrogates, stale selections, and unavailable source constructors
+withhold the affected publication. The generic compile path remains available.
+No multi-file filesystem transaction, runtime dispatch guarantee, or complete
+Studio migration follows from these bounded owners. Added controls and static
+parse/format/replay evidence are source-only until the actual application and
+provider checks run.
+
+
+### Bounded generated Lua source containers
+
+Editor projection generators select literal values inside their authored target
+container, never an unbound textual marker. The Neovim README owner retains the
+exact Lua fence in the unique nvim-lspconfig section, with outer Markdown fence
+ancestry; prose and example decoys cannot donate Lua source. Returned-table
+configuration must be the whole supported root return chunk. The README snippet
+must retain its actual local lspconfig/configs module bindings, guarded config
+assignment and setup continuation. Block/function-bearing table expressions or
+changed chunk shapes refuse instead of inheriting a root/config owner.
+
+These are deliberately bounded authored-template projections, not arbitrary
+Lua execution or a general Lua parser. Values use the existing target literal
+serializers; generated regions and original neighboring fields remain separate
+obligations. Unknown syntax or ambiguous containers remain errors. Existing
+current templates and exact generated outputs must pass actual generator gates;
+source inspection alone does not establish generated parity or editor behavior.
+
+The Markdown source-container projection uses the existing locked
+`pulldown-cmark` parser and offset events. Only document-level actual headings
+and Lua code blocks can supply the section; HTML comments/raw blocks, quotes
+and lists cannot donate ancestry. Every selected text event must equal its
+original byte range and join contiguously, otherwise mapping is unavailable.
+Bounded Lua table chunks reject computed/quoted keys and indexing before field
+selection, rather than claiming a complete key census from bare identifiers.
+The xtask dependency edge reuses locked pulldown-cmark 0.13.4 with default
+features disabled; it does not introduce a separate Markdown parser.
+
+
+### Optimiser original interpolation rewrite extents
+
+The existing original-rewrite-word-extent owner purpose (:206) and its
+propagation consumer (:2846) borrow the retained Lowerer source interpretation,
+joining the actual module, source image, complete lexer configuration and
+Registry before selecting an original word. The complete original word span
+and exact proposed interior correspondence replace the former compatibility
+close-quote scan at both actual interpolation rewrite sites. No source name,
+rendered value or catalogue profile reconstructs that geometry.
+
+This is source extent only. Existing selected-call, actual cell/read/store,
+observer, result-allocation, Normal and equivalence gates remain independent.
+In particular the O101/O127 physical equivalence holds are not discharged by
+this adapter. The statement delimiter scanner, interpolation-read inventory,
+replacement construction and other optimiser audit purposes are not closed
+by this bounded facet. Legacy unconfigured span probes remain test-only; all
+old assertions and fixtures are retained. Added controls are unexecuted and
+static parse/format/replay evidence supplies no runtime acceptance.
+
+
+### Optimiser retained grammar and qualifier projections
+
+PassContext::braced_var projects the existing complete lexer_config owner,
+including explicit ingress overrides and retained module grammar, instead of
+reconstructing one grammar axis from its presentation profile. This is the
+existing configured-original-variable-geometry purpose (:341), not a new
+physical variable-read or source-motion certificate. The traced-global source
+hazard filter consumes naming::is_qualified for the existing qualified-name
+predicate purpose (:1776); labels remain conservative supplied source hazards,
+not namespace identities or proof of an empty physical trace table. Original
+metadata/currentness and all Native/equivalence gates remain unchanged.

@@ -2745,15 +2745,11 @@ impl<'a> SsaSourceView<'a> {
             return None;
         };
         let tokens = self.source_tokens()?;
-        let dialect = tokens
+        let config = tokens
             .source_binding
             .as_ref()?
-            .variable_context
-            .invocation_dialect?;
-        let span = node.variable_source_span(
-            expr_base?,
-            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-        )?;
+            .original_lexer_config_for_tokens(tokens)?;
+        let span = node.variable_source_span(expr_base?, config)?;
         let mut accesses = tokens
             .variable_accesses
             .iter()
@@ -7056,26 +7052,36 @@ fn source_read_place(
     access.place_in_context(&access.variable_context, registry)
 }
 
+/// Exact read spelling projection; unavailable original syntax cannot relabel
+/// the retained read or suppress an independently scanned protective dependency.
+fn source_read_name_with_config(
+    access: &crate::command_binding::SourceVariableAccess,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let config = access.variable_context.read_lexer_config(registry)?;
+    Some(
+        tcl_syntax::naming::var_reference_for_style(&access.original_spelling, config.braced_var)
+            .to_owned(),
+    )
+}
+
+/// Existing test probe delegates the same actual configured source projection.
+#[cfg(test)]
 fn source_read_name(access: &crate::command_binding::SourceVariableAccess) -> String {
-    let config = access
-        .variable_context
-        .invocation_dialect
-        .map_or_else(tcl_lexer::LexerConfig::default, |dialect| {
-            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar)
-        });
-    tcl_syntax::naming::var_reference_for_style(&access.original_spelling, config.braced_var)
-        .to_owned()
+    source_read_name_with_config(access, &CommandRegistry::build_default())
+        .unwrap_or_else(|| access.original_spelling.clone())
 }
 
 fn captured_read_names(
     points: &PointResolveContexts,
     block: BlockId,
     index: usize,
+    registry: &CommandRegistry,
 ) -> HashSet<String> {
     points
         .source_reads_at(block, index)
         .iter()
-        .map(source_read_name)
+        .filter_map(|access| source_read_name_with_config(access, registry))
         .collect()
 }
 
@@ -7131,7 +7137,7 @@ fn source_read_bindings(
             let name = crate::var_resolve::canonical_binding_value_key(&source_read_place(
                 access, registry,
             ))?;
-            Some((source_read_name(access), name))
+            Some((source_read_name_with_config(access, registry)?, name))
         })
         .collect()
 }
@@ -7906,7 +7912,7 @@ impl<'a> RenameWalk<'a> {
             self.points.source_tokens_at(point.0, point.1),
         );
         let captured = source_read_bindings(&self.points, point.0, point.1, registry);
-        let captured_names = captured_read_names(&self.points, point.0, point.1);
+        let captured_names = captured_read_names(&self.points, point.0, point.1, registry);
         let mut classified: Vec<_> = raw_classified
             .iter()
             .filter(|(name, class)| {

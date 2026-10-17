@@ -1275,6 +1275,16 @@ pub struct WorkspaceLogicalClassMemberTargets {
     pub targets: Vec<crate::original_indexed_location::LogicalIndexedMemberLocation>,
 }
 
+/// Original member-body caller and independently selected same-side declarations.
+/// The caller is the existing genuine member allocation, not a command namespace.
+#[derive(Debug, Clone)]
+pub struct WorkspaceLogicalSelfMemberTargets {
+    /// Exact original enclosing source member, rechecked through existing membership.
+    pub caller: crate::original_indexed_location::LogicalIndexedMemberLocation,
+    /// Conditional original source declarations, with no dispatch entry claim.
+    pub targets: Vec<crate::original_indexed_location::LogicalIndexedMemberLocation>,
+}
+
 impl WorkspaceLogicalCommandCall {
     /// Original scope and word geometry for declaration suggestions only.
     #[must_use]
@@ -4543,6 +4553,19 @@ impl WorkspaceIndex {
         out
     }
 
+    /// Full analysis input retained by the actual indexed source issuer.
+    /// Borrowing it supplies no runtime lookup, member entry or edit authority.
+    #[must_use]
+    pub fn source_analysis_input(
+        &self,
+        uri: &str,
+    ) -> Option<&tcl_compiler::analyser::ResolvedAnalysisInput> {
+        self.docs
+            .get(*self.slots.get(uri)?)?
+            .original_source_input
+            .as_ref()
+    }
+
     /// One represented Logical call in an exact indexed source/input view.
     /// No represented call, ambiguous views or unavailable source yields no
     /// receipt; none of those results proves an empty command census.
@@ -4808,6 +4831,141 @@ impl WorkspaceIndex {
                     .iter()
                     .any(|current| location.retains(current))
             })
+    }
+
+    fn logical_self_relation_classes(
+        &self,
+        analysis: &AnalysisResult,
+        request: &tcl_compiler::analyser::types::LogicalSourceSelfSelector,
+        receiver: &tcl_compiler::analyser::ClassDef,
+    ) -> Option<Vec<tcl_compiler::analyser::types::LogicalSourceClassDeclaration>> {
+        let input = analysis.resolved_input.as_ref()?;
+        let mut supers = Vec::new();
+        let mut mixins = Vec::new();
+        for statement in request.relations() {
+            let current = match statement.relation() {
+                tcl_registry::definer::RelationSlot::Superclass => &mut supers,
+                tcl_registry::definer::RelationSlot::Mixin => &mut mixins,
+                tcl_registry::definer::RelationSlot::Filter => continue,
+            };
+            let mut selected = Vec::new();
+            for operand in statement.operands() {
+                match operand.target(analysis, receiver)? {
+                    tcl_compiler::command_binding::LogicalSourceClassRelationTarget::Source(
+                        class,
+                    ) => {
+                        selected.push(analysis.logical_source_class_declaration(class)?.clone());
+                    }
+                    tcl_compiler::command_binding::LogicalSourceClassRelationTarget::External(
+                        coordinates,
+                    ) => {
+                        for document in &self.docs {
+                            if document.original_source_input.as_ref() != Some(input) {
+                                continue;
+                            }
+                            for class in document
+                                .classes
+                                .iter()
+                                .filter_map(|class| class.logical_declaration.as_ref())
+                            {
+                                if class
+                                    .source_candidate_coordinate()
+                                    .is_some_and(|coordinate| coordinates.contains(coordinate))
+                                {
+                                    selected.push(class.clone());
+                                }
+                            }
+                        }
+                    }
+                    tcl_compiler::command_binding::LogicalSourceClassRelationTarget::Registry => {}
+                }
+            }
+            statement.apply_values(current, &selected);
+        }
+        let mut classes = vec![request.caller().class().clone()];
+        classes.extend(supers);
+        classes.extend(mixins);
+        Some(classes)
+    }
+
+    /// Original self-selector advice from the actual member body and written
+    /// class-relation operands. Results are source alternatives, never an MRO.
+    #[must_use]
+    pub fn logical_self_member_targets_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<WorkspaceLogicalSelfMemberTargets> {
+        let request = analysis.logical_source_self_selector_at(source, cursor)?;
+        let input = analysis.resolved_input.as_ref()?;
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        (context.image().bytes() == source.as_bytes()).then_some(())?;
+        let caller =
+            crate::original_indexed_location::LogicalIndexedMemberLocation::capture_self_source(
+                uri,
+                &context,
+                input,
+                request.caller().clone(),
+                &request,
+            )?;
+        self.logical_member_location_is_retained(&caller)
+            .then_some(())?;
+        let receiver = analysis.logical_source_member_class(request.caller())?;
+        let name = tcl_syntax::word_rules::original_static_word_unicode_value(
+            request.original_selector(),
+        )?;
+        let classes = self.logical_self_relation_classes(analysis, &request, receiver)?;
+        let mut targets = Vec::new();
+        for document in &self.docs {
+            let (Some(context), Some(input)) =
+                (&document.diagnostic_source, &document.original_source_input)
+            else {
+                continue;
+            };
+            if input != analysis.resolved_input.as_ref()? {
+                continue;
+            }
+            for class in document
+                .classes
+                .iter()
+                .filter_map(|class| class.logical_declaration.as_ref())
+            {
+                if !class.matches_source(context.image(), input)
+                    || !classes
+                        .iter()
+                        .any(|selected| std::ptr::eq(selected.metadata(), class.metadata()))
+                {
+                    continue;
+                }
+                let members = match request.caller().side() {
+                    tcl_compiler::analyser::types::MemberSide::Instance => {
+                        &class.metadata().methods
+                    }
+                    tcl_compiler::analyser::types::MemberSide::ClassObject => {
+                        &class.metadata().class_methods
+                    }
+                };
+                for method in members.values() {
+                    let Some(member) = class.member(request.caller().side(), method) else {
+                        continue;
+                    };
+                    if member
+                        .original_name_word()
+                        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                        .as_deref()
+                        != Some(name.as_slice())
+                    {
+                        continue;
+                    }
+                    if let Some(location) = crate::original_indexed_location::LogicalIndexedMemberLocation::capture_self_source(
+                        &document.uri, context, input, member, &request,
+                    ) { targets.push(location); }
+                }
+            }
+        }
+        Some(WorkspaceLogicalSelfMemberTargets { caller, targets })
     }
 
     /// Literal selector source advice for an independently indexed class header.
@@ -16580,5 +16738,61 @@ mod logical_library_input_correspondence_tests {
             .unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].0, "target");
+    }
+}
+
+#[cfg(test)]
+mod logical_self_member_source_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_self_selector_keeps_member_side_and_saved_source_owner() {
+        let caller = "oo::class create Child {superclass Base; method invoke {} {my hit}}";
+        let provider = "oo::class create Base {method hit {} {return instance}; self method hit {} {return class}}";
+        let analysis = Analyser::new().analyse(caller, "tcl");
+        let target_analysis = Analyser::new().analyse(provider, "tcl");
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &analysis),
+            ("file:///provider.tcl", &target_analysis),
+        ]);
+        let cursor = u32::try_from(caller.rfind("hit").unwrap()).unwrap();
+        let selected = index
+            .logical_self_member_targets_at("file:///caller.tcl", caller, &analysis, cursor)
+            .unwrap();
+        let target = selected
+            .targets
+            .iter()
+            .find(|target| target.uri() == "file:///provider.tcl")
+            .unwrap();
+        assert_eq!(
+            target.source_member().side(),
+            tcl_compiler::analyser::types::MemberSide::Instance
+        );
+        assert_eq!(
+            target
+                .validated_span(provider, &target_analysis)
+                .unwrap()
+                .start() as usize,
+            provider.find("hit").unwrap()
+        );
+        assert!(index.logical_member_location_is_retained(&selected.caller));
+        assert!(index.logical_member_location_is_retained(target));
+        index.replace_document(
+            "file:///provider.tcl",
+            &Analyser::new().analyse(provider, "tcl"),
+        );
+        assert!(!index.logical_member_location_is_retained(target));
+        assert!(
+            index
+                .logical_self_member_targets_at("file:///caller.tcl", caller, &analysis, cursor - 3)
+                .is_none()
+        );
+        assert!(index.logical_member_location_is_retained(&selected.caller));
+        index.replace_document(
+            "file:///caller.tcl",
+            &Analyser::new().analyse(caller, "tcl"),
+        );
+        assert!(!index.logical_member_location_is_retained(&selected.caller));
     }
 }

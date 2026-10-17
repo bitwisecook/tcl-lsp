@@ -699,6 +699,22 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     )
 }
 
+/// Parse under the selected profile while retaining the actual command's complete
+/// lexical overrides. This supplies expression topology only; it does not issue
+/// Native preparation, command binding or execution authority.
+#[must_use]
+pub fn parse_expr_for_profile_with_lexer_config(
+    source: &str,
+    profile: Option<&DialectProfile>,
+    config: tcl_lexer::LexerConfig,
+) -> ExprNode {
+    let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
+    let mut context = ExprParseContext::for_profile(resolved);
+    context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+    context.lexer_grammar.numbers = numbers_for(profile, resolved);
+    parse_expr_with_syntax_context(source, &context)
+}
+
 // LRU-cached parse_expr
 //
 // The analyser callers are once-per-source, so the existing
@@ -1779,6 +1795,30 @@ mod tests {
         // 9.0 is where it starts working.
         assert!(!matches!(
             parse_expr("1 + 2 # note", Some("tcl9.0")),
+            ExprNode::Raw { .. }
+        ));
+    }
+}
+
+#[cfg(test)]
+mod retained_lowering_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn selected_profile_expression_preserves_actual_braced_variable_override() {
+        let profile = DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let source = "${a{b}c}";
+        assert!(matches!(
+            parse_expr_for_profile_with_lexer_config(source, Some(profile), config),
+            ExprNode::Var { .. }
+        ));
+        let changed = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..config
+        };
+        assert!(matches!(
+            parse_expr_for_profile_with_lexer_config(source, Some(profile), changed),
             ExprNode::Raw { .. }
         ));
     }

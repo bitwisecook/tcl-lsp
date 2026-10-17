@@ -1350,12 +1350,7 @@ impl<'src> Lexer<'src> {
     /// iterative owner shared with expression lexing and both runtimes.
     fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
-        let scan = crate::scan_array_index(
-            self.source(),
-            self.pos as usize,
-            self.config.array_index,
-            self.config.braced_var,
-        );
+        let scan = crate::scan_array_index_in(self.source(), self.pos as usize, self.config);
         if let Some(invalid) = scan.invalid {
             self.pos = u32::try_from(invalid).expect("source offset fits u32");
             self.warn_or_error(crate::ParseIssueKind::InvalidArrayIndexCharacter)?;

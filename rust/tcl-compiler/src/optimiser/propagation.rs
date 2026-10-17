@@ -71,7 +71,7 @@ use tcl_registry::CommandRegistry;
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{
-    full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
+    full_rewrite_span, line_delete_span, original_quoted_word_rewrite_span,
 };
 use super::{Optimisation, PassContext};
 use tcl_syntax::naming::whole_scalar_variable_reference_name;
@@ -2843,7 +2843,7 @@ fn visit_string_interpolation_cmd_subs(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewrite_span) = quoted_word_rewrite_span(ctx.source, span, inside) else {
+    let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) else {
         return;
     };
     let content_base = if ctx.source.as_bytes().get(rewrite_span.start() as usize) == Some(&b'"') {
@@ -2986,7 +2986,9 @@ fn visit_string_interpolation(
     // the opening-quote token (e.g. `"$` at 5..7). Extend to the
     // matching close quote so the rewrite target covers the full
     // string — otherwise we leave trailing `$b $c"` garbage.
-    let rewrite_span = full_quoted_string_span(ctx.source, span);
+    let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Inline constant into string interpolation",

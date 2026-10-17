@@ -65,3 +65,26 @@ Definite stop cardinality is separate from uncertain continuation conditions. On
 
 
 The standalone consumer now exclusively uses the existing original-source Walker. Its superseded local ScriptWalker, nominal control/body heuristics and unused child reconstruction have been removed. Existing lexical parser probes for script/requirement geometry remain test-only, without production reachability authority. The production constant-guard acceptor still delegates to shared release-unanimous Boolean semantics; genuine target predicates remain issued by the retained source-model owner. Original assertions, external fixtures, limits and budgets are unchanged.
+
+
+## Current index binding
+
+Stable proof ID: `naming.package.original-target-source-survey`.
+
+## Problem statement
+
+Package-index source guards cannot infer physical provision, successful operands or runtime completion from nominal command names.
+
+## Question
+
+Which existing Logical source points, selected Registry query metadata and original body lineage support an explicitly hypothetical target-release survey?
+
+## Conclusion
+
+OriginalPackageIndexSourceSurvey retains the same original source/input/Registry and genuine point/history premises. Conditional target-release guards, source advertisements, controls and retained bodies stay separate from actual provision and Native completion.
+
+## Scope
+
+Explicit hypothetical source survey and existing standalone consumer ownership only. Physical provision, load success, Native execution, old fixture efficacy and elapsed-time improvement remain unproved by this record.
+
+All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.

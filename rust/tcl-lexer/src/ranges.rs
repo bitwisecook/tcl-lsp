@@ -144,6 +144,28 @@ pub fn scan_array_index(
     syntax: ArrayIndexSyntax,
     braced_var: BracedVarStyle,
 ) -> ArrayIndexScan {
+    scan_array_index_in(
+        source,
+        open_parenthesis,
+        crate::LexerConfig {
+            array_index: syntax,
+            braced_var,
+            ..crate::LexerConfig::default()
+        },
+    )
+}
+
+/// Scan one array index under the complete retained source configuration.
+/// Nested command substitutions and braced variable references use that same
+/// configuration. This provides source boundaries and lexical errors only.
+#[must_use]
+pub fn scan_array_index_in(
+    source: &[u8],
+    open_parenthesis: usize,
+    config: crate::LexerConfig,
+) -> ArrayIndexScan {
+    let syntax = config.array_index;
+    let braced_var = config.braced_var;
     if source.get(open_parenthesis) != Some(&b'(') {
         return ArrayIndexScan {
             end: ArrayIndexEnd::Unterminated,
@@ -167,7 +189,7 @@ pub fn scan_array_index(
             }
             b'\\' => position = (position + 2).min(source.len()),
             b'[' => {
-                let Some(end) = command_substitution_end_bytes(source, position) else {
+                let Some(end) = command_substitution_end_bytes_in(source, position, config) else {
                     return ArrayIndexScan {
                         end: ArrayIndexEnd::Unterminated,
                         invalid: first_invalid,
@@ -1576,5 +1598,44 @@ mod shared_boundary_tests {
             assert_eq!(scan.end, ArrayIndexEnd::Closed(end));
             assert_eq!(scan.invalid, None);
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_array_nested_configuration_tests {
+    use super::*;
+
+    #[test]
+    fn nested_command_in_array_retains_actual_braced_variable_axis() {
+        let source = b"$a([puts ${x{]}])";
+        let tcl8 = crate::LexerConfig {
+            braced_var: BracedVarStyle::FirstClose,
+            array_index: ArrayIndexSyntax::Tcl8,
+            ..crate::LexerConfig::default()
+        };
+        assert_eq!(
+            scan_array_index_in(source, 2, tcl8).end,
+            ArrayIndexEnd::Closed(source.len())
+        );
+        let tcl9 = crate::LexerConfig {
+            braced_var: BracedVarStyle::Tcl9Nesting,
+            ..tcl8
+        };
+        assert_eq!(
+            scan_array_index_in(source, 2, tcl9).end,
+            ArrayIndexEnd::Unterminated
+        );
+        let text = std::str::from_utf8(source).unwrap();
+        let reference = crate::word_parts::scan_var_ref(source, 0, tcl8)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reference.next, source.len());
+        let tokens = crate::Lexer::with_config(text, tcl8)
+            .tokenise_all()
+            .unwrap();
+        assert_eq!(
+            tokens.iter().map(|token| token.kind).collect::<Vec<_>>(),
+            [crate::TokenType::Var, crate::TokenType::Eol]
+        );
     }
 }

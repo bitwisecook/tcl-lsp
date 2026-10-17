@@ -537,10 +537,10 @@ fn command_reads(
     out: &mut Vec<Place>,
     registry: &CommandRegistry,
 ) {
-    let config = ctx.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    );
+    let Some(config) = ctx.read_lexer_config(registry) else {
+        out.push(place::unknown_top());
+        return;
+    };
     let image = tcl_lexer::SourceImage::document(script_text);
     let Ok(end) = u32::try_from(image.len()) else {
         out.push(place::unknown_top());
@@ -626,10 +626,10 @@ fn word_reads(text: &str, ctx: &ResolveContext, out: &mut Vec<Place>, registry: 
     }
     // The registry carries the environment's profile, so the `$`/`[…]`
     // boundaries this word is read at are the document's own.
-    let config = ctx.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
-    );
+    let Some(config) = ctx.read_lexer_config(registry) else {
+        out.push(place::unknown_top());
+        return;
+    };
     if text.contains('$') {
         for (reference, braced) in scan_var_ref_forms_braced_with_config(text, config) {
             let access = if braced {

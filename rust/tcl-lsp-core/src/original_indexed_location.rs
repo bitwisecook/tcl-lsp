@@ -574,6 +574,7 @@ pub struct LogicalIndexedMemberLocation {
     uri: String,
     context: WorkspaceDiagnosticSourceContext,
     input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    self_selector: Option<tcl_compiler::analyser::types::LogicalSourceSelfSelector>,
     member: tcl_compiler::analyser::types::LogicalSourceMemberDeclaration,
 }
 
@@ -597,8 +598,38 @@ impl LogicalIndexedMemberLocation {
             uri: uri.to_owned(),
             context: context.clone(),
             input: input.clone(),
+            self_selector: None,
             member,
         })
+    }
+
+    pub(crate) fn capture_self_source(
+        uri: &str,
+        context: &WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        member: tcl_compiler::analyser::types::LogicalSourceMemberDeclaration,
+        request: &tcl_compiler::analyser::types::LogicalSourceSelfSelector,
+    ) -> Option<Self> {
+        member
+            .class()
+            .matches_source(context.image(), input)
+            .then_some(())?;
+        (member.side() == request.caller().side()).then_some(())?;
+        member.original_name_word()?;
+        member.original_body_word()?;
+        Some(Self {
+            uri: uri.to_owned(),
+            context: context.clone(),
+            input: input.clone(),
+            member,
+            self_selector: Some(request.clone()),
+        })
+    }
+
+    /// Retained declaration metadata for presentation after the guarded source lift.
+    #[must_use]
+    pub fn source_member(&self) -> &tcl_compiler::analyser::types::LogicalSourceMemberDeclaration {
+        &self.member
     }
 
     /// Independent actual document issuer, never a rendered class key.
@@ -630,8 +661,13 @@ impl LogicalIndexedMemberLocation {
                 .member
                 .class()
                 .matches_source(self.context.image(), &self.input)
-            && self.member.class_object_source_visibility()
-                == Some(tcl_registry::definer::DeclaredMemberVisibility::Public))
+            && match &self.self_selector {
+                Some(request) => request.caller().side() == self.member.side(),
+                None => {
+                    self.member.class_object_source_visibility()
+                        == Some(tcl_registry::definer::DeclaredMemberVisibility::Public)
+                }
+            })
         .then_some(())?;
         analysis
             .all_classes

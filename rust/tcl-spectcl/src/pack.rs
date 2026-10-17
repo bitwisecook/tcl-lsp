@@ -1124,10 +1124,22 @@ fn set_key(sources: &[(PackFile, String)], trust: WorkspaceTrust) -> u64 {
         // A package moving in the lockfile's graph changes what its packs may
         // declare, so it changes the set as much as an edit does.
         hasher.update(&[file.dependency_tier.map_or(0, |tier| tier as u8 + 1)]);
-        hasher.update(file.path.to_string_lossy().as_bytes());
-        hasher.update(&[0]);
+        // A source path is an OS value, not its lossy display. Frame both
+        // variable-width fields so embedded source/path bytes cannot donate
+        // another field boundary. This key is local to this build/platform.
+        let path = file.path.as_os_str().as_encoded_bytes();
+        hasher.update(
+            &u64::try_from(path.len())
+                .expect("path length fits u64")
+                .to_le_bytes(),
+        );
+        hasher.update(path);
+        hasher.update(
+            &u64::try_from(source.len())
+                .expect("source length fits u64")
+                .to_le_bytes(),
+        );
         hasher.update(source.as_bytes());
-        hasher.update(&[0]);
     }
     // A pack set never keys as 0 — that value means "no packs" to the
     // registry-cache layer, and a real set must not be able to collide with it.
@@ -1550,6 +1562,34 @@ mod complete_retained_loader_input_tests {
             read.inputs
                 .selected(&read.inputs.retained_paths())
                 .is_none()
+        );
+    }
+}
+
+#[cfg(all(test, unix))]
+mod opaque_path_cache_key_tests {
+    use super::*;
+    use std::os::unix::ffi::OsStringExt;
+
+    #[test]
+    fn equal_lossy_path_labels_do_not_share_actual_pack_input_keys() {
+        let file = |byte| PackFile {
+            tier: Tier::Bundled,
+            path: PathBuf::from(std::ffi::OsString::from_vec(vec![b'/', byte, b'.', b't'])),
+            origin: crate::discovery::Origin::Bundled,
+            dependency_tier: None,
+        };
+        let left = file(0x80);
+        let right = file(0x81);
+        assert_eq!(left.path.to_string_lossy(), right.path.to_string_lossy());
+        let source = "speclib same 1 {}".to_owned();
+        assert_ne!(
+            set_key(&[(left.clone(), source.clone())], WorkspaceTrust::Trusted),
+            set_key(&[(right, source.clone())], WorkspaceTrust::Trusted)
+        );
+        assert_eq!(
+            set_key(&[(left.clone(), source.clone())], WorkspaceTrust::Trusted),
+            set_key(&[(left, source)], WorkspaceTrust::Trusted)
         );
     }
 }

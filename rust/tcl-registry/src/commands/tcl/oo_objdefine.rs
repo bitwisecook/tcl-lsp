@@ -179,7 +179,7 @@ const OO_OBJDEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
     },
 ];
 
-use super::oo_define::oo_define_arg_roles;
+use super::oo_define::oo_define_layout_roles;
 use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
@@ -199,7 +199,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name)],
         // `oo::objdefine` has the same body-shape rules as
         // `oo::define`; share the resolver.
-        arg_role_resolver: Some(oo_define_arg_roles),
+        arg_role_layout_resolver: Some(oo_define_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         // Same structural-body rule as `oo::define` — bodies
