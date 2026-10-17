@@ -1,0 +1,85 @@
+{
+  "observed_utc": "2026-10-17T09:09:24.687763+00:00",
+  "observed_user_time": "2026-10-17T10:09:24.687763+01:00",
+  "user_timezone": "Europe/London",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "lsp": {
+    "required": 325,
+    "integrated_pending_validation": 229,
+    "not_integrated": 96,
+    "verified_complete": 0,
+    "semantic_integrated": 116,
+    "semantic_required": 201,
+    "validation_integrated": 111,
+    "validation_required": 122,
+    "documentation_integrated": 2,
+    "documentation_required": 2
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 363,
+    "full_scope_pending": 327,
+    "partial": 36
+  },
+  "annex": {
+    "required": 64,
+    "integrated": 63,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2222,
+    "integrated": 426,
+    "not_integrated": 1796,
+    "verified_complete": 0
+  },
+  "gains_since_last_report": 0,
+  "code_checkpoint": "86789813870b2ed07dc2532068798a29a3e2f415",
+  "environment_recovery": {
+    "status": "CONNECTED_FRESH_WORKSPACE_SOURCE_CHECKPOINT_RESTORED",
+    "initial_bootstrap_head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "bootstrap_preserved_branch": "recovery/bootstrap-20261017-fcb7927f0",
+    "previous_local_validation_and_candidate_directories": "ABSENT_AFTER_REPLACEMENT",
+    "checkout": "Sparse source/current compact evidence; bulk historical evidence directories omitted locally. Full proof/portable gates cannot be accepted with omitted payloads.",
+    "compact_archives_sha256_verified": [
+      "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
+      "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd"
+    ]
+  },
+  "last_fully_recorded_standard994": {
+    "PASS": 795,
+    "FAIL": 197,
+    "TIMEOUT": 2,
+    "harness_errors": 0,
+    "prior_PASS_regressions": 0
+  },
+  "retained_current_results": {
+    "standard5_build": "PASS367.722s",
+    "extra3_library_build": "PASS209.828s",
+    "xtask_BIN_build": "PASS238.341s",
+    "focused6": {
+      "PASS": 1,
+      "FAIL": 5
+    },
+    "extra18": {
+      "PASS": 17,
+      "FAIL": 1
+    },
+    "editor_static_and_bundle_checks": "PASS443 inputs, no drift; actual editor hosts pending",
+    "proof_gate": "FAIL2094 structural errors; no evidence/census digest rewrites"
+  },
+  "observed_before_reset_but_raw_files_now_absent": {
+    "native_build": "Observed PASS686.713s completed2026-10-17T05:23:22.316828+00:00; receipt SHA27b1db543af720c09a33e4ae9c33652f29a275df22e3b967b6370b3dd77b8185; requires fresh retained validation, no current executable authority",
+    "additional_SpecTcl6": "Observed6PASS with matching final source/nineELF/provider checks; raw files absent, recapture required",
+    "standard1024": "Final outcome unavailable. Old RUNNING markers are historical, no currently active accepted capture.",
+    "native34": "Build completed; binding started, no test execution or final binding confirmed. Must freshly bind/replay34."
+  },
+  "next_source": "Unpushed V7 composition and separate candidates absent. Reconstruct from retained source packets/chat, re-review and admit; no count for lost or queued work. V7 arity repair was unsealed; hover cross-document String-to-identity HOLD and extraction blanket-disable HOLD remain.",
+  "next_actions": [
+    "Restore exact retained source/selection/provenance metadata without fabricating missing executables or final outcomes.",
+    "Provision current matching original provider/support toolchains, make fresh ordinary source-bound artifacts, independently review bindings and replay original controls with unchanged assertions/fixtures/180s test/30s listing guards.",
+    "Resume remaining generic LSP consumer migrations and necessary Compiler/DB/Registry owners."
+  ],
+  "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX. Uncovered BIG-IP is a Tcl8.4 working assumption only, not measured evidence.",
+  "required_gates": "Not green; no PR, merge or #2286 closure.",
+  "report_cadence_minutes": 30
+}

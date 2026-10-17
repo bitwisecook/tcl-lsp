@@ -1,0 +1,41 @@
+{
+  "scheduled_utc": "2026-10-17T05:37:00Z",
+  "next_utc": "2026-10-17T06:07:00Z",
+  "repository_write": "SAVED_AFTER_ENVIRONMENT_RECOVERY",
+  "lsp_integrated": 229,
+  "lsp_required": 325,
+  "lsp_without_integration": 96,
+  "effective_integrated": 426,
+  "effective_required": 2222,
+  "verified": 0,
+  "latest_push": "867898138",
+  "builds": {
+    "standard5": "PASS367.722s",
+    "extra3libs": "PASS209.828s",
+    "xtask": "PASS238.341s",
+    "native": "PASS686.713s"
+  },
+  "focused6": {
+    "PASS": 1,
+    "FAIL": 5
+  },
+  "extra18": {
+    "PASS": 17,
+    "FAIL": 1
+  },
+  "additionalSpectcl6": {
+    "PASS": 6,
+    "FAIL": 0,
+    "final_prepost_equal": true
+  },
+  "full1024": "LAST_CONFIRMED_RUNNING_FINAL_UNAVAILABLE",
+  "native34": "BUILD_PASS_BINDING_PENDING_FINAL_UNAVAILABLE",
+  "next_source": "OutsideMain source compositionV7 14proposedLSPpurposes knownaritylintHOLD fixstagedunsealed; receiver3separateSOURCECLEAR; otherpeerspending. No new admission/count.",
+  "deferred": "Runtime/VM and dedicatedBIGIP/iRules/ILX; uncoveredBIGIP Tcl8.4 assumption only",
+  "delivery_observation_interval_utc": [
+    "2026-10-17T05:39:06Z",
+    "2026-10-17T05:40:50Z"
+  ],
+  "original_repository_write": "BLOCKED_EXEC_SERVER_TRANSPORT_DISCONNECTED",
+  "repository_written_during_recovery_on": "2026-10-17"
+}

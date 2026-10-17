@@ -132823,7 +132823,7 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T05:14:45.682040+00:00",
+    "utc": "2026-10-17T09:09:24.687763+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
     "implemented_pending_validation": 363,
@@ -133537,115 +133537,89 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "scheduled_utc": "2026-10-17T05:07:00Z",
-      "last_utc": "2026-10-17T05:07:19.942782+00:00",
+      "observed_utc": "2026-10-17T09:09:24.687763+00:00",
+      "observed_user_time": "2026-10-17T10:09:24.687763+01:00",
+      "user_timezone": "Europe/London",
       "delivery": "Chat and repository only; external guide unchanged.",
-      "next_utc": "2026-10-17T05:37:00Z",
-      "cadence_minutes": 30,
-      "lsp_integrated_at_report": 229,
-      "lsp_required": 325,
-      "lsp_by_kind_integrated": {
-        "semantic": 116,
-        "validation": 111,
-        "documentation": 2
+      "lsp": {
+        "required": 325,
+        "integrated_pending_validation": 229,
+        "not_integrated": 96,
+        "verified_complete": 0,
+        "semantic_integrated": 116,
+        "semantic_required": 201,
+        "validation_integrated": 111,
+        "validation_required": 122,
+        "documentation_integrated": 2,
+        "documentation_required": 2
       },
-      "lsp_without_integration": 96,
-      "gains_since_previous_report": {
-        "LSP": 0,
-        "effective": 0,
-        "reason": "Source/artifact freeze for actual current validation. Next packets source-reviewed outside main remain uncounted."
+      "baseline": {
+        "required": 2158,
+        "integrated": 363,
+        "full_scope_pending": 327,
+        "partial": 36
       },
-      "baseline_integrated": 363,
-      "baseline_required": 2158,
-      "baseline_fullscope_pending": 327,
-      "baseline_partial": 36,
-      "baseline_without_integration": 1795,
-      "annex_integrated": 63,
-      "annex_required": 64,
-      "effective_integrated_at_report": 426,
-      "effective_required": 2222,
-      "effective_without_integration": 1796,
-      "verified": 0,
-      "actual_builds": {
-        "standard5": {
-          "status": "PASS",
-          "seconds": 367.722
+      "annex": {
+        "required": 64,
+        "integrated": 63,
+        "blocked": 1
+      },
+      "effective": {
+        "required": 2222,
+        "integrated": 426,
+        "not_integrated": 1796,
+        "verified_complete": 0
+      },
+      "gains_since_last_report": 0,
+      "code_checkpoint": "86789813870b2ed07dc2532068798a29a3e2f415",
+      "environment_recovery": {
+        "status": "CONNECTED_FRESH_WORKSPACE_SOURCE_CHECKPOINT_RESTORED",
+        "initial_bootstrap_head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "bootstrap_preserved_branch": "recovery/bootstrap-20261017-fcb7927f0",
+        "previous_local_validation_and_candidate_directories": "ABSENT_AFTER_REPLACEMENT",
+        "checkout": "Sparse source/current compact evidence; bulk historical evidence directories omitted locally. Full proof/portable gates cannot be accepted with omitted payloads.",
+        "compact_archives_sha256_verified": [
+          "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
+          "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd"
+        ]
+      },
+      "last_fully_recorded_standard994": {
+        "PASS": 795,
+        "FAIL": 197,
+        "TIMEOUT": 2,
+        "harness_errors": 0,
+        "prior_PASS_regressions": 0
+      },
+      "retained_current_results": {
+        "standard5_build": "PASS367.722s",
+        "extra3_library_build": "PASS209.828s",
+        "xtask_BIN_build": "PASS238.341s",
+        "focused6": {
+          "PASS": 1,
+          "FAIL": 5
         },
-        "extra3libraries": {
-          "status": "PASS",
-          "seconds": 209.828
-        },
-        "xtaskBIN": {
-          "status": "PASS",
-          "seconds": 238.341
-        },
-        "source_inputs": 39100,
-        "admitted_paths": 205,
-        "actual_ELFs": 9,
-        "source_drift": 0
-      },
-      "actual_editor": {
-        "status": "PASS",
-        "inputs": 443,
-        "drift": 0,
-        "scope": "TypeScript/configuredformat/worker/Node+browserbundles/StudioWebtypecheck; actualhosts pending."
-      },
-      "actual_focused6": {
-        "counts": {
-          "FAIL": 5,
-          "PASS": 1
-        },
-        "harness_errors": [],
-        "completed_utc": "2026-10-17T04:57:51.847817+00:00",
-        "all39100_source_fiveELFs_provider_prepost_match": true,
-        "scope": "Five previous linked/Itcl/Logicaldefinition failures still fail. Old additional genuineglobalScope test passes. No efficacy claimed for failed causal repairs."
-      },
-      "actual_extra18": {
-        "counts": {
+        "extra18": {
           "PASS": 17,
           "FAIL": 1
         },
-        "harness_errors": [],
-        "completed_utc": "2026-10-17T05:05:11.002735+00:00",
-        "all39100_source_nineELFs_provider_prepost_match": true,
-        "retained_previous18_outcomes_unchanged": true,
-        "remaining": "SpecTcl genuine Native command-name protocol refusal; Runtime/VM deferred."
+        "editor_static_and_bundle_checks": "PASS443 inputs, no drift; actual editor hosts pending",
+        "proof_gate": "FAIL2094 structural errors; no evidence/census digest rewrites"
       },
-      "current_standard1024": {
-        "status": "RUNNING",
-        "receipt": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair3/retained1024-results-invocation.json",
-        "started_utc": "2026-10-17T04:58:36.666924+00:00",
-        "completed_utc": null,
-        "logs_started": 244,
-        "scope": "Exact previous994 orderedprefix+30newcontrols; actualboundpeerCLEAR; originalsingleton/list/test guards180/30 retained. No partial log passcounts or finaloutcomes inferred."
+      "observed_before_reset_but_raw_files_now_absent": {
+        "native_build": "Observed PASS686.713s completed2026-10-17T05:23:22.316828+00:00; receipt SHA27b1db543af720c09a33e4ae9c33652f29a275df22e3b967b6370b3dd77b8185; requires fresh retained validation, no current executable authority",
+        "additional_SpecTcl6": "Observed6PASS with matching final source/nineELF/provider checks; raw files absent, recapture required",
+        "standard1024": "Final outcome unavailable. Old RUNNING markers are historical, no currently active accepted capture.",
+        "native34": "Build completed; binding started, no test execution or final binding confirmed. Must freshly bind/replay34."
       },
-      "actual_full_proof_gate": {
-        "status": "FAIL",
-        "structural_errors": 2094,
-        "seconds": 344.996,
-        "source_inputs": 39100,
-        "checker_inputs": 73526,
-        "drift": 0,
-        "scope": "Original full checker, no inventory/evidence digest rewrite."
-      },
-      "actual_native_e2e": {
-        "source_inventory": 34,
-        "by_target": {
-          "e2e": 24,
-          "preview_tickets_e2e": 10
-        },
-        "changed_existing": 33,
-        "new": 1,
-        "source_peer": "CLEAR",
-        "template_peer": "CLEAR_V2",
-        "actual_build": "PREPARING_ROOT_BUILDER_AFTER_ACTUAL_NINE_ELF_BINDING_PEER_CLEAR",
-        "scope": "Earlier11count corrected from realgenericpacketinventory; dedicatedirulesexcluded. Two V6packagePath controls belongCore1024. Bothrealnative targets+freshserver stillowed."
-      },
-      "next_source": "Nine existingLSP purposes source-reviewed outside main: Workspace2, standaloneRefactor1, package6331, referencesdispatch1, originalTclproviderValidation4. None integrated/counted. Actualfive-failure causal repair sourcecandidate and Nativeclass revision-retag repair require peer; orphan no-wake/census premise conflict remainsHOLD. Proofindex metadata source-only candidate held for canonicalowner/binding correction.",
-      "deferred_scope": "Runtime/VM and dedicated BIGIP/iRules/ILX migrations and suites deferred. Uncovered BIGIP Tcl8.4 assumption only, not measuredNativeevidence.",
-      "storage": "Three obsolete priorNative buildexecutables losslessly archived216763581B; all member sizes/hashes verified before removing1412350808B loosecopies. Current9/source/providers unchanged. NoELFs/fullinputindexes addedGit.",
-      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr/nativeE2E/actualVSCode-browser-JBhosts not all green. NoPR/merge/#2286closure.",
-      "latest_push": "df1888908ceb7306e0e97ba3f875f5a9d1442efd"
+      "next_source": "Unpushed V7 composition and separate candidates absent. Reconstruct from retained source packets/chat, re-review and admit; no count for lost or queued work. V7 arity repair was unsealed; hover cross-document String-to-identity HOLD and extraction blanket-disable HOLD remain.",
+      "next_actions": [
+        "Restore exact retained source/selection/provenance metadata without fabricating missing executables or final outcomes.",
+        "Provision current matching original provider/support toolchains, make fresh ordinary source-bound artifacts, independently review bindings and replay original controls with unchanged assertions/fixtures/180s test/30s listing guards.",
+        "Resume remaining generic LSP consumer migrations and necessary Compiler/DB/Registry owners."
+      ],
+      "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX. Uncovered BIG-IP is a Tcl8.4 working assumption only, not measured evidence.",
+      "required_gates": "Not green; no PR, merge or #2286 closure.",
+      "report_cadence_minutes": 30
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -136015,6 +135989,17 @@
       "next_source": "Ten existing LSP purposes source CLEAR outside Main; composition not admitted: Workspace2, refactor1, references1, package6331, originalprovider validation4, nativeclass1partial. Focused-five causal repair source CLEAR, efficacy unexecuted. MetadataV4 doc fields HOLD; V5 preparing. Orphanrefresh HOLD. TextMate partial preparing.",
       "compact_evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-next-consumer-v6/current-binding-and-extra18/storage-receipt.json",
       "external_guide": "Unchanged; reports only chat/repository."
+    },
+    "recovery_checkpoint_20261017": {
+      "status": "CONNECTED_FRESH_WORKSPACE_SOURCE_CHECKPOINT_RESTORED",
+      "initial_bootstrap_head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "bootstrap_preserved_branch": "recovery/bootstrap-20261017-fcb7927f0",
+      "previous_local_validation_and_candidate_directories": "ABSENT_AFTER_REPLACEMENT",
+      "checkout": "Sparse source/current compact evidence; bulk historical evidence directories omitted locally. Full proof/portable gates cannot be accepted with omitted payloads.",
+      "compact_archives_sha256_verified": [
+        "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
+        "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd"
+      ]
     }
   }
 }
