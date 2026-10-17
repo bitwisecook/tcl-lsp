@@ -2536,10 +2536,20 @@ impl FunctionBuilder {
             Some(std::sync::Arc::new(OriginalExecutableArgvSource {
                 tokens: tokens.clone(),
                 words,
-                metadata: context.map_or(
-                    crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
-                    InvocationMetadataContext::retain,
-                ),
+                metadata: match context {
+                    // Only the legacy no-context entry or actual static adapter
+                    // selects standalone compatibility. A borrowed availability
+                    // view cannot reconstruct its original Arc/source owner.
+                    None => crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+                    Some(context) if context.is_standalone() => {
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
+                    }
+                    Some(context) => {
+                        crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                            context.source_analysis_input(),
+                        )
+                    }
+                },
             }))
         })();
         // Each original argv word emits exactly one Evaluate stage; an
@@ -5479,6 +5489,40 @@ mod tests {
             assert!(!detached.is_bounded());
             operation.original_tokens = Some(original);
             assert!(function.validate().is_ok());
+        }
+    }
+
+    #[test]
+    fn world_word_source_metadata_retains_full_input_not_borrowed_availability() {
+        let fixture = crate::provider_fixtures::original_native_module(
+            "list $array([rename old new])",
+            "tcl8.6",
+        );
+        let (context, module) = &*fixture;
+        let actual = InvocationMetadataContext::for_module(context.commands(), module).unwrap();
+        let availability_only = InvocationMetadataContext::from(context.as_ref());
+        for (metadata, expected) in [(actual, Some(Some(true))), (availability_only, Some(None))] {
+            let function = build_linear_executable_ir_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                ExecutableFunctionId::new(1740),
+                &module.top_level,
+            )
+            .unwrap();
+            let (value, word) = instructions(&function)
+                .into_iter()
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                        (word.source().span.start() > 0).then_some((*value, word))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert_eq!(
+                function.original_word_command_effects(value, word),
+                expected
+            );
         }
     }
 

@@ -1,0 +1,10 @@
+{
+  "archive": "source-validation.tar.gz",
+  "sha256": "5aa5b73ec7325fd1e42f60b56cda61687a8a9aa2a81cd970803d5b390f28e94e",
+  "bytes": 4975428,
+  "members": 1400,
+  "members_index_sha256": "ae92e815f21bcada78761412b3de4e95ea21c2f0fd9c9f4e61d3e7faf3e3d63a",
+  "scope": "Actual integration20/21 admissions, original1024 and additive314 failed ordinary execution. All1338 exact raw logs, original runner/manifests and full source/provider/ELF/order/log integrity guards retained. Original826PASS198FAIL including3timeouts; additive214PASS100FAIL. No semantic acceptance; Native/server-process/real-host gates owed.",
+  "locked_test_conflict_sha256": "d17283c156c444341054f8f13dd05bf1f16882759e0252a18c58d28e971261ec",
+  "verification": "Root independently verified archive SHA, safe unique paths, every indexed member and1338rawlog membership. No binaries/provider source trees."
+}

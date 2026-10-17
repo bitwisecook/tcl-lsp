@@ -1671,7 +1671,7 @@ fn generic_definition_child_source_words(
         word: Some(original.first()?.clone()),
     };
     Some(OriginalRegistryWords {
-        command: selected.command().to_owned(),
+        command: selected.canonical_command.to_owned(),
         dialect: parent.source_words().dialect(),
         arguments,
         operands,
