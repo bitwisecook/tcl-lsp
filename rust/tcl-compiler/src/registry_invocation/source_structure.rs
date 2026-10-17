@@ -82,6 +82,22 @@ pub fn original_single_source_command_substitution(
     })
 }
 
+/// The same original whole-substitution projection reborrowed from its actual
+/// recursively checked parent plan. Public plan rows cannot forge ancestry.
+/// This supplies lexical words only, never a Native key, execution or Normal.
+#[must_use]
+pub fn original_single_source_command_substitution_in_plan(
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    operand: &tcl_lexer::NativeWord,
+) -> Option<OriginalSingleSourceCommandSubstitution> {
+    crate::command_binding::original_single_command_substitution_words_in_plan(plan, operand).map(
+        |original| OriginalSingleSourceCommandSubstitution {
+            operand: original.original_operand().clone(),
+            command: original.command().clone(),
+        },
+    )
+}
+
 fn retained_document_image(
     source: &str,
     realm: &crate::realm::CommandBindingRealm,
@@ -1458,6 +1474,74 @@ pub fn source_registry_words_in_definition_body(
     parent: &super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
     source_registry_words_with_definition_parent(source, analysis, segment, Some(parent))
+}
+
+/// Reborrow one exact child command from an authenticated definition-body
+/// plan before applying its selected authored source schema. The complete
+/// parent command vector remains mandatory; this is not a fresh child entry.
+#[must_use]
+pub fn source_registry_words_in_definition_body_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    (config == input.lexer_config()).then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    let image = retained_document_image(source, realm, config)?;
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    if !parent.matches_source(&image, config) || !parent.matches_context(&input.context_registry())
+    {
+        return None;
+    }
+    let segment = if let Some((segment, _)) = realm
+        .invocation_at_source("", offset)
+        .original_recorded_command()
+    {
+        segment
+    } else if let Some(segment) = analysis
+        .resolved_input
+        .as_ref()
+        .and_then(|input| realm.original_source_catalogue_segment_at(input, offset))
+    {
+        segment
+    } else {
+        let tail = source.get(usize::try_from(offset).ok()?..)?;
+        crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
+            .into_iter()
+            .next()?
+    };
+    (segment.argv.first()?.span.start() == offset).then_some(())?;
+    let context = input.context_registry();
+    let members = parent.definition_member_region(&context, parent.content_span())?;
+    members.complete_original_commands()?;
+    let original = members.original_command_words_at(offset)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        &segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let selected = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    (selected.as_slice() == original).then_some(())?;
+    use super::source_scoped_body::OriginalSourceDefinitionMemberDisposition as Disposition;
+    match members.script_body_disposition(&context, original) {
+        Disposition::Unavailable => None,
+        Disposition::CompleteNonMember => source_registry_words(source, analysis, &segment),
+        Disposition::CompleteMember(_) => {
+            source_registry_words_in_definition_body(source, analysis, &segment, parent)
+        }
+    }
 }
 
 fn source_registry_words_with_definition_parent(

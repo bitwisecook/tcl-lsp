@@ -62,8 +62,9 @@ impl<'a> OriginalLinkedSourceSpelling<'a> {
                     if !contains(declaration.metadata().body_span, head.span().start()) {
                         continue;
                     }
+                    // This intentional spelling group retains a conditional source
+                    // link; runtime applicability belongs to semantic rename.
                     if call.declaration(analysis) != Some(declaration)
-                        || call.has_unresolved_applicability()
                         || !call.lineage().is_empty()
                         || call.captured_argument_count() != 0
                     {

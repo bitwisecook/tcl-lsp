@@ -106,10 +106,11 @@ Current Native selection uses original declaration identity, original direct
 call allocation and the existing atomic command preparation guard, including
 its current publication, observer/link and coverage refusals. Logical selection
 uses the actual retained header and original call's own definition transition,
-complete argv/input and scope recipe. Unknown applicability, captured aliases
-and move lineage cannot select linked calls. Logical selection is source
-intention, never a Native publication or executed lookup assertion; missing
-source advice remains unavailable, not complete absence.
+complete argv/input and scope recipe. Runtime applicability remains unresolved
+for this intentional source-spelling operation. Captured aliases and move
+lineage cannot select linked calls. Conditional applicability grants no Native
+publication, executed lookup or semantic rename equivalence. Missing source
+advice remains unavailable, not complete absence.
 
 The existing whole-source edit geometry owner retains the actual source word.
 Its source-only component projection requires exact image/config and original

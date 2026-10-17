@@ -128,9 +128,39 @@ mod original;
 /// `docs/design/compiler/recursive-descent-depth-limits.md`.
 const MAX_GUARD_NESTING_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(32);
 
+/// A target-release relation issued by the genuine source-query owner.
+/// The caller's target remains hypothetical; no physical Tcl provision is asserted.
+#[derive(Debug, Clone)]
+pub struct SourceTargetCondition {
+    receipt: std::sync::Arc<
+        tcl_compiler::registry_invocation::source_structure::OriginalPackageIndexTargetGuard,
+    >,
+    expect: bool,
+}
+impl PartialEq for SourceTargetCondition {
+    fn eq(&self, other: &Self) -> bool {
+        self.expect == other.expect && std::sync::Arc::ptr_eq(&self.receipt, &other.receipt)
+    }
+}
+impl Eq for SourceTargetCondition {}
+#[derive(Debug, Clone)]
+struct SourceAdvertisement(
+    std::sync::Arc<
+        tcl_compiler::registry_invocation::source_structure::OriginalPackageIndexAdvertisement,
+    >,
+);
+impl PartialEq for SourceAdvertisement {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for SourceAdvertisement {}
+
 /// One condition that must hold for a `package ifneeded` to be reached.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
+    /// Authentic selected source-query dependency for the explicit target survey.
+    SourceTarget(SourceTargetCondition),
     /// `package vsatisfies [package provide Tcl] REQ …` must evaluate to
     /// `expect`.  `requirements` are the requirement words as written
     /// (`"8.5"`, `"9-"`, `"8.5-9.0"`).
@@ -155,6 +185,19 @@ impl Condition {
     #[must_use]
     fn holds(&self, target: Option<TclVersion>) -> Ternary {
         match self {
+            Self::SourceTarget(condition) => {
+                let Some(target) = target else {
+                    return Ternary::Inert;
+                };
+                if !condition.receipt.subject_is_interpreter_release_in(target) {
+                    return Ternary::Inert;
+                }
+                match target.satisfies_any_ternary(condition.receipt.requirements()) {
+                    Ternary::Yes => Ternary::from(condition.expect),
+                    Ternary::No => Ternary::from(!condition.expect),
+                    Ternary::Inert => Ternary::Inert,
+                }
+            }
             Self::TclSatisfies {
                 requirements,
                 expect,
@@ -181,6 +224,10 @@ impl Condition {
     #[must_use]
     fn negated(&self) -> Option<Self> {
         match self {
+            Self::SourceTarget(condition) => Some(Self::SourceTarget(SourceTargetCondition {
+                receipt: std::sync::Arc::clone(&condition.receipt),
+                expect: !condition.expect,
+            })),
             Self::TclSatisfies {
                 requirements,
                 expect,
@@ -213,7 +260,7 @@ pub enum Availability {
 ///
 /// Empty means "reached unconditionally" — the common, unguarded index file.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Conditions(Vec<Condition>);
+pub struct Conditions(Vec<Condition>, Vec<SourceAdvertisement>);
 
 impl Conditions {
     /// Whether a Tcl release running this index reaches the declaration.
@@ -247,7 +294,23 @@ impl Conditions {
     fn with(&self, extra: Condition) -> Self {
         let mut out = self.0.clone();
         out.push(extra);
-        Self(out)
+        Self(out, self.1.clone())
+    }
+    fn with_advertisement(
+        &self,
+        receipt: std::sync::Arc<
+            tcl_compiler::registry_invocation::source_structure::OriginalPackageIndexAdvertisement,
+        >,
+    ) -> Self {
+        let mut out = self.clone();
+        out.1.push(SourceAdvertisement(receipt));
+        out
+    }
+    /// Whether this condition set retains a selected source-advertisement premise.
+    /// This grants no physical registration or complete inventory.
+    #[must_use]
+    pub fn has_source_advertisement_premise(&self) -> bool {
+        !self.1.is_empty()
     }
 }
 
@@ -261,8 +324,9 @@ pub struct Reached<'t> {
     pub words: &'t [Vec<Token>],
     /// What must hold for the interpreter to run it.
     pub conditions: Conditions,
-    /// Independently retained complete original words, when this script has a
-    /// checked unchanged literal mapping into the index's full source image.
+    /// Actual complete original words in their retained source image. Entered
+    /// decoded bodies keep their NativeValue channel; this field alone supplies
+    /// no Document coordinate map, current-input or package-identity grant.
     pub original_words: Option<Vec<NativeWord>>,
 }
 
@@ -300,24 +364,59 @@ pub fn scan_with_config(
     });
 }
 
-/// Retain the existing selected survey result without reparsing its script.
+/// Retain the actual selected original source advertisement and callback geometry.
 pub(super) fn scan_selected_registrations(
     content: &str,
     registry: &CommandRegistry,
     config: LexerConfig,
     visit: &mut dyn FnMut(SelectedSurveyRegistration<'_>),
 ) {
-    let original = u32::try_from(content.len()).ok().map(|end| OriginalScript {
-        image: SourceImage::document(content),
-        span: Span::new(0, end),
-        config,
+    let _ = original::scan_survey(content, registry, config, &mut |reached| {
+        let Some(premise) = reached
+            .conditions
+            .1
+            .last()
+            .map(|receipt| std::sync::Arc::clone(&receipt.0))
+        else {
+            return;
+        };
+        let Some(original) = reached.original_words.as_ref() else {
+            return;
+        };
+        let Some(first) = original.first() else {
+            return;
+        };
+        let Some(actual) = first.tokens().first() else {
+            return;
+        };
+        let Some(local) = reached.words.first().and_then(|word| word.first()) else {
+            return;
+        };
+        let Some(base) = actual.span.start().checked_sub(local.span.start()) else {
+            return;
+        };
+        let Some(end) = u32::try_from(reached.text.len())
+            .ok()
+            .and_then(|len| base.checked_add(len))
+        else {
+            return;
+        };
+        let Some(registration) = super::registration::select_original_advertisement(
+            reached.text,
+            reached.words,
+            first.image(),
+            Span::new(base, end),
+            registry,
+            config,
+            premise,
+        ) else {
+            return;
+        };
+        visit(SelectedSurveyRegistration {
+            reached,
+            registration,
+        });
     });
-    ScriptWalker {
-        registry,
-        config,
-        visit,
-    }
-    .walk_script(content, &Conditions::default(), 0, original.as_ref());
 }
 
 /// Coverage of the existing original-source package survey, independently of
@@ -838,6 +937,7 @@ fn clause_chain(head: &str, args: &[&str], registry: &CommandRegistry) -> Option
 /// A guard expression this scan understands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Guard {
+    SourceTarget(SourceTargetCondition),
     /// A literal boolean (`1`, `0`, `true`, `off`, …).
     Constant(bool),
     /// `package vsatisfies [package provide Tcl] REQ …`, `negated` when
@@ -855,6 +955,10 @@ impl Guard {
     /// `expect`, or `None` when the guard already settles it.
     fn condition(&self, expect: bool) -> Option<Condition> {
         match self {
+            Self::SourceTarget(condition) => Some(Condition::SourceTarget(SourceTargetCondition {
+                receipt: std::sync::Arc::clone(&condition.receipt),
+                expect: expect != condition.receipt.negated(),
+            })),
             Self::Constant(value) => (*value != expect).then_some(Condition::Impossible),
             Self::TclSatisfies {
                 requirements,
@@ -881,9 +985,15 @@ fn guard_expr(text: &str, word: &[Token], config: LexerConfig) -> Guard {
 
 /// Parse a condition's source text.
 fn parse_guard(expr: &str, config: LexerConfig) -> Guard {
+    parse_guard_mode(expr, config, true)
+}
+fn constant_guard(expr: &str, config: LexerConfig) -> Guard {
+    parse_guard_mode(expr, config, false)
+}
+fn parse_guard_mode(expr: &str, config: LexerConfig, source_query_compatibility: bool) -> Guard {
     let expr = expr.trim();
     if let Some(rest) = expr.strip_prefix('!') {
-        return match parse_guard(rest, config) {
+        return match parse_guard_mode(rest, config, source_query_compatibility) {
             Guard::Constant(value) => Guard::Constant(!value),
             Guard::TclSatisfies {
                 requirements,
@@ -892,11 +1002,11 @@ fn parse_guard(expr: &str, config: LexerConfig) -> Guard {
                 requirements,
                 negated: !negated,
             },
-            Guard::Unknown => Guard::Unknown,
+            Guard::SourceTarget(_) | Guard::Unknown => Guard::Unknown,
         };
     }
     // A whole-expression `[...]` substitution: unwrap and read the command.
-    if let Some(inner) = bracketed_body(expr, config) {
+    if source_query_compatibility && let Some(inner) = bracketed_body(expr, config) {
         return parse_vsatisfies(&inner, config);
     }
     // The same acceptor `if` itself uses (`Tcl_GetBooleanFromObj`'s string
@@ -1034,3 +1144,215 @@ fn is_requirement_word(word: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod source_survey_owner_tests {
+    use super::*;
+    #[test]
+    fn fixed_source_guard_retains_real_query_and_advertisement_dependencies() {
+        let source = "if {[package vsatisfies [package provide Tcl] 9-]} {return}\npackage ifneeded p 1.0 [list source $dir/p.tcl]";
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan(source, &registry, &mut |reached| {
+            found.push(reached.conditions)
+        });
+        assert_eq!(found.len(), 1);
+        assert!(found[0].has_source_advertisement_premise());
+        assert!(
+            found[0]
+                .0
+                .iter()
+                .any(|condition| matches!(condition, Condition::SourceTarget(_)))
+        );
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V8_6)),
+            Availability::Available
+        );
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Unavailable
+        );
+    }
+    #[test]
+    fn known_false_source_body_keeps_unavailable_advertisement_without_entered_claim() {
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan(
+            "if {0} {package ifneeded hidden 1.0 {source hidden.tcl}}",
+            &registry,
+            &mut |reached| found.push(reached.conditions),
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].has_source_advertisement_premise());
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Unavailable
+        );
+    }
+    #[test]
+    fn decoded_registration_retains_native_value_original_words() {
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan(
+            "if 1 \"package ifneeded caf\\u00e9 1.0 {}\"",
+            &registry,
+            &mut |reached| {
+                assert_eq!(
+                    reached.original_words.as_ref().unwrap()[0]
+                        .image()
+                        .channel(),
+                    tcl_lexer::SourceChannel::NativeValue
+                );
+                assert!(reached.conditions.has_source_advertisement_premise());
+                found.push(word_raw(reached.text, &reached.words[2]).to_owned());
+            },
+        );
+        assert_eq!(found, vec!["café"]);
+    }
+    #[test]
+    fn opaque_or_package_history_does_not_restore_target_release_model() {
+        let registry = CommandRegistry::build_default();
+        for prefix in [
+            "package provide Tcl 7.0;",
+            "package forget Tcl;",
+            "mystery;",
+        ] {
+            let source = format!(
+                "{prefix} if {{[package vsatisfies [package provide Tcl] 9-]}} {{return}}; package ifneeded p 1.0 {{}} "
+            );
+            let mut found = Vec::new();
+            scan(&source, &registry, &mut |reached| {
+                found.push(reached.conditions)
+            });
+            assert!(found.iter().all(|conditions| {
+                !conditions
+                    .0
+                    .iter()
+                    .any(|condition| matches!(condition, Condition::SourceTarget(_)))
+            }));
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_advertisement_value_boundary_tests {
+    use super::*;
+    #[test]
+    fn original_projection_preserves_legacy_nul_value_refusal() {
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan_selected_registrations(
+            "package ifneeded \"bad\\u0000name\" 1.0 {}",
+            &registry,
+            LexerConfig::default(),
+            &mut |selected| {
+                assert!(
+                    selected
+                        .reached
+                        .conditions
+                        .has_source_advertisement_premise()
+                );
+                found.push(
+                    selected
+                        .registration
+                        .advertisement(
+                            selected.reached.text,
+                            selected.reached.words,
+                            &registry,
+                            LexerConfig::default(),
+                        )
+                        .is_none(),
+                );
+            },
+        );
+        assert_eq!(found, vec![true]);
+    }
+}
+
+#[cfg(test)]
+mod source_clause_selection_tests {
+    use super::*;
+    fn conditions(source: &str) -> Vec<Conditions> {
+        let registry = CommandRegistry::build_default();
+        let mut out = Vec::new();
+        scan(source, &registry, &mut |reached| {
+            out.push(reached.conditions)
+        });
+        out
+    }
+    #[test]
+    fn loops_do_not_become_first_match_source_guards() {
+        let found = conditions("for {} {0} {} {package ifneeded p 1.0 {}}");
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Conditional
+        );
+        let found = conditions("foreach x {1} {return}; package ifneeded p 1.0 {}");
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Conditional
+        );
+    }
+    #[test]
+    fn unreachable_source_body_uncertainty_does_not_retire_outer_guard_path() {
+        let found = conditions("if {0} {return}; package ifneeded p 1.0 {}");
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Available
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_lambda_namespace_tests {
+    use super::*;
+    #[test]
+    fn logical_lambda_namespace_is_its_own_original_source_owner() {
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan(
+            "namespace eval ::Caller {proc package args {}; apply {{} {package ifneeded p 1.0 {}}}}",
+            &registry,
+            &mut |reached| found.push(reached.conditions),
+        );
+        assert_eq!(found.len(), 1, "default lambda scope is global, not Caller");
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Conditional
+        );
+        let mut shadowed = 0;
+        scan(
+            "namespace eval ::ns {proc package args {}}; apply {{} {package ifneeded hidden 1.0 {}} ::ns}",
+            &registry,
+            &mut |_| shadowed += 1,
+        );
+        assert_eq!(
+            shadowed, 0,
+            "explicit lambda scope retains its known package shadow"
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_uncertain_continuation_tests {
+    use super::*;
+    #[test]
+    fn unknown_branch_continuations_do_not_become_definite_all_branch_stop() {
+        let registry = CommandRegistry::build_default();
+        let mut found = Vec::new();
+        scan(
+            "if {$condition} {mystery} else {mystery}; package ifneeded after 1.0 {}",
+            &registry,
+            &mut |reached| found.push(reached.conditions),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Conditional
+        );
+        assert!(found[0].has_source_advertisement_premise());
+    }
+}

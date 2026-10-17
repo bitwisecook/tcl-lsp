@@ -320,7 +320,7 @@ fn collect_source_targets(
             continue;
         };
         if matching.next().is_none() {
-            loader.collect_word(word, pkg_dir, &mut candidates, depth);
+            loader.collect_word_in_plan(&plan, word, pkg_dir, &mut candidates, depth);
         }
     }
     out.extend(candidates.into_iter().filter(|path| exists(path)));

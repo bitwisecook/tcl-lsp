@@ -4280,6 +4280,17 @@ struct PackNoticePublication {
     by_uri: HashMap<Uri, Vec<PackNoticeEntry>>,
 }
 
+/// Existing source and selected provider/publication owners for one notice merge.
+#[derive(Clone, Copy)]
+struct PackNoticeContext<'a> {
+    uri: &'a Uri,
+    source: &'a str,
+    pack_seq: u64,
+    packs: &'a Arc<tcl_spectcl::PackSet>,
+    registry: &'a Arc<CommandRegistry>,
+    store: &'a dyn vfs::SourceStore,
+}
+
 struct DiagnosticPublisher {
     completion: Mutex<HashMap<Uri, DiagnosticCompletionEntry>>,
     client: Client,
@@ -4307,39 +4318,28 @@ impl DiagnosticPublisher {
     /// are the exact owners used by this document report.
     fn with_pack_notices(
         &self,
-        uri: &Uri,
-        source: &str,
-        pack_seq: u64,
-        packs: &Arc<tcl_spectcl::PackSet>,
-        registry: &Arc<CommandRegistry>,
-        store: &dyn vfs::SourceStore,
+        context: PackNoticeContext<'_>,
         diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-        self.with_pack_notices_during(
-            uri,
-            source,
-            pack_seq,
-            packs,
-            registry,
-            store,
-            diagnostics,
-            |diagnostics| diagnostics,
-        )
+        self.with_pack_notices_during(context, diagnostics, |diagnostics| diagnostics)
     }
 
     /// Rejoin the selected provider source while the synchronous publication
     /// callback commits the assembled diagnostic set.
     fn with_pack_notices_during<R>(
         &self,
-        uri: &Uri,
-        source: &str,
-        pack_seq: u64,
-        packs: &Arc<tcl_spectcl::PackSet>,
-        registry: &Arc<CommandRegistry>,
-        store: &dyn vfs::SourceStore,
+        context: PackNoticeContext<'_>,
         diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
         publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
     ) -> R {
+        let PackNoticeContext {
+            uri,
+            source,
+            pack_seq,
+            packs,
+            registry,
+            store,
+        } = context;
         let mut publish = Some(publish);
         let mut diagnostics = Some(diagnostics);
         let notices = self
@@ -4669,12 +4669,14 @@ impl DeliveryCtx<'_> {
             return publish(diagnostics);
         }
         self.diagnostic_publisher.with_pack_notices_during(
-            self.uri,
-            self.source,
-            self.pack_seq,
-            packs,
-            registry,
-            self.store.as_ref(),
+            PackNoticeContext {
+                uri: self.uri,
+                source: self.source,
+                pack_seq: self.pack_seq,
+                packs,
+                registry,
+                store: self.store.as_ref(),
+            },
             diagnostics,
             publish,
         )
@@ -24981,12 +24983,14 @@ impl Backend {
         };
         let registry = self.registry_for_dialect(&dialect).await;
         Ok(self.diagnostic_publisher.with_pack_notices(
-            uri,
-            &text,
-            pack_seq,
-            &pack_set,
-            &registry,
-            self.store.as_ref(),
+            PackNoticeContext {
+                uri: uri,
+                source: &text,
+                pack_seq: pack_seq,
+                packs: &pack_set,
+                registry: &registry,
+                store: self.store.as_ref(),
+            },
             analysed,
         ))
     }
@@ -25765,8 +25769,7 @@ impl Backend {
         };
 
         let packs = self.spec_packs().await;
-        let mut overlays = Vec::new();
-        if packs.is_empty() {
+        let overlays = if packs.is_empty() {
             // Loader-only notices still need the actual default registry owner
             // used by ordinary analysis when there are no pack commands.
             let installed = tcl_registry::model::store_profiles()
@@ -25779,7 +25782,7 @@ impl Backend {
             let Some(installed) = installed else {
                 return Ok(false);
             };
-            overlays = installed;
+            installed
         } else {
             // Build the `(profile, key)` registry for every dialect now.
             //
@@ -25817,13 +25820,14 @@ impl Backend {
             let Ok(Some(installed)) = installed else {
                 return Ok(false);
             };
-            overlays = installed;
             // The analyser reads the key off the salsa config, so publish it
             // before anything re-analyses, with the overlay epoch that says
             // the generations behind it are installed.
             self.sync_db_config().await;
             sync_overlay_epoch(&self.db).await;
-        }
+            installed
+        };
+
         if changed {
             // The publish above moved the process's evaluator epoch, whether
             // or not the new set is empty: take it before anything
@@ -26548,12 +26552,14 @@ impl Backend {
                     },
                     |entry| {
                         self.diagnostic_publisher.with_pack_notices_during(
-                            &uri,
-                            &entry.source,
-                            seq,
-                            packs,
-                            registry,
-                            self.store.as_ref(),
+                            PackNoticeContext {
+                                uri: &uri,
+                                source: &entry.source,
+                                pack_seq: seq,
+                                packs,
+                                registry,
+                                store: self.store.as_ref(),
+                            },
                             Vec::new(),
                             |diagnostics| {
                                 self.diagnostic_publisher.enqueue_assembled(
@@ -65257,12 +65263,14 @@ mod pack_configuration_input_gate_tests {
             by_uri,
         );
         let merged = backend.diagnostic_publisher.with_pack_notices(
-            &uri,
-            source,
-            7,
-            &packs,
-            &registry,
-            backend.store.as_ref(),
+            PackNoticeContext {
+                uri: &uri,
+                source: source,
+                pack_seq: 7,
+                packs: &packs,
+                registry: &registry,
+                store: backend.store.as_ref(),
+            },
             Vec::new(),
         );
         assert_eq!(merged, [diagnostic.clone()]);
@@ -65287,13 +65295,15 @@ mod pack_configuration_input_gate_tests {
         );
         assert_eq!(
             backend.diagnostic_publisher.with_pack_notices(
-                &uri,
-                source,
-                7,
-                &packs,
-                &registry,
-                backend.store.as_ref(),
-                Vec::new(),
+                PackNoticeContext {
+                    uri: &uri,
+                    source: source,
+                    pack_seq: 7,
+                    packs: &packs,
+                    registry: &registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
             ),
             [diagnostic.clone()]
         );
@@ -65301,13 +65311,15 @@ mod pack_configuration_input_gate_tests {
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
-                    &uri,
-                    "speclib changed 1.0 {}\n",
-                    7,
-                    &packs,
-                    &registry,
-                    backend.store.as_ref(),
-                    Vec::new(),
+                    PackNoticeContext {
+                        uri: &uri,
+                        source: "speclib changed 1.0 {}\n",
+                        pack_seq: 7,
+                        packs: &packs,
+                        registry: &registry,
+                        store: backend.store.as_ref()
+                    },
+                    Vec::new()
                 )
                 .is_empty()
         );
@@ -65315,13 +65327,15 @@ mod pack_configuration_input_gate_tests {
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
-                    &uri,
-                    source,
-                    8,
-                    &packs,
-                    &registry,
-                    backend.store.as_ref(),
-                    Vec::new(),
+                    PackNoticeContext {
+                        uri: &uri,
+                        source: source,
+                        pack_seq: 8,
+                        packs: &packs,
+                        registry: &registry,
+                        store: backend.store.as_ref()
+                    },
+                    Vec::new()
                 )
                 .is_empty()
         );
@@ -65330,13 +65344,15 @@ mod pack_configuration_input_gate_tests {
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
-                    &uri,
-                    source,
-                    7,
-                    &replacement,
-                    &registry,
-                    backend.store.as_ref(),
-                    Vec::new(),
+                    PackNoticeContext {
+                        uri: &uri,
+                        source: source,
+                        pack_seq: 7,
+                        packs: &replacement,
+                        registry: &registry,
+                        store: backend.store.as_ref()
+                    },
+                    Vec::new()
                 )
                 .is_empty()
         );
@@ -65345,13 +65361,15 @@ mod pack_configuration_input_gate_tests {
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
-                    &uri,
-                    source,
-                    7,
-                    &packs,
-                    &other_registry,
-                    backend.store.as_ref(),
-                    Vec::new(),
+                    PackNoticeContext {
+                        uri: &uri,
+                        source: source,
+                        pack_seq: 7,
+                        packs: &packs,
+                        registry: &other_registry,
+                        store: backend.store.as_ref()
+                    },
+                    Vec::new()
                 )
                 .is_empty()
         );
@@ -65361,13 +65379,15 @@ mod pack_configuration_input_gate_tests {
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
-                    &uri,
-                    source,
-                    7,
-                    &packs,
-                    &registry,
-                    backend.store.as_ref(),
-                    Vec::new(),
+                    PackNoticeContext {
+                        uri: &uri,
+                        source: source,
+                        pack_seq: 7,
+                        packs: &packs,
+                        registry: &registry,
+                        store: backend.store.as_ref()
+                    },
+                    Vec::new()
                 )
                 .is_empty()
         );

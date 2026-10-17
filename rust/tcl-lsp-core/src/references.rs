@@ -3808,12 +3808,12 @@ fn itcl_class_proc_call_sites(
             if !inv.lookup.is_execution_site() {
                 return None;
             }
-            let (word, head) = realm.original_written_word_at_span_in_source(
+            let (word, _site) = realm.original_written_head_at_span_in_source(
                 &image,
                 inv.range,
                 current.config(),
             )?;
-            if head != word.span().start() || word.group().expand {
+            if word.group().expand {
                 return None;
             }
             let value = tcl_syntax::word_rules::original_static_word_unicode_value(&word)?;

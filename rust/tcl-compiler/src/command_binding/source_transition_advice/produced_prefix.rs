@@ -289,6 +289,20 @@ impl OriginalSingleCommandSubstitution {
 pub(crate) fn original_single_command_substitution_words(
     operand: &NativeWord,
 ) -> Option<OriginalSingleCommandSubstitution> {
+    original_single_command_substitution_words_with_plan(operand, None)
+}
+
+pub(crate) fn original_single_command_substitution_words_in_plan(
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    operand: &NativeWord,
+) -> Option<OriginalSingleCommandSubstitution> {
+    original_single_command_substitution_words_with_plan(operand, Some(plan))
+}
+
+fn original_single_command_substitution_words_with_plan(
+    operand: &NativeWord,
+    checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
+) -> Option<OriginalSingleCommandSubstitution> {
     // naming.source.original-produced-command-prefix
     // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
     let arena = operand.executable_parts();
@@ -298,8 +312,13 @@ pub(crate) fn original_single_command_substitution_words(
     let ExecutablePart::Command { body } = part.part else {
         return None;
     };
-    let mut plan =
-        tcl_lexer::native_script_words_in(operand.image().clone(), body, operand.config()).ok()?;
+    let mut plan = match checked_parent {
+        Some(parent) => parent
+            .reborrow_command_substitution_plan(operand, body)
+            .ok()?,
+        None => tcl_lexer::native_script_words_in(operand.image().clone(), body, operand.config())
+            .ok()?,
+    };
     if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
         return None;
     }

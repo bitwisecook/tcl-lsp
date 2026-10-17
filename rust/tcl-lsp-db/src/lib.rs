@@ -215,7 +215,6 @@ use tcl_compiler::compilation_unit::{
     CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
 };
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
-use tcl_compiler::interprocedural::InterproceduralAnalysis;
 #[cfg(test)]
 use tcl_compiler::interprocedural::ProcSummary;
 use tcl_compiler::ir::Script;

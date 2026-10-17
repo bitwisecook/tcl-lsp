@@ -19932,7 +19932,13 @@
       "required_change": [
         "Still selects control/body/terminator meaning via canonical_written_command + registry.get(report head), parse_vsatisfies fixed package/provide/vsatisfies vocabulary and reconstructed script data. Needed source-only conditional control owner already exists in original sibling; keep fixed survey purpose but do not let nominal labels prune actually shadowed/aliased/unknown source paths or imply loader availability. body_may_terminate recursion-limit false and omitted dynamic bodies also cannot close negative inventory."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "integration06 successor ofe73901bca",
+        "validation": "Standalone consumerV3 and checked-child-planV2 independently source-reviewed and integrated; current cargo check running. Prior frozen e739 Core664519PASS145FAIL incl1timeout; source successors not executed.",
+        "remaining": "Actual original compatibility controls and unentered/decoded unsupported geometry remain unvalidated; superseded deadcode cleanup and broad gates pending."
+      }
     },
     {
       "area": "lsp",
@@ -132986,12 +132992,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T10:04:21.819047+00:00",
+    "utc": "2026-10-17T10:54:01.698007+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 392,
+    "implemented_pending_validation": 393,
     "verified_complete": 0,
-    "not_started": 1766,
+    "not_started": 1765,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -133011,7 +133017,7 @@
       "zero_test_runs": 0,
       "scope": "19 selected cohorts only; current source-only successor integrations unexecuted. No broad-gate acceptance."
     },
-    "required_gates": "Still not green; no PR acceptance.",
+    "required_gates": "Five-library build05 FAIL3 pack API wiring errors; frozen Core664519PASS145FAIL including1timeout; focused6 2PASS4FAIL.35new Core controls running. Zero verified/green PR acceptance.",
     "report_cadence_minutes": 30,
     "current_scoped_results": [
       {
@@ -133250,7 +133256,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 462,
+    "effective_implemented_pending_validation": 463,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -133421,7 +133427,7 @@
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
     "fully_implemented_pending_validation": 338,
-    "partially_implemented_pending_validation": 54,
+    "partially_implemented_pending_validation": 55,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -136059,24 +136065,23 @@
       ]
     },
     "current_generic_lsp_integration": {
-      "utc": "2026-10-17T10:04:21.819047+00:00",
-      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD05_RUNNING",
-      "committed_parent": "191284784",
+      "status": "REVIEWED_SOURCE_INTEGRATED_TYPECHECK_PASS",
+      "source_base": "e73901bca",
       "LSP": {
         "required": 325,
-        "integrated": 258,
-        "semantic_integrated": 141,
+        "integrated": 259,
+        "semantic_integrated": 142,
         "validation_integrated": 115,
         "documentation_integrated": 2,
-        "without_integration": 67,
+        "without_integration": 66,
         "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 392,
+        "integrated": 393,
         "full_scope_pending": 338,
-        "partial": 54,
-        "without_integration": 1766
+        "partial": 55,
+        "without_integration": 1765
       },
       "annex": {
         "required": 71,
@@ -136085,31 +136090,45 @@
       },
       "effective": {
         "required": 2229,
-        "integrated": 462,
-        "without_integration": 1767,
+        "integrated": 463,
+        "without_integration": 1766,
         "verified_complete": 0
       },
-      "new_baseline_units": [
-        "lsp-context-action-sink-label-projection",
-        "lsp-references-dispatch-region-positive-vs-census",
-        "lsp-node-postextract-rename-generated-source-target",
-        "lsp-browser-source-rename-postaction-target",
-        "lsp-references-logical-proc-class-map-resolution",
-        "lsp-server-pack-notice-source-generation",
-        "lsp-server-pack-notice-source-range-issuer",
-        "lsp-server-unowned-indexed-span-lift"
-      ],
-      "new_owner_facets": [
-        "compiler.owner.warning-original-sink-subject",
-        "compiler.owner.package-source-survey-model",
-        "compiler.owner.logical-name-operand-reference",
-        "compiler.owner.logical-ensemble-operation-source"
-      ],
-      "validation": "Build03 setup FAIL missing original compile-time fixtures; restored52 tracked originals and scan now missing0. Build04 FAIL E0308 two reference tuple projections, product43580 byte-stable; source-reviewed narrow repair integrated. Build05 ordinary one-job five-library test build RUNNING. No new test execution.",
-      "retained_source": "All1024 selectors/module routes/attributes freshly AST checked on build05 source;1023 exact old bodies. Sole reviewed delta strengthens existing diagnostic fixture setup await\u2192expect(valid config); assertions/fixtures/budgets preserved.",
-      "outside_main": "Package survey consumer, ensemble map/hover, inline procedure binding, extraction source recipe and Explorer input migration remain unadmitted; independent findings are being repaired.",
-      "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX; uncovered BIG-IP Tcl8.4 is an assumption only.",
-      "next_report_utc": "2026-10-17T10:09:47Z"
+      "validation": "Current integration06 cargo check lib+alltests PASS444s15deadcodewarnings; strictclippy stopped5missingmustuse sharedtype annotations. Frozen priorCore capture completed all664519PASS145FAILincl1timeout,new35 29PASS6FAIL,focused6 2PASS4FAIL; complete43580input/providers/ELF postflightPASS. Five-librarybuild05FAIL threeAPIerrors; source repair integrated awaiting check/runtime. SDKbaselineKotlincompileFAIL existing listener API mismatch; exactSDKrepair queued.",
+      "deferred": "Runtime/VM and dedicatedBIGIP; original325 denominator includes deferredBIGIP obligations. Scope accounting pending, no deferred changes claimed."
+    },
+    "current_snapshot": {
+      "status": "REVIEWED_SOURCE_INTEGRATED_TYPECHECK_PASS",
+      "source_base": "e73901bca",
+      "LSP": {
+        "required": 325,
+        "integrated": 259,
+        "semantic_integrated": 142,
+        "validation_integrated": 115,
+        "documentation_integrated": 2,
+        "without_integration": 66,
+        "verified_complete": 0
+      },
+      "baseline": {
+        "required": 2158,
+        "integrated": 393,
+        "full_scope_pending": 338,
+        "partial": 55,
+        "without_integration": 1765
+      },
+      "annex": {
+        "required": 71,
+        "integrated": 70,
+        "blocked": 1
+      },
+      "effective": {
+        "required": 2229,
+        "integrated": 463,
+        "without_integration": 1766,
+        "verified_complete": 0
+      },
+      "validation": "Current integration06 cargo check lib+alltests PASS444s15deadcodewarnings; strictclippy stopped5missingmustuse sharedtype annotations. Frozen priorCore capture completed all664519PASS145FAILincl1timeout,new35 29PASS6FAIL,focused6 2PASS4FAIL; complete43580input/providers/ELF postflightPASS. Five-librarybuild05FAIL threeAPIerrors; source repair integrated awaiting check/runtime. SDKbaselineKotlincompileFAIL existing listener API mismatch; exactSDKrepair queued.",
+      "deferred": "Runtime/VM and dedicatedBIGIP; original325 denominator includes deferredBIGIP obligations. Scope accounting pending, no deferred changes claimed."
     }
   }
 }

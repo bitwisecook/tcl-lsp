@@ -1,0 +1,102 @@
+{
+  "status": "FAILED_SCOPED_CAPTURE_NO_ORDINARY_ACCEPTANCE",
+  "source_head": "e73901bca9e4f557a8586ba858ef5a3c00f10c02",
+  "retained664": {
+    "PASS": 519,
+    "FAIL": 145,
+    "timeout_among_FAIL": 1
+  },
+  "new35": {
+    "PASS": 29,
+    "FAIL": 6
+  },
+  "focused6": {
+    "PASS": 2,
+    "FAIL": 4
+  },
+  "guard": {
+    "product_inputs_match": true,
+    "providers_match": true,
+    "elf_sha256": "4c00cbfe5ab82c354f201e866cd78364ccc6164d206f05a515eebcb5ac3d919a",
+    "retained664": {
+      "PASS": 519,
+      "FAIL": 145,
+      "timeout_among_failures": 1
+    },
+    "new35": {
+      "PASS": 29,
+      "FAIL": 6
+    },
+    "focused6": {
+      "PASS": 2,
+      "FAIL": 4
+    },
+    "ordinary_five_library_acceptance": false
+  },
+  "product_inputs": {
+    "count": 43580,
+    "before_and_after_sha256": "1446586fbfbb93e830bd0f8a7fe6fe8c1d5dcfc1e6fa1909cb24d4d483ab954f"
+  },
+  "providers_before_and_after_sha256": "77691d142efad20acabbd01ba58f56ba75392b406ddd8d71cfdd60236ba9689c",
+  "ordinary_five_library_build": "FAIL three pack API errors; later Root source repair integrated, not yet runtime-validated",
+  "limits": "Core target only; no five-library/full1024/Native34/host/broadgate acceptance. First Core build rejected for source drift; preserved receipt, restored source then fresh successful rebuild before tests. Full input/provider snapshots remain in current execution workspace; this compact archive intentionally omits duplicated source trees/toolchains.",
+  "archive_members": 723,
+  "archive_sha256": "2081d5eeb81622eaa0fe000c41df6c975b3460b9c8bdc3a7a731b019859e0217",
+  "integration06_typecheck": {
+    "status": "PASS",
+    "seconds": 444,
+    "scope": "Five libraries plus all tests; no execution.15deadcodewarnings, strictclippy still FAIL5mustuse annotations.",
+    "source_patches": [
+      {
+        "patch": "/workspace/naming-work/pack-v9-build05-repair-v1/patch.diff",
+        "sha256": "866fad2c7dda82e27243520f9cec331d276096986dad01ca0901d50b5c90cfb1",
+        "output": "patching file rust/tcl-lsp-server/src/lib.rs\npatching file rust/tcl-lsp-server/src/current_diagnostics.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/pack-v9-build05-repair-v2/delta-from-v10.patch",
+        "sha256": "141dce0934f3c91d27e9590d54f4853419cea311eeb2bf5d44f4b32df9b17af4",
+        "output": "patching file rust/tcl-lsp-server/src/lib.rs\npatching file rust/tcl-lsp-server/src/current_diagnostics.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/root-db-unused-import-repair/change.patch",
+        "sha256": "c7aa8cab5a4ca98ebe1a5acdb7d8805ed8a4e2d4d1faf200af4b6af8895d7074",
+        "output": "patching file rust/tcl-lsp-db/src/lib.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/root-linked-applicability-repair/change.patch",
+        "sha256": "8603c517cf953cf3917a552daee04c20d5323671c5a8698871d3235a8b85af5d",
+        "output": "patching file rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs\npatching file docs/design/analysis/name-resolution-proofs/original-linked-editing.md\n"
+      },
+      {
+        "patch": "/workspace/naming-work/sol-itcl-whole-head/change.patch",
+        "sha256": "a8ad3ba11febf36ca6a76c205e4028e4f0343280c871f8d3d917fe6306716dce",
+        "output": "patching file rust/tcl-compiler/src/command_binding/original_name_value.rs\npatching file rust/tcl-compiler/src/realm.rs\npatching file rust/tcl-lsp-core/src/references.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/member-hazard-parent-v2/candidate.patch",
+        "sha256": "e9379bd83fe834239764aec81582cfb305dd2eb6421ab13833037d7c265e732a",
+        "output": "patching file rust/tcl-compiler/src/registry_invocation/source_structure.rs\npatching file rust/tcl-lsp-core/src/original_invocation.rs\npatching file rust/tcl-lsp-core/src/references/member_metadata.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/member-hazard-parent-v3/candidate.patch",
+        "sha256": "4f91b18dddefdc296108cc657d27e9aa779e4c4f7ddecea65933858afe2d13e9",
+        "output": "patching file rust/tcl-compiler/src/registry_invocation/source_structure.rs\npatching file rust/tcl-lsp-core/src/references/member_metadata.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/member-hazard-parent-v4/candidate.patch",
+        "sha256": "04f35d7aabe7358d031aec87d25c25600272d444b521d0e60691176afed90621",
+        "output": "patching file rust/tcl-compiler/src/registry_invocation/source_structure.rs\npatching file rust/tcl-lsp-core/src/original_invocation.rs\npatching file rust/tcl-lsp-core/src/references/member_metadata.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/sol-package633/checked-child-plan-v2/repair.patch",
+        "sha256": "5dc437f9a2ad5c9aaac9e9576c2999325fa72a24c7e1645ffc53de6075f27e2f",
+        "output": "patching file docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice.rs\npatching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/registry_invocation/source_structure.rs\npatching file rust/tcl-lexer/src/native_script_words.rs\npatching file rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs\npatching file rust/tcl-lsp-core/src/package_resolver.rs\n"
+      },
+      {
+        "patch": "/workspace/naming-work/sol-package633/consumer-v3/repair.patch",
+        "sha256": "a1954120358e858bc0019ce3ea473520295ff244672a504031b8de49f7286be9",
+        "output": "patching file docs/design/analysis/name-resolution-proofs/package-target-source-survey.md\npatching file docs/design/contracts/name-handling.md\npatching file rust/tcl-lsp-core/src/package_resolver/reachability/original.rs\npatching file rust/tcl-lsp-core/src/package_resolver/reachability.rs\npatching file rust/tcl-lsp-core/src/package_resolver/registration.rs\n"
+      }
+    ]
+  }
+}

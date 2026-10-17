@@ -1663,9 +1663,17 @@ impl Backend {
                 source: Arc::clone(source),
                 origin: DiagnosticCacheOrigin::Direct { policy },
             },
-            diagnostics: self
-                .diagnostic_publisher
-                .with_pack_notices(uri, diagnostics),
+            diagnostics: self.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: uri,
+                    source: source.source.as_ref(),
+                    pack_seq: inputs.pack_seq,
+                    packs: &inputs.pack_set,
+                    registry: &inputs.registry,
+                    store: inputs.store.as_ref(),
+                },
+                diagnostics,
+            ),
         })
     }
 }
@@ -2268,6 +2276,11 @@ mod tests {
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
+            source: &job.text,
+            pack_seq: inputs.pack_seq,
+            pack_set: Some(&inputs.pack_set),
+            registry: Some(&inputs.registry),
+            spec_packs: Some(&inputs.spec_packs),
             uri: &expected.uri,
             currency: job.currency,
             version: job.version,
@@ -2377,6 +2390,11 @@ mod tests {
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
+            source: &job.text,
+            pack_seq: inputs.pack_seq,
+            pack_set: Some(&inputs.pack_set),
+            registry: Some(&inputs.registry),
+            spec_packs: Some(&inputs.spec_packs),
             uri: &expected.uri,
             currency: job.currency,
             version: job.version,

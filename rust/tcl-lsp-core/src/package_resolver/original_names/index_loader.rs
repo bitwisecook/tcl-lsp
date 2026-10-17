@@ -7,7 +7,8 @@
 use std::path::{Path, PathBuf};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::registry_invocation::source_structure::{
-    original_single_source_command_substitution, source_registry_words_at,
+    original_single_source_command_substitution,
+    original_single_source_command_substitution_in_plan, source_registry_words_at,
 };
 use tcl_lexer::{ExecutablePart, NativeWord, SourceImage, Span};
 use tcl_registry::{InvocationDialect, InvocationWord, InvocationWords, ResolvedInvocation};
@@ -59,6 +60,15 @@ impl<'a> IndexLoader<'a> {
         loader: &NativeWord,
         directory: &Path,
     ) -> Option<PathBuf> {
+        self.filename_with_plan(loader, directory, None)
+    }
+
+    fn filename_with_plan(
+        &self,
+        loader: &NativeWord,
+        directory: &Path,
+        checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
+    ) -> Option<PathBuf> {
         if loader.image().bytes() != self.source.as_bytes()
             || loader.config() != self.config
             || loader.group().expand
@@ -78,7 +88,10 @@ impl<'a> IndexLoader<'a> {
             };
             return self.source_filename(&command.words, WordOrigin::LoaderValue, directory);
         }
-        let child = original_single_source_command_substitution(loader)?;
+        let child = match checked_parent {
+            Some(plan) => original_single_source_command_substitution_in_plan(plan, loader)?,
+            None => original_single_source_command_substitution(loader)?,
+        };
         let (words, origin) = match self.input {
             LoaderInput::Original(analysis) => {
                 let schema = source_registry_words_at(
@@ -135,6 +148,31 @@ impl<'a> IndexLoader<'a> {
         out: &mut Vec<PathBuf>,
         depth: u32,
     ) {
+        self.collect_word_with_plan(word, None, directory, out, depth)
+    }
+
+    /// Same explicit standalone traversal using the genuine parent's recursive
+    /// syntax proof for its actual Command parts. Literal/data bodies still
+    /// require their independent full parse.
+    pub(in crate::package_resolver) fn collect_word_in_plan(
+        &self,
+        plan: &tcl_lexer::NativeScriptWordsPlan,
+        word: &NativeWord,
+        directory: &Path,
+        out: &mut Vec<PathBuf>,
+        depth: u32,
+    ) {
+        self.collect_word_with_plan(word, Some(plan), directory, out, depth)
+    }
+
+    fn collect_word_with_plan(
+        &self,
+        word: &NativeWord,
+        checked_parent: Option<&tcl_lexer::NativeScriptWordsPlan>,
+        directory: &Path,
+        out: &mut Vec<PathBuf>,
+        depth: u32,
+    ) {
         if !matches!(self.input, LoaderInput::Standalone)
             || word.image().bytes() != self.source.as_bytes()
             || word.config() != self.config
@@ -158,12 +196,21 @@ impl<'a> IndexLoader<'a> {
                 return;
             }
         }
-        if let Some(file) = self.filename(word, directory) {
+        if let Some(file) = self.filename_with_plan(word, directory, checked_parent) {
             out.push(file);
         }
         for part in word.executable_parts().all_parts() {
             if let ExecutablePart::Command { body } = part.part {
-                self.collect_script(word.image().clone(), body, directory, out, depth + 1);
+                if super::super::MAX_SOURCE_TARGET_SCAN_DEPTH.exceeded(depth + 1) {
+                    continue;
+                }
+                if let Some(parent) = checked_parent {
+                    if let Ok(child) = parent.reborrow_command_substitution_plan(word, body) {
+                        self.collect_plan(&child, directory, out, depth + 1);
+                    }
+                } else {
+                    self.collect_script(word.image().clone(), body, directory, out, depth + 1);
+                }
             }
         }
     }
@@ -183,7 +230,20 @@ impl<'a> IndexLoader<'a> {
         else {
             return;
         };
-        for command in plan.commands {
+        self.collect_plan(&plan, directory, out, depth);
+    }
+
+    fn collect_plan(
+        &self,
+        plan: &tcl_lexer::NativeScriptWordsPlan,
+        directory: &Path,
+        out: &mut Vec<PathBuf>,
+        depth: u32,
+    ) {
+        if super::super::MAX_SOURCE_TARGET_SCAN_DEPTH.exceeded(depth) {
+            return;
+        }
+        for command in &plan.commands {
             if let Some(file) =
                 self.source_filename(&command.words, WordOrigin::LoaderValue, directory)
             {
@@ -196,9 +256,12 @@ impl<'a> IndexLoader<'a> {
             let Some(source) = source else {
                 continue;
             };
-            let nested = IndexLoader::standalone(source, self.config.nested());
+            let Some(config) = command.words.first().map(NativeWord::config) else {
+                continue;
+            };
+            let nested = IndexLoader::standalone(source, config);
             for word in &command.words {
-                nested.collect_word(word, directory, out, depth);
+                nested.collect_word_in_plan(plan, word, directory, out, depth);
             }
         }
     }

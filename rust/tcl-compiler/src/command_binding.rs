@@ -147,7 +147,6 @@ pub use source_catalogue_advice::{
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
 pub use source_transition_advice::OriginalConditionalLambdaFormattingBody;
-pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
     LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
     OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
@@ -178,6 +177,9 @@ pub(crate) use source_transition_advice::{
 };
 pub(crate) use source_transition_advice::{
     OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,
+};
+pub(crate) use source_transition_advice::{
+    original_single_command_substitution_words, original_single_command_substitution_words_in_plan,
 };
 mod original_literal_argv_rewrite;
 pub use original_literal_argv_rewrite::{

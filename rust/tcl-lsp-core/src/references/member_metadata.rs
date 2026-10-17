@@ -122,7 +122,7 @@ impl MemberReferenceScan<'_> {
             };
             let target = self.names_class(head.span.start());
             if words
-                .source_script_bodies_for_mutation_coverage(&self.context)
+                .source_script_bodies_for_syntax_coverage(&self.context)
                 .is_none()
             {
                 complete = false;
@@ -201,11 +201,15 @@ impl MemberReferenceScan<'_> {
                     }
                 }
             } else if let Some(offset) = command.first().map(|head| head.span().start())
-                && let Some(words) =
-                    source_structure::source_registry_words_at(self.source, self.analysis, offset)
+                && let Some(words) = source_structure::source_registry_words_in_definition_body_at(
+                    self.source,
+                    self.analysis,
+                    offset,
+                    parent,
+                )
             {
                 if words
-                    .source_script_bodies_for_mutation_coverage(&self.context)
+                    .source_script_bodies_for_syntax_coverage(&self.context)
                     .is_none()
                 {
                     complete = false;

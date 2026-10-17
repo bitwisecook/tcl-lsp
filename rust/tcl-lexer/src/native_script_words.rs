@@ -35,10 +35,25 @@ pub struct NativeScriptWordCut {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeScriptWordsPlan {
     source: SourceImage,
+    config: LexerConfig,
+    parse_config: LexerConfig,
+    checked_words: std::sync::Arc<[CheckedWordGeometry]>,
     /// Complete commands that precede the malformed tail, or every command.
     pub commands: Vec<NativeScriptCommandWords>,
     /// Authentic guest syntax failure, separate from unavailable ownership.
     pub fatal_tail: Option<NativeScriptWordCut>,
+}
+
+// Sealed at construction from the recursively checked positive prefix. Public
+// commands/fatal_tail may be edited by callers, so they cannot issue this proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedWordGeometry {
+    group: crate::WordSpan,
+    tokens: Box<[Token]>,
+}
+enum SyntaxValidation {
+    InspectRecursively,
+    InheritedCommand { parse_config: LexerConfig },
 }
 
 impl NativeScriptWordsPlan {
@@ -47,6 +62,37 @@ impl NativeScriptWordsPlan {
     #[must_use]
     pub const fn source(&self) -> &SourceImage {
         &self.source
+    }
+    /// Reborrow a real command-substitution body of an original word in this
+    /// plan's recursively checked positive prefix. Every Command part, including
+    /// variable-index substitutions, remains eligible; arbitrary braced bodies
+    /// and spans are not. This is syntax only, with no Native entry or execution.
+    ///
+    /// # Errors
+    /// Refuses foreign image/channel/config/word/part geometry, or unavailable
+    /// inherited lexical ownership. The complete parent configuration remains
+    /// on child words; the local parser purpose is explicitly NestedScript.
+    pub fn reborrow_command_substitution_plan(
+        &self,
+        word: &NativeWord,
+        body: Span,
+    ) -> Result<Self, NativeScriptWordsUnavailable> {
+        if word.image() != &self.source || word.config() != self.config
+            || !self.checked_words.iter().any(|checked| checked.group == *word.group() && checked.tokens.as_ref() == word.tokens())
+            || body.start() < word.span().start() || body.end() > word.span().end()
+            || !word.executable_parts().all_parts().any(|part| matches!(part.part, crate::ExecutablePart::Command { body: actual } if actual == body))
+        { return Err(NativeScriptWordsUnavailable::SourceGeometry); }
+        capture_native_script_words(
+            self.source.clone(),
+            body,
+            self.config,
+            SourceSegmentationPurpose::NestedScript,
+            SyntaxValidation::InheritedCommand {
+                parse_config: SourceSegmentationPurpose::NestedScript
+                    .config(self.parse_config)
+                    .normalized(),
+            },
+        )
     }
 }
 
@@ -142,6 +188,22 @@ pub fn native_script_words_in_with_purpose(
     config: LexerConfig,
     purpose: SourceSegmentationPurpose,
 ) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
+    capture_native_script_words(
+        image,
+        region,
+        config,
+        purpose,
+        SyntaxValidation::InspectRecursively,
+    )
+}
+
+fn capture_native_script_words(
+    image: SourceImage,
+    region: Span,
+    config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+    validation: SyntaxValidation,
+) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
     let original = image
         .bytes()
         .get(region.as_range())
@@ -156,8 +218,20 @@ pub fn native_script_words_in_with_purpose(
         purpose,
     )?;
     let groups = group_commands_bytes(&tokens, local.bytes(), parse_config);
-    let cut = first_parse_cut_image_in_checked(&groups, &tokens, &local, parse_config)
-        .map_err(NativeScriptWordsUnavailable::ParseOwnership)?;
+    let cut = match validation {
+        SyntaxValidation::InspectRecursively => {
+            first_parse_cut_image_in_checked(&groups, &tokens, &local, parse_config)
+                .map_err(NativeScriptWordsUnavailable::ParseOwnership)?
+        }
+        SyntaxValidation::InheritedCommand {
+            parse_config: expected,
+        } => {
+            if parse_config != expected {
+                return Err(NativeScriptWordsUnavailable::SourceGeometry);
+            }
+            None
+        }
+    };
     let complete_count = cut.map_or(groups.len(), |cut| cut.command);
     let fatal_tail = if let Some(mut cut) = cut {
         let command = groups
@@ -203,8 +277,20 @@ pub fn native_script_words_in_with_purpose(
             words,
         });
     }
+    let checked_words = commands
+        .iter()
+        .flat_map(|command| &command.words)
+        .map(|word| CheckedWordGeometry {
+            group: word.group().clone(),
+            tokens: word.tokens().into(),
+        })
+        .collect::<Vec<_>>()
+        .into();
     Ok(NativeScriptWordsPlan {
         source: image,
+        config,
+        parse_config,
+        checked_words,
         commands,
         fatal_tail,
     })
@@ -468,6 +554,210 @@ mod original_script_purpose_tests {
                 .words[0]
                 .bytes(),
             "\u{feff}puts".as_bytes()
+        );
+    }
+}
+
+#[cfg(test)]
+mod checked_substitution_reborrow_tests {
+    use super::*;
+
+    fn plan(image: SourceImage, config: LexerConfig) -> NativeScriptWordsPlan {
+        let end = u32::try_from(image.bytes().len()).unwrap();
+        native_script_words_in(image, Span::new(0, end), config).unwrap()
+    }
+
+    #[test]
+    fn checked_child_matches_recursive_capture_in_both_original_channels() {
+        for channel in [
+            crate::SourceChannel::Document,
+            crate::SourceChannel::NativeValue,
+        ] {
+            let image = SourceImage::from_bytes(b"set x [list [list value]]".as_slice(), channel);
+            let config = LexerConfig {
+                base_offset: 700,
+                strict_quoting: true,
+                ..LexerConfig::default()
+            };
+            let parent = plan(image.clone(), config);
+            let word = &parent.commands[0].words[2];
+            let body = word
+                .executable_parts()
+                .all_parts()
+                .find_map(|part| match part.part {
+                    crate::ExecutablePart::Command { body } => Some(body),
+                    _ => None,
+                })
+                .unwrap();
+            let inherited = parent
+                .reborrow_command_substitution_plan(word, body)
+                .unwrap();
+            let checked = native_script_words_in_with_purpose(
+                image,
+                body,
+                config,
+                SourceSegmentationPurpose::NestedScript,
+            )
+            .unwrap();
+            assert_eq!(inherited, checked);
+            assert!(
+                inherited
+                    .commands
+                    .iter()
+                    .flat_map(|command| &command.words)
+                    .all(|word| word.config() == config)
+            );
+            let nested_word = &inherited.commands[0].words[1];
+            let nested_body = nested_word
+                .executable_parts()
+                .all_parts()
+                .find_map(|part| match part.part {
+                    crate::ExecutablePart::Command { body } => Some(body),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(
+                inherited
+                    .reborrow_command_substitution_plan(nested_word, nested_body)
+                    .unwrap(),
+                native_script_words_in_with_purpose(
+                    inherited.source().clone(),
+                    nested_body,
+                    config,
+                    SourceSegmentationPurpose::NestedScript
+                )
+                .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn variable_index_substitution_is_in_the_actual_all_parts_inventory() {
+        let parent = plan(
+            SourceImage::document("set x $arr([list value])"),
+            LexerConfig::default(),
+        );
+        let word = &parent.commands[0].words[2];
+        let body = word
+            .executable_parts()
+            .all_parts()
+            .find_map(|part| match part.part {
+                crate::ExecutablePart::Command { body } => Some(body),
+                _ => None,
+            })
+            .unwrap();
+        let child = parent
+            .reborrow_command_substitution_plan(word, body)
+            .unwrap();
+        assert_eq!(
+            &child.source().bytes()[child.commands[0].span.as_range()],
+            b"list value"
+        );
+    }
+
+    #[test]
+    fn inert_body_and_foreign_word_cannot_inherit_recursive_validation() {
+        let parent = plan(
+            SourceImage::document("set x {[list value]}"),
+            LexerConfig::default(),
+        );
+        let word = &parent.commands[0].words[2];
+        assert!(
+            parent
+                .reborrow_command_substitution_plan(word, Span::new(8, 18))
+                .is_err()
+        );
+        let parent = plan(
+            SourceImage::document("set x [list value]"),
+            LexerConfig::default(),
+        );
+        let word = &parent.commands[0].words[2];
+        let body = word
+            .executable_parts()
+            .all_parts()
+            .find_map(|part| match part.part {
+                crate::ExecutablePart::Command { body } => Some(body),
+                _ => None,
+            })
+            .unwrap();
+        let foreign = plan(
+            SourceImage::native(parent.source().bytes()),
+            LexerConfig::default(),
+        );
+        assert!(
+            parent
+                .reborrow_command_substitution_plan(&foreign.commands[0].words[2], body)
+                .is_err()
+        );
+        let other_config = plan(
+            parent.source().clone(),
+            LexerConfig {
+                base_offset: 1,
+                ..LexerConfig::default()
+            },
+        );
+        assert!(
+            parent
+                .reborrow_command_substitution_plan(&other_config.commands[0].words[2], body)
+                .is_err()
+        );
+        let mut altered = parent.clone();
+        altered.commands.clear();
+        altered.fatal_tail = None;
+        // Public presentation edits do not destroy a genuine immutable prefix proof.
+        assert!(
+            altered
+                .reborrow_command_substitution_plan(word, body)
+                .is_ok()
+        );
+        // Nor can inserting a foreign word manufacture one.
+        altered.commands.push(foreign.commands[0].clone());
+        assert!(
+            altered
+                .reborrow_command_substitution_plan(&altered.commands[0].words[2], body)
+                .is_err()
+        );
+    }
+    #[test]
+    fn public_fatal_tail_edits_do_not_admit_an_unchecked_command() {
+        let image = SourceImage::document("set good [list value]; set bad [list {a}b]");
+        let config = LexerConfig::default();
+        let mut parent = plan(image.clone(), config);
+        assert!(parent.fatal_tail.is_some());
+        let good = parent.commands[0].words[2].clone();
+        let good_body = good
+            .executable_parts()
+            .all_parts()
+            .find_map(|part| match part.part {
+                crate::ExecutablePart::Command { body } => Some(body),
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            parent
+                .reborrow_command_substitution_plan(&good, good_body)
+                .is_ok()
+        );
+        let tokens = Lexer::with_source_image(&image, config)
+            .tokenise_all()
+            .unwrap();
+        let commands = group_commands_bytes(&tokens, image.bytes(), config);
+        let unvalidated =
+            NativeWord::from_group(image, config, &tokens, &commands[1].words[2]).unwrap();
+        let bad_body = unvalidated
+            .executable_parts()
+            .all_parts()
+            .find_map(|part| match part.part {
+                crate::ExecutablePart::Command { body } => Some(body),
+                _ => None,
+            })
+            .unwrap();
+        parent.fatal_tail = None;
+        parent.commands[0].words.push(unvalidated.clone());
+        assert!(
+            parent
+                .reborrow_command_substitution_plan(&unvalidated, bad_body)
+                .is_err()
         );
     }
 }

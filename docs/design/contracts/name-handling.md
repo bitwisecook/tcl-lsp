@@ -2539,3 +2539,7 @@ This is a positive source correspondence. Missing original Module/vector/input
 remains unavailable, and the subject grants no executed sink, current runtime
 binding, complete read census or permission to add or remove evaluations.
 Existing source-action eligibility and evaluation guards remain independent.
+
+### Package standalone source-survey consumer
+
+`naming.package.standalone-original-source-survey` transports genuine original Logical control/query/registration owners through the existing package reachability Walker. The declared standalone survey's target is hypothetical; selected source advertisements, guard relation, argv completion, actual Native provision and complete census stay independent. Entered body provenance and syntax-only catalogue lineage are distinct. Unknown source phases retain incomplete coverage; callback coordinate correspondence never donates source identity. See [package-target-source-survey](../analysis/name-resolution-proofs/package-target-source-survey.md). Runtime compatibility and full purpose admission require separate actual checks; this source candidate supplies no completion/count claim.

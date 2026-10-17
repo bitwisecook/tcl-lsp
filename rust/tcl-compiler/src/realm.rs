@@ -323,6 +323,22 @@ impl CommandBindingRealm {
             .original_written_name_input_at_span_in_source(image, span, config)
     }
 
+    /// Original ordinal-zero whole head with its genuine retained source site.
+    /// This is geometry only; it grants no Native handler or selected target.
+    #[must_use]
+    pub fn original_written_head_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(
+        tcl_lexer::NativeWord,
+        crate::command_binding::CommandAllocationSite,
+    )> {
+        self.bindings
+            .original_written_head_at_span_in_source(image, span, config)
+    }
+
     /// Genuine whole original word and parent head under exact source currency.
     /// This is source geometry only, independently of values and selection.
     #[must_use]

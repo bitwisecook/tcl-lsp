@@ -1891,6 +1891,38 @@ impl super::SourceCommandBindings {
         selected
     }
 
+    /// Genuine ordinal-zero original whole head at this source occurrence.
+    /// Token/content extents do not identify the head's ordinal or site. This
+    /// geometry grants no handler, lookup, value, class or edit authority.
+    #[must_use]
+    pub fn original_written_head_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(tcl_lexer::NativeWord, super::CommandAllocationSite)> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let mut selected = None;
+        for (word, ordinal, _, site) in
+            self.original_written_word_observations_at_span(span, config)?
+        {
+            if ordinal != 0 {
+                continue;
+            }
+            (site.source.source_image() == image).then_some(())?;
+            let current = (word, site);
+            if selected
+                .as_ref()
+                .is_some_and(|previous| previous != &current)
+            {
+                return None;
+            }
+            selected = Some(current);
+        }
+        selected
+    }
+
     fn original_written_word_observations_at_span(
         &self,
         span: tcl_lexer::Span,
@@ -1951,6 +1983,7 @@ impl super::SourceCommandBindings {
                     .enumerate()
                     .filter_map(|(index, (word, native))| {
                         (word.source().span == span
+                            || native.span() == span
                             || native.content_span().ok() == Some(span)
                             || native
                                 .tokens()

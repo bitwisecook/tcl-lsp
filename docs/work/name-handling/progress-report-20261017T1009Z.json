@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-17T10:09:49.424910+00:00",
+  "report_cadence_minutes": 30,
+  "source_head": "e73901bca",
+  "pushed_to": "origin/work",
+  "scope": "Generic LSP and necessary shared owners; runtime/VM and dedicated BIG-IP deferred. Tcl8.4 uncovered BIG-IP assumption only. Chat/repository reports only.",
+  "original_LSP": {
+    "required": 325,
+    "integrated": 258,
+    "semantic_integrated": 141,
+    "validation_integrated": 115,
+    "documentation_integrated": 2,
+    "without_integration": 67,
+    "verified_complete": 0
+  },
+  "change_since_previous_report": {
+    "integrated_LSP": 8,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 392,
+    "full_scope_pending": 338,
+    "partial": 54,
+    "without_integration": 1766
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 462,
+    "without_integration": 1767,
+    "verified_complete": 0
+  },
+  "validation": "Build05 FAIL three pack-notice direct-caller/test-constructor API wiring errors; complete43580 product input before/after hashes identical. Causal held-input repair source candidate under independent review. Separate ordinary Core-only test artifact build running on unchanged frozen source for regression feedback; no selected execution or five-library acceptance.",
+  "source_controls": "Fresh actual1024 source/module/cfg guard;1023 original function bodies exact, one independently reviewed diagnostic fixture setup strengthening. No assertion/fixture/selector/budget changes.",
+  "next_actions": "Finish in-review generic consumers; integrate genuine held-input build repairs, replay focused controls and full retained selections against freshly bound artifacts, fix failures, run required repository/editor gates.",
+  "next_report_utc": "2026-10-17T10:39:47Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

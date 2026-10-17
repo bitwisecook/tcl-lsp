@@ -68,9 +68,11 @@ pub(super) use native_declared_body::{
     OriginalNativeSourceCommand, OriginalNativeSourceDeclaration,
 };
 mod source_procedure_publications;
-pub(crate) use produced_prefix::original_single_command_substitution_words;
 pub use produced_prefix::{
     OriginalSourceAuthoredCommandPrefix, OriginalSourceProducedCommandPrefix,
+};
+pub(crate) use produced_prefix::{
+    original_single_command_substitution_words, original_single_command_substitution_words_in_plan,
 };
 pub use registered_instance::{
     OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,

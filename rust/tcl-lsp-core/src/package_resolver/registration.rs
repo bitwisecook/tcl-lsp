@@ -31,6 +31,12 @@ pub(super) struct Registration {
     config: LexerConfig,
     registry: tcl_registry::RegistrySemanticKey,
     words: Vec<NativeWord>,
+    local: Option<(String, Vec<Vec<Token>>)>,
+    _premise: Option<
+        std::sync::Arc<
+            tcl_compiler::registry_invocation::source_structure::OriginalPackageIndexAdvertisement,
+        >,
+    >,
 }
 
 impl Registration {
@@ -43,6 +49,16 @@ impl Registration {
         registry: &CommandRegistry,
         config: LexerConfig,
     ) -> Option<(&str, &str, usize)> {
+        if let Some((text, shown)) = &self.local {
+            if text != source
+                || shown != tokens
+                || self.config != config
+                || self.registry != registry.snapshot().semantic_key()
+            {
+                return None;
+            }
+            return Some((self.name.as_deref()?, self.version.as_deref()?, self.body));
+        }
         if self.image.bytes() != source.as_bytes()
             || self.config != config
             || self.registry != registry.snapshot().semantic_key()
@@ -160,5 +176,58 @@ pub(super) fn select_in_plan(
         config,
         registry: registry.snapshot().semantic_key(),
         words: command.words.clone(),
+        local: None,
+        _premise: None,
+    })
+}
+
+/// Join callback presentation coordinates to the actual retained original vector.
+/// No Document reconstruction, source-channel conversion or inverse identity.
+pub(super) fn select_original_advertisement(
+    source: &str,
+    tokens: &[Vec<Token>],
+    image: &SourceImage,
+    region: tcl_lexer::Span,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    premise: std::sync::Arc<
+        tcl_compiler::registry_invocation::source_structure::OriginalPackageIndexAdvertisement,
+    >,
+) -> Option<Registration> {
+    use tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource;
+    let OriginalRegistrySource::SourceTransitions(advice) = premise.words().source() else {
+        return None;
+    };
+    let original = advice.original_words();
+    if image.try_text().ok()?.get(region.as_range())? != source
+        || original.len() != tokens.len()
+        || original.iter().zip(tokens).any(|(word, shown)| {
+            word.image() != image
+                || word.config() != config
+                || word.span().start() < region.start()
+                || word.span().end() > region.end()
+                || word.tokens().len() != shown.len()
+                || word.tokens().iter().zip(shown).any(|(actual, shown)| {
+                    shown.span.end() > source.len() as u32
+                        || actual.kind != shown.kind
+                        || actual.content_offset != shown.content_offset
+                        || Some(actual.span.start())
+                            != region.start().checked_add(shown.span.start())
+                        || Some(actual.span.end()) != region.start().checked_add(shown.span.end())
+                })
+        })
+    {
+        return None;
+    }
+    Some(Registration {
+        name: premise.name().filter(|value| !value.contains('\0')),
+        version: premise.version().filter(|value| !value.contains('\0')),
+        body: premise.body_argument().checked_add(1)?,
+        image: image.clone(),
+        config,
+        registry: registry.snapshot().semantic_key(),
+        words: original.to_vec(),
+        local: Some((source.to_owned(), tokens.to_vec())),
+        _premise: Some(premise),
     })
 }

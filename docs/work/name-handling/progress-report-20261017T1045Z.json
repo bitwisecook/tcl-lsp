@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-17T10:44:20.374240+00:00",
+  "report_cadence_minutes": 30,
+  "source_head": "e73901bca",
+  "pushed_to": "origin/work",
+  "scope": "Generic LSP and necessary shared owners; runtime/VM and dedicated BIG-IP deferred. Tcl8.4 uncovered BIG-IP assumption only. Chat/repository reports only.",
+  "original_LSP": {
+    "required": 325,
+    "integrated": 258,
+    "semantic_integrated": 141,
+    "validation_integrated": 115,
+    "documentation_integrated": 2,
+    "without_integration": 67,
+    "verified_complete": 0
+  },
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 392,
+    "full_scope_pending": 338,
+    "partial": 54,
+    "without_integration": 1766
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 462,
+    "without_integration": 1767,
+    "verified_complete": 0
+  },
+  "validation": "Fresh Core-only build PASS on frozen e739 inputs; all664 retained Core singletons completed:519PASS145FAIL including1 timeout. Focused6:2PASS4FAIL. Five-library build05 remains FAIL3 API errors; reviewed causal repairs pending integration. No ordinary acceptance or verified audit completion. First Core build rejected for source drift and rebuilt before tests.",
+  "source_controls": "43580 product inputs bound before/after valid Core rebuild; actual source/module/cfg guards retained. Final postflight after35 new controls pending.",
+  "next_actions": "Run35 newly added Core controls on same frozen ELF, postflight complete inputs/providers/ELF, integrate independently reviewed consumers and causal repairs, typecheck/clippy before rebuilding. Continue remaining generic LSP consumers.",
+  "next_report_utc": "2026-10-17T11:09:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

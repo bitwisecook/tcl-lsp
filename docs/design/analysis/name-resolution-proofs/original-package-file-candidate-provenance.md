@@ -111,3 +111,6 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 ## Replay
 
 No Rust execution receipt is attached to this implementation contract. Tests are authored bindings only; physical interpreter observations remain separate.
+
+
+Checked substitution child plans retain the complete original image/channel and word configuration. Only a real Command part of a privately sealed complete positive-prefix word may inherit its parent recursive syntax validation, including Command parts inside variable indices. Public plan command/fatal-tail mutations supply no proof. Child grouping still uses the existing lexer and explicit NestedScript purpose, and retains original global coordinates. Arbitrary spans, braced/data bodies, foreign channels/configurations, and words excluded by the authentic parse cut cannot inherit validation. IndexLoader reuses this owner only for those actual substitution children; independent data scripts retain full parsing, all executable parts remain traversed, and the original depth bound is unchanged. This is a syntax-work reuse obligation, not an execution, Native admission, source-load, availability, or measured performance grant. The unchanged deeply nested fixture and budget still require actual execution.
