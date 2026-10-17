@@ -114,6 +114,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::prefix",
+        pack_source_sandbox_helper: true,
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
             operation: crate::SemanticOperationId::Invoke,

@@ -157,7 +157,7 @@ impl Engine for RuntimeEngine {
                         .collect()
                 })
                 .map_err(|error| EngineError::Script {
-                    message: format!("invalid host metadata list: {error}"),
+                    message: format!("invalid host metadata list: {}", error.full_message(source)),
                     code: None,
                 })
         }))

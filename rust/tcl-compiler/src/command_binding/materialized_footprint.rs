@@ -1724,14 +1724,14 @@ mod tests {
             .source
             .original_lexical_command(tokens.words(), site.offset, config)
             .unwrap();
-        let count = site.source.original_lexical_projection.capture_count();
+        let count = site.source.original_lexical_projection().capture_count();
         let second = site
             .source
             .original_lexical_command(tokens.words(), site.offset, config)
             .unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(
-            site.source.original_lexical_projection.capture_count(),
+            site.source.original_lexical_projection().capture_count(),
             count
         );
         assert!(

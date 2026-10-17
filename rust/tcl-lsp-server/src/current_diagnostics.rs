@@ -1900,8 +1900,33 @@ mod tests {
     }
 
     async fn run_provider(backend: &Backend, uri: &Uri) {
+        // Select the provider profile from the actual published Salsa source,
+        // and require it to agree with the live document before dispatch.
+        let document = backend
+            .documents
+            .lock("diagnostic_provider_fixture")
+            .await
+            .get(uri)
+            .cloned()
+            .expect("fixture has a live document");
+        let file = backend
+            .db_files
+            .lock()
+            .await
+            .get(uri)
+            .copied()
+            .expect("fixture publishes its source to the database");
+        let dialect = {
+            let db = backend.db.lock().await;
+            assert_eq!(file.dialect(&*db), &document.dialect);
+            assert_eq!(
+                file.text(&*db),
+                tcl_lexer::normalise_lone_cr(&document.text).as_ref()
+            );
+            file.dialect(&*db).clone()
+        };
         let inputs = backend
-            .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .diag_inputs(uri, tcl_lsp_core::profile_for_dialect(&dialect))
             .await;
         let job = inputs.capture_job(uri).await.unwrap();
         assert!(

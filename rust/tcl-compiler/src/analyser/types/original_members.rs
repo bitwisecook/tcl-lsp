@@ -1281,8 +1281,6 @@ mod primary_source_declaration_tests {
 
 #[cfg(test)]
 mod logical_unicode_visibility_source_tests {
-    use super::*;
-
     #[test]
     fn unchanged_unicode_visibility_target_uses_the_original_logical_operand() {
         let source = "oo::class create C {method café {} {}; unexport café}";

@@ -91,20 +91,6 @@ pub const PACK_EVAL_EXTRA_COMMANDS: &[&str] = &[
     "fpclassify",
 ];
 
-/// The prefixes of namespaced helper commands the whitelist keeps: the
-/// ensemble targets of `string`/`dict`/`array`/`namespace` and the
-/// deterministic maths functions.
-const KEPT_PREFIXES: &[&str] = &[
-    "tcl::string::",
-    "tcl::dict::",
-    "tcl::array::",
-    "tcl::namespace::",
-];
-
-/// The two maths functions removed from the pack sandbox: the only source of
-/// nondeterminism `expr` carries.
-const DENIED_MATHFUNCS: &[&str] = &["tcl::mathfunc::rand", "tcl::mathfunc::srand"];
-
 /// Commands the pack sandbox deliberately denies, each with the determinism
 /// axis its absence protects. An unresolved dispatch of one of these is a
 /// **sandbox denial** — a hard, transactional load failure — where an
@@ -467,18 +453,19 @@ pub fn run_pack_program(
     // The whitelist sweep, after every registration so the sweep keeps them:
     // hook-sandbox commands, the pack extras, the ensemble helper namespaces,
     // and the maths functions minus `rand`/`srand`.
+    let helper_policy = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(
+        engine.vm_mut().dialect_profile(),
+    );
     engine.vm_mut().retain_commands(&|name| {
         let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
-        if DENIED_MATHFUNCS.contains(&name) {
+        let helper = helper_policy.pack_source_sandbox_helper(name);
+        if helper == Some(false) {
             return false;
         }
         SANDBOX_COMMANDS.contains(&name)
             || PACK_EVAL_EXTRA_COMMANDS.contains(&name)
             || registered.iter().any(|kept| kept == name)
-            || KEPT_PREFIXES.iter().any(|prefix| name.starts_with(prefix))
-            || name.starts_with("tcl::mathfunc::")
-            || name == "tcl::prefix"
-            || name == "tcl::build-info"
+            || helper == Some(true)
     });
 
     let unit = CompileUnit {
@@ -584,6 +571,19 @@ mod tests {
         assert_eq!(denied_axis(":clock"), None);
         assert_eq!(denied_axis("::::clock"), Some("clock/time"));
         assert_eq!(denied_axis("other::clock"), None);
+    }
+
+    #[test]
+    fn actual_pack_helpers_survive_the_selected_policy_without_random_state() {
+        let (seen, vocabulary, unknown) = capture_all();
+        run_pack_program(
+            "register [dict get {key value} key] [string length abc] [expr {sqrt(9)}]",
+            &vocabulary,
+            &unknown,
+            &PackEvalConfig::default(),
+        )
+        .expect("deterministic actual helpers retained");
+        assert_eq!(seen.borrow()[0], vec!["register", "value", "3", "3.0"]);
     }
 
     #[test]

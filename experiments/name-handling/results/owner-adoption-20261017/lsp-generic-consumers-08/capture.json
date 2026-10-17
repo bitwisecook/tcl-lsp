@@ -1,0 +1,15 @@
+{
+  "status": "ACTUAL_SOURCE_ADMISSIONS_AND_FAILED_PREDECESSOR_COMPILE_CHECKS",
+  "archive": "source-validation.tar.gz",
+  "sha256": "60b17376e001481c32557303e741258491555c18d63e48816f0f2a0e5ffcfcc7",
+  "bytes": 84249,
+  "members": 75,
+  "members_index_sha256": "51b8569b42dff24b456993f0c3fd36f9e496e3254d9cbd496ddead7010f82eaf",
+  "admissions": [
+    30,
+    31,
+    32,
+    33
+  ],
+  "scope": "Ordered admitted source/causal doc patches, bounded source reviews, raw failed119/120/121 logs and explicit API adapters; successful fresh compilation and semantic tests remain owed."
+}

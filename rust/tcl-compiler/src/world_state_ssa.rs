@@ -2009,6 +2009,7 @@ mod tests {
     use crate::executable_ir::{
         CompletionCase, CompletionId, ExecutableArgvId, ExecutableBlock, ExecutableFunctionId,
         GenericInvoke, build_linear_executable_ir,
+        build_linear_executable_ir_with_metadata_context,
     };
     use crate::ir::{NodeId, SourceSite, WordExpr};
     use crate::lowering::lower_to_ir;

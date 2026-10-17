@@ -2530,6 +2530,14 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         footprint
     }
 
+    /// Legacy hints declared by this actual selected descriptor and form.
+    /// An empty slice remains unknown, never a search for an older available
+    /// declaration. Availability, normal entry and full effects are separate.
+    #[must_use]
+    pub fn selected_side_effect_hints(&self) -> &'r [SideEffect] {
+        self.semantics.side_effects
+    }
+
     fn legacy_effect_footprint(
         &self,
         command_table_mutation: bool,
@@ -2541,7 +2549,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             &[],
             coverage,
         );
-        for effect in self.semantics.side_effects {
+        for effect in self.selected_side_effect_hints() {
             if effect.surface.is_none_or(|surface| {
                 tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
             }) {
@@ -12177,5 +12185,42 @@ mod literal_role_dependency_controls {
                 .unwrap()
                 .contains(&(1, ArgRole::VarWrite))
         );
+    }
+}
+
+#[cfg(test)]
+mod selected_effect_hint_controls {
+    #[test]
+    fn selected_descriptor_never_borrows_older_available_hint_rows() {
+        let context = crate::model::ingress::resolve_environment("bpf").default_context_registry();
+        for name in ["classvariable", "next"] {
+            let selected = crate::model::assembly::resolve_invocation_in_context(
+                context.commands(),
+                Some(context.context()),
+                name,
+                &[],
+            )
+            .expect("actual selected descriptor");
+            assert!(selected.selected_side_effect_hints().is_empty());
+            assert!(
+                crate::model::assembly::side_effect_hints_in_context(
+                    context.commands(),
+                    Some(context.context()),
+                    name,
+                    None,
+                )
+                .is_some()
+            );
+        }
+        let context =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let selected = crate::model::assembly::resolve_invocation_in_context(
+            context.commands(),
+            Some(context.context()),
+            "puts",
+            &["message"],
+        )
+        .expect("actual selected I/O descriptor");
+        assert!(!selected.selected_side_effect_hints().is_empty());
     }
 }

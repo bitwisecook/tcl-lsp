@@ -3595,6 +3595,10 @@ mod code_action_source_version_tests {
     async fn open(backend: &Backend, uri: &Uri, source: &str) -> DocumentState {
         let document = DocumentState::with_version(source.to_owned(), "tcl8.6".to_owned(), 23);
         backend
+            .db_set_source(uri, source, document.dialect.clone())
+            .await
+            .expect("publish the fixture through the backend source API");
+        backend
             .documents
             .lock("source action fixture")
             .await

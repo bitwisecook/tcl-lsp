@@ -178,6 +178,11 @@ pub struct Gap {
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
+    Gap {
+        key: "pack_source_sandbox_helper",
+        spelling: "stock host provisioning capability (not source-authored)",
+        kind: GapKind::Excluded,
+    },
     // The builtin survey relates exact selected query operands to an explicit
     // hypothetical target. A custom declaration cannot assert that relation.
     Gap {

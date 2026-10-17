@@ -130,7 +130,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
             // A function's value is its arguments' — no route assembles the
             // command's words yet — but `rand` and `srand` read and seed the
             // interpreter's generator.
-            semantics: SemanticsDeclaration::Declared(if matches!(spec.name, "rand" | "srand") {
+            semantics: SemanticsDeclaration::Declared(if spec.uses_random_state() {
                 &crate::value_transfer::builtins::STATE_DECIDED
             } else {
                 &crate::value_transfer::builtins::ROUTE_UNAUTHORED

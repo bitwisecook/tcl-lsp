@@ -73,8 +73,6 @@ use tcl_registry::{CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
 #[cfg(test)]
-use tcl_dialect::model::SpecSurface;
-#[cfg(test)]
 use tcl_dialect::model::SurfaceQuery;
 
 /// A word the formatter would rewrite: the argument index (0-based, after the

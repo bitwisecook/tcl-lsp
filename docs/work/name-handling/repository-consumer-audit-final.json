@@ -9873,7 +9873,17 @@
       ],
       "api": "Shared configured executable variable/whole scalar reference owners",
       "required_change": "Raw contains closing brace559 and split heuristic classify original variable word despite retained actual source/token/config. Adopt existing configured whole-word variable geometry; do not infer root/array or composite semantics from report text.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-30/composition.json",
+          "sha256": "a0850b1cc1356c69552a96d0477b675bd9894869997157d236f59d049446b076"
+        },
+        "scope": "whole original command head variable component geometry. Conservative partial adoption; policy/source geometry and selected metadata do not establish Native binding, value/effect execution or semantic equivalence. Legacy standalone C7 compatibility controls remain separate.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main119 running; fresh semantic execution and required gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -10010,7 +10020,17 @@
       ],
       "api": "Shared configured whole scalar variable and value provenance owners",
       "required_change": "Actual token Var plus split_braced_head/raw body name must use original root/array/composite geometry and actual source context. Existing state braced grammar-axis repair is owner-related but actual adopter here separate only if code changes.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-30/composition.json",
+          "sha256": "a0850b1cc1356c69552a96d0477b675bd9894869997157d236f59d049446b076"
+        },
+        "scope": "whole original script variable source and const-dispatch transport. Conservative partial adoption; policy/source geometry and selected metadata do not establish Native binding, value/effect execution or semantic equivalence. Legacy standalone C7 compatibility controls remain separate.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main119 running; fresh semantic execution and required gates owed."
+      }
     },
     {
       "area": "compiler",
@@ -12344,7 +12364,17 @@
       ],
       "api": "SANDBOX_COMMANDS; PACK_EVAL_EXTRA_COMMANDS; shared unroot_rooted_key/canonical_written_command",
       "required_change": "KEPT_PREFIXES and tcl::mathfunc/private helper exact labels remain local command/helper knowledge for actual retention; assess migration to existing selected provider/helper protocol inventory preserving policy and actual original command identities. Missing generic naming/currentness cannot be repaired with report prefixes.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-30/composition.json",
+          "sha256": "a0850b1cc1356c69552a96d0477b675bd9894869997157d236f59d049446b076"
+        },
+        "scope": "actual engine profile selected ensemble/math/stock helper provisioning policy. Conservative partial adoption; policy/source geometry and selected metadata do not establish Native binding, value/effect execution or semantic equivalence. Legacy standalone C7 compatibility controls remain separate.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main119 running; fresh semantic execution and required gates owed."
+      }
     },
     {
       "area": "db",
@@ -13594,7 +13624,17 @@
       ],
       "api": "Existing selected ResolvedInvocation/source binding and descriptor effects owner",
       "required_change": "Known unfinished hint walk selects first nonempty effects from older available spec rather than actual selected descriptor. Migrate catalogue/selected producer and consumers together preserving conservative unknown fallback and original c7 counterexamples; availability does not make older descriptor actual invocation semantics.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-30/composition.json",
+          "sha256": "a0850b1cc1356c69552a96d0477b675bd9894869997157d236f59d049446b076"
+        },
+        "scope": "actual selected descriptor hints and retained-source fallback effect boundary. Conservative partial adoption; policy/source geometry and selected metadata do not establish Native binding, value/effect execution or semantic equivalence. Legacy standalone C7 compatibility controls remain separate.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main119 running; fresh semantic execution and required gates owed."
+      }
     },
     {
       "area": "db",
@@ -135039,16 +135079,16 @@
       "lsp_integrated_at_report": 281,
       "effective_integrated": 485
     },
-    "utc": "2026-10-17T15:56:15.362697+00:00",
+    "utc": "2026-10-17T16:07:25.361680+00:00",
     "total_required_units": 2158,
-    "implemented_pending_validation": 563,
+    "implemented_pending_validation": 567,
     "fully_implemented_pending_validation": 405,
-    "partially_implemented_pending_validation": 158,
+    "partially_implemented_pending_validation": 162,
     "verified_complete": 0,
-    "not_started": 1595,
+    "not_started": 1591,
     "remaining_unverified_or_unimplemented": 2158,
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 633,
+    "effective_implemented_pending_validation": 637,
     "effective_verified_complete": 0,
     "required_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
     "proof_check": {
@@ -135066,7 +135106,7 @@
       "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
     },
     "current_snapshot": {
-      "utc": "2026-10-17T15:56:15.362697+00:00",
+      "utc": "2026-10-17T16:09:57.176966+00:00",
       "source_head": "Reviewed source admissions through integration21; ordinary10crate source freeze, composition base f3308dda40da10fe3031fca6f6f480dfa612aa4c plus admitted source; no fresh artifacts accepted.",
       "original_LSP": {
         "required": 325,
@@ -135079,10 +135119,10 @@
       },
       "baseline": {
         "required": 2158,
-        "integrated": 563,
+        "integrated": 567,
         "full_scope_pending": 405,
-        "partial": 158,
-        "without_integration": 1595
+        "partial": 162,
+        "without_integration": 1591
       },
       "annex": {
         "required": 71,
@@ -135092,55 +135132,44 @@
       },
       "effective": {
         "required": 2229,
-        "integrated": 633,
-        "without_integration": 1596,
+        "integrated": 637,
+        "without_integration": 1592,
         "verified_complete": 0
       },
       "last_report": {
-        "path": "docs/work/name-handling/progress-report-20261017T1539Z.json",
-        "sha256": "23b928436900f05259738ad6c272dd9b5c868b82aca0b49e666fbce4388ede00",
+        "path": "docs/work/name-handling/progress-report-20261017T1609Z.json",
+        "sha256": "5686884d1110974f6768c3b070d0dd440404d0636ace800bdd6780a91758a8a1",
         "frozen_LSP_integrated": 290,
-        "frozen_baseline_integrated": 547,
-        "frozen_effective_integrated": 617
+        "frozen_baseline_integrated": 567,
+        "frozen_effective_integrated": 637
       },
       "new_since_report": {
         "integrated_LSP": 0,
         "semantic": 0,
         "validation": 0,
         "documentation": 0,
-        "additional_baseline_integrated": 16,
+        "additional_baseline_integrated": 0,
         "admissions": {
-          "27": {
-            "path": "/workspace/naming-work/integration-27/composition.json",
-            "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4",
-            "new_baseline_unit_ids": [
-              "compiler.source.configured-original-variable-geometry:799",
-              "compiler.source.configured-original-variable-geometry:895",
-              "compiler.source.literal-target-read:487",
-              "compiler.source.original-expression-materialization-config:482",
-              "compiler.source.original-expression-materialization-config:5161",
-              "compiler.source.original-expression-materialization-config:691",
-              "compiler.source.original-expression-materialization-config:755",
-              "compiler.source.selected-introduced-command-proposals:2358",
-              "compiler.source.selected-introduced-command-proposals:2799",
-              "compiler.source.selected-method-return-summary:91",
-              "db.unit.registry.context.package-scope-projection",
-              "db.unit.registry.resolved.literal-resolver-placeholder-dependency",
-              "db.unit.registry.try.selected-list-grammar"
-            ],
-            "original_LSP_delta": 0,
-            "helper_causal_parity_fixture_and_member_repair_count": 0
+          "31": {
+            "path": "/workspace/naming-work/integration-31/composition.json",
+            "sha256": "1729921de55b92216f8e0088ed29c3db2be480c9b4ffec381fa55da021e9f076",
+            "new_baseline_unit_ids": [],
+            "causal_count": 0,
+            "old_test_API_formation_exception": "One isolated Write Verb fixture adds optional metadata_list_reader None; original assertion macros/data unchanged."
           },
-          "29": {
-            "path": "/workspace/naming-work/integration-29/composition.json",
-            "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566",
-            "new_baseline_unit_ids": [
-              "compiler.source.logical-selected-class-member-ledger:985",
-              "compiler.source.logical-unicode-member-operand:1325:visibility",
-              "db.unit.spectcl.catalogue.manual-vocabulary-mirrors"
-            ],
-            "original_LSP_delta": 0,
-            "causal_repair_count": 0
+          "32": {
+            "path": "/workspace/naming-work/integration-32/composition.json",
+            "sha256": "c3401644626fd81543cd385f83c752d6511816976c0cbabe91b0be45b98a6662",
+            "new_baseline_unit_ids": [],
+            "causal_count": 0,
+            "preservation": "Six API/helper joins; actual Root narrow proof189oldfunctions188byteexact1sameowner memo accessor formation preserving original expected values/predicates/fixtures."
+          },
+          "33": {
+            "path": "/workspace/naming-work/integration-33/composition.json",
+            "sha256": "9219a1ca13bed586936ce2ecaf803fe9025339bd4e17d71fdb0b571e5f7873a9",
+            "new_baseline_unit_ids": [],
+            "causal_count": 0,
+            "scope": "One accurate cfg(test) adapter doc line, no non-comment Rust token change."
           }
         }
       },
@@ -135547,6 +135576,40 @@
           ],
           "original_LSP_delta": 0,
           "causal_repair_count": 0
+        },
+        "30": {
+          "path": "/workspace/naming-work/integration-30/composition.json",
+          "sha256": "a0850b1cc1356c69552a96d0477b675bd9894869997157d236f59d049446b076",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:3401",
+            "compiler.source.configured-original-variable-geometry:550",
+            "db.unit.hooks.pack-sandbox-policy",
+            "db.unit.registry.assembly.selected-side-effect-hints"
+          ],
+          "original_LSP_delta": 0,
+          "causal_fixture_helper_count": 0,
+          "other_adopted_facets": "Branch/physical condition source refinements to existing partial optimizer rows; no additional credit without exact new old-ID mapping."
+        },
+        "31": {
+          "path": "/workspace/naming-work/integration-31/composition.json",
+          "sha256": "1729921de55b92216f8e0088ed29c3db2be480c9b4ffec381fa55da021e9f076",
+          "new_baseline_unit_ids": [],
+          "causal_count": 0,
+          "old_test_API_formation_exception": "One isolated Write Verb fixture adds optional metadata_list_reader None; original assertion macros/data unchanged."
+        },
+        "32": {
+          "path": "/workspace/naming-work/integration-32/composition.json",
+          "sha256": "c3401644626fd81543cd385f83c752d6511816976c0cbabe91b0be45b98a6662",
+          "new_baseline_unit_ids": [],
+          "causal_count": 0,
+          "preservation": "Six API/helper joins; actual Root narrow proof189oldfunctions188byteexact1sameowner memo accessor formation preserving original expected values/predicates/fixtures."
+        },
+        "33": {
+          "path": "/workspace/naming-work/integration-33/composition.json",
+          "sha256": "9219a1ca13bed586936ce2ecaf803fe9025339bd4e17d71fdb0b571e5f7873a9",
+          "new_baseline_unit_ids": [],
+          "causal_count": 0,
+          "scope": "One accurate cfg(test) adapter doc line, no non-comment Rust token change."
         }
       },
       "validation": {
@@ -139649,6 +139712,49 @@
             "path": "/workspace/naming-work/integration-29/main-check118-result.json",
             "sha256": "38670a247b4249bdf6905adc132c1e4b0ba22cd06eb512439aa90495e15eec63"
           }
+        },
+        "actual_Main_check119": {
+          "status": "ACTUAL_FAIL1_HOOKS_TEST_VERB_READER_FIELD",
+          "log": "/workspace/naming-work/integration-30/main-check119.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after30admission; no verdict received.",
+          "causal_repair": "Root explicit metadata_list_reader None for genuine isolated old Write Verb fixture; one original setup API formation exception, original data/assertions unchanged.",
+          "result": {
+            "path": "/workspace/naming-work/integration-30/main-check119-result.json",
+            "sha256": "9cbfe82565a744ed9a7aabdef040cb1f804e699981f081168c6d9b72d59cf363"
+          }
+        },
+        "capture07": {
+          "path": "/workspace/tcl-lsp/experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-07/capture.json",
+          "sha256": "8a0ecbdfd9d859808e54cddb9584204f1177c72101ce8bc0b3aa27fc0704c7d8",
+          "scope": "424members ordered22\u201329 admissions/source reviews/API exceptions/raw compile attempts; all seven actual attempts failed; not ordinary semantic acceptance."
+        },
+        "actual_Main_check120": {
+          "status": "ACTUAL_FAIL6_COMPILER_LIBTEST_API_ERRORS",
+          "log": "/workspace/naming-work/integration-31/main-check120.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after31causal admission; no verdict received.",
+          "causal_repair": "Root check120 API joins V2 source peer CLEAR; helper import, same-owner memo accessor, correct ProcBodyInfo unknown owner field, Lowerer consumption before context move, unused test imports. One additional old memo test accessor formation exception preserves same owner/expected values and predicates; no all-assertion-byteexact claim.",
+          "result": {
+            "path": "/workspace/naming-work/integration-31/main-check120-result.json",
+            "sha256": "b43fa898bcb7971f260c6bf92d5b865656fad54f5f86aa2a1f52378c3fa09b81"
+          }
+        },
+        "actual_Main_check121": {
+          "status": "ACTUAL_FAIL1_COMPILER_TEST_ADAPTER_MISSING_DOCS",
+          "log": "/workspace/naming-work/integration-32/main-check121.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after32causal admission; no verdict received.",
+          "causal_repair": "Integration33 actually admitted the accurate cfg(test) adapter doc line. Actual121 immutable FAIL1; fresh build planned, not running.",
+          "warnings": "Root reports warnings remain across Runtime, xtask, Core tests and Compiler tests; no warning-clean claim.",
+          "result": {
+            "path": "/workspace/naming-work/integration-32/main-check121-result.json",
+            "sha256": "d166511392568c5a65ff68b33fca456bcf8420a6f875526bfe521a10d5ba7437"
+          }
+        },
+        "ordinary_build_after33": {
+          "status": "PLANNED_NOT_RUNNING",
+          "scope": "Root planned fresh ordinary test-target build will compile actual Compiler lib tests and retain source/provider/ELF guards. No combined12root green or semantic execution claim."
         }
       },
       "remaining_LSP_unintegrated": [
@@ -139834,7 +139940,7 @@
         "source_diagnostic_boundary_scope_review": 0
       },
       "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
-      "next_report_utc": "2026-10-17T16:09:49Z",
+      "next_report_utc": "2026-10-17T16:39:49Z",
       "green_PR": false,
       "merge_or_issue_closure": false,
       "pending_generator_boundaries": "Five companion generator source consumers V5 admitted, actual generator/drift checks remain owed. Remaining generic Compiler/DB/Registry/Syntax dependencies explicitly open; no blanket completion.",

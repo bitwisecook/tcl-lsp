@@ -6405,6 +6405,7 @@ impl Analyser {
         )
     }
 
+    /// Apply the standalone object-definition layout used by direct test fixtures.
     #[cfg(test)]
     pub fn handle_oo_objdefine(
         &mut self,

@@ -473,7 +473,6 @@ mod tests {
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
             namespace_scope: None,
             ns_prefix: ns.to_string(),
-            original_factory_body: None,
         }
     }
 
@@ -526,6 +525,7 @@ mod tests {
             body_text: body.to_string(),
             namespace_scope: None,
             ns_prefix: ns.to_string(),
+            original_factory_body: None,
         }
     }
 

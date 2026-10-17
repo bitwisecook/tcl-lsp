@@ -542,22 +542,50 @@ impl Analyser {
             )
     }
 
-    /// Whether the command head is a bare whole-word variable read (`$cmd`,
-    /// `$ns::cmd`) rather than a composite (`${ns}::tail`) — the same
-    /// truncate-at-the-brace test
-    /// [`Self::record_var_or_cmd_command_site`] uses to decide which shape
-    /// the const-dispatch settlement owns, so the two can never disagree
-    /// about it.
+    /// Whole variable-read geometry comes from the actual original head and
+    /// its configured executable-part owner. Braced inert source, mixed data,
+    /// expansion and unavailable original words are not whole variable reads.
     fn head_is_whole_word_variable(&self, cmd_tok: Token) -> bool {
-        if cmd_tok.kind != TokenType::Var {
-            return false;
+        self.original_whole_variable_source_word(cmd_tok, true)
+            .is_some()
+    }
+
+    fn original_whole_variable_source_word(
+        &self,
+        token: Token,
+        head: bool,
+    ) -> Option<tcl_lexer::NativeWord> {
+        if token.kind != TokenType::Var {
+            return None;
         }
-        let sm = Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        !sm.token_text(cmd_tok).contains('}')
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.file_lexer_config();
+        let word = if head {
+            self.head_identities
+                .original_written_head_at_span_in_source(&image, token.span, config)?
+                .0
+        } else {
+            self.head_identities
+                .original_written_word_at_span_in_source(&image, token.span, config)?
+                .0
+        };
+        if word.group().expand || word.group().kind == tcl_lexer::WordKind::Braced {
+            return None;
+        }
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        if !matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
+            || part.span != word.content_span().ok()?
+            || !tcl_syntax::naming::is_whole_variable_reference(
+                std::str::from_utf8(arena.bytes(part.span)?).ok()?,
+                word.config(),
+            )
+        {
+            return None;
+        }
+        Some(word)
     }
 
     /// Process a single segmented command.
@@ -3401,32 +3429,29 @@ impl Analyser {
     /// multi-word `uplevel #0 $cmd [list x y]` yields no analysable script,
     /// but `$cmd` is still a real dispatch whose reference must be recorded.
     ///
-    /// Guarded to a "pure" reference — [`Analyser::split_braced_head`] leaving
-    /// no suffix — so a composite word like `${cmd}Suffix`, a
-    /// literal-concatenated value rather than `$cmd`'s own, is left alone.
-    ///
-    /// Comparing the first-`}` truncation against the whole raw text would
-    /// also decline a *pure* reference whose name legitimately
-    /// ends in `}`: at 9.x `${a{b}}` names the variable `a{b}`, and
-    /// `token_text` hands that over as `a{b}` with the closer already outside
-    /// the span. Asking the shared owner answers `Unterminated` there — no
-    /// closer inside the text, so all of it is the name — and the dispatch is
-    /// recorded instead of dropped.
+    /// The complete actual variable component and shared configured literal
+    /// name owner decide eligibility. Produced array indexes remain unavailable
+    /// rather than acquiring their root's different value or source identity.
     fn record_var_body_const_dispatch(&mut self, body_tok: Token, scope_path: &[usize]) {
-        if body_tok.kind != TokenType::Var {
+        let Some(word) = self.original_whole_variable_source_word(body_tok, false) else {
             return;
-        }
-        let sm = Self::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let raw = sm.token_text(body_tok);
-        let (name, suffix) = self.split_braced_head(raw);
-        let var_name = name.to_string();
-        if !suffix.is_empty() {
+        };
+        let Some(content) = word
+            .content_span()
+            .ok()
+            .and_then(|span| word.image().bytes().get(span.as_range()))
+        else {
             return;
-        }
+        };
+        let Some(var_name) = std::str::from_utf8(content)
+            .ok()
+            .and_then(|source| {
+                tcl_syntax::naming::whole_variable_reference_literal_name(source, word.config())
+            })
+            .map(str::to_owned)
+        else {
+            return;
+        };
         let ns = self.command_resolution_namespace(scope_path);
         self.pending_const_dispatches
             .push(super::state::ConstDispatchSite {
@@ -8900,5 +8925,40 @@ mod original_nested_source_tests {
             tcl_registry::CommandRegistry::build_default(),
         ));
         assert!(!analyser.head_is_self_dispatch_keyword("my"));
+    }
+}
+
+#[cfg(test)]
+mod original_command_variable_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn actual_head_and_body_words_keep_complete_variable_geometry() {
+        let source =
+            "set cmd puts\n${cmd} value\n${cmd}Suffix value\neval ${cmd}\neval ${arr(key)}\n";
+        let mut analyser = Analyser::new();
+        analyser.analyse(source, "tcl9.0");
+        let config = analyser.file_lexer_config();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        assert!(analyser.head_is_whole_word_variable(commands[1].argv[0]));
+        assert!(!analyser.head_is_whole_word_variable(commands[2].argv[0]));
+        let first = commands[3].argv[1];
+        analyser.record_var_body_const_dispatch(first, &[]);
+        assert_eq!(
+            analyser.pending_const_dispatches.last().unwrap().var_name,
+            "cmd"
+        );
+        analyser.record_var_body_const_dispatch(commands[4].argv[1], &[]);
+        assert_eq!(
+            analyser.pending_const_dispatches.last().unwrap().var_name,
+            "arr(key)"
+        );
+        analyser.source.push_str("# foreign source");
+        assert!(!analyser.head_is_whole_word_variable(commands[1].argv[0]));
+        assert!(
+            analyser
+                .original_whole_variable_source_word(first, false)
+                .is_none()
+        );
     }
 }

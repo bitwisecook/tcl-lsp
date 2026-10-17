@@ -817,6 +817,19 @@ impl SourceExpressionPreparation {
         &self,
         node: &crate::expr_ast::ExprNode,
     ) -> Option<(&Arc<super::SourceOriginId>, crate::ir::SourceSite)> {
+        self.original_variable_source_with_config(
+            node,
+            tcl_lexer::LexerConfig::from_grammar(self.witness.context().lexer_grammar),
+        )
+    }
+
+    /// Original occurrence geometry under the actual supplied whole-word
+    /// configuration. This grants no read, frame or object proof itself.
+    pub(crate) fn original_variable_source_with_config(
+        &self,
+        node: &crate::expr_ast::ExprNode,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(&Arc<super::SourceOriginId>, crate::ir::SourceSite)> {
         if let Some(expression) = &self.executed_expression {
             if expression.origin != self.source.origin
                 || expression.text.as_bytes() != self.source.text.bytes()
@@ -832,7 +845,6 @@ impl SourceExpressionPreparation {
         if self.source.origin != self.invocation.source {
             return None;
         }
-        let config = tcl_lexer::LexerConfig::from_grammar(self.witness.context().lexer_grammar);
         Some((
             &self.source.origin,
             crate::ir::SourceSite::source(node.variable_source_span(base, config)?),
@@ -945,6 +957,105 @@ impl super::SourceInvocationBinding {
                 .get(usize::try_from(*start).ok()?..usize::try_from((*end).checked_add(1)?).ok()?)?
                 .to_owned(),
         ))
+    }
+
+    /// Reborrow one selected operation's original written operand inside an
+    /// exact original expression. This source projection supplies no reached
+    /// implementation, preparation, effect absence or rewrite permission.
+    pub(crate) fn original_expression_child_word(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        tokens: &crate::ir::CommandTokens,
+        expression: (&crate::expr_ast::ExprNode, &str, u32),
+        child: (
+            &crate::expr_ast::ExprNode,
+            tcl_registry::SemanticOperationId,
+        ),
+    ) -> Option<tcl_lexer::NativeWord> {
+        if let Some(input) = metadata.source_analysis_input() {
+            self.original_argument_metadata_for_input(tokens, input, registry)?;
+        } else if !metadata.is_standalone() {
+            return None;
+        }
+        let (expected, source, base) = expression;
+        let (command, operation) = child;
+        let crate::expr_ast::ExprNode::Command { start, end, .. } = command else {
+            return None;
+        };
+        let belongs = match expected {
+            crate::expr_ast::ExprNode::Command { .. } => expected == command,
+            crate::expr_ast::ExprNode::Binary { left, right, .. } => {
+                left.as_ref() == command || right.as_ref() == command
+            }
+            _ => false,
+        };
+        if !belongs {
+            return None;
+        }
+        let mut expression = None;
+        for written in 0..tokens.words().len() {
+            let Some(candidate) =
+                self.conditional_expression_evaluation_for_original_word(registry, tokens, written)
+            else {
+                continue;
+            };
+            if candidate.source.base() == base
+                && candidate.source.try_text().ok()? == source
+                && candidate.tree() == expected
+            {
+                if expression
+                    .as_ref()
+                    .is_some_and(|previous| previous != &candidate)
+                {
+                    return None;
+                }
+                expression = Some(candidate);
+            }
+        }
+        let expression = expression?;
+        let span = tcl_lexer::Span::new(
+            base.checked_add(*start)?,
+            base.checked_add(end.checked_add(1)?)?,
+        );
+        let config = self.original_argument_lexer_config(tokens)?;
+        let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
+        let calls = crate::word_subst::lifted_calls_with_surface(Some(tokens), config, &surface);
+        let mut calls = calls.iter().filter(|call| call.span == span);
+        let child = calls.next()?.tokens.as_ref()?;
+        if calls.next().is_some() {
+            return None;
+        }
+        let binding = child.source_binding.as_ref()?;
+        let site = binding.invocation_site()?;
+        if site.source != expression.source.origin {
+            return None;
+        }
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                child,
+            )?;
+        if invocation.facts.operation != operation {
+            return None;
+        }
+        let argument = invocation.with_metadata_schema(
+            registry,
+            metadata,
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+            |selected| {
+                let index = selected.semantics.argument_offset;
+                (selected.words.arguments().exact_argv_len() == index.checked_add(1))
+                    .then_some(index)
+            },
+        )?;
+        let written = invocation.effective.written_argument(argument)?;
+        let original = site
+            .source
+            .original_lexical_command(child.words(), site.offset, config)?;
+        let word = original.native_words().get(written.checked_add(1)?)?;
+        (!word.group().expand).then(|| word.clone())
     }
 
     fn normalisation_expression(

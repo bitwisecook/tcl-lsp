@@ -54,7 +54,6 @@ use crate::sccp::{BranchFactKind, ConstantBranch};
 use super::helpers::expr_simplify::{
     OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants_for_execution,
     try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
-    try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
 use super::propagation::sccp_constants_for;
 use super::{Optimisation, PassContext};
@@ -159,7 +158,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // specific rewrite assumes the embedded `[expr {…}]` substring is
         // a genuine command substitution dispatching to builtin `expr`,
         // so it alone needs the trust gate.
-        if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
+        if let Some(unwrapped) = original_branch_nested_expression(ctx, inner, binding_span)
             && unwrapped != inner
             && ctx.command_mutations.trusts("expr")
             && branch_execution_equivalent(ctx, inner, &unwrapped, &constants, binding_span)
@@ -204,9 +203,14 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             continue;
         }
 
-        let Some((code, message, final_text)) =
-            branch_cascade(&working, sub.changed, &sub.text, &numeric, ctx.dialect)
-        else {
+        let Some((code, message, final_text)) = branch_cascade(
+            &working,
+            sub.changed,
+            &sub.text,
+            &numeric,
+            ctx.dialect,
+            original_branch_strlen(ctx, inner, binding_span),
+        ) else {
             continue;
         };
         if !branch_execution_equivalent(ctx, inner, &final_text, &constants, binding_span) {
@@ -296,6 +300,93 @@ fn branch_original_expression(ctx: &PassContext<'_>, source: &str) -> ExprNode {
     crate::expr_parser::parse_expr_with_syntax_context(source, &parser)
 }
 
+/// Select source data through the original expression parent and actual child
+/// invocation. The transformed cascade text never selects a command schema.
+fn original_branch_child_word(
+    ctx: &PassContext<'_>,
+    source: &str,
+    tree: &ExprNode,
+    child: &ExprNode,
+    operation: tcl_registry::SemanticOperationId,
+    span: tcl_lexer::Span,
+) -> Option<tcl_lexer::NativeWord> {
+    let module = ctx.ir_module?;
+    if module.source.try_text().ok()? != ctx.source || module.lexer_config != ctx.lexer_config() {
+        return None;
+    }
+    let registry = ctx.registry?;
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    let bindings =
+        crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)?;
+    bindings.original_expression_child_operand(
+        registry,
+        metadata,
+        (tree, source),
+        (child, operation),
+    )
+}
+
+fn original_branch_nested_expression(
+    ctx: &PassContext<'_>,
+    source: &str,
+    span: tcl_lexer::Span,
+) -> Option<String> {
+    let tree = branch_original_expression(ctx, source);
+    if !matches!(&tree, ExprNode::Command { .. }) {
+        return None;
+    }
+    let word = original_branch_child_word(
+        ctx,
+        source,
+        &tree,
+        &tree,
+        tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Expr,
+        ),
+        span,
+    )?;
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        &word,
+    )?)
+    .ok()
+}
+
+fn original_branch_strlen(
+    ctx: &PassContext<'_>,
+    source: &str,
+    span: tcl_lexer::Span,
+) -> Option<String> {
+    let tree = branch_original_expression(ctx, source);
+    let ExprNode::Binary { op, left, right } = &tree else {
+        return None;
+    };
+    let child = match (left.as_ref(), right.as_ref()) {
+        (command @ ExprNode::Command { .. }, ExprNode::Literal { text, .. })
+        | (ExprNode::Literal { text, .. }, command @ ExprNode::Command { .. })
+            if text.trim() == "0" =>
+        {
+            command
+        }
+        _ => return None,
+    };
+    let comparison = match op {
+        BinOp::Eq | BinOp::StrEq => "eq",
+        BinOp::Ne | BinOp::StrNe => "ne",
+        _ => return None,
+    };
+    let word = original_branch_child_word(
+        ctx,
+        source,
+        &tree,
+        child,
+        tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::StringLength),
+        span,
+    )?;
+    let operand = word.image().try_text().ok()?.get(word.span().as_range())?;
+    Some(format!("{operand} {comparison} \"\""))
+}
+
 /// The branch-condition simplification cascade: the first transform that
 /// changes `working` wins its diagnostic code. Returns `None` when nothing
 /// applies. `sub_changed`/`sub_text` carry the constant-substitution result
@@ -306,13 +397,13 @@ fn branch_cascade(
     sub_text: &str,
     numeric: &OperandTypes,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
+    strlen: Option<String>,
 ) -> Option<(DiagCode, &'static str, String)> {
     let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric), dialect);
     if sred_changed {
         return Some((DiagCode::O113, "Strength-reduce expression", sred));
     }
-    let (slen, slen_changed) = try_strlen_simplify_expr(working, dialect);
-    if slen_changed {
+    if let Some(slen) = strlen {
         return Some((DiagCode::O117, "Simplify string length zero-check", slen));
     }
     let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working, dialect);
@@ -557,6 +648,46 @@ mod tests {
             &HashMap::new(),
             Span::new(0, 5)
         ));
+    }
+
+    #[test]
+    fn branch_child_projection_uses_actual_selected_operation_and_operand() {
+        for (source, expression, expected) in [
+            (
+                "if {[::string length $s] == 0} {puts yes}",
+                "[::string length $s] == 0",
+                Some("$s eq \"\""),
+            ),
+            (
+                "if {0 != [string length {two words}]} {puts yes}",
+                "0 != [string length {two words}]",
+                Some("{two words} ne \"\""),
+            ),
+            (
+                "proc string args {return 0}; if {[string length $s] == 0} {puts yes}",
+                "[string length $s] == 0",
+                None,
+            ),
+        ] {
+            let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let mut ctx = build_ctx(source);
+            ctx.ir_module = Some(module);
+            ctx.registry = Some(context.commands());
+            let crate::ir::Statement::If { clauses, .. } =
+                module.top_level.statements.last().unwrap()
+            else {
+                panic!("actual if statement")
+            };
+            let span = clauses[0].condition_span;
+            assert_eq!(
+                super::original_branch_strlen(&ctx, expression, span).as_deref(),
+                expected
+            );
+            ctx.source = "foreign source";
+            // Actual module source currency must be retained independently.
+            assert!(super::original_branch_strlen(&ctx, expression, span).is_none());
+        }
     }
 
     fn registry() -> CommandRegistry {

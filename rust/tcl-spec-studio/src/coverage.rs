@@ -167,7 +167,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // not be author-editable, add it here and to `COMMAND_SPEC` as
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
-        name: _, traits: _,
+        name: _,
+        pack_source_sandbox_helper: _, traits: _,
         surface: _,
         arity: _, arity_windows: _,
         arg_roles: _,
@@ -304,6 +305,12 @@ pub fn witness_command_spec(spec: &CommandSpec) {
 /// `CommandSpec::DEFAULT` order.
 pub const COMMAND_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
+    f(
+        "pack_source_sandbox_helper",
+        Surface::Excluded(
+            "Stock engine provisioning capability; custom source descriptors cannot author host retention policy.",
+        ),
+    ),
     f("traits", Surface::Key("traits")),
     f("surface", Surface::Key("surface")),
     f("arity", Surface::Key("arity")),

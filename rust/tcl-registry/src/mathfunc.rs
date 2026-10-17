@@ -290,7 +290,7 @@ pub fn global_command_bare_name(qualified: &str) -> Option<&str> {
 #[must_use]
 pub fn restricted_expression_command_identity(identity: &str) -> bool {
     global_command_bare_name(identity).is_some_and(|bare| {
-        tcl_syntax::expr::mathfunc::spec(bare).is_some() && !matches!(bare, "rand" | "srand")
+        tcl_syntax::expr::mathfunc::spec(bare).is_some_and(|spec| !spec.uses_random_state())
     })
 }
 

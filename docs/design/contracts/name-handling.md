@@ -3689,3 +3689,44 @@ Selected `try` clause lists consume the actual invocation dialect’s list and e
 An arbitrary literal-value argument-role callback may inspect every payload. A proven argv width or option run does not prove payload independence. The selected role facade therefore requires actual complete literal operands for that fallback; authored structured, cardinality and layout resolvers retain their separately declared dynamic-operand admission. Unknown values are never replaced with empty data for a literal callback.
 
 Source descriptor picker vocabularies project their Registry enum declarations, native registration tables and dialect authored-surface catalogue. Historical picker order is explicit presentation metadata on the owning enum declaration. Native labels are prose only: a label cannot introduce an ID absent from the real registration table. Choosing a picker value does not prove installed support, source selection or Native execution.
+
+Source-pack provisioning retains helper commands under the actual engine profile’s existing ensemble protocol namespaces and builtin math-function metadata. Random-state metadata is shared by function construction and sandbox denial; the denial precedes registered vocabulary. Standalone stock helpers carry an explicit native descriptor capability excluded from SpecTcl/Studio custom authoring. Ordinary sandbox and pack-extra whitelists remain deliberate closed policy. A retention-policy match is not a Native command identity or execution receipt.
+
+
+Branch nested-expression and string-length suggestions now select actual child
+operand geometry from the same retained original expression-role owner, exact
+whole AST/source/base, original child occurrence and full metadata. The selected
+operation and actual signature offset map through effective argv to one written
+NativeWord; qualified heads work without a nominal prefix. String-length source
+selection never consults the constant-substituted cascade text. Existing branch
+execution-equivalence and mutation guards remain independent and unchanged. The
+projection grants no preparation, Native implementation or effect absence;
+static quoted-expression values still require the genuine static word owner.
+
+
+### Bounded physical condition direct-read component
+
+The original expression owner can now retain actual direct scalar read cells
+from its Native preparation, same original image/mapping/AST/full input and
+per-reference NativeExpression read contexts. Every ordinary variable node must
+join its exact original source occurrence and configured spelling, closed
+context alternatives, Bound Native frame, physical cell/lifetime and observer
+checks. Logical/source-only contexts, commands, arrays, strings, implicit math
+calls and opaque nodes remain unavailable in this component.
+
+Code sinking consumes only positive overlap between those cells and a genuinely
+selected normal setter's actual phase-specific definition places. Missing or
+empty data never licenses movement; all earlier source-MAY, effect, observer,
+read and motion guards remain. This is deliberately not a complete condition
+footprint: object conversions, command effects, full read/write/observer closure
+and result allocation/equivalence still need independent actual proof. The five
+known Native optimizer proof HOLDs are not closed by this read component.
+
+
+The physical component requires the per-read and setter contexts' explicit
+`SourceReadConfiguration::Selected` owner. A standalone profile fallback that
+happens to equal the current grammar, or unavailable input, cannot issue this
+physical component. This tightens only its own new positive veto and adds no
+new absence or motion authority.
+
+An original source invocation’s side-effect hints belong to its selected descriptor/form. The effect footprint filters those hints under the actual selected surface and retains unknown undeclared world effects. Interprocedural positioned calls continue through their original Normal-handler effect owner before fallback classification. A retained-source fallback without that receiver cannot use an older available declaration’s hints; it widens to unknown. The historical nominal C7 walk remains a separately documented standalone compatibility query, including its original counterexamples; it does not fill missing selected metadata or prove invocation effects.

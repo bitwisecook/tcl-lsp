@@ -184,6 +184,7 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, script: &Script, i: usize, depth:
         return;
     }
     if original_condition_source_read(ctx, script, decision, &var).is_some()
+        || original_condition_reads_store_cell(ctx, script, stmt, decision).is_some()
         || decision_condition_substitution_touches_var(decision, &var, ctx.registry)
     {
         return;
@@ -624,6 +625,80 @@ fn sinkable_assignment(stmt: &Statement) -> Option<(String, tcl_lexer::Span)> {
 
 fn is_decision(stmt: &Statement) -> bool {
     matches!(stmt, Statement::If { .. } | Statement::Switch { .. })
+}
+
+/// An actual physical-cell overlap is an additional veto only. Missing read,
+/// store, observer or condition coverage never permits a sink.
+fn original_condition_reads_store_cell(
+    ctx: &PassContext<'_>,
+    script: &Script,
+    store: &Statement,
+    decision: &Statement,
+) -> Option<()> {
+    let Statement::If { clauses, .. } = decision else {
+        return None;
+    };
+    let module = ctx.ir_module?;
+    if module.source.try_text().ok()? != ctx.source || module.lexer_config != ctx.lexer_config() {
+        return None;
+    }
+    let registry = ctx.registry?;
+    let tokens = script.retained_source_tokens_for_statement(store)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        tokens,
+    )?;
+    let context = match invocation.variable_binding_phase() {
+        tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => {
+            binding.normal_variable_continuation()?
+        }
+        tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => {
+            binding.variable_context.as_ref()
+        }
+        tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => return None,
+    };
+    if context.binding_identity != crate::var_resolve::BindingIdentity::Bound
+        || context.execution_name_policy.is_none()
+    {
+        return None;
+    }
+    let crate::var_resolve::SourceReadConfiguration::Selected(config) =
+        context.source_read_configuration
+    else {
+        return None;
+    };
+    if config.normalized() != ctx.lexer_config().normalized() {
+        return None;
+    }
+    let cells = invocation
+        .definition_places(context, registry)
+        .iter()
+        .filter_map(|place| {
+            (place.cell.is_some() && !place.observed && !place.dynamic)
+                .then(|| crate::var_resolve::canonical_place_key(place))
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    for clause in clauses {
+        let Some(bindings) =
+            crate::math_function_binding::ExpressionMathBindings::for_module_statement(
+                module,
+                clause.condition_span,
+            )
+        else {
+            continue;
+        };
+        if bindings
+            .physical_condition_reads(module, registry, &clause.condition)
+            .is_some_and(|reads| reads.cells().iter().any(|cell| cells.contains(cell)))
+        {
+            return Some(());
+        }
+    }
+    None
 }
 
 /// A positive-only original source read veto. No witness is never absence,
@@ -1472,5 +1547,75 @@ mod tests {
             "n",
             Some(&registry)
         ));
+    }
+    #[test]
+    fn physical_condition_cell_overlap_is_only_a_positive_veto() {
+        for (source, expected) in [
+            ("set n 0; set n 5; if {$n} {puts $n}", true),
+            (
+                "set n 0; set n 5; trace add variable n read callback; if {$n} {puts $n}",
+                false,
+            ),
+        ] {
+            let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+            let (context, module) = &*fixture;
+            let store = &module.top_level.statements[1];
+            let decision = module.top_level.statements.last().unwrap();
+            let mut ctx = PassContext::new(
+                source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+            );
+            ctx.registry = Some(context.commands());
+            ctx.ir_module = Some(module);
+            assert_eq!(
+                super::original_condition_reads_store_cell(
+                    &ctx,
+                    &module.top_level,
+                    store,
+                    decision
+                )
+                .is_some(),
+                expected
+            );
+            ctx.source = "foreign source";
+            assert!(
+                super::original_condition_reads_store_cell(
+                    &ctx,
+                    &module.top_level,
+                    store,
+                    decision
+                )
+                .is_none()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod physical_condition_alias_veto_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_condition_overlap_vetoes_distinct_lexical_names() {
+        let source = "set n 0; set ::n 5; if {$n} {puts $::n}";
+        let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+        let (context, module) = &*fixture;
+        let store = &module.top_level.statements[1];
+        let decision = module.top_level.statements.last().unwrap();
+        assert!(!decision_condition_uses_var(
+            decision,
+            "::n",
+            module.lexer_config.braced_var,
+        ));
+        let mut ctx = PassContext::new(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+        );
+        ctx.registry = Some(context.commands());
+        ctx.ir_module = Some(module);
+        assert!(
+            original_condition_reads_store_cell(&ctx, &module.top_level, store, decision,)
+                .is_some()
+        );
     }
 }

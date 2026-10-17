@@ -1634,6 +1634,10 @@ pub struct CommandSpec {
     /// Command name (e.g. `"for"`, `"dict"`, `"HTTP::header"`).
     pub name: &'static str,
 
+    /// Immutable stock helper retained by source-pack provisioning policy.
+    /// Custom source descriptors cannot author this host capability.
+    pub pack_source_sandbox_helper: bool,
+
     /// Behavioural trait flags (replaces ~35 individual boolean fields).
     pub traits: Traits,
 
@@ -2952,6 +2956,7 @@ impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
         name: "",
+        pack_source_sandbox_helper: false,
         traits: Traits::empty(),
         surface: None,
         arity: Arity::any(),

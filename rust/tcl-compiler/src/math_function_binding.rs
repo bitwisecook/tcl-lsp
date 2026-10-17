@@ -4,6 +4,8 @@
 
 //! Actual reached math-function implementations used by execution folding.
 
+mod physical_condition;
+
 use crate::ir::Script;
 
 /// Whether two consumed native fixed-table prerequisites can hold together.
@@ -425,6 +427,31 @@ impl<'a> ExpressionMathBindings<'a> {
             .as_ref()?
             .nested_expression_normalisation_source(registry, tokens, context, Some(expected))
             .map(|(expression, _)| expression)
+    }
+
+    /// Original child operand selected inside this exact source expression.
+    /// The result is lexical data; execution equivalence remains independent.
+    pub(crate) fn original_expression_child_operand(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        original: (&crate::expr_ast::ExprNode, &str),
+        child: (
+            &crate::expr_ast::ExprNode,
+            tcl_registry::SemanticOperationId,
+        ),
+    ) -> Option<tcl_lexer::NativeWord> {
+        let tokens = self.tokens?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_expression_child_word(
+                registry,
+                metadata,
+                tokens,
+                (original.0, original.1, self.base?),
+                child,
+            )
     }
 
     /// Prove the actual native implementation after reached operand evaluations.

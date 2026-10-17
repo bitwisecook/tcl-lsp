@@ -719,6 +719,15 @@ pub struct MathFuncSpec {
     pub summary: &'static str,
 }
 
+impl MathFuncSpec {
+    /// Whether this builtin consults or mutates interpreter random state.
+    /// This is function metadata, not proof that a current command is builtin.
+    #[must_use]
+    pub fn uses_random_state(self) -> bool {
+        matches!(self.name, "rand" | "srand")
+    }
+}
+
 /// The result class of math function `name`: its [`MathFuncSpec`]'s, or
 /// [`MathResultClass::Any`] for a name no release defines.
 #[must_use]

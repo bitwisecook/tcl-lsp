@@ -866,6 +866,7 @@ mod tests {
             family: tcl_registry::pack_hooks::HookFamily::Evaluate,
             sink: std::rc::Rc::clone(&sink),
             reading,
+            metadata_list_reader: None,
         };
         let raw = tcl_engine_api::Value::string_bytes(&b"value\xFF"[..]);
         assert!(matches!(

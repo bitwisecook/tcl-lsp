@@ -665,6 +665,10 @@ pub fn resolve_call_in_context<'r>(
     std::ptr::eq(resolved.spec, proved).then_some(resolved)
 }
 
+/// Legacy nominal compatibility hint walk; not an original source invocation.
+/// Source-backed effect consumers use the actual selected invocation's
+/// `selected_side_effect_hints` through its separately admitted effect owner.
+///
 /// The structured side-effect hints for one invocation — the third face
 /// of the C7 selection primitive, centralising the walk `side_effects.rs`
 /// hand-rolled: newest-registered first over `command`'s specs in

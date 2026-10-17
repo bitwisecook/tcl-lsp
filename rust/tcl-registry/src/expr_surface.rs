@@ -238,6 +238,47 @@ impl RuntimeExprSurface {
         self.registry.math_function_names(self.profile)
     }
 
+    /// Provisioning policy for actual stock helper command names in a source
+    /// pack engine. `Some(false)` is an explicit denial before user vocabulary;
+    /// `None` is not a helper admission. No current command identity follows.
+    #[must_use]
+    pub fn pack_source_sandbox_helper(self, name: &str) -> Option<bool> {
+        if self.profile.is_fallback() {
+            return None;
+        }
+        let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+        if let Some(bare) = crate::mathfunc::global_command_bare_name(name) {
+            let spec = tcl_syntax::expr::mathfunc::spec(bare)?;
+            if spec.uses_random_state() {
+                return Some(false);
+            }
+            return self
+                .builtin_math_function_command_visible(name)
+                .filter(|visible| *visible);
+        }
+        let dialect = crate::InvocationDialect::of_profile(self.profile);
+        for family in [
+            crate::EnsembleImplementationFamily::String,
+            crate::EnsembleImplementationFamily::Dict,
+            crate::EnsembleImplementationFamily::Array,
+            crate::EnsembleImplementationFamily::Namespace,
+        ] {
+            let Some(namespace) = dialect.ensemble_implementation_namespace(family) else {
+                continue;
+            };
+            let namespace = tcl_syntax::naming::unroot_rooted_key(namespace).unwrap_or(namespace);
+            if tcl_syntax::naming::authored_namespace_hint_tail(name, namespace)
+                .is_some_and(|tail| !tail.is_empty())
+            {
+                return Some(true);
+            }
+        }
+        let spec = self
+            .registry
+            .get_for_surface(name, dialect.authoring_query())?;
+        spec.pack_source_sandbox_helper.then_some(true)
+    }
+
     /// Whether this release exposes the open `::tcl::mathfunc::*` command
     /// table, as opposed to Tcl 8.4's fixed `expr` function table.
     #[must_use]
@@ -415,5 +456,49 @@ mod tests {
         assert!(!old.permits_builtin_math_function_command("::tcl::mathfunc::isfinite"));
         assert!(old.permits_builtin_math_function_command("::tcl::mathfunc::sqrt"));
         assert!(old.permits_builtin_math_function_command("::tcl::mathfunc::custom"));
+    }
+}
+
+#[cfg(test)]
+mod pack_source_helper_policy_controls {
+    use super::*;
+
+    #[test]
+    fn actual_release_policy_separates_helpers_math_state_and_prefix_decoys() {
+        let current = RuntimeExprSurface::for_tcl_version(TclVersion::V9_0);
+        for name in [
+            "::tcl::dict::get",
+            "tcl::string::length",
+            "tcl::array::get",
+            "tcl::namespace::eval",
+            "tcl::prefix",
+            "tcl::build-info",
+            "tcl::mathfunc::sqrt",
+        ] {
+            assert_eq!(
+                current.pack_source_sandbox_helper(name),
+                Some(true),
+                "{name}"
+            );
+        }
+        for name in ["::tcl::mathfunc::rand", "tcl::mathfunc::srand"] {
+            assert_eq!(
+                current.pack_source_sandbox_helper(name),
+                Some(false),
+                "{name}"
+            );
+        }
+        for name in [
+            "tcl::dictish::get",
+            "tcl::dict",
+            "foreign::tcl::dict::get",
+            "tcl::mathfunc::foreign",
+            "tcl::prefix-foreign",
+        ] {
+            assert_eq!(current.pack_source_sandbox_helper(name), None, "{name}");
+        }
+        let old = RuntimeExprSurface::for_tcl_version(TclVersion::V8_4);
+        assert_eq!(old.pack_source_sandbox_helper("tcl::dict::get"), None);
+        assert_eq!(old.pack_source_sandbox_helper("tcl::mathfunc::sqrt"), None);
     }
 }

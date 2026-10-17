@@ -2962,7 +2962,25 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         // Classified against the document's surface, so a stub's `-pure`
         // or `-mutator` states the effect a catalogue spec would.
         let surface = ctx.surface();
-        let ci = classify_side_effects_in(&surface, resolved, args, None, None);
+        let ci = if ctx.source_input.is_some() || ctx.current_tokens.is_some() {
+            // Original positioned invocations were consumed first by
+            // scan_positioned_registry_facts and its Normal handler owner.
+            // A retained-source fallback cannot replace that missing receiver
+            // with the legacy available-spec hint walk.
+            classify_side_effects_in(
+                &surface,
+                resolved,
+                args,
+                None,
+                Some(&crate::side_effects::CalleeSummary {
+                    effect_reads: EffectRegion::UNKNOWN_STATE,
+                    effect_writes: EffectRegion::UNKNOWN_STATE,
+                    pure: false,
+                }),
+            )
+        } else {
+            classify_side_effects_in(&surface, resolved, args, None, None)
+        };
         if ci.dynamic_barrier {
             facts.param_observations_incomplete = true;
             facts.has_barrier = true;
@@ -8338,7 +8356,8 @@ mod selected_global_option_taint_tests {
         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
             .with_resolved_analysis_input(input);
         lowerer.lower(source);
-        (context, lowerer.finish_module(source))
+        let module = lowerer.finish_module(source);
+        (context, module)
     }
 
     #[test]
