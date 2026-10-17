@@ -1,0 +1,22 @@
+{
+  "status": "SOURCE_ONLY_STATIC_NO_BINDER_LAUNCHER_LIST_PROVIDER_TEST_EXECUTION",
+  "actual_standard128_guard_body_exact_except_named_self_path": true,
+  "all_original12_target_ordered_prefixes_and_six_guards_exact": true,
+  "actual_new_syntax2_spectcl4_vector_exact": true,
+  "current18_originalSourceTools_routes_cfg_and_hashes_in_actual39052index": true,
+  "historical_extra9_pins_preserved": 38,
+  "target_counts": {
+    "tcl_lexer": 6,
+    "tcl_syntax": 3,
+    "tcl_spectcl": 6,
+    "xtask": 3
+  },
+  "target_kinds": {
+    "tcl_lexer": "lib",
+    "tcl_syntax": "lib",
+    "tcl_spectcl": "lib",
+    "xtask": "bin"
+  },
+  "actual_extra_binding": null,
+  "python_AST_parse": true
+}

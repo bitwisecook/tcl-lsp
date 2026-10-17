@@ -134916,7 +134916,7 @@
         "syntax.owner.configured-authored-compact-name-sequence"
       ],
       "effective_delta": 17,
-      "native": "Actualfirst5libFAIL82.321s39052unchanged,E0599fieldgetterrepairpending",
+      "native": "PASS_FIVE_LIBRARY_BUILD repair3 334.257s; three actual failed predecessors preserved separately",
       "editor": "PASS443inputs0drift:bothTypeScriptprojects/configuredscopedPrettier/worker/Node+browserbundles; originalunchangedStudioNodepermissionretry124PASS0FAIL0skips afterretainedGitEPERM. ActualIDEhostsnotaccepted.",
       "required_gates": "Notgreen,noPR/merge/issueclosure",
       "source_admission": "/workspace/naming-validation/lsp-studio-action-source-admission/admission.json",
@@ -134973,9 +134973,85 @@
         "input_count": 39052,
         "input_drift_count": 0,
         "all_five_artifact_relocations_hash_verified": true,
-        "limitations": "Actual build only; selected962/extra18 andchangedintegration executionnotyetestablished. ExistingHash/DBimport/deadServerhelper warnings+oneunhandlednewtestconfigResultwarning retained, requiredclippy/gatesnotgreen."
+        "limitations": "Actual compile PASS, extra18 actual16P2F; standard962 running and changedintegration/actualhosts/requiredgates remain unaccepted. Retained build warnings require genuine cleanup after freeze."
       },
-      "next_validation": "Rootactual962bindingprepared, independentboundreviewpending; prospectiveextra18needsall4extraartifacts. Actualextra3libsbuildrunning, no otherCargo. All sourceFROZEN39052/128 untilfullselectedpostflights."
+      "next_validation": "Actual standard962 RUNNING session72272 after independent binding review; extra18 complete16P2F all39052/nineELF/providerpostflightmatch; source and all9ELFs frozen until962finalpostflight.",
+      "actual_current_validation": {
+        "source_count": 39052,
+        "admitted_paths": 128,
+        "batch_paths": 59,
+        "five_library_build": "PASS334.257s",
+        "extra_three_libraries_build": "PASS187.722s",
+        "xtask_BIN_build": "PASS231.343s",
+        "extra18": {
+          "selected": 18,
+          "counts": {
+            "FAIL": 2,
+            "PASS": 16
+          },
+          "by_target": {
+            "tcl_lexer": {
+              "PASS": 6
+            },
+            "tcl_syntax": {
+              "PASS": 3
+            },
+            "tcl_spectcl": {
+              "FAIL": 2,
+              "PASS": 4
+            },
+            "xtask": {
+              "PASS": 3
+            }
+          },
+          "harness_errors": [],
+          "actual_wrapper_exit_code": 1,
+          "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+          "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+          "retained_extra9_status_changes": [],
+          "retained_extra9_prior_PASS_regressions": [],
+          "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+          "all_three_previously_owed_xtask_controls": "PASS",
+          "ordinary_acceptance": false,
+          "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
+        },
+        "standard962": "RUNNING; session72272; do not infer acceptance from partial results",
+        "source_freeze": "Maintain39052 source inputs and all9 currentELFs until standard962 final postflight",
+        "editor443": "PASS bothTypeScriptprojects/configuredformat/worker/Node+browserbundles; unchanged originalStudioNodepermissionretry124P0F0skip; actualhostsnotestablished",
+        "no_runtime_vm_bigip_dedicated_migration": true
+      }
+    },
+    "ordinary_extra18_current": {
+      "selected": 18,
+      "counts": {
+        "FAIL": 2,
+        "PASS": 16
+      },
+      "by_target": {
+        "tcl_lexer": {
+          "PASS": 6
+        },
+        "tcl_syntax": {
+          "PASS": 3
+        },
+        "tcl_spectcl": {
+          "FAIL": 2,
+          "PASS": 4
+        },
+        "xtask": {
+          "PASS": 3
+        }
+      },
+      "harness_errors": [],
+      "actual_wrapper_exit_code": 1,
+      "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+      "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+      "retained_extra9_status_changes": [],
+      "retained_extra9_prior_PASS_regressions": [],
+      "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+      "all_three_previously_owed_xtask_controls": "PASS",
+      "ordinary_acceptance": false,
+      "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
     }
   }
 }

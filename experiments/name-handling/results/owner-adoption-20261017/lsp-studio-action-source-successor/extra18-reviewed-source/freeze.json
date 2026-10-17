@@ -1,0 +1,55 @@
+{
+  "status": "FROZEN_SOURCE_PACKAGE_ONLY",
+  "members": [
+    {
+      "path": "SOURCE-BASIS.md",
+      "sha256": "2d7d9c944b28adee7d5a2a02b74408dc4f00b0725cf3a441a3cd1bc9a384ab00",
+      "bytes": 2205
+    },
+    {
+      "path": "bind.py",
+      "sha256": "e0e24ea30951d2aa1a8cfae0f1e173ffed499cade241b000b582e971c6bd8cfe",
+      "bytes": 3266
+    },
+    {
+      "path": "current-source-evidence.json",
+      "sha256": "e4acdaa6653b4c7b009a7aa0f977555e8b2b0b11699469af4f5493a314820529",
+      "bytes": 44057
+    },
+    {
+      "path": "extra_support.py",
+      "sha256": "c9ae17d76317163bf4ad1776e81feb881b7fe00549fa9141adfdee5c7fa2c063",
+      "bytes": 9314
+    },
+    {
+      "path": "launch.py",
+      "sha256": "9e2a7c3b1e2e815ff64a89984fef368dce19befbab4007fbd6e58ba0a14b50b4",
+      "bytes": 7055
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "3f810091faffce11cf769a8b0aed6578720378b95cf4e125514fb9fe9fcef666",
+      "bytes": 13151
+    },
+    {
+      "path": "prepared-selections.json",
+      "sha256": "f972af666ca9a2aa7130e210c6af0e4658f14a1c0f616ff7e5d6a6aee6026e9a",
+      "bytes": 119558
+    },
+    {
+      "path": "standard-guard-extraction.json",
+      "sha256": "7efca4e1dfc8c60fa9ff8ba585ac3ab63eca0777c415dd8ca0c3b25d3b7746a1",
+      "bytes": 857
+    },
+    {
+      "path": "standard_guard.py",
+      "sha256": "14db6653bf8d641a175452cdf9da3b705faa572d23ee00b2a7979cf0c04d1d6d",
+      "bytes": 13993
+    },
+    {
+      "path": "static-verification.json",
+      "sha256": "cff3003441e4ea36be8285e69ad3f67ea1d3185e50040f47c58190e0299776f0",
+      "bytes": 686
+    }
+  ]
+}

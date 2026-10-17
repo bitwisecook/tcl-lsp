@@ -1,0 +1,32 @@
+{
+  "selected": 18,
+  "counts": {
+    "FAIL": 2,
+    "PASS": 16
+  },
+  "by_target": {
+    "tcl_lexer": {
+      "PASS": 6
+    },
+    "tcl_syntax": {
+      "PASS": 3
+    },
+    "tcl_spectcl": {
+      "FAIL": 2,
+      "PASS": 4
+    },
+    "xtask": {
+      "PASS": 3
+    }
+  },
+  "harness_errors": [],
+  "actual_wrapper_exit_code": 1,
+  "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+  "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+  "retained_extra9_status_changes": [],
+  "retained_extra9_prior_PASS_regressions": [],
+  "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+  "all_three_previously_owed_xtask_controls": "PASS",
+  "ordinary_acceptance": false,
+  "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
+}

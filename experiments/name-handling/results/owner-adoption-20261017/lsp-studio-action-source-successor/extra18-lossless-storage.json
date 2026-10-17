@@ -1,0 +1,32 @@
+{
+  "full_originals_unchanged_outside_Git": true,
+  "files": [
+    {
+      "original_path": "extra18-bound/bound-plans.json",
+      "original_sha256": "f972af666ca9a2aa7130e210c6af0e4658f14a1c0f616ff7e5d6a6aee6026e9a",
+      "original_bytes": 119558,
+      "compressed_path": "extra18-bound/bound-plans.json.zst",
+      "compressed_sha256": "b907dc429c8fa8bc2d2312d5422051641173109b814c4f951facb07e52f93776",
+      "compressed_bytes": 5474,
+      "lossless_roundtrip_verified_before_removing_plain_capsule_copy": true
+    },
+    {
+      "original_path": "extra18-reviewed-source/current-source-evidence.json",
+      "original_sha256": "e4acdaa6653b4c7b009a7aa0f977555e8b2b0b11699469af4f5493a314820529",
+      "original_bytes": 44057,
+      "compressed_path": "extra18-reviewed-source/current-source-evidence.json.zst",
+      "compressed_sha256": "8de41a8227f0247c6d60eefb5ca39af8af5e8334561aa943d66e713f57b212aa",
+      "compressed_bytes": 4074,
+      "lossless_roundtrip_verified_before_removing_plain_capsule_copy": true
+    },
+    {
+      "original_path": "extra18-reviewed-source/prepared-selections.json",
+      "original_sha256": "f972af666ca9a2aa7130e210c6af0e4658f14a1c0f616ff7e5d6a6aee6026e9a",
+      "original_bytes": 119558,
+      "compressed_path": "extra18-reviewed-source/prepared-selections.json.zst",
+      "compressed_sha256": "b907dc429c8fa8bc2d2312d5422051641173109b814c4f951facb07e52f93776",
+      "compressed_bytes": 5474,
+      "lossless_roundtrip_verified_before_removing_plain_capsule_copy": true
+    }
+  ]
+}

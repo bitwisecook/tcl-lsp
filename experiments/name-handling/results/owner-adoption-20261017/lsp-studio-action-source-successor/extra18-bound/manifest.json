@@ -1,0 +1,20 @@
+{
+  "status": "ACTUAL_EXTRA18_BOUND_ALL_FOUR_TARGETS",
+  "selected": 18,
+  "prepared_package_sha256": "3f810091faffce11cf769a8b0aed6578720378b95cf4e125514fb9fe9fcef666",
+  "binder_source_sha256": "e0e24ea30951d2aa1a8cfae0f1e173ffed499cade241b000b582e971c6bd8cfe",
+  "files": {
+    "binding.json": {
+      "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra18-bound-v1/binding.json",
+      "sha256": "442ac2cac140b5bba1947b6902c6b86181628b4f77ebea9b3e2d226a6b0a8679"
+    },
+    "bound-plans.json": {
+      "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra18-bound-v1/bound-plans.json",
+      "sha256": "f972af666ca9a2aa7130e210c6af0e4658f14a1c0f616ff7e5d6a6aee6026e9a"
+    },
+    "artifacts.json": {
+      "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra18-bound-v1/artifacts.json",
+      "sha256": "d1a347e9f38d76482d6e5f930ce72f30824983d01c052f46b28d3be9d3a815a1"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "source": "/workspace/naming-validation/studio-action962-bound-v1/launch.py",
+  "source_sha256": "3c4a13f92352034ba5c400de6f1902118922756f8bee5d8613a1cea06dd3635c",
+  "original_validation_body_sha256": "528e573a3e68ed6f389853b0d6b1449d94999103c7a2b9246304644d680732d6",
+  "adapter_validation_body_sha256": "19a35c09d5b4223c23e514ff0a37de1de471aac6479231518f922694bcb70435",
+  "only_body_change": "The exact reviewed actual pinned standard launcher is named for self comparison instead of importing helper. Entire validation and check_current closure otherwise byte-exact.",
+  "actual_source_count": 39052,
+  "actual_admitted_paths": 128,
+  "original_source_review": {
+    "path": "/tmp/sol-studio962-bound-independent-review-v1/independent-source-review-CLEAR.txt",
+    "sha256": "74beb7e19f2439487f94673da696bcd60f251f4a52e25b966c617448b6f16c7e"
+  }
+}
