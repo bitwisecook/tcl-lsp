@@ -133301,11 +133301,11 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "scheduled_utc": "2026-10-17T02:07:00Z",
-      "last_utc": "2026-10-17T02:07:00Z",
-      "repository_written_utc": "2026-10-17T02:07:05.978616+00:00",
+      "scheduled_utc": "2026-10-17T02:37:00Z",
+      "last_utc": "2026-10-17T02:39:03.026186+00:00",
+      "repository_written_utc": "2026-10-17T02:39:03.026186+00:00",
       "delivery": "Chat and repository only; external guide unchanged.",
-      "next_utc": "2026-10-17T02:37:00Z",
+      "next_utc": "2026-10-17T03:07:00Z",
       "cadence_minutes": 30,
       "lsp_integrated_at_report": 195,
       "lsp_required": 325,
@@ -133314,10 +133314,9 @@
       "lsp_documentation_integrated": 2,
       "lsp_no_integration": 130,
       "gains_since_previous_report": {
-        "LSP": 14,
-        "existing_Compiler_owner": 1,
-        "new_grouped_shared_owners": 2,
-        "effective": 17
+        "LSP": 0,
+        "effective": 0,
+        "reason": "Current source remains frozen for exact retained validation."
       },
       "baseline_integrated": 328,
       "baseline_required": 2158,
@@ -133329,7 +133328,6 @@
       "effective_required": 2220,
       "effective_without_integration": 1831,
       "verified": 0,
-      "integrated_purposes": "Studio producer/client lifetime, configured compact-name owner+caller, decoded lambda source owner+formatter, checked code-action source/version, diagnostic rewrite wire source association, Tk source context, detected closedfile input, four currentcomplete validation callers; two sourceaction refusal repairs remain partial.",
       "ordinary_build_attempts": [
         {
           "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor/source-binding.json",
@@ -133366,44 +133364,98 @@
         },
         {
           "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/source-binding.json",
-          "status": "running",
+          "status": "PASS_FIVE_LIBRARY_BUILD",
+          "exit_code": 0,
+          "build_seconds": 334.257,
           "input_before_count": 39052,
-          "utc": "2026-10-17T02:03:28.756242+00:00"
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T02:03:28.756242+00:00",
+          "completed_utc": "2026-10-17T02:09:03.013400+00:00"
         }
       ],
+      "extra_three_libraries_build": "PASS187.722s39052inputs0drift",
+      "xtask_BIN_build": "PASS231.343s39052inputs0drift",
+      "current_extra18": {
+        "selected": 18,
+        "counts": {
+          "FAIL": 2,
+          "PASS": 16
+        },
+        "by_target": {
+          "tcl_lexer": {
+            "PASS": 6
+          },
+          "tcl_syntax": {
+            "PASS": 3
+          },
+          "tcl_spectcl": {
+            "FAIL": 2,
+            "PASS": 4
+          },
+          "xtask": {
+            "PASS": 3
+          }
+        },
+        "harness_errors": [],
+        "actual_wrapper_exit_code": 1,
+        "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+        "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+        "retained_extra9_status_changes": [],
+        "retained_extra9_prior_PASS_regressions": [],
+        "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "all_three_previously_owed_xtask_controls": "PASS",
+        "ordinary_acceptance": false,
+        "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
+      },
+      "current_standard962": {
+        "selected": 962,
+        "completed_controls_at_report": 397,
+        "partial_counts": {
+          "PASS": 346,
+          "FAIL": 49,
+          "TIMEOUT": 2
+        },
+        "harness_errors_so_far": [],
+        "invocation_status_at_report": "PREFLIGHT_PASS_CURRENT_SOURCE962",
+        "final_postflight_established": false,
+        "actual_wrapper_exit_code_if_completed": null,
+        "limits": "Partial capture does not establish final source/provider/artifact postflight, prior-PASS comparison or acceptance. Preserve all930 prior selectors and32new, original180s tests/30s listings. Keep39052 source inputs and allnineELFs frozen until completion."
+      },
       "editor": {
-        "status": "PASS_WITH_RETAINED_INITIAL_GIT_EPERM",
         "inputs": 443,
         "drift": 0,
-        "checks": "BothTypeScriptprojects/scopedconfiguredPrettier/worker/Node+browserbundlesPASS; unchangedoriginalStudioNodepermissionretry124PASS0FAIL0skips.",
-        "limits": "ActualIDEhosts notestablished; type/format/setup failures preserved."
+        "checks": "BothTypeScriptprojects/configuredscopedPrettier/worker/Node+browserbundlesPASS; unchanged originalStudioNodepermissionretry124PASS0FAIL0skip; initialGitEPERM/type/formatfailures preserved.",
+        "actual_host_acceptance": false
+      },
+      "queued_not_integrated_or_counted": {
+        "reviewed_composition": "Ten existing purposes across19paths: five partial semantic, one fullscope semantic pendingvalidation andfourvalidation; noannex count.",
+        "patch": "b84bff1d8810b2103dd7c322f85742abb5b19ba576ae39764668952054ebe26c",
+        "root_review": "/workspace/naming-validation/root-reviews/queued-next-ten-v4/independent-source-review-CLEAR.txt",
+        "held_workspace720": "V3 closes perrow closedoverride race but stale finalresolver and unavailable-to-complete inventory remain; V4 authoring. Earlier overwrittenV2 was honestly recorded and exactoriginal reconstructed; V3 immutable.",
+        "held_library709": "V1 lacks final originalprovider lease, atomic source/index/seed/autoloaded commit and completefactory/config join; V2 authoring.",
+        "held_node666": "V1 URI-only effectiveconfig cannot stamp captured source/context; V2 reuses genuine complete source report and existing context owners."
       },
       "previous_source_standard930": {
         "passed": 744,
         "failed": 184,
         "timed_out": 2,
-        "harness_errors": 0,
         "retained_gains": 3,
         "prior_PASS_regressions": 0,
-        "all39030_inputs_five_ELFs_original_providers_postflight_match": true,
-        "actual_canonical_and_wrapper_exit": 120,
-        "ordinary_acceptance": false
+        "all_postflights_match": true,
+        "actual_wrapper_exit": 120
       },
       "previous_source_extra9": {
         "passed": 7,
         "failed": 2,
-        "timed_out": 0,
-        "harness_errors": 0,
         "prior_PASS_regressions": 1,
-        "regression": "cache cold/warm notice quickfix count0vs1; othernotice/source checks passed first. Fixed sourceowner availability control included innew build; no invented fix.",
-        "all39030_inputs_eight_ELFs_original_providers_postflight_match": true,
-        "xtask_controls_owed": 3
+        "cache_notice_quickfix_regression": "Still unresolved and repeated by actualextra18; no speculativeproductionfix orguardrelaxation."
       },
-      "next_selected_validation": "Prospective962 preservesall930exactorderedprefix/guards andappends32actualstandardcontrols; sourcewrapperpeerCLEAR, actualsuccessfulbuild+Rootbinding+finalpeer required beforeexecution. Extra18 preservesall12including3owedxtask thenaddsSyntax2SpecTcl4, requiresactualseparateartifacts;11changedintegrationbodies stillowed.",
-      "queued_unintegrated": "HoverV3 sourcepacket; workspace-scanV1 held afteractualclosedoverridecurrencycounterexample, V2authoring; semanticfallback707 sourceinput/finaltransaction work; genericvalidation03.11/08.00 sourcepacket awaitingpeer. No queuedpacketcounts.",
-      "required_gates": "Owner/proof/global/generated/portable/rust-check/prep-pr notallgreen; originalJetBrainsSDKextractionENOSPC beforeKotlin/tests. NoPR/merge/issueclosure.",
-      "latest_push": "681ab58e0",
-      "scope": "AllLSP and necessarysharedCompiler/DB/Registry; Runtime/VM andBIGIP migrations/dedicatedsuites deferred; uncoveredBIGIPTcl8.4 isworkingassumptionnotNativeauthority. Full325baselineincludesdeferredrows, no artificialdenominator reduction."
+      "required_gates": "Owner/proof/global/generated/portable/rust-check/prep-pr notallgreen. Eleven changedintegrationbodies stillowed. ActualIDEhosts pending; originalJetBrainsSDKextractionENOSPC beforeKotlin/tests. NoPR/merge/issueclosure.",
+      "latest_push": "9bb82f859117f3c59c5c74e92132ab92ac82a691",
+      "scope": "AllLSP and necessaryCompiler/DB/Registry owners. Runtime/VM and dedicatedBIGIP migrations/suites deferred. UncoveredBIGIPTcl8.4 isworkingassumption, notmeasured/Nativeevidence. Full325baseline denominator retained.",
+      "chat_report_delivered_utc_minute": "2026-10-17T02:38Z",
+      "delay": "Environment restart temporarily removed execution access around scheduled02:37; report delivered inchat02:38 withlastconfirmed328controls, then repositorywritten02:39 afteraccessreturned andactual397completedcontrols observed. Original962processsurvived; no rerun orsourcechange."
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -133931,51 +133983,161 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "utc": "2026-10-16T23:06:00Z",
-      "lsp_integrated": 167,
+      "scheduled_utc": "2026-10-17T02:37:00Z",
+      "last_utc": "2026-10-17T02:39:03.026186+00:00",
+      "repository_written_utc": "2026-10-17T02:39:03.026186+00:00",
+      "delivery": "Chat and repository only; external guide unchanged.",
+      "next_utc": "2026-10-17T03:07:00Z",
+      "cadence_minutes": 30,
+      "lsp_integrated_at_report": 195,
       "lsp_required": 325,
-      "lsp_semantic": 73,
-      "lsp_validation": 92,
-      "lsp_documentation": 2,
-      "lsp_without_integration": 158,
-      "effective_integrated": 357,
-      "effective_required": 2217,
+      "lsp_semantic_integrated": 97,
+      "lsp_validation_integrated": 96,
+      "lsp_documentation_integrated": 2,
+      "lsp_no_integration": 130,
+      "gains_since_previous_report": {
+        "LSP": 0,
+        "effective": 0,
+        "reason": "Current source remains frozen for exact retained validation."
+      },
+      "baseline_integrated": 328,
+      "baseline_required": 2158,
+      "baseline_fullscope_pending": 306,
+      "baseline_partial": 22,
+      "annex_integrated": 61,
+      "annex_required": 62,
+      "effective_integrated_at_report": 389,
+      "effective_required": 2220,
+      "effective_without_integration": 1831,
       "verified": 0,
-      "next_report_utc": "2026-10-16T23:36:00Z",
-      "delta_since_previous_report": {
-        "lsp_integrated": 4,
-        "effective_integrated": 4,
-        "effective_required": 0
-      },
-      "validation": {
-        "ordinary_build": "PASS513.324s39002inputs0drift;1unusedtestimportwarning",
-        "complete_replay726": {
-          "PASS": 596,
-          "FAIL": 127,
-          "TIMEOUT": 3,
-          "all584_retained_in_order": true,
-          "retained584": "505PASS77FAIL2TIMEOUT",
-          "added142": "91PASS50FAIL1TIMEOUT",
-          "prior_failure_gains": [
-            232
-          ],
-          "prior_PASS_regressions": [
-            128
-          ],
-          "all39002_inputs_all5_ELFs_postflight_match": true,
-          "errors": 0,
-          "artifact_drift": 0,
-          "new_timeout": "row724 tests::workspace_symbol_caps_its_answer"
+      "ordinary_build_attempts": [
+        {
+          "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor/source-binding.json",
+          "status": "FAIL",
+          "exit_code": 101,
+          "build_seconds": 82.321,
+          "input_before_count": 39052,
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T01:49:17.898284+00:00",
+          "completed_utc": "2026-10-17T01:50:40.219342+00:00"
         },
-        "separate_extra_controls": "5PASS/all39002source+3ELFpostflightmatch",
-        "generated_current_drift": "PASS2.097s39002inputs0drift",
-        "jetbrains": "Actualmake test-jetbrains running from4ac51e087; originalpinnedGradle9.8hashverified/JDK17releasehashverified; noKotlinorIDEtestPASSclaim",
-        "owner_gate": "FAIL306reported/301distinct;29364inputs0drift63.482s",
-        "other_required_gates": "red/pending; noPR"
+        {
+          "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair1/source-binding.json",
+          "status": "FAIL",
+          "exit_code": 101,
+          "build_seconds": 127.858,
+          "input_before_count": 39052,
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T01:56:33.897245+00:00",
+          "completed_utc": "2026-10-17T01:58:41.755377+00:00"
+        },
+        {
+          "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair2/source-binding.json",
+          "status": "FAIL",
+          "exit_code": 101,
+          "build_seconds": 95.102,
+          "input_before_count": 39052,
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T02:00:29.633878+00:00",
+          "completed_utc": "2026-10-17T02:02:04.736135+00:00"
+        },
+        {
+          "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/source-binding.json",
+          "status": "PASS_FIVE_LIBRARY_BUILD",
+          "exit_code": 0,
+          "build_seconds": 334.257,
+          "input_before_count": 39052,
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T02:03:28.756242+00:00",
+          "completed_utc": "2026-10-17T02:09:03.013400+00:00"
+        }
+      ],
+      "extra_three_libraries_build": "PASS187.722s39052inputs0drift",
+      "xtask_BIN_build": "PASS231.343s39052inputs0drift",
+      "current_extra18": {
+        "selected": 18,
+        "counts": {
+          "FAIL": 2,
+          "PASS": 16
+        },
+        "by_target": {
+          "tcl_lexer": {
+            "PASS": 6
+          },
+          "tcl_syntax": {
+            "PASS": 3
+          },
+          "tcl_spectcl": {
+            "FAIL": 2,
+            "PASS": 4
+          },
+          "xtask": {
+            "PASS": 3
+          }
+        },
+        "harness_errors": [],
+        "actual_wrapper_exit_code": 1,
+        "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+        "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+        "retained_extra9_status_changes": [],
+        "retained_extra9_prior_PASS_regressions": [],
+        "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "all_three_previously_owed_xtask_controls": "PASS",
+        "ordinary_acceptance": false,
+        "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
       },
-      "scope": "LSP+necessarysharedowners; Runtime/VM/BIGIP dedicatedworkdeferred",
-      "last_push": "4ac51e087bfaefa05b14db27f7da06b15250ae6e",
-      "external_guide": "Userchosechat+repositoryreports; leaveexternalguideunchanged"
+      "current_standard962": {
+        "selected": 962,
+        "completed_controls_at_report": 397,
+        "partial_counts": {
+          "PASS": 346,
+          "FAIL": 49,
+          "TIMEOUT": 2
+        },
+        "harness_errors_so_far": [],
+        "invocation_status_at_report": "PREFLIGHT_PASS_CURRENT_SOURCE962",
+        "final_postflight_established": false,
+        "actual_wrapper_exit_code_if_completed": null,
+        "limits": "Partial capture does not establish final source/provider/artifact postflight, prior-PASS comparison or acceptance. Preserve all930 prior selectors and32new, original180s tests/30s listings. Keep39052 source inputs and allnineELFs frozen until completion."
+      },
+      "editor": {
+        "inputs": 443,
+        "drift": 0,
+        "checks": "BothTypeScriptprojects/configuredscopedPrettier/worker/Node+browserbundlesPASS; unchanged originalStudioNodepermissionretry124PASS0FAIL0skip; initialGitEPERM/type/formatfailures preserved.",
+        "actual_host_acceptance": false
+      },
+      "queued_not_integrated_or_counted": {
+        "reviewed_composition": "Ten existing purposes across19paths: five partial semantic, one fullscope semantic pendingvalidation andfourvalidation; noannex count.",
+        "patch": "b84bff1d8810b2103dd7c322f85742abb5b19ba576ae39764668952054ebe26c",
+        "root_review": "/workspace/naming-validation/root-reviews/queued-next-ten-v4/independent-source-review-CLEAR.txt",
+        "held_workspace720": "V3 closes perrow closedoverride race but stale finalresolver and unavailable-to-complete inventory remain; V4 authoring. Earlier overwrittenV2 was honestly recorded and exactoriginal reconstructed; V3 immutable.",
+        "held_library709": "V1 lacks final originalprovider lease, atomic source/index/seed/autoloaded commit and completefactory/config join; V2 authoring.",
+        "held_node666": "V1 URI-only effectiveconfig cannot stamp captured source/context; V2 reuses genuine complete source report and existing context owners."
+      },
+      "previous_source_standard930": {
+        "passed": 744,
+        "failed": 184,
+        "timed_out": 2,
+        "retained_gains": 3,
+        "prior_PASS_regressions": 0,
+        "all_postflights_match": true,
+        "actual_wrapper_exit": 120
+      },
+      "previous_source_extra9": {
+        "passed": 7,
+        "failed": 2,
+        "prior_PASS_regressions": 1,
+        "cache_notice_quickfix_regression": "Still unresolved and repeated by actualextra18; no speculativeproductionfix orguardrelaxation."
+      },
+      "required_gates": "Owner/proof/global/generated/portable/rust-check/prep-pr notallgreen. Eleven changedintegrationbodies stillowed. ActualIDEhosts pending; originalJetBrainsSDKextractionENOSPC beforeKotlin/tests. NoPR/merge/issueclosure.",
+      "latest_push": "9bb82f859117f3c59c5c74e92132ab92ac82a691",
+      "scope": "AllLSP and necessaryCompiler/DB/Registry owners. Runtime/VM and dedicatedBIGIP migrations/suites deferred. UncoveredBIGIPTcl8.4 isworkingassumption, notmeasured/Nativeevidence. Full325baseline denominator retained.",
+      "chat_report_delivered_utc_minute": "2026-10-17T02:38Z",
+      "delay": "Environment restart temporarily removed execution access around scheduled02:37; report delivered inchat02:38 withlastconfirmed328controls, then repositorywritten02:39 afteraccessreturned andactual397completedcontrols observed. Original962processsurvived; no rerun orsourcechange."
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -134924,7 +135086,7 @@
       "capsule": "experiments/name-handling/results/owner-adoption-20261017/lsp-studio-action-source-successor",
       "actual_source_repairs": "Independentlyreviewed3existinggettercalls +3requirednewfixturefields +newlastarrayindex +actualconfiguredformat; oneadditionalfixedowneravailabilitycontrol, alloldassertionspreserved, no countdelta.",
       "native_repair2": "FAIL95.102s E0433 missingWorkDoneProgressParams in3newStudio testliterals; all39052inputsunchanged,noELF. Reviewedcfg(test) actualtypeimport andunusedtraitremoveapplied.",
-      "latest_development_push": "681ab58e0",
+      "latest_development_push": "9bb82f859117f3c59c5c74e92132ab92ac82a691",
       "report_build_attempts": [
         {
           "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor/source-binding.json",
@@ -134961,9 +135123,14 @@
         },
         {
           "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/source-binding.json",
-          "status": "running",
+          "status": "PASS_FIVE_LIBRARY_BUILD",
+          "exit_code": 0,
+          "build_seconds": 334.257,
           "input_before_count": 39052,
-          "utc": "2026-10-17T02:03:28.756242+00:00"
+          "input_after_count": 39052,
+          "input_drift_count": 0,
+          "utc": "2026-10-17T02:03:28.756242+00:00",
+          "completed_utc": "2026-10-17T02:09:03.013400+00:00"
         }
       ],
       "native_repair3": {
@@ -135015,7 +135182,20 @@
           "ordinary_acceptance": false,
           "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
         },
-        "standard962": "RUNNING; session72272; do not infer acceptance from partial results",
+        "standard962": {
+          "selected": 962,
+          "completed_controls_at_report": 397,
+          "partial_counts": {
+            "PASS": 346,
+            "FAIL": 49,
+            "TIMEOUT": 2
+          },
+          "harness_errors_so_far": [],
+          "invocation_status_at_report": "PREFLIGHT_PASS_CURRENT_SOURCE962",
+          "final_postflight_established": false,
+          "actual_wrapper_exit_code_if_completed": null,
+          "limits": "Partial capture does not establish final source/provider/artifact postflight, prior-PASS comparison or acceptance. Preserve all930 prior selectors and32new, original180s tests/30s listings. Keep39052 source inputs and allnineELFs frozen until completion."
+        },
         "source_freeze": "Maintain39052 source inputs and all9 currentELFs until standard962 final postflight",
         "editor443": "PASS bothTypeScriptprojects/configuredformat/worker/Node+browserbundles; unchanged originalStudioNodepermissionretry124P0F0skip; actualhostsnotestablished",
         "no_runtime_vm_bigip_dedicated_migration": true

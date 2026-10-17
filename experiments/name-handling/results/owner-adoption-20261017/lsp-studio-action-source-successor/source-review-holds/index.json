@@ -1,0 +1,20 @@
+[
+  {
+    "source": "/workspace/naming-validation/agent-work/independent-workspace720-v3-review/independent-review-HOLD.txt",
+    "retained": "workspace720-runtime-HOLD.txt",
+    "sha256": "570a517535255e8e21db0d8d04cf6de7de9b028cfb749b1967b4638ba092a7a2",
+    "scope": "Source review only; no Main integration or test execution."
+  },
+  {
+    "source": "/tmp/sol-workspace720-v3-review/independent-review-HOLD.txt",
+    "retained": "workspace720-compiler-HOLD.txt",
+    "sha256": "bcb53edaf34af734683ca3764f6d5ffa525e9d9b297af21e8c5e90179dd1b018",
+    "scope": "Source review only; no Main integration or test execution."
+  },
+  {
+    "source": "/workspace/naming-validation/agent-work/independent-library709-v1-review/independent-review-HOLD.txt",
+    "retained": "library709-HOLD.txt",
+    "sha256": "773edbfe1290fdc0a8fcae9c5c7f3418fdbdeff3c806f6ee28f271a1867e0153",
+    "scope": "Source review only; no Main integration or test execution."
+  }
+]
