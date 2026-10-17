@@ -34,8 +34,8 @@ import {
   scaledTimeout,
   serverStateEvidence,
   serverTransportWedged,
-  waitForDiagnostics,
   waitForProviderResult,
+  waitForDiagnosticsSnapshot,
 } from "./helper";
 
 // Properties of the wait discipline itself.
@@ -183,10 +183,14 @@ suite("Wait discipline (issue #1274)", () => {
     const started = Date.now();
     let error: Error | undefined;
     try {
-      const diags = await waitForDiagnostics(docUri, {
+      const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
         timeout: base,
         predicate: (ds) => ds.some((d) => String(d.code) === "ZZZ999-never-emitted"),
       });
+      if (!currentSnapshotFor_diags.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...currentSnapshotFor_diags.report.diagnostics];
       assert.fail(
         `waitForDiagnostics resolved instead of rejecting, with ${diags.length} diagnostic(s) ` +
           `the predicate never accepted`,
@@ -634,7 +638,14 @@ suite("Wait discipline (issue #1274)", () => {
     // must return on the immediate probe rather than on any interval.
     await activate(docUri);
     const started = Date.now();
-    const diags = await waitForDiagnostics(docUri, { minCount: 1, timeout: 20_000 });
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+      timeout: 20_000,
+    });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(diags.length >= 1, "the fixture publishes diagnostics");
     assert.ok(
       Date.now() - started < scaledTimeout(2_000),

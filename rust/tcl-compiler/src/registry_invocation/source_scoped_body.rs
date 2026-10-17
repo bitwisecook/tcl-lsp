@@ -915,6 +915,24 @@ impl OriginalSourceScriptBody {
         })
     }
 }
+fn source_member_grammar(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    schema.authored_source_definition_body_grammar()
+}
+
+/// Disposition under one genuine current definition-member vocabulary.
+/// Nonmembership is source syntax only, never runtime command absence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalSourceDefinitionMemberDisposition {
+    /// The complete retained vocabulary classifies this source command as a nonmember.
+    CompleteNonMember,
+    /// The retained source or vocabulary cannot supply a complete classification.
+    Unavailable,
+    /// The source command is a member with the retained script bodies, possibly empty.
+    CompleteMember(Vec<OriginalSourceDefinitionMemberScriptBody>),
+}
+
 impl OriginalSourceDefinitionMemberRegion {
     /// Complete original vectors only when the retained lexical plan covers
     /// the entire genuine parent definition body without a fatal tail.
@@ -943,6 +961,67 @@ impl OriginalSourceDefinitionMemberRegion {
             .binary_search_by_key(&start, |command| command.span.start())
             .ok()?;
         Some(&self.plan.commands.get(index)?.words)
+    }
+
+    /// Actual retained script region; nested ordinary scripts keep their own
+    /// independent source region rather than inheriting an enclosing vocabulary.
+    #[must_use]
+    pub const fn source_region(&self) -> Span {
+        self.region
+    }
+
+    /// Separate complete nonmember, unavailable owner/layout and complete
+    /// selected bodies before a consumer considers global command source data.
+    #[must_use]
+    pub fn script_body_disposition(
+        &self,
+        context: &ContextRegistry,
+        original: &[NativeWord],
+    ) -> OriginalSourceDefinitionMemberDisposition {
+        use OriginalSourceDefinitionMemberDisposition::{
+            CompleteMember, CompleteNonMember, Unavailable,
+        };
+        let Some(first) = original.first() else {
+            return Unavailable;
+        };
+        if self.plan.fatal_tail.is_some()
+            || self.context != *context.context()
+            || !self.parent.matches_context(context)
+            || !self.parent.matches_source(first.image(), first.config())
+            || self
+                .parent
+                .source_words()
+                .with_source_schema(context, source_member_grammar)
+                .flatten()
+                .is_none_or(|grammar| !std::ptr::eq(grammar, self.grammar))
+        {
+            return Unavailable;
+        }
+        let Some(values) = self.member_values_with_dynamic(original, true) else {
+            return Unavailable;
+        };
+        let Some(keyword) = values
+            .first()
+            .and_then(Option::as_deref)
+            .and_then(|keyword| std::str::from_utf8(keyword).ok())
+        else {
+            return Unavailable;
+        };
+        if self.grammar.member(keyword).is_none() {
+            return CompleteNonMember;
+        }
+        if self
+            .grammar
+            .source_member_in(
+                keyword.as_bytes(),
+                Some(context.context().authoring_query()),
+            )
+            .is_none()
+        {
+            return Unavailable;
+        }
+        self.checked_script_bodies(original)
+            .map_or(Unavailable, CompleteMember)
     }
 
     /// Complete original command vectors from the retained lexical plan.
@@ -1124,11 +1203,19 @@ impl OriginalSourceDefinitionMemberRegion {
                 }
             })
             .collect();
-        let selected = self.grammar.source_member_script_arguments_in(
-            keyword,
-            tcl_registry::InvocationArguments::structured(&arguments),
-            Some(self.context.authoring_query()),
-        )?;
+        let selected = if complete {
+            self.grammar.checked_source_member_script_arguments_in(
+                keyword,
+                tcl_registry::InvocationArguments::structured(&arguments),
+                Some(self.context.authoring_query()),
+            )?
+        } else {
+            self.grammar.source_member_script_arguments_in(
+                keyword,
+                tcl_registry::InvocationArguments::structured(&arguments),
+                Some(self.context.authoring_query()),
+            )?
+        };
         // Row selectors require an independent original Document literal,
         // not a text projection of the retained counted value alone.
         let source_literals = original
@@ -1204,6 +1291,14 @@ impl OriginalSourceDefinitionMemberRegion {
     }
 
     fn member_values(&self, original: &[NativeWord]) -> Option<Vec<Option<Vec<u8>>>> {
+        self.member_values_with_dynamic(original, false)
+    }
+
+    fn member_values_with_dynamic(
+        &self,
+        original: &[NativeWord],
+        keep_dynamic: bool,
+    ) -> Option<Vec<Option<Vec<u8>>>> {
         let first = original.first()?;
         if first.group().expand {
             return None;
@@ -1227,6 +1322,14 @@ impl OriginalSourceDefinitionMemberRegion {
                     word.image() == first.image() && word.config() == input.lexer_config()
                 }))
             .then_some(())?;
+            if keep_dynamic {
+                return Some(
+                    original
+                        .iter()
+                        .map(tcl_syntax::word_rules::original_static_word_unicode_value)
+                        .collect(),
+                );
+            }
             return original
                 .iter()
                 .map(|word| {
@@ -2718,6 +2821,64 @@ mod script_purpose_tests {
                 .iter()
                 .all(|body| body.original_container() != &words[3])
         );
+    }
+
+    #[test]
+    fn original_member_disposition_keeps_nonmember_unavailable_and_complete_geometry_separate() {
+        use OriginalSourceDefinitionMemberDisposition as D;
+        let source = "oo::class create C {\nmethod good {} {puts ok}\nsuperclass Base\nif $condition {puts global}\nmethod missing {}\nmethod cooked {} \"puts\\x20cooked\"\n$head body\n}\n";
+        let (analysis, parent) = original_definition_parent(source, "tcl");
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let region = parent
+            .definition_member_region(&context, parent.content_span())
+            .unwrap();
+        let commands = region.original_commands().collect::<Vec<_>>();
+        assert_eq!(commands.len(), 6);
+        let D::CompleteMember(bodies) = region.script_body_disposition(&context, commands[0])
+        else {
+            panic!("the genuine complete member must retain its body");
+        };
+        assert_eq!(bodies.len(), 1);
+        assert_eq!(bodies[0].original_words(), commands[0]);
+        assert_eq!(bodies[0].original_container(), &commands[0][3]);
+        assert!(
+            matches!(region.script_body_disposition(&context, commands[1]), D::CompleteMember(bodies) if bodies.is_empty())
+        );
+        assert!(matches!(
+            region.script_body_disposition(&context, commands[2]),
+            D::CompleteNonMember
+        ));
+        for words in [&commands[0][..3], commands[3], commands[4], commands[5]] {
+            assert!(matches!(
+                region.script_body_disposition(&context, words),
+                D::Unavailable
+            ));
+        }
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(matches!(
+            region.script_body_disposition(
+                &foreign.resolved_input.as_ref().unwrap().context_registry(),
+                commands[0],
+            ),
+            D::Unavailable
+        ));
+        let changed = source.replace("puts ok", "puts no");
+        let (changed_analysis, changed_parent) = original_definition_parent(&changed, "tcl");
+        let changed_context = changed_analysis
+            .resolved_input
+            .as_ref()
+            .unwrap()
+            .context_registry();
+        let changed_region = changed_parent
+            .definition_member_region(&changed_context, changed_parent.content_span())
+            .unwrap();
+        assert!(matches!(
+            region.script_body_disposition(
+                &context,
+                changed_region.original_commands().next().unwrap()
+            ),
+            D::Unavailable
+        ));
     }
 
     #[test]

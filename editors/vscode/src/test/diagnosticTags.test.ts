@@ -18,7 +18,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnostics,
+  waitForDiagnosticsSnapshot,
+  type CurrentDiagnosticsSnapshot,
+} from "./helper";
 
 // The *user-visible* half of diagnostic tag propagation.
 //
@@ -47,15 +53,19 @@ suite("Diagnostic tags render unused code faded and deprecated code struck throu
   const tclUri = getDocUri("diagnosticTags.tcl");
   const iruleUri = getDocUri("deprecatedTag.irule");
 
-  async function tclDiagnostics(): Promise<vscode.Diagnostic[]> {
+  async function tclDiagnostics(): Promise<CurrentDiagnosticsSnapshot> {
     await activate(tclUri);
-    return waitForDiagnostics(tclUri, {
+    return waitForDiagnosticsSnapshot(tclUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W214"),
     });
   }
 
   test("an unused proc parameter is marked Unnecessary, so VS Code fades it", async () => {
-    const diags = await tclDiagnostics();
+    const currentSnapshotFor_diags = await tclDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w214 = withCode(diags, "W214");
     assert.strictEqual(w214.length, 1, `expected one W214; got ${JSON.stringify(w214)}`);
     assert.deepStrictEqual(
@@ -70,7 +80,11 @@ suite("Diagnostic tags render unused code faded and deprecated code struck throu
   });
 
   test("the severity stays a Hint — the tag is the fix, not a louder squiggle", async () => {
-    const diags = await tclDiagnostics();
+    const currentSnapshotFor_diags = await tclDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w214 = withCode(diags, "W214");
     assert.strictEqual(
       w214[0].severity,
@@ -81,7 +95,11 @@ suite("Diagnostic tags render unused code faded and deprecated code struck throu
   });
 
   test("an unused local variable is marked Unnecessary too", async () => {
-    const diags = await tclDiagnostics();
+    const currentSnapshotFor_diags = await tclDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w211 = withCode(diags, "W211");
     assert.ok(w211.length >= 1, `expected a W211; got ${JSON.stringify(diags.map(codeOf))}`);
     assert.deepStrictEqual(tagsOf(w211[0]), [vscode.DiagnosticTag.Unnecessary]);
@@ -90,14 +108,22 @@ suite("Diagnostic tags render unused code faded and deprecated code struck throu
   test("a read-before-set defect is never faded", async () => {
     // The one way "tag the unused-variable family" could go wrong: fading a
     // real bug hides it.
-    const diags = await tclDiagnostics();
+    const currentSnapshotFor_diags = await tclDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w210 = withCode(diags, "W210");
     assert.ok(w210.length >= 1, `expected a W210; got ${JSON.stringify(diags.map(codeOf))}`);
     assert.deepStrictEqual(tagsOf(w210[0]), [], "W210 describes a defect and must stay solid");
   });
 
   test("ordinary diagnostics carry no tags at all", async () => {
-    const diags = await tclDiagnostics();
+    const currentSnapshotFor_diags = await tclDiagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const untagged = diags.filter(
       (d) => !["W211", "W214", "W220", "O126"].includes(codeOf(d)) && tagsOf(d).length > 0,
     );

@@ -1,0 +1,17 @@
+{
+  "status": "SOURCE_ONLY_THREE_COMPILER_ERRORS_TYPE_RESOLUTION_PENDING_PEER",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "d63765459ca161e8e3315fd1e6868cc488156d44841bca444ea02b63fee8d5a6",
+      "after_sha256": "bb8ad60f8981104fc2b5a94b5243a968962e6d789d8e85af0c2a532ad2fa989a"
+    }
+  ],
+  "artifacts": {
+    "change.patch": "6921c6f8cb7e086749220ccf83c927cce19812022beb7c21fcc817571ae30e60",
+    "proof.json": "65bd30658e154657768e8cba76b2dcddc77716655ef99d5c2696320ae92ef813",
+    "replay.txt": "f9533ed7885af27ff36393c6a08221e80d7be45399c42aef3b0b8102877a5962",
+    "finding.txt": "6b83a697765e6e9ba3382f2923154894a1cfe0e4c370797d07abd9615c897943"
+  },
+  "tests_executed": false
+}

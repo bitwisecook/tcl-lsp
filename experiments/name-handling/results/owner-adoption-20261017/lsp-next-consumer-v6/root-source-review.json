@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-17T04:22:41.701510+00:00",
+  "status": "ROOT_SOURCE_CLEAR_BOUNDED_PENDING_ACTUAL_COMPILATION_EXECUTION",
+  "manifest": "/workspace/naming-validation/agent-work/lsp-next-consumer-composition-v6/manifest.json",
+  "manifest_sha256": "7d2464e6cf7b3f901aaf06641ecb7ee4de1bb7e8e291b6c5d5715630cdd684fc",
+  "patch_sha256": "aeecad0d33b5d6f1756441b6b42b8cc84a8620f65a3f8fea3e12a550109ea7d1",
+  "paths": 79,
+  "changed_paths": 78,
+  "checks": [
+    "Every old39058 captured source input exact before admission",
+    "All79 current commonbases and proposed afterimages exact",
+    "Root fresh zero-offset/fuzz forward and inverse replay exact",
+    "Final TypeScript afterimages match Root noEmit compiler API prospective PASS with45 virtualTS and465 physical inputs",
+    "Actual994/18/nativebuild completed original-source/provider/ELF postflights before admission; nine ELF archive members verified"
+  ],
+  "reviewed_behavior": "Genuine source Scope grouping; Node/browser metadata issuer/currentness; tri-state definition member disposition; readonly Logical header/tape calls; checked rename hazard coverage; Registry Tk parent/depth/Core/UI transport; actual Native path validation literals; bounded WASM version/source positive control; shared complete-report/current-snapshot test consumers; selected source form correspondence after exact emitted literal subset; configured discovery/actual selected loader saved-input/provider/installed publication joins; expose existing tracked nonblocking read in production.",
+  "causal_repairs": "Actual994 Logical call tape inventory and exact quoted/braced whole-content geometry repair first missing boundaries. Sole674 joining helper uses same actual tape owner, with independent peer. No assertion/fixture/selector/budget or Native/source/current-input guard weakened; actual five-control efficacy still owed.",
+  "partial_limits": "Node globalactiveDialect, browser broaderworkspace/resource invalidation, minifier widerframe/equivalence, definition674 broaderreferences/rename, rename655 editclosure, formatter operand/runtime equivalence, fn2 dedicatedvendor callers and unretained nested packloader phases remain partial. No Runtime/VM/BIGIP suite or migration; F5 multifolder/ILX excluded.",
+  "count_reconciliation": "17 existingLSP purposes, one existingRegistryTk baseline owner; exactly two demonstrated new shared-owner purpose facets (selected source literal/form correspondence; actual configured-discovery\u2192installed pack publication). No helper/API/test multiplicity, no extra count for causal/compile/import adapters. Root tracking update follows actual admission.",
+  "ordinary_acceptance": false,
+  "verified_complete": 0
+}

@@ -1,0 +1,30 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6-repair1/admission.json",
+  "approved_union_manifest_sha256": "139c5eac703e9582cedaa1e434d02ce3ed0a37f2b23f07e8c58dfb04644ccf6b",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 205,
+  "source_head": "89326acf1a61ebf38e46b1f78c5b84d919248a25",
+  "rust_diff_sha256": "4c458bef6c71be786436f9a3f16d169cabc16c264999da8478256cc75bbf206f",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39100,
+  "utc": "2026-10-17T04:25:10.825947+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed V6 generic LSP consumers and necessary Compiler/DB/Registry owners: metadata lifetime, diagnostics reports, source definitions/linked geometry, Tk parent/depth, rename coverage, minifier source scopes, formatter selected form correspondence and configured pack publication. All original tests/assertions/provider/Native/source guards retained. Runtime/VM/BIGIP dedicated work deferred. All source frozen through actual successor validation; no traces or budget changes.",
+  "exit_code": 101,
+  "build_seconds": 190.392,
+  "input_after_count": 39100,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-17T04:28:21.218263+00:00"
+}

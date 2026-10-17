@@ -226,7 +226,7 @@ pub fn load_discovered_in(
     files: &[PackFile],
     trust: WorkspaceTrust,
 ) -> PackSet {
-    load_selected_sources_in(store, files, None, trust)
+    load_selected_sources_in(store, files, None, trust).0
 }
 
 /// Load discovered ordinary packs with exact caller-retained Studio source
@@ -243,6 +243,18 @@ pub fn load_discovered_with_studio_sources_in(
     studio: &[(PathBuf, String)],
     trust: WorkspaceTrust,
 ) -> PackSet {
+    load_selected_sources_in(store, files, Some(studio), trust).0
+}
+
+/// Load the same discovered inputs while retaining their actual read images.
+/// The host still owns final provider, source and installed-registry checks.
+#[must_use]
+pub fn load_discovered_with_studio_sources_and_inputs_in(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+    studio: &[(PathBuf, String)],
+    trust: WorkspaceTrust,
+) -> (PackSet, crate::pack::LoadedSourceInputs) {
     load_selected_sources_in(store, files, Some(studio), trust)
 }
 
@@ -251,13 +263,17 @@ fn load_selected_sources_in(
     files: &[PackFile],
     studio: Option<&[(PathBuf, String)]>,
     trust: WorkspaceTrust,
-) -> PackSet {
+) -> (PackSet, crate::pack::LoadedSourceInputs) {
     let ordinary: Vec<_> = files
         .iter()
         .filter(|file| studio.is_none() || file.tier != Tier::StudioOverride)
         .cloned()
         .collect();
-    let (mut sources, notices) = crate::pack::read_sources(store, &ordinary);
+    let crate::pack::LoadedSourceRead {
+        mut sources,
+        notices,
+        mut inputs,
+    } = crate::pack::read_sources_with_inputs(store, &ordinary);
     if let Some(studio) = studio {
         sources.extend(files.iter().filter_map(|file| {
             if file.tier != Tier::StudioOverride {
@@ -292,11 +308,27 @@ fn load_selected_sources_in(
                 .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
         );
     }
-    if studio.is_some() {
-        crate::pack::load_sources_unpublished(sources, notices, trust, Some(store))
+    inputs.unretained_nested_inputs |= sources
+        .iter()
+        .any(|(_, source)| crate::loader::uses_include(source));
+    let packs = if studio.is_some() {
+        crate::pack::load_sources_unpublished_with_inputs(
+            sources,
+            notices,
+            trust,
+            Some(store),
+            &mut inputs,
+        )
     } else {
         crate::pack::load_sources(sources, notices, trust, Some(store))
-    }
+    };
+    inputs.unretained_nested_inputs |= packs.packs.iter().any(|pack| {
+        pack.commands
+            .iter()
+            .any(|command| crate::package_sources::declared_source_path(command).is_some())
+            || crate::extension_artefacts::has_external_inputs(&pack.commands)
+    });
+    (packs, inputs)
 }
 
 /// [`packs`]'s resolution, factored out so a test can drive it with an
@@ -871,5 +903,67 @@ mod retained_studio_source_tests {
                 .iter()
                 .any(|pack| pack.tier == Tier::StudioOverride)
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_configuration_input_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn unretained_include_and_package_input_phases_cannot_supply_configuration_receipts() {
+        let store = MemoryStore::new();
+        let path = PathBuf::from("/pack-configuration/requested.tclspec");
+        let file = PackFile {
+            path: path.clone(),
+            tier: Tier::Workspace,
+            origin: Origin::Setting,
+            dependency_tier: None,
+        };
+        for source in [
+            "speclib requested 2.0 {\ninclude missing.tclspec-frag\n}\n",
+            "speclib requested 2.0 {\ncommand requested::call {\narity 0\nruntime_backing tcl-body {-package-source implementation.tcl}\n}\n}\n",
+        ] {
+            store.upsert(path.clone(), source.as_bytes().to_vec());
+            let (_, inputs) = load_discovered_with_studio_sources_and_inputs_in(
+                &store,
+                std::slice::from_ref(&file),
+                &[],
+                WorkspaceTrust::Trusted,
+            );
+            assert!(inputs.selected(std::slice::from_ref(&path)).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod retained_unreadable_loader_phase_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn bundled_merge_preserves_selected_read_failure_refusal() {
+        let store = MemoryStore::new();
+        let missing = PackFile {
+            path: PathBuf::from("/pack-configuration/unreadable.tclspec"),
+            tier: Tier::Workspace,
+            origin: Origin::Setting,
+            dependency_tier: None,
+        };
+        let (packs, inputs) = load_discovered_with_studio_sources_and_inputs_in(
+            &store,
+            std::slice::from_ref(&missing),
+            &[],
+            WorkspaceTrust::Trusted,
+        );
+        assert!(
+            packs
+                .notices
+                .iter()
+                .any(|notice| notice.path == missing.path)
+        );
+        assert!(inputs.retained_paths().is_empty());
+        assert!(inputs.selected(&inputs.retained_paths()).is_none());
     }
 }

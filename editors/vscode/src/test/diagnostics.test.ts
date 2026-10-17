@@ -22,6 +22,7 @@ import {
   getDocUri,
   activate,
   waitForDiagnostics,
+  waitForDiagnosticsSnapshot,
   waitForEffectiveConfig,
   getServerLogSize,
   waitForDeepDiagnostics,
@@ -33,7 +34,11 @@ suite("Diagnostics", () => {
 
   test("produces expected diagnostic codes", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 3 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(docUri, { minCount: 3 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     assert.ok(
       diagnostics.length >= 3,
@@ -51,7 +56,11 @@ suite("Diagnostics", () => {
 
   test("E100 range covers the stray ']' character itself", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(docUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const e100 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -67,7 +76,11 @@ suite("Diagnostics", () => {
 
   test("E102 range covers the stray '}' character itself", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(docUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const e102 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -81,7 +94,11 @@ suite("Diagnostics", () => {
 
   test("W100 diagnostic has error severity when expr contains substitutions", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(docUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w100 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -98,7 +115,11 @@ suite("Diagnostics", () => {
 
   test("W302 diagnostic has hint severity", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 3 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(docUri, { minCount: 3 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w302 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -120,9 +141,13 @@ suite("Diagnostics", () => {
     try {
       // Default: `set x 1` is an unused variable at hint severity (the faint
       // underline).
-      const base = await waitForDiagnostics(uri, {
+      const baseSnapshot = await waitForDiagnosticsSnapshot(uri, {
         predicate: (d) => d.some((x) => codeOf(x) === "W211"),
       });
+      if (!baseSnapshot.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const base = [...baseSnapshot.report.diagnostics];
       assert.strictEqual(
         w211Severity(base),
         vscode.DiagnosticSeverity.Hint,
@@ -131,10 +156,14 @@ suite("Diagnostics", () => {
 
       // Override to warning: the same diagnostic must now publish as a warning.
       await config.update("W211", "warning", vscode.ConfigurationTarget.Workspace);
-      const raised = await waitForDiagnostics(uri, {
+      const raisedSnapshot = await waitForDiagnosticsSnapshot(uri, {
         predicate: (d) =>
           d.some((x) => codeOf(x) === "W211" && x.severity === vscode.DiagnosticSeverity.Warning),
       });
+      if (!raisedSnapshot.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const raised = [...raisedSnapshot.report.diagnostics];
       assert.strictEqual(
         w211Severity(raised),
         vscode.DiagnosticSeverity.Warning,
@@ -164,7 +193,11 @@ suite("Diagnostics", () => {
   test("W125 fires for orphaned else/elseif on separate line", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);
-    const diagnostics = await waitForDiagnostics(orphanedUri, { minCount: 2 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(orphanedUri, { minCount: 2 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w125 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -193,7 +226,11 @@ suite("Diagnostics", () => {
   test("W128 fires for a call to a command renamed away earlier in the file", async () => {
     const renameUri = getDocUri("diagnostics-rename.tcl");
     await activate(renameUri);
-    const diagnostics = await waitForDiagnostics(renameUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(renameUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w128 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -221,7 +258,11 @@ suite("Diagnostics", () => {
     // genuine `rename greet hail` on line 12 stays silent.
     const renameUri = getDocUri("diagnostics-rename-nonexistent.tcl");
     await activate(renameUri);
-    const diagnostics = await waitForDiagnostics(renameUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(renameUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w123 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -247,7 +288,11 @@ suite("Diagnostics", () => {
   test("W143 flags private ::tcl:: namespace calls only, and only fixes the legal rewrites", async () => {
     const privateUri = getDocUri("diagnostics-private-tcl-namespace.tcl");
     await activate(privateUri);
-    const diagnostics = await waitForDiagnostics(privateUri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(privateUri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w143 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -312,7 +357,11 @@ suite("Diagnostics", () => {
   test("T100 fires for a tainted if-condition operand but not for a pure string compare", async () => {
     const taintUri = getDocUri("diagnostics-taint-t100.tcl");
     await activate(taintUri);
-    const diagnostics = await waitForDiagnostics(taintUri, { minCount: 2 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(taintUri, { minCount: 2 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const t100 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -350,7 +399,11 @@ suite("Diagnostics", () => {
   test("W125 does not fire for correctly placed else", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);
-    const diagnostics = await waitForDiagnostics(orphanedUri, { minCount: 2 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(orphanedUri, { minCount: 2 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const w125 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -369,7 +422,11 @@ suite("Diagnostics", () => {
   test("E004 fires for each malformed `if` clause shape, precisely and not for well-formed ones", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);
-    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(e004Uri, { minCount: 3 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const e004 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -441,7 +498,11 @@ suite("Diagnostics", () => {
   test("E004 does not fire for a leading `else` bareword condition or a well-formed elseif/else chain", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);
-    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(e004Uri, { minCount: 3 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const e004 = diagnostics.filter((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -490,8 +551,11 @@ suite("Diagnostics", () => {
 
       // Await the URI's deep-pass marker: an empty diagnostic set alone
       // does not show that analysis completed.
-      await waitForDeepDiagnostics(cleanUri, { since });
-      const diagnostics = vscode.languages.getDiagnostics(cleanUri);
+      const deep = await waitForDeepDiagnostics(cleanUri, { since });
+      if (!deep?.isCurrent()) {
+        throw new Error("The clean-document deep-diagnostics report became stale");
+      }
+      const diagnostics = [...deep.report.diagnostics];
 
       assert.strictEqual(
         diagnostics.length,
@@ -511,7 +575,11 @@ suite("Diagnostics", () => {
     const uri = getDocUri("precision-lifecycle.tcl");
     await activate(uri);
     // The fixture's last line (unbraced expr) yields W100, proving analysis ran.
-    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
 
     assert.ok(codes.includes("W100"), `expected analysis to run (W100) in [${codes}]`);
@@ -526,10 +594,14 @@ suite("Diagnostics", () => {
   test("a single dead store surfaces W211 only (co-located W220 deduped)", async () => {
     const uri = getDocUri("deadStoreDedup.tcl");
     await activate(uri);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (d) =>
         d.some((x) => (typeof x.code === "object" ? x.code.value : x.code) === "W211"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codeOf = (d: vscode.Diagnostic) =>
       typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
     // `set x 1` (line 6): exactly one lifecycle hint — W211, not W211 + W220.
@@ -557,7 +629,11 @@ suite("Diagnostics", () => {
     await activate(uri);
     // The body-internal dead store yields exactly one W220, proving analysis ran
     // AND that the analyser walked into the (now-lowered) dict-for body.
-    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
     const codes = diagnostics.map(codeOf);
 
@@ -586,7 +662,11 @@ suite("Diagnostics", () => {
     await activate(uri);
     // The unbraced substituted body (`uplevel 1 "puts $x"`) yields a W105,
     // proving the analyser now walks the uplevel body arg.
-    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
     const codes = diagnostics.map(codeOf);
 
@@ -613,7 +693,11 @@ suite("Diagnostics", () => {
   test("W100 fires inside a catch body (analyser recurses into catch)", async () => {
     const uri = getDocUri("catchBody.tcl");
     await activate(uri);
-    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, { minCount: 1 });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
 
     // The unbraced `expr` lives inside `catch { ... }`; the analyser must walk
@@ -640,9 +724,13 @@ suite("Diagnostics", () => {
     // S110 is a *deep*-tier diagnostic (a second publish after the basic
     // tier), so wait for it specifically rather than for any first diagnostic.
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "S110"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const s110 = diagnostics.find((d) => codeOf(d) === "S110");
 
@@ -666,9 +754,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("byteArrayCorruption.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "S110"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const s110 = diagnostics.filter((d) => codeOf(d) === "S110");
     assert.strictEqual(
       s110.length,
@@ -692,9 +784,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("shimmerOscillation.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "S102"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     const s102s = diagnostics.filter((d) => codeOf(d) === "S102");
     assert.ok(s102s.length > 0, "expected at least one S102 diagnostic");
@@ -722,9 +818,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("createNamedObjects.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "W123"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map(codeOf);
     // The W123 predicate above is the settle signal for the negative check
     // below: the unknown classes `C`/`L` must surface W123 for this fixture, so
@@ -748,9 +848,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-arity.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "E003"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const e003 = diagnostics.filter((d) => codeOf(d) === "E003");
     assert.strictEqual(
       e003.length,
@@ -782,9 +886,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-arity-tcloo-ctor.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.filter((d) => codeOf(d) === "E002").length >= 3,
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map(codeOf).sort();
     assert.deepStrictEqual(
       codes,
@@ -826,9 +934,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-w004.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.filter((d) => codeOf(d) === "W004").length >= 2,
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const w004 = diagnostics.filter((d) => codeOf(d) === "W004");
     assert.strictEqual(
       w004.length,
@@ -858,9 +970,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-e001.tcl");
     const doc = await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.filter((d) => codeOf(d) === "E001").length >= 4,
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const e001 = diagnostics.filter((d) => codeOf(d) === "E001");
     assert.strictEqual(
       e001.length,
@@ -952,9 +1068,13 @@ suite("Diagnostics", () => {
     const w002On = (diags: vscode.Diagnostic[], line: number) =>
       diags.some((d) => codeOf(d) === "W002" && d.range.start.line === line);
 
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => w002On(diags, unshadowedLine),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
 
     assert.ok(
       w002On(diagnostics, unshadowedLine),
@@ -990,9 +1110,13 @@ suite("Diagnostics", () => {
       diags.some((d) => codeOf(d) === "W123" && d.range.start.line === line);
     // Settle on the loaded-database state: the genuine unknown (line 2) is
     // flagged AND the library calls (lines 0-1) are not — the exact fixed shape.
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => w123On(diags, 2) && !w123On(diags, 0) && !w123On(diags, 1),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     assert.ok(!w123On(diagnostics, 0), "Rbc_ActiveLegend (auto-loaded) must not be W123");
     assert.ok(!w123On(diagnostics, 1), "Rbc_ZoomStack (auto-loaded) must not be W123");
     assert.ok(
@@ -1011,9 +1135,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-e101-known-proc.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "E101"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map(codeOf);
     assert.ok(codes.includes("E101"), `expected E101, got [${codes}]`);
     assert.ok(
@@ -1034,9 +1162,13 @@ suite("Diagnostics", () => {
     const uri = getDocUri("diagnostics-e103-multi-statement.tcl");
     await activate(uri);
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
-    const diagnostics = await waitForDiagnostics(uri, {
+    const diagnosticsSnapshot = await waitForDiagnosticsSnapshot(uri, {
       predicate: (diags) => diags.some((d) => codeOf(d) === "E200" || codeOf(d) === "E103"),
     });
+    if (!diagnosticsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...diagnosticsSnapshot.report.diagnostics];
     const codes = diagnostics.map(codeOf);
     assert.ok(!codes.includes("E103"), `expected no E103, got [${codes}]`);
     assert.ok(codes.includes("E200"), `expected the generic E200, got [${codes}]`);

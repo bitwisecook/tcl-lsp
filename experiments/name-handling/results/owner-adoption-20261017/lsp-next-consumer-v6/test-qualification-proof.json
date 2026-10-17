@@ -1,0 +1,9 @@
+{
+  "rust_AST": "PASS",
+  "actual_rustfmt_check": "PASS",
+  "exact_reverse_only_qualification": "PASS",
+  "original_assertion_fixture_selector_budget_bytes": "UNCHANGED",
+  "currentbase": "PASS",
+  "fuzz0_forward_inverse_exact": "PASS",
+  "execution": "NONE"
+}

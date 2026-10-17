@@ -24,6 +24,7 @@ import {
   waitForDiagnostics,
   waitForCodeActions,
   waitForProviderResult,
+  waitForDiagnosticsSnapshot,
 } from "./helper";
 
 suite("Code Actions", () => {
@@ -32,7 +33,13 @@ suite("Code Actions", () => {
 
   test("provides quick fix for W100 (unbraced expr)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     // Find the W100 diagnostic
     const w100 = diagnostics.find((d) => {
@@ -63,7 +70,13 @@ suite("Code Actions", () => {
 
   test("provides quick fix for W304 (missing option terminator)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w304 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -92,7 +105,13 @@ suite("Code Actions", () => {
     // fix must reach the code-action response for a plain .tcl document
     // too — not only under the f5-irules dialect.
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const t102 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -113,7 +132,13 @@ suite("Code Actions", () => {
 
   test("provides quick fix for W302 (catch result capture)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w302 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -144,7 +169,13 @@ suite("Code Actions", () => {
 
   test("provides quick fix for E100 (stray close bracket)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const e100 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -180,7 +211,13 @@ suite("Code Actions", () => {
 
   test("provides quick fix for E102 (stray close brace)", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const e102 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -207,7 +244,13 @@ suite("Code Actions", () => {
   test("provides merge-into-body quick fix for E004 extra words", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);
-    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(e004Uri, {
+      minCount: 3,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const extraWords = diagnostics.find(
       (d) => d.message === 'Extra words after "else" clause in "if" command',
@@ -231,7 +274,13 @@ suite("Code Actions", () => {
   test("provides remove-clause quick fix for a dangling E004 elseif", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);
-    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(e004Uri, {
+      minCount: 3,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const danglingElseif = diagnostics.find(
       (d) => d.message === 'No script following "2" argument',
@@ -257,7 +306,13 @@ suite("Code Actions", () => {
   test("offers no quick fix for an E004 whose first clause never completed", async () => {
     const e004Uri = getDocUri("diagnostics-e004.tcl");
     await activate(e004Uri);
-    const diagnostics = await waitForDiagnostics(e004Uri, { minCount: 3 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(e004Uri, {
+      minCount: 3,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const bareCondition = diagnostics.find((d) => d.message === 'No script following "1" argument');
     assert.ok(bareCondition, "bare-condition E004 diagnostic should be present");
@@ -283,13 +338,17 @@ suite("Code Actions", () => {
   test("provides quick fix for W004 (dialect-invalid option)", async () => {
     const w004Uri = getDocUri("diagnostics-w004.tcl");
     await activate(w004Uri);
-    const diagnostics = await waitForDiagnostics(w004Uri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(w004Uri, {
       predicate: (diags) =>
         diags.some((d) => {
           const code = typeof d.code === "object" ? d.code.value : d.code;
           return code === "W004" && d.message.includes("-stride");
         }),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w004 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -368,13 +427,17 @@ suite("Code Actions", () => {
   test("provides quick fix for T101 (tainted data into puts)", async () => {
     const t101Uri = getDocUri("taint-t101.tcl");
     await activate(t101Uri);
-    const diagnostics = await waitForDiagnostics(t101Uri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(t101Uri, {
       predicate: (diags) =>
         diags.some((d) => {
           const code = typeof d.code === "object" ? d.code.value : d.code;
           return code === "T101";
         }),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const t101 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;
@@ -402,13 +465,17 @@ suite("Code Actions", () => {
   test("provides a noqa suppress quick fix for S100 (shimmer)", async () => {
     const shimmerUri = getDocUri("shimmerPrecision.tcl");
     await activate(shimmerUri);
-    const diagnostics = await waitForDiagnostics(shimmerUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(shimmerUri, {
       predicate: (diags) =>
         diags.some((d) => {
           const code = typeof d.code === "object" ? d.code.value : d.code;
           return code === "S100";
         }),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     // Line 7 (0-indexed): `    lindex $x 0` inside `proc shimmer_true_case`.
     const s100 = diagnostics.find((d) => {

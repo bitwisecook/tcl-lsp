@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // End-to-end regression coverage for analyser / delivery bugs surfaced in
 // VS Code:
@@ -41,7 +41,13 @@ suite("Preview-version regression tickets", () => {
     await activate(docUri);
     // The fixture's `set var 10 10` guarantees at least one diagnostic (E003),
     // which also proves the analyser actually ran over the document.
-    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
+      minCount: 1,
+    });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const codes = diagnostics.map(codeOf);
 
     // `after 200 {...}` is a delay, not an unknown subcommand.

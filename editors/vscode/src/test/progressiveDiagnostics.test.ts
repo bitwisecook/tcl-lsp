@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as fs from "fs";
-import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
+import { getDocUri, activate, scaledTimeout, waitForDiagnosticsSnapshot } from "./helper";
 import { MAX_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 
 // Diagnostics are progressive. On a large document the server
@@ -104,13 +104,17 @@ suite("Progressive diagnostics (#844)", () => {
       // lost by going progressive. Keyed on the diagnostics themselves (not the
       // server-log ring buffer, which a late-running suite can have already
       // filled past its cap).
-      const finalDiags = await waitForDiagnostics(docUri, {
+      const currentSnapshotFor_finalDiags = await waitForDiagnosticsSnapshot(docUri, {
         predicate: (diags) => {
           const codes = diags.map(codeOf);
           return codes.includes("W100") && codes.includes("O111");
         },
         timeout: 50_000,
       });
+      if (!currentSnapshotFor_finalDiags.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const finalDiags = [...currentSnapshotFor_finalDiags.report.diagnostics];
       const finalCodes = finalDiags.map(codeOf);
       assert.ok(
         finalCodes.includes("W100"),

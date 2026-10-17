@@ -1913,7 +1913,7 @@ impl<T> TrackedRwLock<T> {
         }
     }
 
-    #[cfg(test)]
+    /// Nonblocking shared access with the same holder attribution as `read`.
     #[track_caller]
     fn try_read(&self) -> Result<TrackedReadGuard<'_, T>, tokio::sync::TryLockError> {
         let site = std::panic::Location::caller();
@@ -8302,6 +8302,56 @@ struct PublishedPackSet {
     packs: Arc<tcl_spectcl::PackSet>,
 }
 
+/// A successfully settled pack generation and its actual discovery input.
+struct PackConfigurationPublication {
+    options: tcl_spectcl::DiscoveryOptions,
+    configured_sources: Vec<Vec<PathBuf>>,
+    seq: u64,
+    packs: Arc<tcl_spectcl::PackSet>,
+    studio_snapshot: studio_source::StudioSourceSnapshot,
+    loader_inputs: tcl_spectcl::pack::LoadedSourceInputs,
+    overlays: Vec<(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)>,
+}
+
+impl PackConfigurationPublication {
+    fn overlays_current(&self) -> bool {
+        !self.overlays.is_empty()
+            && self.overlays.iter().all(|(profile, installed)| {
+                tcl_registry::model::ingress::resolve_environment(profile.name)
+                    .context_registry(
+                        &tcl_registry::model::KeyedVersions::default(),
+                        self.packs.key,
+                    )
+                    .is_ok_and(|context| Arc::ptr_eq(context.commands(), installed))
+            })
+    }
+
+    fn matches_installed(
+        &self,
+        options: &tcl_spectcl::DiscoveryOptions,
+        published: &PublishedPackSet,
+    ) -> bool {
+        options == &self.options
+            && published.seq == self.seq
+            && Arc::ptr_eq(&published.packs, &self.packs)
+            && self.has_configured_contributions()
+    }
+
+    fn has_configured_contributions(&self) -> bool {
+        self.configured_sources.len() == self.options.configured.len()
+            && self.packs.load_errors.is_empty()
+            && self.configured_sources.iter().all(|sources| {
+                !sources.is_empty()
+                    && sources.iter().all(|source| {
+                        self.packs
+                            .packs
+                            .iter()
+                            .any(|pack| pack.files.contains(source))
+                    })
+            })
+    }
+}
+
 /// Every mutable store a source publication changes, acquired as one
 /// optimistic bundle before it inspects the open-document map.
 ///
@@ -8766,7 +8816,7 @@ pub struct Backend {
     /// Serialising makes every reload observe the disk *after* the previous
     /// one published, so whichever runs last re-reads the true state. It costs
     /// nothing on the common path: reloads are workspace-scoped, not per-edit.
-    spec_pack_reload: Arc<Mutex<()>>,
+    spec_pack_reload: Arc<Mutex<Option<PackConfigurationPublication>>>,
     /// Active Studio publications belong to this Backend, never to a directory.
     studio_sources: Mutex<studio_source::StudioSources>,
     /// Absolute watch globs currently registered for pack directories that lie
@@ -10254,7 +10304,7 @@ impl Backend {
             spec_pack_paths: Mutex::new(Vec::new()),
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
-            spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload: Arc::new(Mutex::new(None)),
             studio_sources: Mutex::new(Default::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
@@ -13093,6 +13143,7 @@ impl Backend {
     /// single-root `root_uri` fallback are supported.
     #[allow(deprecated)] // `root_uri` is the documented single-root fallback when a client sends no `workspace_folders`.
     async fn apply_workspace_folders(&self, params: &InitializeParams) {
+        let _inputs = self.analyser_inputs_gate.write().await;
         if let Some(folders) = &params.workspace_folders {
             let urls: Vec<Uri> = folders.iter().map(|f| f.uri.clone()).collect();
             *self.workspace_folders.lock().await = urls;
@@ -13122,6 +13173,7 @@ impl Backend {
             return;
         };
         if let Some(trust) = workspace_trust_in(opts) {
+            let _inputs = self.analyser_inputs_gate.write().await;
             *self.workspace_trust.lock().await = trust;
         }
         // `folderDialects` map (per-folder dialect overrides).
@@ -22068,6 +22120,7 @@ impl Backend {
         // pushed cap to have landed before asserting on the rescan.
         let workspace_scan_max_files = *self.workspace_scan_max_files.lock().await;
         let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
+        let spec_pack_publication = self.spec_pack_configuration_report().await;
         let line_length = *self.line_length.lock().await;
         let docstring_style_str = self.reported_docstring_style(parsed_uri.as_ref()).await;
         // Report the *per-folder* analyser settings (the same resolvers the
@@ -22130,6 +22183,7 @@ impl Backend {
             "notifications_environment_kind": self.environment_notice.enabled(),
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
+            "spec_pack_publication": spec_pack_publication,
             "pack_file_extensions": pack_file_extensions,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
@@ -23922,6 +23976,51 @@ impl Backend {
         (configured, report, extensions)
     }
 
+    /// Reborrow one actual configured discovery after its provider has settled.
+    async fn spec_pack_configuration_report(&self) -> Option<serde_json::Value> {
+        let reload = self.spec_pack_reload.try_lock().ok()?;
+        let publication = reload.as_ref()?;
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let current_options = self.spec_pack_discovery().await;
+        let studio = self.studio_sources.lock().await;
+        if !studio.matches_snapshot(&publication.studio_snapshot)
+            || studio.has_unpublished_changes()
+        {
+            return None;
+        }
+        let published = self.spec_packs.lock().await;
+        if !publication.matches_installed(&current_options, &published) {
+            return None;
+        }
+        let config = *self.db_config.lock().await;
+        let db = self.db.lock().await;
+        if config.spec_pack_key(&*db) != published.packs.key {
+            return None;
+        }
+        if !publication.overlays_current() {
+            return None;
+        }
+        let retained_paths = publication.loader_inputs.retained_paths();
+        let ordinary_paths = retained_paths
+            .iter()
+            .filter(|path| !publication.studio_snapshot.supplies_saved_source(path))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let loader_sources = publication.loader_inputs.selected(&ordinary_paths)?;
+        publication
+            .studio_snapshot
+            .with_current_saved_source_inputs(self.store.as_ref(), &loader_sources, || {
+                serde_json::json!({
+                    "status": "complete",
+                    "configured": publication.options.configured,
+                    "generation": publication.seq.to_string(),
+                    "registry_key": publication.packs.key.to_string(),
+                })
+            })
+    }
+
     /// The file extensions the *discovered* packs claim, each resolved to the
     /// editor language id a client should associate it with.
     ///
@@ -25099,7 +25198,8 @@ impl Backend {
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
-        let _reload = self.spec_pack_reload.lock().await;
+        let mut reload = self.spec_pack_reload.lock().await;
+        *reload = None;
         // Taken here, under the guard and *before* discovery: the number has
         // to order reloads by when they read the disk. See
         // `spec_pack_reload_seq`.
@@ -25133,7 +25233,7 @@ impl Backend {
                 .iter()
                 .map(|(path, _)| path.clone())
                 .collect::<Vec<_>>();
-            let files = tcl_spectcl::discovery::discover_with_active_studio_in(
+            let discovery = tcl_spectcl::discovery::discover_configuration_with_active_studio_in(
                 pack_store.as_ref(),
                 &options,
                 &active_paths,
@@ -25144,12 +25244,13 @@ impl Backend {
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            let loaded = tcl_spectcl::bundled::load_discovered_with_studio_sources_in(
-                pack_store.as_ref(),
-                &files,
-                &studio,
-                options.workspace_trust,
-            );
+            let (loaded, loader_inputs) =
+                tcl_spectcl::bundled::load_discovered_with_studio_sources_and_inputs_in(
+                    pack_store.as_ref(),
+                    &discovery.files,
+                    &studio,
+                    options.workspace_trust,
+                );
             // The test seam, and the only place it can go: the snapshot is
             // taken, the publish has not happened, so the world is free to
             // change underneath a view that is already stale. The signal goes
@@ -25159,11 +25260,18 @@ impl Backend {
                 let _ = tx.send(());
                 std::thread::sleep(hold);
             }
-            (loaded, studio_snapshot)
+            (
+                loaded,
+                studio_snapshot,
+                options,
+                discovery.configured_sources,
+                loader_inputs,
+            )
         });
         self.announce_pack_snapshot_hold(hold, held_rx).await;
         let loaded = load.await;
-        let Ok((loaded, studio_snapshot)) = loaded else {
+        let Ok((loaded, studio_snapshot, options, configured_sources, loader_inputs)) = loaded
+        else {
             // A panic in the loader must not take the session with it: the
             // workspace keeps whatever pack set it already had.
             self.client
@@ -25230,13 +25338,17 @@ impl Backend {
                 }
                 if !changed {
                     tcl_spectcl::registration::publish_pack_extension_routes(&loaded);
+                    if newest {
+                        guard.seq = seq;
+                    }
                 }
                 changed
             })?
         };
 
         let packs = self.spec_packs().await;
-        if changed && !packs.is_empty() {
+        let mut overlays = Vec::new();
+        if !packs.is_empty() {
             // Build the `(profile, key)` registry for every dialect now.
             //
             // The analyser resolves its own registry and can only *look up*
@@ -25254,7 +25366,26 @@ impl Backend {
             // dialect anyway. It runs on a worker: it is parse-free but not
             // free.
             let for_worker = Arc::clone(&packs);
-            let _ = crate::rt::spawn_blocking(move || install_pack_overlays(&for_worker)).await;
+            let installed = crate::rt::spawn_blocking(move || {
+                install_pack_overlays(&for_worker);
+                tcl_registry::model::store_profiles()
+                    .map(|profile| {
+                        let context =
+                            tcl_registry::model::ingress::resolve_environment(profile.name)
+                                .context_registry(
+                                    &tcl_registry::model::KeyedVersions::default(),
+                                    for_worker.key,
+                                )
+                                .ok()?;
+                        Some((profile, Arc::clone(context.commands())))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .await;
+            let Ok(Some(installed)) = installed else {
+                return Ok(false);
+            };
+            overlays = installed;
             // The analyser reads the key off the salsa config, so publish it
             // before anything re-analyses, with the overlay epoch that says
             // the generations behind it are installed.
@@ -25277,6 +25408,15 @@ impl Backend {
         self.report_pack_reload(&packs, registration.as_ref(), changed)
             .await?;
         self.settle_pack_reload(changed, trigger).await?;
+        *reload = Some(PackConfigurationPublication {
+            options,
+            configured_sources,
+            seq,
+            packs,
+            studio_snapshot,
+            loader_inputs,
+            overlays,
+        });
         Ok(changed)
     }
 
@@ -28393,6 +28533,7 @@ impl LanguageServer for Backend {
         // Code does when the user grants trust. Top-level only: a `tclLsp`
         // section here is the synchronised settings, which the workspace's
         // own settings file can write (`workspace_trust_in`).
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         let trust_changed = match workspace_trust_in(&params.settings) {
             Some(trust) => {
                 let mut current = self.workspace_trust.lock().await;
@@ -28402,7 +28543,6 @@ impl LanguageServer for Backend {
             }
             None => false,
         };
-        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         let mut dialect_warning = None;
         if let Some(d) = dialect {
             dialect_warning = self.apply_configured_session_dialect(&d).await;
@@ -28617,6 +28757,7 @@ impl LanguageServer for Backend {
         // added folders, and re-pulls config.
         let removed: Vec<Uri> = params.event.removed.iter().map(|f| f.uri.clone()).collect();
         {
+            let _inputs = self.analyser_inputs_gate.write().await;
             let mut folders = self.workspace_folders.lock().await;
             for uri in &removed {
                 folders.retain(|f| f != uri);
@@ -44335,7 +44476,7 @@ info exists ::N::v\uD800";
             spec_pack_paths: Mutex::new(Vec::new()),
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
-            spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload: Arc::new(Mutex::new(None)),
             studio_sources: Mutex::new(Default::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
@@ -64361,5 +64502,105 @@ mod closed_document_source_context_tests {
         assert_eq!(document.language_id, "tcl9.0");
         assert_eq!(document.version, Some(17));
         assert!(document.decode_report.is_none());
+    }
+}
+
+#[cfg(test)]
+mod pack_configuration_publication_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn configured_receipt_requires_real_selected_sources_and_same_installed_generation() {
+        let backend = crate::tests::test_backend();
+        let source_path = PathBuf::from("/workspace/requested-pack.tclspec");
+        let options = tcl_spectcl::DiscoveryOptions {
+            configured: vec![source_path.clone()],
+            ..tcl_spectcl::DiscoveryOptions::default()
+        };
+        let packs = Arc::new(tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: source_path.clone(),
+                origin: tcl_spectcl::discovery::Origin::Setting,
+                dependency_tier: None,
+            },
+            "speclib requested 1.0 {\ncommand requested::call {\narity 0\n}\n}\n".to_owned(),
+        )]));
+        assert!(packs.load_errors.is_empty());
+        let mut publication = PackConfigurationPublication {
+            options,
+            configured_sources: vec![vec![source_path]],
+            seq: 1,
+            packs,
+            studio_snapshot: backend.studio_sources.lock().await.snapshot(),
+            loader_inputs: tcl_spectcl::pack::LoadedSourceInputs::default(),
+            overlays: Vec::new(),
+        };
+        assert!(publication.has_configured_contributions());
+        let mut installed = PublishedPackSet {
+            seq: publication.seq,
+            packs: Arc::clone(&publication.packs),
+        };
+        assert!(publication.matches_installed(&publication.options, &installed));
+        installed.seq += 1;
+        assert!(!publication.matches_installed(&publication.options, &installed));
+        installed.seq = publication.seq;
+        installed.packs = Arc::new((*publication.packs).clone());
+        assert_eq!(installed.packs.key, publication.packs.key);
+        assert!(!publication.matches_installed(&publication.options, &installed));
+        installed.packs = Arc::clone(&publication.packs);
+        let mut unrelated = publication.options.clone();
+        unrelated.configured = vec![PathBuf::from("/workspace/old.tclspec")];
+        assert!(!publication.matches_installed(&unrelated, &installed));
+        publication.configured_sources[0].clear();
+        assert!(!publication.has_configured_contributions());
+        publication.configured_sources[0].push(PathBuf::from("/workspace/unrelated.tclspec"));
+        assert!(!publication.has_configured_contributions());
+        assert!(backend.spec_pack_configuration_report().await.is_none());
+    }
+}
+
+#[cfg(test)]
+mod pack_configuration_input_gate_tests {
+    use super::*;
+    use std::future::Future;
+    use tcl_dialect::model::WorkspaceTrust;
+
+    #[tokio::test]
+    async fn original_folder_and_trust_setters_wait_for_the_report_input_owner() {
+        let backend = crate::tests::test_backend();
+        let folder: Uri = "file:///pack-configuration-source".parse().unwrap();
+        let params = InitializeParams {
+            workspace_folders: Some(vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                uri: folder.clone(),
+                name: "pack".to_owned(),
+            }]),
+            ..InitializeParams::default()
+        };
+        let inputs = backend.analyser_inputs_gate.read().await;
+        let mut folders = Box::pin(backend.apply_workspace_folders(&params));
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(folders.as_mut().poll(&mut context).is_pending());
+        assert!(backend.workspace_folders.lock().await.is_empty());
+        drop(inputs);
+        folders.await;
+        assert_eq!(*backend.workspace_folders.lock().await, vec![folder]);
+        let params = InitializeParams {
+            initialization_options: Some(serde_json::json!({"workspaceTrust": "untrusted"})),
+            ..InitializeParams::default()
+        };
+        let inputs = backend.analyser_inputs_gate.read().await;
+        let mut trust = Box::pin(backend.apply_initialization_options(&params));
+        assert!(trust.as_mut().poll(&mut context).is_pending());
+        assert_eq!(
+            *backend.workspace_trust.lock().await,
+            WorkspaceTrust::Trusted
+        );
+        drop(inputs);
+        trust.await;
+        assert_eq!(
+            *backend.workspace_trust.lock().await,
+            WorkspaceTrust::Untrusted
+        );
     }
 }

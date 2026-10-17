@@ -26,7 +26,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -58,9 +58,13 @@ suite("Issue #1329 / #1330 self-dispatch W308 and dispatch-site ranges", () => {
 
   test("`my nosuchmethod` draws W308 underlining the method word alone", async () => {
     const doc = await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.filter((x) => codeOf(x) === "W308").length >= 2,
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = diags.filter((d) => codeOf(d) === "W308");
     const expected = rangeOfWord(doc, "nosuchissue1329method");
     const hit = w308.find((d) => d.range.isEqual(expected));
@@ -78,9 +82,13 @@ suite("Issue #1329 / #1330 self-dispatch W308 and dispatch-site ranges", () => {
 
   test("`[Class new] badmethod` W308 underlines the method word, not across lines", async () => {
     const doc = await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.filter((x) => codeOf(x) === "W308").length >= 2,
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = diags.filter((d) => codeOf(d) === "W308");
     const expected = rangeOfWord(doc, "nosuchissue1329bark");
     const hit = w308.find((d) => d.range.isEqual(expected));
@@ -94,9 +102,13 @@ suite("Issue #1329 / #1330 self-dispatch W308 and dispatch-site ranges", () => {
 
   test("a real method and `my variable` draw nothing", async () => {
     const doc = await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.filter((x) => codeOf(x) === "W308").length >= 2,
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = diags.filter((d) => codeOf(d) === "W308");
     assert.strictEqual(
       w308.length,
@@ -114,9 +126,13 @@ suite("Issue #1329 / #1330 self-dispatch W308 and dispatch-site ranges", () => {
 
   test("the `my` head itself never draws W307", async () => {
     const doc = await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.filter((x) => codeOf(x) === "W308").length >= 2,
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w307 = diags.filter((d) => codeOf(d) === "W307");
     assert.strictEqual(
       w307.length,

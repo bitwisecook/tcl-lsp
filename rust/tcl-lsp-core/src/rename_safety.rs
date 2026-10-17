@@ -703,11 +703,20 @@ fn dispatch_hazard(
         }
     };
 
-    walk_document(source, dialect, analysis, &mut visit);
-    if hazard.is_none() {
+    let coverage = walk_document(source, dialect, analysis, &mut visit);
+    let self_coverage = if hazard.is_none() {
         walk_self_dispatch(source, dialect, analysis, target, &mut |span| {
             hazard = Some((span, "computed-member"));
-        });
+        })
+    } else {
+        coverage
+    };
+    if hazard.is_none()
+        && (coverage != crate::executable_regions::PotentialSourceVisit::Complete
+            || self_coverage != crate::executable_regions::PotentialSourceVisit::Complete)
+    {
+        return ambiguous_object_command(source, analysis, target, line_index)
+            .or_else(|| Some(incomplete_hazard_census(source, line_index, target.method)));
     }
 
     let (span, kind) = hazard?;
@@ -745,18 +754,29 @@ pub(crate) fn walk_document(
     _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     visit: &mut impl FnMut(&SegmentedCommand),
-) {
+) -> crate::executable_regions::PotentialSourceVisit {
     if crate::references::dispatch_source_context(source, analysis).is_none() {
-        return;
+        return crate::executable_regions::PotentialSourceVisit::Unavailable;
     }
-    crate::executable_regions::visit_analysis_executable_commands(
+    crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
             visit(command);
             false
         },
-    );
+    )
+}
+
+fn incomplete_hazard_census(source: &str, line_index: &LineIndex, target: &str) -> RenameRefusal {
+    RenameRefusal::new(
+        format!(
+            "cannot rename `{target}`: original potential source coverage is unavailable; an unrepresented region may contain a rename hazard"
+        ),
+        source,
+        line_index,
+        None,
+    )
 }
 
 /// `my $computed` inside a family class's own member bodies — the
@@ -769,17 +789,18 @@ fn walk_self_dispatch(
     analysis: &AnalysisResult,
     target: MethodRenameTarget<'_>,
     hit: &mut impl FnMut(Span),
-) {
+) -> crate::executable_regions::PotentialSourceVisit {
     let Some((_, context)) = crate::references::dispatch_source_context(source, analysis) else {
-        return;
+        return crate::executable_regions::PotentialSourceVisit::Unavailable;
     };
+    let mut coverage = crate::executable_regions::PotentialSourceVisit::Complete;
     let mut found: Option<Span> = None;
     for class_q in target.family {
         let Some(class_def) = analysis.all_classes.get(class_q) else {
             continue;
         };
         for body in collect_member_bodies_scoped(class_def, target.is_classmethod) {
-            walk_body(
+            let body_coverage = walk_body(
                 source,
                 dialect,
                 analysis,
@@ -828,11 +849,15 @@ fn walk_self_dispatch(
                     }
                 },
             );
+            if body_coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+                coverage = body_coverage;
+            }
         }
     }
     if let Some(span) = found {
         hit(span);
     }
+    coverage
 }
 
 fn walk_body(
@@ -841,14 +866,11 @@ fn walk_body(
     analysis: &AnalysisResult,
     body_span: Span,
     visit: &mut impl FnMut(&SegmentedCommand),
-) {
-    if body_span.is_empty() {
-        return;
-    }
+) -> crate::executable_regions::PotentialSourceVisit {
     if crate::references::dispatch_source_context(source, analysis).is_none() {
-        return;
+        return crate::executable_regions::PotentialSourceVisit::Unavailable;
     }
-    crate::executable_regions::visit_analysis_executable_commands(
+    crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
@@ -857,7 +879,7 @@ fn walk_body(
             }
             false
         },
-    );
+    )
 }
 
 fn slice(source: &str, span: Span) -> Option<&str> {
@@ -1001,7 +1023,10 @@ pub fn namespace_variable_rename_hazard(
             return;
         }
     };
-    walk_document(source, dialect, analysis, &mut visit);
+    let coverage = walk_document(source, dialect, analysis, &mut visit);
+    if hazard.is_none() && coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+        return Some(incomplete_hazard_census(source, line_index, cell));
+    }
     let (span, unknown) = hazard?;
     if unknown {
         return Some(RenameRefusal::new(
@@ -2318,5 +2343,135 @@ mod configured_dispatch_receiver_tests {
                 .reason
                 .contains("original source")
         );
+    }
+}
+
+#[cfg(test)]
+mod checked_rename_hazard_census_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn refusals(
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> (Option<RenameRefusal>, Option<RenameRefusal>) {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let index = LineIndex::new(source);
+        (
+            method_rename_hazard(
+                source,
+                profile,
+                analysis,
+                MethodRenameTarget {
+                    family: &[],
+                    method: "speak",
+                    is_classmethod: false,
+                    new_name: "renamed",
+                },
+                &index,
+            ),
+            namespace_variable_rename_hazard(source, profile, analysis, "::ns::value", &index),
+        )
+    }
+
+    #[test]
+    fn complete_empty_and_literal_nonmember_sources_have_no_census_refusal() {
+        for source in ["", "set inert 1", "if {1} {}"] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let (method, variable) = refusals(source, &analysis);
+            assert!(method.is_none(), "{source}: {method:?}");
+            assert!(variable.is_none(), "{source}: {variable:?}");
+        }
+    }
+
+    #[test]
+    fn missing_body_and_parse_phases_cannot_be_a_negative_hazard_census() {
+        for source in [
+            "set before 1; $handler {set hidden 2}; set after 3",
+            "if {1} $body",
+            "if {1} {set unfinished",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let (method, variable) = refusals(source, &analysis);
+            assert!(
+                method.unwrap().reason.contains("potential source coverage"),
+                "{source}"
+            );
+            assert!(
+                variable
+                    .unwrap()
+                    .reason
+                    .contains("potential source coverage"),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn positive_dispatch_hazard_survives_incomplete_source_inventory() {
+        let source = "$other speak; if {1} $body";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let (method, _) = refusals(source, &analysis);
+        assert!(method.unwrap().reason.contains("class is not tracked"));
+    }
+
+    #[test]
+    fn stale_source_input_and_configuration_withdraw_hazard_census() {
+        let source = "set inert 1";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new().analyse(source, "tcl9.0").resolved_input;
+        for (text, current) in [
+            ("set other 1", &analysis),
+            (source, &missing),
+            (source, &changed),
+            (source, &foreign),
+        ] {
+            let (method, variable) = refusals(text, current);
+            assert!(method.is_some());
+            assert!(variable.is_some());
+        }
+    }
+
+    #[test]
+    fn incomplete_census_retains_real_positive_command_visits() {
+        let source = "set before 1; if {1} $body; set after 3";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut seen_before = false;
+        let mut seen_after = false;
+        let coverage = walk_document(source, profile, &analysis, &mut |command| {
+            seen_before |= command.name() == "set"
+                && command.args().first().is_some_and(|word| word == "before");
+            seen_after |= command.name() == "set"
+                && command.args().first().is_some_and(|word| word == "after");
+        });
+        assert!(seen_before);
+        assert!(seen_after);
+        assert_eq!(
+            coverage,
+            crate::executable_regions::PotentialSourceVisit::Incomplete
+        );
+    }
+
+    #[test]
+    fn empty_body_does_not_bypass_document_phase_validation() {
+        let source = "set inert 1";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.body_lexer_config = None;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut called = false;
+        let coverage = walk_body(source, profile, &analysis, Span::new(0, 0), &mut |_| {
+            called = true;
+        });
+        assert_eq!(
+            coverage,
+            crate::executable_regions::PotentialSourceVisit::Unavailable
+        );
+        assert!(!called);
     }
 }

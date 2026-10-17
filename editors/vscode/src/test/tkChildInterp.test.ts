@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // Tk widget checks are keyed per interpreter, end
 // to end in the editor.
@@ -60,9 +60,13 @@ suite("Tk checks across child interpreters (TK1001 / TK1002)", () => {
   test("no TK1001 when the two geometry managers are in different interpreters", async () => {
     await activate(docUri);
     // The TK1002 on line 22 is the marker that the Tk checks ran at all.
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "TK1002"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     assert.deepStrictEqual(
       linesWithCode(diagnostics, "TK1001"),
       [],
@@ -73,9 +77,13 @@ suite("Tk checks across child interpreters (TK1001 / TK1002)", () => {
 
   test("TK1002 fires for a parent-interpreter widget whose parent was never created", async () => {
     await activate(docUri);
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "TK1002"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     assert.ok(
       linesWithCode(diagnostics, "TK1002").includes(22),
       `'.childOnly.deep' has no parent: ${linesWithCode(diagnostics, "TK1002")}`,
@@ -88,9 +96,13 @@ suite("Tk checks across child interpreters (TK1001 / TK1002)", () => {
 
   test("both checks still fire inside a single interpreter", async () => {
     await activate(controlUri);
-    const diagnostics = await waitForDiagnostics(controlUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(controlUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "TK1001"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     assert.ok(
       linesWithCode(diagnostics, "TK1001").length > 0,
       `Mixing pack and grid in one interpreter is still a conflict: ${diagnostics

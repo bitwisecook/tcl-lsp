@@ -233,6 +233,22 @@ pub(super) struct StudioSourceSnapshot {
 }
 
 impl DocumentPathAdmission {
+    fn current_saved_source_path<'a>(
+        &'a self,
+        store: &dyn vfs::SourceStore,
+    ) -> DocumentSourceResult<&'a vfs::SourceUriPath> {
+        self.check_current(store)?;
+        match self {
+            Self::Native { selected, .. }
+            | Self::Virtual { selected, .. }
+            | Self::WasiGuest { selected, .. } => Ok(selected),
+            Self::NoFilesystemPath { uri } => Err(DocumentSourceUnavailable::Path {
+                uri: uri.clone(),
+                cause: uri_norm::DocumentFilePathUnavailable::NotFile,
+            }),
+        }
+    }
+
     pub(super) fn with_current_saved_sources<T>(
         sources: &[(&Self, &[u8])],
         store: &dyn vfs::SourceStore,
@@ -271,6 +287,38 @@ impl DocumentPathAdmission {
 }
 
 impl StudioSourceSnapshot {
+    pub(super) fn supplies_saved_source(&self, path: &std::path::Path) -> bool {
+        self.sources.iter().any(|image| {
+            image
+                .admission
+                .path()
+                .is_some_and(|selected| selected.as_os_str() == path.as_os_str())
+        })
+    }
+
+    pub(super) fn with_current_saved_source_inputs<T>(
+        &self,
+        store: &dyn vfs::SourceStore,
+        paths: &[(&vfs::SourcePathOrigin, &[u8])],
+        mut publish: impl FnMut() -> T,
+    ) -> Option<T> {
+        let documents = self
+            .sources
+            .iter()
+            .map(|image| {
+                Some((
+                    image.admission.current_saved_source_path(store).ok()?,
+                    image.source.as_bytes(),
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut result = None;
+        store
+            .with_current_saved_source_inputs(&documents, paths, &mut || result = Some(publish()))
+            .ok()?;
+        result
+    }
+
     /// Reborrow only original provider selections and exact saved images.
     /// Missing/changed materialisation never supplies a replacement image.
     pub(super) fn retained_sources(

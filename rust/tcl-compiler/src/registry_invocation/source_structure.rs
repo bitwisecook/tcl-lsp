@@ -1884,6 +1884,37 @@ pub fn source_logical_procedure_call_at(
     crate::realm::CommandBindingRealm::original_logical_procedure_call_at(realm, input, offset)
 }
 
+/// Represented original Logical procedure calls from the retained source tape.
+/// Reporting invocation records cannot supply or veto this independent source
+/// occurrence owner. Missing candidates remain unavailable, not an empty census.
+#[must_use]
+pub fn source_logical_procedure_calls(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalProcedureCall>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_procedure_calls(input)
+}
+
+/// Select only the original head containing the cursor. Whole retained argv,
+/// input and definition joins remain owned by the existing source call factory.
+#[must_use]
+pub fn source_logical_procedure_call_for_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalProcedureCall> {
+    let mut calls = source_logical_procedure_calls(source, analysis)?
+        .into_iter()
+        .filter(|call| {
+            call.original_words()
+                .first()
+                .is_some_and(|head| head.span().start() <= offset && offset < head.span().end())
+        });
+    let selected = calls.next()?;
+    calls.next().is_none().then_some(selected)
+}
+
 /// Ordered readonly Logical candidates at this exact original source command.
 /// Caller scope, path and name bytes remain source recipes; candidates prove no
 /// installed command, reached declaration, body entry or edit permission.

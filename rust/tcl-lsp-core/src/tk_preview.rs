@@ -88,6 +88,10 @@ pub struct TkWidgetSource {
 pub struct TkWidget {
     /// Canonical Tcl widget path, such as `.toolbar.save`.
     pub path: String,
+    /// Validated source pathname parent; `None` for the root or an older
+    /// deserialized model that predates this optional field.
+    #[serde(default)]
+    pub source_parent_path: Option<String>,
     /// Registry-resolved constructor identity, such as `ttk::button`.
     pub constructor: String,
     /// Literal constructor options, keyed in deterministic lexical order.
@@ -757,9 +761,15 @@ fn collect_widget(
         ));
         return;
     };
-    if !tcl_registry::tk_geometry::is_widget_path(&path)
-        || path.split('.').skip(1).count() > MAX_TK_UI_PATH_DEPTH
-    {
+    let Some(path_geometry) = tcl_registry::tk_geometry::widget_path_parent_depth(&path) else {
+        uncertainties.push(uncertainty(
+            TkUncertaintyKind::DynamicWidgetPath,
+            path_span,
+            "The Tk constructor's path is not a supported static widget path.",
+        ));
+        return;
+    };
+    if path_geometry.parent.is_none() || path_geometry.component_depth > MAX_TK_UI_PATH_DEPTH {
         uncertainties.push(uncertainty(
             TkUncertaintyKind::DynamicWidgetPath,
             path_span,
@@ -1305,8 +1315,13 @@ fn effective_geometry_container(
     options: &BTreeMap<String, TkLiteralOption>,
     uncertainties: &mut Vec<TkUiUncertainty>,
 ) -> Option<String> {
+    let Some(parent) =
+        tcl_registry::tk_geometry::widget_path_parent_depth(target).and_then(|path| path.parent)
+    else {
+        return None;
+    };
     let Some(container_option) = container_option else {
-        return Some(parent_path(target).to_owned());
+        return Some(parent.to_owned());
     };
     let option_was_written = (option_start..command.argv.len()).any(|index| {
         literal_word(command, index).is_some_and(|(word, _)| {
@@ -1315,7 +1330,7 @@ fn effective_geometry_container(
         })
     });
     if !option_was_written {
-        return Some(parent_path(target).to_owned());
+        return Some(parent.to_owned());
     }
     let value = options.get(container_option)?;
     if tcl_registry::tk_geometry::is_widget_path_or_root(&value.value) {
@@ -1405,12 +1420,6 @@ fn literal_word(command: &TkSourceCommand<'_>, index: usize) -> Option<(String, 
     Some((String::from_utf8(value).ok()?, word.span().into()))
 }
 
-fn parent_path(path: &str) -> &str {
-    path.rfind('.')
-        .filter(|index| *index > 0)
-        .map_or(".", |index| &path[..index])
-}
-
 fn widget_is_within(candidate: &str, ancestor: &str) -> bool {
     tcl_registry::tk_geometry::widget_path_is_within(candidate, ancestor)
 }
@@ -1458,7 +1467,26 @@ fn build_hierarchy(
     let mut children = BTreeMap::<String, Vec<String>>::new();
     let mut orphan_roots: Vec<String> = Vec::new();
     for path in &paths {
-        let parent = parent_path(path);
+        let Some(path_geometry) = tcl_registry::tk_geometry::widget_path_parent_depth(path) else {
+            if let Some(widget) = widgets.get(path) {
+                uncertainties.push(uncertainty(
+                    TkUncertaintyKind::DynamicWidgetPath,
+                    widget.source.path,
+                    "The collected Tk widget path is not a supported static pathname.",
+                ));
+            }
+            continue;
+        };
+        let Some(parent) = path_geometry.parent else {
+            if let Some(widget) = widgets.get(path) {
+                uncertainties.push(uncertainty(
+                    TkUncertaintyKind::DynamicWidgetPath,
+                    widget.source.path,
+                    "The implicit Tk root cannot be a constructed widget path.",
+                ));
+            }
+            continue;
+        };
         if parent == "." || paths.contains(parent) {
             children
                 .entry(parent.to_owned())
@@ -1501,8 +1529,12 @@ fn build_widget(
     children: &BTreeMap<String, Vec<String>>,
 ) -> Option<TkWidget> {
     let widget = widgets.get(path)?;
+    let source_parent_path = tcl_registry::tk_geometry::widget_path_parent_depth(path)?
+        .parent
+        .map(str::to_owned);
     Some(TkWidget {
         path: path.to_owned(),
+        source_parent_path,
         constructor: widget.constructor.clone(),
         options: widget.options.clone(),
         geometry: widget.geometry.clone(),
@@ -1520,6 +1552,7 @@ fn build_widget(
 fn implicit_root() -> TkWidget {
     TkWidget {
         path: ".".to_owned(),
+        source_parent_path: None,
         constructor: "root".to_owned(),
         options: BTreeMap::new(),
         geometry: None,
@@ -1966,6 +1999,72 @@ pack .w -\x69n \x2e"#;
         let current_options = &current.root.as_ref().expect("Tk is active").children[0].options;
         assert_eq!(current_options["-text"].value, "old");
         assert_eq!(current_options["-textangle"].value, "45");
+    }
+
+    #[test]
+    fn projects_source_parent_for_root_regular_and_orphan_widgets() {
+        let ui = model(
+            "frame .\nframe .main\nbutton .main.child\npack .main.child\nframe .lost.child\nframe .lost.child.grandchild\n",
+        );
+        let root = ui.root.as_ref().expect("Tk is active");
+        assert_eq!(
+            root.path, ".",
+            "the implicit root remains the only root node"
+        );
+        assert_eq!(
+            root.children[0].path, ".main",
+            "a constructor cannot replace the root"
+        );
+        assert!(
+            ui.uncertainties
+                .iter()
+                .any(|entry| { entry.kind == TkUncertaintyKind::DynamicWidgetPath })
+        );
+        assert_eq!(
+            root.source_parent_path, None,
+            "the root has no pathname parent"
+        );
+        assert_eq!(root.children[0].source_parent_path.as_deref(), Some("."));
+        assert_eq!(
+            root.children[0].children[0].source_parent_path.as_deref(),
+            Some(".main")
+        );
+        assert_eq!(
+            root.children[0].children[0]
+                .geometry
+                .as_ref()
+                .and_then(|placement| placement.container.as_deref()),
+            Some(".main"),
+            "the default geometry container comes from the same owner projection",
+        );
+        assert_eq!(
+            ui.orphan_widgets[0].source_parent_path.as_deref(),
+            Some(".lost")
+        );
+        assert_eq!(
+            ui.orphan_widgets[0].children[0]
+                .source_parent_path
+                .as_deref(),
+            Some(".lost.child"),
+        );
+        let payload = serde_json::to_value(&ui).expect("model serializes");
+        assert!(payload["root"]["source_parent_path"].is_null());
+        assert_eq!(payload["root"]["children"][0]["source_parent_path"], ".");
+        assert_eq!(payload["orphan_widgets"][0]["source_parent_path"], ".lost");
+    }
+
+    #[test]
+    fn tk_widget_deserializes_legacy_payload_without_source_parent_path() {
+        let ui = model("frame .main\n");
+        let mut legacy =
+            serde_json::to_value(&ui.root.as_ref().unwrap().children[0]).expect("model serializes");
+        legacy
+            .as_object_mut()
+            .expect("widget serializes as an object")
+            .remove("source_parent_path");
+        let restored: TkWidget =
+            serde_json::from_value(legacy).expect("legacy widget deserializes");
+        assert_eq!(restored.source_parent_path, None);
     }
 
     #[test]

@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // Caller-frame injection via `uplevel`, end to end in the editor.
 //
@@ -46,9 +46,13 @@ suite("Uplevel Indirect Assignment (W210 / W212)", () => {
   test("no W210 or W212 on any uplevel-injected assignment", async () => {
     await activate(docUri);
     // W214 on the marker proc is the signal that a full analysis ran.
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W214"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const offenders = diagnostics
       .filter((d) => codeOf(d) === "W210" || codeOf(d) === "W212")
       .map((d) => `${codeOf(d)}@${d.range.start.line}: ${d.message}`);
@@ -62,9 +66,13 @@ suite("Uplevel Indirect Assignment (W210 / W212)", () => {
 
   test("W210 and W212 still fire when nothing reaches an outer frame", async () => {
     await activate(controlUri);
-    const diagnostics = await waitForDiagnostics(controlUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(controlUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W210"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
 
     const w210Lines = diagnostics
       .filter((d) => codeOf(d) === "W210")

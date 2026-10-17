@@ -501,6 +501,23 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
         Err(SourceUriPathUnavailable::ProviderUnavailable)
     }
 
+    /// Reborrow saved inputs selected by original URI and native path callers.
+    /// No URI is invented for a source-path origin. MemoryStore retains its
+    /// provider/mapping and byte locks; Native/WASI reobserve expected bytes
+    /// immediately before the callback without excluding external writers.
+    /// The synchronous callback must not await, perform I/O or reenter this store.
+    ///
+    /// # Errors
+    /// Refuses unavailable/foreign/withdrawn selections or changed saved images.
+    fn with_current_saved_source_inputs(
+        &self,
+        _documents: &[(&SourceUriPath, &[u8])],
+        _paths: &[(&SourcePathOrigin, &[u8])],
+        _publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
     /// Identify the source-census authority for this provider.
     fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
         WorkspaceSourceInventoryProvider::Untracked
@@ -714,8 +731,23 @@ impl SourceStore for NativeStore {
         selected: &[(&SourceUriPath, &[u8])],
         publish: &mut dyn FnMut(),
     ) -> Result<(), SourceUriPathUnavailable> {
-        for (path, expected) in selected {
+        self.with_current_saved_source_inputs(selected, &[], publish)
+    }
+
+    fn with_current_saved_source_inputs(
+        &self,
+        documents: &[(&SourceUriPath, &[u8])],
+        paths: &[(&SourcePathOrigin, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        for (path, expected) in documents {
             self.validate_document_uri_path(path)?;
+            if self.read(path.path()).ok().as_deref() != Some(*expected) {
+                return Err(SourceUriPathUnavailable::SourceImageUnavailable);
+            }
+        }
+        for (path, expected) in paths {
+            self.validate_source_path_origin(path)?;
             if self.read(path.path()).ok().as_deref() != Some(*expected) {
                 return Err(SourceUriPathUnavailable::SourceImageUnavailable);
             }
@@ -1108,11 +1140,28 @@ impl SourceStore for MemoryStore {
         selected: &[(&SourceUriPath, &[u8])],
         publish: &mut dyn FnMut(),
     ) -> Result<(), SourceUriPathUnavailable> {
+        self.with_current_saved_source_inputs(selected, &[], publish)
+    }
+
+    fn with_current_saved_source_inputs(
+        &self,
+        documents: &[(&SourceUriPath, &[u8])],
+        paths: &[(&SourcePathOrigin, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
         let aliases = Self::lock(&self.aliases);
-        let paths = selected.iter().map(|(path, _)| *path).collect::<Vec<_>>();
-        self.validate_locked_document_paths(&aliases, &paths)?;
+        let selected = documents.iter().map(|(path, _)| *path).collect::<Vec<_>>();
+        self.validate_locked_document_paths(&aliases, &selected)?;
+        for (path, _) in paths {
+            self.validate_source_path_origin(path)?;
+        }
         let files = Self::lock(&self.files);
-        for (path, expected) in selected {
+        for (path, expected) in documents {
+            if files.get(path.path()).map(Vec::as_slice) != Some(*expected) {
+                return Err(SourceUriPathUnavailable::SourceImageUnavailable);
+            }
+        }
+        for (path, expected) in paths {
             if files.get(path.path()).map(Vec::as_slice) != Some(*expected) {
                 return Err(SourceUriPathUnavailable::SourceImageUnavailable);
             }
@@ -1563,5 +1612,66 @@ mod saved_source_publication_tests {
             .with_current_document_sources(&[(&selected, b"changed")], &mut || published += 1)
             .unwrap();
         assert_eq!(published, 2);
+    }
+}
+
+#[cfg(test)]
+mod mixed_saved_input_tests {
+    use super::*;
+
+    #[test]
+    fn original_path_and_document_sources_share_one_provider_and_byte_borrow() {
+        let store = MemoryStore::new();
+        let uri = "file:///studio/active.tclspec";
+        store.upsert_uri(uri, "/studio/active.tclspec", b"studio".to_vec());
+        store.upsert("/ordinary/requested.tclspec", b"ordinary".to_vec());
+        let document = store.document_uri_path(uri).unwrap();
+        let path = store
+            .source_path_origin(Path::new("/ordinary/requested.tclspec"))
+            .unwrap();
+        let mut published = 0;
+        store
+            .with_current_saved_source_inputs(
+                &[(&document, b"studio")],
+                &[(&path, b"ordinary")],
+                &mut || {
+                    assert!(store.aliases.try_lock().is_err());
+                    assert!(store.files.try_lock().is_err());
+                    published += 1;
+                },
+            )
+            .unwrap();
+        assert_eq!(published, 1);
+        store.upsert("/ordinary/requested.tclspec", b"changed".to_vec());
+        assert_eq!(
+            store.with_current_saved_source_inputs(
+                &[(&document, b"studio")],
+                &[(&path, b"ordinary")],
+                &mut || published += 1
+            ),
+            Err(SourceUriPathUnavailable::SourceImageUnavailable)
+        );
+        assert_eq!(published, 1);
+        store.upsert("/ordinary/requested.tclspec", b"ordinary".to_vec());
+        store.upsert_uri(uri, "/studio/replacement.tclspec", b"studio".to_vec());
+        assert!(
+            store
+                .with_current_saved_source_inputs(
+                    &[(&document, b"studio")],
+                    &[(&path, b"ordinary")],
+                    &mut || published += 1
+                )
+                .is_err()
+        );
+        assert_eq!(published, 1);
+        let foreign = MemoryStore::new();
+        foreign.upsert("/ordinary/requested.tclspec", b"ordinary".to_vec());
+        assert_eq!(
+            foreign.with_current_saved_source_inputs(&[], &[(&path, b"ordinary")], &mut || {
+                published += 1
+            }),
+            Err(SourceUriPathUnavailable::ForeignProvider)
+        );
+        assert_eq!(published, 1);
     }
 }

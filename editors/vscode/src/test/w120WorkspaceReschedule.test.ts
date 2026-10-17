@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as path from "path";
-import { getDocUri, activate, waitForCurrentDiagnostics, scaledTimeout } from "./helper";
+import { getDocUri, activate, scaledTimeout, waitForCurrentDiagnosticsSnapshot } from "./helper";
 
 // `initialized()` kicks off `scan_workspace_folders()`
 // (which populates `workspace_index` / `package_resolver`, the inputs the
@@ -78,11 +78,15 @@ suite("W120 workspace-index reschedule (#829)", () => {
       // Precondition: with no ancestor on disk, the single-file W120 stands
       // -- proves the fixture genuinely exercises the diagnostic rather than
       // the assertion below trivially passing on an already-clean document.
-      const before = await waitForCurrentDiagnostics(callerUri, {
+      const currentSnapshotFor_before = await waitForCurrentDiagnosticsSnapshot(callerUri, {
         expectedSource: callerSource,
         timeout: scaledTimeout(20_000),
         predicate: (diags) => diags.some((d) => codeOf(d) === "W120"),
       });
+      if (!currentSnapshotFor_before.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const before = [...currentSnapshotFor_before.report.diagnostics];
       assert.ok(
         before.some((d) => codeOf(d) === "W120"),
         `precondition failed: W120 should fire with no ancestor on disk, got: ${JSON.stringify(
@@ -101,11 +105,15 @@ suite("W120 workspace-index reschedule (#829)", () => {
       if (remaining <= 0) {
         throw new Error("Timed out waiting for the rescheduled W120 result");
       }
-      const after = await waitForCurrentDiagnostics(callerUri, {
+      const currentSnapshotFor_after = await waitForCurrentDiagnosticsSnapshot(callerUri, {
         expectedSource: callerSource,
         timeout: remaining,
         predicate: (diags) => !diags.some((d) => codeOf(d) === "W120"),
       });
+      if (!currentSnapshotFor_after.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const after = [...currentSnapshotFor_after.report.diagnostics];
       assert.strictEqual(
         caller.version,
         callerVersion,

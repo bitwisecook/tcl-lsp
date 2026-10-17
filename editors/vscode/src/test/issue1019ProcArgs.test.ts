@@ -31,7 +31,7 @@ import {
   activate,
   getServerLogSize,
   waitForDeepDiagnostics,
-  waitForDiagnostics,
+  waitForDiagnosticsSnapshot,
   waitForProviderResult,
 } from "./helper";
 
@@ -211,8 +211,11 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
     // never happens.
     const since = getServerLogSize();
     await activate(docUri);
-    await waitForDeepDiagnostics(docUri, { since });
-    const diags = vscode.languages.getDiagnostics(docUri);
+    const deep = await waitForDeepDiagnostics(docUri, { since });
+    if (!deep?.isCurrent()) {
+      throw new Error("The proc-argument deep-diagnostics report became stale");
+    }
+    const diags = [...deep.report.diagnostics];
     const seen = diags.map(codeOf);
     assert.ok(!seen.includes("W113"), `the proc shadows no built-in: ${seen.join(", ")}`);
     assert.ok(!seen.includes("W120"), `the file defines the command itself: ${seen.join(", ")}`);
@@ -229,9 +232,13 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
     edit.insert(builtinUri, new vscode.Position(0, 0), "proc lindex {a b} { return $a }\n");
     await vscode.workspace.applyEdit(edit);
     try {
-      const diags = await waitForDiagnostics(builtinUri, {
+      const diagsSnapshot = await waitForDiagnosticsSnapshot(builtinUri, {
         predicate: (d) => d.some((x) => codeOf(x) === "W113"),
       });
+      if (!diagsSnapshot.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...diagsSnapshot.report.diagnostics];
       assert.ok(
         diags.some((d) => codeOf(d) === "W113"),
         "`lindex` is a core built-in and must still be flagged",

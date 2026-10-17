@@ -239,6 +239,17 @@ impl OriginalSourceTransitionAdviceTape {
         };
         call.matches_source(head.image(), input).then_some(call)
     }
+    pub(crate) fn logical_procedure_call_inventory(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &SourceImage,
+    ) -> Vec<OriginalLogicalProcedureCall> {
+        self.logical_procedure_calls
+            .keys()
+            .filter_map(|offset| self.logical_procedure_call_at(input, image, *offset))
+            .collect()
+    }
+
     pub(crate) fn logical_procedure_call_at(
         &self,
         input: &ResolvedAnalysisInput,

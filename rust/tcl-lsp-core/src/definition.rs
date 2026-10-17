@@ -394,9 +394,8 @@ pub fn definition_with(
     // resolve as a command name — see
     // [`offset_is_command_head`] for the gate and its one documented limit.
     if analysis.allows_retained_logical_declaration_advice() {
-        if let Some(invocation) = invocation_head_at(analysis, cursor_offset)
-            && let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
-                source, analysis, invocation.range.start(),
+        if let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+                source, analysis, cursor_offset,
             )
         {
             return call.declaration(analysis).map_or_else(Vec::new, |header| {
@@ -502,12 +501,11 @@ fn indirect_definition_target(
             });
     }
     if analysis.allows_retained_logical_declaration_advice() {
-        let invocation = invocation_head_at(analysis, cursor_off)?;
         let call =
-            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
                 source,
                 analysis,
-                invocation.range.start(),
+                cursor_off,
             )?;
         return call
             .declaration(analysis)
@@ -1638,14 +1636,20 @@ pub(crate) fn ensemble_subcommand_target<'a>(
 /// The `greet` of `proc greet {…} {…}` is an *argument* of `proc`, never a
 /// command head, so a provider gated on head position
 /// ([`offset_is_command_head`]) must answer it here instead. Declaration
-/// sites are consulted after `all_procs` so a declaration a later same-named
-/// `proc` displaced still resolves — to whichever definition currently wins
-/// the name, the same rule `resolve_proc_target_at` applies.
+/// cursors in the retained Logical domain select their own genuine original
+/// header, including a declaration displaced by a later same-named procedure.
+/// The separate legacy branch retains its reporting-map behaviour.
 #[must_use]
 pub(crate) fn proc_declaration_at(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let retained_source = std::str::from_utf8(image.bytes()).ok()?;
+    crate::original_context::CurrentSourceContext::capture(retained_source, analysis)?;
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_procedure_header_at(analysis, cursor_off).map(|header| header.metadata());
+    }
     let covers = |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
     if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
         return Some(proc_def);
@@ -1655,6 +1659,39 @@ pub(crate) fn proc_declaration_at(
         .iter()
         .find(|(_, span)| covers(*span))?;
     analysis.all_procs.get(qualified)
+}
+
+/// Select the unique genuine original Logical header under this source cursor.
+/// The header owner checks the complete retained image, input and realm.
+fn logical_procedure_header_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+    let mut selected = analysis
+        .logical_source_procedure_declarations()
+        .filter(|header| {
+            header.original_name_word().is_some_and(|word| {
+                word.span().start() <= cursor_off && cursor_off < word.span().end()
+            })
+        });
+    let header = selected.next()?;
+    selected.next().is_none().then_some(header)
+}
+
+/// Select readonly metadata through this actual original Logical source call.
+fn logical_called_procedure_at<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    cursor_off: u32,
+) -> Option<&'a tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let call =
+        tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source,
+            analysis,
+            cursor_off,
+        )?;
+    call.declaration(analysis)
 }
 
 /// The command invocation the analyser recorded whose **head token** covers
@@ -3806,6 +3843,10 @@ pub(crate) fn resolve_called_proc<'a>(
         };
         return Some(identity.procedure_metadata(analysis)?.metadata());
     }
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_called_procedure_at(analysis, source, call_off)
+            .map(|header| header.metadata());
+    }
     if let Some(reference) = invocation_head_at(analysis, call_off)
         .and_then(|invocation| invocation.resolved_command_reference.as_ref())
     {
@@ -3970,8 +4011,11 @@ fn same_namespace(a: &str, b: &str) -> bool {
         == tcl_syntax::naming::unroot_rooted_key(b).unwrap_or(b)
 }
 
-/// Resolve the `(all_procs key, ProcDef)` that a proc-oriented editor
-/// operation (rename / references / call-hierarchy) targets at `cursor_off`:
+/// Readonly procedure metadata at the cursor. Retained Logical declarations
+/// and calls use their genuine original header; its qualified name is reporting
+/// data, never an independent allocation or edit permission.
+///
+/// The separate legacy `(all_procs key, ProcDef)` route resolves:
 ///
 /// 1. the proc whose declaration name span covers the cursor (a declaration
 ///    -site invocation), else
@@ -4010,6 +4054,12 @@ pub(crate) fn resolve_proc_target_at<'a>(
             &declaration.metadata().qualified_name,
             declaration.metadata(),
         ));
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let header = logical_procedure_header_at(analysis, cursor_off)
+            .or_else(|| logical_called_procedure_at(analysis, source, cursor_off))?;
+        return Some((&header.metadata().qualified_name, header.metadata()));
     }
     if let Some(hit) = analysis
         .all_procs
@@ -4131,7 +4181,11 @@ pub(crate) fn resolve_class_target_at<'a>(
         .get_key_value(&tcl_syntax::naming::qualify(&source_ns, word))
 }
 
-/// Deterministic tail match, in place of a first-`HashMap`-hit one: of
+/// Simple-name reporting assistance, separate from actual source call targets.
+/// Retained Logical candidates are genuine headers from the current image;
+/// their deterministic order grants no lookup, allocation or edit authority.
+///
+/// The separate legacy deterministic tail match considers
 /// every proc whose simple name equals `word`, prefer one defined in this
 /// document ([`name_token_in_document`]), then the lexicographically
 /// smallest qualified name.  `HashMap` iteration order never decides the
@@ -4150,6 +4204,29 @@ pub(crate) fn fallback_proc_by_simple_name<'a>(
     source: &str,
     word: &str,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        // Reporting assistance only: actual call/target selection is terminal
+        // through its independent original source receipt before this path.
+        return analysis
+            .logical_source_procedure_declarations()
+            .filter(|header| header.name() == Some(word))
+            .filter(|header| {
+                !tcl_registry::mathfunc::is_in_mathfunc_namespace(&header.metadata().qualified_name)
+            })
+            .min_by(|left, right| {
+                left.metadata()
+                    .qualified_name
+                    .cmp(&right.metadata().qualified_name)
+                    .then_with(|| {
+                        left.metadata()
+                            .name_span
+                            .start()
+                            .cmp(&right.metadata().name_span.start())
+                    })
+            })
+            .map(|header| header.metadata());
+    }
     analysis
         .all_procs
         .iter()
@@ -4348,6 +4425,188 @@ mod tests {
         Analyser::new()
             .with_resolved_input(input)
             .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_proc_targets_keep_displaced_original_declaration_allocations() {
+        let source =
+            "proc repeated {first} {return $first}\nproc repeated {second} {return $second}\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for offset in [
+            source.find("repeated").unwrap(),
+            source.rfind("repeated").unwrap(),
+        ] {
+            let cursor = u32::try_from(offset + 1).unwrap();
+            let declaration = logical_procedure_header_at(&analysis, cursor).unwrap();
+            let target = resolve_proc_target_at(
+                &analysis,
+                source,
+                cursor,
+                "repeated",
+                CallResolution::document_only(),
+            )
+            .unwrap();
+            assert!(std::ptr::eq(target.1, declaration.metadata()));
+            assert_eq!(target.1.name_span.start(), u32::try_from(offset).unwrap());
+            assert!(std::ptr::eq(
+                proc_declaration_at(&analysis, cursor).unwrap(),
+                target.1
+            ));
+        }
+    }
+
+    #[test]
+    fn logical_proc_targets_retain_alias_move_and_redefinition_call_owners() {
+        let source = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value\nrename join archived\nproc join {new} {}\narchived alpha beta\njoin one\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for needle in ["joined value", "archived alpha", "join one"] {
+            let start = u32::try_from(source.find(needle).unwrap()).unwrap();
+            let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, start,
+            ).unwrap();
+            let header = call.declaration(&analysis).unwrap();
+            let target = resolve_proc_target_at(
+                &analysis,
+                source,
+                start + 1,
+                "unrelated-display",
+                CallResolution::document_only(),
+            )
+            .unwrap();
+            assert!(std::ptr::eq(target.1, header.metadata()));
+            assert!(std::ptr::eq(
+                resolve_called_proc(
+                    &analysis,
+                    source,
+                    "::unrelated",
+                    "unrelated-display",
+                    start + 1,
+                    CallResolution::document_only()
+                )
+                .unwrap(),
+                header.metadata(),
+            ));
+        }
+    }
+
+    #[test]
+    fn logical_simple_name_assistance_does_not_supply_call_target_authority() {
+        let source = "namespace eval other {proc helper {value} {return $value}}\nhelper data\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        let suggestion = fallback_proc_by_simple_name(&analysis, source, "helper").unwrap();
+        assert_eq!(suggestion.name, "helper");
+        let cursor = u32::try_from(source.rfind("helper data").unwrap() + 1).unwrap();
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                source,
+                cursor,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        assert!(
+            resolve_called_proc(
+                &analysis,
+                source,
+                "::",
+                "helper",
+                cursor,
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        assert!(
+            fallback_proc_by_simple_name(&analysis, &format!("{source}# changed"), "helper")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_proc_targets_refuse_deleted_dynamic_argument_and_stale_input() {
+        let source = "proc helper {value} {}\nhelper data\nrename helper {}\nhelper ignored\ninterp alias {} builtin {} puts\nbuiltin text\nset data helper\n$head data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        let call = u32::try_from(source.find("helper data").unwrap() + 1).unwrap();
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_some()
+        );
+        for offset in [
+            source.find("helper ignored").unwrap(),
+            source.find("builtin text").unwrap(),
+            source.find("$head data").unwrap(),
+            source.find("data helper").unwrap() + 5,
+        ] {
+            assert!(
+                resolve_proc_target_at(
+                    &analysis,
+                    source,
+                    u32::try_from(offset + 1).unwrap(),
+                    "helper",
+                    CallResolution::document_only()
+                )
+                .is_none()
+            );
+        }
+        assert!(
+            resolve_proc_target_at(
+                &analysis,
+                &source.replace("helper data", "helper other"),
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = None;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.body_lexer_config = None;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
+        assert!(
+            resolve_proc_target_at(
+                &stale,
+                source,
+                call,
+                "helper",
+                CallResolution::document_only()
+            )
+            .is_none()
+        );
     }
 
     #[test]

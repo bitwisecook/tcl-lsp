@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -50,9 +50,13 @@ suite("Diagnostic ranges and resolution", () => {
 
   test("rename target is known; vacated name draws both W128 and W123", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W128"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // `ua2` (line 5) is the rename target — must not be an unknown command.
     assert.ok(
       !withCode(diags, "W123").some((d) => d.range.start.line === 5),
@@ -73,9 +77,13 @@ suite("Diagnostic ranges and resolution", () => {
 
   test("W210 range is tight on the nested $missing read", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w210 = withCode(diags, "W210");
     assert.strictEqual(w210.length, 1, "one read-before-set in the fixture");
     const r = w210[0].range;
@@ -86,9 +94,13 @@ suite("Diagnostic ranges and resolution", () => {
 
   test("E003 range covers only the surplus argument", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "E003"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const e003 = withCode(diags, "E003");
     assert.strictEqual(e003.length, 1, "one surplus-argument call in the fixture");
     const r = e003[0].range;
@@ -99,9 +111,13 @@ suite("Diagnostic ranges and resolution", () => {
 
   test("W308 anchors the method word and suggests the MRO method", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W308"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = withCode(diags, "W308");
     assert.strictEqual(w308.length, 1, "one unknown-method dispatch in the fixture");
     const r = w308[0].range;
@@ -116,9 +132,13 @@ suite("Diagnostic ranges and resolution", () => {
 
   test("quick fix replaces exactly the typo'd method word", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W308"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w308 = withCode(diags, "W308")[0];
     const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
       "vscode.executeCodeActionProvider",

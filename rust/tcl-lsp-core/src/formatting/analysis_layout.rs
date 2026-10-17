@@ -16,6 +16,17 @@ pub(super) struct AnalysisFormattingLayout {
     commands: BTreeMap<u32, (SegmentedCommand, Vec<NativeWord>)>,
 }
 
+/// Presentation carrier of the shared complete member disposition.
+pub(super) enum MemberBodyArguments {
+    CompleteNonMember,
+    CompleteMember(
+        Vec<(
+            usize,
+            tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
+        )>,
+    ),
+}
+
 impl AnalysisFormattingLayout {
     pub(super) fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
         // naming.editor.original-source-formatting
@@ -90,19 +101,15 @@ impl AnalysisFormattingLayout {
         &self,
         head: u32,
         original: &[NativeWord],
-    ) -> Result<
-        Option<
-            Vec<(
-                usize,
-                tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
-            )>,
-        >,
-        crate::source_structure::SourceSyntaxMemberUnavailable,
-    > {
+    ) -> Result<MemberBodyArguments, crate::source_structure::SourceSyntaxMemberUnavailable> {
         use crate::source_structure::SourceSyntaxMemberUnavailable::WordCorrespondence;
         let head = self.original_offset(head).ok_or(WordCorrespondence)?;
+        let (_, retained) = self.commands.get(&head).ok_or(WordCorrespondence)?;
+        if retained != original {
+            return Err(WordCorrespondence);
+        }
         let Some(member) = self.syntax.definition_member_at(head)? else {
-            return Ok(None);
+            return Ok(MemberBodyArguments::CompleteNonMember);
         };
         if member.original_words() != original {
             return Err(WordCorrespondence);
@@ -121,7 +128,7 @@ impl AnalysisFormattingLayout {
                 Ok((written, body.presentation()))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Some(bodies))
+        Ok(MemberBodyArguments::CompleteMember(bodies))
     }
 
     /// These interiors already come from the selected readonly syntax issuer,
@@ -206,4 +213,37 @@ fn same_word_projection(
                     && original.group().kind == presentation.group().kind
                     && original.group().expand == presentation.group().expand
             })
+}
+
+#[cfg(test)]
+mod member_disposition_tests {
+    use super::*;
+
+    #[test]
+    fn analysed_member_layout_distinguishes_selected_global_and_unavailable_words() {
+        let source = "oo::class create C {\nmethod good {} {puts ordinary}\nif $condition {puts global}\nmethod missing {}\n}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let layout = AnalysisFormattingLayout::capture(source, &analysis).unwrap();
+        let head = |needle| u32::try_from(source.find(needle).unwrap()).unwrap();
+        for (needle, expected) in [
+            ("method good", 1),
+            ("if $condition", 0),
+            ("method missing", -1),
+        ] {
+            let original_head = layout.original_offset(head(needle)).unwrap();
+            let words = &layout.commands[&original_head].1;
+            match (layout.member_body_arguments(head(needle), words), expected) {
+                (Ok(MemberBodyArguments::CompleteMember(bodies)), 1) => assert_eq!(bodies.len(), 1),
+                (Ok(MemberBodyArguments::CompleteNonMember), 0) | (Err(_), -1) => {}
+                _ => panic!("member disposition must precede global schema fallback"),
+            }
+        }
+        let selected_head = head("method good");
+        let words = &layout.commands[&layout.original_offset(selected_head).unwrap()].1;
+        assert!(
+            layout
+                .member_body_arguments(selected_head, &words[..3])
+                .is_err()
+        );
+    }
 }

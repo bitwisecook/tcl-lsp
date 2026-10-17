@@ -45,6 +45,7 @@ pub(crate) struct SourceStructure {
     pub(crate) caller_context_unavailable_bodies: Vec<Span>,
     definition_members:
         Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
+    definition_members_unavailable: Vec<Span>,
     package_census: Option<PackageCensusState>,
     definition_cursor_regions: Vec<DefinitionCursorRegion>,
     definition_cursor_unavailable: Vec<Span>,
@@ -402,6 +403,7 @@ impl SourcePackagePresenceCensus {
 pub struct SourceSyntaxStructure {
     structure: SourceStructure,
     lexical_regions: Vec<SourceSyntaxRegion>,
+    context: Arc<tcl_registry::model::ContextRegistry>,
 }
 
 /// One independently selected syntax interior and its original lexical spans.
@@ -415,8 +417,8 @@ pub struct SourceSyntaxRegion {
 /// Readonly member selected by the genuine captured definition vocabulary.
 /// This owns no global command identity, frame, formal value or edit permission.
 pub(crate) struct SourceSyntaxDefinitionMember<'a> {
-    selection: &'a tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion,
     words: &'a [NativeWord],
+    bodies: Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
 }
 
 /// Missing correspondence within an otherwise genuine member source query.
@@ -426,6 +428,8 @@ pub(crate) enum SourceSyntaxMemberUnavailable {
     AmbiguousVocabulary,
     /// Supplied whole words or body extents differ from the retained member.
     WordCorrespondence,
+    /// An actual definition parent cannot supply complete current member layout.
+    MemberDisposition,
 }
 
 impl SourceSyntaxDefinitionMember<'_> {
@@ -439,7 +443,7 @@ impl SourceSyntaxDefinitionMember<'_> {
         &self,
     ) -> Option<Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>
     {
-        self.selection.script_bodies(self.words)
+        Some(self.bodies.clone())
     }
 }
 
@@ -496,6 +500,7 @@ impl SourceSyntaxStructure {
         Some(Self {
             structure,
             lexical_regions,
+            context: analysis.resolved_input.as_ref()?.context_registry(),
         })
     }
 
@@ -513,18 +518,41 @@ impl SourceSyntaxStructure {
     ) -> Result<Option<SourceSyntaxDefinitionMember<'_>>, SourceSyntaxMemberUnavailable> {
         // naming.editor.original-source-formatting
         // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
+        let region = self
+            .structure
+            .scripts
+            .iter()
+            .filter(|(region, _)| region.start() <= head && head < region.end())
+            .max_by_key(|(_, depth)| *depth)
+            .map(|(region, _)| *region);
+        if region.is_some_and(|region| {
+            self.structure
+                .definition_members_unavailable
+                .contains(&region)
+        }) {
+            return Err(SourceSyntaxMemberUnavailable::MemberDisposition);
+        }
         let mut selected = None;
+        let mut found_parent = false;
         for selection in &self.structure.definition_members {
-            let Some(words) = selection.original_command_words_at(head) else {
-                continue;
-            };
-            if selection.script_bodies(words).is_none() {
+            if Some(selection.source_region()) != region {
                 continue;
             }
-            if selected.is_some() {
+            let words = selection
+                .original_command_words_at(head)
+                .ok_or(SourceSyntaxMemberUnavailable::WordCorrespondence)?;
+            if found_parent {
                 return Err(SourceSyntaxMemberUnavailable::AmbiguousVocabulary);
             }
-            selected = Some(SourceSyntaxDefinitionMember { selection, words });
+            found_parent = true;
+            match selection.script_body_disposition(&self.context, words) {
+                D::Unavailable => return Err(SourceSyntaxMemberUnavailable::MemberDisposition),
+                D::CompleteNonMember => {}
+                D::CompleteMember(bodies) => {
+                    selected = Some(SourceSyntaxDefinitionMember { words, bodies })
+                }
+            }
         }
         Ok(selected)
     }
@@ -1000,6 +1028,7 @@ impl SourceStructure {
             scripts: Vec::new(),
             caller_context_unavailable_bodies: Vec::new(),
             definition_members: Vec::new(),
+            definition_members_unavailable: Vec::new(),
             definition_cursor_regions: Vec::new(),
             definition_cursor_unavailable: Vec::new(),
             package_census: (purpose == CapturePurpose::CheckedSyntax)
@@ -1136,6 +1165,12 @@ impl SourceStructure {
             let definition_members = analysis.resolved_input.as_ref().and_then(|input| {
                 definition_parent?.definition_member_region(&input.context_registry(), region)
             });
+            if purpose == CapturePurpose::Readonly
+                && definition_parent.is_some()
+                && definition_members.is_none()
+            {
+                self.definition_members_unavailable.push(region);
+            }
             let context = SourceScriptContext {
                 analysis,
                 depth,
@@ -1231,24 +1266,39 @@ impl SourceStructure {
         if matches!(
             purpose,
             CapturePurpose::Readonly | CapturePurpose::DefinitionCursor
-        ) && let Some(members) = definition_members
-            && let Some(words) = command
+        ) && script.definition_parent.is_some()
+        {
+            use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
+            let Some(members) = definition_members else {
+                return true;
+            };
+            let Some(words) = command
                 .argv
                 .first()
                 .and_then(|head| members.original_command_words_at(head.span.start()))
-            && let Some(bodies) = members.script_bodies(words)
-        {
-            for body in bodies {
-                self.bodies.push(body.extent_span());
-                self.caller_context_unavailable_bodies
-                    .push(body.content_span());
-                queue.push_back((
-                    body.content_span(),
-                    depth + 1,
-                    body.definition_parent().cloned(),
-                ));
+            else {
+                return true;
+            };
+            let Some(input) = analysis.resolved_input.as_ref() else {
+                return true;
+            };
+            match members.script_body_disposition(&input.context_registry(), words) {
+                D::Unavailable => return true,
+                D::CompleteNonMember => {}
+                D::CompleteMember(bodies) => {
+                    for body in bodies {
+                        self.bodies.push(body.extent_span());
+                        self.caller_context_unavailable_bodies
+                            .push(body.content_span());
+                        queue.push_back((
+                            body.content_span(),
+                            depth + 1,
+                            body.definition_parent().cloned(),
+                        ));
+                    }
+                    return true;
+                }
             }
-            return true;
         }
         if matches!(
             purpose,
@@ -2512,6 +2562,43 @@ mod tests {
         assert!(
             crate::original_invocation::source_registry_words(source, &analysis, &command)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn source_member_disposition_prevents_unavailable_layout_global_fallback() {
+        let source = "oo::class create C {\nmethod good {} {puts ordinary}\nif $condition {puts global}\nmethod missing {}\nmethod cooked {} \"puts\\x20cooked\"\nsuperclass Base\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let syntax = SourceSyntaxStructure::capture(source, &analysis).unwrap();
+        let head = |needle| u32::try_from(source.find(needle).unwrap()).unwrap();
+        let member = syntax
+            .definition_member_at(head("method good"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(member.script_bodies().unwrap().len(), 1);
+        assert!(
+            syntax
+                .definition_member_at(head("if $condition"))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            syntax
+                .definition_member_at(head("puts ordinary"))
+                .unwrap()
+                .is_none()
+        );
+        for needle in ["method missing", "method cooked"] {
+            assert!(syntax.definition_member_at(head(needle)).is_err());
+        }
+        assert!(
+            syntax
+                .definition_member_at(head("superclass Base"))
+                .unwrap()
+                .unwrap()
+                .script_bodies()
+                .unwrap()
+                .is_empty()
         );
     }
 

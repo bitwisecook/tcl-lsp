@@ -212,6 +212,26 @@ suite("Pack-declared file extensions through the extension host", () => {
     assert.deepStrictEqual(writes, []);
   });
 
+  test("a retired issuer cannot publish a queued pack snapshot", async function () {
+    const writes: string[] = [];
+    const context = {
+      workspaceState: {
+        get: () => ({}),
+        update: async (key: string) => {
+          writes.push(key);
+        },
+      },
+    } as unknown as vscode.ExtensionContext;
+    const before = workspaceAssociations();
+    const generation = beginPackFileAssociationSync(context);
+    let current = true;
+    const pending = syncPackFileAssociations(context, [], undefined, generation, () => current);
+    current = false;
+    await pending;
+    assert.deepStrictEqual(workspaceAssociations(), before);
+    assert.deepStrictEqual(writes, []);
+  });
+
   test("the server advertises the extension its discovered pack claims", async function () {
     this.timeout(120_000);
     const rows = await pollUntil(

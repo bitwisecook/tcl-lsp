@@ -144,13 +144,18 @@ export function syncPackFileAssociations(
   advertised: readonly PackFileExtension[],
   log?: (message: string) => void,
   generation = beginPackFileAssociationSync(context),
+  sourceIsCurrent: () => boolean = () => true,
 ): Promise<string[]> {
+  // The issuer retains its genuine session/configuration owner across the queue
+  // and each await. The ticket only orders pack-set triggers.
+  const isCurrent = () =>
+    isPackFileAssociationSyncCurrent(context, generation) && sourceIsCurrent();
   const previous = reconciliationTails.get(context) ?? Promise.resolve();
   const current = previous.then(() => {
-    if (!isPackFileAssociationSyncCurrent(context, generation)) {
+    if (!isCurrent()) {
       return [];
     }
-    return reconcilePackFileAssociations(context, advertised, log, generation);
+    return reconcilePackFileAssociations(context, advertised, log, isCurrent);
   });
   reconciliationTails.set(
     context,
@@ -166,7 +171,7 @@ async function reconcilePackFileAssociations(
   context: vscode.ExtensionContext,
   advertised: readonly PackFileExtension[],
   log: ((message: string) => void) | undefined,
-  generation: number,
+  isCurrent: () => boolean,
 ): Promise<string[]> {
   if (
     !Array.isArray(advertised) ||
@@ -241,7 +246,7 @@ async function reconcilePackFileAssociations(
     }
   }
 
-  if (!isPackFileAssociationSyncCurrent(context, generation)) {
+  if (!isCurrent()) {
     return [];
   }
   if (changed) {
@@ -251,7 +256,7 @@ async function reconcilePackFileAssociations(
       vscode.ConfigurationTarget.Workspace,
     );
     log?.(`[packs] file associations now: ${Object.keys(nowOwned).join(", ") || "(none)"}`);
-    if (!isPackFileAssociationSyncCurrent(context, generation)) {
+    if (!isCurrent()) {
       // The settings write has completed. Journal only entries still equal to
       // our write so later cleanup has a truthful record; do not retarget from
       // a stale pack snapshot.
@@ -266,13 +271,13 @@ async function reconcilePackFileAssociations(
   }
   if (changed || !sameOwnership(previouslyOwned, nowOwned)) {
     await context.workspaceState.update(OWNED_KEY, nowOwned);
-    if (!isPackFileAssociationSyncCurrent(context, generation)) {
+    if (!isCurrent()) {
       return [];
     }
   }
 
-  await retargetOpenDocuments(owned, () => isPackFileAssociationSyncCurrent(context, generation));
-  return isPackFileAssociationSyncCurrent(context, generation) ? Object.keys(nowOwned) : [];
+  await retargetOpenDocuments(owned, isCurrent);
+  return isCurrent() ? Object.keys(nowOwned) : [];
 }
 
 /**

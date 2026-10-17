@@ -1,0 +1,18 @@
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -64564,13 +64564,14 @@
+ mod pack_configuration_input_gate_tests {
+     use super::*;
+     use std::future::Future;
++    use tcl_dialect::model::WorkspaceTrust;
+ 
+     #[tokio::test]
+     async fn original_folder_and_trust_setters_wait_for_the_report_input_owner() {
+         let backend = crate::tests::test_backend();
+         let folder: Uri = "file:///pack-configuration-source".parse().unwrap();
+         let params = InitializeParams {
+-            workspace_folders: Some(vec![WorkspaceFolder {
++            workspace_folders: Some(vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                 uri: folder.clone(),
+                 name: "pack".to_owned(),
+             }]),

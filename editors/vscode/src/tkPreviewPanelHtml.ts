@@ -576,12 +576,6 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return typeof manager === 'string' ? manager.toLowerCase() : '';
   }
 
-  function lexicalParent(pathname) {
-    if (typeof pathname !== 'string' || pathname === '.') return '';
-    const index = pathname.lastIndexOf('.');
-    return index > 0 ? pathname.slice(0, index) : '.';
-  }
-
   function placementContainer(widget) {
     const container = widget && widget.geometry && widget.geometry.container;
     return typeof container === 'string' ? container : undefined;
@@ -1138,7 +1132,11 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
         if (Array.isArray(data.orphan_widgets) && data.orphan_widgets.length > 0) {
           treeHtml += '<h3 style="margin:12px 0 4px">Unresolved parents</h3>';
           treeHtml += data.orphan_widgets
-            .map((orphan) => renderTreeNode(orphan, false, lexicalParent(orphan.path)))
+            .map((orphan) => renderTreeNode(
+              orphan,
+              false,
+              typeof orphan.source_parent_path === 'string' ? orphan.source_parent_path : '',
+            ))
             .join('');
         }
         treeTab.innerHTML = treeHtml;

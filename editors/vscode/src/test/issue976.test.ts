@@ -25,7 +25,12 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, waitForCurrentDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnosticsSnapshot,
+  waitForCurrentDiagnosticsSnapshot,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -36,9 +41,13 @@ suite("Issue #976 dynamic-dispatch call-site seeding", () => {
     const docUri = getDocUri("issue976DynamicDispatch.tcl");
     const document = await activate(docUri);
 
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `'$cmd dev' also reaches helper, with a differing literal: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
@@ -49,9 +58,13 @@ suite("Issue #976 dynamic-dispatch call-site seeding", () => {
     const docUri = getDocUri("issue976UnenumerableDispatch.tcl");
     const document = await activate(docUri);
 
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `an unenumerable dispatch may reach helper: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
@@ -62,9 +75,13 @@ suite("Issue #976 dynamic-dispatch call-site seeding", () => {
     const docUri = getDocUri("issue976DynamicDispatchAgrees.tcl");
     await activate(docUri);
 
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "I230"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       diags.some((d) => codeOf(d) === "I230"),
       `every caller — dispatched or not — passes "prod": ${JSON.stringify(diags.map((d) => codeOf(d)))}`,

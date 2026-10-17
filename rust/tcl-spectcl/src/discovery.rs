@@ -220,7 +220,7 @@ const MANIFEST_SCAN_DIR_CAP: usize = 4_000;
 
 /// What to look at. Every field is optional in the sense that an empty or
 /// absent one simply contributes no files.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DiscoveryOptions {
     /// The editor's workspace folders, as filesystem paths.
     pub workspace_roots: Vec<PathBuf>,
@@ -343,7 +343,7 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
 /// filled in, so a page's `.tclspec` files are discovered from memory.
 #[must_use]
 pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<PackFile> {
-    discover_selected_in(store, options, None)
+    discover_selected_in(store, options, None).files
 }
 
 /// Discover ordinary packs and only the explicitly retained active Studio
@@ -358,7 +358,7 @@ pub fn discover_with_active_studio_in(
     options: &DiscoveryOptions,
     active: &[PathBuf],
 ) -> Vec<PackFile> {
-    discover_selected_in(store, options, Some(active))
+    discover_selected_in(store, options, Some(active)).files
 }
 
 /// Whether this original provider Path is a pack file strictly below one of
@@ -386,12 +386,34 @@ fn is_reserved_workspace_studio_path(path: &Path, roots: &[PathBuf]) -> bool {
     })
 }
 
+/// Actual configured-source contributions from one discovery pass.
+/// This is source selection only, not publication or a live provider grant.
+pub struct ConfiguredDiscovery {
+    /// The exact final selected files passed to the loader.
+    pub files: Vec<PackFile>,
+    /// Original native files contributed by each session configured entry.
+    /// Empty means no selected contribution, never a successful load.
+    pub configured_sources: Vec<Vec<PathBuf>>,
+}
+
+/// Retain configured-entry correspondence from the same ordinary discovery.
+/// The caller must join these files to its actual successfully installed set.
+#[must_use]
+pub fn discover_configuration_with_active_studio_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: &[PathBuf],
+) -> ConfiguredDiscovery {
+    discover_selected_in(store, options, Some(active))
+}
+
 fn discover_selected_in(
     store: &dyn SourceStore,
     options: &DiscoveryOptions,
     active: Option<&[PathBuf]>,
-) -> Vec<PackFile> {
+) -> ConfiguredDiscovery {
     let mut found: BTreeSet<PackFile> = BTreeSet::new();
+    let mut configured_sources = vec![BTreeSet::<PathBuf>::new(); options.configured.len()];
 
     // --- workspace tier -----------------------------------------------------
     for root in &options.workspace_roots {
@@ -404,13 +426,22 @@ fn discover_selected_in(
                 &mut found,
             );
         }
-        for configured in &options.configured {
+        for (index, configured) in options.configured.iter().enumerate() {
             let path = if configured.is_absolute() {
                 configured.clone()
             } else {
                 root.join(configured)
             };
-            collect_path(store, &path, Tier::Workspace, Origin::Setting, &mut found);
+            let mut selected = BTreeSet::new();
+            collect_path(
+                store,
+                &path,
+                Tier::Workspace,
+                Origin::Setting,
+                &mut selected,
+            );
+            configured_sources[index].extend(selected.iter().map(|file| file.path.clone()));
+            found.extend(selected);
         }
         collect_dir(
             store,
@@ -439,15 +470,18 @@ fn discover_selected_in(
     // open (a single-file editor session), so honour it once more outside the
     // per-root loop rather than making it depend on a root existing.
     if options.workspace_roots.is_empty() {
-        for configured in &options.configured {
+        for (index, configured) in options.configured.iter().enumerate() {
             if configured.is_absolute() {
+                let mut selected = BTreeSet::new();
                 collect_path(
                     store,
                     configured,
                     Tier::Workspace,
                     Origin::Setting,
-                    &mut found,
+                    &mut selected,
                 );
+                configured_sources[index].extend(selected.iter().map(|file| file.path.clone()));
+                found.extend(selected);
             }
         }
     }
@@ -502,7 +536,19 @@ fn discover_selected_in(
         .filter(|file| seen.insert(file.path.clone()))
         .collect();
     assign_dependency_tiers(store, &options.workspace_roots, &mut files);
-    files
+    let configured_sources = configured_sources
+        .into_iter()
+        .map(|sources| {
+            sources
+                .into_iter()
+                .filter(|path| files.iter().any(|file| &file.path == path))
+                .collect()
+        })
+        .collect();
+    ConfiguredDiscovery {
+        files,
+        configured_sources,
+    }
 }
 
 /// Add `path` — a `.tclspec` file, or a directory to scan for them.
@@ -986,6 +1032,31 @@ mod tests {
             .collect();
         assert_eq!(names, vec!["a.tclspec", "b.tclspec"], "{found:#?}");
         assert!(found.iter().all(|f| f.tier == Tier::Workspace));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn configured_discovery_retains_exact_native_sources_and_missing_entry() {
+        let root = tmpdir("configured-receipt");
+        write(&root.join("packs/one.tclspec"), "speclib one 1 {}\n");
+        let options = DiscoveryOptions {
+            workspace_roots: vec![root.clone()],
+            configured: vec![PathBuf::from("packs"), PathBuf::from("missing.tclspec")],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        let receipt = discover_configuration_with_active_studio_in(&NativeStore, &options, &[]);
+        assert_eq!(
+            receipt.files,
+            discover_with_active_studio_in(&NativeStore, &options, &[])
+        );
+        assert_eq!(receipt.configured_sources.len(), 2);
+        assert_eq!(
+            receipt.configured_sources[0],
+            vec![normalise(&root.join("packs/one.tclspec"))]
+        );
+        assert!(receipt.configured_sources[1].is_empty());
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -1,0 +1,14 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
+@@ -925,8 +925,11 @@
+ /// Nonmembership is source syntax only, never runtime command absence.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub enum OriginalSourceDefinitionMemberDisposition {
++    /// The complete retained vocabulary classifies this source command as a nonmember.
+     CompleteNonMember,
++    /// The retained source or vocabulary cannot supply a complete classification.
+     Unavailable,
++    /// The source command is a member with the retained script bodies, possibly empty.
+     CompleteMember(Vec<OriginalSourceDefinitionMemberScriptBody>),
+ }
+ 

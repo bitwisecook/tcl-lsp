@@ -69,6 +69,8 @@ suite("Tk preview webview", () => {
     assert.ok(html.includes("const widgetCount = Number.isSafeInteger(data.widget_count)"));
     assert.ok(html.includes("let treeHtml = renderTreeNode(root, true, '')"));
     assert.ok(html.includes("treeHtml += data.orphan_widgets"));
+    assert.ok(html.includes("typeof orphan.source_parent_path === 'string'"));
+    assert.ok(!html.includes("function lexicalParent"));
     assert.ok(html.includes("treeTab.innerHTML = treeHtml"));
     assert.ok(!html.includes("treeTab.innerHTML +="));
     assert.ok(html.includes("let visualHtml = renderWidget(root)"));

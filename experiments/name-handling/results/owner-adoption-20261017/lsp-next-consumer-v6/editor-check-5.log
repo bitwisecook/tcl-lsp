@@ -1,0 +1,4 @@
+
+> @tcl-spec-studio/web@0.0.0 typecheck
+> tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json
+

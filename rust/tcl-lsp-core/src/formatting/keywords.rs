@@ -63,12 +63,18 @@
 //! Both rewrites are idempotent: a canonical spelling resolves to itself, and
 //! the configured boolean form maps to itself.
 
+#[cfg(test)]
 use tcl_registry::abbrev::PrefixMatching;
+#[cfg(test)]
 use tcl_registry::hover::OptionSpec;
-use tcl_registry::{ArgRole, CommandRegistry, CommandSpec};
+use tcl_registry::{ArgRole, ResolvedInvocation};
+#[cfg(test)]
+use tcl_registry::{CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
+#[cfg(test)]
 use tcl_dialect::model::SpecSurface;
+#[cfg(test)]
 use tcl_dialect::model::SurfaceQuery;
 
 /// A word the formatter would rewrite: the argument index (0-based, after the
@@ -170,6 +176,7 @@ fn canonical_boolean(word: &str, form: BooleanForm, site: BooleanSite) -> Option
 
 /// Which keyword table of a command the version-range check should build.
 #[derive(Debug, Clone, Copy)]
+#[cfg(test)]
 enum RangeTable<'a> {
     /// The ensemble's subcommand words.
     Subcommands,
@@ -202,6 +209,7 @@ enum RangeTable<'a> {
 /// [`crate::context_for_dialect`] itself, so the range machinery can
 /// be exercised against a synthetic spec in tests — the process-wide cache
 /// only ever holds the real registry data, never a fixture.
+#[cfg(test)]
 fn release_table(
     release: &str,
     registry: &CommandRegistry,
@@ -237,6 +245,7 @@ fn release_table(
 /// whole target range, and [`positional_site_across_range`] reuses it to gate
 /// a subcommand-scoped positional site exactly the way an option's value is
 /// gated by its own `dialects` field.
+#[cfg(test)]
 fn resolves_in_release(
     release: &str,
     registry: &CommandRegistry,
@@ -267,6 +276,7 @@ fn resolves_in_release(
 /// empty iterator is vacuously `true`. A release that no longer carries the
 /// command contributes an empty table, which can never vouch for the word, so
 /// the rewrite is abandoned.
+#[cfg(test)]
 fn resolves_across_range(
     releases: &[(&str, &CommandRegistry)],
     cmd_name: &str,
@@ -281,6 +291,7 @@ fn resolves_across_range(
 
 /// The option specs `scope` names on `spec`, for a release other than the
 /// document's own. Empty when that release's spec has no such table.
+#[cfg(test)]
 fn options_for_scope<'a>(spec: &'a CommandSpec, scope: RangeTable<'_>) -> &'a [OptionSpec] {
     match scope {
         // Subcommand *words* are not a value position; nothing to say.
@@ -309,6 +320,7 @@ fn options_for_scope<'a>(spec: &'a CommandSpec, scope: RangeTable<'_>) -> &'a [O
 /// An empty `releases` (the default, and every vendor dialect with no core
 /// release row) means "no range was declared", so the target's own verdict
 /// stands — `fold` over an empty slice returns `target` unchanged.
+#[cfg(test)]
 fn boolean_site_across_range(
     releases: &[(&str, &CommandRegistry)],
     cmd_name: &str,
@@ -342,6 +354,7 @@ fn boolean_site_across_range(
 /// option-value matching is an exact-name check, so an abbreviated `-noc`
 /// would otherwise go unrecognised where the option scan's own abbreviation
 /// table already resolved it.
+#[cfg(test)]
 fn declared_boolean_site_at(
     registry: &CommandRegistry,
     cmd_name: &str,
@@ -383,6 +396,7 @@ fn declared_boolean_site_at(
 /// An empty `releases` (the default, and every vendor dialect with no core
 /// release row) means "no range was declared", so the target's own verdict
 /// stands, exactly as [`boolean_site_across_range`] does.
+#[cfg(test)]
 fn positional_site_across_range(
     releases: &[(&str, &CommandRegistry)],
     cmd_name: &str,
@@ -417,258 +431,216 @@ fn positional_site_across_range(
     })
 }
 
-/// The facts every boolean-rewrite helper below needs about the current call,
-/// bundled so passing them around does not blow past a sane argument count —
-/// [`scan_options`] and [`push_positional_boolean_rewrites`] both take one of
-/// these plus only what is specific to their own half of the scan.
-struct RewriteCtx<'a> {
-    registry: &'a CommandRegistry,
-    dialect: Option<SurfaceQuery<'a>>,
-    /// The command's own dialect set, for the option table's
-    /// `supports_dialect` filter — a `SubCommand` inherits it via `None`.
-    spec_surface: Option<&'static [SpecSurface]>,
-    config: &'a FormatterConfig,
-    releases: &'a [(&'a str, &'a CommandRegistry)],
-    cmd_name: &'a str,
-}
-
-/// The option table a command's leading subcommand word selects, and where the
-/// option scan starts.
-struct OptionScope {
-    /// The option specs to resolve `-option` words against.
-    options: &'static [OptionSpec],
-    /// The table's prefix-matching strictness.
-    prefix: PrefixMatching,
-    /// Which table the version-range check should rebuild per release.
-    range_table: RangeTable<'static>,
-    /// The first argument index the option scan looks at.
-    start: usize,
-}
-
-/// Resolve an ensemble's subcommand word, pushing its expansion rewrite when
-/// one applies, and return the option scope it selects along with the word's
-/// canonical spelling — the caller seeds its canonicalised-argument copy from
-/// this even when `expand_abbreviations` never pushes the rewrite, since the
-/// positional boolean pass needs it to name the same subcommand
-/// [`CommandRegistry::arg_indices_for_role`] would resolve by exact match.
-///
-/// `None` when the word is ambiguous or unknown — the formatter never guesses,
-/// and it cannot know which option table applies either.
-fn subcommand_scope(
-    spec: &tcl_registry::CommandSpec,
-    dialect: Option<SurfaceQuery<'_>>,
+/// Recheck the complete actual argv under every declared release. Each
+/// release selects its own descriptor, form, option placement and roles.
+fn across_selected_releases(
+    selected: &ResolvedInvocation<'_, '_>,
     config: &FormatterConfig,
-    releases: &[(&str, &CommandRegistry)],
-    cmd_name: &str,
-    word: &str,
-    out: &mut Vec<KeywordRewrite>,
-) -> Option<(OptionScope, &'static str)> {
-    let canonical = spec
-        .resolve_subcommand_word(word, dialect, None, None)
-        .unique()?;
-    if config.expand_abbreviations
-        && canonical != word
-        && resolves_across_range(releases, cmd_name, RangeTable::Subcommands, word, canonical)
-    {
-        out.push(KeywordRewrite {
-            index: 0,
-            text: canonical.to_owned(),
-        });
-    }
-    let sub = spec.subcommands.iter().find(|s| s.name == canonical);
-    let scope = OptionScope {
-        options: sub.map_or(spec.options, |sub| sub.options),
-        prefix: sub.map_or(spec.prefix_matching, |sub| sub.prefix_matching),
-        range_table: sub.map_or(RangeTable::CommandOptions, |sub| {
-            RangeTable::SubcommandOptions(sub.name)
-        }),
-        start: 1,
+    mut agrees: impl FnMut(&ResolvedInvocation<'_, '_>) -> bool,
+) -> bool {
+    let Some(count) = selected.words.arguments().exact_argv_len() else {
+        return false;
     };
-    Some((scope, canonical))
+    let Some(arguments) = (0..count)
+        .map(|index| selected.words.arguments().get(index))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    tcl_registry::version_range::core_releases_in(config.target_range())
+        .into_iter()
+        .all(|release| {
+            let registry = crate::registry_for_dialect(release);
+            let words = tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(selected.canonical_command),
+                &arguments,
+            );
+            registry
+                .resolve_structured_invocation(
+                    words,
+                    Some(crate::document_context_for_dialect(release).authoring_query()),
+                )
+                .resolved()
+                .is_some_and(|current| agrees(&current))
+        })
 }
 
-/// The option-word half of [`rewrites_for_command`]: expands an abbreviated
-/// option name and classifies each option's value word
-/// as a boolean site by the same [`declared_boolean_site_at`] query the
-/// positional pass uses, preserving the dialect and
-/// target-range gates around it.
-///
-/// Every word index an option consumes as its value is marked `claimed`, so
-/// [`push_positional_boolean_rewrites`] never reclassifies it as a bare
-/// positional. Mutates `canonical_args` in place: every recognised option
-/// word is replaced by its canonical spelling so the positional pass's
-/// exact-match role query can still see an abbreviated `-noc`.
-fn scan_options(
-    ctx: &RewriteCtx<'_>,
-    scope: &OptionScope,
-    args: &[String],
-    touchable: &impl Fn(usize) -> bool,
-    canonical_args: &mut [String],
-    claimed: &mut [bool],
-    out: &mut Vec<KeywordRewrite>,
-) {
-    if scope.options.is_empty() {
-        return;
+/// Boolean source role at one effective ordinal of the same selected form.
+/// Selected option values cannot be reclassified as unrelated positionals.
+fn selected_boolean_site(selected: &ResolvedInvocation<'_, '_>, index: usize) -> BooleanSite {
+    let (roles, complete) = selected.authored_source_argument_roles();
+    if !complete {
+        return BooleanSite::None;
     }
-    let registry = ctx.registry;
-    let config = ctx.config;
-    let releases = ctx.releases;
-    let cmd_name = ctx.cmd_name;
-    let options = scope.options;
-    let table = tcl_registry::abbrev::KeywordTable::from_keywords(
-        options
-            .iter()
-            .filter(|opt| opt.supports_dialect(ctx.dialect, ctx.spec_surface))
-            .flat_map(|opt| {
-                std::iter::once(opt.name)
-                    .chain(opt.aliases.iter().copied())
-                    .map(move |name| tcl_registry::abbrev::Keyword {
-                        name,
-                        min_abbrev: opt.min_abbrev,
-                    })
-            }),
-        scope.prefix,
-    );
+    let Some(scan) = selected.authored_source_diagnostic_options() else {
+        return BooleanSite::None;
+    };
+    for option in &scan.options {
+        let Some(values) = option.values.as_ref() else {
+            return BooleanSite::None;
+        };
+        if values.contains(&index) && (!option.available || values.len() != 1) {
+            return BooleanSite::None;
+        }
+    }
+    roles
+        .into_iter()
+        .filter(|(ordinal, _)| usize::from(*ordinal) == index)
+        .map(|(_, role)| BooleanSite::of(Some(role)))
+        .max()
+        .unwrap_or(BooleanSite::None)
+}
 
-    let mut i = scope.start;
-    while i < args.len() {
-        let word = args[i].as_str();
-        // registry-axis-ok: irreducible — this scan is generic across every
-        // command's option scope (`scope.options`, any dialect); reading
-        // `OptionEffectKind::EndsOptions` off *this* scope's own rows, like
-        // `tcl-mcp/src/datagroup.rs`'s `analyse_switch`, would be correct
-        // for the two commands whose "--" row has that effect populated
-        // today, but silently stop recognising "--" as ending option
-        // scanning for the other ~21 commands that declare a "--" row
-        // without it — a formatter-safety regression, not a fix; until
-        // never
-        if word == "--" {
-            break;
-        }
-        if !word.starts_with('-') || word.len() < 2 || !touchable(i) {
-            i += 1;
-            continue;
-        }
-        // A negative-number literal is a positional value, not an option.
-        let digits = word[1..].trim_start_matches('-');
-        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit() || c == '.') {
-            i += 1;
-            continue;
-        }
-        let Some(canonical) = table.resolve(word).unique() else {
-            i += 1;
-            continue;
-        };
-        canonical.clone_into(&mut canonical_args[i]);
-        if config.expand_abbreviations
-            && canonical != word
-            && resolves_across_range(releases, cmd_name, scope.range_table, word, canonical)
-        {
-            out.push(KeywordRewrite {
-                index: i,
-                text: canonical.to_owned(),
-            });
-        }
-        let Some(opt) = options.iter().find(|o| o.matches(canonical)) else {
-            i += 1;
-            continue;
-        };
-        let consumed = opt.value_word_count(args, i);
-        for value_idx in (i + 1)..(i + 1 + consumed).min(claimed.len()) {
-            claimed[value_idx] = true;
-        }
-        // The option's value word, when the registry *declares* the position
-        // boolean (driven from `arg_indices_for_role`) and every release of
-        // the target range agrees about both the option and its role.
-        if consumed == 1 && config.boolean_form != BooleanForm::Preserve && touchable(i + 1) {
-            let value_index = i + 1;
-            let canonical_refs: Vec<&str> = canonical_args.iter().map(String::as_str).collect();
-            let target_site =
-                declared_boolean_site_at(registry, cmd_name, &canonical_refs, value_index);
-            if target_site != BooleanSite::None
-                && resolves_across_range(releases, cmd_name, scope.range_table, word, canonical)
-                && let Some(value) = args.get(value_index)
-                && let Some(text) = canonical_boolean(
-                    value,
-                    config.boolean_form,
-                    boolean_site_across_range(
-                        releases,
-                        cmd_name,
-                        scope.range_table,
-                        canonical,
-                        target_site,
-                    ),
-                )
+/// Candidates from one genuine selected full-argv source schema. This supplies
+/// positions only; the caller retains transform-purpose and written-word gates.
+pub(crate) fn rewrites_for_selected_invocation(
+    selected: &ResolvedInvocation<'_, '_>,
+    config: &FormatterConfig,
+) -> Vec<KeywordRewrite> {
+    if !config.expand_abbreviations && config.boolean_form == BooleanForm::Preserve {
+        return Vec::new();
+    }
+    let Some(count) = selected.words.arguments().exact_argv_len() else {
+        return Vec::new();
+    };
+    let Some(scan) = selected.authored_source_diagnostic_options() else {
+        return Vec::new();
+    };
+    let touchable = |index| {
+        selected
+            .words
+            .arguments()
+            .literal_at(index)
+            .filter(|word| is_static_word(word))
+    };
+    let mut out = Vec::new();
+    if config.expand_abbreviations {
+        for (index, &canonical) in scan.subcommands.iter().enumerate() {
+            let Some(_word) = touchable(index).filter(|word| *word != canonical) else {
+                continue;
+            };
+            if selected.source_literal_replacement_keeps_selection(index, canonical)
+                && across_selected_releases(selected, config, |current| {
+                    current.source_literal_replacement_keeps_selection(index, canonical)
+                        && current
+                            .authored_source_diagnostic_options()
+                            .is_some_and(|scan| {
+                                scan.subcommands.get(index).copied() == Some(canonical)
+                            })
+                })
             {
                 out.push(KeywordRewrite {
-                    index: value_index,
-                    text,
+                    index,
+                    text: canonical.to_owned(),
                 });
             }
         }
-        i += 1 + consumed;
+        for option in &scan.options {
+            if !option.available || option.values.is_none() {
+                continue;
+            }
+            let Some(word) = touchable(option.argument) else {
+                continue;
+            };
+            let Some(canonical) = selected
+                .semantics
+                .options
+                .keyword_table()
+                .resolve(word)
+                .unique()
+                .filter(|canonical| *canonical != word)
+            else {
+                continue;
+            };
+            if selected.source_literal_replacement_keeps_selection(option.argument, canonical)
+                && across_selected_releases(selected, config, |current| {
+                    current.source_literal_replacement_keeps_selection(option.argument, canonical)
+                        && current
+                            .authored_source_diagnostic_options()
+                            .is_some_and(|scan| {
+                                scan.options.iter().any(|other| {
+                                    other.argument == option.argument
+                                        && other.available
+                                        && other.values == option.values
+                                        && other.option.name == option.option.name
+                                        && current
+                                            .semantics
+                                            .options
+                                            .keyword_table()
+                                            .resolve(word)
+                                            .unique()
+                                            == Some(canonical)
+                                })
+                            })
+                })
+            {
+                out.push(KeywordRewrite {
+                    index: option.argument,
+                    text: canonical.to_owned(),
+                });
+            }
+        }
     }
+    if config.boolean_form != BooleanForm::Preserve {
+        for index in 0..count {
+            let Some(word) = touchable(index) else {
+                continue;
+            };
+            let mut site = selected_boolean_site(selected, index);
+            if site == BooleanSite::None {
+                continue;
+            }
+            if !across_selected_releases(selected, config, |current| {
+                site = site.min(selected_boolean_site(current, index));
+                site != BooleanSite::None
+            }) {
+                continue;
+            }
+            if let Some(text) = canonical_boolean(word, config.boolean_form, site)
+                && selected.source_literal_replacement_keeps_selection(index, &text)
+                && across_selected_releases(selected, config, |current| {
+                    current.source_literal_replacement_keeps_selection(index, &text)
+                })
+            {
+                out.push(KeywordRewrite { index, text });
+            }
+        }
+    }
+    out.sort_by_key(|rewrite| rewrite.index);
+    let mut retained: Vec<KeywordRewrite> = Vec::new();
+    for candidate in out {
+        let replacements = retained
+            .iter()
+            .chain(std::iter::once(&candidate))
+            .map(|rewrite| (rewrite.index, rewrite.text.as_str()))
+            .collect::<Vec<_>>();
+        if selected.source_literal_replacements_keep_selection(&replacements)
+            && across_selected_releases(selected, config, |current| {
+                current.source_literal_replacements_keep_selection(&replacements)
+            })
+        {
+            retained.push(candidate);
+        }
+    }
+    retained
 }
 
-/// The positional / repeated-tail half of the gap:
-/// [`CommandRegistry::arg_indices_for_role`] answers uniformly across
-/// positional roles, repeated tails, and option values; [`scan_options`]
-/// already claimed every option-value index, so whatever boolean-role index
-/// it did *not* claim is a genuine positional word.
-fn push_positional_boolean_rewrites(
-    ctx: &RewriteCtx<'_>,
-    args: &[String],
-    canonical_args: &[String],
-    claimed: &[bool],
-    touchable: &impl Fn(usize) -> bool,
-    out: &mut Vec<KeywordRewrite>,
-) {
-    if ctx.config.boolean_form == BooleanForm::Preserve {
-        return;
-    }
-    let registry = ctx.registry;
-    let cmd_name = ctx.cmd_name;
-    let canonical_refs: Vec<&str> = canonical_args.iter().map(String::as_str).collect();
-    let mut candidates: Vec<(usize, BooleanSite)> = registry
-        .arg_indices_for_role(cmd_name, &canonical_refs, ArgRole::Boolean)
-        .into_iter()
-        .map(|i| (i, BooleanSite::Interchangeable))
-        .collect();
-    candidates.extend(
-        registry
-            .arg_indices_for_role(cmd_name, &canonical_refs, ArgRole::NumericOrBoolean)
-            .into_iter()
-            .map(|i| (i, BooleanSite::WordFormsOnly)),
-    );
-    for (index, target_site) in candidates {
-        if claimed.get(index).copied().unwrap_or(false) || !touchable(index) {
-            continue;
-        }
-        let site = positional_site_across_range(
-            ctx.releases,
-            cmd_name,
-            canonical_args,
-            index,
-            target_site,
-        );
-        if site == BooleanSite::None {
-            continue;
-        }
-        let Some(value) = args.get(index) else {
-            continue;
-        };
-        if let Some(text) = canonical_boolean(value, ctx.config.boolean_form, site) {
-            out.push(KeywordRewrite { index, text });
-        }
-    }
+/// Validate the exact batch that survives caller lexical/origin filtering.
+/// A subset of a selection-stable batch need not itself retain that selection.
+pub(crate) fn emitted_replacements_keep_selection(
+    selected: &ResolvedInvocation<'_, '_>,
+    config: &FormatterConfig,
+    replacements: &[(usize, &str)],
+) -> bool {
+    selected.source_literal_replacements_keep_selection(replacements)
+        && across_selected_releases(selected, config, |current| {
+            current.source_literal_replacements_keep_selection(replacements)
+        })
 }
 
-/// Compute every keyword rewrite for one command invocation.
-///
-/// `args` are the written argument words (after the command name).
-/// `dynamic` is parallel to `args`: `true` for a word the formatter must not
-/// touch (a substitution, a `{*}` expansion, a braced/quoted word whose bytes
-/// are data rather than a keyword).
+/// Compatibility control ingress. Production retains the original source
+/// schema; fixtures resolve their complete structured argv through the owner.
+#[cfg(test)]
 pub(crate) fn rewrites_for_command(
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
@@ -677,82 +649,29 @@ pub(crate) fn rewrites_for_command(
     args: &[String],
     dynamic: &[bool],
 ) -> Vec<KeywordRewrite> {
-    if !config.expand_abbreviations && config.boolean_form == BooleanForm::Preserve {
-        return Vec::new();
-    }
-    let Some(spec) = registry.get(cmd_name) else {
-        return Vec::new();
-    };
-    let touchable = |i: usize| {
-        !dynamic.get(i).copied().unwrap_or(false) && args.get(i).is_some_and(|a| is_static_word(a))
-    };
-
-    // The registry packs the document's target range spans, computed once so
-    // every per-release check below — subcommand words, option words, and
-    // positional/repeated-tail boolean sites — walks the same list.
-    let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
-    let releases: Vec<(&str, &CommandRegistry)> = release_names
+    let arguments = args
         .iter()
-        .map(|&release| (release, crate::registry_for_dialect(release)))
-        .collect();
-
-    let mut out: Vec<KeywordRewrite> = Vec::new();
-    // A copy of `args` used only to query
-    // `CommandRegistry::arg_indices_for_role`: the subcommand word and any
-    // recognised option word are replaced by their canonical spelling so the
-    // registry's exact-match role query sees an abbreviated
-    // `-noc`/subcommand prefix the way the option scan's own abbreviation
-    // table does. Genuine positional words are never touched here.
-    let mut canonical_args: Vec<String> = args.to_vec();
-    // Argument indices the option scan below already classified (an option's
-    // value word) — the positional pass past it must not reclassify them.
-    let mut claimed = vec![false; args.len()];
-
-    // The subcommand word, and the option table it selects.
-    let scope = if spec.subcommands.is_empty() {
-        OptionScope {
-            options: spec.options,
-            prefix: spec.prefix_matching,
-            range_table: RangeTable::CommandOptions,
-            start: 0,
-        }
-    } else {
-        if !touchable(0) {
-            return out;
-        }
-        match subcommand_scope(
-            spec, dialect, config, &releases, cmd_name, &args[0], &mut out,
-        ) {
-            Some((scope, canonical)) => {
-                canonical.clone_into(&mut canonical_args[0]);
-                scope
+        .enumerate()
+        .map(|(index, word)| {
+            if dynamic.get(index).copied().unwrap_or(false) || !is_static_word(word) {
+                tcl_registry::InvocationWord::Dynamic
+            } else {
+                tcl_registry::InvocationWord::Literal(word)
             }
-            // Ambiguous or unknown: the formatter never guesses, and it
-            // cannot know which option table applies either.
-            None => return out,
-        }
-    };
-
-    let ctx = RewriteCtx {
-        registry,
-        dialect,
-        spec_surface: spec.surface,
-        config,
-        releases: &releases,
-        cmd_name,
-    };
-    scan_options(
-        &ctx,
-        &scope,
-        args,
-        &touchable,
-        &mut canonical_args,
-        &mut claimed,
-        &mut out,
-    );
-    push_positional_boolean_rewrites(&ctx, args, &canonical_args, &claimed, &touchable, &mut out);
-
-    out
+        })
+        .collect::<Vec<_>>();
+    registry
+        .resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(cmd_name),
+                &arguments,
+            ),
+            dialect,
+        )
+        .resolved()
+        .map_or_else(Vec::new, |selected| {
+            rewrites_for_selected_invocation(&selected, config)
+        })
 }
 
 #[cfg(test)]
@@ -784,6 +703,252 @@ mod tests {
         .into_iter()
         .map(|r| (r.index, r.text))
         .collect()
+    }
+
+    #[test]
+    fn selected_form_options_are_never_borrowed_from_another_argv_shape() {
+        use tcl_registry::forms::CommandForm;
+        static FIRST: &[OptionSpec] = &[OptionSpec {
+            name: "-first",
+            ..OptionSpec::DEFAULT
+        }];
+        static SECOND: &[OptionSpec] = &[OptionSpec {
+            name: "-second",
+            ..OptionSpec::DEFAULT
+        }];
+        static FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "single",
+                arity: tcl_registry::Arity::exact(1),
+                options: FIRST,
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "pair",
+                arity: tcl_registry::Arity::exact(2),
+                options: SECOND,
+                ..CommandForm::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "format_source_forms",
+            command_forms: FORMS,
+            ..CommandSpec::DEFAULT
+        });
+        let cfg = config(true, BooleanForm::Preserve);
+        let run = |args: &[&str]| {
+            let args = args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+            rewrites_for_command(
+                &registry,
+                None,
+                &cfg,
+                "format_source_forms",
+                &args,
+                &vec![false; args.len()],
+            )
+            .into_iter()
+            .map(|rewrite| (rewrite.index, rewrite.text))
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(run(&["-fi"]), vec![(0, "-first".to_owned())]);
+        assert_eq!(run(&["-se", "data"]), vec![(0, "-second".to_owned())]);
+        assert!(run(&["-fi", "data"]).is_empty());
+        assert!(run(&["data", "-se"]).is_empty());
+    }
+
+    #[test]
+    fn keyword_replacement_cannot_switch_same_labelled_genuine_forms() {
+        use tcl_registry::forms::{CommandForm, LiteralArgumentPrefix};
+        static OPTIONS: &[OptionSpec] = &[OptionSpec {
+            name: "-first",
+            ..OptionSpec::DEFAULT
+        }];
+        static FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(1),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::exact(&["-first"])),
+                options: OPTIONS,
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(1),
+                options: OPTIONS,
+                ..CommandForm::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "format_source_form_switch",
+            options: OPTIONS,
+            command_forms: FORMS,
+            ..CommandSpec::DEFAULT
+        });
+        let original = registry
+            .resolve_invocation("format_source_form_switch", &["-fi"], None)
+            .unwrap();
+        let replacement = registry
+            .resolve_invocation("format_source_form_switch", &["-first"], None)
+            .unwrap();
+        assert_eq!(original.form.unwrap().name, replacement.form.unwrap().name);
+        assert!(!original.source_literal_replacement_keeps_selection(0, "-first"));
+        assert!(original.source_literal_replacement_keeps_selection(0, "-fi"));
+        assert!(
+            rewrites_for_selected_invocation(&original, &config(true, BooleanForm::Preserve))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn individually_stable_boolean_rewrites_cannot_jointly_switch_form() {
+        use tcl_registry::forms::{CommandForm, LiteralArgumentPrefix};
+        static ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Boolean), (1, ArgRole::Boolean)];
+        static FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(2),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::exact(&["true", "true"])),
+                arg_roles: ROLES,
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(2),
+                arg_roles: ROLES,
+                ..CommandForm::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "format_source_joint_switch",
+            command_forms: FORMS,
+            arg_roles: ROLES,
+            ..CommandSpec::DEFAULT
+        });
+        let selected = registry
+            .resolve_invocation("format_source_joint_switch", &["yes", "yes"], None)
+            .unwrap();
+        assert!(selected.source_literal_replacement_keeps_selection(0, "true"));
+        assert!(selected.source_literal_replacement_keeps_selection(1, "true"));
+        assert!(!selected.source_literal_replacements_keep_selection(&[(0, "true"), (1, "true")]));
+        assert_eq!(
+            rewrites_for_selected_invocation(&selected, &config(false, BooleanForm::TrueFalse)),
+            vec![KeywordRewrite {
+                index: 0,
+                text: "true".to_owned()
+            }]
+        );
+    }
+
+    #[test]
+    fn selected_option_boundaries_preserve_values_terminators_numbers_and_later_data() {
+        use tcl_registry::hover::OptionValue;
+        static OPTIONS: &[OptionSpec] = &[
+            OptionSpec {
+                name: "-nocase",
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-offset",
+                value: OptionValue::value("value"),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-strict",
+                value: OptionValue::boolean(),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "--",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "format_source_options",
+            options: OPTIONS,
+            ..CommandSpec::DEFAULT
+        });
+        let cfg = config(true, BooleanForm::TrueFalse);
+        let run = |args: &[&str]| {
+            let args = args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+            rewrites_for_command(
+                &registry,
+                None,
+                &cfg,
+                "format_source_options",
+                &args,
+                &vec![false; args.len()],
+            )
+            .into_iter()
+            .map(|rewrite| (rewrite.index, rewrite.text))
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            run(&["-off", "-noc", "data"]),
+            vec![(0, "-offset".to_owned())]
+        );
+        assert_eq!(
+            run(&["-str", "yes"]),
+            vec![(0, "-strict".to_owned()), (1, "true".to_owned())]
+        );
+        assert_eq!(
+            run(&["-noc", "data", "-str", "yes"]),
+            vec![(0, "-nocase".to_owned())]
+        );
+        for args in [
+            &["--", "-noc"][..],
+            &["-2", "-noc"][..],
+            &["data", "-noc"][..],
+        ] {
+            assert!(run(args).is_empty());
+        }
+    }
+
+    #[test]
+    fn selected_anywhere_options_keep_actual_operand_ordinals() {
+        static OPTIONS: &[OptionSpec] = &[OptionSpec {
+            name: "-nocase",
+            ..OptionSpec::DEFAULT
+        }];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "format_source_anywhere",
+            options: OPTIONS,
+            option_placement: tcl_registry::OptionPlacement::Anywhere,
+            ..CommandSpec::DEFAULT
+        });
+        let args = vec!["data".to_owned(), "-noc".to_owned(), "tail".to_owned()];
+        let out = rewrites_for_command(
+            &registry,
+            None,
+            &config(true, BooleanForm::Preserve),
+            "format_source_anywhere",
+            &args,
+            &[false; 3],
+        );
+        assert_eq!(
+            out,
+            vec![KeywordRewrite {
+                index: 1,
+                text: "-nocase".to_owned()
+            }]
+        );
+        let mut dynamic = [false; 3];
+        dynamic[0] = true;
+        assert!(
+            rewrites_for_command(
+                &registry,
+                None,
+                &config(true, BooleanForm::Preserve),
+                "format_source_anywhere",
+                &args,
+                &dynamic
+            )
+            .is_empty()
+        );
     }
 
     #[test]

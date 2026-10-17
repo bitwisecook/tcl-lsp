@@ -25,7 +25,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForCurrentDiagnostics } from "./helper";
+import { getDocUri, activate, waitForCurrentDiagnosticsSnapshot } from "./helper";
 
 suite("Issue #945 resolution model", () => {
   test("const-dispatch rename rewrites the defining literal, never $cmd", async () => {
@@ -108,10 +108,14 @@ suite("Issue #945 resolution model", () => {
     // helper {}` (line 3), so the `helper` call inside its body must not
     // draw W123 — confirmed against tclsh 8.6.14 (the script runs to
     // completion).
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       timeout: 20_000,
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => String(d.code) === "W123"),
       `a body call before a later deletion must not draw W123: ${JSON.stringify(diags.map((d) => d.code))}`,
@@ -218,10 +222,14 @@ suite("Issue #945 resolution model", () => {
     );
 
     // The missing-target probe draws no W123 — a probe asserts nothing.
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       timeout: 20_000,
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => String(d.code) === "W123"),
       `a probe of an absent command draws no W123: ${JSON.stringify(diags.map((d) => d.code))}`,

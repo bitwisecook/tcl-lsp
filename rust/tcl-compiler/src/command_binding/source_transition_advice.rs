@@ -972,6 +972,7 @@ impl OriginalSourceTransitionAdviceTape {
                 .enumerate()
                 .filter(|(_, word)| {
                     word.span() == span
+                        || word.content_span().ok() == Some(span)
                         || word
                             .tokens()
                             .first()

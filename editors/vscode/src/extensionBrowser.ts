@@ -73,6 +73,8 @@ import {
 } from "./documentTransform";
 import { applyDocumentWrite } from "./chat/codeUtils";
 import {
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
   invalidateAnalysisContext,
   setCurrentDiagnosticsTransportProvider,
 } from "./chat/diagnosticAccess";
@@ -157,7 +159,22 @@ let outputChannel: vscode.OutputChannel;
 let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
 // The dialects the quick pick offers: the generated catalogue until the server
 // has listed its own.
-let dialectChoices: readonly DialectChoice[] = catalogueChoices();
+// A live list retains its issuing owner; a later capture cannot adopt it.
+let liveDialectChoices:
+  | {
+      choices: readonly DialectChoice[];
+      session: Session;
+      analysisContext: NonNullable<ReturnType<typeof captureAnalysisContext>>;
+    }
+  | undefined;
+
+function currentDialectChoices(): readonly DialectChoice[] {
+  return liveDialectChoices &&
+    session === liveDialectChoices.session &&
+    isAnalysisContextCurrent(liveDialectChoices.analysisContext)
+    ? liveDialectChoices.choices
+    : catalogueChoices();
+}
 
 /**
  * How long the server may take to answer `initialize` before activation gives
@@ -259,6 +276,9 @@ export async function activate(context: ExtensionContext) {
   );
 
   session = await startSession(context);
+  if (session) {
+    registerPackAssociationSync(context, outputChannel!, session);
+  }
   if (session) {
     void ensureStickyScrollDefaultModel(context, outputChannel);
   }
@@ -382,7 +402,6 @@ async function startSession(context: ExtensionContext): Promise<Session | undefi
     disposeTransport: () => transport?.dispose(),
     disposables,
   };
-  registerPackAssociationSync(context, outputChannel, built);
   return built;
 }
 
@@ -431,6 +450,7 @@ async function startWithTimeout(client: LanguageClient, workerUri: vscode.Uri): 
 async function stopSession(): Promise<void> {
   const current = session;
   session = undefined;
+  liveDialectChoices = undefined;
   if (extensionContext) {
     beginPackFileAssociationSync(extensionContext);
   }
@@ -482,7 +502,7 @@ function registerStatusBar(context: ExtensionContext): void {
 function statusDialect(editor: TextEditor | undefined): DialectChoice {
   const implied = editor ? LANGUAGE_ID_DIALECTS[editor.document.languageId] : undefined;
   const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
-  return describeDialect(implied ?? configured, dialectChoices);
+  return describeDialect(implied ?? configured, currentDialectChoices());
 }
 
 function updateSessionOverrideLabel(dialect: string | null): void {
@@ -490,7 +510,7 @@ function updateSessionOverrideLabel(dialect: string | null): void {
     updateDialectStatusBar();
     return;
   }
-  const choice = describeDialect(dialect, dialectChoices);
+  const choice = describeDialect(dialect, currentDialectChoices());
   dialectStatusBarItem.text = `$(symbol-misc) ${choice.shortLabel}`;
   dialectStatusBarItem.tooltip = `${choice.description} -- click to change`;
 }
@@ -672,15 +692,23 @@ async function restartServer(): Promise<void> {
   await stopSession();
   session = await startSession(context);
   if (session) {
+    registerPackAssociationSync(context, outputChannel!, session);
+  }
+  if (session) {
     window.showInformationMessage("Tcl Language Server restarted.");
   }
   // A failed start has already reported itself, with the reason.
 }
 
 /** Read the server's dialect list, keeping the catalogue when there is no server or it cannot answer. */
+let dialectChoicesRequest = 0;
+
 async function refreshDialectChoices(): Promise<void> {
-  const client = session?.client;
-  if (!client) {
+  const current = session;
+  const client = current?.client;
+  const analysisContext = captureAnalysisContext();
+  const request = ++dialectChoicesRequest;
+  if (!current || !client || !analysisContext) {
     return;
   }
   try {
@@ -688,7 +716,17 @@ async function refreshDialectChoices(): Promise<void> {
       command: "tcl-lsp.listDialects",
       arguments: [],
     });
-    dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+    if (
+      session !== current ||
+      request !== dialectChoicesRequest ||
+      !isAnalysisContextCurrent(analysisContext)
+    ) {
+      return;
+    }
+    const choices = parseListedDialects(listed);
+    if (choices) {
+      liveDialectChoices = { choices, session: current, analysisContext };
+    }
   } catch {
     // The catalogue stays.
   }
@@ -696,13 +734,30 @@ async function refreshDialectChoices(): Promise<void> {
 
 async function selectDialect(): Promise<void> {
   await refreshDialectChoices();
-  const current = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
-  const picked = await pickDialect(dialectChoices, current);
-  if (!picked) {
+  const issuingSession = session;
+  const analysisContext = captureAnalysisContext();
+  const config = workspace.getConfiguration("tclLsp");
+  const current = config.get<string>("dialect", DEFAULT_DIALECT);
+  const liveChoices = liveDialectChoices;
+  const choices = currentDialectChoices();
+  const usedLiveChoices = liveChoices !== undefined && choices === liveChoices.choices;
+  const request = dialectChoicesRequest;
+  const picked = await pickDialect(choices, current);
+  if (
+    !picked ||
+    session !== issuingSession ||
+    request !== dialectChoicesRequest ||
+    (usedLiveChoices &&
+      (liveDialectChoices !== liveChoices ||
+        session !== liveChoices.session ||
+        !isAnalysisContextCurrent(liveChoices.analysisContext))) ||
+    (issuingSession !== undefined && analysisContext === undefined) ||
+    (analysisContext !== undefined && !isAnalysisContextCurrent(analysisContext))
+  ) {
     return;
   }
   const target = workspace.workspaceFolders?.length ? undefined : vscode.ConfigurationTarget.Global;
-  await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
+  await config.update("dialect", picked, target);
   updateDialectStatusBar();
 }
 
@@ -1449,6 +1504,9 @@ function registerPackAssociationSync(
           return;
         }
         const generation = beginPackFileAssociationSync(context);
+        const analysisContext = captureAnalysisContext();
+        if (!analysisContext) return;
+        const isCurrent = () => session === current && isAnalysisContextCurrent(analysisContext);
         const advertised = params?.pack_file_extensions;
         if (!Array.isArray(advertised)) {
           ch.appendLine("[packs] incomplete reload notification; leaving associations unchanged");
@@ -1459,13 +1517,16 @@ function registerPackAssociationSync(
           advertised,
           (message) => ch.appendLine(message),
           generation,
+          isCurrent,
         );
       },
     ),
   );
   const generation = beginPackFileAssociationSync(context);
   const requestClient = current.client;
-  if (!requestClient.isRunning()) {
+  const analysisContext = captureAnalysisContext();
+  const isCurrent = () => session === current && isAnalysisContextCurrent(analysisContext);
+  if (!analysisContext || !requestClient.isRunning()) {
     return;
   }
   void (async () => {
@@ -1479,7 +1540,7 @@ function registerPackAssociationSync(
       } | null;
       if (
         !isPackFileAssociationSyncCurrent(context, generation) ||
-        session !== current ||
+        !isCurrent() ||
         !requestClient.isRunning()
       ) {
         return;
@@ -1496,6 +1557,7 @@ function registerPackAssociationSync(
         result.pack_file_extensions,
         (message) => ch.appendLine(message),
         generation,
+        isCurrent,
       );
     } catch (err) {
       ch.appendLine(`[packs] file-association sync skipped: ${String(err)}`);

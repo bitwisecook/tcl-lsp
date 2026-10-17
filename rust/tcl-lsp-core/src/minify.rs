@@ -180,7 +180,8 @@ struct Arg {
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SymbolMap {
-    /// Per-scope `{original_var: short}` maps, keyed by scope label.
+    /// Per-scope `{original_var: short}` reports, keyed by display label.
+    /// Colliding labels are disambiguated after edit selection.
     pub variables: BTreeMap<String, BTreeMap<String, String>>,
     /// `{original_proc: short}`.
     pub procs: BTreeMap<String, String>,
@@ -1023,7 +1024,7 @@ fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
     result
 }
 
-/// Scope label: `::` for the root, then `parent::child`.
+/// Display label only: `::` for the root, then `parent::child`.
 fn child_scope_label(parent_label: &str, child_name: &str) -> String {
     if parent_label == "::" {
         format!("::{child_name}")
@@ -1032,40 +1033,55 @@ fn child_scope_label(parent_label: &str, child_name: &str) -> String {
     }
 }
 
-/// Deepest scope label whose body span contains `offset`
-/// (byte-offset based).
-fn scope_label_at_offset(
-    scope: &Scope,
+/// Reborrow the actual deepest source scope and render its separate label.
+fn source_scope_at_offset<'a>(
+    scope: &'a Scope,
     offset: u32,
     prefix: &str,
     include_global: bool,
-) -> Option<String> {
+) -> Option<(&'a Scope, String)> {
     for child in &scope.children {
         let label = child_scope_label(prefix, &child.name);
         if let Some(body) = child.body_span
             && body.start() <= offset
             && offset <= body.end()
         {
-            if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
+            if let Some(deeper) = source_scope_at_offset(child, offset, &label, include_global) {
                 return Some(deeper);
             }
-            return Some(label);
+            return Some((child, label));
         }
     }
     match scope.kind {
-        ScopeKind::Proc => Some(prefix.to_owned()),
-        ScopeKind::Global if include_global => Some(prefix.to_owned()),
+        ScopeKind::Proc => Some((scope, prefix.to_owned())),
+        ScopeKind::Global if include_global => Some((scope, prefix.to_owned())),
         _ => None,
     }
+}
+
+/// Report collisions are rendered after edits have been selected. These keys
+/// never select a source scope or decide whether an edit is authorised.
+fn record_variable_report(
+    symbol_map: &mut SymbolMap,
+    label: String,
+    mapping: BTreeMap<String, String>,
+) {
+    let mut report_label = label.clone();
+    let mut occurrence = 2;
+    while symbol_map.variables.contains_key(&report_label) {
+        report_label = format!("{label} [source {occurrence}]");
+        occurrence += 1;
+    }
+    symbol_map.variables.insert(report_label, mapping);
 }
 
 /// Where renaming is unsafe, as proven by registry-declared
 /// observability facts over the script's command invocations.
 #[derive(Debug, Default)]
-struct RenameBarriers {
-    /// Scope labels where variable renaming is barred (a
-    /// dynamic-barrier or variable-introspection command runs there).
-    scopes: FxHashSet<String>,
+struct RenameBarriers<'a> {
+    /// Actual borrowed source scopes containing a local rename barrier.
+    /// Equality is allocation correspondence within this retained analysis.
+    scopes: Vec<&'a Scope>,
     /// Variable renaming is barred in **every** scope: a caller-frame
     /// command (`upvar` / `uplevel`) or a cross-proc parameter
     /// introspection (`info args PROC`) can observe any frame.
@@ -1080,23 +1096,25 @@ struct RenameBarriers {
     procs: bool,
 }
 
-impl RenameBarriers {
-    /// Whether variables in the scope with the given label may be renamed.
-    fn allows_scope(&self, label: &str) -> bool {
+impl RenameBarriers<'_> {
+    fn allows_scope(&self, scope: &Scope) -> bool {
         !self.all_variable_scopes
-            && !self.scopes.contains(label)
-            && (label != "::" || !self.global_variables)
+            && !self
+                .scopes
+                .iter()
+                .any(|barred| std::ptr::eq(*barred, scope))
+            && (scope.kind != ScopeKind::Global || !self.global_variables)
     }
 }
 
 /// Observability comes from the same selected complete-word metadata.
 /// Missing table/selector coverage is a barrier, rather than an empty trait.
-fn find_rename_barriers(
-    analysis: &AnalysisResult,
+fn find_rename_barriers<'a>(
+    analysis: &'a AnalysisResult,
     env: MinifyEnv<'_>,
     commands: &[tcl_lexer::NativeScriptCommandWords],
     include_global: bool,
-) -> RenameBarriers {
+) -> RenameBarriers<'a> {
     // naming.minifier.complete-logical-metadata
     // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
     let mut out = RenameBarriers::default();
@@ -1121,25 +1139,27 @@ fn find_rename_barriers(
         apply_rename_traits(
             &mut out,
             traits,
-            scope_label_at_offset(
+            source_scope_at_offset(
                 &analysis.global_scope,
                 command.span.start(),
                 "::",
                 include_global,
-            ),
+            )
+            .map(|(scope, _)| scope),
         );
     }
     out
 }
 
-fn apply_rename_traits(out: &mut RenameBarriers, traits: Traits, scope: Option<String>) {
+fn apply_rename_traits<'a>(out: &mut RenameBarriers<'a>, traits: Traits, scope: Option<&'a Scope>) {
     let reflects_vars =
         traits.intersects(Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME);
     let reflects_commands = traits.contains(Traits::REFLECTS_COMMAND_NAMES);
     if (reflects_vars || traits.contains(Traits::CREATES_DYNAMIC_BARRIER))
         && let Some(scope) = scope
+        && !out.scopes.iter().any(|barred| std::ptr::eq(*barred, scope))
     {
-        out.scopes.insert(scope);
+        out.scopes.push(scope);
     }
     out.global_variables |= reflects_vars || traits.contains(Traits::CREATES_SCOPE_ALIAS);
     out.all_variable_scopes |= traits
@@ -1297,6 +1317,7 @@ fn compact_names(
 
     let references =
         crate::source_structure::OriginalVariableReferences::capture(source, &analysis);
+    let mut renamed_scopes = Vec::new();
     let scope_ctx = ScopeCtx {
         references: references.as_ref(),
         config: input.lexer_config(),
@@ -1313,6 +1334,7 @@ fn compact_names(
         &mut ScopeOut {
             symbol_map: &mut symbol_map,
             edits: &mut edits,
+            renamed_scopes: &mut renamed_scopes,
         },
     );
 
@@ -1374,6 +1396,7 @@ fn compact_names(
         input,
         &analysis,
         isolated,
+        &renamed_scopes,
         &mut symbol_map,
         &mut edits,
     );
@@ -1388,6 +1411,7 @@ fn compact_logical_formals(
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     analysis: &AnalysisResult,
     isolated: bool,
+    renamed_scopes: &[&Scope],
     symbol_map: &mut SymbolMap,
     edits: &mut Vec<Edit>,
 ) {
@@ -1407,16 +1431,27 @@ fn compact_logical_formals(
         if !procedure.matches_source(source, input) || !procedure.alpha_binding_lookup_closed() {
             continue;
         }
-        let label = scope_label_at_offset(
+        let selected_scope = source_scope_at_offset(
             &analysis.global_scope,
             procedure.body().content_span().start(),
             "::",
             false,
         )
-        .unwrap_or_else(|| format!("logical@{}", procedure.body().content_span().start()));
-        if symbol_map.variables.contains_key(&label) {
+        .filter(|(scope, _)| {
+            scope.kind == ScopeKind::Proc
+                && scope.body_span == Some(procedure.body().content_span())
+        });
+        if selected_scope.as_ref().is_some_and(|(scope, _)| {
+            renamed_scopes
+                .iter()
+                .any(|renamed| std::ptr::eq(*renamed, *scope))
+        }) {
             continue;
         }
+        let label = selected_scope.map_or_else(
+            || format!("logical@{}", procedure.body().content_span().start()),
+            |(_, label)| label,
+        );
         let existing = procedure
             .formals()
             .iter()
@@ -1450,7 +1485,7 @@ fn compact_logical_formals(
             mapping.insert(formal.name().to_owned(), short);
         }
         if !mapping.is_empty() {
-            symbol_map.variables.insert(label, mapping);
+            record_variable_report(symbol_map, label, mapping);
         }
     }
 }
@@ -1465,15 +1500,16 @@ struct ScopeCtx<'a> {
     source: &'a str,
     analysis: &'a AnalysisResult,
     isolated: bool,
-    barriers: &'a RenameBarriers,
+    barriers: &'a RenameBarriers<'a>,
     rmw_targets: &'a FxHashSet<String>,
 }
 
 /// Mutable outputs accumulated by [`process_scope`]: the symbol map and the
 /// edit list.
-struct ScopeOut<'a> {
+struct ScopeOut<'a, 'scope> {
     symbol_map: &'a mut SymbolMap,
     edits: &'a mut Vec<Edit>,
+    renamed_scopes: &'a mut Vec<&'scope Scope>,
 }
 
 /// Exact name extents within current original reads, plus unchanged bare role
@@ -1507,7 +1543,12 @@ fn variable_reference_name_spans(
 
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
-fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut ScopeOut<'_>) {
+fn process_scope<'a>(
+    ctx: ScopeCtx<'a>,
+    scope: &'a Scope,
+    scope_label: &str,
+    out: &mut ScopeOut<'_, 'a>,
+) {
     let ScopeCtx {
         references,
         config,
@@ -1519,7 +1560,7 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
     } = ctx;
     let rename_scope = (scope.kind == ScopeKind::Proc
         || (isolated && scope.kind == ScopeKind::Global))
-        && barriers.allows_scope(scope_label);
+        && barriers.allows_scope(scope);
 
     if rename_scope {
         // Identify the proc this scope belongs to by its body span — unique per
@@ -1630,9 +1671,8 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             rename_params_in_list(formals, &var_map, out.edits);
         }
         if !var_map.is_empty() {
-            out.symbol_map
-                .variables
-                .insert(scope_label.to_owned(), var_map);
+            out.renamed_scopes.push(scope);
+            record_variable_report(out.symbol_map, scope_label.to_owned(), var_map);
         }
     }
 
@@ -5330,6 +5370,136 @@ mod tests {
     ///
     /// The witness is whether `set local 1` survives: barred, the local keeps
     /// its name; unbarred, it compacts to a single letter.
+    #[test]
+    fn rename_barriers_retain_distinct_actual_scopes_with_identical_labels() {
+        let source = "proc repeated {} {set firstlong 1; puts $firstlong}\nproc repeated {} {set secondlong 2; puts $secondlong}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let scopes = analysis
+            .global_scope
+            .children
+            .iter()
+            .filter(|scope| scope.kind == ScopeKind::Proc)
+            .collect::<Vec<_>>();
+        assert_eq!(scopes.len(), 2);
+        assert_eq!(scopes[0].name, scopes[1].name);
+        assert!(!std::ptr::eq(scopes[0], scopes[1]));
+        let first = source_scope_at_offset(
+            &analysis.global_scope,
+            scopes[0].body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        let second = source_scope_at_offset(
+            &analysis.global_scope,
+            scopes[1].body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        assert_eq!(first.1, second.1);
+        assert!(std::ptr::eq(first.0, scopes[0]));
+        assert!(std::ptr::eq(second.0, scopes[1]));
+        let mut barriers = RenameBarriers::default();
+        apply_rename_traits(
+            &mut barriers,
+            Traits::CREATES_DYNAMIC_BARRIER,
+            Some(first.0),
+        );
+        apply_rename_traits(
+            &mut barriers,
+            Traits::CREATES_DYNAMIC_BARRIER,
+            Some(first.0),
+        );
+        assert_eq!(barriers.scopes.len(), 1);
+        assert!(!barriers.allows_scope(first.0));
+        assert!(barriers.allows_scope(second.0));
+        barriers.global_variables = true;
+        assert!(!barriers.allows_scope(&analysis.global_scope));
+        assert!(barriers.allows_scope(second.0));
+    }
+
+    #[test]
+    fn report_scope_collisions_preserve_every_selected_mapping() {
+        let mut map = SymbolMap::default();
+        let first = BTreeMap::from([("longfirst".to_owned(), "a".to_owned())]);
+        let second = BTreeMap::from([("longsecond".to_owned(), "b".to_owned())]);
+        record_variable_report(&mut map, "::same".to_owned(), first.clone());
+        record_variable_report(&mut map, "::same [source 2]".to_owned(), second.clone());
+        record_variable_report(&mut map, "::same".to_owned(), second.clone());
+        assert_eq!(map.variables.len(), 3);
+        assert_eq!(map.variables["::same"], first);
+        assert_eq!(map.variables["::same [source 2]"], second);
+        assert_eq!(map.variables["::same [source 3]"], second);
+    }
+
+    #[test]
+    fn logical_formal_edit_deduplication_uses_actual_scope_not_report_keys() {
+        let source = "proc first {longname} {return $longname}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = original::analysis_with_input(source, &input);
+        let body = analysis
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == ScopeKind::Proc)
+            .unwrap();
+        let (_, label) = source_scope_at_offset(
+            &analysis.global_scope,
+            body.body_span.unwrap().start(),
+            "::",
+            false,
+        )
+        .unwrap();
+        let unrelated_report = BTreeMap::from([("unrelated".to_owned(), "x".to_owned())]);
+        let mut report = SymbolMap::default();
+        report
+            .variables
+            .insert(label.clone(), unrelated_report.clone());
+        let mut edits = Vec::new();
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            true,
+            &[],
+            &mut report,
+            &mut edits,
+        );
+        assert_eq!(edits.len(), 2);
+        assert_eq!(report.variables[&label], unrelated_report);
+        assert_eq!(report.variables.len(), 2);
+        let mut report = SymbolMap::default();
+        let mut edits = Vec::new();
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            true,
+            &[body],
+            &mut report,
+            &mut edits,
+        );
+        assert!(edits.is_empty());
+        assert!(report.variables.is_empty());
+        compact_logical_formals(
+            source,
+            &input,
+            &analysis,
+            false,
+            &[],
+            &mut report,
+            &mut edits,
+        );
+        assert!(edits.is_empty());
+    }
+
     #[test]
     fn rename_barriers_follow_the_resolved_head() {
         const UPVAR_BODY: &str =

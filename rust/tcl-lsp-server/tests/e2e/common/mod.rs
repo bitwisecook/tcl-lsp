@@ -2177,17 +2177,16 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
         "libraryPaths" => effective
             .get("library_paths")
             .is_some_and(|got| got == want),
-        // `tclLsp.specPacks` is reported verbatim, *and* the packs it produced
-        // are reported beside it — so this barrier waits for the discovery +
-        // load pass, not merely for the setting to be recorded.  Without that
-        // second half a test could open a document before its pack was in the
-        // registry and see the very W123 the pack exists to remove.
+        // Configured paths need the actual settled discovery/provider receipt.
+        // A nonempty roster from an earlier generation cannot close this gate.
         "specPacks" => {
             effective.get("spec_packs").is_some_and(|got| got == want)
-                && effective.get("spec_packs_loaded").is_some_and(|loaded| {
-                    want.as_array().is_none_or(|w| {
-                        w.is_empty() || loaded.as_array().is_some_and(|l| !l.is_empty())
-                    })
+                && want.as_array().is_some_and(|paths| {
+                    paths.is_empty()
+                        || effective.get("spec_pack_publication").is_some_and(|publication| {
+                            publication.get("status").and_then(Value::as_str) == Some("complete")
+                                && publication.get("configured") == Some(want)
+                        })
                 })
         }
         // Nested formatting settings; only `docstringStyle` has a settle
@@ -2442,5 +2441,28 @@ mod tests {
             scaled_timeout(base) >= base,
             "a scaled barrier must never be shorter than the constant it scales"
         );
+    }
+}
+
+#[cfg(test)]
+mod pack_configuration_settle_tests {
+    use super::*;
+
+    #[test]
+    fn nonempty_old_roster_cannot_settle_a_new_requested_pack() {
+        let requested = json!({"specPacks": ["new/provider"]});
+        let mut effective = json!({
+            "spec_packs": ["new/provider"],
+            "spec_packs_loaded": [{"name": "old-provider"}],
+        });
+        assert!(!config_reflected(&requested, &effective));
+        effective["spec_pack_publication"] = json!({
+            "status": "complete", "configured": ["old/provider"],
+        });
+        assert!(!config_reflected(&requested, &effective));
+        effective["spec_pack_publication"] = json!({
+            "status": "complete", "configured": ["new/provider"],
+        });
+        assert!(config_reflected(&requested, &effective));
     }
 }

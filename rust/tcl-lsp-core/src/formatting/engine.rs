@@ -852,7 +852,10 @@ fn identify_body_args(
         };
         if let (Some(original), Some((_, words))) = (&identities.original, &aligned) {
             let bodies = match original.member_body_arguments(head, words) {
-                Ok(bodies) => bodies,
+                Ok(super::analysis_layout::MemberBodyArguments::CompleteNonMember) => None,
+                Ok(super::analysis_layout::MemberBodyArguments::CompleteMember(bodies)) => {
+                    Some(bodies)
+                }
                 Err(_) => return,
             };
             if let Some(bodies) = bodies {
@@ -1736,7 +1739,7 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
 /// [`super::keywords::rewrites_for_command`].
 fn keyword_rewrites_for(
     cmd: &ParsedCommand,
-    registry: &CommandRegistry,
+    _registry: &CommandRegistry,
     config: &FormatterConfig,
 ) -> std::collections::HashMap<usize, String> {
     // A source schema identifies possible positions. Operand-byte rewriting
@@ -1748,43 +1751,69 @@ fn keyword_rewrites_for(
     if !config.expand_abbreviations && config.boolean_form == super::config::BooleanForm::Preserve {
         return std::collections::HashMap::new();
     }
-    // `cmd.args[0]` is the command *name*; the keyword machinery indexes
-    // arguments from the first word after it.
-    let words: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
-    let dynamic: Vec<bool> = cmd
-        .args
-        .iter()
-        .skip(1)
-        .map(|a| {
-            a.kind != ArgKind::Word
-                || a.is_braced
-                || a.is_quoted
-                || a.tokens
-                    .iter()
-                    .any(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd | TokenType::Expand))
+    if cmd.resolved_name.is_empty() {
+        return std::collections::HashMap::new();
+    }
+    let (Some(source), Some(context)) = (&cmd.source_words, &cmd.logical_context) else {
+        return std::collections::HashMap::new();
+    };
+    if source
+        .head_source()
+        .and_then(|head| head.word())
+        .is_none_or(|word| word.config() != config.lexer_config())
+    {
+        return std::collections::HashMap::new();
+    }
+    source
+        .with_source_schema(context, |selected| {
+            let surviving = super::keywords::rewrites_for_selected_invocation(selected, config)
+                .into_iter()
+                .filter_map(|rewrite| {
+                    let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) =
+                        source.origins.get(rewrite.index.checked_add(1)?)?
+                    else {
+                        return None;
+                    };
+                    if *written == 0 {
+                        return None;
+                    }
+                    let argument = cmd.args.get(*written)?;
+                    if argument.kind != ArgKind::Word
+                        || argument.is_braced
+                        || argument.is_quoted
+                        || argument.tokens.iter().any(|token| {
+                            matches!(
+                                token.kind,
+                                TokenType::Var | TokenType::Cmd | TokenType::Expand
+                            )
+                        })
+                        || selected.words.arguments().literal_at(rewrite.index)
+                            != Some(argument.text.as_str())
+                        || source.operands.get(rewrite.index)?.as_ref()?.word.as_ref()
+                            != argument.original_word.as_ref()
+                    {
+                        return None;
+                    }
+                    Some((rewrite.index, *written, rewrite.text))
+                })
+                .collect::<Vec<_>>();
+            let replacements = surviving
+                .iter()
+                .map(|(effective, _, text)| (*effective, text.as_str()))
+                .collect::<Vec<_>>();
+            if !super::keywords::emitted_replacements_keep_selection(
+                selected,
+                config,
+                &replacements,
+            ) {
+                return std::collections::HashMap::new();
+            }
+            surviving
+                .into_iter()
+                .map(|(_, written, text)| (written, text))
+                .collect()
         })
-        .collect();
-    // The document's own release filters the candidate table, so a keyword a
-    // later Tcl adds is not counted against a prefix the target resolves
-    // uniquely.  The forward-compatibility half — "and it must still mean the
-    // same thing in every later release of the target range" — is enforced
-    // inside `rewrites_for_command` from `config.target_range()`. Explicit
-    // Logical compatibility metadata uses its retained whole-context query;
-    // original source schemas require a separate operand rewrite receipt.
-    super::keywords::rewrites_for_command(
-        registry,
-        cmd.logical_context
-            .as_ref()
-            .map(|context| context.context().authoring_query())
-            .or_else(|| config.dialect_query()),
-        config,
-        &cmd.resolved_name,
-        &words,
-        &dynamic,
-    )
-    .into_iter()
-    .map(|r| (r.index + 1, r.text))
-    .collect()
+        .unwrap_or_default()
 }
 
 /// Reconstruct a single command as formatted text.
@@ -3197,6 +3226,118 @@ mod tests {
             got, expected,
             "\ninput:    {input:?}\ngot:      {got:?}\nexpected: {expected:?}"
         );
+    }
+
+    #[test]
+    fn keyword_edits_recheck_the_actual_subset_after_braced_word_filtering() {
+        use tcl_registry::forms::{CommandForm, LiteralArgumentPrefix};
+        static ROLES: &[(u8, ArgRole)] = &[
+            (0, ArgRole::Boolean),
+            (1, ArgRole::Boolean),
+            (2, ArgRole::Boolean),
+        ];
+        static FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(3),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::exact(&[
+                    "yes", "true", "true",
+                ])),
+                arg_roles: ROLES,
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "same-label",
+                arity: tcl_registry::Arity::exact(3),
+                arg_roles: ROLES,
+                ..CommandForm::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "format_source_filtered_subset",
+            command_forms: FORMS,
+            arg_roles: ROLES,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let config = FormatterConfig {
+            boolean_form: super::super::config::BooleanForm::TrueFalse,
+            ..FormatterConfig::default()
+        };
+        let capture = |source: &str| {
+            let identities = FormattingSourceLayout::new(source, &config, &registry);
+            let map = SourceMap::new(source);
+            let tokens = Lexer::with_config(source, config.lexer_config())
+                .tokenise_all()
+                .unwrap();
+            let mut command = parse_commands(source, &map, &tokens, config.lexer_config())
+                .unwrap()
+                .0
+                .remove(0);
+            identify_body_args(&mut command, &registry, &identities, 0, &config, source);
+            command
+        };
+        let plain = capture("format_source_filtered_subset yes yes yes");
+        assert_eq!(keyword_rewrites_for(&plain, &registry, &config).len(), 3);
+        let braced = capture("format_source_filtered_subset {yes} yes yes");
+        assert!(braced.args[1].is_braced);
+        let (Some(source), Some(context)) = (&braced.source_words, &braced.logical_context) else {
+            panic!("genuine source schema required");
+        };
+        assert_eq!(
+            source.with_source_schema(context, |selected| {
+                super::super::keywords::rewrites_for_selected_invocation(selected, &config).len()
+            }),
+            Some(3)
+        );
+        assert!(keyword_rewrites_for(&braced, &registry, &config).is_empty());
+        let quoted = capture("format_source_filtered_subset \"yes\" yes yes");
+        assert!(quoted.args[1].is_quoted);
+        assert!(keyword_rewrites_for(&quoted, &registry, &config).is_empty());
+    }
+
+    #[test]
+    fn keyword_edits_require_same_original_selected_words_context_and_config() {
+        let source = "lsearch -noc $values $pattern";
+        let registry = CommandRegistry::build_default();
+        let config = FormatterConfig {
+            expand_abbreviations: true,
+            ..FormatterConfig::default()
+        };
+        let identities = FormattingSourceLayout::new(source, &config, &registry);
+        let map = SourceMap::new(source);
+        let tokens = Lexer::with_config(source, config.lexer_config())
+            .tokenise_all()
+            .unwrap();
+        let capture = || {
+            let mut command = parse_commands(source, &map, &tokens, config.lexer_config())
+                .unwrap()
+                .0
+                .remove(0);
+            identify_body_args(&mut command, &registry, &identities, 0, &config, source);
+            command
+        };
+        let command = capture();
+        assert_eq!(
+            keyword_rewrites_for(&command, &registry, &config)
+                .get(&1)
+                .map(String::as_str),
+            Some("-nocase")
+        );
+        let mut command = capture();
+        command.args[1].original_word = None;
+        assert!(keyword_rewrites_for(&command, &registry, &config).is_empty());
+        let mut command = capture();
+        command.logical_context = None;
+        assert!(keyword_rewrites_for(&command, &registry, &config).is_empty());
+        let mut command = capture();
+        command.source_roles = Some(Vec::new());
+        assert!(keyword_rewrites_for(&command, &registry, &config).is_empty());
+        let mut foreign = config.clone();
+        let mut lexer = config.lexer_config();
+        lexer.strict_quoting = !lexer.strict_quoting;
+        foreign.lexer_config_override = Some(lexer);
+        assert!(keyword_rewrites_for(&capture(), &registry, &foreign).is_empty());
     }
 
     #[test]

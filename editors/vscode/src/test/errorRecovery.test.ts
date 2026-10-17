@@ -23,10 +23,11 @@ import {
   activate,
   setTestContent,
   nextDiagnosticsPublish,
-  waitForCurrentDiagnostics,
+  waitForCurrentDiagnosticsSnapshot,
   scaledTimeout,
   getServerLogSize,
   waitForDeepDiagnostics,
+  type CurrentDiagnosticsSnapshot,
 } from "./helper";
 
 /**
@@ -95,26 +96,46 @@ function symbolNames(
  * document source/version, so progressive or stale publishes cannot satisfy
  * the predicate. One load-scaled deadline covers editing plus the report wait.
  */
-async function setContentAndWait(
+async function setContentAndWaitSnapshot(
   editor: vscode.TextEditor,
   docUri: vscode.Uri,
   content: string,
   until: (diags: vscode.Diagnostic[]) => boolean = () => true,
-): Promise<vscode.Diagnostic[]> {
+): Promise<CurrentDiagnosticsSnapshot> {
   const deadline = Date.now() + scaledTimeout(30_000);
   await setTestContent(editor, content);
   const remaining = deadline - Date.now();
   if (remaining <= 0) {
     throw new Error("Timed out before a complete current-source diagnostic report was available");
   }
-  const diagnostics = await waitForCurrentDiagnostics(docUri, {
+  const snapshot = await waitForCurrentDiagnosticsSnapshot(docUri, {
     timeout: remaining,
     expectedSource: content,
   });
-  if (!until(diagnostics)) {
+  if (!snapshot.isCurrent()) {
+    throw new Error(
+      "The complete current-source diagnostic report became stale before its predicate",
+    );
+  }
+  if (!until([...snapshot.report.diagnostics])) {
     throw new Error("The complete current-source diagnostic report did not satisfy the predicate");
   }
-  return diagnostics;
+  return snapshot;
+}
+
+async function setContentAndWait(
+  editor: vscode.TextEditor,
+  docUri: vscode.Uri,
+  content: string,
+  until: (diags: vscode.Diagnostic[]) => boolean = () => true,
+): Promise<vscode.Diagnostic[]> {
+  const snapshot = await setContentAndWaitSnapshot(editor, docUri, content, until);
+  if (!snapshot.isCurrent()) {
+    throw new Error(
+      "The complete current-source diagnostic report became stale before its assertions",
+    );
+  }
+  return [...snapshot.report.diagnostics];
 }
 
 async function symbolsFor(docUri: vscode.Uri): Promise<string[]> {
@@ -132,19 +153,31 @@ suite("Error Recovery (contract)", () => {
   test("C1: unterminated bracket is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "set x [foo bar\nputs hi\n",
       hasRecoveryError,
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error, got [${diags.map(codeOf)}]`);
   });
 
   test("C6: well-formed code is not flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
+    const diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      "set x [foo bar]\nputs hi\n",
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(
       !hasRecoveryError(diags),
       `well-formed flagged a recovery error: [${diags.map(codeOf)}]`,
@@ -175,7 +208,16 @@ suite("Error Recovery (contract)", () => {
     const editor = vscode.window.activeTextEditor!;
     const hasArityOrShape = (ds: vscode.Diagnostic[]) =>
       ds.some((d) => codeOf(d) === "E002" || codeOf(d) === "E004");
-    const diags = await setContentAndWait(editor, docUri, "if {$x > 5\nset\n", hasArityOrShape);
+    const diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      "if {$x > 5\nset\n",
+      hasArityOrShape,
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(
       hasArityOrShape(diags),
       `tail after \`if {\` should still be analysed and arity/shape-error; got [${diags.map(codeOf)}]`,
@@ -235,12 +277,16 @@ suite("Error Recovery (contract)", () => {
   test("C3: deeply nested unterminated input does not hang or crash", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "set x [a [b [c [d [e\nputs tail\n",
       hasRecoveryError,
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     // A real hang publishes no recovery error inside the 15s budget, so the wait
     // times out with an empty/stale set and this assertion fails loudly — making
     // "does not hang" a genuine check rather than a vacuous Array.isArray pass.
@@ -258,8 +304,11 @@ suite("Error Recovery (contract)", () => {
     // Wait for the deep pass's marker (throws on timeout) so dedup runs over the
     // fully-settled basic+deep set. Reading the first publish alone would dedup a
     // partial set and pass "no duplicates" vacuously.
-    await waitForDeepDiagnostics(docUri, { since });
-    const diags = vscode.languages.getDiagnostics(docUri);
+    const deep = await waitForDeepDiagnostics(docUri, { since });
+    if (!deep?.isCurrent()) {
+      throw new Error("The recovery deep-diagnostics report became stale");
+    }
+    const diags = [...deep.report.diagnostics];
     const seen = new Set<string>();
     for (const d of diags) {
       const ident = JSON.stringify([
@@ -280,13 +329,34 @@ suite("Error Recovery (contract)", () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
 
-    let diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
+    let diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      "set x [foo bar]\nputs hi\n",
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    let diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(!hasRecoveryError(diags), `clean start flagged: [${diags.map(codeOf)}]`);
 
-    diags = await setContentAndWait(editor, docUri, "set x [foo bar\nputs hi\n", hasRecoveryError);
+    diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      "set x [foo bar\nputs hi\n",
+      hasRecoveryError,
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `break not flagged: [${diags.map(codeOf)}]`);
 
-    diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
+    diagsSnapshot = await setContentAndWaitSnapshot(editor, docUri, "set x [foo bar]\nputs hi\n");
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(!hasRecoveryError(diags), `fix did not clear: [${diags.map(codeOf)}]`);
   });
 });
@@ -304,12 +374,16 @@ suite("Error Recovery (known-command generality)", () => {
   test("a call to a user-defined proc recovers the tail like a builtin", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n",
       (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E002"),
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E002"),
@@ -362,12 +436,16 @@ suite("Error Recovery (known-command generality)", () => {
   test("a renamed command recovers the tail", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "rename puts my_puts\n\nset q {\n  aaa\nmy_puts hi; string\n",
       (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E001"),
@@ -385,12 +463,16 @@ suite("Error Recovery (known-command generality)", () => {
     // latch onto the *previous* test's stale E001 (the renamed-command test
     // just above also publishes E001 on this shared fixture), passing without
     // ever analysing this content.
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "set q {\n  aaa\nworkspace_helper 1; string\n",
       (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E001"),
@@ -404,12 +486,16 @@ suite("Error Recovery (known-command generality)", () => {
     const editor = vscode.window.activeTextEditor!;
     // Same fresh-publish barrier as the sibling-file test above: avoid latching
     // onto the previous test's stale E001 on this shared fixture.
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "package require mypkg\nset q {\n  aaa\nmypkg_helper 1; string\n",
       (ds) => hasRecoveryError(ds) && ds.some((d) => codeOf(d) === "E001"),
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     assert.ok(
       diags.some((d) => codeOf(d) === "E001"),
@@ -431,38 +517,64 @@ suite("Error Recovery (short-form unterminated quote / brace)", () => {
   test("a same-line unterminated quote with no newline is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, 'set x "hello', hasRecoveryError);
+    const diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      'set x "hello',
+      hasRecoveryError,
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("a same-line unterminated brace with no newline is flagged", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, "set x {hello", hasRecoveryError);
+    const diagsSnapshot = await setContentAndWaitSnapshot(
+      editor,
+      docUri,
+      "set x {hello",
+      hasRecoveryError,
+    );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("content before a single line break still flags an unterminated quote", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       'set x "hello\nworld\n',
       hasRecoveryError,
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
   test("content before a single line break still flags an unterminated brace", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(
+    const diagsSnapshot = await setContentAndWaitSnapshot(
       editor,
       docUri,
       "set x {hello\nworld\n",
       hasRecoveryError,
     );
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
   });
 
@@ -470,7 +582,11 @@ suite("Error Recovery (short-form unterminated quote / brace)", () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
     for (const src of ['set x ""\n', "set x {}\n", 'set x "hello"\n', "set x {hello}\n"]) {
-      const diags = await setContentAndWait(editor, docUri, src);
+      const diagsSnapshot = await setContentAndWaitSnapshot(editor, docUri, src);
+      if (!diagsSnapshot.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...diagsSnapshot.report.diagnostics];
       assert.ok(
         !hasRecoveryError(diags),
         `well-formed ${JSON.stringify(src)} flagged a recovery error: [${diags.map(codeOf)}]`,
@@ -490,7 +606,11 @@ suite("Error Recovery (E200 tight highlighting)", () => {
     // routes detection to the generic fallback rather than the precise
     // E203 path.
     const src = "oo::class create Foo {\n  method bar {} {\n    puts hi\n";
-    const diags = await setContentAndWait(editor, docUri, src, hasRecoveryError);
+    const diagsSnapshot = await setContentAndWaitSnapshot(editor, docUri, src, hasRecoveryError);
+    if (!diagsSnapshot.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...diagsSnapshot.report.diagnostics];
     assert.ok(hasRecoveryError(diags), `expected a recovery error: [${diags.map(codeOf)}]`);
     const nLines = src.split("\n").length;
     for (const d of diags.filter(isRecoveryError)) {

@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnosticsSnapshot } from "./helper";
 
 // Normalise the `code` field (string | { value } ) to a plain string.
 function codeOf(d: vscode.Diagnostic): string {
@@ -40,9 +40,13 @@ suite("Indirect-array idiom (FP-STY-12)", () => {
 
   test("value-position ${arr}(x) fires W216 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W216"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w216Lines = linesWithCode(diags, "W216");
     assert.ok(w216Lines.length >= 1, "expected at least one W216 (analysis ran)");
     // Every W216 must be the value-position one on line 8 — never the
@@ -54,9 +58,13 @@ suite("Indirect-array idiom (FP-STY-12)", () => {
 
   test("varname-position ${token}(idx) stays silent for W216/W212 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W216"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // No W216 on the indirect lines (set / info exists / unset).
     for (const ln of linesWithCode(diags, "W216")) {
       assert.ok(![4, 5, 6].includes(ln), `unexpected W216 on indirect-array line ${ln}`);
@@ -80,9 +88,13 @@ suite("Overridable library procs (FP-STY-13)", () => {
 
   test("redefining a C built-in fires W113 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W113"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w113Lines = linesWithCode(diags, "W113");
     // proc set (line 7) and proc clock (line 8) must both fire.
     assert.ok(w113Lines.includes(7), `expected W113 on 'proc set' (line 7); got [${w113Lines}]`);
@@ -91,9 +103,13 @@ suite("Overridable library procs (FP-STY-13)", () => {
 
   test("redefining a library proc stays silent for W113 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W113"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // unknown / history / auto_execok on lines 3–5 must NOT fire W113.
     for (const ln of linesWithCode(diags, "W113")) {
       assert.ok(![3, 4, 5].includes(ln), `unexpected W113 on library-proc line ${ln}`);
@@ -112,9 +128,13 @@ suite("Single bare-variable body (FP-STY-14)", () => {
 
   test("composite/quoted interpolated body fires W105 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W105"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w105Lines = linesWithCode(diags, "W105");
     assert.ok(
       w105Lines.includes(8),
@@ -128,9 +148,13 @@ suite("Single bare-variable body (FP-STY-14)", () => {
 
   test("single bare-variable body stays silent for W105 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W105"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const ln of linesWithCode(diags, "W105")) {
       assert.ok(![2, 3, 4, 5].includes(ln), `unexpected W105 on bare-var-body line ${ln}`);
     }
@@ -150,9 +174,13 @@ suite("Control-flow read-before-set (PR #634)", () => {
 
   test("empty-literal foreach read fires W210 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w210Lines = linesWithCode(diags, "W210");
     assert.ok(
       w210Lines.includes(15),
@@ -162,9 +190,13 @@ suite("Control-flow read-before-set (PR #634)", () => {
 
   test("tailcall / non-empty foreach / while-1-break stay silent (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // None of the provably-defined reads on lines 3, 7, 11 may fire W210.
     for (const ln of linesWithCode(diags, "W210")) {
       assert.ok(
@@ -180,9 +212,13 @@ suite("Control-flow read-before-set (PR #634)", () => {
   // still fires.
   test("dynamic-loop after-loop reads stay silent (false case, #756)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W210"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const ln of linesWithCode(diags, "W210")) {
       assert.ok(
         ![21, 25].includes(ln),
@@ -203,18 +239,26 @@ suite("Dollar-before-close-quote (FP-STY-15)", () => {
 
   test("live $bar in quoted pattern fires W306 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W306"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w306Lines = linesWithCode(diags, "W306");
     assert.ok(w306Lines.includes(7), `expected W306 on live $bar (line 7); got [${w306Lines}]`);
   });
 
   test("regex end-anchor stays silent, no E002/E205/W306 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W306"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // No W306 on the end-anchor lines 3–5.
     for (const ln of linesWithCode(diags, "W306")) {
       assert.ok(![3, 4, 5].includes(ln), `unexpected W306 on end-anchor line ${ln}`);
@@ -241,9 +285,13 @@ suite("Ensemble-command shadow suppression (FP-STY-17)", () => {
 
   test("unshadowed ensemble fires W001 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W001"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w001Lines = linesWithCode(diags, "W001");
     assert.ok(
       w001Lines.includes(12),
@@ -253,9 +301,13 @@ suite("Ensemble-command shadow suppression (FP-STY-17)", () => {
 
   test("proc/alias shadowed ensemble calls stay silent (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W001"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const ln of linesWithCode(diags, "W001")) {
       assert.ok([6, 9].includes(ln) === false, `unexpected W001 on shadowed-call line ${ln}`);
     }
@@ -273,9 +325,13 @@ suite("Expanded subcommand position (FP-STY-18)", () => {
 
   test("genuine unknown subcommand without expansion fires W001 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W001"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const w001Lines = linesWithCode(diags, "W001");
     assert.ok(
       w001Lines.includes(5),
@@ -285,9 +341,13 @@ suite("Expanded subcommand position (FP-STY-18)", () => {
 
   test("{*}-expanded literal subcommand stays silent (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W001"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const ln of linesWithCode(diags, "W001")) {
       assert.notStrictEqual(ln, 4, `unexpected W001 on {*}-expanded line ${ln}`);
     }
@@ -309,9 +369,13 @@ suite("Command/variable indirection + numeric shimmer (FP-SH-13/15/18)", () => {
 
   test("aliased set and int-seeded numeric loops fire S102 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S102"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const s102Lines = linesWithCode(diags, "S102");
     assert.ok(s102Lines.length >= 1, "expected at least one S102 (analysis ran)");
     // The aliased-store oscillation fires inside `aliased`'s loop body (7–8).
@@ -328,9 +392,13 @@ suite("Command/variable indirection + numeric shimmer (FP-SH-13/15/18)", () => {
 
   test("array-element conflation stays silent for S100/S101 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S102"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // No S100/S101 on the array-element proc lines (15–18).
     for (const code of ["S100", "S101"]) {
       for (const ln of linesWithCode(diags, code)) {
@@ -354,17 +422,25 @@ suite("Variable-name positions (W212/W216)", () => {
 
   test("catch result-var substitution fires W212 (registry FN fix)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W212"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(linesWithCode(diags, "W212").includes(4), "catch {…} $res must fire W212 on line 4");
   });
 
   test("upvar local ${arr}(x) is the indirect-array idiom — no W216/W212", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W212"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     // No W216 anywhere (the upvar local-name slot is the legitimate idiom).
     assert.strictEqual(
       linesWithCode(diags, "W216").length,
@@ -390,9 +466,13 @@ suite("Multi-word eval concatenation (#1051)", () => {
 
   test("a genuinely short joined script still fires E002 (true case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "E002"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.deepStrictEqual(
       linesWithCode(diags, "E002"),
       [9],
@@ -402,9 +482,13 @@ suite("Multi-word eval concatenation (#1051)", () => {
 
   test("well-formed multi-word eval draws no E002 and no W210 (false case)", async () => {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "E002"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     for (const ln of linesWithCode(diags, "E002")) {
       assert.strictEqual(ln, 9, `E002 fired on well-formed eval line ${ln}`);
     }

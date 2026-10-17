@@ -5711,3 +5711,78 @@ family. The generic no-parent source-registry entry keeps its existing refusals.
 The retained DefinitionMember facet of OriginalRegistrySource supplies authoring
 syntax only; it grants no Native invocation, frame, effect, runtime lookup or
 absence, and refuses potential-evaluation and mutation-coverage projections.
+
+Minifier variable barriers retain borrowed actual Scope allocations from the
+current checked analysis; scope kind identifies the global scope. Rendered
+parent/child labels do not select a barrier or a completed edit map. Logical
+formal deduplication retains correspondence to that same actual source Scope
+under its genuine original body, independently of SymbolMap output. Colliding
+report labels receive presentation suffixes after edit selection, preserving
+each selected mapping. These source grouping references grant no Native frame,
+cell, lookup, equivalence or edit authority; the existing isolated policy,
+complete input/source/binding and edit-authorisation checks remain required.
+
+The original definition-member region distinguishes complete source nonmembership,
+unavailable correspondence/layout and complete selected body geometry. The
+same current parent, source image/configuration, Registry context, original argv
+and selected vocabulary authenticate the disposition. A complete member with no
+script operands remains distinct from an unsupported or omitted body. Complete
+layout selection refuses unavailable vocabulary/options, unknown selectors,
+unsupported arity and cooked body geometry; the existing permissive source
+projection remains a separate purpose. Formatter syntax traversal and body
+layout consult this disposition before independent global command schemas.
+Actual deepest script regions preserve ordinary global commands within
+nonmember statements and method bodies. Source nonmembership supplies no
+runtime absence, Native invocation, effect, frame, equivalence or edit grant.
+
+Retained Logical procedure target readers select the genuine original header
+at a declaration cursor, including a superseded allocation, or the actual
+source call receipt and its independently retained header. Full current source,
+lexer configuration, resolved input and realm are required. Qualified names
+remain metadata; final procedure maps, alias terminal text and as-of name
+renewal cannot select that target. Simple-name suggestions enumerate genuine
+current headers only as reporting assistance and remain outside actual call
+target selection. Native and math selectors retain their separate purposes;
+these readonly metadata readers grant no edit, frame, successful effect,
+installed command or complete command-table occupancy.
+
+Method and namespace-variable rename hazard readers retain the existing checked
+potential-source traversal outcome. No observed hazard permits continuation
+only when the independent original syntax commands, selected script regions,
+full source/input/configuration and traversal limits have complete coverage.
+Unavailable or incomplete coverage refuses the rename even when an empty body
+produces no observations. Positive hazards keep their original source reason;
+ordinary positive visitors remain separate from this complete negative purpose.
+This syntax census proves no execution, runtime command occupancy, Native
+identity, frame, edit equivalence or complete downstream reference inventory.
+
+Formatter keyword candidates borrow the actual original full-argv source schema,
+selected option topology, availability and effective operand ordinals. Concrete
+form correspondence after cumulative literal proposals is reborrowed through
+ResolvedInvocation using the retained actual command/subcommand/form descriptors,
+availability and numeric grammar. Display form names do not establish identity.
+Every declared release reselects its full argv independently. This correspondence
+supplies no operand equivalence, runtime success or edit permission; the existing
+formatter source-purpose, written-word, configuration and transform gates remain
+independent. Instance dispatch retains its separate receiver/provider admission.
+
+Configured pack setup uses the actual discovery-to-installed-provider receipt.
+The existing discovery owner retains selected native contributions for each
+requested entry from the same pass that supplies the loader. The actual loader
+retains those read images and their SourceStore-issued path origins; current
+reporting reborrows them with the original saved Studio selections in one
+provider callback. Memory providers retain mapping and byte locks; native
+providers reobserve bytes immediately before the callback, without excluding
+external writers or granting physical file identity or snapshot atomicity.
+Successful reloads retain full discovery input, actual installed PackSet and
+registry handles, and the real publication sequence. Current reporting joins
+those owners with DB pack key, installed overlay contexts and current options.
+Trust and folder writers participate in the existing analyser-input gate.
+Failed overlay installation, changed/unavailable inputs, missing requested
+contributions or stale publication cannot supply a setup receipt. Pack labels
+or a surviving nonempty roster cannot establish correspondence. This grants
+no Native identity, execution, diagnostic completion, edit authority or complete
+directory/discovery census.
+Unretained include, package-source and extension-artefact input phases withhold
+this setup receipt. Their existing ordinary loading remains available; a
+successful load alone cannot donate saved-input coverage to this purpose.

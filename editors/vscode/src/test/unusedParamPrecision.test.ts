@@ -18,7 +18,12 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnosticsSnapshot,
+  type CurrentDiagnosticsSnapshot,
+} from "./helper";
 
 // Normalise the `code` field (string | { value }) to a plain string.
 function codeOf(d: vscode.Diagnostic): string {
@@ -39,15 +44,19 @@ function withCode(diags: vscode.Diagnostic[], code: string): vscode.Diagnostic[]
 suite("Unused-parameter range precision (W214)", () => {
   const docUri = getDocUri("unusedParamPrecision.tcl");
 
-  async function w214Diagnostics(): Promise<vscode.Diagnostic[]> {
+  async function w214Diagnostics(): Promise<CurrentDiagnosticsSnapshot> {
     await activate(docUri);
-    return waitForDiagnostics(docUri, {
+    return waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W214"),
     });
   }
 
   test("a single unused param is squiggled on its name only", async () => {
-    const diags = await w214Diagnostics();
+    const currentSnapshotFor_diags = await w214Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const onF = withCode(diags, "W214").filter((d) => d.range.start.line === 3);
     assert.strictEqual(onF.length, 1, `expected one W214 on line 3; got ${JSON.stringify(onF)}`);
     assert.strictEqual(onF[0].range.start.character, 8, "must start at `unused`");
@@ -55,7 +64,11 @@ suite("Unused-parameter range precision (W214)", () => {
   });
 
   test("two unused params get two separate tight ranges", async () => {
-    const diags = await w214Diagnostics();
+    const currentSnapshotFor_diags = await w214Diagnostics();
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     const onG = withCode(diags, "W214").filter((d) => d.range.start.line === 6);
     const ranges = onG.map((d) => [d.range.start.character, d.range.end.character]);
     assert.ok(

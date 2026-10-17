@@ -18,7 +18,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, setTestContent, pollUntil, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  setTestContent,
+  pollUntil,
+  waitForDiagnosticsSnapshot,
+} from "./helper";
 
 // Differential audit — the namespaces and packages/autoindex/source
 // findings, at the editor tier. Every case below was verified against real
@@ -211,10 +217,14 @@ suite("Issue #923 audit: namespaces and packages", () => {
       "set i923y [expr $i923a + 1]\n" +
       "puts $i923y\n";
     await withContent(src, async () => {
-      const diags = await waitForDiagnostics(docUri, {
+      const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
         timeout: 20_000,
         predicate: (d) => d.some((x) => codeOf(x) === "W100"),
       });
+      if (!currentSnapshotFor_diags.isCurrent()) {
+        throw new Error("The retained diagnostics report became stale before its assertions");
+      }
+      const diags = [...currentSnapshotFor_diags.report.diagnostics];
       const dump = JSON.stringify(diags.map((d) => [d.range.start.line, codeOf(d)]));
       const onSet = diags.filter(
         (d) => d.range.start.line === 0 && ["W211", "W220"].includes(codeOf(d)),

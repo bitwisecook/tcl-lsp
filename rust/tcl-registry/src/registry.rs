@@ -9264,7 +9264,7 @@ pub fn resolve_source_descriptor_invocation<'r, 'w>(
         }
         (None, false, false) => None,
     };
-    ResolvedInvocation::new(words, spec, sub, form, subcommand, availability)
+    ResolvedInvocation::new(words, spec, sub, form, subcommand, availability, numbers)
 }
 
 /// Resolve a subcommand for the common semantic path.

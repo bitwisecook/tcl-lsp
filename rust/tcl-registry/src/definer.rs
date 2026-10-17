@@ -3372,6 +3372,7 @@ impl DefinitionBodyGrammar {
                 args,
                 dialect,
                 &|candidate| candidate == role,
+                false,
             )?
             .into_iter()
             .map(SourceDefinitionMemberScriptArgument::argument)
@@ -3485,6 +3486,7 @@ impl DefinitionBodyGrammar {
             crate::InvocationArguments::literals(args),
             dialect,
             admit,
+            false,
         )
         .unwrap_or_default()
         .into_iter()
@@ -3527,6 +3529,25 @@ impl DefinitionBodyGrammar {
             args,
             dialect,
             &ArgRole::carries_script,
+            false,
+        )
+    }
+
+    /// Complete selected script layout. Unsupported arity, availability or
+    /// selectors remain unavailable rather than an empty body inventory.
+    #[must_use]
+    pub fn checked_source_member_script_arguments_in(
+        &self,
+        keyword: &[u8],
+        args: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
+        self.source_member_indices_where(
+            std::str::from_utf8(keyword).ok()?,
+            args,
+            dialect,
+            &ArgRole::carries_script,
+            true,
         )
     }
 
@@ -3536,10 +3557,11 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
         admit: &dyn Fn(ArgRole) -> bool,
+        complete: bool,
     ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
         let count = args.exact_argv_len()?;
         let Some(member) = self.source_member_in(keyword.as_bytes(), dialect) else {
-            return Some(Vec::new());
+            return (!complete).then(Vec::new);
         };
         let word_at = |index| {
             args.get(index).and_then(|word| {
@@ -3554,7 +3576,7 @@ impl DefinitionBodyGrammar {
                 let known = optional.value_for_word_in(word, None);
                 let admitted = optional.value_for_word_in(word, dialect);
                 if known.is_some() && admitted.is_none() {
-                    return Some(Vec::new());
+                    return (!complete).then(Vec::new);
                 }
                 admitted
             } else {
@@ -3563,6 +3585,22 @@ impl DefinitionBodyGrammar {
         } else {
             None
         };
+        if complete
+            && member.kind == MemberKind::Flat
+            && member.arg_roles.iter().any(|(_, role)| admit(*role))
+        {
+            let required = ArgRole::ALL
+                .iter()
+                .flat_map(|&role| member.indices_for_selected_option(option, role))
+                .max()?
+                .checked_add(1)?;
+            if required != count {
+                return None;
+            }
+        }
+        if complete && member.kind == MemberKind::FlagKeyed && count == 0 {
+            return None;
+        }
         let selected = || member.selected_indices_where(option, count, admit);
         let script_argument = |argument| SourceDefinitionMemberScriptArgument {
             argument,
@@ -3590,17 +3628,23 @@ impl DefinitionBodyGrammar {
             MemberKind::Flat => selected().into_iter().map(script_argument).collect(),
             MemberKind::Wrapper => {
                 if count == 0 {
-                    return Some(Vec::new());
+                    return (!complete).then(Vec::new);
                 }
                 let inner = word_at(0)?;
                 if let Ok(inner) = std::str::from_utf8(inner)
                     && self.member(inner).is_some()
                 {
                     if self.source_member_in(inner.as_bytes(), dialect).is_none() {
-                        return Some(Vec::new());
+                        return (!complete).then(Vec::new);
                     }
                     let mut indices = self
-                        .source_member_indices_where(inner, args.slice_from(1), dialect, admit)?
+                        .source_member_indices_where(
+                            inner,
+                            args.slice_from(1),
+                            dialect,
+                            admit,
+                            complete,
+                        )?
                         .into_iter()
                         .map(|mut argument| {
                             argument.argument += 1;
@@ -3612,6 +3656,9 @@ impl DefinitionBodyGrammar {
                     }
                     indices
                 } else if member.wrapper_block_body {
+                    if complete && count != 1 {
+                        return None;
+                    }
                     selected()
                         .into_iter()
                         .map(|argument| SourceDefinitionMemberScriptArgument {
@@ -3621,6 +3668,9 @@ impl DefinitionBodyGrammar {
                         })
                         .collect()
                 } else {
+                    if complete {
+                        return None;
+                    }
                     Vec::new()
                 }
             }
@@ -5549,6 +5599,108 @@ mod tests {
                 ArgRole::VarWrite,
             ),
             vec![3, 4]
+        );
+    }
+
+    #[test]
+    fn complete_source_member_script_layout_separates_missing_and_empty_bodies() {
+        use crate::{InvocationArguments, InvocationWord};
+        let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        let complete = [
+            InvocationWord::Literal("m"),
+            InvocationWord::Literal(""),
+            InvocationWord::Literal("puts ok"),
+        ];
+        let layout = TCLOO_GRAMMAR
+            .checked_source_member_script_arguments_in(
+                b"method",
+                InvocationArguments::structured(&complete),
+                query,
+            )
+            .unwrap();
+        assert_eq!(layout.len(), 1);
+        assert_eq!(layout[0].argument(), 2);
+        for arguments in [&complete[..2], &[][..]] {
+            assert!(
+                TCLOO_GRAMMAR
+                    .checked_source_member_script_arguments_in(
+                        b"method",
+                        InvocationArguments::structured(arguments),
+                        query,
+                    )
+                    .is_none()
+            );
+        }
+        let extra = [
+            InvocationWord::Literal("m"),
+            InvocationWord::Literal(""),
+            InvocationWord::Literal("puts ok"),
+            InvocationWord::Literal("extra"),
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .checked_source_member_script_arguments_in(
+                    b"method",
+                    InvocationArguments::structured(&extra),
+                    query,
+                )
+                .is_none()
+        );
+        let unavailable = [
+            InvocationWord::Literal("p"),
+            InvocationWord::Literal("-get"),
+            InvocationWord::Literal("puts ok"),
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .checked_source_member_script_arguments_in(
+                    b"property",
+                    InvocationArguments::structured(&unavailable),
+                    query,
+                )
+                .is_none()
+        );
+        let optional = [
+            InvocationWord::Literal("m"),
+            InvocationWord::Literal("-private"),
+            InvocationWord::Literal(""),
+            InvocationWord::Literal("puts ok"),
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .checked_source_member_script_arguments_in(
+                    b"method",
+                    InvocationArguments::structured(&optional),
+                    query,
+                )
+                .is_none()
+        );
+        let current = TCLOO_GRAMMAR
+            .checked_source_member_script_arguments_in(
+                b"method",
+                InvocationArguments::structured(&optional),
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .unwrap();
+        assert_eq!(current[0].argument(), 3);
+        let dynamic = [InvocationWord::Dynamic, InvocationWord::Dynamic];
+        assert!(
+            TCLOO_GRAMMAR
+                .checked_source_member_script_arguments_in(
+                    b"self",
+                    InvocationArguments::structured(&dynamic),
+                    query,
+                )
+                .is_none()
+        );
+        let no_body = [InvocationWord::Literal("Base")];
+        assert_eq!(
+            TCLOO_GRAMMAR.checked_source_member_script_arguments_in(
+                b"superclass",
+                InvocationArguments::structured(&no_body),
+                query,
+            ),
+            Some(Vec::new())
         );
     }
 

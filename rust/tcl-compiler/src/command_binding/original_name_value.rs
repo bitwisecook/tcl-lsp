@@ -1949,6 +1949,7 @@ impl super::SourceCommandBindings {
                     .enumerate()
                     .filter_map(|(index, (word, native))| {
                         (word.source().span == span
+                            || native.content_span().ok() == Some(span)
                             || native
                                 .tokens()
                                 .first()

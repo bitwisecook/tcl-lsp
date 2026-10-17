@@ -26,7 +26,12 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, waitForCurrentDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForDiagnosticsSnapshot,
+  waitForCurrentDiagnosticsSnapshot,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -37,9 +42,13 @@ suite("Issue #969 I230 false positive", () => {
     const docUri = getDocUri("issue969RecursiveNamespace.tcl");
     const document = await activate(docUri);
 
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `recursive parity check on 'count' must not fold: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
@@ -50,9 +59,13 @@ suite("Issue #969 I230 false positive", () => {
     const docUri = getDocUri("issue969CatchHiddenCall.tcl");
     const document = await activate(docUri);
 
-    const diags = await waitForCurrentDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `is_even is called with both 3 and 4 (the latter inside catch): ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
@@ -63,9 +76,13 @@ suite("Issue #969 I230 false positive", () => {
     const docUri = getDocUri("issue969UniformLiteralControl.tcl");
     await activate(docUri);
 
-    const diags = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "I230"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       diags.some((d) => codeOf(d) === "I230"),
       `two callers passing the identical literal should still fold: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,

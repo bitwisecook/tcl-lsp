@@ -42,6 +42,16 @@ use crate::discovery::PACKAGE_MANIFEST;
 use crate::loader::PackCommand;
 use crate::pack::{PackNotice, Severity};
 
+pub(crate) fn declared_source_path(command: &PackCommand) -> Option<&'static str> {
+    match command.spec.runtime_backing {
+        RuntimeBacking::TclBody {
+            source: BodySource::PackageSource { relative_path },
+            ..
+        } => Some(relative_path),
+        _ => None,
+    }
+}
+
 /// Read the file behind every `PackageSource` backing in `commands` and keep
 /// the text on the command. A file that cannot be read is a warning on the
 /// command's row and the command keeps its backing: it is declared, and nothing
@@ -55,11 +65,7 @@ pub(crate) fn provision(
 ) -> Option<u64> {
     let mut digest: Option<xxhash_rust::xxh3::Xxh3> = None;
     for command in commands {
-        let RuntimeBacking::TclBody {
-            source: BodySource::PackageSource { relative_path },
-            ..
-        } = command.spec.runtime_backing
-        else {
+        let Some(relative_path) = declared_source_path(command) else {
             continue;
         };
         match read(store, &command.file, relative_path) {

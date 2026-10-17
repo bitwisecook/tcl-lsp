@@ -1,0 +1,79 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling salsa v0.28.5
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+warning: unused import: `tcl_compiler::interprocedural::InterproceduralAnalysis`
+   --> rust/tcl-lsp-db/src/lib.rs:218:5
+    |
+218 | use tcl_compiler::interprocedural::InterproceduralAnalysis;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-db` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-db` to apply 1 suggestion)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0422]: cannot find struct, variant or union type `WorkspaceFolder` in this scope
+     --> rust/tcl-lsp-server/src/lib.rs:64573:42
+      |
+64573 |             workspace_folders: Some(vec![WorkspaceFolder {
+      |                                          ^^^^^^^^^^^^^^^
+      |
+     ::: /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ls-types-0.0.6/src/lib.rs:648:1
+      |
+  648 | pub struct WorkspaceEdit {
+      | ------------------------ similarly named struct `WorkspaceEdit` defined here
+      |
+help: a struct with a similar name exists
+      |
+64573 -             workspace_folders: Some(vec![WorkspaceFolder {
+64573 +             workspace_folders: Some(vec![WorkspaceEdit {
+      |
+
+error[E0433]: cannot find type `WorkspaceTrust` in this scope
+     --> rust/tcl-lsp-server/src/lib.rs:64596:13
+      |
+64596 |             WorkspaceTrust::Trusted
+      |             ^^^^^^^^^^^^^^ use of undeclared type `WorkspaceTrust`
+      |
+help: a struct with a similar name exists
+      |
+64596 -             WorkspaceTrust::Trusted
+64596 +             WorkspaceEdit::Trusted
+      |
+
+error[E0433]: cannot find type `WorkspaceTrust` in this scope
+     --> rust/tcl-lsp-server/src/lib.rs:64602:13
+      |
+64602 |             WorkspaceTrust::Untrusted
+      |             ^^^^^^^^^^^^^^ use of undeclared type `WorkspaceTrust`
+      |
+help: a struct with a similar name exists
+      |
+64602 -             WorkspaceTrust::Untrusted
+64602 +             WorkspaceEdit::Untrusted
+      |
+
+Some errors have detailed explanations: E0422, E0433.
+For more information about an error, try `rustc --explain E0422`.
+error: could not compile `tcl-lsp-server` (lib test) due to 3 previous errors

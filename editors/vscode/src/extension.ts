@@ -140,7 +140,23 @@ let versionStatusBarItem: StatusBarItem;
 let activeDialect: DialectChoice = describeDialect(DEFAULT_DIALECT);
 // The dialects the quick pick offers: the generated catalogue until the server
 // has listed its own.
-let dialectChoices: readonly DialectChoice[] = catalogueChoices();
+let liveDialectChoices:
+  | {
+      choices: readonly DialectChoice[];
+      client: LanguageClient;
+      analysisContext: AnalysisContextSnapshot;
+    }
+  | undefined;
+
+/** A retained live list belongs to its issuer; otherwise use generated UI advice. */
+function currentDialectChoices(): readonly DialectChoice[] {
+  return liveDialectChoices &&
+    client === liveDialectChoices.client &&
+    liveDialectChoices.client.isRunning() &&
+    isAnalysisContextCurrent(liveDialectChoices.analysisContext)
+    ? liveDialectChoices.choices
+    : catalogueChoices();
+}
 
 export function getClient(): LanguageClient {
   return client;
@@ -745,14 +761,32 @@ async function exportConfig(): Promise<void> {
 
 async function selectDialect(): Promise<void> {
   await refreshDialectChoices();
-  const picked = await pickDialect(dialectChoices, activeDialect.name);
-  if (picked) {
-    const target = workspace.workspaceFolders?.length
-      ? undefined
-      : vscode.ConfigurationTarget.Global;
-    await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
-    await setServerDialect(picked);
+  const issuingClient = client;
+  const analysisContext = captureAnalysisContext();
+  const liveChoices = liveDialectChoices;
+  const choices = currentDialectChoices();
+  const usedLiveChoices = liveChoices !== undefined && choices === liveChoices.choices;
+  const request = dialectChoicesRefreshGeneration;
+  const picked = await pickDialect(choices, activeDialect.name);
+  if (
+    !picked ||
+    client !== issuingClient ||
+    request !== dialectChoicesRefreshGeneration ||
+    (issuingClient !== undefined &&
+      (!issuingClient.isRunning() || analysisContext === undefined)) ||
+    (analysisContext !== undefined && !isAnalysisContextCurrent(analysisContext)) ||
+    (usedLiveChoices &&
+      (liveDialectChoices !== liveChoices ||
+        client !== liveChoices.client ||
+        !isAnalysisContextCurrent(liveChoices.analysisContext)))
+  ) {
+    return;
   }
+  const target = workspace.workspaceFolders?.length ? undefined : vscode.ConfigurationTarget.Global;
+  await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
+  // The deliberate setting write may invalidate context; it cannot adopt a new client.
+  if (client !== issuingClient || !issuingClient?.isRunning()) return;
+  await setServerDialect(picked);
 }
 
 type TclInstallationSelection =
@@ -880,7 +914,7 @@ function fallbackDialectForDocument(document: TextDocument): DialectChoice {
     : tclLanguageIdForBasename(path.basename(document.fileName));
   const implied = languageId ?? (pathLanguage ? LANGUAGE_ID_DIALECTS[pathLanguage] : undefined);
   const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", "");
-  return describeDialect(implied ?? (configured || DEFAULT_DIALECT), dialectChoices);
+  return describeDialect(implied ?? (configured || DEFAULT_DIALECT), currentDialectChoices());
 }
 
 /** Whether a running server can be asked. */
@@ -888,16 +922,40 @@ function serverIsRunning(): boolean {
   return client !== undefined && client.isRunning();
 }
 
-/** The server's ``tcl-lsp.getEffectiveConfig`` answer for *document*, or ``undefined`` if it cannot say. */
-async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
-  if (!serverIsRunning()) {
+interface CurrentEffectiveConfig {
+  readonly value: unknown;
+  readonly report: CurrentDiagnosticsReport;
+  isCurrent(): boolean;
+}
+
+/** The server's config answer, joined to current published source and session owners. */
+async function effectiveConfigFor(
+  document: TextDocument,
+): Promise<CurrentEffectiveConfig | undefined> {
+  const requestClient = client;
+  if (!requestClient?.isRunning()) return undefined;
+  const uri = document.uri;
+  const version = document.version;
+  const source = document.getText();
+  let report: CurrentDiagnosticsReport;
+  try {
+    report = await waitForDiagnosticsReport(uri, { expectedSource: source });
+  } catch {
     return undefined;
   }
+  const expected = { document, uri, version, source };
+  const isCurrent = () =>
+    client === requestClient &&
+    requestClient.isRunning() &&
+    isAnalysisContextCurrent(report.analysisContext) &&
+    currentDiagnosticsReportMatches(report, expected);
+  if (!isCurrent()) return undefined;
   try {
-    return await client.sendRequest("workspace/executeCommand", {
+    const value = await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.getEffectiveConfig",
-      arguments: [document.uri.toString()],
+      arguments: [uri.toString()],
     });
+    return isCurrent() ? { value, report, isCurrent } : undefined;
   } catch {
     // A server still starting (or already stopped) has nothing to say yet; the
     // fallback label stays until an event asks again.
@@ -907,52 +965,76 @@ async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
 
 /**
  * The dialect *document* is analysed under: the server's answer, else the
- * fallback.  The server runs the whole detection ladder (directive, shebang,
- * ``package require``, content, extension) per document; nothing here repeats it.
+ * fallback. The diagnostics report owns source, resource config and session
+ * currency; this projection does not reconstruct them from a URI or version.
  */
 async function effectiveDialectFor(document: TextDocument): Promise<DialectChoice> {
-  const answered = dialectFromEffectiveConfig(await effectiveConfigFor(document), dialectChoices);
+  const config = await effectiveConfigFor(document);
+  const answered = config?.isCurrent()
+    ? dialectFromEffectiveConfig(config.value, currentDialectChoices())
+    : undefined;
   return answered ?? fallbackDialectForDocument(document);
 }
 
 /** Read the server's dialect list, keeping the catalogue when it cannot be read. */
+let dialectChoicesRefreshGeneration = 0;
 async function refreshDialectChoices(): Promise<void> {
-  if (!serverIsRunning()) {
-    return;
-  }
+  const requestClient = client;
+  const context = captureAnalysisContext();
+  if (!requestClient?.isRunning() || !context) return;
+  const requestGeneration = ++dialectChoicesRefreshGeneration;
   try {
-    const listed = await client.sendRequest("workspace/executeCommand", {
+    const listed = await requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.listDialects",
       arguments: [],
     });
-    dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+    if (
+      requestGeneration === dialectChoicesRefreshGeneration &&
+      client === requestClient &&
+      requestClient.isRunning() &&
+      isAnalysisContextCurrent(context)
+    ) {
+      const choices = parseListedDialects(listed);
+      if (choices) {
+        liveDialectChoices = { choices, client: requestClient, analysisContext: context };
+      }
+    }
   } catch {
     // The catalogue stays.
   }
 }
 
 let dialectRefreshTimer: NodeJS.Timeout | undefined;
+let dialectRefreshGeneration = 0;
 
 /**
  * Ask the server which dialect the focused document is analysed under and show
  * it, after a short delay that lets the client's own ``didOpen`` / ``didChange``
- * for the document go first.  A later request supersedes an earlier one.
+ * for the document go first. A later request supersedes an earlier one.
  */
 function scheduleDialectRefresh(document: TextDocument): void {
+  const requestGeneration = ++dialectRefreshGeneration;
   if (dialectRefreshTimer) {
     clearTimeout(dialectRefreshTimer);
   }
   dialectRefreshTimer = setTimeout(() => {
     dialectRefreshTimer = undefined;
-    if (window.activeTextEditor?.document !== document) {
+    if (
+      requestGeneration !== dialectRefreshGeneration ||
+      window.activeTextEditor?.document !== document
+    ) {
       return;
     }
     void (async () => {
-      const answered = dialectFromEffectiveConfig(
-        await effectiveConfigFor(document),
-        dialectChoices,
-      );
-      if (answered && window.activeTextEditor?.document === document) {
+      const config = await effectiveConfigFor(document);
+      if (!config) return;
+      const answered = dialectFromEffectiveConfig(config.value, currentDialectChoices());
+      if (
+        answered &&
+        requestGeneration === dialectRefreshGeneration &&
+        window.activeTextEditor?.document === document &&
+        config.isCurrent()
+      ) {
         setActiveDialect(answered);
       }
     })();
@@ -983,7 +1065,7 @@ function setActiveDialect(dialect: DialectChoice): void {
 
 /** Show the dialect called *name*, with the labels the server or the catalogue gives it. */
 function setActiveDialectLabel(name: string): void {
-  setActiveDialect(describeDialect(name, dialectChoices));
+  setActiveDialect(describeDialect(name, currentDialectChoices()));
 }
 
 /**

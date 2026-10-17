@@ -207,7 +207,7 @@
   "all_required_change_total": 2158,
   "final_catalogue": {
     "path": "repository-consumer-audit-final.json",
-    "sha256": "23f7de95e079e87e64ff1bbed476641a5379ce287b9147a6c87e84325ded173a"
+    "sha256": "6665915e9bf92723fde2a3085544b08dd5a5dfd337fbade2723d67d25d25c3f2"
   },
   "primary_packet": {
     "status": "FINAL_SOURCE_AUDIT_RECONCILED",
@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T04:07:39.631305+00:00",
+    "utc": "2026-10-17T04:23:59.704968+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 345,
+    "implemented_pending_validation": 363,
     "verified_complete": 0,
-    "not_started": 1813,
+    "not_started": 1795,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "62annex purposes61integrated1blocked. New Studio source publication owner and shared configured authored compact-name sequence counted once each; existing Compiler decodedlambda owner288 and Core691 caller count separately. No API/helper/test multiplicity.",
+    "owner_facet_reconciliation": "64 annex purposes63integrated1blocked; two new genuine shared-owner purposes are selected source literal/form correspondence and actual configured discovery-to-installed publication currentness. Helpers/APIs/tests/causal repairs add no counts.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -664,8 +664,8 @@
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2220,
-    "effective_implemented_pending_validation": 406,
+    "effective_required_units": 2222,
+    "effective_implemented_pending_validation": 426,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 317,
-    "partially_implemented_pending_validation": 28,
+    "fully_implemented_pending_validation": 327,
+    "partially_implemented_pending_validation": 36,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 212,
+      "lsp_integrated_pending_validation": 229,
       "lsp_by_kind_integrated": {
-        "semantic": 107,
-        "validation": 103,
+        "semantic": 116,
+        "validation": 111,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 113,
+      "lsp_without_integrated_implementation": 96,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -3611,6 +3611,60 @@
       "focused2": "Actual repaired nested parent transport and Studio retirement retry both passed beforefull994; final fullselection outcomes recorded here.",
       "ordinary_acceptance": false,
       "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, all current source/provider/artifact postflights equal. Historical962 exception retained separately. Global/host/integration/required gates not accepted; no verified completion."
+    },
+    "next_consumer_v6": {
+      "source_admission": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6/admission.json",
+      "sha256": "a0d376b18f9bf6b9773cc7782e8dc0fd6ca6eb7c723a038f18c35890353b8960",
+      "changed_paths": 78,
+      "admitted_paths": 205,
+      "existing_LSP_purposes": 17,
+      "existing_DB_purposes": 1,
+      "new_shared_owner_purposes": 2,
+      "actual_build": "RUNNING /workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair2 after two narrow independently reviewed compile repairs",
+      "source_frozen": true,
+      "verified_complete": 0,
+      "prospective_standard_selection": 1024,
+      "exact_retained_prefix": 994,
+      "new_standard_controls": 30,
+      "extra_retained_controls": 18,
+      "additional_external_controls": 7,
+      "limits": "No execution acceptance. Workspace/refactor/633 held outside main uncounted. Runtime/VM/BIGIP dedicated work deferred.",
+      "failed_initial_build": {
+        "exit_code": 101,
+        "seconds": 64.43,
+        "errors": 3,
+        "cause": "Missing documentation comments on three public tri-state variants. Exact comment-only repair independently reviewed and applied; no executable changes.",
+        "inputs": 39100,
+        "drift": 0
+      },
+      "current_source_admission": "/workspace/naming-validation/lsp-next-consumer-source-admission-v6-repair2/admission.json",
+      "current_source_admission_sha256": "b61629b2db57075b7f979de5322a98c12e97c3de31055f2edf1e0dada05135f4",
+      "actual_editor": {
+        "status": "PASS",
+        "inputs": 443,
+        "drift": 0,
+        "scope": "TypeScript, configured formatting, worker syntax, Node/browser bundles, Studio web typecheck; actual hosts pending."
+      },
+      "failed_retry1_build": {
+        "exit_code": 101,
+        "seconds": 190.392,
+        "errors": 3,
+        "inputs": 39100,
+        "drift": 0,
+        "cause": "New test fixture missing WorkspaceFolder/WorkspaceTrust type qualifications. All assertions retained."
+      },
+      "actual_source1024_peer": {
+        "status": "SOURCE_CLEAR_PREQUALIFICATION_REPAIR_BUILD_FAILED_NO_ARTIFACT_BINDING",
+        "path": "/workspace/naming-validation/independent-sol-actual-source1024-v1/SOURCE_CLEAR.json",
+        "sha256": "b73ee81c158fedbc30c975b5048568ca2550b87bb53bd47196c71abad0cbd594"
+      },
+      "test_type_qualification": "Actual WorkspaceFolder constructor and local WorkspaceTrust import only; assertions/fixtures/selectors/budgets exact. Counts unchanged.",
+      "compact_source_capsule": {
+        "path": "experiments/name-handling/results/owner-adoption-20261017/lsp-next-consumer-v6/reviewed-source-provenance.tar.zst",
+        "sha256": "edefb8c5ede871f09ee5139218d2ff9d7d64d86e43bd0502b3fe5d4b39d15f76",
+        "bytes": 301547,
+        "all171archive_member_hashes_roundtrip_verified": true
+      }
     }
   }
 }

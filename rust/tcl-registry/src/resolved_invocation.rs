@@ -1293,6 +1293,10 @@ pub(crate) struct SelectedDescriptors<'r> {
     /// Whether `sub` is an instance method reached through an object, whose
     /// class command's own tables do not apply.
     pub(crate) instance: bool,
+    /// Actual form selected by the original full argv, never its display name.
+    pub(crate) form: Option<&'r CommandForm>,
+    /// Actual numeric grammar used while selecting default/form syntax.
+    pub(crate) numbers: Option<tcl_dialect::NumberSyntax>,
 }
 
 /// Count under an authored argument axis, retaining effective operand indices.
@@ -2323,6 +2327,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
         availability: InvocationAvailability<'w>,
+        numbers: Option<tcl_dialect::NumberSyntax>,
     ) -> Self {
         let mut semantics = resolve_invocation_semantics(
             spec,
@@ -2363,6 +2368,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 spec,
                 sub,
                 instance: false,
+                form,
+                numbers,
             },
             instance_method_provider: None,
         }
@@ -2414,6 +2421,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 spec: class_spec,
                 sub: Some(method),
                 instance: true,
+                form,
+                numbers: None,
             },
             instance_method_provider: None,
         }
@@ -3135,6 +3144,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             spec,
             sub,
             instance,
+            ..
         } = self.selected;
         let pattern_selected = !instance
             && sub.is_none()
@@ -3200,6 +3210,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             spec,
             sub,
             instance,
+            ..
         } = self.selected;
         if instance || !self.layout_is_proven() {
             return Vec::new();
@@ -5256,6 +5267,83 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             command: self.semantics.script_metadata.command,
             subcommand: self.semantics.script_metadata.subcommand,
         }
+    }
+
+    /// Retain actual descriptor/form selection after one proposed literal
+    /// replacement. This is source selection correspondence only, never
+    /// operand equivalence, handler success or edit permission. Instance
+    /// dispatch keeps its independent receiver/provider admission.
+    #[must_use]
+    pub fn source_literal_replacement_keeps_selection(&self, argument: usize, value: &str) -> bool {
+        self.source_literal_replacements_keep_selection(&[(argument, value)])
+    }
+
+    /// Joint source selection correspondence for literal replacement candidates.
+    /// Individually stable replacements must not jointly select another form.
+    /// This remains metadata correspondence, not an operand edit grant.
+    #[must_use]
+    pub fn source_literal_replacements_keep_selection(
+        &self,
+        replacements: &[(usize, &str)],
+    ) -> bool {
+        if self.selected.instance
+            || replacements
+                .iter()
+                .enumerate()
+                .any(|(position, (argument, _))| {
+                    self.words.arguments().literal_at(*argument).is_none()
+                        || replacements[..position]
+                            .iter()
+                            .any(|(earlier, _)| earlier == argument)
+                })
+        {
+            return false;
+        }
+        let Some(count) = self.words.arguments().exact_argv_len() else {
+            return false;
+        };
+        let Some(arguments) = (0..count)
+            .map(|index| {
+                replacements
+                    .iter()
+                    .find(|(argument, _)| *argument == index)
+                    .map_or_else(
+                        || self.words.arguments().get(index),
+                        |(_, value)| Some(crate::InvocationWord::Literal(value)),
+                    )
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let mut words = InvocationWords::structured(self.words.head(), &arguments);
+        if let Some(dialect) = self.words.arguments().dialect() {
+            words = words.with_dialect(dialect);
+        }
+        let proposed = crate::registry::resolve_source_descriptor_invocation(
+            self.selected.spec,
+            words,
+            self.semantics.options.availability,
+            self.selected.numbers,
+        );
+        std::ptr::eq(self.selected.spec, proposed.selected.spec)
+            && match (self.selected.sub, proposed.selected.sub) {
+                (Some(left), Some(right)) => std::ptr::eq(left, right),
+                (None, None) => true,
+                _ => false,
+            }
+            && match (self.selected.form, proposed.selected.form) {
+                (Some(left), Some(right)) => std::ptr::eq(left, right),
+                (None, None) => true,
+                _ => false,
+            }
+            && self.semantics.argument_offset == proposed.semantics.argument_offset
+            && std::ptr::eq(self.semantics.options.base, proposed.semantics.options.base)
+            && std::ptr::eq(self.semantics.options.form, proposed.semantics.options.form)
+            && self.semantics.options.positional_prefix_words
+                == proposed.semantics.options.positional_prefix_words
+            && self.semantics.options.reserved_trailing_words
+                == proposed.semantics.options.reserved_trailing_words
     }
 
     /// Available options of the actual selected source form and selector.

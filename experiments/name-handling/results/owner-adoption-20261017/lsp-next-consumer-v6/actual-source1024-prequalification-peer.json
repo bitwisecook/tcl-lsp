@@ -1,0 +1,25 @@
+{
+  "status": "BOUNDED_ACTUAL_SOURCE_CLEAR_NO_ARTIFACT_BINDING",
+  "manifest_sha256": "3e8f91a214208adf0f352be5747f0750496677dc1fcf567d0391e7412bd6ab10",
+  "standard": 1024,
+  "exact_original_prefix": 994,
+  "new_controls": 30,
+  "extra_exact_separate": 18,
+  "external_facts_unselected": 7,
+  "facts_reconstructed_all_fields": 1049,
+  "independent_AST": "Actual parser function/module/attrs/test declaration/body hashes checked for all1049facts; SourceIndex nooverride before/during/after",
+  "full_input_current_before_after": 39100,
+  "root_input_sha256": "91a29f19744a9ccac9e247fe97edbb2a808de79ffcfe5b600b6975f7479bb10f",
+  "cumulative_admission_current_paths": 205,
+  "admission_sha256": "139c5eac703e9582cedaa1e434d02ce3ed0a37f2b23f07e8c58dfb04644ccf6b",
+  "original994_test_function_bodies": "992hash-exact historicalparent;two independently before/after/ASTassertion-joined reviewedproviderpath adapters15.01",
+  "reviewed_body_exceptions": [
+    "package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex",
+    "package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex"
+  ],
+  "guards": "exact complete execution vectors/order and guard/provider pins; original180s tests/30slisting; no ignores",
+  "actual_source_routes": 160,
+  "limits": "Source-only. No Main/Git/Cargo/build/test/listing/ELF/oracle/trace/host/count acceptance. Artifact binding null; successful actual build and frozen binary singleton listing/execution pre/postflights still required.",
+  "extra18_historical_test_bodies": "all18hash-exact",
+  "known_actual_build_limit": "Parent reports actual retry1 build failed three new server-test type-resolution errors. This receipt pins unchanged pre-repair source only, and supplies no artifact acceptance. Required later repair/source recapture cannot reuse changed source hashes."
+}

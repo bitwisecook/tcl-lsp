@@ -1,0 +1,10 @@
+{
+  "status": "BOUNDED_SOURCE_CLEAR_TYPE_RESOLUTION_ONLY",
+  "manifest_sha256": "eb8e7bc2698750c3d9d51974a2c6facc3ed1c9aba75ad1254e8bbcc2652b63a8",
+  "patch_sha256": "6921c6f8cb7e086749220ccf83c927cce19812022beb7c21fcc817571ae30e60",
+  "exact_change": "One existing genuine WorkspaceTrust import in new test module; one actual tower_lsp_server WorkspaceFolder type qualification. No assertion, fixture value, wire/request shape, selector or budget change. Entire source otherwise byte-identical.",
+  "original_assertion_macros_exact": 1956,
+  "actual_API": "WorkspaceTrust defined tcl-dialect model/environment.rs372; actual fully qualified WorkspaceFolder used existing server test code48301 and InitializeParams actual ls_types type.",
+  "checks": "Allhashes/currentbefore/RustAST/rustfmt/freshforwardinversefuzz0PASS",
+  "limits": "No actual compiler/build/test/listing/ELF/trace/main/Git/count acceptance; source1024 pre-repair receipt remains immutable and requires later changed source/new-control hash recapture."
+}

@@ -404,6 +404,61 @@ pub fn load_under(files: &[PackFile], trust: WorkspaceTrust) -> PackSet {
     load_sources(sources, notices, trust, Some(&store))
 }
 
+/// Original ordinary loader inputs, separate from labels and discovery paths.
+/// These retained images supply no currentness until their provider reborrows.
+#[derive(Default)]
+pub struct LoadedSourceInputs {
+    sources: Vec<LoadedSourceInput>,
+    pub(crate) unretained_nested_inputs: bool,
+}
+
+struct LoadedSourceInput {
+    path: std::path::PathBuf,
+    origin: Option<tcl_lsp_core::vfs::SourcePathOrigin>,
+    source: String,
+}
+
+pub(crate) struct LoadedSourceRead {
+    pub(crate) sources: Vec<(PackFile, String)>,
+    pub(crate) notices: Vec<PackNotice>,
+    pub(crate) inputs: LoadedSourceInputs,
+}
+
+impl LoadedSourceInputs {
+    /// Paths of all actual ordinary images read for the merged installed set.
+    /// This is retained loader selection, not a new discovery inventory.
+    #[must_use]
+    pub fn retained_paths(&self) -> Vec<std::path::PathBuf> {
+        self.sources
+            .iter()
+            .map(|input| input.path.clone())
+            .collect()
+    }
+
+    /// Borrow exact ordinary inputs for the selected contributing native paths.
+    /// Missing provider origins or missing loader images remain unavailable.
+    #[must_use]
+    pub fn selected<'a>(
+        &'a self,
+        paths: &[std::path::PathBuf],
+    ) -> Option<Vec<(&'a tcl_lsp_core::vfs::SourcePathOrigin, &'a [u8])>> {
+        if self.unretained_nested_inputs {
+            return None;
+        }
+        paths
+            .iter()
+            .map(|path| {
+                let mut sources = self.sources.iter().filter(|input| &input.path == path);
+                let input = sources.next()?;
+                if sources.next().is_some() {
+                    return None;
+                }
+                Some((input.origin.as_ref()?, input.source.as_bytes()))
+            })
+            .collect()
+    }
+}
+
 /// Read every discovered file, turning an unreadable one into a notice rather
 /// than dropping it silently.
 ///
@@ -414,21 +469,50 @@ pub(crate) fn read_sources(
     store: &dyn tcl_lsp_core::vfs::SourceStore,
     files: &[PackFile],
 ) -> (Vec<(PackFile, String)>, Vec<PackNotice>) {
+    let read = read_sources_with_inputs(store, files);
+    (read.sources, read.notices)
+}
+
+pub(crate) fn read_sources_with_inputs(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+) -> LoadedSourceRead {
     let mut sources: Vec<(PackFile, String)> = Vec::with_capacity(files.len());
     let mut notices: Vec<PackNotice> = Vec::new();
+    let mut inputs = LoadedSourceInputs::default();
 
     for file in files {
+        let origin = store
+            .source_path_origin(&file.path)
+            .ok()
+            .filter(|origin| origin.path().as_os_str() == file.path.as_os_str());
         match store.read_to_string(&file.path) {
-            Ok(source) => sources.push((file.clone(), source)),
-            Err(err) => notices.push(PackNotice::whole_file(
-                &file.path,
-                format!("cannot read pack file: {err}"),
-                Severity::Warning,
-            )),
+            Ok(source) => {
+                inputs.sources.push(LoadedSourceInput {
+                    path: file.path.clone(),
+                    origin: origin
+                        .filter(|origin| store.validate_source_path_origin(origin).is_ok()),
+                    source: source.clone(),
+                });
+                sources.push((file.clone(), source));
+            }
+            Err(err) => {
+                // A selected read with no retained image cannot certify the merge.
+                inputs.unretained_nested_inputs = true;
+                notices.push(PackNotice::whole_file(
+                    &file.path,
+                    format!("cannot read pack file: {err}"),
+                    Severity::Warning,
+                ));
+            }
         }
     }
 
-    (sources, notices)
+    LoadedSourceRead {
+        sources,
+        notices,
+        inputs,
+    }
 }
 
 /// [`load`]'s merge, taken with the source text already in hand rather than
@@ -469,9 +553,29 @@ pub(crate) fn load_sources(
 /// The actual host must publish only at its own current-source boundary.
 pub(crate) fn load_sources_unpublished(
     sources: Vec<(PackFile, String)>,
+    notices: Vec<PackNotice>,
+    trust: WorkspaceTrust,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+) -> PackSet {
+    load_sources_unpublished_inner(sources, notices, trust, store, None)
+}
+
+pub(crate) fn load_sources_unpublished_with_inputs(
+    sources: Vec<(PackFile, String)>,
+    notices: Vec<PackNotice>,
+    trust: WorkspaceTrust,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+    inputs: &mut LoadedSourceInputs,
+) -> PackSet {
+    load_sources_unpublished_inner(sources, notices, trust, store, Some(inputs))
+}
+
+fn load_sources_unpublished_inner(
+    sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
     trust: WorkspaceTrust,
     store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+    mut inputs: Option<&mut LoadedSourceInputs>,
 ) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
@@ -493,6 +597,9 @@ pub(crate) fn load_sources_unpublished(
         // see an included file change under it.
         let file_trust = file.tier.trust_under(trust);
         let pack = if crate::loader::uses_include(&source) {
+            if let Some(inputs) = inputs.as_deref_mut() {
+                inputs.unretained_nested_inputs = true;
+            }
             crate::cache::evaluate_pack_including(
                 &source,
                 file.tier,
@@ -549,6 +656,15 @@ pub(crate) fn load_sources_unpublished(
             &mut notices,
         );
         admit_commands(&mut merged, &mut notices);
+        if let Some(inputs) = inputs.as_deref_mut()
+            && (merged
+                .commands
+                .iter()
+                .any(|command| crate::package_sources::declared_source_path(command).is_some())
+                || crate::extension_artefacts::has_external_inputs(&merged.commands))
+        {
+            inputs.unretained_nested_inputs = true;
+        }
         read_any |= provision_beside(&mut merged, store, &mut provisioned, &mut notices);
         crate::loader::derive_implementations(&mut merged.commands, &mut notices);
         say_pack_text_backings(&merged, &mut notices);
@@ -1333,5 +1449,107 @@ mod tests {
         assert_ne!(before, load(&[workspace_file(a)]).key, "an edit rekeys");
         assert_eq!(load(&[]).key, 0);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod loaded_source_input_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::{MemoryStore, SourceStore, SourceUriPathUnavailable};
+
+    #[test]
+    fn actual_loader_images_reject_changed_and_foreign_provider_sources() {
+        let store = MemoryStore::new();
+        let path = std::path::PathBuf::from("/packs/requested.tclspec");
+        let source = "speclib requested 1 {}\n";
+        store.upsert(path.clone(), source.as_bytes().to_vec());
+        let file = PackFile {
+            path: path.clone(),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        };
+        let read = read_sources_with_inputs(&store, &[file]);
+        assert_eq!(read.sources[0].1, source);
+        let selected = read.inputs.selected(&[path.clone()]).unwrap();
+        let mut published = false;
+        store
+            .with_current_saved_source_inputs(&[], &selected, &mut || published = true)
+            .unwrap();
+        assert!(published);
+        published = false;
+        store.upsert(path.clone(), b"speclib changed 1 {}\n".to_vec());
+        assert_eq!(
+            store.with_current_saved_source_inputs(&[], &selected, &mut || published = true),
+            Err(SourceUriPathUnavailable::SourceImageUnavailable)
+        );
+        assert!(!published);
+        let foreign = MemoryStore::new();
+        foreign.upsert(path.clone(), source.as_bytes().to_vec());
+        assert_eq!(
+            foreign.with_current_saved_source_inputs(&[], &selected, &mut || published = true),
+            Err(SourceUriPathUnavailable::ForeignProvider)
+        );
+        assert!(!published);
+        assert!(
+            read.inputs
+                .selected(&[std::path::PathBuf::from("/packs/unrelated.tclspec")])
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod complete_retained_loader_input_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::{MemoryStore, SourceStore, SourceUriPathUnavailable};
+
+    fn selected_file(path: &str) -> PackFile {
+        PackFile {
+            path: std::path::PathBuf::from(path),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        }
+    }
+
+    #[test]
+    fn another_selected_merge_input_must_remain_current() {
+        let store = MemoryStore::new();
+        let requested = selected_file("/packs/requested.tclspec");
+        let shadow = selected_file("/packs/workspace.tclspec");
+        store.upsert(requested.path.clone(), b"speclib shared 1 {}\n".to_vec());
+        store.upsert(shadow.path.clone(), b"speclib shared 1 {}\n".to_vec());
+        let read = read_sources_with_inputs(&store, &[requested.clone(), shadow.clone()]);
+        let paths = read.inputs.retained_paths();
+        assert_eq!(paths, vec![requested.path.clone(), shadow.path.clone()]);
+        let selected = read.inputs.selected(&paths).unwrap();
+        let mut published = false;
+        store
+            .with_current_saved_source_inputs(&[], &selected, &mut || published = true)
+            .unwrap();
+        assert!(published);
+        store.upsert(shadow.path, b"speclib shared 2 {}\n".to_vec());
+        published = false;
+        assert_eq!(
+            store.with_current_saved_source_inputs(&[], &selected, &mut || published = true),
+            Err(SourceUriPathUnavailable::SourceImageUnavailable)
+        );
+        assert!(!published);
+        assert!(read.inputs.selected(&[requested.path]).is_some());
+    }
+
+    #[test]
+    fn selected_unreadable_input_withholds_a_complete_merge_receipt() {
+        let store = MemoryStore::new();
+        let missing = selected_file("/packs/missing.tclspec");
+        let read = read_sources_with_inputs(&store, &[missing]);
+        assert_eq!(read.notices.len(), 1);
+        assert!(read.sources.is_empty());
+        assert!(
+            read.inputs
+                .selected(&read.inputs.retained_paths())
+                .is_none()
+        );
     }
 }

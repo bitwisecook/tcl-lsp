@@ -27,7 +27,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics, waitForCurrentDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  waitForCurrentDiagnostics,
+  waitForDiagnosticsSnapshot,
+  waitForCurrentDiagnosticsSnapshot,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -45,9 +51,13 @@ suite("Issue #977 cross-file interprocedural seeding", () => {
     const libUri = getDocUri("issue977Lib.tcl");
     const document = await activate(libUri);
 
-    const diags = await waitForCurrentDiagnostics(libUri, {
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(libUri, {
       expectedSource: document.getText(),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       !diags.some((d) => codeOf(d) === "I230"),
       `issue977Main.tcl calls helper with "dev"; the library must not fold on "prod": ${JSON.stringify(
@@ -61,9 +71,13 @@ suite("Issue #977 cross-file interprocedural seeding", () => {
     const libUri = getDocUri("issue977AgreeingLib.tcl");
     await activate(libUri);
 
-    const diags = await waitForDiagnostics(libUri, {
+    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(libUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "I230"),
     });
+    if (!currentSnapshotFor_diags.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
       diags.some((d) => codeOf(d) === "I230"),
       `every caller in the project passes "prod", so the seed is sound: ${JSON.stringify(

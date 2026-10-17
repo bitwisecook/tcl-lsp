@@ -55,18 +55,13 @@ impl<'a> OriginalLinkedSourceSpelling<'a> {
                     continue;
                 }
                 let mut spans = vec![extent];
-                for invocation in &analysis.command_invocations {
-                    if invocation.indirect
-                        || !invocation.lookup.is_execution_site()
-                        || !contains(declaration.metadata().body_span, invocation.range.start())
-                    {
-                        continue;
-                    }
-                    let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
-                        source, analysis, invocation.range.start(),
-                    ) else {
+                for call in tcl_compiler::registry_invocation::source_structure::source_logical_procedure_calls(source, analysis)? {
+                    let Some(head) = call.original_words().first() else {
                         continue;
                     };
+                    if !contains(declaration.metadata().body_span, head.span().start()) {
+                        continue;
+                    }
                     if call.declaration(analysis) != Some(declaration)
                         || call.has_unresolved_applicability()
                         || !call.lineage().is_empty()
@@ -77,9 +72,6 @@ impl<'a> OriginalLinkedSourceSpelling<'a> {
                     let Some(head) = call.original_words().first() else {
                         continue;
                     };
-                    if head.span().start() != invocation.range.start() {
-                        continue;
-                    }
                     if let Some(span) =
                         crate::original_name_edit::original_plain_source_command_tail(
                             source, analysis, head,

@@ -1,0 +1,9 @@
+{
+  "status": "BOUNDED_SOURCE_CLEAR_DOC_COMMENT_ONLY",
+  "manifest_sha256": "74a1f8cbc5322a5a49d27b2e6f1dc2e07b66569d06d34e14309db6ba60d76e40",
+  "patch_sha256": "d211898588b2276c84d7ffa62802710d964fa091c6be1c8e1fd1df206a0c1c4c",
+  "exact_change": "Only three doc comments inserted; deleting those exact lines reproduces entire current before image byte-for-byte. Every executable/test/assertion/selector/fixture/budget byte unchanged.",
+  "accuracy": "Comments match genuine script_body_disposition branches: complete same-context/source/vocabulary nonmember; unavailable missing or incomplete owner/layout/classification; complete member checked bodies may be empty. Nonmembership remains source syntax, no runtime absence.",
+  "checks": "currentbase/filehashes/RustAST/rustfmt/freshforwardinversefuzz0PASS",
+  "limits": "No main/build/test/typecheck/trace/Git/count acceptance."
+}

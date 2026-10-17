@@ -1,0 +1,13 @@
+{
+  "status": "DOC_COMMENT_ONLY_PROPOSED_COMPILER_REPAIR",
+  "utc": "2026-10-17T04:24:30.995407+00:00",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "before_sha256": "b1e48caf4a18e32d173da017189b127ed97e58cc03f77849f0fbf6f6580e66ec",
+      "after_sha256": "f06524d11ff43582dacc4d02ac20a89c246fdc9bcd4c8fa7764b7f30ba92fcd0"
+    }
+  ],
+  "patch_sha256": "d211898588b2276c84d7ffa62802710d964fa091c6be1c8e1fd1df206a0c1c4c",
+  "cause": "Actual five-library build failed missing_docs on three public enum variants. No executable code/test/assertion/selector/fixture changed."
+}

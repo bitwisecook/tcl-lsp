@@ -34,7 +34,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 
-import { activate, getDocUri, waitForDiagnostics } from "./helper";
+import { activate, getDocUri, waitForDiagnosticsSnapshot } from "./helper";
 
 /** A copy of `samples/sslictcl/example.sslictcl`, the vocabulary document's
  *  worked example. Its own header states which notices it deliberately
@@ -70,10 +70,14 @@ suite("SslicTcl authoring", () => {
 
   test("the loader's notices arrive as diagnostics, and nothing is an error", async function () {
     this.timeout(120_000);
-    const diagnostics = await waitForDiagnostics(docUri, {
+    const currentSnapshotFor_diagnostics = await waitForDiagnosticsSnapshot(docUri, {
       timeout: 60_000,
       predicate: (diags) => diags.some((d) => codeOf(d) === "SSLIC1101"),
     });
+    if (!currentSnapshotFor_diagnostics.isCurrent()) {
+      throw new Error("The retained diagnostics report became stale before its assertions");
+    }
+    const diagnostics = [...currentSnapshotFor_diagnostics.report.diagnostics];
     const notices = diagnostics.filter((d) => codeOf(d) === "SSLIC1101");
     assert.ok(
       notices.length > 0,

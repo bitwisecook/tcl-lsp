@@ -1342,6 +1342,54 @@
         "verified_complete": false
       },
       "implementation_scope": "Actual reviewed source integration; initial build/editor failures retained; positive execution/fullgates pending. Native/absence/execution/effect/Normal grants unchanged."
+    },
+    {
+      "id": "registry.owner.original-source-literal-form-correspondence",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-format-keyword-option-form-consumer"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "symbol": "ResolvedInvocation selected form/literal correspondence"
+        }
+      ],
+      "rationale": "One new same-selected-spec/subcommand/form/layout/numeric-grammar correspondence owner for cumulative proposed source literal replacements, rechecked against final emitted subset. Existing shared-keyword prefix owner has a distinct purpose.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_admission_sha256": "a0d376b18f9bf6b9773cc7782e8dc0fd6ca6eb7c723a038f18c35890353b8960"
+      },
+      "implementation_scope": "Reviewed actual V6 source integration, actual compilation and execution pending. No API/helper/test multiplicity or Native/absence/execution grant."
+    },
+    {
+      "id": "lsp.owner.configured-pack-discovery-publication-currentness",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp.validation.09.00.fn0"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Current configured discovery and installed registry publication"
+        },
+        {
+          "path": "rust/tcl-spectcl/src/discovery.rs",
+          "symbol": "Actual selected loader input receipt"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/vfs.rs",
+          "symbol": "Mixed provider saved-source read closure"
+        }
+      ],
+      "rationale": "One actual discovery-to-installed publication currentness purpose across selected loader inputs, original discovery options, sequence and actual registry publication. Separate from Studio active-source lifetime and analysed library metadata publication; unretained nested loader phases withhold receipt.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_admission_sha256": "a0d376b18f9bf6b9773cc7782e8dc0fd6ca6eb7c723a038f18c35890353b8960"
+      },
+      "implementation_scope": "Reviewed actual V6 source integration, actual compilation and execution pending. No API/helper/test multiplicity or Native/absence/execution grant."
     }
   ],
   "unverified_or_open": [
@@ -1353,28 +1401,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-16T22:00:47.293633+00:00",
+  "utc": "2026-10-17T04:23:59.704968+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 61,
+    "semantic_code_changes": 63,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 62,
+    "all_required_changes": 64,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 35,
+      "shared_owner_extension": 37,
       "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1860,
+    "semantic_code_changes": 1862,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2220
+    "all_required_changes": 2222
   },
   "implementation_progress": {
-    "implemented_pending_validation": 61,
+    "implemented_pending_validation": 63,
     "not_integrated": 1,
     "verified_complete": 0
   }
