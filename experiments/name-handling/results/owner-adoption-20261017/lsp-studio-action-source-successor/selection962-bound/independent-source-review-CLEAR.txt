@@ -1,0 +1,29 @@
+CLEAR_SOURCE_ONLY: actual studio-action962-bound-v1 package.
+{
+  "status": "CLEAR_SOURCE_ONLY_NO_LAUNCHER_OR_TEST_EXECUTION",
+  "bound_manifest_sha256": "91c280addf426e5a82786c039b79b5f9169bd285c7c972943d85ca3f7b324da1",
+  "bound_hashes": {
+    "launcher_sha256": "3c4a13f92352034ba5c400de6f1902118922756f8bee5d8613a1cea06dd3635c",
+    "admission_sha256": "4b5957eb1ca9c61f79a7160424d3dddb18509200e29e4bac58e0eab42e052cc8",
+    "plan_sha256": "e231bbcccd81778f16116af69ee0dfc33dc46b220a8b37d3e49895be47d594f9",
+    "source_evidence_sha256": "1ed72e4a52b47e3cb7829991663540c1a4f1f2e1fdcd1af9d6ee20141997c75d"
+  },
+  "only_launcher_changes": "Exact destination repair1\u2192repair3 and admitted path count127\u2192128; no other byte changes",
+  "full_source_inputs_before_and_after_review": 39052,
+  "source_membership_scanner_exact": true,
+  "admitted_afterimages": 128,
+  "actualELFs": {
+    "tcl_compiler": "03111a890a35e8a81ca14222b70049459b94927fcf5f5a0fa3f9415832bc3aa6",
+    "tcl_lsp_core": "31f562c107f30763ab847ad2d4ca740744635d177d47929d47ea839c17462dde",
+    "tcl_lsp_db": "37fe9d0f1671de08e759db1d362c3f9e52d50b4e54f089746924b5804431ce4f",
+    "tcl_lsp_server": "94b681661f8ecb1ce954a70df778721c426b1ff639e580adaf4b95934d39078b",
+    "tcl_registry": "a8c785b0fe867906c242f9466ff57494d163d6a263619f7d0596f7875e79ab5a"
+  },
+  "all_metadata_pins": 59,
+  "original930_order_and_six_guards_exact": true,
+  "new_standard_controls": 32,
+  "all962_source_evidence_exact_oldSourceTools_recomputed": true,
+  "all_original_C5_Jim_provider_environment_delegate_support_historical_pins_current": true,
+  "no_execution": "No launcher/list/test/Cargo/provider execution or Main/Git mutations; only read-only git ls-files and pure source parser."
+}
+Limits: selected listing/tests not executed; Root alone launches unchanged canonical runner with original environment. This verifies source/artifact/provider binding, not semantic acceptance.

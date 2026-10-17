@@ -6,6 +6,8 @@
 
 use super::*;
 use tcl_lsp_core::wire_session::EditorWireSession;
+#[cfg(test)]
+use tower_lsp_server::ls_types::WorkDoneProgressParams;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -830,7 +832,6 @@ mod tests {
 #[cfg(test)]
 mod retirement_publication_tests {
     use super::*;
-    use crate::vfs::SourceStore as _;
 
     #[derive(Debug, Default)]
     struct ReloadFailureStore {

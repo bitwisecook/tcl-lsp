@@ -1,0 +1,6 @@
+{
+  "exact_original_selection_sha256": "e231bbcccd81778f16116af69ee0dfc33dc46b220a8b37d3e49895be47d594f9",
+  "compressed_sha256": "7ae30eb80b74c29ad356a91fd907c70aa47099e59f6ffa54750eac54bca1bb24",
+  "compressed_path": "selection.json.zst",
+  "scope": "Exact962selectioncompressedforcompactrepositoryevidence; actualoutsideGitboundselection/admissionpins unchanged. Restore bytes before reuse."
+}

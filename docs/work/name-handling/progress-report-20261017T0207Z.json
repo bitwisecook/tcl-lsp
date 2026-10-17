@@ -1,0 +1,105 @@
+{
+  "scheduled_utc": "2026-10-17T02:07:00Z",
+  "last_utc": "2026-10-17T02:07:00Z",
+  "repository_written_utc": "2026-10-17T02:07:05.978616+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T02:37:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 195,
+  "lsp_required": 325,
+  "lsp_semantic_integrated": 97,
+  "lsp_validation_integrated": 96,
+  "lsp_documentation_integrated": 2,
+  "lsp_no_integration": 130,
+  "gains_since_previous_report": {
+    "LSP": 14,
+    "existing_Compiler_owner": 1,
+    "new_grouped_shared_owners": 2,
+    "effective": 17
+  },
+  "baseline_integrated": 328,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 306,
+  "baseline_partial": 22,
+  "annex_integrated": 61,
+  "annex_required": 62,
+  "effective_integrated_at_report": 389,
+  "effective_required": 2220,
+  "effective_without_integration": 1831,
+  "verified": 0,
+  "integrated_purposes": "Studio producer/client lifetime, configured compact-name owner+caller, decoded lambda source owner+formatter, checked code-action source/version, diagnostic rewrite wire source association, Tk source context, detected closedfile input, four currentcomplete validation callers; two sourceaction refusal repairs remain partial.",
+  "ordinary_build_attempts": [
+    {
+      "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor/source-binding.json",
+      "status": "FAIL",
+      "exit_code": 101,
+      "build_seconds": 82.321,
+      "input_before_count": 39052,
+      "input_after_count": 39052,
+      "input_drift_count": 0,
+      "utc": "2026-10-17T01:49:17.898284+00:00",
+      "completed_utc": "2026-10-17T01:50:40.219342+00:00"
+    },
+    {
+      "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair1/source-binding.json",
+      "status": "FAIL",
+      "exit_code": 101,
+      "build_seconds": 127.858,
+      "input_before_count": 39052,
+      "input_after_count": 39052,
+      "input_drift_count": 0,
+      "utc": "2026-10-17T01:56:33.897245+00:00",
+      "completed_utc": "2026-10-17T01:58:41.755377+00:00"
+    },
+    {
+      "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair2/source-binding.json",
+      "status": "FAIL",
+      "exit_code": 101,
+      "build_seconds": 95.102,
+      "input_before_count": 39052,
+      "input_after_count": 39052,
+      "input_drift_count": 0,
+      "utc": "2026-10-17T02:00:29.633878+00:00",
+      "completed_utc": "2026-10-17T02:02:04.736135+00:00"
+    },
+    {
+      "receipt": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/source-binding.json",
+      "status": "running",
+      "input_before_count": 39052,
+      "utc": "2026-10-17T02:03:28.756242+00:00"
+    }
+  ],
+  "editor": {
+    "status": "PASS_WITH_RETAINED_INITIAL_GIT_EPERM",
+    "inputs": 443,
+    "drift": 0,
+    "checks": "BothTypeScriptprojects/scopedconfiguredPrettier/worker/Node+browserbundlesPASS; unchangedoriginalStudioNodepermissionretry124PASS0FAIL0skips.",
+    "limits": "ActualIDEhosts notestablished; type/format/setup failures preserved."
+  },
+  "previous_source_standard930": {
+    "passed": 744,
+    "failed": 184,
+    "timed_out": 2,
+    "harness_errors": 0,
+    "retained_gains": 3,
+    "prior_PASS_regressions": 0,
+    "all39030_inputs_five_ELFs_original_providers_postflight_match": true,
+    "actual_canonical_and_wrapper_exit": 120,
+    "ordinary_acceptance": false
+  },
+  "previous_source_extra9": {
+    "passed": 7,
+    "failed": 2,
+    "timed_out": 0,
+    "harness_errors": 0,
+    "prior_PASS_regressions": 1,
+    "regression": "cache cold/warm notice quickfix count0vs1; othernotice/source checks passed first. Fixed sourceowner availability control included innew build; no invented fix.",
+    "all39030_inputs_eight_ELFs_original_providers_postflight_match": true,
+    "xtask_controls_owed": 3
+  },
+  "next_selected_validation": "Prospective962 preservesall930exactorderedprefix/guards andappends32actualstandardcontrols; sourcewrapperpeerCLEAR, actualsuccessfulbuild+Rootbinding+finalpeer required beforeexecution. Extra18 preservesall12including3owedxtask thenaddsSyntax2SpecTcl4, requiresactualseparateartifacts;11changedintegrationbodies stillowed.",
+  "queued_unintegrated": "HoverV3 sourcepacket; workspace-scanV1 held afteractualclosedoverridecurrencycounterexample, V2authoring; semanticfallback707 sourceinput/finaltransaction work; genericvalidation03.11/08.00 sourcepacket awaitingpeer. No queuedpacketcounts.",
+  "required_gates": "Owner/proof/global/generated/portable/rust-check/prep-pr notallgreen; originalJetBrainsSDKextractionENOSPC beforeKotlin/tests. NoPR/merge/issueclosure.",
+  "latest_push": "681ab58e0",
+  "scope": "AllLSP and necessarysharedCompiler/DB/Registry; Runtime/VM andBIGIP migrations/dedicatedsuites deferred; uncoveredBIGIPTcl8.4 isworkingassumptionnotNativeauthority. Full325baselineincludesdeferredrows, no artificialdenominator reduction."
+}

@@ -1,0 +1,5 @@
+Independent SOURCE CLEAR exact patch64c4f62d8972ba096e78ce0975bf6a361e421f07e2ee04a7961f16eb8f8b146f.
+
+Only the obsolete Native proposal generator call changes. Existing shared AuthoredCompactNameSequence receives the actual full original config and proposes exactly its first candidate a (Some(1), observed predicate false). The false predicate means no supplied observations, explicitly not name availability/absence or edit authority. Configured literal/scalar construction may refuse into existing MissingAlphaRenameContract. Existing original fixed-formal/local-store alpha issuers, observer/effect guards, actual source/config/Registry/current declaration and selected symbol/tail/geometry checks are unchanged. No independent Native permission is replaced by proposal syntax.
+
+Actual shared type/reexport/method signatures source-checked; mutable temporary method call is supported Rust syntax. Remaining obsolete NameGenerator occurrence is this exact removed call. All old test bytes unchanged; exact currentbase/after hashes, Rust AST, fresh isolated fuzz0 forward/inverse verified. No build/tests/Cargo/Git/main or host execution. No efficacy/count claim.

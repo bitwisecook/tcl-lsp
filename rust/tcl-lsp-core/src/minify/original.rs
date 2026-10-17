@@ -287,7 +287,10 @@ fn scalar_alpha_compaction(
     };
     // Generated ASCII names are proposals. Only the independent lower receipt
     // selects a valid same-frame replacement and closes its observer effects.
-    let short = super::NameGenerator::new().next_name();
+    let short = tcl_syntax::naming::AuthoredCompactNameSequence::new(config)
+        .next_avoiding_observed(|_| false, Some(1))
+        .ok_or(MinifyRefusal::MissingAlphaRenameContract)?
+        .into_name();
     let formal =
         analysis.original_fixed_scalar_body_alpha_rename(declaration, short.as_bytes(), registry);
     let local = formal

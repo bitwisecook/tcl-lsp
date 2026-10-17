@@ -1,0 +1,37 @@
+{
+  "tcl_compiler": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+    "sha256": "03111a890a35e8a81ca14222b70049459b94927fcf5f5a0fa3f9415832bc3aa6",
+    "bytes": 251954808,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_compiler-30b36f5fc9611193",
+    "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+  },
+  "tcl_lsp_core": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+    "sha256": "31f562c107f30763ab847ad2d4ca740744635d177d47929d47ea839c17462dde",
+    "bytes": 202493528,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_core-894b7574946ed478",
+    "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+  },
+  "tcl_lsp_db": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+    "sha256": "37fe9d0f1671de08e759db1d362c3f9e52d50b4e54f089746924b5804431ce4f",
+    "bytes": 215467592,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-4adc210b216c0747",
+    "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+  },
+  "tcl_lsp_server": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_lsp_server-0d3d6c6a75aed312",
+    "sha256": "94b681661f8ecb1ce954a70df778721c426b1ff639e580adaf4b95934d39078b",
+    "bytes": 340840048,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-0d3d6c6a75aed312",
+    "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+  },
+  "tcl_registry": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_registry-24ca9a1c83ae5946",
+    "sha256": "a8c785b0fe867906c242f9466ff57494d163d6a263619f7d0596f7875e79ab5a",
+    "bytes": 61901288,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_registry-24ca9a1c83ae5946",
+    "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+  }
+}

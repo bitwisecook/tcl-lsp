@@ -1,0 +1,11 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "before_sha256": "2de12f703f30e0529f09105d9a7fc26c4ea1dcdf56a409dce8fed0d6b33f7842",
+      "after_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d"
+    }
+  ],
+  "patch_sha256": "64c4f62d8972ba096e78ce0975bf6a361e421f07e2ee04a7961f16eb8f8b146f",
+  "purpose": "Actual E0433 build failure: omitted existing Native scalar-alpha proposal caller still used removed privateNameGenerator. Same first candidate a through shared actualfullconfig source sequence, oneproposal no collision/absence claim; existing independently checked formal/local Nativealpha/currentimage/config/Registry/effect/geometry guards remain byte-exact. Configuration refusal remains noalpha-contract. Existingassertions/fixtures unchanged; same alreadycounted minifier purpose/owner, no countdelta."
+}

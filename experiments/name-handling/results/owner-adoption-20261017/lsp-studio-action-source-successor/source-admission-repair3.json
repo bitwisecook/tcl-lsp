@@ -1,0 +1,989 @@
+{
+  "status": "ROOT_REVIEWED_CURRENT_REPAIR_ADMISSION_PENDING_ACTUAL_BUILD",
+  "utc": "2026-10-17T02:03:26.464184+00:00",
+  "prior85_admission": {
+    "path": "/workspace/naming-validation/lsp-next-source-owner-admission/admission.json",
+    "sha256": "686fbd94dbdb97efd595080aa26b8fd26b9eb5312a61abf53937e971d30b60e7"
+  },
+  "prior39030_inputs": {
+    "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/input-before.json",
+    "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12"
+  },
+  "previous930_and_extra9_final_postflight_match": true,
+  "previous_extra9_failure_regression_preserved": true,
+  "ingredients": [
+    {
+      "path": "/workspace/naming-validation/lsp-reviewed-six-source-composition-v2/manifest.json",
+      "sha256": "e9f6c30183871ab0845221843a09da474862c8c9faa26f209a4144f3aa95cf5d"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-studio-validation-rewrite-bridge-v2/manifest.json",
+      "sha256": "ca08952e172ee94ca539c39fca20a19fdc0966dd76df6257b3c675d95d9b68a3"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-studio-action-root-format1/manifest.json",
+      "sha256": "f33cd961b269dc462e25b8fcca482ebcd4b02e696be1848d58cb2dbf179ca409"
+    }
+  ],
+  "actual_changed_paths": [
+    "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+    "docs/design/analysis/name-resolution-proofs/refactor-original-source-rewrite-permissions.md",
+    "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+    "docs/design/contracts/compacted-source-names.md",
+    "docs/design/contracts/name-handling.md",
+    "docs/design/contracts/naming-consumer-matrix.md",
+    "docs/design/contracts/shared-utility-contracts-rust.md",
+    "docs/design/contracts/studio-active-source.md",
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioGeneratedFiles.kt",
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioStartupActivity.kt",
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioToolWindowFactory.kt",
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclLspServerDescriptor.kt",
+    "editors/vscode/src/chat/tkParticipant.ts",
+    "editors/vscode/src/clientCore.ts",
+    "editors/vscode/src/codeActionSource.ts",
+    "editors/vscode/src/extension.ts",
+    "editors/vscode/src/extensionBrowser.ts",
+    "editors/vscode/src/specStudio.ts",
+    "editors/vscode/src/test/commands.test.ts",
+    "editors/vscode/src/test/helper.ts",
+    "editors/vscode/src/test/variableCompletion.test.ts",
+    "editors/vscode/src/test/w120WorkspaceReschedule.test.ts",
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+    "rust/tcl-compiler/src/lambda_literal.rs",
+    "rust/tcl-compiler/src/realm.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "rust/tcl-compiler/src/registry_invocation.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "rust/tcl-lsp-core/src/formatting/engine.rs",
+    "rust/tcl-lsp-core/src/minify.rs",
+    "rust/tcl-lsp-core/src/minify/original.rs",
+    "rust/tcl-lsp-core/src/original_invocation.rs",
+    "rust/tcl-lsp-core/src/refactor/brace_expr.rs",
+    "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+    "rust/tcl-lsp-core/src/source_structure.rs",
+    "rust/tcl-lsp-core/src/vfs.rs",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "rust/tcl-lsp-server/src/rewrite_wire.rs",
+    "rust/tcl-lsp-server/src/studio_source.rs",
+    "rust/tcl-lsp-server/tests/e2e/irules.rs",
+    "rust/tcl-lsp-server/tests/preview_tickets_e2e.rs",
+    "rust/tcl-spec-studio/web/src/editorHost.ts",
+    "rust/tcl-spec-studio/web/src/generatedOutputOrigins.ts",
+    "rust/tcl-spec-studio/web/src/monacoHost.ts",
+    "rust/tcl-spec-studio/web/src/nativeEditorHost.ts",
+    "rust/tcl-spec-studio/web/src/studio.ts",
+    "rust/tcl-spec-studio/web/test/units.test.ts",
+    "rust/tcl-spectcl/src/bundled.rs",
+    "rust/tcl-spectcl/src/discovery.rs",
+    "rust/tcl-spectcl/src/pack.rs",
+    "rust/tcl-spectcl/src/registration.rs",
+    "rust/tcl-syntax/src/naming.rs",
+    "rust/tcl-syntax/src/naming/compacted_source.rs",
+    "rust/xtask/src/owner_resolution/source_internal.rs"
+  ],
+  "prior_input_differences": [
+    "docs/design/contracts/name-handling.md",
+    "docs/design/contracts/shared-utility-contracts-rust.md",
+    "editors/vscode/src/extension.ts",
+    "editors/vscode/src/extensionBrowser.ts",
+    "editors/vscode/src/test/commands.test.ts",
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+    "rust/tcl-compiler/src/lambda_literal.rs",
+    "rust/tcl-compiler/src/realm.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "rust/tcl-compiler/src/registry_invocation.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "rust/tcl-lsp-core/src/formatting/engine.rs",
+    "rust/tcl-lsp-core/src/minify.rs",
+    "rust/tcl-lsp-core/src/original_invocation.rs",
+    "rust/tcl-lsp-core/src/refactor/brace_expr.rs",
+    "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+    "rust/tcl-lsp-core/src/vfs.rs",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "rust/tcl-lsp-server/tests/e2e/irules.rs",
+    "rust/tcl-lsp-server/tests/preview_tickets_e2e.rs",
+    "rust/tcl-spec-studio/web/src/editorHost.ts",
+    "rust/tcl-spec-studio/web/src/monacoHost.ts",
+    "rust/tcl-spec-studio/web/src/nativeEditorHost.ts",
+    "rust/tcl-spec-studio/web/src/studio.ts",
+    "rust/tcl-spec-studio/web/test/units.test.ts",
+    "rust/tcl-spectcl/src/bundled.rs",
+    "rust/tcl-spectcl/src/discovery.rs",
+    "rust/tcl-spectcl/src/pack.rs",
+    "rust/tcl-spectcl/src/registration.rs",
+    "rust/tcl-syntax/src/naming.rs",
+    "rust/xtask/src/owner_resolution/source_internal.rs"
+  ],
+  "all_prior_differences_exactly_admitted": true,
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "after_sha256": "e1333cc82f679ac59bd34c51d62465d61ae7f6f57878122c6107c95255fba3bf",
+      "prior_admission_after_sha256": "e1333cc82f679ac59bd34c51d62465d61ae7f6f57878122c6107c95255fba3bf"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/compiler-original-function-lattice-mutation-identity.md",
+      "after_sha256": "b9a9aac69eec8f17cad0b0d44655df4ba558a488528a4bccfce7e7599c665221",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "b9a9aac69eec8f17cad0b0d44655df4ba558a488528a4bccfce7e7599c665221"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md",
+      "after_sha256": "808cac23cf14ecf878e9f99670c1d32d83289c46b6dd953667a6dab0804efac6",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "808cac23cf14ecf878e9f99670c1d32d83289c46b6dd953667a6dab0804efac6"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+      "after_sha256": "d39eca09dc0697bbad9b7e412e2f1c6e70323551a28ed90458320d91cd8c64b2"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/refactor-original-source-rewrite-permissions.md",
+      "after_sha256": "a80182cd2ac81dc7f49fb20acd470895c524ade07531688301c8b340c522ef37"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "after_sha256": "fa5a604763bce14bd26aaedd834da8c54cd31d10858badc6517bc1f46200849d"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-document-transforms.md",
+      "after_sha256": "9c3850b8d3d5f56ed7d6b36b863e6d8cd3d8ca96db702664053f43a795f6316e",
+      "prior_admission_after_sha256": "9c3850b8d3d5f56ed7d6b36b863e6d8cd3d8ca96db702664053f43a795f6316e"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/typed-spec-pack-notice-actions.md",
+      "after_sha256": "39119389b05fbef0ea5c7c91df3f1560e70e1293281c9ba18af05215f12005f1",
+      "prior_admission_after_sha256": "39119389b05fbef0ea5c7c91df3f1560e70e1293281c9ba18af05215f12005f1"
+    },
+    {
+      "path": "docs/design/contracts/compacted-source-names.md",
+      "after_sha256": "0f40f5a681e2b6bfd155c3c3759a8794f45efe622e11cce441acb14d2f526f0f"
+    },
+    {
+      "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+      "after_sha256": "0142ef7e96373acec3427c774e2a5d1c0ced97712f2fefa7b7fc1ebf9ab35806",
+      "root_durable_contract": "/workspace/naming-validation/root-reviews/current-diagnostics-v9/durable-contract-delta.json"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "after_sha256": "cd6dd65bcf0dbc1599e06edd502a812da14446eee0fbfd23b6852b67f614cc7e",
+      "prior_admission_after_sha256": "ca7c19cf6049661f697f83e4940cb2b4784428de6e1a340d8d94af6d3ea58f94",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "6e8e94c55f8adefb745c6fce6de562aa6ef692bad116c478ff081c2a6bf4d50f"
+        },
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "after_sha256": "01bfdebb7a2b3f0bb0aa9deebe76faf929b9e6cd62a2f2ec4b23997fe1957c8c"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "after_sha256": "d319ff0e65e61e4c98536eea674c70042b42b95bdbba45d5991c5ea86377890a",
+      "prior_admission_after_sha256": "6b53746f1489f77dbc5cd22cf752e26349878203283790cc0784473730740c73",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "131ec5a530377e181b94561688f035f96ad2fc223c194fb637cf705398f0565a"
+        },
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/studio-active-source.md",
+      "after_sha256": "ea8dadad1a7454fdbaebe39d5e18330dabe64967b3620627650c8d1ff3221e4a"
+    },
+    {
+      "path": "docs/design/contracts/workspace-indexing.md",
+      "after_sha256": "750000507eedc0c0ca057101f8d0b45a18029172a98095b1e141feacf9b755af",
+      "prior_admission_after_sha256": "750000507eedc0c0ca057101f8d0b45a18029172a98095b1e141feacf9b755af"
+    },
+    {
+      "path": "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioGeneratedFiles.kt",
+      "after_sha256": "f1480220c0995113c15f383013eb17dee33d1e72202f04ceba96416d326fc197"
+    },
+    {
+      "path": "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioStartupActivity.kt",
+      "after_sha256": "5fbcdec31559f71825ce746274292feca054f85cafa211fc6b662dceea7b8093"
+    },
+    {
+      "path": "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioToolWindowFactory.kt",
+      "after_sha256": "3117d5eec5e362158e5af96fdb8a3c4f758bad6f9ace40294daeb9869d5bb215"
+    },
+    {
+      "path": "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclLspServerDescriptor.kt",
+      "after_sha256": "3e6690147aca53e2964b2ff251f736f1597b04ddf4d98023faf619a5b769ed57"
+    },
+    {
+      "path": "editors/vscode/src/chat/agenticLoop.ts",
+      "after_sha256": "bc7c93786c4346e5aec430b16a9b14c885a96fb6a74094815e793210a45aa368",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "bc7c93786c4346e5aec430b16a9b14c885a96fb6a74094815e793210a45aa368"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/codeUtils.ts",
+      "after_sha256": "705e5de26c14ed45cfa6b74be18d18157e0e678f3e83c80bf0fc10f9e091dcef",
+      "prior_admission_after_sha256": "705e5de26c14ed45cfa6b74be18d18157e0e678f3e83c80bf0fc10f9e091dcef"
+    },
+    {
+      "path": "editors/vscode/src/chat/commands/optimise.ts",
+      "after_sha256": "59360a846ea194325a3b048349c07a250a007653eaed844d2cbcc8ef96852530",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "59360a846ea194325a3b048349c07a250a007653eaed844d2cbcc8ef96852530"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/contextPack.ts",
+      "after_sha256": "68840e9cc5710591ea858bf57b9e29ed8bfdb68435ee77e87d8bbef7d9759648",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "68840e9cc5710591ea858bf57b9e29ed8bfdb68435ee77e87d8bbef7d9759648"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/diagnosticAccess.ts",
+      "after_sha256": "7b0bc4f193742e476666e2e1e237ccd9bba1587930183cdfa37695639fec0b31",
+      "prior_admission_after_sha256": "f0e025769ff156bdaec9b62f3fc724ce83c3f42c535927f5c92586cd2de6f7cb",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "61ecfce4e90d23415b75753fdf874d20abb6d2f0f09168acdca0b06078f06f82"
+        },
+        {
+          "manifest": "/workspace/naming-validation/current-diagnostics-editor-api-repair1/manifest.json",
+          "after_sha256": "7b0bc4f193742e476666e2e1e237ccd9bba1587930183cdfa37695639fec0b31"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/tclParticipant.ts",
+      "after_sha256": "2111b3c89f733b1e8a44663d1040daef2a44d1122e97aadc59bb643891fbabfc",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "c9e971b565919be824ead1ab0238a91b6a56c2636ee088c8bfa6a2bbe3cf1c0b"
+        },
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "2111b3c89f733b1e8a44663d1040daef2a44d1122e97aadc59bb643891fbabfc"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/tkParticipant.ts",
+      "after_sha256": "a6f8225656847a2292879d54788a1d7a1e31763cc50032618e7485f0bed21661"
+    },
+    {
+      "path": "editors/vscode/src/clientCore.ts",
+      "after_sha256": "bbbdb558a5af539cb31256396375bed79c7e146fc8b970b7d13f60ed3ccf36e5"
+    },
+    {
+      "path": "editors/vscode/src/codeActionSource.ts",
+      "after_sha256": "f680f203ce2b501b8c2b8e83241af1098a4ca3f3fe7a040e291070e85e765dc1"
+    },
+    {
+      "path": "editors/vscode/src/documentTransform.ts",
+      "after_sha256": "b9a94c4c06a13f6a498ed44eedf3d964a69f5f0d20b5d5f269f509ab4077bd4d",
+      "prior_admission_after_sha256": "416cc496184db6eed6d894a506b6a724971ba02386c4cbaa6f517f35d034143d",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "b9a94c4c06a13f6a498ed44eedf3d964a69f5f0d20b5d5f269f509ab4077bd4d"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "after_sha256": "e8667532cac5d32f1ac6a92ac8c9db381fc74f6ad9d2d102986b28cf4a9a0e5f",
+      "prior_admission_after_sha256": "a3df74ca1a1d18f0fd4aec66d02d50664e855253ce0fbaba0a997558d36ad685"
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "after_sha256": "aaa5f8b0eb0306aae47a470c31866b7e8a7688184d7a58234efecb4a23ecb6d7",
+      "prior_admission_after_sha256": "a3701cfd08040c75e8c4d09d2b9cacc83ce7b043a0915b90cacb92737a4be549"
+    },
+    {
+      "path": "editors/vscode/src/specStudio.ts",
+      "after_sha256": "52677b5e2897371d7bea735cf75ee67aa63440679ddae94d47f6d863f14b5929"
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "after_sha256": "0685b0d39dd3e56fa3149e424861e65d4b356a0f44c230faa6137bd7f57be1b9",
+      "prior_admission_after_sha256": "0ec5cfe2cbc8ab67be78b95f8a617d34fdd58a0aa70867044feee8ff6b746802"
+    },
+    {
+      "path": "editors/vscode/src/test/currentDiagnostics.test.ts",
+      "after_sha256": "7d39a03208ca42c15a8694320e85fa1becd024c8b966ab258160d52e08e53433",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "a556351c6b823efa6d4bba0b30d4769a5501d176ded917e97c1d22a91dc6caf9"
+        },
+        {
+          "manifest": "/workspace/naming-validation/current-diagnostics-editor-api-repair1/manifest.json",
+          "after_sha256": "7d39a03208ca42c15a8694320e85fa1becd024c8b966ab258160d52e08e53433"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/test/helper.ts",
+      "after_sha256": "6662d7152d909b8b76e53d4e3d7f1c12a68ac99ca5c67ddfb1e245010870a8d5"
+    },
+    {
+      "path": "editors/vscode/src/test/variableCompletion.test.ts",
+      "after_sha256": "c445e38a085bf67b6e126bc104cd8cb3182319af7e6109469bc7bfc4b3a5e3e0"
+    },
+    {
+      "path": "editors/vscode/src/test/w120WorkspaceReschedule.test.ts",
+      "after_sha256": "3d7a941d29980f4459909a545250b0b56ab0ea5b84c9fed04f4023653cbb4eb2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "after_sha256": "d02b5769cc875f8b6fd8dec5ed4cd492df54ddc96c75839c7bbac4991497aa26",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "d02b5769cc875f8b6fd8dec5ed4cd492df54ddc96c75839c7bbac4991497aa26"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "after_sha256": "5a63f59dbff976765b660eb3bb085f3a4cc15022f8eac0ae2fa36e0901d646cc",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "5a63f59dbff976765b660eb3bb085f3a4cc15022f8eac0ae2fa36e0901d646cc"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+      "after_sha256": "ed0c04ebf92cc0c400af5c2ebf4f413fe4d0af01228b94547c388693b40e9abf",
+      "prior_admission_after_sha256": "ed0c04ebf92cc0c400af5c2ebf4f413fe4d0af01228b94547c388693b40e9abf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+      "after_sha256": "acb649335c8cf033970fc5917e1091af40bbe69a3ad5499b5f402b479e263233",
+      "prior_admission_after_sha256": "acb649335c8cf033970fc5917e1091af40bbe69a3ad5499b5f402b479e263233"
+    },
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "after_sha256": "6f9d8a14315bd1d97c0a9acee70f1820a8e6ce6d19e86d78bb284b5f95168c7b",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "6f9d8a14315bd1d97c0a9acee70f1820a8e6ce6d19e86d78bb284b5f95168c7b"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "after_sha256": "c29efbd802efe043f4fb49d926144beb3a35a21896a4d922275bba6565c25258",
+      "prior_admission_after_sha256": "5aaa90178bb97463984b52dfa2688b9aef6d1523a8f52343434806a50fead4d0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_body.rs",
+      "after_sha256": "0d9597b88e6846b8f21398645be880386aa4596c31fba5c94079a6cedef65917",
+      "prior_admission_after_sha256": "0d9597b88e6846b8f21398645be880386aa4596c31fba5c94079a6cedef65917"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after_sha256": "490e2d20b11f3be56e22d34627c91d8e57ae7bbc6088e303bdaee2f78b7f5279",
+      "prior_admission_after_sha256": "0b4e6edfae879cc1cbdeefd8a923f4706b1f1b062592d6feba485004df59bc4d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "after_sha256": "8e9bcbe3603362e385eea30ff07a621232b9ed9d7deb750e1093fe553c9a8a67",
+      "prior_admission_after_sha256": "8e9bcbe3603362e385eea30ff07a621232b9ed9d7deb750e1093fe553c9a8a67"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "after_sha256": "12ab0290aca78d042ffb1945709e0b2ddbe1467e937fff6839703c8ccaa45516",
+      "prior_admission_after_sha256": "7fc916e7915c22946e0291b633156cdacdcf201246cf35a66fc641d44515ad87"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "after_sha256": "8aa25f3952599f8fd7f2275eb118ccb0f08138fb54cca3f702af5fdd830d395c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs",
+      "after_sha256": "c1bec2e0dca20c5c70694d21f13302a2b895f4bc4e1eea47f803206f310c7dd5",
+      "prior_admission_after_sha256": "c1bec2e0dca20c5c70694d21f13302a2b895f4bc4e1eea47f803206f310c7dd5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs",
+      "after_sha256": "962cfc9b612dfdfc5544608b84fb1c8ac24f91c325b71e1ffe460a2f075e7110",
+      "prior_admission_after_sha256": "962cfc9b612dfdfc5544608b84fb1c8ac24f91c325b71e1ffe460a2f075e7110"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs",
+      "after_sha256": "961dca414930a302125e45144d675584ab2ec4425b50f3845aeec436a8b72aeb",
+      "prior_admission_after_sha256": "961dca414930a302125e45144d675584ab2ec4425b50f3845aeec436a8b72aeb"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "after_sha256": "4bd4a61ed8d8506c574226c6ad53aa724d4f572a1339fb28f9931c8bb3b35605",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "4bd4a61ed8d8506c574226c6ad53aa724d4f572a1339fb28f9931c8bb3b35605"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "after_sha256": "331a5ecc013884a68d8c82f30a5de1dcba63c80ff06dc63eaa4ad3d38734d1c3",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "331a5ecc013884a68d8c82f30a5de1dcba63c80ff06dc63eaa4ad3d38734d1c3"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+      "after_sha256": "d913c9f36af26e7f7a0ee453c6e7644ed4525fdf69c4d17815a5654a625c8803",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "d913c9f36af26e7f7a0ee453c6e7644ed4525fdf69c4d17815a5654a625c8803"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir/definition_script.rs",
+      "after_sha256": "26cb4b3bf191ff548af3d6e34e2ea935356e6f9243eeb72600ae5066e64af784",
+      "prior_admission_after_sha256": "26cb4b3bf191ff548af3d6e34e2ea935356e6f9243eeb72600ae5066e64af784"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lambda_literal.rs",
+      "after_sha256": "f6e9c9b0cd6e3a074699ef91c97bc1c8c17a6dc5fe10afaaf8077805dd9074ba"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "after_sha256": "eb9874eb99f81979af566e918d4fd2cfaacf24de96381d671c9daa8526e5b272",
+      "prior_admission_after_sha256": "8194b09095567a66dfdc581baa3c8c089d5e77af8ff1423f671772726a64e0d7",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "eb9874eb99f81979af566e918d4fd2cfaacf24de96381d671c9daa8526e5b272"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+      "after_sha256": "a456dbcdb66ce336f54c10733e711ca5a6f36ceeedd906d279eb7493e2e870e9",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "a456dbcdb66ce336f54c10733e711ca5a6f36ceeedd906d279eb7493e2e870e9"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+      "after_sha256": "1e9dc6eba123df30b491eb5f7c1e153c057523d12bef9b6e9b9201d271cc6456",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "1e9dc6eba123df30b491eb5f7c1e153c057523d12bef9b6e9b9201d271cc6456"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+      "after_sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source.rs",
+      "after_sha256": "44e8db04499bb4ae02c8436ca8cb4396e85bc172f0116a567eb7595f69fdb4d3",
+      "prior_admission_after_sha256": "44e8db04499bb4ae02c8436ca8cb4396e85bc172f0116a567eb7595f69fdb4d3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+      "after_sha256": "51d3bb00209259521ee2a50f2fb99470f4f7418690c37c16f047aade7494a2c2",
+      "prior_admission_after_sha256": "51d3bb00209259521ee2a50f2fb99470f4f7418690c37c16f047aade7494a2c2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "after_sha256": "ad8c1ad10a6a32394019fc3ddc551f6817dd7f8d748e1f514e99220dd32b3c19"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "after_sha256": "c0633216c26723d807a5d5a94c47d22f22912f9aeee693c337565662ed3bb588",
+      "prior_admission_after_sha256": "da03677c3e488df509d84a3f80df6badb48da2e7073e33a5d8c786a1b0115f90"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "after_sha256": "7e06df1c54f803e9e80a11efd8c956f6218aee49b264433744db8c6158b89b34",
+      "prior_admission_after_sha256": "9dc92908161471433ee3a9761eb088cf2ea246e90106f32b8b68676eab79a0b6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_definition.rs",
+      "after_sha256": "f4912b12f34d717ec2711f8d73f3c993923debb5447e59b1695f36fff126c1d1",
+      "prior_admission_after_sha256": "f4912b12f34d717ec2711f8d73f3c993923debb5447e59b1695f36fff126c1d1"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "after_sha256": "1e4fd2c53894ff78cb2479cb11612b166646166b824fe6a3bcc7bf11d41df40c",
+      "prior_admission_after_sha256": "3643fcf6cba618e1760a4ac2866aaa7099e406e3b0bcbcf5434c614836b10ee0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/original_name.rs",
+      "after_sha256": "eef7aeccd6c92c868fa56dc5a5cb1493ab43633113d33e6cb8f0e2773b045cd0",
+      "prior_admission_after_sha256": "eef7aeccd6c92c868fa56dc5a5cb1493ab43633113d33e6cb8f0e2773b045cd0"
+    },
+    {
+      "path": "rust/tcl-explorer/src/coverage.rs",
+      "after_sha256": "5c5572ca0fed47bb7d1348c99664eb5c8edf84670b6916349dbb9175d252ca7d",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "5c5572ca0fed47bb7d1348c99664eb5c8edf84670b6916349dbb9175d252ca7d"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lexer/src/word_parts.rs",
+      "after_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+      "prior_admission_after_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9"
+    },
+    {
+      "path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+      "after_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+      "prior_admission_after_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd"
+    },
+    {
+      "path": "rust/tcl-lsp-core/Cargo.toml",
+      "after_sha256": "f39c50c55c65485fb8210ebb32ac1bb6256d448b6382e748db500ada63f01b6a",
+      "prior_admission_after_sha256": "f39c50c55c65485fb8210ebb32ac1bb6256d448b6382e748db500ada63f01b6a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+      "after_sha256": "aeec9ac0fcc8f8c7cb6d00bdde2799baf2c79e36fa8dbf3a88cf834118e7bc51",
+      "prior_admission_after_sha256": "aeec9ac0fcc8f8c7cb6d00bdde2799baf2c79e36fa8dbf3a88cf834118e7bc51"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
+      "after_sha256": "89ea3ae61a12a2956b1ef6b7667493a0c916d7a9d583d00c4970805bf22a90e9",
+      "prior_admission_after_sha256": "89ea3ae61a12a2956b1ef6b7667493a0c916d7a9d583d00c4970805bf22a90e9"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "after_sha256": "0a6d7ae97a9790f6ef52be6d9b77519fc5444b7e1369202b22574e404661af88",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "6ebc026d39aa62461812aff875066b390ff5ed22109edaad699013a8c31d1c12"
+        },
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "0a6d7ae97a9790f6ef52be6d9b77519fc5444b7e1369202b22574e404661af88"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs",
+      "after_sha256": "7195c855c6d05150b525e97a1e691c05f18df59108e1f59af78fa0d20cd926e2",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "7195c855c6d05150b525e97a1e691c05f18df59108e1f59af78fa0d20cd926e2"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+      "after_sha256": "c7e99cdff95ae7b36bcbce53ce8e2aeabdcf9622695fee3b74817a470e3e6c6b",
+      "prior_admission_after_sha256": "c7e99cdff95ae7b36bcbce53ce8e2aeabdcf9622695fee3b74817a470e3e6c6b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "after_sha256": "374541409d5f97bea1077974154d591f91b5279f56e6ab9a02317dee9423d32e",
+      "prior_admission_after_sha256": "374541409d5f97bea1077974154d591f91b5279f56e6ab9a02317dee9423d32e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+      "after_sha256": "8a862858f19e6848cff2b00041bdba7adcbe738876c32fe12a2d42debe9bb4e4",
+      "prior_admission_after_sha256": "8a862858f19e6848cff2b00041bdba7adcbe738876c32fe12a2d42debe9bb4e4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "after_sha256": "56d4bf79fb6e4b49fe05f38e7ae751df876f50115ffb234deca74870a028de05",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "56d4bf79fb6e4b49fe05f38e7ae751df876f50115ffb234deca74870a028de05"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_policy.rs",
+      "after_sha256": "32c60eb6d383791de7991702d54073900a5c52e47f64bed028e70506319b5170",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "32c60eb6d383791de7991702d54073900a5c52e47f64bed028e70506319b5170"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "after_sha256": "8102d2df874421f2ed2e1cb53d2e916850e2add1b484c12cef6a0583611b927f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "after_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+      "prior_admission_after_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "after_sha256": "0579839afa45172eb7f6ea45fda804db8480bee2ef238ab58b69ace05f78a417"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "after_sha256": "deee3951442979eec4a2f294408b60b21ae5860dc18214936a675043567add2d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "after_sha256": "783b43949eba73af3499d38684ebf50fd003d0f0951a33b70c041be9ee20fb69",
+      "prior_admission_after_sha256": "783b43949eba73af3499d38684ebf50fd003d0f0951a33b70c041be9ee20fb69"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/oo_body.rs",
+      "after_sha256": "27a35acdee6fd094fffee71b8607dba12faa599f159c1953ef374e14848f71e9",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "27a35acdee6fd094fffee71b8607dba12faa599f159c1953ef374e14848f71e9"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_call_hierarchy.rs",
+      "after_sha256": "ee9b8df27044f14952c7f186e7965b5aa3069ef4f538a9220ad8f674be34b219",
+      "prior_admission_after_sha256": "ee9b8df27044f14952c7f186e7965b5aa3069ef4f538a9220ad8f674be34b219"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "after_sha256": "30752aacc53c47f6fdd672c9088f85d4c3489a89695a7c1e4853385eed565dab",
+      "prior_admission_after_sha256": "30752aacc53c47f6fdd672c9088f85d4c3489a89695a7c1e4853385eed565dab"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "after_sha256": "63fe0a501c30f5be42643022388623464eb5b405b482ed1a60435cef8eb0ee7d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/brace_expr.rs",
+      "after_sha256": "ba6308d08630f8f5bca7bd48a17d56ebe31ae0a9a077ab1ba220a09a9a0b8fff"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/source_rewrite.rs",
+      "after_sha256": "5a7a3cb2e09041712535489880bf1c4a441c865d2af9daaf06048b6ccbc0ae9d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "after_sha256": "b4aaccb1542389926d2d00c50544265aa09ce213eb8c01c7ec47e3eb8b79130b",
+      "prior_admission_after_sha256": "b4aaccb1542389926d2d00c50544265aa09ce213eb8c01c7ec47e3eb8b79130b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/signature_help.rs",
+      "after_sha256": "d270a1b84d1d08639ef430dc51428f3837abda433f682482f83094f4a1219311",
+      "prior_admission_after_sha256": "d270a1b84d1d08639ef430dc51428f3837abda433f682482f83094f4a1219311"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "after_sha256": "8090cc5cc4704c0819a79b78857b4f3b39e04f0e7dc8f391c830a21718f29992",
+      "prior_admission_after_sha256": "8090cc5cc4704c0819a79b78857b4f3b39e04f0e7dc8f391c830a21718f29992"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "after_sha256": "59b38823eeeee2fcb49606b574abc644508c37b3f7a447f6659ed72725355ce5",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "2ba1161c8383d1414376627d76a753d3a1da03b1d0f06ab7ee576dff24c7b139"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/vfs.rs",
+      "after_sha256": "c01b4be132cc11698d7ee09b8f7088f076d0f32f279b7a0598529362017f9856"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/wire_session.rs",
+      "after_sha256": "fa9cbf3b8adbd0bc59a7b0b61c07e1f1ec888c75a326fca22c06223b81cdd54a",
+      "prior_admission_after_sha256": "fa9cbf3b8adbd0bc59a7b0b61c07e1f1ec888c75a326fca22c06223b81cdd54a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "after_sha256": "8b478facb27f8936570319ed8e69b10a02345f5590bad8c81ddd6c6551cf5ab4",
+      "prior_admission_after_sha256": "8b478facb27f8936570319ed8e69b10a02345f5590bad8c81ddd6c6551cf5ab4"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "after_sha256": "2d7735c7ea4c95358a7f576b5b8856252744187004c791eadeaf346b9222c0ae",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "2d7735c7ea4c95358a7f576b5b8856252744187004c791eadeaf346b9222c0ae"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "after_sha256": "24a20b575d56da53a45c1822d67680de2fe89d71735f9664cc3b2dfe9a237a57",
+      "prior_admission_after_sha256": "49c26a17ad9edf1fa35536c4bbe3b7b75874d01f87be23ace9b8ad82818c8953",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/manifest.json",
+          "after_sha256": "6c2717d6930fe4eeb7ee51085445254126f468ef0cf3525dc5309bdb6394b15a"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/document_transform.rs",
+      "after_sha256": "f6417e66695c321bc0af944f216949f322de855eb4152373fef91f583452fd48",
+      "prior_admission_after_sha256": "f6417e66695c321bc0af944f216949f322de855eb4152373fef91f583452fd48"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "after_sha256": "257d1d2d6b7335360dfbaabf9e40332ed123b1e5944b0238b5a41e56b2679943",
+      "prior_admission_after_sha256": "a4a7a4c77c62836af785638f14bea21f12ad55d3ae503dcf33e53051ff6473cc",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "0922e8fd77b7f02fb8b5c61aec55c4b17363504ed5e2d0b0604b6d9a1fd96ab7"
+        },
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-additions-v3/manifest.json",
+          "after_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "after_sha256": "97c38f0cb8b52e54837812febecea9b56618ce6b0dbc881dbb185541312ced85",
+      "prior_admission_after_sha256": "2d5aed94d9a942716f3d297faeca2153c91f6b23910dd5eae1fa2b8c2382ff87",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "cf027427ed3e7888c96d0bb46c17c153a37a2552759948a52e9b0ab09245e7b7"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/rewrite_wire.rs",
+      "after_sha256": "5f20efef8de8243a033e4c764322b013a14ad8c25841cd5130cf0f8a8f781a64"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/studio_source.rs",
+      "after_sha256": "13584d4b7bfa662efdaf5d16778f254e2764fa26748d717e7e72c7fed5c74eb5"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/irules.rs",
+      "after_sha256": "2ca51843ca3a2254c34bb0cc07d0d5eff74c5932c894ceb9c4b9f7ab36b6c510"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/preview_tickets_e2e.rs",
+      "after_sha256": "68ce9e7c6df2cbae798bd6403f7ba0395799ca4203335fde96df908b96891d81"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/src/editorHost.ts",
+      "after_sha256": "4201cc124af6d4cc8e358d6b5d939bd29aee2715863befd4f2b217421bd43c60"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/src/generatedOutputOrigins.ts",
+      "after_sha256": "f3323a13e3de0416ed4f93dde1b575aa5959779f238e226c9061c18949e2ab3c"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/src/monacoHost.ts",
+      "after_sha256": "04774585ce2f3daf014875a0d8ffc381f4491f8b62e5e0d1ce7d688fd50c1746"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/src/nativeEditorHost.ts",
+      "after_sha256": "b3785fbbde8f77167d1e2131275284dd08b9f21e01672956de5ed9b788a9667d"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/src/studio.ts",
+      "after_sha256": "cd2b68a3346eae41bb1b937560f110d9f311369b751fb70ef8c3dddcf3b3ab61"
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/test/units.test.ts",
+      "after_sha256": "f0b7e21f1b08bfe8c45f59cc327058ea08c399b8fd06890967465ce16989abf8"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/bundled.rs",
+      "after_sha256": "40e026d762b610130e1332b4e2c2fcdd6208fb15c74cb8fb30f926262156d85f"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/cache.rs",
+      "after_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+      "prior_admission_after_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/discovery.rs",
+      "after_sha256": "1c5226e29a732227c0474dddcc7918649617e1d5a79669538f2d0c33cf2c904a"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/export.rs",
+      "after_sha256": "7a31baa4d936e3468489fb577ebceb5ca135c2f140c44bb0d0a193c5d89e60dc",
+      "prior_admission_after_sha256": "7a31baa4d936e3468489fb577ebceb5ca135c2f140c44bb0d0a193c5d89e60dc"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "after_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+      "prior_admission_after_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/dialect_block.rs",
+      "after_sha256": "5c418bf06fdcac65df78e037df73f3fc1f72d1f0bd81b97dda8bffb313840e91",
+      "prior_admission_after_sha256": "5c418bf06fdcac65df78e037df73f3fc1f72d1f0bd81b97dda8bffb313840e91"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/environment_block.rs",
+      "after_sha256": "b32dbdb105e0b609ef198c887fcc0990498594bb5b9aeeb6e6513c19cac8fb2c",
+      "prior_admission_after_sha256": "b32dbdb105e0b609ef198c887fcc0990498594bb5b9aeeb6e6513c19cac8fb2c"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "after_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+      "prior_admission_after_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+      "after_sha256": "b6d887e44849eaafe2685793279375b87666db371334222d98e8aa040e47d92f",
+      "prior_admission_after_sha256": "b6d887e44849eaafe2685793279375b87666db371334222d98e8aa040e47d92f"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/pack.rs",
+      "after_sha256": "11178289f18f72a13ebbc20e2f49d2529518308f29e020d915b32ba448943935"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/registration.rs",
+      "after_sha256": "3d0d1f8b41b9b85d8071c3dca0b9c5082a8dea95595a428b112e7293ca4fbf93"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "after_sha256": "171d1c46bfedb9fe714c085ca806d5f0d55d8108619ff451d8a12442a014c99f"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/compacted_source.rs",
+      "after_sha256": "dcc822127c258dcf9eac0fd1083f27a93f605747bb493492fce64b72c7018083"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "after_sha256": "75935322156f8b1779aea9d11047359dc0ab53b35a54d9db48b0c32675af93cd",
+      "actual_approved_afterimages": [
+        {
+          "manifest": "/workspace/naming-validation/lsp-next-source-owner-batch-v2/manifest.json",
+          "after_sha256": "efb4075d57d48d2fae4ba350970cb11ce9053ec2c72c0bd2795edc8af53fc92b"
+        }
+      ]
+    }
+  ],
+  "scope": "LSP source consumers and necessary shared owners only. Native/RuntimeVM/BIGIP semantic guards retained. Studio lifetime and checked actions are independent source purposes. Source-only review and integration; actual build/test acceptance pending.",
+  "previous_failed_source_admission": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-admission-repair2/admission.json",
+    "sha256": "97b7245a3ccdfb8c05697cef3a07062e0db0fd4a3c0de36940aa0213997d06ce"
+  },
+  "previous_failed_build": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair2/source-binding.json",
+    "status": "FAIL95.102sE0433newStudio test type import;39052inputs0drift;noELF"
+  },
+  "reviewed_repair_and_new_control_ingredients": [
+    {
+      "path": "/workspace/naming-validation/lsp-logical-lambda-existing-field-api-repair1/manifest.json",
+      "sha256": "f06bfd11bd023f9644ab45e1939d8307e7d077825d6f7439b3c90f90bce2ed5c"
+    },
+    {
+      "path": "/tmp/luna-studio-ts-repair-v1/frozen/manifest.json",
+      "sha256": "e14389ad4a1581dcc299cd66a6f9329fcbe4dd33b0dbbaa070b595c9a25cae03"
+    },
+    {
+      "path": "/workspace/naming-validation/lsp-studio-action-root-prettier1/manifest.json",
+      "sha256": "2f57e2521bbe017cdfb3fd8f10be0384954de942f19f49b68920b21d63b66fbd"
+    },
+    {
+      "path": "/workspace/naming-validation/root-reviews/source-owner-controls-v2/manifest.json",
+      "sha256": "ebdcbcc7171f16789b8433c3653536b2c82dd482978b43616fefa3ac09774a24"
+    }
+  ],
+  "repair_changed_paths": [
+    "editors/vscode/src/chat/tkParticipant.ts",
+    "editors/vscode/src/specStudio.ts",
+    "editors/vscode/src/test/commands.test.ts",
+    "editors/vscode/src/test/helper.ts",
+    "editors/vscode/src/test/w120WorkspaceReschedule.test.ts",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+    "rust/tcl-lsp-core/src/source_structure.rs",
+    "rust/tcl-spec-studio/web/test/units.test.ts"
+  ],
+  "prior_failed_input_differences": [
+    "editors/vscode/src/chat/tkParticipant.ts",
+    "editors/vscode/src/specStudio.ts",
+    "editors/vscode/src/test/commands.test.ts",
+    "editors/vscode/src/test/helper.ts",
+    "editors/vscode/src/test/w120WorkspaceReschedule.test.ts",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+    "rust/tcl-lsp-core/src/source_structure.rs",
+    "rust/tcl-spec-studio/web/test/units.test.ts"
+  ],
+  "all_failed_source_differences_exactly_admitted": true,
+  "repair2_ingredient": {
+    "path": "/workspace/naming-validation/lsp-minifier-original-shared-sequence-repair1/manifest.json",
+    "sha256": "23de1c33906090244f1fa1855a503974f444e8479f5e5bfae0b38afc67787f1e"
+  },
+  "repair2_prior_input_differences": [
+    "rust/tcl-lsp-core/src/minify/original.rs"
+  ],
+  "repair3_ingredient": {
+    "path": "/workspace/naming-validation/lsp-studio-test-params-import-repair1/manifest.json",
+    "sha256": "a8d55d444b33cd54755eda3ed5690471ccb783f396d041ef1f926f17051ea230"
+  },
+  "repair3_prior_input_differences": [
+    "rust/tcl-lsp-server/src/studio_source.rs"
+  ]
+}

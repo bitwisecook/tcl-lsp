@@ -1,0 +1,10 @@
+{
+  "receipt": "/workspace/naming-validation/post-studio-extra-libs-obsolete-cache-pruning.json",
+  "receipt_sha256": "36925f7ae95c17f1d8343ea792bdf5e6bbc12c5aff7d68dbd5edde6878e0d005",
+  "utc": "2026-10-17T02:15:14.952377+00:00",
+  "removed_count": 299,
+  "removed_logical_bytes": 1553475917,
+  "all8_frozen_ELFs_exact_pre_post": true,
+  "scope": "OnlyregeneratableCargo rlib/rmeta versions olderthan newesttwohashespercrate; allCargo exited, actual5+3frozenELFs unchanged before/after. Source/provider/evidence archives untouched.",
+  "full_regeneratable_cache_listing": "OutsideGit; nosemanticprovider/testevidencepruned."
+}

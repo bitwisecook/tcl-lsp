@@ -1,0 +1,7 @@
+Independent Sol narrow source review: CLEAR.
+Patch /workspace/naming-validation/lsp-studio-test-params-import-repair1/repair.patch SHA25688ff9053229d826fe53e50fd040765be8b601a2bbead00f1fd71bc128beba395.
+Exact current before3c46306790c0e4384b2a11d141ca880fd97355ba8c9f800ffe6a75a3ff11ecdb; after13584d4b7bfa662efdaf5d16778f254e2764fa26748d717e7e72c7fed5c74eb5.
+
+Actual tower-lsp-server0.23.0/src/lib.rs76 publicly reexports ls_types; installed ls-types0.0.6/progress.rs54 defines WorkDoneProgressParams with Default. Added #[cfg(test)] use tower_lsp_server::ls_types::WorkDoneProgressParams supplies existing genuine type to child test modules via their unchanged use super::* for all3 default literals. No replacement params struct, mock API or production import needed. Removed only compiler-reported unused SourceStore as _ in retirement_publication_tests; root super scope already retains actual trait needed there. Other test module import remains untouched.
+
+Independently proved entire diff equals exactly those2 import edits; every production item, test function body, predicate, assertion, fixture and budget byte-exact. Current base/after hashes verified; after AST parse; isolated forward/inverse --fuzz=0 zerooffset exact. No main/Git/Cargo/build/tests/provider/IDE execution or edits. Root owns actual compile retry and validation; source CLEAR is not a measured compile/test pass or countdelta.

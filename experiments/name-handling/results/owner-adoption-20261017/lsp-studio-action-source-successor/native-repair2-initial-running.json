@@ -1,0 +1,24 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-studio-action-source-admission-repair2/admission.json",
+  "approved_union_manifest_sha256": "97b7245a3ccdfb8c05697cef3a07062e0db0fd4a3c0de36940aa0213997d06ce",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 128,
+  "source_head": "681ab58e0283859a4c3fd85b526b2b8d8162b608",
+  "rust_diff_sha256": "5e923dd988dfe8ecd0892de0d9ee02312cb51905bbbc56850b907af505f76d4f",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "running",
+  "input_before_count": 39052,
+  "utc": "2026-10-17T02:00:29.633878+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed current LSP owner/adopter source batch and necessary Compiler/DB/Registry only. Actual source checked Studio publication/client lifetime, versioned code actions, whole rewrite-wire pass association, decoded lambda formatting, generated compact names, closedfile input, Tk chat and current complete diagnostics validation. Retained930+extra9 and failed xtask build preserved; next controls bind only after successful actual artifacts. Runtime/VM/BIGIP dedicated work deferred. No traces, budget changes or stronger Native/edit/absence/Normal grants."
+}

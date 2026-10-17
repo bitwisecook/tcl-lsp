@@ -1,0 +1,13 @@
+{
+  "status": "ACTUAL_ROOT_BOUND_PENDING_INDEPENDENT_REVIEW_NO_EXECUTION",
+  "selected": 962,
+  "inputs": 39052,
+  "source_admission_paths": 128,
+  "launcher_sha256": "3c4a13f92352034ba5c400de6f1902118922756f8bee5d8613a1cea06dd3635c",
+  "admission_sha256": "4b5957eb1ca9c61f79a7160424d3dddb18509200e29e4bac58e0eab42e052cc8",
+  "plan_sha256": "e231bbcccd81778f16116af69ee0dfc33dc46b220a8b37d3e49895be47d594f9",
+  "source_evidence_sha256": "1ed72e4a52b47e3cb7829991663540c1a4f1f2e1fdcd1af9d6ee20141997c75d",
+  "actual_successful_build": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/source-binding.json",
+  "prospective_manifest_sha256": "84988a18e5ced2f46f06bc2182cc57f76b834a764f7f0b36b876e8708eca117e",
+  "limits": "Actual5artifacts/sourcebind only; no selectedtestexecution yet. Independentreview beforeRootlaunch. Prior939logs/failures retained."
+}

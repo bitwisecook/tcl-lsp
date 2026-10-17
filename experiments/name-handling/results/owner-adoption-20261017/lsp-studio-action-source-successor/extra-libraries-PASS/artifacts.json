@@ -1,0 +1,26 @@
+{
+  "tcl_lexer": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+    "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+    "bytes": 5324952,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+    "actual_target_kind": "lib",
+    "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+  },
+  "tcl_spectcl": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+    "sha256": "fd34444113e6be03e2ec266035f83ae279bafeb778621a39400a6e8e78df5b77",
+    "bytes": 184976936,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+    "actual_target_kind": "lib",
+    "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+  },
+  "tcl_syntax": {
+    "path": "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+    "sha256": "c07d33530bb6492cbeed81c52a37b978332237d6d82b3f16d583096b5fde66b7",
+    "bytes": 12561160,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+    "actual_target_kind": "lib",
+    "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+  }
+}

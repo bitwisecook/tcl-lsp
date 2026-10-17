@@ -1,0 +1,11 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/studio_source.rs",
+      "before_sha256": "3c46306790c0e4384b2a11d141ca880fd97355ba8c9f800ffe6a75a3ff11ecdb",
+      "after_sha256": "13584d4b7bfa662efdaf5d16778f254e2764fa26748d717e7e72c7fed5c74eb5"
+    }
+  ],
+  "patch_sha256": "88ff9053229d826fe53e50fd040765be8b601a2bbead00f1fd71bc128beba395",
+  "purpose": "Actualbuild3 E0433: three newStudio test literals refer to actual WorkDoneProgressParams but module did not import it. Add exact actualcfg(test) type import from tower_lsp_server::ls_types and remove compiler-reported newunusedtrait import only inretirementtestmodule. Original assertions/fixtures/budgets and allproductionitems unchanged. No countdelta."
+}
