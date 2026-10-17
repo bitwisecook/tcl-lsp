@@ -1,0 +1,24 @@
+{
+  "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+  "archive": "capture-lsp36.tar.gz",
+  "sha256": "cee77db4e0be64f78f708f1369b5bb6b096e3f2ab2aeb6ecaa2edd33b0aae2d2",
+  "members_index_sha256": "833f1560c3c713aec60a593fade12cf4d14d8f490ffa1b8b0ca407592ebc91b3",
+  "members": 1124,
+  "source_head": "2a3928bc60b481250b90481d888bdf6cb9edeeb7",
+  "source_snapshot_sha256": "5b2868fe0849bd90e140573a7c2fa0f192d6221876dd44485126554052d275a0",
+  "source_files_guarded": 114247,
+  "providers_sha256": "922d66d207d22abb5e74807e48741d1b8f8e37b994649c6edb10d7b262b8021c",
+  "artifacts_sha256": "c6cafdb1279e5fa6d31253dd28687d56eebd9b8c65db7bf6559ee9b7dec59ec7",
+  "window_utc": ["2026-10-17T19:41:56Z", "2026-10-17T20:31:57Z"],
+  "completed": 1085, "passed": 838, "failed": 247, "timeouts_in_failed": 3,
+  "groups": {
+    "original_db": [11, 7, 4, 0], "original_core": [664, 525, 139, 1], "original_server": [175, 157, 18, 2],
+    "additive_core": [216, 131, 85, 0], "additive_server": [14, 14, 0, 0], "extra5_core": [5, 4, 1, 0]
+  },
+  "comparison_to_paused35r2": "All 790 shared selectors have identical verdicts.",
+  "notes": [
+    "ENOSPC at 19:41:27 during the post-build snapshot write (reviewer worktree); snapshot completed and compared byte-exact; ELFs linked earlier and re-hashed before execution.",
+    "Agent gdb/test-binary runs at nice 19 overlapped 19:42-19:57; verdicts unchanged where comparable."
+  ],
+  "scope": "Direct LSP original850/additive230/extra5 on frozen source 2a3928bc6. Not original1024/additive314 full-group, compiler, integration, real server process or host acceptance; no VM/runtime migration."
+}
