@@ -243,6 +243,19 @@ pub(crate) fn source_registry_words(
     .map(from_source_words)
 }
 
+/// Preserve the Compiler's actual enclosing closed-document source receipt.
+pub(crate) fn source_registry_words_in_definition_body(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    parent: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body(
+        source, analysis, segment, parent,
+    )
+    .map(from_source_words)
+}
+
 /// Original list-built prefix syntax; every source and context premise stays
 /// owned by the Compiler's deferred parent and complete builder receipts.
 pub(crate) fn source_produced_command_prefix_words(
@@ -393,6 +406,9 @@ mod source_words_tests {
             OriginalRegistrySource::Vendor(_) => panic!("Native input acquired hosted policy"),
             OriginalRegistrySource::Scoped(_) => {
                 panic!("root Native input acquired scoped body policy")
+            }
+            OriginalRegistrySource::DefinitionMember(_) => {
+                panic!("root input acquired a document parent")
             }
         }
         assert!(

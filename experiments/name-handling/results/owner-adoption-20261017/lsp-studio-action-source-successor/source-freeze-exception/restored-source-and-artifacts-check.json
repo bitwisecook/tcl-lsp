@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-17T02:52:32.630361+00:00",
+  "actual_input_count": 39052,
+  "current_input_drift": [],
+  "nine_actual_artifact_hashes_match": {
+    "tcl_compiler": "03111a890a35e8a81ca14222b70049459b94927fcf5f5a0fa3f9415832bc3aa6",
+    "tcl_lsp_core": "31f562c107f30763ab847ad2d4ca740744635d177d47929d47ea839c17462dde",
+    "tcl_lsp_db": "37fe9d0f1671de08e759db1d362c3f9e52d50b4e54f089746924b5804431ce4f",
+    "tcl_lsp_server": "94b681661f8ecb1ce954a70df778721c426b1ff639e580adaf4b95934d39078b",
+    "tcl_registry": "a8c785b0fe867906c242f9466ff57494d163d6a263619f7d0596f7875e79ab5a",
+    "tcl_lexer": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+    "tcl_spectcl": "fd34444113e6be03e2ec266035f83ae279bafeb778621a39400a6e8e78df5b77",
+    "tcl_syntax": "c07d33530bb6492cbeed81c52a37b978332237d6d82b3f16d583096b5fde66b7",
+    "xtask": "ad71a535650cbc394423fd6ec01243f0b7ec85a4dfcdf8dfaa3976bd80a77390"
+  },
+  "interpretation": "Point-in-time restoration check, not evidence of continuous freeze. Incident recorded separately; all current artifacts and current39052 source bytes match original build capture."
+}

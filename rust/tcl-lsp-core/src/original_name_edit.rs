@@ -73,6 +73,41 @@ pub(crate) fn original_input_matches_source(
     false
 }
 
+/// Literal Unicode source command component from the actual complete word.
+/// Decoded and original content must be byte-identical, so escapes or computed
+/// fields cannot acquire a Document extent. Geometry grants no editing purpose.
+pub(crate) fn original_plain_source_command_tail(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    word: &NativeWord,
+) -> Option<Span> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let image = SourceImage::document(source);
+    if word.image() != &image || word.config() != current.config() || word.group().expand {
+        return None;
+    }
+    let (retained, _) = analysis
+        .retained_command_realm()?
+        .original_written_word_at_span_in_source(&image, word.span(), current.config())?;
+    if &retained != word {
+        return None;
+    }
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    let content = word.content_span().ok()?;
+    if source.as_bytes().get(content.as_range()) != Some(value.as_slice()) {
+        return None;
+    }
+    let parts = tcl_syntax::naming::written_command_parts(&value);
+    if parts.simple.is_empty() {
+        return None;
+    }
+    let prefix = value.len().checked_sub(parts.simple.len())?;
+    Some(Span::new(
+        content.start().checked_add(u32::try_from(prefix).ok()?)?,
+        content.end(),
+    ))
+}
+
 /// Exact original source extent for a static native value component. The
 /// complete word and selected decoder must reproduce its retained bytes;
 /// computed values and list children cannot donate a whole-word extent. This

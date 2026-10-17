@@ -423,7 +423,9 @@ async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
     std::fs::write(&path, src).unwrap();
     // A canonical file URI so the client's didOpen/didClose and the server's
     // on-disk re-read agree on the same path.
-    let uri = format!("file://{}", path.display());
+    let uri = tcl_lsp_server::canonical_file_uri(&path)
+        .expect("temporary test path must have a canonical file URI")
+        .to_string();
 
     let (mut reader, mut writer, server) = start_session().await;
     did_open(&mut writer, &uri, src).await;
@@ -1494,7 +1496,9 @@ async fn start_session_at(
             .await;
     });
     let mut reader = BufReader::new(client_read);
-    let root_uri = format!("file://{}", root.display());
+    let root_uri = tcl_lsp_server::canonical_file_uri(root)
+        .expect("workspace test path must have a canonical file URI")
+        .to_string();
     let init = format!(
         r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"rootUri":"{root_uri}","workspaceFolders":[{{"uri":"{root_uri}","name":"ws"}}],"capabilities":{{}}}}}}"#
     );
@@ -1597,7 +1601,9 @@ async fn member_effect_providers(
     .unwrap();
     let doc = root.join("app.tcl");
     std::fs::write(&doc, MEMBER_EFFECT_DOC).unwrap();
-    let uri = format!("file://{}", doc.display());
+    let uri = tcl_lsp_server::canonical_file_uri(&doc)
+        .expect("document test path must have a canonical file URI")
+        .to_string();
 
     let (mut reader, mut writer, server) = start_session_at(&root).await;
     assert!(

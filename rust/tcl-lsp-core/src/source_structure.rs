@@ -705,6 +705,70 @@ pub(crate) fn original_word_cursor_prefix(
     word_cursor_prefix_in(&image, region, cursor, config)
 }
 
+/// A complete word selected by the existing configured cursor and whole-vector
+/// producers in the actual innermost source script. This is syntax only.
+pub(crate) struct OriginalSourceCursorWord {
+    cursor: tcl_lexer::word_parts::WordCursorPrefix,
+    word: NativeWord,
+}
+
+impl OriginalSourceCursorWord {
+    /// Static Unicode value of the whole original word, never a computed tail
+    /// or source-coordinate inverse of that value.
+    pub(crate) fn static_unicode_value(&self) -> Option<String> {
+        if self.word.span() != self.cursor.container_span()
+            || !self
+                .cursor
+                .matches_source(self.word.image(), self.word.config())
+            || self.word.group().expand
+        {
+            return None;
+        }
+        String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            &self.word,
+        )?)
+        .ok()
+    }
+}
+
+/// Rejoin a partial lexical cursor to its actual complete original command
+/// vector. Partial prefixes, malformed commands, computed/expanded words and
+/// source data do not acquire a name identity or binding receipt here.
+pub(crate) fn original_complete_cursor_word(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<OriginalSourceCursorWord> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let prefix = original_word_cursor_prefix(source, analysis, cursor).ok()??;
+    if prefix.is_empty_boundary() {
+        return None;
+    }
+    let (_, extent) = prefix.command_source()?;
+    // Reborrow only the authentic selected command extent, rather than lexing
+    // the whole enclosing script again after the configured cursor capture.
+    let plan =
+        tcl_lexer::native_script_words_in(SourceImage::document(source), extent, current.config())
+            .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some() || command.source_extent != Some(extent) {
+        return None;
+    }
+    let word = command.words.get(prefix.word_index())?;
+    if word.span() != prefix.container_span()
+        || !(word.span().start() <= cursor && cursor < word.span().end())
+        || word.group().expand
+    {
+        return None;
+    }
+    Some(OriginalSourceCursorWord {
+        cursor: prefix,
+        word: word.clone(),
+    })
+}
+
 /// Reborrowed original variable geometry for one immutable analysis source.
 /// This view owns syntax only; callers retain name resolution and edit guards.
 pub(crate) struct OriginalVariableReferences<'a> {
@@ -1240,9 +1304,17 @@ impl SourceStructure {
         let Some(current) = current.filter(|grammar| grammar.family == document.family) else {
             return false;
         };
-        let Some(words) =
+        let words = if let Some(parent) = script.definition_parent {
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                script.analysis,
+                command,
+                parent,
+            )
+        } else {
             crate::original_invocation::source_registry_words(source, script.analysis, command)
-        else {
+        };
+        let Some(words) = words else {
             return true;
         };
         let Some(head) = words.head_source().and_then(|head| head.word()) else {
@@ -2240,8 +2312,13 @@ mod tests {
             .find(|command| command.name() == "command")
             .unwrap();
             let command_words =
-                crate::original_invocation::source_registry_words(source, &analysis, &command)
-                    .unwrap();
+                crate::original_invocation::source_registry_words_in_definition_body(
+                    source,
+                    &analysis,
+                    &command,
+                    &pack_parent,
+                )
+                .unwrap();
             let mut command_bodies = command_words.source_script_bodies(&context);
             assert_eq!(command_bodies.len(), 1);
             let command_body = command_bodies.remove(0);
@@ -2293,6 +2370,149 @@ mod tests {
                 ));
             }
         }
+    }
+
+    #[test]
+    fn original_document_child_schema_requires_actual_parent_complete_argv_and_context() {
+        let source =
+            "speclib demo 1 {command demo {arty 1}}\nspeclib other 1 {command other {arty 2}}";
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let roots = segment_commands_with_offset_and_config(source, 0, config);
+        let parents = roots
+            .iter()
+            .map(|command| {
+                crate::original_invocation::source_registry_words(source, &analysis, command)
+                    .unwrap()
+                    .source_script_bodies(&context)
+                    .remove(0)
+                    .definition_parent_for(&context, None)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(parents.len(), 2);
+        let pack_source = &source[parents[0].content_span().as_range()];
+        let command = segment_commands_with_offset_and_config(
+            pack_source,
+            parents[0].content_span().start(),
+            config,
+        )
+        .remove(0);
+        let child = crate::original_invocation::source_registry_words_in_definition_body(
+            source,
+            &analysis,
+            &command,
+            &parents[0],
+        )
+        .unwrap();
+        assert!(matches!(
+            &child.source,
+            crate::original_invocation::OriginalRegistrySource::DefinitionMember(_)
+        ));
+        assert_eq!(child.source_script_bodies(&context).len(), 1);
+        assert!(child.source_script_bodies_for(&context,
+            tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation).is_empty());
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &analysis,
+                &command,
+                &parents[1],
+            )
+            .is_none()
+        );
+        let mut truncated = command.clone();
+        truncated.argv.pop();
+        truncated.texts.pop();
+        truncated.word_fragments.pop();
+        truncated.single_token_word.pop();
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &analysis,
+                &truncated,
+                &parents[0],
+            )
+            .is_none()
+        );
+        let mut partial = command.clone();
+        partial.is_partial = true;
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &analysis,
+                &partial,
+                &parents[0],
+            )
+            .is_none()
+        );
+        let stale = source.replace("arty 1", "arty 9");
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                &stale,
+                &analysis,
+                &command,
+                &parents[0],
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &missing,
+                &command,
+                &parents[0],
+            )
+            .is_none()
+        );
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let foreign_input = ResolvedAnalysisInput::new(
+            analysis.resolved_profile().unwrap(),
+            analysis.resolved_profile().unwrap(),
+            foreign.resolved_input.as_ref().unwrap().context_registry(),
+            config,
+        );
+        let foreign_context = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(source, "spectcl");
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &foreign_context,
+                &command,
+                &parents[0],
+            )
+            .is_none()
+        );
+        let mut foreign_config = analysis.clone();
+        let mut different_config = config;
+        different_config.strict_quoting = !different_config.strict_quoting;
+        foreign_config.body_lexer_config = Some(different_config);
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &foreign_config,
+                &command,
+                &parents[0],
+            )
+            .is_none()
+        );
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &foreign,
+                &command,
+                &parents[0],
+            )
+            .is_none()
+        );
+        assert!(
+            crate::original_invocation::source_registry_words(source, &analysis, &command)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2484,5 +2704,59 @@ mod syntax_compaction_tests {
                 "{set ::custom_ran CUSTOM; set ::custom_body $body; return $body}; list 1}",
             )
         ));
+    }
+}
+
+#[cfg(test)]
+mod original_hover_word_geometry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn complete_cursor_word_uses_whole_configured_original_groups() {
+        for (source, needle, expected) in [
+            ("puts {café name}", "café", "café name"),
+            ("puts \"café name\"", "café", "café name"),
+            ("puts {first\nsecond}", "second", "first\nsecond"),
+            ("puts a\\ b", "a", "a b"),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            let selected = original_complete_cursor_word(source, &analysis, offset)
+                .expect("actual complete original word");
+            assert_eq!(selected.static_unicode_value().as_deref(), Some(expected));
+            assert_eq!(selected.cursor.word_index(), 1);
+            assert_eq!(selected.word.image().bytes(), source.as_bytes());
+            assert_eq!(selected.word.config(), analysis.body_lexer_config.unwrap());
+            assert!(
+                original_complete_cursor_word(&source.replace("puts", "xxxx"), &analysis, offset)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn complete_cursor_word_does_not_recover_computed_tails_or_partial_words() {
+        for source in [
+            "${ns}::setdef",
+            "[namespace current]::setdef",
+            "puts {unfinished",
+            "# setdef",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(source.len() - 2).unwrap();
+            assert!(
+                original_complete_cursor_word(source, &analysis, offset)
+                    .and_then(|word| word.static_unicode_value())
+                    .is_none(),
+                "{source}"
+            );
+        }
+        let source = "puts {café}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("café").unwrap()).unwrap();
+        let old = analysis.body_lexer_config.unwrap().strict_quoting;
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !old;
+        assert!(original_complete_cursor_word(source, &analysis, offset).is_none());
     }
 }

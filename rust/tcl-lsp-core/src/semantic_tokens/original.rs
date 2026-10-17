@@ -594,6 +594,9 @@ pub(super) fn registry_overrides(
         crate::original_invocation::OriginalRegistrySource::ConditionalNativeSource(_) => {
             return overrides;
         }
+        crate::original_invocation::OriginalRegistrySource::DefinitionMember(_) => {
+            return overrides;
+        }
         crate::original_invocation::OriginalRegistrySource::Scoped(scoped) => {
             if scoped.body().context() != ctx.context {
                 return overrides;

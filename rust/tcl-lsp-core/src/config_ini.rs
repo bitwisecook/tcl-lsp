@@ -159,6 +159,16 @@ fn parse_path_list(raw: &str) -> Vec<String> {
     lines
 }
 
+/// Ordered library path source data from the requested INI section. This
+/// shares the exact AST, first-section/key policy and path-list grammar used
+/// by effective settings. The strings are not Tcl words or filesystem identity.
+pub(crate) fn library_paths_from_section(content: &str, section: &str) -> Vec<String> {
+    let sections = parse_ini(content);
+    section_value(&sections, section, "libraryPaths")
+        .map(parse_path_list)
+        .unwrap_or_default()
+}
+
 fn parse_bool(value: &str) -> Option<bool> {
     match value.trim().to_ascii_lowercase().as_str() {
         "true" | "yes" | "1" | "on" => Some(true),

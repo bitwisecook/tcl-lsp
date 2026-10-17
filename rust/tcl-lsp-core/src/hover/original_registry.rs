@@ -99,6 +99,9 @@ fn schema_hover(
     match words.source() {
         OriginalRegistrySource::Selected => {}
         OriginalRegistrySource::ConditionalNativeSource(_) => return None,
+        OriginalRegistrySource::DefinitionMember(_) => {
+            text.push_str("\n\n_Closed document member documentation from its original parent; no runtime command availability follows._");
+        }
         OriginalRegistrySource::Scoped(_) => {
             text.push_str("\n\n_Scoped source documentation from the retained original body; runtime command availability is unresolved._");
         }

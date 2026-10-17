@@ -1,0 +1,27 @@
+{
+  "detected_utc": "2026-10-17T02:51:58.864325+00:00",
+  "agent": "luna_node_metadata667",
+  "action": "Stopped agent, preserved exact unadmitted patch/afterimages, restoring only agent-owned changes to HEAD exact bytes after checking HEAD matches captured source index where applicable.",
+  "files": [
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "captured_input": true,
+      "captured_sha256": "e8667532cac5d32f1ac6a92ac8c9db381fc74f6ad9d2d102986b28cf4a9a0e5f",
+      "restored_HEAD_sha256": "e8667532cac5d32f1ac6a92ac8c9db381fc74f6ad9d2d102986b28cf4a9a0e5f",
+      "unadmitted_after_sha256": "401fa9a0bfe30e5c920801d5224f7c8465eec8f10f34911cf5760d2acff7740c",
+      "mtime_before_restore_utc": "2026-10-17T02:50:56.498482+00:00"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "captured_input": true,
+      "captured_sha256": "01bfdebb7a2b3f0bb0aa9deebe76faf929b9e6cd62a2f2ec4b23997fe1957c8c",
+      "restored_HEAD_sha256": "01bfdebb7a2b3f0bb0aa9deebe76faf929b9e6cd62a2f2ec4b23997fe1957c8c",
+      "unadmitted_after_sha256": "cc17b144e23da98e54937d7d904372c84c4953a763517b23eda83f3c8b5bd65a",
+      "mtime_before_restore_utc": "2026-10-17T02:51:06.118520+00:00"
+    }
+  ],
+  "test_binaries_modified": false,
+  "standard962_in_progress": true,
+  "restored_utc": "2026-10-17T02:51:58.873290+00:00",
+  "interpretation": "Transient main-source edits occurred and were restored exactly; not a claim of continuous source freeze. Running current ELFs remained unchanged and pre/postflight contract still executes; retain this exception with results, do not silently relabel as zero drift throughout."
+}

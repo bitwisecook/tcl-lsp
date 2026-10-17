@@ -2909,22 +2909,10 @@ fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec
         &entry,
         &format!("package require mypkg\nsource {child_name}\n"),
     );
-    lsp.open_document(&child, "mypkgHello\n");
+    let child_source = "mypkgHello\n";
+    lsp.open_document(&child, child_source);
 
-    // The package database is (re)built asynchronously at startup; the pull
-    // path is deterministic once it is live.  Poll until the answer stops
-    // changing rather than assuming either outcome.
-    let mut diags = lsp.pull_diagnostics(&child);
-    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
-    while std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-        let next = lsp.pull_diagnostics(&child);
-        if codes(&next) == codes(&diags) {
-            return next;
-        }
-        diags = next;
-    }
-    diags
+    lsp.current_complete_diagnostics(&child, 1, child_source, Duration::from_secs(15))
 }
 
 /// TP: under a 9.x target the guard's `return` fires, `mypkg`

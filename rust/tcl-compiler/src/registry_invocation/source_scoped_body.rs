@@ -1587,6 +1587,13 @@ pub(super) fn source_script_bodies_for_coverage(
     context: &ContextRegistry,
     purpose: OriginalSourceScriptPurpose,
 ) -> Option<Vec<OriginalSourceScriptBody>> {
+    if matches!(
+        words.source(),
+        super::source_structure::OriginalRegistrySource::DefinitionMember(_)
+    ) && purpose != OriginalSourceScriptPurpose::Syntax
+    {
+        return None;
+    }
     let roles = words.roles()?;
     let timing_at = |argument| {
         words
@@ -1763,6 +1770,13 @@ pub(super) fn source_script_bodies_for(
     context: &ContextRegistry,
     purpose: OriginalSourceScriptPurpose,
 ) -> Vec<OriginalSourceScriptBody> {
+    if matches!(
+        words.source(),
+        super::source_structure::OriginalRegistrySource::DefinitionMember(_)
+    ) && purpose != OriginalSourceScriptPurpose::Syntax
+    {
+        return Vec::new();
+    }
     // Implementation contract: naming.source.original-editor-body-structure
     // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
     if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {

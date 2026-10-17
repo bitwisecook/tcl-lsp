@@ -1,0 +1,1213 @@
+   Compiling hashbrown v0.17.1
+   Compiling serde_core v1.0.229
+   Compiling indexmap v2.14.2
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-2798048564979612361.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-11855730873775730982.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-12503916034657637349.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-15750855878013189489.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-4453292777623697814.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-1026113162183170412.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-18155838884893617376.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-11366347237534372262.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-10583051270008717012.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-2768146801691212262.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-13816039484039785315.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-10197058759131844585.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-15128007900297776667.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-13083043079567533381.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-4272949488512215148.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-11324980892732971161.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-10197188229969527765.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-6176198820975250970.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-6746942006200448236.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-14559172864739501508.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-6491879777963768526.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-17208497023709164383.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-17280238194399259006.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-6402664902746631047.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-16205863732973288340.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-13894708134579402249.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-2912670370790606388.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-13633765897023229255.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-5461377773124930682.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-5437831245195525136.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-5929254976386932976.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-168894412193345024.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-4555376215802715351.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-11073079367721608652.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-16476689779041026645.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-8573816555793348878.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-17691574522855622635.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-15438437622189506659.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-8704348902817093823.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-7150408038664492888.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-4886616330233096220.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-17078950992506488811.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-13232138216749176307.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-3111736108316826545.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-10449523439994604137.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-15251459673150913023.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-1143458391780831490.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-9653665234939162226.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-61456201026141458.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-4203428932485770826.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-7570262640462497940.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error: reached the recursion limit while instantiating `OriginalRegistryWords::with_source_schema::<'_, Option<_>, {closure@...}>`
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:739:27
+    |
+739 |               let grammar = parent
+    |  ___________________________^
+740 | |                 .source_words()
+741 | |                 .with_source_schema(context, |schema| {
+742 | |                     schema.authored_source_definition_body_grammar()
+743 | |                 })
+    | |__________________^
+    |
+note: `OriginalRegistryWords::with_source_schema` defined here
+   --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:668:5
+    |
+668 | /     pub fn with_source_schema<'r, T>(
+669 | |         &'r self,
+670 | |         context: &'r tcl_registry::model::ContextRegistry,
+671 | |         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+672 | |     ) -> Option<T> {
+    | |__________________^
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_compiler-23d7d8811f793358.long-type-16874758717513496548.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+warning: `tcl-compiler` (lib) generated 1 warning
+error: could not compile `tcl-compiler` (lib) due to 52 previous errors; 1 warning emitted

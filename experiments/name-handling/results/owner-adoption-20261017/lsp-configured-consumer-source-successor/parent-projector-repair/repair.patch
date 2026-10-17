@@ -1,0 +1,26 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -738,9 +738,7 @@
+             }
+             let grammar = parent
+                 .source_words()
+-                .with_source_schema(context, |schema| {
+-                    schema.authored_source_definition_body_grammar()
+-                })
++                .with_source_schema(context, source_definition_body_grammar)
+                 .flatten()?;
+             let descriptor = context
+                 .commands()
+@@ -1573,6 +1571,12 @@
+     })
+ }
+ 
++fn source_definition_body_grammar(
++    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
++    schema.authored_source_definition_body_grammar()
++}
++
+ fn original_definition_member_registry_words(
+     source: &str,
+     analysis: &AnalysisResult,

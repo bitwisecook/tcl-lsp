@@ -62,15 +62,23 @@ import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
 import {
+  captureAnalysisContext,
+  currentDiagnosticsReportMatches,
   invalidateAnalysisContext,
+  isAnalysisContextCurrent,
   setCurrentDiagnosticsTransportProvider,
   setUnleasedSessionDialectOverride,
   waitForDiagnostics as waitForCurrentDiagnostics,
+  waitForDiagnosticsReport,
+  AnalysisContextSnapshot,
+  CurrentDiagnosticsReport,
 } from "./chat/diagnosticAccess";
 import {
   buildRuntimeValidationChecker,
   resolveRuntimeValidationAdapter,
+  runtimeValidationAdapterFromReport,
   runtimeValidationAdapterLabel,
+  RuntimeValidationAdapter,
   RuntimeValidationAdapterMode,
 } from "./runtimeValidation";
 import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
@@ -1927,57 +1935,164 @@ async function runRuntimeValidation(): Promise<void> {
   await runRuntimeValidationForDocument(editor.document, { quiet: false });
 }
 
+interface RuntimeValidationRequestSnapshot {
+  document: TextDocument;
+  uri: string;
+  version: number;
+  source: string;
+  languageId: string;
+  tclshPath: string;
+  timeoutMs: number;
+  adapterMode: RuntimeValidationAdapterMode;
+  analysisContext: AnalysisContextSnapshot | undefined;
+  diagnosticsReport?: CurrentDiagnosticsReport;
+}
+
+function runtimeValidationSnapshotIsCurrent(snapshot: RuntimeValidationRequestSnapshot): boolean {
+  const runtimeCfg = workspace.getConfiguration("tclLsp.runtimeValidation");
+  return (
+    workspace.textDocuments.includes(snapshot.document) &&
+    snapshot.document.uri.toString() === snapshot.uri &&
+    snapshot.document.version === snapshot.version &&
+    snapshot.document.languageId === snapshot.languageId &&
+    snapshot.document.getText() === snapshot.source &&
+    runtimeCfg.get<string>("tclshPath", "tclsh") === snapshot.tclshPath &&
+    runtimeCfg.get<number>("timeoutMs", 5000) === snapshot.timeoutMs &&
+    runtimeCfg.get<RuntimeValidationAdapterMode>("adapter", "auto") === snapshot.adapterMode &&
+    (snapshot.analysisContext === undefined ||
+      isAnalysisContextCurrent(snapshot.analysisContext)) &&
+    (snapshot.diagnosticsReport === undefined ||
+      currentDiagnosticsReportMatches(snapshot.diagnosticsReport, {
+        document: snapshot.document,
+        uri: snapshot.document.uri,
+        version: snapshot.version,
+        source: snapshot.source,
+      }))
+  );
+}
+
+async function runtimeValidationAdapterForSnapshot(
+  snapshot: RuntimeValidationRequestSnapshot,
+): Promise<RuntimeValidationAdapter> {
+  const analysisContext = snapshot.analysisContext;
+  if (!analysisContext || !isAnalysisContextCurrent(analysisContext)) {
+    throw new Error("The current analysis session is unavailable.");
+  }
+  const report = await waitForDiagnosticsReport(snapshot.document.uri, {
+    expectedSource: snapshot.source,
+  });
+  if (
+    !currentDiagnosticsReportMatches(report, {
+      document: snapshot.document,
+      uri: snapshot.document.uri,
+      version: snapshot.version,
+      source: snapshot.source,
+    }) ||
+    !isAnalysisContextCurrent(analysisContext) ||
+    report.analysisContext.transport.sessionIdentity !==
+      analysisContext.transport.sessionIdentity ||
+    report.analysisContext.overrideGeneration !== analysisContext.overrideGeneration
+  ) {
+    throw new Error(
+      "The completed analysis report no longer matches the requested document snapshot.",
+    );
+  }
+  const adapter = runtimeValidationAdapterFromReport(report.response, {
+    uri: snapshot.uri,
+    version: snapshot.version,
+    source: snapshot.source,
+  });
+  if (!adapter) {
+    throw new Error(
+      "The completed analysis report has no dialect for the requested source snapshot.",
+    );
+  }
+  snapshot.diagnosticsReport = report;
+  return adapter;
+}
+
 async function runRuntimeValidationForDocument(
   document: TextDocument,
   opts: { quiet: boolean },
 ): Promise<void> {
   const runtimeCfg = workspace.getConfiguration("tclLsp.runtimeValidation");
-  const tclshPath = runtimeCfg.get<string>("tclshPath", "tclsh");
-  const timeoutMs = runtimeCfg.get<number>("timeoutMs", 5000);
   const adapterMode = runtimeCfg.get<RuntimeValidationAdapterMode>("adapter", "auto");
-  const dialect = (await effectiveDialectFor(document)).name;
-  const adapter = resolveRuntimeValidationAdapter(adapterMode, dialect);
-  const adapterLabel = runtimeValidationAdapterLabel(adapter);
-
-  // Per-invocation temp dir — replaces the previous shape where two
-  // sibling files lived directly in the shared OS temp dir under a
-  // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
-  // a fresh, attacker-unwriteable directory and lets us tear the whole
-  // thing down with a single ``rmSync`` (CodeQL
-  // ``js/insecure-temporary-file``).
-  const tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
-  const checkerPath = path.join(tmpDir, "checker.tcl");
-  const checkerScript = buildRuntimeValidationChecker(adapter);
-  const targetPath = path.join(tmpDir, "target.tcl");
+  const snapshot: RuntimeValidationRequestSnapshot = {
+    document,
+    uri: document.uri.toString(),
+    version: document.version,
+    source: document.getText(),
+    languageId: document.languageId,
+    tclshPath: runtimeCfg.get<string>("tclshPath", "tclsh"),
+    timeoutMs: runtimeCfg.get<number>("timeoutMs", 5000),
+    adapterMode,
+    analysisContext: adapterMode === "auto" ? captureAnalysisContext() : undefined,
+  };
+  let adapterLabel =
+    adapterMode === "auto"
+      ? "automatic adapter"
+      : runtimeValidationAdapterLabel(resolveRuntimeValidationAdapter(adapterMode, ""));
+  let effectiveDialect: string | undefined;
+  let tmpDir: string | undefined;
 
   try {
-    writeFileSync(checkerPath, checkerScript, "utf8");
-    writeFileSync(targetPath, document.getText(), "utf8");
+    const adapter =
+      adapterMode === "auto"
+        ? await runtimeValidationAdapterForSnapshot(snapshot)
+        : resolveRuntimeValidationAdapter(adapterMode, "");
+    effectiveDialect = snapshot.diagnosticsReport?.response.dialectId;
+    adapterLabel = runtimeValidationAdapterLabel(adapter);
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
 
-    await execFileAsync(tclshPath, [checkerPath, targetPath], {
-      timeout: timeoutMs,
+    // Per-invocation temp dir — replaces the previous shape where two
+    // sibling files lived directly in the shared OS temp dir under a
+    // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
+    // a fresh, attacker-unwriteable directory and lets us tear the whole
+    // thing down with a single ``rmSync`` (CodeQL
+    // ``js/insecure-temporary-file``).
+    tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
+    const checkerPath = path.join(tmpDir, "checker.tcl");
+    const checkerScript = buildRuntimeValidationChecker(adapter);
+    const targetPath = path.join(tmpDir, "target.tcl");
+
+    writeFileSync(checkerPath, checkerScript, "utf8");
+    writeFileSync(targetPath, snapshot.source, "utf8");
+
+    await execFileAsync(snapshot.tclshPath, [checkerPath, targetPath], {
+      timeout: snapshot.timeoutMs,
       maxBuffer: 256 * 1024,
     });
 
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
+    const dialectLabel = effectiveDialect ? `, ${effectiveDialect}` : "";
+    const subject = `${adapterLabel}${dialectLabel} for ${snapshot.uri} at document version ${snapshot.version}`;
     if (!opts.quiet) {
-      window.showInformationMessage(`Runtime validation passed (${adapterLabel}).`);
+      window.showInformationMessage(`Runtime validation passed (${subject}).`);
     }
   } catch (error) {
+    if (!runtimeValidationSnapshotIsCurrent(snapshot)) {
+      return;
+    }
     const err = error as { stderr?: string; stdout?: string; message?: string };
     const details = (err.stderr || err.stdout || err.message || "Validation failed").trim();
+    const dialectLabel = effectiveDialect ? `, ${effectiveDialect}` : "";
+    const subject = `${adapterLabel}${dialectLabel}, ${snapshot.uri}, document version ${snapshot.version}`;
     if (opts.quiet) {
-      window.setStatusBarMessage(
-        `Tcl runtime validation failed (${adapterLabel}): ${details}`,
-        6000,
-      );
+      window.setStatusBarMessage(`Tcl runtime validation failed (${subject}): ${details}`, 6000);
     } else {
-      window.showWarningMessage(`Runtime validation failed (${adapterLabel}): ${details}`);
+      window.showWarningMessage(`Runtime validation failed (${subject}): ${details}`);
     }
   } finally {
-    try {
-      rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      // ignore cleanup errors
+    if (tmpDir !== undefined) {
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup errors
+      }
     }
   }
 }

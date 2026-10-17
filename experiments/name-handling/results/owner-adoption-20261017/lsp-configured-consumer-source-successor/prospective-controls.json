@@ -1,0 +1,1470 @@
+{
+  "scope": "Explicit finalV10 afterimage source controls; all32 existing prospective control source files/module routes byte-identical V9 with exact hashes/line numbers. Three07.12 URI callsite conversions add no controls. Source-only; no binding/listing/execution/selection mutation or actual-main claim. Retained962 order/guards untouched.",
+  "composition_manifest": "/workspace/naming-validation/agent-work/queued-lsp-next-batch-composition-v10/manifest.json",
+  "controls": [
+    {
+      "target": "tcl_lsp_core",
+      "selector": "hover::original_hover_independent_registry_tests::actual_expansion_child_registry_hover_does_not_require_a_static_parent_word",
+      "source_path": "rust/tcl-lsp-core/src/hover.rs",
+      "source_line": 6726,
+      "source_sha256": "6ab425b9dc67623353481ddcdce93176bd0a8729224a36914bdc9f2e1f58e0a6",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 69,
+          "module": "hover"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/hover.rs",
+          "source_sha256": "6ab425b9dc67623353481ddcdce93176bd0a8729224a36914bdc9f2e1f58e0a6",
+          "source_line": 6721,
+          "module": "original_hover_independent_registry_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "d0a0f32841187cd1099b9f9442cfa35a0e0eadaead3e3197412dc4722a1d63a7",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 69,
+          "module": "hover",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/hover.rs",
+          "source_sha256": "6ab425b9dc67623353481ddcdce93176bd0a8729224a36914bdc9f2e1f58e0a6",
+          "source_line": 6721,
+          "module": "original_hover_independent_registry_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed",
+      "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "source_line": 399,
+      "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "1331846aef2727094abfff40f6ee243e3790fbaca4e7e80cd0b268baab425fa9",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "linked_editing_range::retained_source_spelling_tests::original_source_tail_geometry_refuses_changed_full_config_and_escaped_components",
+      "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "source_line": 434,
+      "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "039b83ea85130ab84f6ca95c6f41c65a101cdd1dc1277c586d010c333ad7ed1b",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry",
+      "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "source_line": 470,
+      "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "192d00ab7dc869f5ce2f69b58723502ebd6bcb1c0e69ee442ebe044670219d53",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "linked_editing_range::retained_source_spelling_tests::linked_spelling_rejects_surrogate_interior_cursor_and_same_named_data",
+      "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+      "source_line": 497,
+      "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "a2eb91e4b3e24d6d614f1f53840d1f6a264da1d784ec1c2f2109169a3f6bbd43",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 76,
+          "module": "linked_editing_range",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/linked_editing_range.rs",
+          "source_sha256": "3dfe353b216c6e8b78e055b6227349bfe1d6c89e2f946e8e050bc3e8f000e929",
+          "source_line": 394,
+          "module": "retained_source_spelling_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::itcl_original_source_geometry_tests::itcl_proc_sites_keep_actual_quoted_and_braced_tail_geometry",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "source_line": 8980,
+      "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 98,
+          "module": "references"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/references.rs",
+          "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+          "source_line": 8975,
+          "module": "itcl_original_source_geometry_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "d6946ee3a1f511d58e084f858896db01fa8814c95a3f331e29d5152a2638645c",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 98,
+          "module": "references",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/references.rs",
+          "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+          "source_line": 8975,
+          "module": "itcl_original_source_geometry_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "references::itcl_original_source_geometry_tests::itcl_proc_sites_refuse_dynamic_expanded_foreign_and_missing_inputs",
+      "source_path": "rust/tcl-lsp-core/src/references.rs",
+      "source_line": 8998,
+      "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 98,
+          "module": "references"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/references.rs",
+          "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+          "source_line": 8975,
+          "module": "itcl_original_source_geometry_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "1df732a9d3d92b017de99aa977c696d19d1fd31fe51e00dda9196a71ec817af2",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 98,
+          "module": "references",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/references.rs",
+          "source_sha256": "6e6ad89b809f5b6504e05cee283ec6a2601da7ed2c2bb1ee0d57dc8b119b460d",
+          "source_line": 8975,
+          "module": "itcl_original_source_geometry_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::original_hover_word_geometry_tests::complete_cursor_word_uses_whole_configured_original_groups",
+      "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "source_line": 2716,
+      "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 2711,
+          "module": "original_hover_word_geometry_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "cf4e8dcbc2a23c49965ccf46a2dd82f096f6aec1875dec7c14350aaa8b5d42e4",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 2711,
+          "module": "original_hover_word_geometry_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::original_hover_word_geometry_tests::complete_cursor_word_does_not_recover_computed_tails_or_partial_words",
+      "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "source_line": 2739,
+      "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 2711,
+          "module": "original_hover_word_geometry_tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "819c1769c3c5dda530c1b9ff404939fbb5f2670e8898c19b1f9e009e8821a12c",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 2711,
+          "module": "original_hover_word_geometry_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tcl_install::tests::library_paths_share_effective_ini_continuation_and_opaque_data",
+      "source_path": "rust/tcl-lsp-core/src/tcl_install/tests.rs",
+      "source_line": 328,
+      "source_sha256": "b2f58935a8ca0eec7f3f9184f39907a5a584503dc5aff1c503e08d1666bca0fd",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 114,
+          "module": "tcl_install"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/tcl_install.rs",
+          "source_sha256": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+          "source_line": 355,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "4e5e5d6d978137756634d6580d1c1156207c957d579e529b9561f796cd3963af",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 114,
+          "module": "tcl_install",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/tcl_install.rs",
+          "source_sha256": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+          "source_line": 355,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "tcl_install::tests::library_paths_keep_shared_section_key_and_single_line_rules",
+      "source_path": "rust/tcl-lsp-core/src/tcl_install/tests.rs",
+      "source_line": 346,
+      "source_sha256": "b2f58935a8ca0eec7f3f9184f39907a5a584503dc5aff1c503e08d1666bca0fd",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 114,
+          "module": "tcl_install"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/tcl_install.rs",
+          "source_sha256": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+          "source_line": 355,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "ee30ea4db1a0b1de5427ab3150264aa810fd505fa0217d3bc99f5421742511e4",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 114,
+          "module": "tcl_install",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/tcl_install.rs",
+          "source_sha256": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+          "source_line": 355,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_tokens_retain_actual_configured_input_and_final_source_owner",
+      "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "source_line": 3817,
+      "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports"
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "17894dac7cc9ae5f17dd4b1f8669e0fe34ec76b9000fcb417981b895e3fef720",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_tokens_refuse_changed_actual_resource_config_without_epoch_donation",
+      "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "source_line": 3871,
+      "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports"
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "8899a445eb6265f9c0c5735e088b69e53b1f3ce32a4512aaed51a0727171c467",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_source_keeps_factory_and_original_virtual_provider_receipts",
+      "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "source_line": 3916,
+      "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports"
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "f06cf451e9c31252a6d60080249a5b8e3b5064d29fc26c061b8dea7bab7fd8cb",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::closed_path_admission_is_not_an_open_source_publication_receipt",
+      "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "source_line": 3984,
+      "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports"
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "4ab74ae1ab9585dcbb529c31a9ed23a00db06cc357f8c798ca207593bbb13772",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::unresolved_document_dialect_cannot_issue_coarse_input",
+      "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "source_line": 4009,
+      "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports"
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "b351e17d77a83d0fafd645a548186bd9b4facdf362f7276f90aff498081a421f",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 60,
+          "module": "readonly_reference_reports",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "source_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+          "source_line": 3794,
+          "module": "coarse_semantic_source_tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::library_publication_refuses_actual_configuration_and_factory_changes",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 55334,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "d1192d1980d2a5913eab328388467d7852528bed52752207fea38ca912c59ec0",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::library_publication_retains_original_provider_mapping_across_equal_path_aba",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 55389,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "4dcb34e19155b18da7e96b26ca823777f3967b2c5b6faa84e32ee29bc6473bc1",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::library_publication_checks_closed_saved_source_and_commits_whole_batch",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 55432,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "92394ef13cc3e40d19c80bf1096b6fc9c46a6df369120e63e72fadf677ea7b32",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::library_publication_reuses_genuine_full_input_and_factory_receipts",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 55482,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "2295f6fa66b355a7b780ffc4ac3b231d7c58dca39c18005a653dd6b561f40bc3",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_publishes_under_unchanged_closed_document_override",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49069,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "c9e746603f1bc8864711cf8c35600848521d556af3de1e11ca4368fa4e959f02",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_omits_closed_row_after_document_override_changes",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49118,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "46a1a877ad427d16257280ba0b1df3cca853df99689a037650559ab9bffedf3d",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_rejects_rows_after_default_or_session_dialect_changes",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49180,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "d2452657a6f165185d106e39ee5b645428b0338385c6fab1b0f921ff1205a169",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_rejects_rows_after_factory_generation_changes",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49218,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "6f3aecd3dd5f58d406634b2fb28d5cc1664ba446c9ff14865ba220a883aeeeac",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_open_and_absent_candidates_remain_intentional_skips",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49265,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "2409bdba64b8b1097c89dedccc27ff99f91e510ba2aea14237e4caee50808c8a",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_transient_busy_batch_stays_incomplete",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49302,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "79ad3389ae11913c17050f40c716a88730f108eba1be324a2df116d80a83f7b1",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_unavailable_analysis_keeps_coverage_incomplete",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49391,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "5af0ff5f03a2a874b9625decdeaaf1fcfc5ddafaa81ad32e3c91073960f9e057",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_scan_resolver_publication_requires_current_inputs",
+      "source_path": "rust/tcl-lsp-server/src/lib.rs",
+      "source_line": 49485,
+      "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "7710f39904e992fb1c83c8a88621a976c1be0aed30999013ad7a0d0dc7297c0c",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-server/src/lib.rs",
+          "source_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+          "source_line": 36309,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::logical_definition_calls_retain_original_alias_move_and_redefinition_headers",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 4354,
+      "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "3b5c8b232ee8c82c06be518ce1382d0b2d46500d10f46b6cb961e7284a3957f4",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::logical_definition_call_refusals_do_not_resurrect_report_procedure_names",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 4396,
+      "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "a0cf9c97d031ecac48e77aadb9a79509b4a2895a63a24361fb069c8884092e39",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "definition::tests::logical_definition_call_requires_current_complete_analysis_input",
+      "source_path": "rust/tcl-lsp-core/src/definition.rs",
+      "source_line": 4425,
+      "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "ed6a2014b0f4dd13e6c7325fce11c2075777986a13f6a53165e321a40a577b2b",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 55,
+          "module": "definition",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/definition.rs",
+          "source_sha256": "8f6088171a5dcd5f518fbb83c035c66e96da882656d3251ec41da8fc96fafe31",
+          "source_line": 4330,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    },
+    {
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::tests::original_document_child_schema_requires_actual_parent_complete_argv_and_context",
+      "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "source_line": 2376,
+      "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+      "purpose": "Prospective V9 added source control; no actual main or binary acceptance.",
+      "module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure"
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 1817,
+          "module": "tests"
+        }
+      ],
+      "function_attributes": "#[test]",
+      "cfg_expressions": [
+        "test"
+      ],
+      "current_native_linux_source_eligible": true,
+      "actual_test_function_sha256": "b5d936aae0743e0d61c2a6638ea24cfe9a3ceee0a0228dd891eaa7c002fddf12",
+      "checked_module_route": [
+        {
+          "source_path": "rust/tcl-lsp-core/src/lib.rs",
+          "source_sha256": "4b1467e17d20fd9ed8a6690b4c6cb8cda33fd8f0c920e2be6ea761a9bb4f1653",
+          "source_line": 107,
+          "module": "source_structure",
+          "attributes": "",
+          "cfg_expressions": []
+        },
+        {
+          "source_path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "source_sha256": "49672a7eafdbb5d50de0dfe3713d2a84d5ce5e0e402e1360cd99b6be145371c4",
+          "source_line": 1817,
+          "module": "tests",
+          "attributes": "#[cfg(test)]",
+          "cfg_expressions": [
+            "test"
+          ]
+        }
+      ],
+      "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+      "prospective_only": true,
+      "already_retained": false
+    }
+  ]
+}

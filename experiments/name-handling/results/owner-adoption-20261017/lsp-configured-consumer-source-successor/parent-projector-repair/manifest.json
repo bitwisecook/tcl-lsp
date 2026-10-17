@@ -1,0 +1,21 @@
+{
+  "status": "SOURCE_ONLY_PENDING_REVIEW_NO_EXECUTION",
+  "patch": "parent-projection-repair.67e02dbee2b9d40788a72ae2ed50cc334d6e19e6a97ad2bc4cf4ba09160f51e5.patch",
+  "patch_sha256": "67e02dbee2b9d40788a72ae2ed50cc334d6e19e6a97ad2bc4cf4ba09160f51e5",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "1ee13409852e94b83300138feac1bd8d8d6cad7bcebfc8a5e737bedb2c6f08ea",
+      "after_sha256": "1b51b31c55f0ed112969211aa11fba1026c1780c347f0789f979908fbdc68362"
+    }
+  ],
+  "checks": [
+    "current_beforeimage",
+    "scoped_rustfmt",
+    "Rust_AST",
+    "all_test_module_byte_exact",
+    "fresh_fuzz0_forward_inverse"
+  ],
+  "main_changes": false,
+  "execution": false
+}

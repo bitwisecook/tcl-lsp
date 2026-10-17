@@ -453,6 +453,29 @@ change another file's answer retains the necessary whole-workspace cost.
    directory; and a `package require NAME VERSION` selects the highest release
    satisfying `package vsatisfies`, not whichever was discovered first.
 
+10. A closed-file workspace scan binds dialect selection and per-file
+    `auto_path` contributions to the analyser-input epoch captured after
+    asynchronous package discovery. Document overrides, session overrides and
+    the explicit `setDialect` default setter advance that epoch when their
+    selected value changes; folder dialect overrides are initialized before
+    the first scan. Each row retains the epoch and class-factory generation it
+    analysed with, and those exact generations must still be current at index
+    and package-resolver publication; the final inventory receipt joins the
+    same factory generation captured for that scan. A stale or unavailable row
+    contributes neither a resolver path nor a complete source-inventory receipt. The final
+    resolver and inventory joins use nonblocking config/factory checks after
+    taking their publication lock, so an in-flight writer makes the scan
+    incomplete instead of waiting in a lock cycle. Ordinary open-document skips
+    and candidates confirmed absent from the source store are distinct
+    intentional skips. Each candidate resolves to an available row, an open or
+    confirmed-absent skip, or an unavailable result. Stale inputs, a busy
+    final config/factory gate, an unrepresentable candidate path, or another
+    unproven omission marks coverage incomplete for that scan. An unavailable
+    analysis seed may retain its typed index row, but it cannot prove absence.
+    A later stable generation check cannot renew an incomplete receipt, and an
+    incomplete scan cannot replace the package resolver with a partial candidate
+    set.
+
 ## File-path anchors
 
 - `rust/tcl-lsp-core/src/workspace_index.rs`
@@ -488,7 +511,12 @@ change another file's answer retains the necessary whole-workspace cost.
   FP-guard computed alias cell, FN-guard computed alias of another cell)
 - `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs`
 - `rust/tcl-lsp-server/src/lib.rs` unit tests
-  (`watcher_and_rename_globs_cover_every_indexed_extension`,
+  (`workspace_scan_publishes_under_unchanged_closed_document_override`,
+  `workspace_scan_omits_closed_row_after_document_override_changes`,
+  `workspace_scan_rejects_rows_after_default_or_session_dialect_changes`,
+  `workspace_scan_rejects_rows_after_factory_generation_changes`,
+  `workspace_scan_resolver_publication_requires_current_inputs`,
+  `watcher_and_rename_globs_cover_every_indexed_extension`,
   `document_auto_path_mutation_feeds_the_package_database`,
   `set_auto_path_puts_every_list_element_on_the_search_path`,
   `a_versioned_require_indexes_the_release_it_asks_for`)

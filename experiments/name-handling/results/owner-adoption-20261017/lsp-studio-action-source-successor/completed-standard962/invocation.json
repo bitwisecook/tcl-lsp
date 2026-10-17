@@ -1,0 +1,42 @@
+{
+  "status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+  "utc": "2026-10-17T02:24:29.584698+00:00",
+  "selected": 962,
+  "list_only": false,
+  "all902_ordered_rows_and_guards_unchanged": true,
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/workspace/naming-validation/studio-action962-bound-v1/selection.json",
+    "--manifest-sha256",
+    "e231bbcccd81778f16116af69ee0dfc33dc46b220a8b37d3e49895be47d594f9",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/retained962-results"
+  ],
+  "admission": "/workspace/naming-validation/studio-action962-bound-v1/admission.json",
+  "admission_sha256": "4b5957eb1ca9c61f79a7160424d3dddb18509200e29e4bac58e0eab42e052cc8",
+  "preflight": {
+    "count": 39052,
+    "source_inputs_sha256": "9688c8aba658328b53655b685e7fd3686abadb9ae420ea13d7bc8335f38acee5",
+    "five_artifacts_sha256": "f9d353330502fde124b0b2a5fa61dca5c920741be091250130fa9bfd4ea24432",
+    "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+    "current_source_route_evidence_sha256": "1ed72e4a52b47e3cb7829991663540c1a4f1f2e1fdcd1af9d6ee20141997c75d"
+  },
+  "scope": "Exact962 selected standardfive capture; all930 orderedprefix/guards retained,32actual new source controls. Extra18 and11changedintegration tests separatelyowed. Full39052/source-provider/fiveELF prepost; no ordinaryacceptance or stronger Native grants.",
+  "ordinary_acceptance": false,
+  "canonical_exit_code": 1,
+  "postflight": {
+    "count": 39052,
+    "source_inputs_sha256": "9688c8aba658328b53655b685e7fd3686abadb9ae420ea13d7bc8335f38acee5",
+    "five_artifacts_sha256": "f9d353330502fde124b0b2a5fa61dca5c920741be091250130fa9bfd4ea24432",
+    "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+    "current_source_route_evidence_sha256": "1ed72e4a52b47e3cb7829991663540c1a4f1f2e1fdcd1af9d6ee20141997c75d"
+  },
+  "completed_utc": "2026-10-17T03:01:42.668891+00:00",
+  "wrapper_exit_code": 1
+}

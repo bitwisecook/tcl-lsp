@@ -339,7 +339,9 @@ pub fn definition_with(
     // is asked before every name-based path below: the span does not carry
     // the written command name, so the bareword lookup can only ever answer
     // with a coincidentally same-named decoy.
-    if let Some(span) = resolved_indirect_head_target(analysis, cursor_offset) {
+    if !analysis.allows_retained_logical_declaration_advice()
+        && let Some(span) = resolved_indirect_head_target(analysis, cursor_offset)
+    {
         return vec![span_to_range(source, &line_index, span)];
     }
     if let Some(target) = positioned_definition_target(analysis, source, &line_index, cursor_offset)
@@ -391,7 +393,17 @@ pub fn definition_with(
     // head. Without this the pure text scan lets an ordinary *argument*
     // resolve as a command name — see
     // [`offset_is_command_head`] for the gate and its one documented limit.
-    if offset_is_command_head(analysis, cursor_offset)
+    if analysis.allows_retained_logical_declaration_advice() {
+        if let Some(invocation) = invocation_head_at(analysis, cursor_offset)
+            && let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, analysis, invocation.range.start(),
+            )
+        {
+            return call.declaration(analysis).map_or_else(Vec::new, |header| {
+                vec![span_to_range(source, &line_index, header.metadata().name_span)]
+            });
+        }
+    } else if offset_is_command_head(analysis, cursor_offset)
         && let Some(proc_def) = resolve_called_proc(
             analysis,
             source,
@@ -489,6 +501,18 @@ fn indirect_definition_target(
                     .map(|declaration| declaration.name_span)
             });
     }
+    if analysis.allows_retained_logical_declaration_advice() {
+        let invocation = invocation_head_at(analysis, cursor_off)?;
+        let call =
+            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source,
+                analysis,
+                invocation.range.start(),
+            )?;
+        return call
+            .declaration(analysis)
+            .map(|header| header.metadata().name_span);
+    }
     let hop = command_indirection(analysis, word, cursor_off)?;
     let lookup = hop.lookup_spelling()?;
     let registry = crate::registry_for_analysis(analysis);
@@ -513,6 +537,16 @@ fn procedure_name_at_cursor(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let mut selected = analysis
+            .logical_source_procedure_declarations()
+            .filter_map(|header| {
+                let span = header.original_name_word()?.span();
+                (span.start() <= cursor_offset && cursor_offset < span.end()).then_some(span)
+            });
+        let span = selected.next()?;
+        return selected.next().is_none().then_some(span);
+    }
     analysis
         .proc_declaration_sites
         .iter()
@@ -4301,6 +4335,103 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn logical_procedure_navigation_analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_definition_calls_retain_original_alias_move_and_redefinition_headers() {
+        let source = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value\nrename join archived\nproc join {new} {}\narchived alpha beta\njoin one\n";
+        let mut analysis = logical_procedure_navigation_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        analysis.all_procs.clear();
+        analysis.proc_declaration_sites.clear();
+        for (needle, expected_line) in [("joined value", 0), ("archived alpha", 0), ("join one", 4)]
+        {
+            let offset = u32::try_from(source.find(needle).unwrap() + 1).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, u32::try_from(source.find(needle).unwrap()).unwrap(),
+            ).expect("genuine original call survives reporting-map removal");
+            assert_eq!(
+                call.declaration(&analysis)
+                    .unwrap()
+                    .metadata()
+                    .name_span
+                    .start(),
+                if expected_line == 0 {
+                    5
+                } else {
+                    u32::try_from(source.find("proc join {new}").unwrap() + 5).unwrap()
+                }
+            );
+            let ranges = definition(source, position.line, position.character.get(), &analysis);
+            assert_eq!(
+                ranges
+                    .iter()
+                    .map(|range| range.start_line)
+                    .collect::<Vec<_>>(),
+                vec![expected_line]
+            );
+        }
+        let offset = u32::try_from(source.find("proc join").unwrap() + 5).unwrap();
+        assert_eq!(
+            procedure_name_at_cursor(&analysis, offset).unwrap().start(),
+            offset
+        );
+    }
+
+    #[test]
+    fn logical_definition_call_refusals_do_not_resurrect_report_procedure_names() {
+        let source = "proc helper {value} {}\nrename helper {}\nhelper ignored\ninterp alias {} builtin {} puts\nbuiltin text\nset data helper\n$head data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        for needle in ["helper ignored", "builtin text", "$head data"] {
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert!(tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                source, &analysis, offset,
+            ).is_none());
+            let position = LineIndex::new(source).position_at_utf16(offset + 1, source);
+            assert!(
+                definition(source, position.line, position.character.get(), &analysis).is_empty()
+            );
+        }
+        let offset = u32::try_from(source.find("data helper").unwrap() + 5).unwrap();
+        assert!(
+            indirect_definition_target(
+                &analysis,
+                CallResolution::document_only(),
+                source,
+                offset,
+                "helper"
+            )
+            .is_none()
+        );
+        let changed = source.replace("helper ignored", "helper altered");
+        assert!(definition(&changed, 2, 1, &analysis).is_empty());
+    }
+
+    #[test]
+    fn logical_definition_call_requires_current_complete_analysis_input() {
+        let source = "proc helper {value} {}\nhelper data\n";
+        let analysis = logical_procedure_navigation_analysis(source);
+        assert_eq!(definition(source, 1, 1, &analysis).len(), 1);
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(definition(source, 1, 1, &missing).is_empty());
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new().analyse(source, "tcl8.6").resolved_input;
+        assert!(definition(source, 1, 1, &foreign).is_empty());
     }
 
     fn external_mask_at(

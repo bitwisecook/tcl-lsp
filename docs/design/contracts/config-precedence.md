@@ -260,3 +260,16 @@ the keys it sets and leaves the rest of the global set alone.
 - [User-facing KCS: how does tcl-lsp load configuration?](../../kcs/kcs-qa-how-tcl-lsp-loads-configuration.md)
 - [User-facing KCS: what sections and keys are valid?](../../kcs/kcs-qa-what-config-sections-are-valid.md)
 - [How do I turn a diagnostic off?](../../kcs/kcs-howto-suppress-diagnostics.md)
+
+## Library path source projection
+
+`tcl_install::library_paths_from_ini`, consumed by the server's existing
+`effective_auto_path`, delegates to `config_ini::library_paths_from_section`.
+The same ordered INI AST, first matching section/key and `parse_path_list`
+projection supply effective settings. Indented continuation remains data even
+when a path contains `:` or `=`; blank and full-line comments retain the shared
+parser policy. Multiline entries preserve spaces; a comma-bearing single line
+uses the existing comma/whitespace rule. These are configuration strings, not
+Tcl list words, quoted commands, canonical paths or execution authority. The
+caller still chooses global/project section and existing root layering, file
+source, path expansion and lifetime; this parser grants no source currency.

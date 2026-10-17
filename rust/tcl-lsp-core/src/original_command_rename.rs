@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Atomic command-name edits from current original owners and byte geometry.
 
+mod linked_authoring;
+pub(crate) use linked_authoring::OriginalLinkedSourceSpelling;
+
 use std::collections::HashSet;
 
 use tcl_compiler::analyser::{ClassDef, ProcDef};

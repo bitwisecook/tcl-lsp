@@ -1,0 +1,64 @@
+{
+  "selected": 962,
+  "counts": {
+    "PASS": 763,
+    "FAIL": 196,
+    "TIMEOUT": 3
+  },
+  "retained930_counts": {
+    "PASS": 744,
+    "FAIL": 184,
+    "TIMEOUT": 2
+  },
+  "new32_counts": {
+    "FAIL": 12,
+    "PASS": 19,
+    "TIMEOUT": 1
+  },
+  "retained930_status_changes": [],
+  "prior_PASS_regressions": [],
+  "harness_errors": [],
+  "artifact_drift": {},
+  "actual_wrapper_exit_code": 1,
+  "actual_invocation_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+  "completed_utc": "2026-10-17T03:01:42.668891+00:00",
+  "all39052_inputs_five_ELFs_providers_final_pre_postflight_match": true,
+  "continuous_source_freeze": false,
+  "transient_source_edit_exception": {
+    "incident": "/workspace/naming-validation/source-freeze-violation-20261017T0251Z/incident.json",
+    "sha256": "b2ec179ee8bd5cd2122ac9b57d80eef113094ace5af801b307abf4d8abcd4e62",
+    "restoration": "/workspace/naming-validation/source-freeze-violation-20261017T0251Z/restored-source-and-artifacts-check.json",
+    "restoration_sha256": "e0636b4c4e134ec1237c5fb4ca91a17beb82b92dc653d05010a714c4555cc307",
+    "scope": "Agent667 temporarily edited two admitted editor/documentation inputs, stopped, exact patch preserved and both restored before final postflight. All39052 sources and all9ELFs rechecked equal after restoration; no Rust source or test binary changed. No continuous freeze claim."
+  },
+  "new_owner_control": {
+    "argv": [
+      "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+      "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 101,
+    "timed_out": false,
+    "seconds": 0.5154126970010111,
+    "log": "test-938.log",
+    "log_sha256": "2220519e8a7ae5c96921375a301407724504053c91a2ca6b33e842bc0aa20ca5",
+    "target": "tcl_lsp_core",
+    "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+    "running_counts": [
+      "1"
+    ],
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1"
+      ]
+    ],
+    "test_passed": false
+  },
+  "new_owner_control_first_missing_boundary": "source_structure.rs2244: actual pack body/parent passed, nested command source_registry_words returnedNone. Shared actual parent transport repair outside main; no assertion or guard weakened.",
+  "ordinary_acceptance": false,
+  "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, with transient source exception explicit. Global/host/integration/required gates not accepted; no verified completion."
+}

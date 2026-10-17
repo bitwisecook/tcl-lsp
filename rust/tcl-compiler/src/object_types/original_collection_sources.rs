@@ -565,6 +565,7 @@ fn collection_lookup_is_available(words: &OriginalRegistryWords) -> bool {
     use source_structure::OriginalRegistrySource;
     match words.source() {
         OriginalRegistrySource::Selected | OriginalRegistrySource::Scoped(_) => true,
+        OriginalRegistrySource::DefinitionMember(_) => false,
         OriginalRegistrySource::SourceTransitions(advice) => {
             advice.uncertain_operations().is_empty()
                 && !advice.obligations().contains(&T::UnknownEarlierMutation)

@@ -1,0 +1,138 @@
+{
+  "scheduled_utc": "2026-10-17T03:07:00Z",
+  "last_utc": "2026-10-17T03:07:04.204780+00:00",
+  "repository_written_utc": "2026-10-17T03:07:04.204780+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T03:37:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 212,
+  "lsp_required": 325,
+  "lsp_by_kind_integrated": {
+    "semantic": 107,
+    "validation": 103,
+    "documentation": 2
+  },
+  "lsp_no_integration": 113,
+  "gains_since_previous_report": {
+    "LSP": 17,
+    "effective": 17
+  },
+  "baseline_integrated": 345,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 317,
+  "baseline_partial": 28,
+  "annex_integrated": 61,
+  "annex_required": 62,
+  "effective_integrated_at_report": 406,
+  "effective_required": 2220,
+  "effective_without_integration": 1814,
+  "verified": 0,
+  "actual_standard962": {
+    "selected": 962,
+    "counts": {
+      "PASS": 763,
+      "FAIL": 196,
+      "TIMEOUT": 3
+    },
+    "retained930_counts": {
+      "PASS": 744,
+      "FAIL": 184,
+      "TIMEOUT": 2
+    },
+    "new32_counts": {
+      "FAIL": 12,
+      "PASS": 19,
+      "TIMEOUT": 1
+    },
+    "retained930_status_changes": [],
+    "prior_PASS_regressions": [],
+    "harness_errors": [],
+    "artifact_drift": {},
+    "actual_wrapper_exit_code": 1,
+    "actual_invocation_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+    "completed_utc": "2026-10-17T03:01:42.668891+00:00",
+    "all39052_inputs_five_ELFs_providers_final_pre_postflight_match": true,
+    "continuous_source_freeze": false,
+    "transient_source_edit_exception": {
+      "incident": "/workspace/naming-validation/source-freeze-violation-20261017T0251Z/incident.json",
+      "sha256": "b2ec179ee8bd5cd2122ac9b57d80eef113094ace5af801b307abf4d8abcd4e62",
+      "restoration": "/workspace/naming-validation/source-freeze-violation-20261017T0251Z/restored-source-and-artifacts-check.json",
+      "restoration_sha256": "e0636b4c4e134ec1237c5fb4ca91a17beb82b92dc653d05010a714c4555cc307",
+      "scope": "Agent667 temporarily edited two admitted editor/documentation inputs, stopped, exact patch preserved and both restored before final postflight. All39052 sources and all9ELFs rechecked equal after restoration; no Rust source or test binary changed. No continuous freeze claim."
+    },
+    "new_owner_control": {
+      "argv": [
+        "/workspace/naming-validation/lsp-studio-action-source-successor-repair3/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+        "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.5154126970010111,
+      "log": "test-938.log",
+      "log_sha256": "2220519e8a7ae5c96921375a301407724504053c91a2ca6b33e842bc0aa20ca5",
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    "new_owner_control_first_missing_boundary": "source_structure.rs2244: actual pack body/parent passed, nested command source_registry_words returnedNone. Shared actual parent transport repair outside main; no assertion or guard weakened.",
+    "ordinary_acceptance": false,
+    "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, with transient source exception explicit. Global/host/integration/required gates not accepted; no verified completion."
+  },
+  "actual_extra18": {
+    "selected": 18,
+    "counts": {
+      "FAIL": 2,
+      "PASS": 16
+    },
+    "by_target": {
+      "tcl_lexer": {
+        "PASS": 6
+      },
+      "tcl_syntax": {
+        "PASS": 3
+      },
+      "tcl_spectcl": {
+        "FAIL": 2,
+        "PASS": 4
+      },
+      "xtask": {
+        "PASS": 3
+      }
+    },
+    "harness_errors": [],
+    "actual_wrapper_exit_code": 1,
+    "completed_utc": "2026-10-17T02:24:12.242246+00:00",
+    "all39052_inputs_nine_ELFs_providers_postflight_match": true,
+    "retained_extra9_status_changes": [],
+    "retained_extra9_prior_PASS_regressions": [],
+    "old_extra9_regression_remains_unresolved": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+    "all_three_previously_owed_xtask_controls": "PASS",
+    "ordinary_acceptance": false,
+    "limits": "Two SpecTcl failures retain original assertions and Native/source guards. Standard962 is separately running; repository and host gates remain unaccepted."
+  },
+  "previous930_prefix_outcome_changes": [],
+  "continuous_source_freeze": false,
+  "source_freeze_exception": "Temporary unadmitted extension.ts/matrix edits captured and restored02:51:58; all39052inputs/nineELFs matched02:52:32 andfinalpostflight. No Rust source/binary edit. Ordinary acceptancefalse; exactpatch/incident/restoration retained inGit capsule.",
+  "completed_artifacts": "Nine exact ownedELFs archived after bothfinalpostflights; allmemberbytes/hashes verified,235126675Barchive,archiveSHAae71c6f83bfc6ff6747796876e55e884cb875f979c2a09941c42550b842c198e. Restore andverifyoriginalpaths before reuse.",
+  "reviewed_queue": "V10 Rootintegrated34paths at03:06:59:17existingLSPpurposes,6partialsemantic; parenttransport/socketfixtureexistingownerrepairs addnoannex. Fresh5libbuild sourcebinding03:07:06 on39058inputs/150admittedpaths. All earlier962/extra18outcomes/source-freeze exception retained; no newexecuted result.",
+  "actual_failure_diagnoses": "Core938 fails first nestedcommand schema issuer despite authentic PACK parent; realCompiler/Registry parenttransport needed. Studio962 test retains unpolledcapacity1socket causing possible uncheckednotificationbackpressure; source-only diagnosis, no live trace. Repairs preserve assertions/fixtures/providerseams/budgets.",
+  "editor": "443inputs0drift: bothTSprojects/configuredPrettier/worker/Node+browserbundlesPASS; originalStudioNodeEPERM unchangedpermissionretry124PASS0FAIL0skip. FreshNode666source/editorchecksowed; actualhosts pending.",
+  "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr notallgreen. Elevenpriorchangedintegrationbodies plusnewcallers owed. JetBrains originalSDKENOSPCbeforeKotlin/tests. NoPR/merge/#2286closure.",
+  "source_scope": "AllLSP and necessaryCompiler/DB/Registryowners. Runtime/VM anddedicatedBIGIPmigrations/suites deferred. UncoveredBIGIPTcl8.4 assumptiononly, notNative/measured evidence.",
+  "latest_push": "dadf3ff4f5cfb980d6c230fe3ce119a503d8e2aa",
+  "fresh_current_build": "/workspace/naming-validation/lsp-configured-consumer-source-successor/source-binding.json",
+  "fresh_current_editor": "/workspace/naming-validation/lsp-configured-consumer-editor/binding.json"
+}

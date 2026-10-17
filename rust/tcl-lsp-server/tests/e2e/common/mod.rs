@@ -857,6 +857,30 @@ impl Lsp {
         resp.get("result").cloned().unwrap_or(Value::Null)
     }
 
+    /// Send one request under an existing absolute deadline. Settled helpers
+    /// use this so each request, completion marker and required refresh shares
+    /// one load-scaled backstop.
+    fn request_before(
+        &mut self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+        deadline: Instant,
+    ) -> Value {
+        let id = self.send_request_no_wait(method, params);
+        let response = self.await_response_before(id, method, timeout, deadline);
+        assert!(
+            Instant::now() < deadline,
+            "timed out after {timeout:?} waiting for response to {method:?}; stderr:\n{}{}",
+            self.stderr_text(),
+            latency_barrier_timeout_note(),
+        );
+        if let Some(err) = response.get("error") {
+            panic!("{method} -> error {err}");
+        }
+        response.get("result").cloned().unwrap_or(Value::Null)
+    }
+
     /// The whole JSON-RPC response object, `error` included.
     ///
     /// [`Lsp::request`] panics on an error response, which is right for every
@@ -1539,6 +1563,16 @@ impl Lsp {
         since: usize,
     ) -> Option<String> {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.try_await_log_of_type_before(needles, message_type, deadline, since)
+    }
+
+    fn try_await_log_of_type_before(
+        &self,
+        needles: &[&str],
+        message_type: Option<i64>,
+        deadline: Instant,
+        since: usize,
+    ) -> Option<String> {
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             for note in notes.iter().skip(since) {
@@ -1626,6 +1660,15 @@ impl Lsp {
         since: usize,
     ) -> Option<Value> {
         let deadline = Instant::now() + scaled_timeout(timeout);
+        self.try_await_server_request_before(method, deadline, since)
+    }
+
+    fn try_await_server_request_before(
+        &self,
+        method: &str,
+        deadline: Instant,
+        since: usize,
+    ) -> Option<Value> {
         let mut reqs = self.shared.server_requests.lock().unwrap();
         loop {
             if let Some(req) = reqs
@@ -1746,56 +1789,74 @@ impl Lsp {
     /// refresh was warranted. A cancelled read or a repeat-suppressed refresh
     /// also re-races: neither has served the enriched stream. Only a response
     /// marked `served-enriched`, `compared-equal`, or `no-analysis` is final.
-    /// Returns the last response, so a genuine content divergence is still
-    /// reported by the caller's assertion rather than hanging here.
+    /// Missing convergence evidence or a required refresh fails within the
+    /// same deadline; genuine token-content divergence remains the caller's
+    /// assertion to report.
     pub fn semantic_tokens_settled(&mut self, uri: &str) -> Value {
         let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
+            assert!(
+                Instant::now() < deadline,
+                "semantic token full result did not settle within {DEFAULT_TIMEOUT:?} for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             let req_since = self.server_request_cursor();
             let log_since = self.notification_cursor();
-            let response = self.semantic_tokens(uri);
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return response;
-            }
-            // The server logs the marker for *every* `full` request, so this
-            // arrives promptly whichever tier answered — no fixed grace, no
-            // wall-clock guess. A miss means the server stopped talking.
-            let Some(settled) = self.try_await_log(
+            let response = self.request_before(
+                "textDocument/semanticTokens/full",
+                json!({ "textDocument": { "uri": uri } }),
+                DEFAULT_TIMEOUT,
+                deadline,
+            );
+            let Some(settled) = self.try_await_log_of_type_before(
                 &["semantic_tokens.full_convergence.settled", uri],
-                remaining,
+                None,
+                deadline,
                 log_since,
             ) else {
-                return response;
+                panic!(
+                    "semantic token full convergence marker missing before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             };
+            assert!(
+                Instant::now() < deadline,
+                "semantic token full convergence marker arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
-                // A coalesced request's holder schedules the refresh when it
-                // releases its claim, so wait for that just as we do a refresh
-                // already recorded by this request's own continuation.
-                let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
-                    .try_await_server_request(
+                    .try_await_server_request_before(
                         "workspace/semanticTokens/refresh",
-                        remaining,
+                        deadline,
                         req_since,
                     )
                     .is_none()
                 {
-                    return response;
+                    panic!(
+                        "semantic token full refresh was required but absent before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                        latency_barrier_timeout_note()
+                    );
                 }
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token full refresh arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             } else if settled.contains("outcome=served-enriched")
                 || settled.contains("outcome=compared-equal")
                 || settled.contains("outcome=no-analysis")
             {
-                // These are the only outcomes whose response is known to be
-                // final. In particular, `refresh-suppressed` has a differing
-                // enriched stream, but the server deliberately will not emit a
-                // second workspace-wide refresh for those same bytes.
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token full result settled after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
                 return response;
             }
             // A cancelled read, a repeat-suppressed refresh, or an unexpected
-            // marker has not established that this response is enriched. Loop
-            // and re-race under the existing overall deadline.
+            // marker has not established that this response is enriched. Retry
+            // only while the original request/marker/refresh deadline remains.
         }
     }
 
@@ -1828,41 +1889,74 @@ impl Lsp {
     ) -> Value {
         let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
+            assert!(
+                Instant::now() < deadline,
+                "semantic token range result did not settle within {DEFAULT_TIMEOUT:?} for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             let req_since = self.server_request_cursor();
             let log_since = self.notification_cursor();
-            let response = self.semantic_tokens_range(uri, start, end);
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return response;
-            }
-            let Some(settled) = self.try_await_log(
+            let params = json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start.0, "character": start.1 },
+                    "end": { "line": end.0, "character": end.1 },
+                },
+            });
+            let response = self.request_before(
+                "textDocument/semanticTokens/range",
+                params,
+                DEFAULT_TIMEOUT,
+                deadline,
+            );
+            let Some(settled) = self.try_await_log_of_type_before(
                 &["semantic_tokens.range_convergence.settled", uri],
-                remaining,
+                None,
+                deadline,
                 log_since,
             ) else {
-                return response;
+                panic!(
+                    "semantic token range convergence marker missing before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             };
+            assert!(
+                Instant::now() < deadline,
+                "semantic token range convergence marker arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                latency_barrier_timeout_note()
+            );
             if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
-                let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
-                    .try_await_server_request(
+                    .try_await_server_request_before(
                         "workspace/semanticTokens/refresh",
-                        remaining,
+                        deadline,
                         req_since,
                     )
                     .is_none()
                 {
-                    return response;
+                    panic!(
+                        "semantic token range refresh was required but absent before {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                        latency_barrier_timeout_note()
+                    );
                 }
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token range refresh arrived after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
             } else if settled.contains("outcome=served-enriched")
                 || settled.contains("outcome=compared-equal")
             {
+                assert!(
+                    Instant::now() < deadline,
+                    "semantic token range result settled after {DEFAULT_TIMEOUT:?} deadline for {uri}{}",
+                    latency_barrier_timeout_note()
+                );
                 return response;
             }
             // A suppressed refresh, cancelled read, or coalesced continuation
-            // establishes no enriched answer for this response. Retry under the
-            // same overall deadline rather than blessing one as the cold oracle
-            // used by convergence tests.
+            // establishes no enriched answer for this response. Retry only
+            // within the same original deadline.
         }
     }
 

@@ -1,0 +1,7 @@
+{
+  "original_bytes": 1666539,
+  "original_sha256": "e853154096e6e9b5e2956f39b30ef535eee749e759541962c5e58d9a1fdf0730",
+  "losslessly_compressed": "old-test-assertions.json.zst",
+  "compressed_sha256": "2955cf60f866f7384f131148d3337da7af592131ec934feb2ae3b77a7aded397",
+  "roundtrip_verified": true
+}

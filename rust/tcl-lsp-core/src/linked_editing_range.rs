@@ -34,9 +34,8 @@
 //! "I'm writing a recursive proc and want to rename it" case.
 
 use crate::definition::LspRange;
-use crate::hover::find_word_span_at_position;
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
 
 /// Word pattern matching the character set used for Tcl proc
@@ -70,228 +69,24 @@ pub fn linked_editing_ranges(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<LinkedEditingRanges> {
-    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
-    if !analysis.allows_lexical_declaration_advice() {
-        return original_linked_editing_ranges(source, line, character, analysis);
-    }
-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    let line_index = LineIndex::new(source);
-    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
-    {
-        return None;
-    }
-    let proc = cursor_proc(&line_index, source, line, character, &word, analysis)?;
-
-    // Every linked range must cover *identical* text (LSP contract: editing one
-    // mirrors verbatim into the others).  The declaration's name-span text is
-    // the canonical content; each call site is narrowed to the sub-span whose
-    // text equals it, so a namespace-qualified self-call (`::greet`) links only
-    // its `greet` tail — not the whole `::greet`, which would drop the `::` and
-    // corrupt the call under rename-as-you-type.
-    let decl_text = source
-        .get(proc.name_span.start() as usize..proc.name_span.end() as usize)
-        .unwrap_or("");
-    let mut ranges: Vec<LspRange> = Vec::new();
-    ranges.push(span_to_range(source, &line_index, proc.name_span));
-
-    for inv in &analysis.command_invocations {
-        // An indirect site must never live-link: its span is not the written
-        // command name.
-        if inv.indirect || !inv.lookup.is_execution_site() {
-            continue;
-        }
-        let links_to_proc = crate::references::invocation_references_proc(
-            analysis,
-            inv,
-            &proc.qualified_name,
-            proc,
-            source,
-        );
-        if !links_to_proc {
-            continue;
-        }
-        if !span_contains(proc.body_span, inv.range.start()) {
-            continue;
-        }
-        // Only link the sub-span of the call head whose source text is
-        // identical to the declaration name.
-        let Some(matched) = identical_text_subspan(source, inv.range, decl_text) else {
-            continue;
-        };
-        ranges.push(span_to_range(source, &line_index, matched));
-    }
-
-    dedup_ranges(&mut ranges);
-    if ranges.len() < 2 {
-        return None;
-    }
-    Some(LinkedEditingRanges {
-        ranges,
-        word_pattern: WORD_PATTERN.to_owned(),
-    })
-}
-
-// A linked edit mirrors source text, so both canonical declaration identity
-// and literal tail correspondence are necessary. A computed, linked alias or
-// differently escaped head cannot borrow the declaration's writable extent.
-fn original_linked_editing_ranges(
-    source: &str,
-    line: u32,
-    character: u32,
-    analysis: &AnalysisResult,
-) -> Option<LinkedEditingRanges> {
-    let config = analysis.body_lexer_config?;
-    let image = tcl_lexer::SourceImage::document(source);
-    if !analysis.matches_original_source_image(&image, config) {
-        return None;
-    }
-    let index = LineIndex::new(source);
-    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
-    if analysis
-        .original_variable_root_in_source(&image, config, cursor)
-        .is_some()
-    {
-        return None;
-    }
-    let rows = analysis
-        .original_procedure_declarations()
-        .filter_map(|record| {
-            let declaration = record.name_input();
-            let extent = original_command_tail_span(declaration)?;
-            let text = source.get(extent.as_range())?;
-            if !plain_linked_component(text) {
-                return None;
-            }
-            let mut spans = vec![extent];
-            for invocation in &analysis.command_invocations {
-                if invocation.indirect
-                    || !invocation.lookup.is_execution_site()
-                    || !span_contains(record.metadata().body_span, invocation.range.start())
-                    || !crate::original_declaration::invocation_targets_declaration(
-                        source, analysis, invocation, record, false,
-                    )
-                {
-                    continue;
-                }
-                let Some(key) = invocation
-                    .original_name_input
-                    .as_ref()
-                    .and_then(|input| input.original_word_key())
-                else {
-                    continue;
-                };
-                if key.source_image() != &image || key.lexer_config() != config {
-                    continue;
-                }
-                let Some(call) = original_command_tail_span(key) else {
-                    continue;
-                };
-                if source.get(call.as_range()) == Some(text) {
-                    spans.push(call);
-                }
-            }
-            if spans.len() < 2 || !spans.iter().any(|span| span_contains(*span, cursor)) {
-                return None;
-            }
-            Some((spans, text))
-        })
-        .collect::<Vec<_>>();
-    let [(spans, text)] = rows.as_slice() else {
-        return None;
-    };
-    let mut ranges = spans
+    let authoring = crate::original_command_rename::OriginalLinkedSourceSpelling::capture(
+        source, analysis, line, character,
+    )?;
+    let index = LineIndex::new_lsp(source);
+    let mut ranges = authoring
+        .spans()
         .iter()
         .map(|span| span_to_range(source, &index, *span))
         .collect();
     dedup_ranges(&mut ranges);
-    if ranges.len() < 2 {
-        return None;
-    }
-    Some(LinkedEditingRanges {
+    (ranges.len() >= 2).then(|| LinkedEditingRanges {
         ranges,
-        word_pattern: if text.is_ascii() {
+        word_pattern: if authoring.text().is_ascii() {
             WORD_PATTERN.to_owned()
         } else {
             r#"[^\\\s{}\[\];$":#]+"#.to_owned()
         },
     })
-}
-
-fn original_command_tail_span(
-    key: &tcl_compiler::signature_scan::scope::SignatureSourceNameKey,
-) -> Option<Span> {
-    let word = key.original_word();
-    let words = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
-        std::slice::from_ref(word),
-        key.policy().string_protocol(),
-    )
-    .ok()?;
-    if words.literal(0)? != key.bytes() {
-        return None;
-    }
-    words.original_literal_extent(0, key.policy().recipe().command_tail_extent(key.bytes())?)
-}
-
-fn plain_linked_component(text: &str) -> bool {
-    !text.is_empty()
-        && !text.chars().any(|character| {
-            character.is_whitespace()
-                || character.is_control()
-                || matches!(
-                    character,
-                    '\\' | '{' | '}' | '[' | ']' | ';' | '$' | '"' | ':' | '#'
-                )
-        })
-        && (!text.is_ascii()
-            || text
-                .as_bytes()
-                .first()
-                .is_some_and(|first| first.is_ascii_alphabetic() || *first == b'_')
-                && text
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
-}
-
-/// Select the actual declaration or written self-call under the shared reader.
-fn cursor_proc<'a>(
-    line_index: &LineIndex,
-    source: &str,
-    line: u32,
-    character: u32,
-    word: &str,
-    analysis: &'a AnalysisResult,
-) -> Option<&'a ProcDef> {
-    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
-    let (_, procedure) = crate::definition::resolve_proc_target_at(
-        analysis,
-        source,
-        cursor,
-        word,
-        crate::definition::CallResolution::document_only(),
-    )?;
-    if span_contains(procedure.name_span, cursor) {
-        return Some(procedure);
-    }
-    if !span_contains(procedure.body_span, cursor) {
-        return None;
-    }
-    let invocation = crate::definition::invocation_reference_at(analysis, cursor)?;
-    if invocation.indirect
-        || !invocation.lookup.is_execution_site()
-        || !crate::references::invocation_references_proc(
-            analysis,
-            invocation,
-            &procedure.qualified_name,
-            procedure,
-            source,
-        )
-    {
-        return None;
-    }
-    let declaration_text = source.get(procedure.name_span.as_range())?;
-    let written = identical_text_subspan(source, invocation.range, declaration_text)?;
-    span_contains(written, cursor).then_some(procedure)
 }
 
 /// The sub-span of a call-head span whose source text is *identical* to
@@ -304,6 +99,7 @@ fn cursor_proc<'a>(
 ///   declaration), the trailing-component sub-span is returned so the `::`
 ///   qualifier is preserved through the edit.
 /// * Otherwise `None` — the texts differ and linking would corrupt one side.
+#[cfg(test)]
 fn identical_text_subspan(source: &str, span: Span, decl_text: &str) -> Option<Span> {
     let text = source.get(span.start() as usize..span.end() as usize)?;
     if text == decl_text {
@@ -319,13 +115,6 @@ fn identical_text_subspan(source: &str, span: Span, decl_text: &str) -> Option<S
         return Some(Span::new(start, span.end()));
     }
     None
-}
-
-fn span_contains(span: Span, offset: u32) -> bool {
-    // `Span` is half-open `[start, end)` so `offset == span.end()`
-    // sits one byte past the span — strictly before the end is the
-    // correct containment check.
-    span.start() <= offset && offset < span.end()
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
@@ -598,5 +387,131 @@ mod original_linked_tests {
                 "{source}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_source_spelling_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed() {
+        let source = "namespace eval N {proc café {} {::N::café}}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(analysis.logical_source_procedure_declarations().count(), 1);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let cursor = u32::try_from(source.find("café").unwrap()).unwrap();
+        let index = LineIndex::new(source);
+        let position = index.position_at_utf16(cursor, source);
+        let result =
+            linked_editing_ranges(source, position.line, position.character.get(), &analysis)
+                .expect("actual Logical source header and direct original self-call");
+        assert_eq!(result.ranges.len(), 2);
+        for range in result.ranges {
+            let start = crate::definition::byte_offset_at(
+                &index,
+                source,
+                range.start_line,
+                range.start_character,
+            );
+            let end = crate::definition::byte_offset_at(
+                &index,
+                source,
+                range.end_line,
+                range.end_character,
+            );
+            assert_eq!(source.get(Span::new(start, end).as_range()), Some("café"));
+        }
+        assert!(
+            linked_editing_ranges(&format!("{source}# changed"), 0, cursor, &analysis).is_none()
+        );
+    }
+
+    #[test]
+    fn original_source_tail_geometry_refuses_changed_full_config_and_escaped_components() {
+        let source = "proc recur {} {::recur}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let declaration = analysis
+            .logical_source_procedure_declarations()
+            .next()
+            .unwrap();
+        let word = declaration.original_name_word().unwrap();
+        let span =
+            crate::original_name_edit::original_plain_source_command_tail(source, &analysis, word)
+                .expect("genuine source name word");
+        assert_eq!(source.get(span.as_range()), Some("recur"));
+        let mut changed = analysis.clone();
+        let config = changed.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(
+            crate::original_name_edit::original_plain_source_command_tail(source, &changed, word)
+                .is_none()
+        );
+        let escaped = r"proc rec\u0075r {} {recur}";
+        let analysis = Analyser::new().analyse(escaped, "tcl");
+        let declaration = analysis
+            .logical_source_procedure_declarations()
+            .next()
+            .unwrap();
+        assert!(
+            crate::original_name_edit::original_plain_source_command_tail(
+                escaped,
+                &analysis,
+                declaration.original_name_word().unwrap(),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry() {
+        let source = "set z 0;\rproc recur {} {recur}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let linked = linked_editing_ranges(source, 1, 6, &analysis)
+            .expect("actual declaration and self-call after a lone CR");
+        assert_eq!(linked.ranges.len(), 2);
+        let index = LineIndex::new_lsp(source);
+        for range in linked.ranges {
+            assert_eq!(range.start_line, 1);
+            assert_eq!(range.end_line, 1);
+            let start = crate::definition::byte_offset_at(
+                &index,
+                source,
+                range.start_line,
+                range.start_character,
+            );
+            let end = crate::definition::byte_offset_at(
+                &index,
+                source,
+                range.end_line,
+                range.end_character,
+            );
+            assert_eq!(source.get(Span::new(start, end).as_range()), Some("recur"));
+        }
+    }
+
+    #[test]
+    fn linked_spelling_rejects_surrogate_interior_cursor_and_same_named_data() {
+        let source = "proc p {} {puts p; p}\n# 😀";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let index = LineIndex::new(source);
+        let data = u32::try_from(source.find("puts p").unwrap() + 5).unwrap();
+        let data = index.position_at_utf16(data, source);
+        assert!(
+            linked_editing_ranges(source, data.line, data.character.get(), &analysis).is_none()
+        );
+        assert!(linked_editing_ranges(source, 1, 3, &analysis).is_none());
+        let call = u32::try_from(source.rfind("; p").unwrap() + 2).unwrap();
+        let call = index.position_at_utf16(call, source);
+        assert_eq!(
+            linked_editing_ranges(source, call.line, call.character.get(), &analysis)
+                .unwrap()
+                .ranges
+                .len(),
+            2
+        );
     }
 }

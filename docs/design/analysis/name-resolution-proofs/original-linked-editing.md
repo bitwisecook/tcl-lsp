@@ -90,3 +90,46 @@ Current source linkage supplies no execution or assertion credit.
 ## Replay
 
 The named fixed Rust selectors are reproducible source contract checks. Their execution is not asserted by this record. Native experiments are independently scoped.
+
+
+## Intentional current-source spelling authoring
+
+The linked-edit request now selects `OriginalLinkedSourceSpelling` in the
+existing command edit owner. It is an explicit request to mirror the same plain
+source component across one actual declaration and observed direct self-calls.
+A future replacement is not supplied at this point. The policy therefore
+promises source spelling correspondence only; prospective name collisions,
+observers of the future spelling and complete rename equivalence remain unknown.
+Those obligations stay with the separately invoked semantic rename planner.
+
+Current Native selection uses original declaration identity, original direct
+call allocation and the existing atomic command preparation guard, including
+its current publication, observer/link and coverage refusals. Logical selection
+uses the actual retained header and original call's own definition transition,
+complete argv/input and scope recipe. Unknown applicability, captured aliases
+and move lineage cannot select linked calls. Logical selection is source
+intention, never a Native publication or executed lookup assertion; missing
+source advice remains unavailable, not complete absence.
+
+The existing whole-source edit geometry owner retains the actual source word.
+Its source-only component projection requires exact image/config and original
+word reborrow, unchanged Unicode content and the shared command-parts parser.
+It does not recover qualifiers from a reporting name, create a Native word or
+map decoded escapes into Document coordinates. Native byte components continue
+through the existing original value-span owner. Both paths require identical
+plain text and an exact round-tripping UTF-16 cursor. The consumer no longer
+uses the legacy qualified-String suffix to issue live ranges; that old helper
+is compiled only for its unchanged historical fixed controls.
+
+New fixed source controls exercise retained Logical header/direct-call ranges
+after report maps are removed, full-config and escaped-field refusal, exact
+cursor selection and same-named data. They are unexecuted source obligations.
+Native authoring may now withhold ranges when the existing full preparation
+owner cannot close current source obligations. No runtime/provider acceptance,
+complete future-name policy or verified-completion claim follows.
+
+
+The current source position and range output both use the shared LSP line
+index. A lone CR advances the LSP line in both directions; source byte spans
+remain unchanged. The added fixed lone-CR control checks actual linked source
+ranges without replacing any original LF/Unicode assertion.

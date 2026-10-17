@@ -794,9 +794,10 @@ fn hover_impl(
 ) -> Option<Hover> {
     let registry = ctx.registry;
     // One index shared by the position conversions below.
-    let line_index = tcl_lexer::LineIndex::new(source);
-
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let line_index = tcl_lexer::LineIndex::new_lsp(source);
+    let cursor_offset =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
+            .offset();
     if let std::ops::ControlFlow::Break(selected) =
         crate::vendor_declaration::select_at_offset(source, analysis, cursor_offset)
     {
@@ -918,16 +919,24 @@ fn hover_impl(
         return Some(hover);
     }
 
-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    if let Some(text) = original_linked_member_hover_text(source, analysis, &word, cursor_offset) {
+    let word =
+        crate::source_structure::original_complete_cursor_word(source, analysis, cursor_offset)
+            .and_then(|word| word.static_unicode_value());
+    if let Some(word) = word.as_deref()
+        && let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset)
+    {
         return Some(Hover::markdown(text));
     }
     if !analysis.allows_lexical_declaration_advice() {
+        // Registry operands may have their own genuine expansion/list-child
+        // geometry. A standalone static-word label is not their prerequisite.
         return original_registry::hover(source, analysis, cursor_offset).or_else(|| {
-            let (word, _, _) = find_word_span_at_position(source, line, character)?;
-            ip_address_hover_text(&word).map(Hover::markdown)
+            word.as_deref()
+                .and_then(ip_address_hover_text)
+                .map(Hover::markdown)
         });
     }
+    let word = word?;
 
     // `$obj m` / `my m` method-dispatch hover, including the per-object
     // visibility mask — `Break(None)` is a definitive
@@ -6705,5 +6714,42 @@ mod logical_math_source_hover_tests {
         assert!(math_function_hover(&format!("{source} "), &analysis, offset).is_none());
         let native = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         assert!(math_function_hover(source, &native, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_hover_independent_registry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn actual_expansion_child_registry_hover_does_not_require_a_static_parent_word() {
+        // Exact existing Registry expansion-child positive; its genuine child
+        // owner is independent of the expanded containing word's label.
+        let source = "string {*}{length value}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_procs.clear();
+        analysis.all_classes.clear();
+        analysis.command_invocations.clear();
+        let cursor = u32::try_from(source.find("length").unwrap() + 1).unwrap();
+        assert!(!analysis.allows_lexical_declaration_advice());
+        assert!(
+            crate::source_structure::original_complete_cursor_word(source, &analysis, cursor)
+                .and_then(|word| word.static_unicode_value())
+                .is_none()
+        );
+        let original = original_registry::hover(source, &analysis, cursor)
+            .expect("actual original expansion-child Registry owner");
+        assert!(original.value.contains("`string length`"));
+        let position = tcl_lexer::LineIndex::new_lsp(source).position_at_utf16(cursor, source);
+        let selected = hover(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            None,
+        )
+        .expect("independent Registry branch remains reachable");
+        assert_eq!(selected.value, original.value);
     }
 }

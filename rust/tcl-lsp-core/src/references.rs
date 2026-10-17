@@ -3497,31 +3497,48 @@ use crate::definition::class_definer_family;
 /// `::app::Factory`, and the same text written at the top level (where only
 /// `::app::Factory` exists) reaches nothing at all.
 fn itcl_class_proc_call_sites(
+    source: &str,
     analysis: &AnalysisResult,
     _dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     member: &str,
 ) -> Vec<tcl_lexer::Span> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let image = tcl_lexer::SourceImage::document(source);
+    let Some(realm) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
     analysis
         .command_invocations
         .iter()
         .filter_map(|inv| {
+            if !inv.lookup.is_execution_site() {
+                return None;
+            }
+            let (word, head) = realm.original_written_word_at_span_in_source(
+                &image,
+                inv.range,
+                current.config(),
+            )?;
+            if head != word.span().start() || word.group().expand {
+                return None;
+            }
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(&word)?;
+            let written = std::str::from_utf8(&value).ok()?;
             let namespace = crate::definition::namespace_context_at(
                 &analysis.global_scope,
-                inv.range.start(),
+                word.span().start(),
                 &analysis.namespace_overrides,
             );
             let (target_class, target_member) =
-                crate::definition::itcl_class_proc_target(analysis, &namespace, &inv.name)?;
+                crate::definition::itcl_class_proc_target(analysis, &namespace, written)?;
             if target_class != class_q || target_member != member {
                 return None;
             }
-            let tail = tcl_syntax::naming::written_command_tail(inv.name.as_bytes());
-            let tail_len = u32::try_from(tail.len()).ok()?;
-            Some(tcl_lexer::Span::new(
-                inv.range.end().saturating_sub(tail_len),
-                inv.range.end(),
-            ))
+            crate::original_name_edit::original_plain_source_command_tail(source, analysis, &word)
         })
         .collect()
 }
@@ -3603,7 +3620,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         && analysis.all_classes.get(class_q).is_some_and(|cd| {
             class_definer_family(analysis, cd) == Some(tcl_registry::definer::DefinerFamily::Itcl)
         }) {
-        itcl_class_proc_call_sites(analysis, dialect, class_q, method)
+        itcl_class_proc_call_sites(source, analysis, dialect, class_q, method)
     } else {
         Vec::new()
     };
@@ -8951,5 +8968,65 @@ mod configured_callback_variable_tests {
                 "{operand}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod itcl_original_source_geometry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn itcl_proc_sites_keep_actual_quoted_and_braced_tail_geometry() {
+        for call in ["Factory::make", "{Factory::make}", "\"Factory::make\""] {
+            let source = format!("itcl::class Factory {{proc make {{}} {{return 1}}}}\n{call}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+            let spans =
+                itcl_class_proc_call_sites(&source, &analysis, profile, "::Factory", "make");
+            let start = u32::try_from(source.rfind("make").unwrap()).unwrap();
+            assert_eq!(
+                spans,
+                vec![tcl_lexer::Span::new(start, start + 4)],
+                "{call}"
+            );
+        }
+    }
+
+    #[test]
+    fn itcl_proc_sites_refuse_dynamic_expanded_foreign_and_missing_inputs() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for call in [
+            "Factory::$member",
+            "Factory::ma[set suffix]",
+            "{*}{Factory::make}",
+            "Factory::m\\ake",
+        ] {
+            let source = format!("itcl::class Factory {{proc make {{}} {{return 1}}}}\n{call}");
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            assert!(
+                itcl_class_proc_call_sites(&source, &analysis, profile, "::Factory", "make")
+                    .is_empty(),
+                "{call}"
+            );
+        }
+        let source = "itcl::class Factory {proc make {} {return 1}}\nFactory::make";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            itcl_class_proc_call_sites(
+                &source.replace("return 1", "return 2"),
+                &analysis,
+                profile,
+                "::Factory",
+                "make"
+            )
+            .is_empty()
+        );
+        analysis.resolved_input = None;
+        assert!(
+            itcl_class_proc_call_sites(source, &analysis, profile, "::Factory", "make").is_empty()
+        );
     }
 }

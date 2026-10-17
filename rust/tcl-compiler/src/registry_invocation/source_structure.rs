@@ -266,6 +266,9 @@ pub enum OriginalRegistrySource {
     Selected,
     /// Exact scoped command vocabulary from a retained original body issuer.
     Scoped(std::sync::Arc<super::source_scoped_body::OriginalSourceScopedCommandSchema>),
+    /// Closed document member selected under its genuine original parent.
+    /// This authoring schema carries no runtime lookup or evaluation purpose.
+    DefinitionMember(std::sync::Arc<super::source_scoped_body::OriginalSourceScriptBody>),
     /// Authored source tape retains its naming purpose, original operands,
     /// source order and any alias/move lineage with conditional premises.
     SourceTransitions(
@@ -728,6 +731,29 @@ impl OriginalRegistryWords {
         let invocation = self
             .dialect
             .map_or(invocation, |dialect| invocation.with_dialect(dialect));
+        if let OriginalRegistrySource::DefinitionMember(parent) = &self.source {
+            if !parent.matches_source(&self.image, self.config) || !parent.matches_context(context)
+            {
+                return None;
+            }
+            let grammar = parent
+                .source_words()
+                .with_source_schema(context, source_definition_body_grammar)
+                .flatten()?;
+            let descriptor = context
+                .commands()
+                .authored_document_member_descriptor(grammar, &self.command)?;
+            let selected = tcl_registry::registry::resolve_source_descriptor_invocation(
+                descriptor,
+                invocation,
+                context.commands().source_descriptor_availability(
+                    descriptor,
+                    Some(context.context().authoring_query()),
+                ),
+                self.dialect.map(|dialect| dialect.numbers),
+            );
+            return Some(project(&selected));
+        }
         if let OriginalRegistrySource::Scoped(scoped) = &self.source {
             if scoped.body().context() != context.context()
                 || !scoped.body().matches_source(&self.image, self.config)
@@ -1412,6 +1438,27 @@ pub fn source_registry_words(
     analysis: &AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
+    source_registry_words_with_definition_parent(source, analysis, segment, None)
+}
+
+/// Same source schema issuer with the actual enclosing definition-body receipt.
+/// The original full argv must reborrow from that parent's complete body plan.
+#[must_use]
+pub fn source_registry_words_in_definition_body(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    source_registry_words_with_definition_parent(source, analysis, segment, Some(parent))
+}
+
+fn source_registry_words_with_definition_parent(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: Option<&super::source_scoped_body::OriginalSourceScriptBody>,
+) -> Option<OriginalRegistryWords> {
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = segment.argv.first().map(|word| word.span.start());
@@ -1468,6 +1515,9 @@ pub fn source_registry_words(
     if blocked {
         return None;
     }
+    if let Some(parent) = parent {
+        return original_definition_member_registry_words(source, analysis, segment, parent);
+    }
     if let Some(scoped) = original_scoped_registry_words(source, analysis, segment) {
         return Some(scoped);
     }
@@ -1521,6 +1571,71 @@ pub fn source_registry_words(
     })
 }
 
+fn source_definition_body_grammar(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    schema.authored_source_definition_body_grammar()
+}
+
+fn original_definition_member_registry_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    if config != input.lexer_config() || segment.is_partial {
+        return None;
+    }
+    let context = input.context_registry();
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input) {
+        return None;
+    }
+    let image = retained_document_image(source, realm, config)?;
+    if !parent.matches_source(&image, config) || !parent.matches_context(&context) {
+        return None;
+    }
+    let region = parent.definition_member_region(&context, parent.content_span())?;
+    region.complete_original_commands()?;
+    let offset = segment.argv.first()?.span.start();
+    let original = region.original_command_words_at(offset)?;
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let selected = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    if selected != original {
+        return None;
+    }
+    let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(original.first()?)?;
+    let name = std::str::from_utf8(&name).ok()?;
+    let grammar = parent
+        .source_words()
+        .with_source_schema(&context, |schema| {
+            schema.authored_source_definition_body_grammar()
+        })
+        .flatten()?;
+    context
+        .commands()
+        .authored_document_member_descriptor(grammar, name)?;
+    original_source_schema_words(
+        &tokens,
+        original,
+        name.to_owned(),
+        OriginalRegistrySource::DefinitionMember(std::sync::Arc::new(parent.clone())),
+        &context,
+    )
+}
+
 fn original_scoped_registry_words(
     source: &str,
     analysis: &AnalysisResult,
@@ -1553,6 +1668,25 @@ fn original_scoped_registry_words(
     let name = tcl_syntax::word_rules::original_static_word_ascii_presentation(first)?;
     let name = std::str::from_utf8(&name).ok()?;
     let schema = super::source_scoped_body::OriginalSourceScopedCommandSchema::select(body, name)?;
+    original_source_schema_words(
+        &tokens,
+        &original,
+        schema.command().name.to_owned(),
+        OriginalRegistrySource::Scoped(std::sync::Arc::new(schema)),
+        &context,
+    )
+}
+
+fn original_source_schema_words(
+    tokens: &crate::ir::CommandTokens,
+    original: &[tcl_lexer::NativeWord],
+    command: String,
+    source: OriginalRegistrySource,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<OriginalRegistryWords> {
+    let first = original.first()?;
+    let image = first.image().clone();
+    let config = first.config();
     let arguments = original
         .iter()
         .skip(1)
@@ -1588,11 +1722,11 @@ fn original_scoped_registry_words(
         word: Some(first.clone()),
     });
     let mut words = OriginalRegistryWords {
-        command: schema.command().name.to_owned(),
+        command,
         dialect: tokens
             .source_binding
             .as_ref()
-            .and_then(|binding| binding.original_source_word_dialect_for_tokens(&tokens)),
+            .and_then(|binding| binding.original_source_word_dialect_for_tokens(tokens)),
         arguments,
         operands,
         origins: (0..original.len())
@@ -1600,7 +1734,7 @@ fn original_scoped_registry_words(
             .collect(),
         head,
         roles: None,
-        source: OriginalRegistrySource::Scoped(std::sync::Arc::new(schema)),
+        source,
         captured_values: None,
         operands_preserve_source_lookup: false,
         image,
@@ -1609,7 +1743,7 @@ fn original_scoped_registry_words(
         context: Some(context.context().clone()),
     };
     words.roles = words
-        .with_source_schema(&context, |schema| {
+        .with_source_schema(context, |schema| {
             let (roles, complete) = schema.authored_source_argument_roles();
             conditional_roles(&roles, schema.semantics.argument_offset, complete)
         })
@@ -3217,7 +3351,7 @@ fn conditional_source_operands(
                             word, head.word_value_rules(), head.policy())
                             .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
                     },
-                    OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
+                    OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::DefinitionMember(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
                 },
                 word: Some(word.clone()),
             })
@@ -3260,6 +3394,7 @@ fn conditional_source_registry_words(
     realm.stamp_original_tokens(&mut tokens);
     let dialect = match &origin {
         OriginalRegistrySource::Scoped(_)
+        | OriginalRegistrySource::DefinitionMember(_)
         | OriginalRegistrySource::Vendor(_)
         | OriginalRegistrySource::SourceTransitions(_)
         | OriginalRegistrySource::ProducedPrefix(_) => None,
@@ -3292,6 +3427,7 @@ fn conditional_source_registry_words(
             OriginalRegistrySource::Selected
             | OriginalRegistrySource::ConditionalNativeSource(_)
             | OriginalRegistrySource::Scoped(_)
+            | OriginalRegistrySource::DefinitionMember(_)
             | OriginalRegistrySource::Vendor(_)
             | OriginalRegistrySource::SourceTransitions(_)
             | OriginalRegistrySource::ProducedPrefix(_) => None,

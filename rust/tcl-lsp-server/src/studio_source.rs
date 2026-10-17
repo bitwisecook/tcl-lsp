@@ -233,7 +233,7 @@ pub(super) struct StudioSourceSnapshot {
 }
 
 impl DocumentPathAdmission {
-    fn with_current_saved_sources<T>(
+    pub(super) fn with_current_saved_sources<T>(
         sources: &[(&Self, &[u8])],
         store: &dyn vfs::SourceStore,
         mut publish: impl FnMut() -> T,
@@ -921,7 +921,9 @@ mod retirement_publication_tests {
             "/studio/.tcl-lsp/.spec-studio/panel/active.tclspec",
             source.as_bytes().to_vec(),
         );
-        let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
+        let (service, socket) = tower_lsp_server::LspService::new(Backend::new);
+        // Match the existing test helper: no client transport is driven here.
+        drop(socket);
         let backend = Backend::with_store(service.inner().client.clone(), store.clone());
         *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///studio").unwrap()];
         let acquired = request(

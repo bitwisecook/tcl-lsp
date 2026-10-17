@@ -1,0 +1,193 @@
+diff --git a/docs/design/contracts/naming-consumer-matrix.md b/docs/design/contracts/naming-consumer-matrix.md
+index ebd2ea5a7..87b34533a 100644
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -19,6 +19,7 @@ observer closure, current implementation, compiler selection or editable span.
+ | --- | --- | --- |
+ | New compacted source names | Syntax `AuthoredCompactNameSequence` with existing configured literal-word/scalar-reference constructors | Minifier procedure, local, formal and aggressive command/argument/string aliases preserve length-first order, exact observed collision rejection and caller budgets. Partial inventories remain partial; an accepted new spelling proves no existing identity, availability, unused name, Native alpha, frame transparency or edit permission. |
+ | Selected catalogue completion descriptors | `ResolvedContext::resolve_spec`; existing `OoFrame` predicate | The actual current document availability selects one descriptor retained through all builtin catalogue filters and rendering. Definition vocabulary admission stays independent, while optional member documentation uses the same context. Inherited Registry instance-method provider/package ownership remains separate; no runtime slot, dispatch, method frame, Normal or edit authority follows. |
++| Node dialect metadata projection currency | Existing `LanguageClient` session generation; original `TextDocument` URI, version and full text; monotonic dialect request identity; `dialectMetadataGeneration` | `getEffectiveConfig` and `listDialects` answers apply only while their issuing client/session/configuration and latest request remain current. A document projection also retains the same URI, version, full source and focused/open document. Stale answers leave the UI fallback in place; fallback labels remain display advice, and an intentional session override remains a separate configuration action. |
+ | CLI edit and compile source admission | `InputDocument::require_faithful_source`; original `DecodeReport` | Format, optimise, minify, minimize, disassembly and WASM compilation require every input to retain source information before output or sidecars. Literal U+FFFD remains faithful; diagnostic decoding policy is independent. |
+ | Source-only nominal name hazards | Registry `nominal_source_command_name_hazards`; actual original operand coordinates | iRules object-candidate withdrawal only. Descriptor presence does not grant availability, execution tombstones, unknown operand interpretation or normal completion. |
+ | Typed codegen list iteration | Existing `LoopNode`/`IterationBindings`; `cfg_builder::matches_foreach_header` | Emitter joins current source/CFG/header/condition/edges; missing correspondence requires existing provider-required refusal. Reported names and block labels supply no operation identity. |
+diff --git a/editors/vscode/src/extension.ts b/editors/vscode/src/extension.ts
+index bcf6d519c..9c8b1c83c 100644
+--- a/editors/vscode/src/extension.ts
++++ b/editors/vscode/src/extension.ts
+@@ -163,6 +163,9 @@ let outputChannel: vscode.OutputChannel;
+ let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
+ let currentDiagnosticsClientGeneration:
+   { client: LanguageClient; value: number; identity: object } | undefined;
++let dialectMetadataGeneration = 0;
++let dialectRefreshGeneration = 0;
++let dialectChoicesRefreshGeneration = 0;
+ 
+ function getOutputChannel(): vscode.OutputChannel {
+   if (!outputChannel) {
+@@ -304,6 +307,7 @@ export async function activate(context: ExtensionContext) {
+         }),
+       convert: (diagnostics) => activeClient.protocol2CodeConverter.asDiagnostics(diagnostics),
+       setSessionDialectOverride: async (dialect) => {
++        dialectMetadataGeneration += 1;
+         await activeClient.sendRequest("workspace/executeCommand", {
+           command: "tcl-lsp.setSessionDialectOverride",
+           arguments: dialect === null ? [] : [dialect],
+@@ -367,7 +371,10 @@ export async function activate(context: ExtensionContext) {
+   // the browser entry.
+   context.subscriptions.push(
+     workspace.onDidChangeConfiguration((e) => {
+-      if (e.affectsConfiguration("tclLsp")) invalidateAnalysisContext();
++      if (e.affectsConfiguration("tclLsp")) {
++        dialectMetadataGeneration += 1;
++        invalidateAnalysisContext();
++      }
+       if (e.affectsConfiguration("tclLsp.dialect")) {
+         // The setting changed (``tclLsp.selectDialect``, or the user editing
+         // settings.json).  The server picks it up from its own
+@@ -881,12 +888,15 @@ function serverIsRunning(): boolean {
+ }
+ 
+ /** The server's ``tcl-lsp.getEffectiveConfig`` answer for *document*, or ``undefined`` if it cannot say. */
+-async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
+-  if (!serverIsRunning()) {
++async function effectiveConfigFor(
++  document: TextDocument,
++  requestClient = client,
++): Promise<unknown> {
++  if (!requestClient?.isRunning()) {
+     return undefined;
+   }
+   try {
+-    return await client.sendRequest("workspace/executeCommand", {
++    return await requestClient.sendRequest("workspace/executeCommand", {
+       command: "tcl-lsp.getEffectiveConfig",
+       arguments: [document.uri.toString()],
+     });
+@@ -903,20 +913,57 @@ async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
+  * ``package require``, content, extension) per document; nothing here repeats it.
+  */
+ async function effectiveDialectFor(document: TextDocument): Promise<DialectChoice> {
+-  const answered = dialectFromEffectiveConfig(await effectiveConfigFor(document), dialectChoices);
+-  return answered ?? fallbackDialectForDocument(document);
++  const activeClient = client;
++  const session = currentDiagnosticsClientGeneration;
++  if (!activeClient?.isRunning() || session?.client !== activeClient) {
++    return fallbackDialectForDocument(document);
++  }
++  const uri = document.uri.toString();
++  const version = document.version;
++  const source = document.getText();
++  const sessionGeneration = session.value;
++  const metadataGeneration = dialectMetadataGeneration;
++  const answered = dialectFromEffectiveConfig(
++    await effectiveConfigFor(document, activeClient),
++    dialectChoices,
++  );
++  const stillCurrent =
++    client === activeClient &&
++    currentDiagnosticsClientGeneration === session &&
++    session.value === sessionGeneration &&
++    dialectMetadataGeneration === metadataGeneration &&
++    activeClient.isRunning() &&
++    document.uri.toString() === uri &&
++    document.version === version &&
++    document.getText() === source;
++  return (stillCurrent && answered) || fallbackDialectForDocument(document);
+ }
+ 
+ /** Read the server's dialect list, keeping the catalogue when it cannot be read. */
+ async function refreshDialectChoices(): Promise<void> {
+-  if (!serverIsRunning()) {
++  const activeClient = client;
++  const session = currentDiagnosticsClientGeneration;
++  if (!activeClient?.isRunning() || session?.client !== activeClient) {
+     return;
+   }
++  const requestGeneration = ++dialectChoicesRefreshGeneration;
++  const sessionGeneration = session.value;
++  const metadataGeneration = dialectMetadataGeneration;
+   try {
+-    const listed = await client.sendRequest("workspace/executeCommand", {
++    const listed = await activeClient.sendRequest("workspace/executeCommand", {
+       command: "tcl-lsp.listDialects",
+       arguments: [],
+     });
++    if (
++      requestGeneration !== dialectChoicesRefreshGeneration ||
++      client !== activeClient ||
++      currentDiagnosticsClientGeneration !== session ||
++      session.value !== sessionGeneration ||
++      dialectMetadataGeneration !== metadataGeneration ||
++      !activeClient.isRunning()
++    ) {
++      return;
++    }
+     dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+   } catch {
+     // The catalogue stays.
+@@ -931,20 +978,46 @@ let dialectRefreshTimer: NodeJS.Timeout | undefined;
+  * for the document go first.  A later request supersedes an earlier one.
+  */
+ function scheduleDialectRefresh(document: TextDocument): void {
++  const requestGeneration = ++dialectRefreshGeneration;
+   if (dialectRefreshTimer) {
+     clearTimeout(dialectRefreshTimer);
+   }
+   dialectRefreshTimer = setTimeout(() => {
+     dialectRefreshTimer = undefined;
+-    if (window.activeTextEditor?.document !== document) {
++    const activeClient = client;
++    const session = currentDiagnosticsClientGeneration;
++    if (
++      requestGeneration !== dialectRefreshGeneration ||
++      window.activeTextEditor?.document !== document ||
++      !activeClient?.isRunning() ||
++      session?.client !== activeClient
++    ) {
+       return;
+     }
++    const uri = document.uri.toString();
++    const version = document.version;
++    const source = document.getText();
++    const sessionGeneration = session.value;
++    const metadataGeneration = dialectMetadataGeneration;
+     void (async () => {
+       const answered = dialectFromEffectiveConfig(
+-        await effectiveConfigFor(document),
++        await effectiveConfigFor(document, activeClient),
+         dialectChoices,
+       );
+-      if (answered && window.activeTextEditor?.document === document) {
++      if (
++        answered &&
++        requestGeneration === dialectRefreshGeneration &&
++        client === activeClient &&
++        currentDiagnosticsClientGeneration === session &&
++        session.value === sessionGeneration &&
++        dialectMetadataGeneration === metadataGeneration &&
++        activeClient.isRunning() &&
++        document.uri.toString() === uri &&
++        document.version === version &&
++        document.getText() === source &&
++        workspace.textDocuments.includes(document) &&
++        window.activeTextEditor?.document === document
++      ) {
+         setActiveDialect(answered);
+       }
+     })();
+@@ -1004,6 +1077,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
+     return;
+   }
+ 
++  dialectMetadataGeneration += 1;
+   await client.sendNotification("workspace/didChangeConfiguration", {
+     settings: { tclLsp: { dialect } },
+   });
+@@ -1039,6 +1113,7 @@ function updateSessionOverrideLabel(dialect: string | null): void {
+ 
+ export async function setSessionDialectOverride(dialect: string | null): Promise<void> {
+   if (!client) return;
++  dialectMetadataGeneration += 1;
+   await setUnleasedSessionDialectOverride(dialect);
+ }
+ 

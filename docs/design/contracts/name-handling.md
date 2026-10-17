@@ -2308,3 +2308,98 @@ or manually assembled rewrite provenance leaves diagnostic presentation intact
 without a rewrite payload. Wire associations are presentation data and confer no
 Native or edit permission: code actions repeat the Core issuer/currentness checks
 and document application retains its existing versioned source lease.
+
+### Hover whole-word presentation geometry
+
+The live hover word gate rejoins the existing configured original word cursor
+with its actual complete NativeWord vector, argv ordinal and selected script
+region under CurrentSourceContext. CurrentSourcePosition rejects clamped or
+surrogate-interior positions; LSP line geometry includes lone CR. Whole static
+Unicode values are presentation/query data only. A computed tail after a
+substitution closer is not recovered by scanning delimiters or stripping `::`.
+No value supplies declaration identity, Native dispatch, absence or edit
+permission. The public standalone delimiter helper and its other legacy callers
+remain compatibility paths pending their separate migrations.
+
+The hover static-word label remains optional before the independent original
+Registry branch. Actual selected expansion/list-child operand owners may supply
+Registry cards when their containing expanded word has no standalone static
+label. Earlier linked-member priority is retained when a static label exists;
+Registry cards retain their own complete source/schema/origin guards.
+
+
+Linked procedure spelling is an intentional current-source authoring operation
+issued by the existing original command edit owner. It links a genuine header
+and observed direct self-call operands with identical plain components. Native
+inputs retain the atomic preparation owner's current publication, coverage and
+observer checks. Logical inputs retain their actual source definition/header,
+whole call vector/input/scope and unresolved applicability; aliases, captured
+prefixes and move lineage cannot donate ranges. No reporting qualified name
+selects an editable extent. Future text is absent from the linked-edit request,
+so prospective collisions, future name observers and semantic rename equivalence
+remain unknown; linked source intention grants no Native invocation or complete
+reference coverage. The separate semantic rename planner remains responsible
+for its independently supplied new-name obligations.
+
+### Configured coarse semantic-token source
+
+The post-budget/cancelled Tcl full-token fallback uses the existing per-resource
+FreshAnalysisDriver, selecting structure-only analysis without rebuilding input
+from a profile label. The complete actual source/configuration/Registry and
+resource/factory input owner travels in a private coarse receipt through the
+existing readonly source-state/SourceStore final transaction. Both full and delta
+cache mutation and response construction occur within that same final lease;
+changed or busy ownership returns explicit unavailability, never fake empty data.
+The existing enriched, embedded APL/BIG-IP, unindexed and range paths retain their
+independent behavior. A coarse syntax stream or convergence marker proves no
+complete analysis, clean diagnostics, Native availability, binding or edit grant.
+
+The new semantic structure purpose uses the same fresh-source capture and matcher
+as workspace readonly reporting. Its actual unchanged open orphan buffer remains
+a valid source-presentation snapshot; it does not contribute workspace facts.
+Existing readonly workspace/reference orphan predicates are unchanged. The
+private capture helper and FreshAnalysisDriver::into_structure_only implement
+these two explicit purposes beneath the existing owner, not a second freshness
+resolver or token store. Positive/current-source and changed-version/resource
+controls are source definitions until separately executed.
+
+The new coarse cache/wire receipt requires an actual open document. A closed
+path address alone supplies no unchanged-source-byte owner; closed fallback
+without the separately retained published source counterpart is unavailable,
+not an empty stream. This is a partial migration of the existing generic
+semantic fallback purpose, with closed and range paths explicitly unclaimed.
+
+A pending per-document dialect-resolution generation also withholds the coarse
+receipt. Equal current source bytes and global input epoch cannot donate the
+previous dialect while the actual resource selection is unresolved.
+
+The legacy library merge retains the existing workspace-symbol database or
+configured fresh-analysis receipt for each actual provider document. Final
+publication uses the existing readonly source-state transaction, joining full
+analysis input, configuration, factory generation, original path admissions and
+saved source images before synchronously updating the index, rehoming seeds and
+autoloaded URI set. The original-library route keeps its existing mandatory
+caller receipt. Filesystem providers without saved-image leases, and open
+filesystem images differing from their saved source, conservatively refuse this
+legacy publication; pathless editor sources retain their existing open owner.
+
+Logical procedure definition navigation joins an actual original source call to
+its retained definition transition and independently genuine procedure header.
+Alias prefixes, moves and superseded declarations retain that source allocation;
+terminal names and final reporting procedure maps cannot select it. Declaration
+cursors use the genuine original header word. Missing call/header/input owners
+withhold procedure navigation rather than renewing a reporting name. The
+existing Native command-reference branch and independent class/member consumers
+retain their own purposes. This readonly source advice supplies no installed
+command, execution, complete occupancy, Native binding or edit permission.
+
+Closed document definition traversal retains its actual original parent body
+when selecting a nested member schema. The Compiler source-registry issuer
+reborrows the complete original child argv from that parent's complete command
+plan, under the same source image, lexer configuration, analysis input and
+Registry generation. Registry's existing document-member relation reborrows the
+child descriptor only from the actual closed vocabulary and same document
+family. The generic no-parent source-registry entry keeps its existing refusals.
+The retained DefinitionMember facet of OriginalRegistrySource supplies authoring
+syntax only; it grants no Native invocation, frame, effect, runtime lookup or
+absence, and refuses potential-evaluation and mutation-coverage projections.

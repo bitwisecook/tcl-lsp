@@ -3108,12 +3108,25 @@ impl CommandRegistry {
         current: &DefinitionBodyGrammar,
         keyword: &str,
     ) -> Option<&'static DefinitionBodyGrammar> {
+        self.authored_document_member_descriptor(current, keyword)?
+            .definition_body
+    }
+
+    /// Descriptor reborrow through this Registry's actual closed document
+    /// member relation. This grants source vocabulary, never global lookup.
+    #[must_use]
+    pub fn authored_document_member_descriptor(
+        &self,
+        current: &DefinitionBodyGrammar,
+        keyword: &str,
+    ) -> Option<&'static CommandSpec> {
         let document = self.document_grammar()?;
         if current.family != document.family || !current.is_member(keyword) {
             return None;
         }
-        let nested = self.get(keyword)?.definition_body?;
-        (nested.family == document.family).then_some(nested)
+        let descriptor = self.get(keyword)?;
+        let nested = descriptor.definition_body?;
+        (nested.family == document.family).then_some(descriptor)
     }
 
     /// The first constructor-payload argument for manufacturer `word`, when

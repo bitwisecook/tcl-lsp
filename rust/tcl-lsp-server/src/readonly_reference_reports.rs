@@ -41,6 +41,30 @@ pub(super) struct WorkspaceSymbolSourceAnalysis {
     kind: WorkspaceSymbolAnalysisKind,
 }
 
+/// Coarse token syntax retains the same genuine fresh-source currency owner
+/// as readonly reports; it never represents enriched semantic completion.
+pub(super) struct CoarseSemanticTokenSource {
+    analysis: WorkspaceSymbolSourceAnalysis,
+    inputs_epoch: u64,
+    factory_generation: u64,
+}
+
+impl CoarseSemanticTokenSource {
+    /// Actual configured structure-only analysis; no enriched completion grant.
+    pub(super) fn analysis(&self) -> &AnalysisResult {
+        match &self.analysis.kind {
+            WorkspaceSymbolAnalysisKind::Fresh(document) => &document.seed.analysis,
+            WorkspaceSymbolAnalysisKind::Database(document) => &document.analysis,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FreshSourceAnalysisPurpose {
+    ReadonlyComplete,
+    SemanticStructure,
+}
+
 /// Currency for an ordinary source action; Core still owns action admissibility.
 pub(super) struct OriginalCodeActionSource {
     uri: Uri,
@@ -87,6 +111,7 @@ enum WorkspaceSymbolAnalysisKind {
 }
 
 struct WorkspaceSymbolFreshInput {
+    purpose: FreshSourceAnalysisPurpose,
     uri: Uri,
     snapshot: super::DocumentState,
     was_open: bool,
@@ -455,6 +480,22 @@ impl Backend {
                 }));
         }
 
+        self.capture_fresh_source_analysis(
+            uri,
+            snapshot,
+            FreshSourceAnalysisPurpose::ReadonlyComplete,
+        )
+        .await
+    }
+
+    // One genuine fresh-source capture/matcher for complete readonly analysis
+    // and the independently selected coarse syntax-only worker purpose.
+    async fn capture_fresh_source_analysis(
+        &self,
+        uri: &Uri,
+        snapshot: super::DocumentState,
+        purpose: FreshSourceAnalysisPurpose,
+    ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
         let config = self.resolved_db_config(uri).await;
         let (configuration, database_revision) = {
             let db = self.db.lock().await;
@@ -468,10 +509,35 @@ impl Backend {
             .lock("workspace_symbol_source_capture")
             .await
             .contains_key(uri);
+        if !was_open && matches!(purpose, FreshSourceAnalysisPurpose::SemanticStructure) {
+            // A path receipt authenticates the selected provider address, not
+            // unchanged closed-file bytes. This new publication purpose needs
+            // the actual retained open-document source owner.
+            return Ok(None);
+        }
         let uri_generation = self.live_publication_uri_generation(uri);
-        let seed = self
-            .fresh_analysis_seed(uri, Arc::clone(&snapshot.text), snapshot.dialect.clone())
-            .await?;
+        let seed = match purpose {
+            FreshSourceAnalysisPurpose::ReadonlyComplete => {
+                self.fresh_analysis_seed(uri, Arc::clone(&snapshot.text), snapshot.dialect.clone())
+                    .await?
+            }
+            FreshSourceAnalysisPurpose::SemanticStructure => {
+                let Some(admission) = snapshot.path_admission.as_ref().cloned() else {
+                    return Ok(None);
+                };
+                admission.check_for(uri, self.store.as_ref())?;
+                let driver = self
+                    .fresh_analysis_driver(admission)
+                    .await
+                    .into_structure_only();
+                let text = Arc::clone(&snapshot.text);
+                let dialect = snapshot.dialect.clone();
+                let original_uri = uri.clone();
+                crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
+                    .await
+                    .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??
+            }
+        };
         let Some(input) = seed.analysis.resolved_input.as_ref().cloned().map(Arc::new) else {
             return Ok(None);
         };
@@ -480,6 +546,7 @@ impl Backend {
         }
         Ok(Some(WorkspaceSymbolSourceAnalysis {
             kind: WorkspaceSymbolAnalysisKind::Fresh(Box::new(WorkspaceSymbolFreshInput {
+                purpose,
                 uri: uri.clone(),
                 snapshot,
                 was_open,
@@ -491,6 +558,63 @@ impl Backend {
                 uri_generation,
             })),
         }))
+    }
+
+    /// Issue only from the real current open source and configured fresh worker.
+    pub(super) async fn capture_coarse_semantic_source(
+        &self,
+        uri: &Uri,
+        snapshot: &super::DocumentState,
+    ) -> DocumentSourceResult<Option<CoarseSemanticTokenSource>> {
+        if snapshot.dialect_resolution_generation != snapshot.resolved_dialect_generation {
+            // A current buffer with unresolved resource dialect is not a
+            // current configured analysis input, even when bytes are unchanged.
+            return Ok(None);
+        }
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
+        let Some(analysis) = self
+            .capture_fresh_source_analysis(
+                uri,
+                snapshot.clone().normalised_for_analysis(),
+                FreshSourceAnalysisPurpose::SemanticStructure,
+            )
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(CoarseSemanticTokenSource {
+            analysis,
+            inputs_epoch,
+            factory_generation,
+        }))
+    }
+
+    /// Same bounded readonly transaction, including original provider lease,
+    /// encloses both coarse token cache mutation and response projection.
+    pub(super) async fn with_current_coarse_semantic_source<T>(
+        &self,
+        source: &CoarseSemanticTokenSource,
+        mut publish: impl FnMut() -> Option<T>,
+    ) -> DocumentSourceResult<Option<T>> {
+        let admissions = [source.analysis.admission()];
+        self.with_current_readonly_source_state(
+            source.inputs_epoch,
+            source.factory_generation,
+            &admissions,
+            None,
+            |state| {
+                WorkspaceSymbolSourceAnalysis::matches_current_state(
+                    &source.analysis,
+                    state,
+                    source.inputs_epoch,
+                    source.factory_generation,
+                )
+                .then_some(())
+            },
+            |_, ()| publish(),
+        )
+        .await
     }
 
     pub(super) async fn capture_code_action_source(
@@ -549,6 +673,7 @@ impl Backend {
             source.inputs_epoch,
             source.factory_generation,
             &admissions,
+            None,
             |state| {
                 let current = state.open.get(&source.uri)?;
                 (code_action_document_matches(&source.document, current)
@@ -631,6 +756,7 @@ impl Backend {
             inputs_epoch,
             factory_generation,
             &admissions,
+            None,
             |state| {
                 // One full-input query per selected URI. The transaction continues
                 // to hold those actual input/DB/open guards through publication.
@@ -735,6 +861,7 @@ impl Backend {
             inputs_epoch,
             factory_generation,
             &admissions,
+            None,
             |state| {
                 if documents.iter().any(|document| {
                     !document.matches_current_snapshot(
@@ -759,6 +886,7 @@ impl Backend {
         inputs_epoch: u64,
         factory_generation: u64,
         admissions: &[&DocumentPathAdmission],
+        saved_sources: Option<&[(&DocumentPathAdmission, &[u8])]>,
         mut check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
         mut publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
     ) -> DocumentSourceResult<Option<T>> {
@@ -795,9 +923,91 @@ impl Backend {
         let Some(checked) = check(&state) else {
             return Ok(None);
         };
-        DocumentPathAdmission::with_current(admissions, self.store.as_ref(), || {
-            publish(&state, &checked)
-        })
+        if let Some(sources) = saved_sources {
+            DocumentPathAdmission::with_current_saved_sources(sources, self.store.as_ref(), || {
+                publish(&state, &checked)
+            })
+        } else {
+            DocumentPathAdmission::with_current(admissions, self.store.as_ref(), || {
+                publish(&state, &checked)
+            })
+        }
+    }
+
+    pub(super) async fn publish_checked_library_analyses(
+        &self,
+        analysed: &[(Uri, super::DocumentState, WorkspaceSymbolSourceAnalysis)],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<bool> {
+        let mut saved = Vec::new();
+        let mut admissions = Vec::new();
+        for (uri, snapshot, analysis) in analysed {
+            if snapshot.path_admission.is_none()
+                && self.store.workspace_source_inventory_provider()
+                    == super::vfs::WorkspaceSourceInventoryProvider::HostReported
+                && uri.scheme().as_str() == "file"
+            {
+                return Ok(false);
+            }
+            for admission in
+                std::iter::once(analysis.admission()).chain(snapshot.path_admission.as_deref())
+            {
+                if admission.uri() != uri {
+                    return Ok(false);
+                }
+                admissions.push(admission);
+                if let Some(path) = admission.path() {
+                    admission.check_current(self.store.as_ref())?;
+                    let Ok(bytes) = self.store.read(path) else {
+                        return Ok(false);
+                    };
+                    let (text, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+                    if tcl_lexer::normalise_lone_cr(&text).as_ref() != snapshot.text.as_ref() {
+                        return Ok(false);
+                    }
+                    saved.push((admission, bytes));
+                }
+            }
+        }
+        let sources = saved
+            .iter()
+            .map(|(admission, bytes)| (*admission, bytes.as_slice()))
+            .collect::<Vec<_>>();
+        Ok(self
+            .with_current_readonly_source_state(
+                inputs_epoch,
+                factory_generation,
+                &admissions,
+                Some(&sources),
+                |state| {
+                    analysed
+                        .iter()
+                        .all(|(uri, snapshot, analysis)| {
+                            analysis.matches_snapshot(uri, snapshot)
+                                && analysis.matches_current_state(
+                                    state,
+                                    inputs_epoch,
+                                    factory_generation,
+                                )
+                        })
+                        .then_some(())
+                },
+                |_, ()| {
+                    let _rehoming = self.rehoming_gate.try_lock().ok()?;
+                    let mut index = self.workspace_index.try_write().ok()?;
+                    let mut seeds = self.rehomed_source_seeds.try_lock().ok()?;
+                    let mut autoloaded = self.autoloaded_library_uris.try_lock().ok()?;
+                    for (uri, _, analysis) in analysed {
+                        index.replace_document(uri.as_str(), analysis.analysis());
+                        seeds.remove(uri.as_str());
+                        autoloaded.insert(uri.as_str().to_owned());
+                    }
+                    Some(())
+                },
+            )
+            .await?
+            .is_some())
     }
 
     /// Project namespace relationships only under their original input/index
@@ -1724,8 +1934,15 @@ impl WorkspaceSymbolSourceAnalysis {
             WorkspaceSymbolAnalysisKind::Fresh(document) => {
                 let open_matches = match state.open.get(&document.uri) {
                     Some(current) if document.was_open => {
-                        !current.backing_file_deleted
-                            && current.revision == document.snapshot.revision
+                        (match document.purpose {
+                            FreshSourceAnalysisPurpose::ReadonlyComplete => {
+                                !current.backing_file_deleted
+                            }
+                            FreshSourceAnalysisPurpose::SemanticStructure => {
+                                current.backing_file_deleted
+                                    == document.snapshot.backing_file_deleted
+                            }
+                        }) && current.revision == document.snapshot.revision
                             && current.version == document.snapshot.version
                             && current.raw() == document.snapshot.raw()
                             && current.dialect == document.snapshot.dialect
@@ -3569,6 +3786,263 @@ mod code_action_source_version_tests {
                 .finish_code_action_response(&owner, Vec::new(), None)
                 .await
                 .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod coarse_semantic_source_tests {
+    use super::*;
+    use salsa::Setter as _;
+
+    async fn actual_open_source(backend: &Backend, uri: &Uri) -> super::super::DocumentState {
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(uri, backend.store.as_ref()).unwrap());
+        let document = super::super::DocumentState::with_version(
+            "puts \"\\x4142\"".to_owned(),
+            "tcl8.4".to_owned(),
+            7,
+        )
+        .with_path_admission(admission)
+        .normalised_for_analysis();
+        backend
+            .documents
+            .lock("coarse source fixture")
+            .await
+            .insert(uri.clone(), document.clone());
+        document
+    }
+
+    #[tokio::test]
+    async fn coarse_tokens_retain_actual_configured_input_and_final_source_owner() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///coarse-configured-input.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let source = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .expect("actual configured structure-only source");
+        let analysis = source.analysis();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            input.analyser_profile(),
+            crate::profile_for_dialect("tcl8.4")
+        );
+        assert_eq!(analysis.body_lexer_config, Some(input.lexer_config()));
+        assert!(tcl_compiler::source_graph::current_analysis(&snapshot.text, analysis).is_some());
+        let data =
+            super::super::configured_coarse_semantic_tokens(&snapshot.text, analysis).unwrap();
+        assert!(!data.is_empty());
+        let original = data.clone();
+        let issued = backend
+            .with_current_coarse_semantic_source(&source, || {
+                let mut cache = backend.last_semantic_tokens.try_lock().ok()?;
+                cache.insert(
+                    uri.clone(),
+                    ("actual-coarse-control".to_owned(), data.clone()),
+                );
+                Some(())
+            })
+            .await
+            .unwrap();
+        assert!(issued.is_some());
+        assert_eq!(backend.last_semantic_tokens.lock().await[&uri].1, original);
+        backend
+            .documents
+            .lock("change actual version")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .version = Some(8);
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&source, || -> Option<()> {
+                    panic!("stale source must not reach cache/wire projection")
+                })
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(backend.last_semantic_tokens.lock().await[&uri].1, original);
+    }
+
+    #[tokio::test]
+    async fn coarse_tokens_refuse_changed_actual_resource_config_without_epoch_donation() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///coarse-config-change.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let source = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&source, || Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let epoch = backend.diag_inputs_epoch();
+        let config = backend.resolved_db_config(&uri).await;
+        config
+            .set_extra_commands(&mut *backend.db.lock().await)
+            .to(vec!["changed_actual_resource_command".to_owned()]);
+        assert_eq!(backend.diag_inputs_epoch(), epoch);
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&source, || -> Option<()> {
+                    panic!("changed resource configuration must not reach publication")
+                })
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let current = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&current, || Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+    #[tokio::test]
+    async fn coarse_source_keeps_factory_and_original_virtual_provider_receipts() {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///coarse-provider.tcl".parse().unwrap();
+        store.upsert_uri(
+            uri.as_str(),
+            "/coarse-provider.tcl",
+            b"puts \"\\x4142\"".to_vec(),
+        );
+        backend.store = store.clone();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let original = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&original, || Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        *backend.class_factory_generation.write().await += 1;
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&original, || -> Option<()> {
+                    panic!("old factory receipt must not publish")
+                })
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let current = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&current, || Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(store.remove_uri(uri.as_str()));
+        store.upsert_uri(
+            uri.as_str(),
+            "/coarse-provider.tcl",
+            snapshot.raw().as_bytes().to_vec(),
+        );
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&current, || -> Option<()> {
+                    panic!("equal-path provider ABA must not publish")
+                })
+                .await
+                .is_err()
+        );
+        assert!(
+            backend
+                .capture_coarse_semantic_source(&uri, &snapshot)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn closed_path_admission_is_not_an_open_source_publication_receipt() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///coarse-closed-source.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        assert!(
+            backend
+                .capture_coarse_semantic_source(&uri, &snapshot)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        backend
+            .documents
+            .lock("actual close before coarse capture")
+            .await
+            .remove(&uri);
+        assert!(
+            backend
+                .capture_coarse_semantic_source(&uri, &snapshot)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+    #[tokio::test]
+    async fn unresolved_document_dialect_cannot_issue_coarse_input() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///coarse-dirty-dialect.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let original = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        let dirty = {
+            let mut docs = backend
+                .documents
+                .lock("actual pending dialect resolution")
+                .await;
+            let document = docs.get_mut(&uri).unwrap();
+            document.mark_dialect_resolution_dirty();
+            document.clone()
+        };
+        assert_ne!(
+            dirty.dialect_resolution_generation,
+            dirty.resolved_dialect_generation
+        );
+        assert!(
+            backend
+                .capture_coarse_semantic_source(&uri, &dirty)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            backend
+                .with_current_coarse_semantic_source(&original, || -> Option<()> {
+                    panic!("previous dialect generation cannot publish")
+                })
+                .await
+                .unwrap()
+                .is_none()
         );
     }
 }

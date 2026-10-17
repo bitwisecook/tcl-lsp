@@ -1010,6 +1010,11 @@ struct FreshAnalysisDriver {
 }
 
 impl FreshAnalysisDriver {
+    fn into_structure_only(mut self) -> Self {
+        self.analyser = self.analyser.structure_only();
+        self
+    }
+
     fn analyse(
         mut self,
         text: &str,
@@ -1036,10 +1041,66 @@ impl FreshAnalysisDriver {
     }
 }
 
+struct SemanticTokenCoreData {
+    data: Vec<u32>,
+    coarse_source: Option<readonly_reference_reports::CoarseSemanticTokenSource>,
+}
+
+impl From<Vec<u32>> for SemanticTokenCoreData {
+    fn from(data: Vec<u32>) -> Self {
+        Self {
+            data,
+            coarse_source: None,
+        }
+    }
+}
+
+fn configured_coarse_semantic_tokens(
+    text: &str,
+    analysis: &AnalysisResult,
+) -> jsonrpc::Result<Vec<u32>> {
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(coarse_semantic_source_changed)?;
+    if tcl_compiler::source_graph::current_analysis(text, analysis).is_none() {
+        return Err(coarse_semantic_source_changed());
+    }
+    Ok(core_semantic_tokens::full_with_cu_and_analysis(
+        text,
+        input.analyser_profile(),
+        input.context_registry().commands(),
+        None,
+        Some(analysis),
+    )
+    .data)
+}
+
+fn coarse_semantic_source_changed() -> jsonrpc::Error {
+    jsonrpc::Error {
+        code: jsonrpc::ErrorCode::ContentModified,
+        message: "Coarse semantic token source or configured input changed".into(),
+        data: None,
+    }
+}
+
 enum DiskScanOutcome {
     Available(ScannedDocument),
     Absent(Arc<DocumentPathAdmission>),
     Unavailable(DocumentSourceUnavailable),
+}
+
+enum WorkspaceScanCandidate {
+    Open,
+    Scanned(DiskScanOutcome),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiskPublicationOutcome {
+    Published,
+    NoCandidates,
+    SkippedOpen,
+    Unavailable,
 }
 
 #[derive(Default)]
@@ -1047,12 +1108,16 @@ struct AdmittedDiskBatch {
     removal_admissions: Vec<Arc<DocumentPathAdmission>>,
     rows: Vec<(Uri, String, String, AnalysisResult)>,
     admissions: Vec<Arc<DocumentPathAdmission>>,
+    expected_analyser_inputs_epoch: Option<u64>,
+    expected_class_factory_generation: Option<u64>,
 }
 
 struct ScannedDocument {
     uri: Uri,
     text: String,
     dialect: String,
+    expected_analyser_inputs_epoch: Option<u64>,
+    expected_class_factory_generation: Option<u64>,
     seed: FreshAnalysisSeed,
 }
 
@@ -8451,6 +8516,8 @@ pub struct Backend {
     /// retirement: the entry belongs to the host session that installed it
     /// (the Spec Studio panel), not to any one `didOpen`/`didClose` cycle, and
     /// is removed only by a `null` argument to the command that set it.
+    /// A per-document override is an analyser input even for a closed URI;
+    /// mutations join the same epoch/gate as all other analyser inputs.
     document_dialect_overrides: Mutex<HashMap<String, String>>,
     /// Coalescing state for `workspace/didChangeConfiguration` — see
     /// [`Backend::coalesced_config_reload`].
@@ -11034,7 +11101,7 @@ impl Backend {
 
         let disk_publication = self.disk_publication_gate.lock().await;
         let rehoming_guard = self.rehoming_gate.lock().await;
-        let (changed, _) = self
+        let (changed, _, _) = self
             .publish_disk_results_while_rehoming_locked(
                 &disk_publication,
                 rehoming_guard,
@@ -11053,7 +11120,7 @@ impl Backend {
         removals: &[Uri],
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> DocumentSourceResult<Vec<Uri>> {
+    ) -> DocumentSourceResult<(Vec<Uri>, DiskPublicationOutcome)> {
         assert_eq!(batch.rows.len(), batch.admissions.len());
         for (row, admission) in batch.rows.iter().zip(&batch.admissions) {
             admission.check_for(&row.0, self.store.as_ref())?;
@@ -11063,11 +11130,11 @@ impl Backend {
             admission.check_for(uri, self.store.as_ref())?;
         }
         if batch.rows.is_empty() && removals.is_empty() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), DiskPublicationOutcome::NoCandidates));
         }
         let disk_publication = self.disk_publication_gate.lock().await;
         let rehoming = self.rehoming_gate.lock().await;
-        let (changed, _) = self
+        let (changed, _, currentness) = self
             .publish_admitted_disk_results_while_rehoming_locked(
                 &disk_publication,
                 rehoming,
@@ -11075,11 +11142,13 @@ impl Backend {
                 &batch.admissions,
                 removals,
                 &batch.removal_admissions,
+                batch.expected_analyser_inputs_epoch,
+                batch.expected_class_factory_generation,
                 removal_policy,
                 site,
             )
             .await?;
-        Ok(changed)
+        Ok((changed, currentness))
     }
 
     /// [`Self::publish_disk_results`] with the rehoming gate already held.
@@ -11096,7 +11165,11 @@ impl Backend {
         removals: &[Uri],
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> DocumentSourceResult<(Vec<Uri>, tokio::sync::MutexGuard<'a, ()>)> {
+    ) -> DocumentSourceResult<(
+        Vec<Uri>,
+        tokio::sync::MutexGuard<'a, ()>,
+        DiskPublicationOutcome,
+    )> {
         let admissions = replacements
             .iter()
             .map(|row| DocumentPathAdmission::capture(&row.0, self.store.as_ref()).map(Arc::new))
@@ -11113,6 +11186,8 @@ impl Backend {
                 &admissions,
                 removals,
                 &removal_admissions,
+                None,
+                None,
                 removal_policy,
                 site,
             )
@@ -11127,9 +11202,15 @@ impl Backend {
         admissions: &[Arc<DocumentPathAdmission>],
         removals: &[Uri],
         removal_admissions: &[Arc<DocumentPathAdmission>],
+        expected_analyser_inputs_epoch: Option<u64>,
+        expected_class_factory_generation: Option<u64>,
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> DocumentSourceResult<(Vec<Uri>, tokio::sync::MutexGuard<'a, ()>)> {
+    ) -> DocumentSourceResult<(
+        Vec<Uri>,
+        tokio::sync::MutexGuard<'a, ()>,
+        DiskPublicationOutcome,
+    )> {
         assert_eq!(removals.len(), removal_admissions.len());
         for (uri, admission) in removals.iter().zip(removal_admissions) {
             admission.check_uri(uri)?;
@@ -11193,6 +11274,7 @@ impl Backend {
                     .await;
                 continue;
             };
+            let had_replacements = !replacements.is_empty();
             let replacements: Vec<_> = replacements
                 .iter()
                 .zip(admissions)
@@ -11227,8 +11309,57 @@ impl Backend {
             // the global map is available to every handler again.
             drop(docs);
 
+            // `try_read` is deliberate: these publication locks are already
+            // held, so waiting for a config writer here could invert its lock
+            // order. A writer in flight makes this closed batch unavailable.
+            let _analyser_inputs_guard =
+                if let Some(expected_epoch) = expected_analyser_inputs_epoch {
+                    let Ok(guard) = self.analyser_inputs_gate.try_read() else {
+                        return Ok((
+                            Vec::new(),
+                            rehoming_guard,
+                            DiskPublicationOutcome::Unavailable,
+                        ));
+                    };
+                    if self.diag_inputs_epoch() != expected_epoch {
+                        return Ok((
+                            Vec::new(),
+                            rehoming_guard,
+                            DiskPublicationOutcome::Unavailable,
+                        ));
+                    }
+                    Some(guard)
+                } else {
+                    None
+                };
+            let _class_factory_guard =
+                if let Some(expected_generation) = expected_class_factory_generation {
+                    let Ok(guard) = self.class_factory_generation.try_read() else {
+                        return Ok((
+                            Vec::new(),
+                            rehoming_guard,
+                            DiskPublicationOutcome::Unavailable,
+                        ));
+                    };
+                    if *guard != expected_generation {
+                        return Ok((
+                            Vec::new(),
+                            rehoming_guard,
+                            DiskPublicationOutcome::Unavailable,
+                        ));
+                    }
+                    Some(guard)
+                } else {
+                    None
+                };
+
             if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
-                return Ok((Vec::new(), rehoming_guard));
+                let outcome = if had_replacements {
+                    DiskPublicationOutcome::SkippedOpen
+                } else {
+                    DiskPublicationOutcome::NoCandidates
+                };
+                return Ok((Vec::new(), rehoming_guard, outcome));
             }
 
             Self::apply_disk_publication(
@@ -11249,6 +11380,7 @@ impl Backend {
                     replacements.into_iter().map(|(row, _)| row).collect(),
                 ),
                 rehoming_guard,
+                DiskPublicationOutcome::Published,
             ));
         }
     }
@@ -12889,11 +13021,42 @@ impl Backend {
     ) -> DocumentSourceResult<AdmittedDiskBatch> {
         let mut rows = AdmittedDiskBatch::default();
         for document in scanned {
+            if let Some(expected_epoch) = document.expected_analyser_inputs_epoch {
+                if rows
+                    .expected_analyser_inputs_epoch
+                    .is_some_and(|previous| previous != expected_epoch)
+                {
+                    continue;
+                }
+                rows.expected_analyser_inputs_epoch = Some(expected_epoch);
+            }
+            if rows
+                .expected_class_factory_generation
+                .is_some_and(|previous| previous != document.seed.class_factory_generation)
+            {
+                continue;
+            }
+            rows.expected_class_factory_generation = Some(document.seed.class_factory_generation);
             document
                 .seed
                 .path_admission
                 .check_for(&document.uri, self.store.as_ref())?;
             if self.fresh_index_generation_is_current(&document.seed).await
+                && document
+                    .expected_analyser_inputs_epoch
+                    .is_none_or(|expected_epoch| {
+                        expected_epoch == document.seed.analyser_inputs_epoch
+                            && expected_epoch == self.diag_inputs_epoch()
+                    })
+                && document
+                    .expected_class_factory_generation
+                    .is_none_or(|expected_generation| {
+                        expected_generation == document.seed.class_factory_generation
+                            && self
+                                .class_factory_generation
+                                .try_read()
+                                .is_ok_and(|generation| *generation == expected_generation)
+                    })
                 && (document
                     .seed
                     .analysis
@@ -14127,7 +14290,7 @@ impl Backend {
         &self,
         uri: &Uri,
         doc: &DocumentState,
-    ) -> jsonrpc::Result<Vec<u32>> {
+    ) -> jsonrpc::Result<SemanticTokenCoreData> {
         // APL (iApp presentation) and BIG-IP config are not Tcl — each has its
         // own declarative grammar and its own token set, so both bypass the Tcl
         // pipeline (segmenter / compilation unit / analyser) entirely.  Without
@@ -14148,7 +14311,7 @@ impl Backend {
             let data = core_semantic_tokens::apl_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
-            return Ok(data);
+            return Ok(data.into());
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
@@ -14157,7 +14320,7 @@ impl Backend {
             let data = core_semantic_tokens::bigip_conf_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
-            return Ok(data);
+            return Ok(data.into());
         }
 
         // Install (and retain) this workspace pack generation before the salsa
@@ -14182,12 +14345,12 @@ impl Backend {
                     })?;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
-            return Ok(data);
+            return Ok(data.into());
         };
 
         if semantic_tokens_test_seam_enabled() {
             if let Some(tokens) = self.semantic_tokens_test_override(uri, enriched).await {
-                return Ok(tokens);
+                return Ok(tokens.into());
             }
         } else {
             tokio::select! {
@@ -14203,7 +14366,7 @@ impl Backend {
                             FullSettleOutcome::ServedEnriched,
                         )
                         .await;
-                        return Ok(tokens.data);
+                        return Ok(tokens.data.into());
                     }
                     // A genuine salsa cancellation (a concurrent edit landed) or a
                     // worker panic — either way, don't retry inline or surface an
@@ -14234,21 +14397,25 @@ impl Backend {
             }
         }
 
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-        crate::rt::spawn_blocking(move || {
-            core_semantic_tokens::full(
-                &text,
-                tcl_lsp_core::profile_for_dialect(&dialect),
-                &registry,
-            )
-            .data
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("semantic_tokens worker panicked: {err}").into(),
-            data: None,
+        let source = self
+            .capture_coarse_semantic_source(uri, doc)
+            .await?
+            .ok_or_else(coarse_semantic_source_changed)?;
+        let analysis = Arc::new(
+            readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source).clone(),
+        );
+        let text = Arc::clone(&doc.text);
+        let data =
+            crate::rt::spawn_blocking(move || configured_coarse_semantic_tokens(&text, &analysis))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("semantic_tokens worker panicked: {err}").into(),
+                    data: None,
+                })??;
+        Ok(SemanticTokenCoreData {
+            data,
+            coarse_source: Some(source),
         })
     }
 
@@ -14408,7 +14575,7 @@ impl Backend {
             for uri in &candidates {
                 admissions.push(self.document_path_admission(uri).await?);
             }
-            let (removed, rehoming_guard) = self
+            let (removed, rehoming_guard, _) = self
                 .publish_admitted_disk_results_while_rehoming_locked(
                     &disk_publication,
                     rehoming_guard,
@@ -14416,6 +14583,8 @@ impl Backend {
                     &[],
                     &candidates,
                     &admissions,
+                    None,
+                    None,
                     DiskRemovalPolicy::ClosedOnly,
                     "drop_index_under_folders",
                 )
@@ -14513,6 +14682,8 @@ impl Backend {
                 uri,
                 text,
                 dialect,
+                expected_analyser_inputs_epoch: None,
+                expected_class_factory_generation: None,
                 seed,
             })
         })
@@ -16520,6 +16691,8 @@ impl Backend {
             }
         }
         let mut resolved = None;
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
         let mut analysed = Vec::new();
         for path in files {
             let Some(target_uri) = canonical_file_uri(&path) else {
@@ -16528,13 +16701,13 @@ impl Backend {
             let Some(target_doc) = self.read_document(&target_uri).await? else {
                 continue;
             };
-            let file_analysis = self
-                .analysis_for(
-                    &target_uri,
-                    target_doc.text.clone(),
-                    target_doc.dialect.clone(),
-                )
-                .await?;
+            let Some(receipt) = self
+                .capture_workspace_symbol_analysis(&target_uri, &target_doc)
+                .await?
+            else {
+                continue;
+            };
+            let file_analysis = receipt.analysis();
             if resolved.is_none() {
                 resolved = absolute
                     .iter()
@@ -16544,36 +16717,19 @@ impl Backend {
                     })
                     .cloned();
             }
-            analysed.push((target_uri, file_analysis));
+            analysed.push((target_uri, target_doc, receipt));
         }
         if analysed.is_empty() {
             return Ok(resolved);
         }
 
-        self.publish_library_analyses(&analysed).await;
+        if !self
+            .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
+            .await?
+        {
+            return Ok(None);
+        }
         Ok(resolved)
-    }
-
-    async fn publish_library_analyses(&self, analysed: &[(Uri, Arc<AnalysisResult>)]) {
-        // Publish every file as one standalone replacement transaction. A
-        // navigation snapshot either sees the previous index or the complete
-        // library merge, never a partially merged package nor a standalone
-        // replacement of a freshly re-homed source-site view.
-        let _rehoming_guard = self.rehoming_gate.lock().await;
-        {
-            let mut index = self.workspace_index.write().await;
-            for (target_uri, file_analysis) in analysed {
-                index.replace_document(target_uri.as_str(), file_analysis);
-            }
-        }
-        {
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            let mut autoloaded = self.autoloaded_library_uris.lock().await;
-            for (target_uri, _) in analysed {
-                seeds.remove(target_uri.as_str());
-                autoloaded.insert(target_uri.as_str().to_owned());
-            }
-        }
     }
 
     async fn library_publication_source(
@@ -22005,8 +22161,15 @@ impl Backend {
                 "error": unknown_dialect_error(dialect),
             })));
         }
-        *self.default_dialect.lock().await = dialect.to_owned();
-        *self.default_dialect_explicit.lock().await = true;
+        {
+            let _analyser_inputs_guard = self.analyser_inputs_gate.write().await;
+            let mut default_dialect = self.default_dialect.lock().await;
+            if *default_dialect != dialect {
+                *default_dialect = dialect.to_owned();
+                self.invalidate_diag_inputs();
+            }
+            *self.default_dialect_explicit.lock().await = true;
+        }
         self.reresolve_open_document_dialects().await?;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": dialect }),
@@ -22041,7 +22204,15 @@ impl Backend {
                 "error": unknown_dialect_error(dialect),
             })));
         }
-        *self.session_dialect_override.lock().await = requested.map(str::to_owned);
+        {
+            let _analyser_inputs_guard = self.analyser_inputs_gate.write().await;
+            let mut override_dialect = self.session_dialect_override.lock().await;
+            let requested = requested.map(str::to_owned);
+            if *override_dialect != requested {
+                *override_dialect = requested;
+                self.invalidate_diag_inputs();
+            }
+        }
         self.reresolve_open_document_dialects().await?;
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": requested }),
@@ -22091,14 +22262,19 @@ impl Backend {
             })));
         }
         {
+            let _analyser_inputs_guard = self.analyser_inputs_gate.write().await;
             let mut overrides = self.document_dialect_overrides.lock().await;
-            match requested {
-                Some(dialect) => {
+            let current = overrides.get(uri.as_str()).map(String::as_str);
+            let changed = match requested {
+                Some(dialect) if current != Some(dialect) => {
                     overrides.insert(uri.as_str().to_owned(), dialect.to_owned());
+                    true
                 }
-                None => {
-                    overrides.remove(uri.as_str());
-                }
+                Some(_) => false,
+                None => overrides.remove(uri.as_str()).is_some(),
+            };
+            if changed {
+                self.invalidate_diag_inputs();
             }
         }
         self.reresolve_open_document_dialect(&uri).await?;
@@ -26368,9 +26544,26 @@ impl Backend {
             .keys()
             .cloned()
             .collect();
+        let package_inputs_epoch = {
+            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
+            let epoch = self.diag_inputs_epoch();
+            drop(analyser_inputs_guard);
+            epoch
+        };
+        let (resolver, files, mut scan_complete) =
+            self.build_package_db_and_candidates(roots).await;
+        // Package discovery is asynchronous and may outlast a dialect change.
+        // Snapshot the inputs only after it completes, under the same gate that
+        // serialises analyser configuration mutations.
+        let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
+        let scan_analyser_inputs_epoch = self.diag_inputs_epoch();
+        let package_inputs_current = package_inputs_epoch == scan_analyser_inputs_epoch;
+        let document_dialect_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.session_dialect().await;
-        let (resolver, files, scan_complete) = self.build_package_db_and_candidates(roots).await;
+        let scan_class_factory_generation = *self.class_factory_generation.read().await;
+        drop(analyser_inputs_guard);
+        scan_complete &= package_inputs_current;
 
         // Drop the library files the autoload tier merged under the
         // *previous* package database before this scan's own batches add their
@@ -26416,19 +26609,32 @@ impl Backend {
         // Read and analyse the candidate files across a bounded worker
         // pool, merging into `workspace_index` / the salsa `Project` in
         // batches as they complete.
-        let (resolver, files_count) = self
+        let (resolver, files_count, scan_inputs_current, scan_coverage_complete) = self
             .analyse_and_merge_scanned_files(
                 files,
                 open,
+                scan_analyser_inputs_epoch,
+                scan_class_factory_generation,
+                document_dialect_overrides,
                 folder_dialects,
                 default_dialect,
                 resolver,
             )
             .await?;
 
-        // Publish the package database for the diagnostics worker now every
-        // batch's auto-path contribution has folded in.
-        *self.package_resolver.write().await = resolver;
+        // The resolver is a second publication boundary: a later batch may
+        // have been accepted under this snapshot, then the configuration may
+        // move while analysis is still running. Do not donate those rows' Tcl
+        // auto_path facts to a resolver after its source basis is stale.
+        let resolver_published = self
+            .publish_workspace_scan_resolver_if_current(
+                resolver,
+                scan_analyser_inputs_epoch,
+                scan_class_factory_generation,
+                package_inputs_current && scan_inputs_current && scan_coverage_complete,
+            )
+            .await;
+        scan_complete &= resolver_published && scan_coverage_complete;
         // Re-home sourced documents under their source-site namespaces.
         self.refresh_source_rehoming().await?;
         // Warm the deep salsa tier for documents already open so their first
@@ -26467,14 +26673,15 @@ impl Backend {
         // with the workspace's subclass evidence already in place.  No peers
         // to wake: nothing has published diagnostics yet.
         sync_workspace_subclass_methods(&scan_handles).await;
-        self.workspace_index
-            .write()
-            .await
-            .set_source_inventory_snapshot_with_scan_status(
-                source_inventory_provider,
-                source_inventory_observations,
-                scan_complete,
-            );
+        let inventory_class_factory_generation = scan_class_factory_generation;
+        self.publish_workspace_scan_inventory_if_current(
+            source_inventory_provider,
+            source_inventory_observations,
+            scan_complete,
+            scan_analyser_inputs_epoch,
+            inventory_class_factory_generation,
+        )
+        .await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
@@ -26563,6 +26770,66 @@ impl Backend {
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new(), false))
     }
 
+    /// Publish the scan receipt only when its configured analysis inputs are
+    /// still current. Acquire the index first, then try the config read lock so
+    /// no config writer is awaited while the index is held.
+    async fn publish_workspace_scan_inventory_if_current(
+        &self,
+        provider: vfs::WorkspaceSourceInventoryProvider,
+        observations: Vec<vfs::WorkspaceSourceInventoryObservation>,
+        scan_complete: bool,
+        expected_analyser_inputs_epoch: u64,
+        expected_class_factory_generation: u64,
+    ) -> bool {
+        let mut index = self.workspace_index.write().await;
+        let Ok(analyser_inputs_guard) = self.analyser_inputs_gate.try_read() else {
+            index.set_source_inventory_snapshot_with_scan_status(provider, observations, false);
+            return false;
+        };
+        let Ok(class_factory_guard) = self.class_factory_generation.try_read() else {
+            index.set_source_inventory_snapshot_with_scan_status(provider, observations, false);
+            return false;
+        };
+        let current = self.diag_inputs_epoch() == expected_analyser_inputs_epoch
+            && *class_factory_guard == expected_class_factory_generation;
+        let complete = scan_complete && current;
+        index.set_source_inventory_snapshot_with_scan_status(provider, observations, complete);
+        drop(class_factory_guard);
+        drop(analyser_inputs_guard);
+        complete
+    }
+
+    /// Publish the current resolver only while the exact inputs that selected
+    /// its per-file `auto_path` rows still hold at this final boundary.
+    async fn publish_workspace_scan_resolver_if_current(
+        &self,
+        resolver: PackageResolver,
+        expected_analyser_inputs_epoch: u64,
+        expected_class_factory_generation: u64,
+        package_inputs_current: bool,
+    ) -> bool {
+        let mut published = self.package_resolver.write().await;
+        if !package_inputs_current {
+            return false;
+        }
+        let Ok(analyser_inputs_guard) = self.analyser_inputs_gate.try_read() else {
+            return false;
+        };
+        if self.diag_inputs_epoch() != expected_analyser_inputs_epoch {
+            return false;
+        }
+        let Ok(class_factory_guard) = self.class_factory_generation.try_read() else {
+            return false;
+        };
+        if *class_factory_guard != expected_class_factory_generation {
+            return false;
+        }
+        *published = resolver;
+        drop(class_factory_guard);
+        drop(analyser_inputs_guard);
+        true
+    }
+
     /// Reads and analyses `files` across a bounded worker pool, as the
     /// second half of [`Self::scan_workspace_folders`] (the `spawn_workspace_warm`
     /// semaphore pattern — acquire a permit before spawning, so at most
@@ -26580,37 +26847,48 @@ impl Backend {
         &self,
         files: Vec<PathBuf>,
         open: HashSet<Uri>,
+        scan_analyser_inputs_epoch: u64,
+        scan_class_factory_generation: u64,
+        document_dialect_overrides: Arc<HashMap<String, String>>,
         folder_dialects: Vec<(Uri, String)>,
         default_dialect: String,
         mut resolver: PackageResolver,
-    ) -> DocumentSourceResult<(PackageResolver, usize)> {
+    ) -> DocumentSourceResult<(PackageResolver, usize, bool, bool)> {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
         let mut tasks = crate::rt::JoinSet::new();
+        let mut coverage_complete = true;
         for path in files {
             let Some(constructed) = constructed_file_uri(&path) else {
+                coverage_complete = false;
                 continue;
             };
             let uri = constructed.uri.clone();
             let admission = Arc::new(constructed.admission(self.store.as_ref())?);
             let driver = self.fresh_analysis_driver(admission).await;
             let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
+                coverage_complete = false;
                 break;
             };
             let open = Arc::clone(&open);
+            let document_dialect_overrides = Arc::clone(&document_dialect_overrides);
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
             let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
-                crate::rt::spawn_blocking(move || {
+                let outcome = crate::rt::spawn_blocking(move || {
                     if open.contains(&uri) {
-                        return Ok(None);
+                        return WorkspaceScanCandidate::Open;
                     }
-                    driver.path_admission.check_for(&uri, store.as_ref())?;
+                    if let Err(error) = driver.path_admission.check_for(&uri, store.as_ref()) {
+                        return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                            error,
+                        ));
+                    }
                     // Analysis form, matching `read_document` / `scan_disk_file`.
                     // Shared decoder, for the same reason `scan_disk_file`
                     // uses it: an ill-formed byte must not silently remove the
@@ -26620,83 +26898,168 @@ impl Backend {
                         Err(cause)
                             if Self::source_read_is_absent(store.as_ref(), &path, &cause) =>
                         {
-                            driver.path_admission.check_for(&uri, store.as_ref())?;
-                            return Ok(None);
+                            return match driver.path_admission.check_for(&uri, store.as_ref()) {
+                                Ok(()) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(
+                                    Arc::clone(&driver.path_admission),
+                                )),
+                                Err(error) => WorkspaceScanCandidate::Scanned(
+                                    DiskScanOutcome::Unavailable(error),
+                                ),
+                            };
                         }
                         Err(cause) => {
-                            return Err(DocumentSourceUnavailable::Read {
-                                uri,
-                                cause: Arc::new(cause),
-                            });
+                            return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                                DocumentSourceUnavailable::Read {
+                                    uri,
+                                    cause: Arc::new(cause),
+                                },
+                            ));
                         }
                     };
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
-                    let dialect = folder_dialect_for(&uri, &folder_dialects)
-                        .unwrap_or_else(|| default_dialect.clone());
-                    let seed = driver.analyse(&text, &dialect, None)?;
-                    Ok(Some(ScannedDocument {
-                        uri,
-                        text,
-                        dialect,
-                        seed,
-                    }))
+                    if driver.analyser_inputs_epoch != scan_analyser_inputs_epoch
+                        || driver.class_factory_generation != scan_class_factory_generation
+                    {
+                        return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                            DocumentSourceUnavailable::ScanWorker {
+                                cause: "workspace scan inputs changed before row analysis"
+                                    .to_owned(),
+                            },
+                        ));
+                    }
+                    let document_override = document_dialect_overrides
+                        .get(uri.as_str())
+                        .map(String::as_str);
+                    let dialect = Self::dialect_for_closed_sync(
+                        &uri,
+                        &text,
+                        document_override,
+                        &folder_dialects,
+                        &default_dialect,
+                    );
+                    match driver.analyse(&text, &dialect, None) {
+                        Ok(seed) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
+                            ScannedDocument {
+                                uri,
+                                text,
+                                dialect,
+                                expected_analyser_inputs_epoch: Some(scan_analyser_inputs_epoch),
+                                expected_class_factory_generation: Some(
+                                    scan_class_factory_generation,
+                                ),
+                                seed,
+                            },
+                        )),
+                        Err(error) => {
+                            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(error))
+                        }
+                    }
                 })
                 .await
-                .map_err(|error| DocumentSourceUnavailable::ScanWorker {
-                    cause: error.to_string(),
-                })?
+                .unwrap_or_else(|error| {
+                    WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                        DocumentSourceUnavailable::ScanWorker {
+                            cause: error.to_string(),
+                        },
+                    ))
+                });
+                outcome
             });
         }
         let mut files_count = 0usize;
         let mut batch = Vec::new();
         while let Some(result) = tasks.join_next().await {
-            let item = result.map_err(|error| DocumentSourceUnavailable::ScanWorker {
-                cause: error.to_string(),
-            })??;
-            let Some(item) = item else {
-                continue;
-            };
-            batch.push(item);
+            let item = result.unwrap_or_else(|error| {
+                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                    DocumentSourceUnavailable::ScanWorker {
+                        cause: error.to_string(),
+                    },
+                ))
+            });
+            match item {
+                WorkspaceScanCandidate::Open => continue,
+                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(_)) => continue,
+                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(_error)) => {
+                    coverage_complete = false;
+                    continue;
+                }
+                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(item)) => {
+                    if item.seed.analysis.analysis_context_unavailable.is_some() {
+                        // Retain the typed row, but do not let an analysis that
+                        // performed no declaration walk certify absence.
+                        coverage_complete = false;
+                    }
+                    batch.push(item)
+                }
+            }
             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
+                let scanned_count = batch.len();
                 let batch = self
                     .current_scanned_rows(std::mem::take(&mut batch))
                     .await?;
-                files_count += batch.rows.len();
-                // Fold in the `auto_path` mutations this batch's own files
-                // install (`lappend auto_path [file dirname …]`) before
-                // merging, so the package database sees them as soon as
-                // their batch lands rather than only at the end of the scan.
+                coverage_complete &= batch.rows.len() == scanned_count;
+                let (published, currentness) = self
+                    .publish_scanned_disk_results(
+                        &batch,
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "merge_workspace_scan_results",
+                    )
+                    .await?;
+                coverage_complete &= currentness != DiskPublicationOutcome::Unavailable;
+                let published = published.into_iter().collect::<HashSet<_>>();
+                let published_rows = batch
+                    .rows
+                    .iter()
+                    .filter(|row| published.contains(&row.0))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                files_count += published_rows.len();
+                // Only source rows that passed the final currentness commit
+                // may contribute their `auto_path` mutations to the resolver.
                 resolver = extend_resolver_with_document_auto_paths(
                     self.store.as_ref(),
                     resolver,
-                    &batch.rows,
+                    &published_rows,
                 );
-                self.publish_scanned_disk_results(
+            }
+        }
+        if !batch.is_empty() {
+            let scanned_count = batch.len();
+            let batch = self.current_scanned_rows(batch).await?;
+            coverage_complete &= batch.rows.len() == scanned_count;
+            let (published, currentness) = self
+                .publish_scanned_disk_results(
                     &batch,
                     &[],
                     DiskRemovalPolicy::ClosedOnly,
                     "merge_workspace_scan_results",
                 )
                 .await?;
-            }
-        }
-        if !batch.is_empty() {
-            let batch = self.current_scanned_rows(batch).await?;
-            files_count += batch.rows.len();
+            coverage_complete &= currentness != DiskPublicationOutcome::Unavailable;
+            let published = published.into_iter().collect::<HashSet<_>>();
+            let published_rows = batch
+                .rows
+                .iter()
+                .filter(|row| published.contains(&row.0))
+                .cloned()
+                .collect::<Vec<_>>();
+            files_count += published_rows.len();
             resolver = extend_resolver_with_document_auto_paths(
                 self.store.as_ref(),
                 resolver,
-                &batch.rows,
+                &published_rows,
             );
-            self.publish_scanned_disk_results(
-                &batch,
-                &[],
-                DiskRemovalPolicy::ClosedOnly,
-                "merge_workspace_scan_results",
-            )
-            .await?;
         }
-        Ok((resolver, files_count))
+        let inputs_current = self.analyser_inputs_gate.try_read().is_ok_and(|guard| {
+            let current = self.diag_inputs_epoch() == scan_analyser_inputs_epoch;
+            drop(guard);
+            current
+        }) && self
+            .class_factory_generation
+            .try_read()
+            .is_ok_and(|generation| *generation == scan_class_factory_generation);
+        Ok((resolver, files_count, inputs_current, coverage_complete))
     }
 
     /// Merge disk-backed workspace scan results into the shared index **and** the
@@ -29689,7 +30052,27 @@ impl LanguageServer for Backend {
         // `S-semantic-tokens-rich`: real classification, served from the
         // memoised `semantic_tokens` query (packed integer stream, 5 ints per
         // token `[deltaLine, deltaCol, length, type, modifiers]`).
-        let core_data = self.semantic_tokens_core_data(&uri, &doc).await?;
+        let core = self.semantic_tokens_core_data(&uri, &doc).await?;
+        if let Some(source) = core.coarse_source {
+            let mut wire = Some(LspSemanticTokens {
+                result_id: None,
+                data: lift_semantic_token_data(&core.data),
+            });
+            let mut data = Some(core.data);
+            return self
+                .with_current_coarse_semantic_source(&source, || {
+                    let mut cache = self.last_semantic_tokens.try_lock().ok()?;
+                    let data = data.take()?;
+                    let mut wire = wire.take()?;
+                    let result_id = next_semantic_tokens_id();
+                    wire.result_id = Some(result_id.clone());
+                    cache.insert(uri.clone(), (result_id, data));
+                    Some(Some(SemanticTokensResult::Tokens(wire)))
+                })
+                .await?
+                .ok_or_else(coarse_semantic_source_changed);
+        }
+        let core_data = core.data;
         let result_id = next_semantic_tokens_id();
         // Remember this stream so a later `full/delta` with this `resultId` can
         // diff against it.
@@ -29717,7 +30100,56 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
             return Ok(None);
         };
-        let new_data = self.semantic_tokens_core_data(&uri, &doc).await?;
+        let core = self.semantic_tokens_core_data(&uri, &doc).await?;
+        if let Some(source) = core.coarse_source {
+            // Pure lift/diff work stays outside the source publication lease.
+            // The same cache's unique issued id revalidates this baseline; a
+            // concurrent cache change simply selects the full-stream response.
+            let baseline = self
+                .last_semantic_tokens
+                .lock()
+                .await
+                .get(&uri)
+                .filter(|(id, _)| *id == params.previous_result_id)
+                .cloned();
+            let mut edits = baseline.as_ref().map(|(_, old)| {
+                core_semantic_tokens::diff(old, &core.data)
+                    .map(|edit| SemanticTokensEdit {
+                        start: edit.start,
+                        delete_count: edit.delete_count,
+                        data: Some(lift_semantic_token_data(&edit.data)),
+                    })
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            });
+            let mut full = Some(lift_semantic_token_data(&core.data));
+            let mut data = Some(core.data);
+            return self
+                .with_current_coarse_semantic_source(&source, || {
+                    let mut cache = self.last_semantic_tokens.try_lock().ok()?;
+                    let data = data.take()?;
+                    let result_id = next_semantic_tokens_id();
+                    let baseline_current = baseline.as_ref().is_some_and(|(id, _)| {
+                        cache.get(&uri).is_some_and(|(current, _)| current == id)
+                    });
+                    let wire = if baseline_current {
+                        SemanticTokensFullDeltaResult::TokensDelta(SemanticTokensDelta {
+                            result_id: Some(result_id.clone()),
+                            edits: edits.take()?,
+                        })
+                    } else {
+                        SemanticTokensFullDeltaResult::Tokens(LspSemanticTokens {
+                            result_id: Some(result_id.clone()),
+                            data: full.take()?,
+                        })
+                    };
+                    cache.insert(uri.clone(), (result_id, data));
+                    Some(Some(wire))
+                })
+                .await?
+                .ok_or_else(coarse_semantic_source_changed);
+        }
+        let new_data = core.data;
         let result_id = next_semantic_tokens_id();
         // Swap the cache to the freshly-served stream and grab the previous one
         // *only if* its `resultId` matches the client's `previousResultId` — a
@@ -48578,6 +49010,529 @@ proc p {} {
         );
     }
 
+    async fn captured_workspace_scan_inputs(
+        backend: &Backend,
+    ) -> (
+        u64,
+        u64,
+        Arc<HashMap<String, String>>,
+        Vec<(Uri, String)>,
+        String,
+    ) {
+        let analyser_inputs_guard = backend.analyser_inputs_gate.read().await;
+        let epoch = backend.diag_inputs_epoch();
+        let document_overrides = backend.document_dialect_override_snapshot().await;
+        let folder_dialects = backend.folder_dialect_overrides().await;
+        let default_dialect = backend.session_dialect().await;
+        let class_factory_generation = *backend.class_factory_generation.read().await;
+        drop(analyser_inputs_guard);
+        (
+            epoch,
+            class_factory_generation,
+            document_overrides,
+            folder_dialects,
+            default_dialect,
+        )
+    }
+
+    async fn analyse_one_captured_workspace_file(
+        backend: &Backend,
+        path: PathBuf,
+        inputs: (
+            u64,
+            u64,
+            Arc<HashMap<String, String>>,
+            Vec<(Uri, String)>,
+            String,
+        ),
+    ) -> (PackageResolver, usize, bool, bool) {
+        let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
+            inputs;
+        backend
+            .analyse_and_merge_scanned_files(
+                vec![path],
+                HashSet::new(),
+                epoch,
+                factory_generation,
+                document_overrides,
+                folder_dialects,
+                default_dialect,
+                PackageResolver::new(),
+            )
+            .await
+            .expect("the fixed source file is readable")
+    }
+
+    /// Positive control: a closed row analysed and published under its captured
+    /// document override remains in the workspace index with complete coverage.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_publishes_under_unchanged_closed_document_override() {
+        let root = TmpWs::new("scan-dialect-current");
+        let path = root.0.join("source.tcl");
+        root.write("source.tcl", "proc stable {} {}\n");
+        let uri = Uri::from_file_path(&path).unwrap();
+        let backend = test_backend();
+        backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("f5-irules"),
+            ])
+            .await
+            .expect("install the closed-file override");
+        let inputs = captured_workspace_scan_inputs(&backend).await;
+        assert_eq!(
+            Backend::dialect_for_closed_sync(
+                &uri,
+                "proc stable {} {}\n",
+                inputs.2.get(uri.as_str()).map(String::as_str),
+                &inputs.3,
+                &inputs.4,
+            ),
+            "f5-irules",
+            "the closed-file override is the selected row dialect",
+        );
+
+        let (_, files_count, inputs_current, coverage_complete) =
+            analyse_one_captured_workspace_file(&backend, path, inputs).await;
+
+        assert!(inputs_current, "the captured inputs did not change");
+        assert!(
+            coverage_complete,
+            "a current published row has full coverage"
+        );
+        assert_eq!(files_count, 1, "the current closed row should publish");
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+        );
+    }
+
+    /// Adversarial control for the original A→B race: the URI stays closed and
+    /// its source bytes stay fixed, but the override changes after the scan
+    /// snapshot. The old row must be omitted and cannot certify a complete
+    /// source inventory.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_omits_closed_row_after_document_override_changes() {
+        let root = TmpWs::new("scan-dialect-stale-document");
+        let path = root.0.join("source.tcl");
+        root.write("source.tcl", "proc stable {} {}\n");
+        let uri = Uri::from_file_path(&path).unwrap();
+        let backend = test_backend();
+        backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("f5-irules"),
+            ])
+            .await
+            .expect("install override A");
+        let inputs = captured_workspace_scan_inputs(&backend).await;
+        let stale_epoch = inputs.0;
+        backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("tcl9.0"),
+            ])
+            .await
+            .expect("replace override A with B while the URI is closed");
+
+        let (_, files_count, inputs_current, coverage_complete) =
+            analyse_one_captured_workspace_file(&backend, path, inputs).await;
+
+        assert_eq!(files_count, 0, "the stale A row must be rejected");
+        assert!(!coverage_complete, "stale input omissions are not complete");
+        assert!(!inputs_current, "A's epoch must not be relabelled as B");
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+        );
+        assert!(
+            !backend
+                .publish_workspace_scan_inventory_if_current(
+                    vfs::WorkspaceSourceInventoryProvider::Filesystem,
+                    Vec::new(),
+                    true,
+                    stale_epoch,
+                    *backend.class_factory_generation.read().await,
+                )
+                .await
+        );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .source_inventory_scan_complete(),
+            Some(false),
+            "an unavailable stale candidate must not certify complete absence",
+        );
+    }
+
+    /// The explicit default setter and the session override setter are both
+    /// analyzer-input generations: a captured closed row becomes unavailable
+    /// when either selection changes before its worker starts.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_rejects_rows_after_default_or_session_dialect_changes() {
+        for change_session_override in [false, true] {
+            let root = TmpWs::new(if change_session_override {
+                "scan-dialect-stale-session"
+            } else {
+                "scan-dialect-stale-default"
+            });
+            let path = root.0.join("source.tcl");
+            root.write("source.tcl", "proc stable {} {}\n");
+            let backend = test_backend();
+            let inputs = captured_workspace_scan_inputs(&backend).await;
+            if change_session_override {
+                backend
+                    .set_session_dialect_override_command(&[serde_json::json!("f5-irules")])
+                    .await
+                    .expect("change the session override");
+            } else {
+                backend
+                    .set_dialect_command(&[serde_json::json!("tcl9.0")])
+                    .await
+                    .expect("change the explicit default");
+            }
+
+            let (_, files_count, inputs_current, coverage_complete) =
+                analyse_one_captured_workspace_file(&backend, path, inputs).await;
+            assert!(!coverage_complete, "a stale row cannot certify absence");
+
+            assert_eq!(files_count, 0, "the captured row is stale");
+            assert!(
+                !inputs_current,
+                "the changed dialect must advance the epoch"
+            );
+        }
+    }
+
+    /// A changed class-factory generation also makes a closed analysis row
+    /// unavailable, even when its source and dialect inputs are unchanged.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_rejects_rows_after_factory_generation_changes() {
+        let root = TmpWs::new("scan-factory-stale");
+        let path = root.0.join("source.tcl");
+        root.write("source.tcl", "proc stable {} {}\n");
+        let backend = test_backend();
+        let inputs = captured_workspace_scan_inputs(&backend).await;
+        let captured_epoch = inputs.0;
+        let captured_factory_generation = inputs.1;
+        {
+            let mut generation = backend.class_factory_generation.write().await;
+            *generation = generation.saturating_add(1);
+        }
+
+        let (_, files_count, inputs_current, coverage_complete) =
+            analyse_one_captured_workspace_file(&backend, path, inputs).await;
+
+        assert_eq!(files_count, 0, "the old factory view must be omitted");
+        assert!(
+            !coverage_complete,
+            "a stale factory row cannot certify absence"
+        );
+        assert!(!inputs_current, "the captured factory generation is stale");
+        assert!(
+            !backend
+                .publish_workspace_scan_inventory_if_current(
+                    vfs::WorkspaceSourceInventoryProvider::Filesystem,
+                    Vec::new(),
+                    true,
+                    captured_epoch,
+                    captured_factory_generation,
+                )
+                .await
+        );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .source_inventory_scan_complete(),
+            Some(false),
+            "the final receipt must join the captured factory generation",
+        );
+    }
+
+    /// Open files and candidates confirmed absent by the store are intentional
+    /// skips and do not turn a completed census into unavailable coverage.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_open_and_absent_candidates_remain_intentional_skips() {
+        let root = TmpWs::new("scan-intentional-skips");
+        let open_path = root.0.join("open.tcl");
+        let absent_path = root.0.join("absent.tcl");
+        root.write("open.tcl", "proc openProc {} {}\n");
+        root.write("absent.tcl", "proc absentProc {} {}\n");
+        std::fs::remove_file(&absent_path).unwrap();
+        let open_uri = Uri::from_file_path(&open_path).unwrap();
+        let backend = test_backend();
+        let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
+            captured_workspace_scan_inputs(&backend).await;
+
+        let (_, files_count, inputs_current, coverage_complete) = backend
+            .analyse_and_merge_scanned_files(
+                vec![open_path, absent_path],
+                HashSet::from([open_uri]),
+                epoch,
+                factory_generation,
+                document_overrides,
+                folder_dialects,
+                default_dialect,
+                PackageResolver::new(),
+            )
+            .await
+            .expect("intentional skips do not fail the workspace scan");
+
+        assert!(inputs_current, "the configured inputs stayed current");
+        assert_eq!(files_count, 0, "neither skipped candidate is published");
+        assert!(
+            coverage_complete,
+            "open and confirmed-absent paths are accounted for"
+        );
+    }
+
+    /// A transient writer can refuse a batch after analysis. Once it releases,
+    /// stable final generations must not renew the incomplete coverage receipt.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_transient_busy_batch_stays_incomplete() {
+        let root = TmpWs::new("scan-transient-busy-batch");
+        let path = root.0.join("source.tcl");
+        let text = "proc stable {} {}\n";
+        root.write("source.tcl", text);
+        let uri = Uri::from_file_path(&path).unwrap();
+        let backend = test_backend();
+        let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
+            captured_workspace_scan_inputs(&backend).await;
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+        let driver = backend.fresh_analysis_driver(admission).await;
+        let dialect = Backend::dialect_for_closed_sync(
+            &uri,
+            text,
+            document_overrides.get(uri.as_str()).map(String::as_str),
+            &folder_dialects,
+            &default_dialect,
+        );
+        let seed = driver.analyse(text, &dialect, None).unwrap();
+        let batch = backend
+            .current_scanned_rows(vec![ScannedDocument {
+                uri: uri.clone(),
+                text: text.to_owned(),
+                dialect,
+                expected_analyser_inputs_epoch: Some(epoch),
+                expected_class_factory_generation: Some(factory_generation),
+                seed,
+            }])
+            .await
+            .unwrap();
+        assert_eq!(
+            batch.rows.len(),
+            1,
+            "the control starts with an admissible row"
+        );
+
+        let writer = backend.analyser_inputs_gate.write().await;
+        let (published, currentness) = backend
+            .publish_scanned_disk_results(
+                &batch,
+                &[],
+                DiskRemovalPolicy::ClosedOnly,
+                "workspace_scan_transient_busy_batch",
+            )
+            .await
+            .unwrap();
+        drop(writer);
+        assert!(
+            published.is_empty(),
+            "busy configured inputs refuse the row"
+        );
+        assert_eq!(currentness, DiskPublicationOutcome::Unavailable);
+
+        let complete = backend
+            .publish_workspace_scan_inventory_if_current(
+                vfs::WorkspaceSourceInventoryProvider::Filesystem,
+                Vec::new(),
+                currentness != DiskPublicationOutcome::Unavailable,
+                epoch,
+                factory_generation,
+            )
+            .await;
+        assert!(
+            !complete,
+            "a later stable read cannot renew refused coverage"
+        );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .source_inventory_scan_complete(),
+            Some(false),
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the refused row must remain unpublished",
+        );
+    }
+
+    /// A real overlay miss returns an analysis seed with a typed unavailable
+    /// context. The row may be published with that status, but the scan cannot
+    /// certify complete absence or replace its resolver from this candidate.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_unavailable_analysis_keeps_coverage_incomplete() {
+        use salsa::Setter as _;
+
+        let root = PathBuf::from("/workspace/scan-unavailable-analysis");
+        let path = root.join("source.tcl");
+        let uri = Uri::from_file_path(&path).unwrap();
+        let store = Arc::new(vfs::MemoryStore::new());
+        store.upsert_uri(
+            uri.as_str(),
+            path.clone(),
+            b"proc unavailableProc {} {}\n".to_vec(),
+        );
+        store.set_workspace_source_inventory(
+            root.clone(),
+            "complete-source-census",
+            vfs::WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        let mut backend = test_backend();
+        backend.store = store.clone();
+        let provider = store.workspace_source_inventory_provider();
+        let observations = vec![store.workspace_source_inventory(&root)];
+        assert!(observations[0].admits_complete_inventory());
+        {
+            let _inputs = backend.analyser_inputs_gate.write().await;
+            let config = *backend.db_config.lock().await;
+            let mut db = backend.db.lock().await;
+            config.set_spec_pack_key(&mut *db).to(u64::MAX);
+            backend.invalidate_diag_inputs();
+        }
+        let inputs = captured_workspace_scan_inputs(&backend).await;
+        let captured_epoch = inputs.0;
+        let captured_factory_generation = inputs.1;
+        let admission =
+            Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+        let driver = backend.fresh_analysis_driver(admission).await;
+        let seed = driver
+            .analyse("proc unavailableProc {} {}\n", "tcl8.6", None)
+            .expect("the real overlay miss is returned as a typed analysis result");
+        assert!(
+            seed.analysis.analysis_context_unavailable.is_some(),
+            "the configured analyzer must report the unavailable overlay ingress",
+        );
+
+        let (_, files_count, inputs_current, coverage_complete) =
+            analyse_one_captured_workspace_file(&backend, path, inputs).await;
+
+        assert!(
+            inputs_current,
+            "the analyzer and factory inputs stayed stable"
+        );
+        assert_eq!(
+            files_count, 1,
+            "the typed unavailable row remains represented"
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the unavailable seed still travels through the existing typed row path",
+        );
+        assert!(
+            !coverage_complete,
+            "an unavailable declaration walk cannot prove absence"
+        );
+        assert!(
+            !backend
+                .publish_workspace_scan_resolver_if_current(
+                    PackageResolver::new(),
+                    captured_epoch,
+                    captured_factory_generation,
+                    inputs_current && coverage_complete,
+                )
+                .await
+        );
+        assert!(
+            !backend
+                .publish_workspace_scan_inventory_if_current(
+                    provider,
+                    observations,
+                    coverage_complete,
+                    captured_epoch,
+                    captured_factory_generation,
+                )
+                .await
+        );
+    }
+
+    /// Resolver publication is a separate currency boundary from per-batch
+    /// row publication. A resolver carrying an accepted row's auto-path fact
+    /// is refused when its configured analysis inputs changed before the final
+    /// resolver write.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_scan_resolver_publication_requires_current_inputs() {
+        let root = TmpWs::new("scan-resolver-currentness");
+        root.write(
+            "pkgIndex.tcl",
+            "package ifneeded stale 1.0 {package provide stale 1.0}\n",
+        );
+        let mut candidate = PackageResolver::new();
+        candidate.scan_path(&root.0);
+        assert!(candidate.provides("stale"));
+
+        let backend = test_backend();
+        let epoch = backend.diag_inputs_epoch();
+        let factory_generation = *backend.class_factory_generation.read().await;
+        backend
+            .set_session_dialect_override_command(&[serde_json::json!("f5-irules")])
+            .await
+            .expect("advance the analyzer-input epoch");
+
+        assert!(
+            !backend
+                .publish_workspace_scan_resolver_if_current(
+                    candidate,
+                    epoch,
+                    factory_generation,
+                    true,
+                )
+                .await
+        );
+        assert!(
+            !backend.package_resolver.read().await.provides("stale"),
+            "a stale resolver must not replace the current package database",
+        );
+
+        let current = test_backend();
+        let current_epoch = current.diag_inputs_epoch();
+        let current_factory_generation = *current.class_factory_generation.read().await;
+        let mut current_candidate = PackageResolver::new();
+        current_candidate.scan_path(&root.0);
+        assert!(
+            current
+                .publish_workspace_scan_resolver_if_current(
+                    current_candidate,
+                    current_epoch,
+                    current_factory_generation,
+                    true,
+                )
+                .await
+        );
+        assert!(current.package_resolver.read().await.provides("stale"));
+    }
+
     #[tokio::test]
     async fn scan_workspace_folders_indexes_unopened_files() {
         let root = unique_scratch_dir("scan");
@@ -54372,6 +55327,202 @@ proc p {} {
                 .await
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn library_publication_refuses_actual_configuration_and_factory_changes() {
+        for factory_change in [false, true] {
+            let backend = test_backend();
+            let uri = Uri::from_str("untitled:library-full-input").unwrap();
+            register(&backend, &uri, "proc library_full_input {} {}\n").await;
+            let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
+            let epoch = backend.diag_inputs_epoch();
+            let generation = *backend.class_factory_generation.read().await;
+            let receipt = backend
+                .capture_workspace_symbol_analysis(&uri, &snapshot)
+                .await
+                .unwrap()
+                .unwrap();
+            if factory_change {
+                let mut analyser = Analyser::new();
+                let oracle = Arc::new(
+                    analyser
+                        .analyse("oo::class create LibraryFactory {}", "tcl8.6")
+                        .class_factories(),
+                );
+                let mut generation = backend.class_factory_generation.write().await;
+                let mut db = backend.db.lock().await;
+                let files = backend.db_files.lock().await;
+                files[&uri]
+                    .set_workspace_class_factories(&mut *db)
+                    .to(Some(oracle));
+                *generation = generation.saturating_add(1);
+            } else {
+                let config = backend.resolved_db_config(&uri).await;
+                let mut db = backend.db.lock().await;
+                config
+                    .set_extra_commands(&mut *db)
+                    .to(vec!["library_new_command".to_owned()]);
+            }
+            assert!(
+                !backend
+                    .publish_checked_library_analyses(
+                        &[(uri.clone(), snapshot, receipt)],
+                        epoch,
+                        generation
+                    )
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                !backend
+                    .autoloaded_library_uris
+                    .lock()
+                    .await
+                    .contains(uri.as_str())
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn library_publication_retains_original_provider_mapping_across_equal_path_aba() {
+        let mut backend = test_backend();
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///library-original-mapping.tcl").unwrap();
+        let path = PathBuf::from("/library-provider-mount/source.tcl");
+        let source = "proc library_provider_target {} {}\n";
+        store.upsert_uri(uri.as_str(), &path, source.as_bytes().to_vec());
+        backend.store = store.clone();
+        let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        let receipt = backend
+            .capture_workspace_symbol_analysis(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(store.remove_uri(uri.as_str()));
+        store.upsert_uri(uri.as_str(), &path, source.as_bytes().to_vec());
+        let result = backend
+            .publish_checked_library_analyses(
+                &[(uri.clone(), snapshot, receipt)],
+                epoch,
+                generation,
+            )
+            .await;
+        assert!(!result.unwrap_or(false));
+        assert!(
+            !backend
+                .autoloaded_library_uris
+                .lock()
+                .await
+                .contains(uri.as_str())
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn library_publication_checks_closed_saved_source_and_commits_whole_batch() {
+        for change_saved_source in [false, true] {
+            let backend = test_backend();
+            let uri = seed_autoload_library(&backend, "checked-library-saved-source").await;
+            let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
+            let epoch = backend.diag_inputs_epoch();
+            let generation = *backend.class_factory_generation.read().await;
+            let receipt = backend
+                .capture_workspace_symbol_analysis(&uri, &snapshot)
+                .await
+                .unwrap()
+                .unwrap();
+            if change_saved_source {
+                std::fs::write(
+                    uri.to_file_path().unwrap(),
+                    "proc changed_library_target {} {}\n",
+                )
+                .unwrap();
+            }
+            assert_eq!(
+                backend
+                    .publish_checked_library_analyses(
+                        &[(uri.clone(), snapshot, receipt)],
+                        epoch,
+                        generation
+                    )
+                    .await
+                    .unwrap(),
+                !change_saved_source
+            );
+            assert_eq!(
+                backend
+                    .autoloaded_library_uris
+                    .lock()
+                    .await
+                    .contains(uri.as_str()),
+                !change_saved_source
+            );
+            assert_eq!(
+                backend
+                    .workspace_index
+                    .read()
+                    .await
+                    .contains_document(uri.as_str()),
+                !change_saved_source
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn library_publication_reuses_genuine_full_input_and_factory_receipts() {
+        let backend = test_backend();
+        let uri = Uri::from_str("untitled:library-publication-owner").unwrap();
+        register(&backend, &uri, "proc library_receipt_target {} {}\n").await;
+        let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        let receipt = backend
+            .capture_workspace_symbol_analysis(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        let batch = vec![(uri.clone(), snapshot, receipt)];
+        assert!(
+            !backend
+                .publish_checked_library_analyses(&batch, epoch.wrapping_add(1), generation)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !backend
+                .publish_checked_library_analyses(&batch, epoch, generation.wrapping_add(1))
+                .await
+                .unwrap()
+        );
+        assert!(
+            backend
+                .publish_checked_library_analyses(&batch, epoch, generation)
+                .await
+                .unwrap()
+        );
+        assert!(
+            backend
+                .autoloaded_library_uris
+                .lock()
+                .await
+                .contains(uri.as_str())
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::library_receipt_target")
         );
     }
 
