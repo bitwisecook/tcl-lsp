@@ -1,0 +1,122 @@
+{
+  "reviewer": "Luna-8",
+  "subject": "Sol-6 member-census-v2.patch",
+  "verdict": "HOLD",
+  "head": "bb7277d82 (includes integration37 60051c3c2)",
+  "rebase": {
+    "needed": false,
+    "evidence": "git apply --check clean; 8 patched files unchanged 84cf7c884..HEAD; luna-8/a == sol-6/a and patched luna-8/b == sol-6/b byte-identical; integration37 touches disjoint files"
+  },
+  "static_only": true,
+  "probes": {
+    "files": ["probes/p1.tcl", "probes/p2.tcl", "probes/p3.tcl"],
+    "results": "probes/probe-results.txt",
+    "tclsh": ["8.6.18", "9.0.4"]
+  },
+  "findings": [
+    {
+      "id": "H1",
+      "severity": "high",
+      "kind": "soundness",
+      "where": "rust/tcl-lsp-core/src/original_declaration.rs (patched) MemberCensus::classify ~b:1123-1200; rust/tcl-registry/src/commands/tcl/subst_.rs:308",
+      "summary": "subst template command substitutions are neither walked nor covered; subst classifies Other (retains_callback Some(false)); escaped/computed selectors escape the mention net",
+      "repro": "oo::class create C {method ping {} {}; method body {} {subst {[my p\\x69ng]}}} and {set s [string cat pi ng]; subst {[my $s]}} -> tclsh 8.6/9.0 dispatch C::ping; census Complete",
+      "fix": "classify: None when traits contain PERFORMS_SUBSTITUTION (or body_execution SubstitutionTemplate); add fail-closed tests"
+    },
+    {
+      "id": "H2",
+      "severity": "high",
+      "kind": "soundness",
+      "where": "rust/tcl-registry/src/commands/tcl/oo_helpers.rs:153 QUALIFIED_SPELLING_EXCLUDED; classify trait check original_declaration.rs b:1149",
+      "summary": "qualified ::oo::Helpers::next / nextto lose TCLOO_NEXT_CHAIN, classify Other with no mention; superclass method reached without incompleteness (NOTES 'names no member' reasoning is wrong: bare next names none either)",
+      "repro": "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method ping {} {::oo::Helpers::next}} -> tclsh prints Base::ping reached; census for Base::ping Complete",
+      "fix": "registry: retain behaviour traits (TCLOO_NEXT_CHAIN, TCLOO_BINDS_METHOD_ALIAS) on qualified twins, strip only scope traits (audit consumers); interim: census fails closed on spec.implementation_namespace.is_some()"
+    },
+    {
+      "id": "H3",
+      "severity": "medium-high",
+      "kind": "soundness",
+      "where": "same as H2",
+      "summary": "qualified ::oo::Helpers::link with computed alias (no BINDS_METHOD_ALIAS) can shadow a builtin name in the object namespace; later 'set' dispatches the method",
+      "repro": "constructor {} {::oo::Helpers::link [list set [string cat pi ng]]}; method body {} {set a 1} -> tclsh9.0 'C::ping via linked set (a 1)'; census Complete",
+      "fix": "same as H2; add tcl9.0 fail-closed test"
+    },
+    {
+      "id": "R1",
+      "severity": "low",
+      "kind": "residual-assumption",
+      "summary": "census trusts tape identity/MRO attribution (span-set equality only); no class-family gate (itcl bare-name method calls rely on source_registry_words returning None); add itcl/snit control or gate on family self-dispatch descriptor"
+    },
+    {
+      "id": "R2",
+      "severity": "info",
+      "kind": "model-vs-tclsh",
+      "summary": "tclsh 9.0.4: 'my size' for a property is 'unknown method'; 'property' in plain oo::class create is 'invalid command name'. Pre-existing property model over-counts; real accesses (configure/cget/<ReadProp-*>) are caught, so not unsound. Candidate for 'Correct to tclsh', not this patch."
+    },
+    {
+      "id": "Q2",
+      "severity": "low",
+      "kind": "registry-queries",
+      "where": "rust/tcl-registry/src/resolved_invocation.rs b:3905, b:3928",
+      "summary": "both queries pure registry data, no names; unresolved subcommands -> None; self-dispatch ignores subcommand by trait (correct). retains_callback ignores deferred_script Body options (safe only via CheckedSyntax dynamic-Body refusal; document). Registry test expectation 'my ping $x' -> callback None depends on allow_unknown resolution kind (possible red test, no soundness impact)."
+    },
+    {
+      "id": "G3",
+      "severity": "info",
+      "kind": "server-guard",
+      "where": "rust/tcl-lsp-server/src/readonly_reference_reports.rs b:1712",
+      "recommendation": "keep",
+      "summary": "needed: core census is per-document while server retains workspace-indexed + open docs (lib.rs:14659) and adds only typed cross-doc references. No currently-passing test flips (no server test observes complete-source-census in lsp-36; e2e roots nonexistent; unit tests single-document). Follow-ups: unresolved lens data tag at lib.rs:33040 is unguarded (inconsistent with resolve when >1 doc); later narrowing via per-document mention/head checks; Complete+0 lenses remain non-clickable (readonly_reference_reports.rs:167) so e2e/server zero-reference clickable tests stay red on command id."
+    },
+    {
+      "id": "T4",
+      "severity": "medium",
+      "kind": "test-expectations",
+      "summary": "expectation changes strictly Partial->Complete (test-096 b:1976; server wire coverage x1, tags x2, title) for a shape the census proves complete. Both tests PASS today (lsp-36) and become dependent on the unbuilt census reaching Complete (my ping registry words) - build/run first."
+    },
+    {
+      "id": "B5",
+      "severity": "medium",
+      "kind": "blast-radius",
+      "where": "rust/tcl-lsp-core/src/source_structure.rs b:1615",
+      "summary": "class documents can now reach CheckedSyntax Complete and coverage.commands() now includes method-body commands",
+      "likely_fail_to_pass": [
+        "tcl_lsp_core::code_lens::tests::lens_counts_method_calls_within_class_body",
+        "tcl_lsp_core::code_lens::tests::lens_reports_zero_for_uncalled_method",
+        "tcl_lsp_core::code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+        "tcl_lsp_core::code_lens::tests::lens_reports_zero_for_unused_property",
+        "tcl_lsp_core::original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census",
+        "tcl_lsp_core::rename_safety::tests::fn_guard_allows_a_literal_my_dispatch (not in capture)",
+        "tcl_lsp_core::rename_safety::tests::tn_allows_an_ordinary_member_rename_with_no_renamemethod_in_the_body (not in capture)"
+      ],
+      "at_risk_either_way": [
+        "tcl_lsp_core::call_hierarchy::logical_source::tests::genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives",
+        "tcl_lsp_server::readonly_reference_reports::logical_call_wire_tests::typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease",
+        "tcl_lsp_server::readonly_reference_reports::logical_hierarchy_tests::*",
+        "namespace_rename / DispatchRegionCensus and receiver_identity class-document refusals",
+        "minify compaction on TclOO documents (barriers likely retained via member heads; add control)",
+        "extract_variable / inline_variable in method bodies",
+        "proposal_diagnostics class-factory recompute admission",
+        "code_actions package presence census (Unavailable member disposition now 'unavailable')"
+      ],
+      "likely_pass_to_fail": [
+        "tcl_lsp_core::original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories (only if census fails to reach Complete)",
+        "tcl_lsp_server::readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage (same condition)"
+      ],
+      "stays_pass": [
+        "tcl_lsp_core::original_declaration::property_source_census_unclassified_receiver_tests::unclassified_object_receivers_and_unknown_heads_preserve_partial_counts"
+      ]
+    },
+    {
+      "id": "C6",
+      "severity": "low",
+      "kind": "compile-style",
+      "summary": "signatures verified against HEAD; rustfmt --edition 2024 --check clean on all 7 .rs files (no repo rustfmt.toml); no #[allow]; UK spelling; no process names in comments; clippy watch: too_many_lines (classify ~80), needless_pass_by_value on impl Fn skip"
+    }
+  ],
+  "admit_conditions": [
+    "Close H1 (PERFORMS_SUBSTITUTION fail-closed) and H2/H3 (registry trait retention on qualified oo::Helpers twins, or interim implementation_namespace fail-closed) with five fail-closed tests",
+    "Build and run registry test, test-096, server wire test, Sol's new core/server tests, code_lens 056-060, admission26",
+    "Run rename_safety, namespace_rename, call_hierarchy::logical_source, minify and server logical hierarchy groups to record section-5 flips"
+  ]
+}

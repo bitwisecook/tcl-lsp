@@ -1,0 +1,150 @@
+{
+ "reviewer": "Luna-7",
+ "subject": "sol-5/same-document-order-v1.patch",
+ "patch_sha256": "43a5331353a192eaa6a9b3549017395a69602614717b761c5ab568e0abf1bbb5",
+ "head": "60051c3c2",
+ "a_matches_head": true,
+ "git_apply_check": "pass",
+ "verdict": "HOLD",
+ "static_only": true,
+ "probes": {
+  "dir": "scratchpad/agents/luna-7/probe",
+  "tclsh": [
+   "8.6",
+   "9.0"
+  ],
+  "agree": true,
+  "sol5_probe_reconfirmed": true
+ },
+ "findings": [
+  {
+   "id": "H1",
+   "severity": "high",
+   "blocking": true,
+   "title": "Known same-document comparison enables conflict rule whose earlier-alias liveness ignores unknown-position removals; drops installs Tcl performs",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/source_graph.rs:1337-1349",
+    "rust/tcl-lsp-core/src/workspace_index.rs:8655-8692",
+    "b/rust/tcl-lsp-core/src/namespace_import.rs:202-214",
+    "b/rust/tcl-lsp-core/src/namespace_import.rs:755-763",
+    "b/docs/design/analysis/import-order-source-graph.md:457"
+   ],
+   "evidence": "probe/run3.tcl: import A; source forgetA.tcl; import B -> ::B::p (deterministic); if {1} forget A between -> ::B::p; patch -> conflict, B dropped"
+  },
+  {
+   "id": "H2",
+   "severity": "high",
+   "blocking": true,
+   "title": "removal_in_effect is open for query None; link_alias_live masks exact links for body-local and cross-document consumers; exact vs glob diverge",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/namespace_import.rs:210",
+    "rust/tcl-lsp-core/src/workspace_index.rs:8726-8750",
+    "rust/tcl-lsp-core/src/workspace_index.rs:3712",
+    "b/docs/design/analysis/import-order-source-graph.md:457"
+   ],
+   "evidence": "needs explicit decision (end-of-load reading) or a consistent rule plus accurate docs"
+  },
+  {
+   "id": "M1",
+   "severity": "medium",
+   "title": "Entering bodies bypasses HEAD caller_context_unavailable_bodies refusal and does not require Selected source",
+   "refs": [
+    "rust/tcl-lsp-core/src/source_graph.rs:697-704",
+    "b/rust/tcl-lsp-core/src/source_graph.rs:751-833"
+   ],
+   "evidence": "probe/shadow.tcl: namespace-local proc eval / proc namespace leave alias alive"
+  },
+  {
+   "id": "M2",
+   "severity": "medium",
+   "title": "uplevel admitted as once-immediate; load-frame dependent",
+   "refs": [
+    "b/docs/design/analysis/import-order-source-graph.md:452",
+    "rust/tcl-registry/src/script_body_flow.rs:143-147"
+   ],
+   "evidence": "probe/uplev.tcl: bad level at #0; runs when sourced from proc"
+  },
+  {
+   "id": "M3",
+   "severity": "medium",
+   "title": "Early exits unmodelled though registry TERMINATES_BLOCK/TERMINATES_PROCESS exist; analyser-known errors (import conflict, qualified export) abort the script",
+   "refs": [
+    "rust/tcl-registry/src/traits.rs:334",
+    "rust/tcl-registry/src/traits.rs:339",
+    "rust/tcl-compiler/src/analyser/handlers.rs:11730-11745",
+    "b/docs/design/analysis/import-order-source-graph.md:459"
+   ],
+   "evidence": "probe/ret.tcl, condret.tcl, conflict.tcl, qual.tcl"
+  },
+  {
+   "id": "M4",
+   "severity": "medium",
+   "title": "Doc inaccuracies in section 8, section 8.1 and three dependent docs",
+   "refs": [
+    "b/docs/design/analysis/import-order-source-graph.md:436",
+    "b/docs/design/analysis/import-order-source-graph.md:440",
+    "b/docs/design/analysis/import-order-source-graph.md:442",
+    "b/docs/design/analysis/import-order-source-graph.md:444",
+    "b/docs/design/analysis/import-order-source-graph.md:455",
+    "b/docs/design/analysis/import-order-source-graph.md:457",
+    "docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md:23-25",
+    "docs/design/contracts/shared-utility-contracts-rust.md:631",
+    "docs/design/contracts/shared-utility-contracts-rust.md:1322-1325",
+    "docs/design/contracts/workspace-indexing.md:566"
+   ]
+  },
+  {
+   "id": "M5",
+   "severity": "medium",
+   "title": "Capture O(commands x regions) and per-call linear scans; definition recaptures per query",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/source_graph.rs:741-753",
+    "b/rust/tcl-lsp-core/src/source_graph.rs:835-866",
+    "rust/tcl-lsp-core/src/definition.rs:3773"
+   ]
+  },
+  {
+   "id": "L1",
+   "severity": "low",
+   "title": "Cross-document controls use unrelated documents (navigation None); add a source-edge-ordered variant",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/workspace_index.rs:16238",
+    "b/rust/tcl-lsp-core/src/source_graph.rs:2763-2818"
+   ]
+  },
+  {
+   "id": "L2",
+   "severity": "low",
+   "title": "too_many_lines risk on the 153-line test; Option<Option> alias sidesteps option_option",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/source_graph.rs:2658",
+    "b/rust/tcl-lsp-core/src/source_graph.rs:712"
+   ]
+  },
+  {
+   "id": "L3",
+   "severity": "low",
+   "title": "contains() ignores definition-body geometry for the point itself",
+   "refs": [
+    "b/rust/tcl-lsp-core/src/source_graph.rs:835-866"
+   ]
+  }
+ ],
+ "checks": {
+  "1_soundness": "partial: correct for real built-in namespace eval and eval; withholds if, switch, loop, catch, try, dict and lambda bodies and substitutions; gaps M1, M2, M3",
+  "2_cross_document_pairs_unchanged": true,
+  "3_guard_body_local_cross_document": "holds for Some(query); fails for query None (H2) and inverted in the conflict path (H1)",
+  "4_compile": "no signature or visibility errors found against HEAD; unexecuted",
+  "5_controls_within_decision": "yes for the same-document shape only; the two extra 1b45c540e controls need sign-off; cross-document intent kept weakly (L1)",
+  "6_other_flips": "none found among passing order tests in cp09 partial-lsp35r2 and luna-workspace wi-all",
+  "7_docs_allow_registry": "docs inaccurate (M4); no #[allow]; registry data only"
+ },
+ "admit_conditions": [
+  "Fix H1 with controls for both probe shapes",
+  "Resolve H2 by decision plus a consistent exact/glob rule and accurate docs",
+  "Fix M1 (Selected source plus caller-context refusal or adversarial controls)",
+  "Fix M2 and M3 via registry data or get user sign-off",
+  "Correct M4 docs",
+  "Measure M5"
+ ]
+}

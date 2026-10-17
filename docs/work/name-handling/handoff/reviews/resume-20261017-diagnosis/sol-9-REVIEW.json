@@ -1,0 +1,132 @@
+{
+ "reviewer": "Sol-9",
+ "utc": "2026-10-17",
+ "patch": "scratchpad/agents/luna-6/test-corrections-v1.patch",
+ "base_head": "bb7277d82 (includes 60051c3c2)",
+ "verdict": "ADMIT v1 with condition D1 (comment-only) and a gate run before counting green",
+ "mechanical": {
+  "apply_check_worktree": "pass (definition.rs offset +19)",
+  "apply_check_cached": "pass",
+  "rustfmt_2024_check": "clean on all 4 patched files (rustfmt 1.10.0)",
+  "allow_attributes": "none",
+  "analyse_tcl9_in_scope": "call_hierarchy.rs:2502 inside mod tests 1784-2801",
+  "new_test_names_unique": true,
+  "fixtures_reextracted_identical": true
+ },
+ "tests": [
+  {
+   "test": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+   "run": 124,
+   "verdict": "ADMIT",
+   "tclsh": "8.4-9.1 rename fails TARGET_EXISTS; nothing sourced",
+   "head_now": "red at rename fixture (left 0)",
+   "note": "F3: alias positive fixture now reached for the first time; unverified"
+  },
+  {
+   "test": "document_links::tests::double_dash_terminator_skipped",
+   "run": 140,
+   "verdict": "ADMIT",
+   "tclsh": "8.4 wrong#args; 8.5/8.6 wrong#args; 9.0/9.1 bad option -- must be -nopkg",
+   "head_now": "0 links -> predicted green"
+  },
+  {
+   "test": "definition::tests::jump_to_nextto_namespaced_class_method",
+   "verdict": "ADMIT",
+   "tclsh": "8.6/9.0/9.1 A does not refer to an object",
+   "head_now": "[] (targeted-37a test-003) -> predicted green"
+  },
+  {
+   "test": "definition::tests::jump_to_nextto_relative_qualified_class_method",
+   "new": true,
+   "verdict": "ADMIT",
+   "tclsh": "hi / hi with B returning from-B"
+  },
+  {
+   "test": "definition::tests::jump_to_nextto_fully_qualified_class_method",
+   "new": true,
+   "verdict": "ADMIT",
+   "tclsh": "hi / hi"
+  },
+  {
+   "test": "definition::tests::nextto_refuses_a_class_name_reached_through_the_helpers_path",
+   "new": true,
+   "verdict": "ADMIT",
+   "tclsh": "helpers (line 2 would be the answer, never line 6); refusal pinned fail-closed"
+  },
+  {
+   "test": "call_hierarchy::tests::same_named_procs_in_different_namespaces_disambiguate_by_span",
+   "verdict": "ADMIT",
+   "tclsh": "8.4-9.1 original: unknown namespace; corrected: b::helper enters bCallee only",
+   "note": "F3: HEAD outcome unverified"
+  },
+  {
+   "test": "call_hierarchy::tests::prepare_resolves_classmethod_over_same_named_method_by_cursor",
+   "verdict": "ADMIT",
+   "tclsh": "8.6 invalid command classmethod; 9.0/9.1 classmethod real",
+   "note": "F2: predicted to stay red on detail ('Source declaration' vs legacy 'classmethod of ::C (0 params)'); out of scope"
+  },
+  {
+   "test": "call_hierarchy::tests::outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name",
+   "verdict": "ADMIT_AFTER_D1",
+   "tclsh": "9.0/9.1 original order: my greet enters classmethod via forward; reordered: instance-method",
+   "head_now": "GREEN at 8.6 (capture37 test-556)",
+   "note": "F1 gate: must stay green; sibling test-565 evidence predicts green. N1: NOTES sibling-profile rationale inaccurate"
+  },
+  {
+   "test": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+   "run": 57,
+   "verdict": "ADMIT",
+   "tclsh": "0 entries as written; stock tclsh TCLLIBPATH auto_load reaches method 2x without editing the document",
+   "head_now": "References unavailable (Partial) -> predicted green",
+   "note": "H1 optional: pin reference_coverage Partial"
+  },
+  {
+   "test": "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+   "run": 67,
+   "verdict": "ADMIT",
+   "tclsh": "0 entries as written; sourcing caller that sets x reaches bark 1x",
+   "head_now": "References unavailable (Partial) -> predicted green",
+   "note": "H1 optional"
+  }
+ ],
+ "findings": [
+  {
+   "id": "D1",
+   "severity": "required-comment-only",
+   "text": "outgoing_calls_does_not_conflate doc block keeps the false Tcl 9 claim that an instance's method table never includes classmethods; tclsh 9.0.4/9.1.0: classmethod installs forward myclass greet and my greet enters it (probes/classmethod-only.tcl). Replacement text in REVIEW.md."
+  },
+  {
+   "id": "F1",
+   "severity": "gate",
+   "text": "test-556 is green on i37 at 8.6; the rewrite must be gate-confirmed to stay green."
+  },
+  {
+   "id": "F2",
+   "severity": "expectation",
+   "text": "test-567 likely remains red on detail string after the dialect fix (original_call_hierarchy.rs:44 vs call_hierarchy.rs:440); not tclsh-observable, outside the exception."
+  },
+  {
+   "id": "F3",
+   "severity": "gate",
+   "text": "test-124 alias positive fixture and test-571 namespace-eval prefix outcomes on HEAD unverified."
+  },
+  {
+   "id": "H1",
+   "severity": "optional",
+   "text": "In 057/067 also assert reference_coverage == Some(Partial); 'References unavailable' is shared with Unavailable at any count."
+  },
+  {
+   "id": "N1",
+   "severity": "notes",
+   "text": "NOTES claims the 'tcl' outgoing profile matches passing siblings; analyse_tcl9 siblings all pass 'tcl9.0'."
+  }
+ ],
+ "evidence": {
+  "probes": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-9/probes",
+  "extra_probes": [
+   "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-9/probes/extra/extra.out",
+   "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-9/probes/classmethod-only.tcl9.0.out"
+  ],
+  "head_logs": "scratchpad/w/lsp-37/original-tcl_lsp_core/test-{057,067,124,140,556,565,567,571}.log; scratchpad/w/targeted-37a/test-003.log"
+ }
+}

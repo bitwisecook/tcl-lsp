@@ -1,0 +1,130 @@
+{
+  "reviewer": "Luna-9",
+  "subject": "sol-8/fix-1-native-lifecycle-next-chain.patch",
+  "head": "bb7277d82 (includes 60051c3c2)",
+  "verdict": "HOLD",
+  "verdict_detail": "Minor hold: admit after amendment B (native-specific false positive S4/S5); amendment A recommended in same change; C is a follow-up in class_hierarchy.rs.",
+  "static_only": true,
+  "checks": {
+    "git_apply_check": "pass",
+    "matches_sol8_b_tree": true,
+    "rustfmt_edition_2024": "clean (both files)",
+    "new_allow_attributes": 0,
+    "hardcoded_command_names": 0,
+    "xtask_resolution_drift": "clean (no all_procs/all_classes, no .name ==)",
+    "xtask_registry_axes": "clean (no literals; references.rs ratchet 1 unchanged)",
+    "xtask_owner_resolution": "clean (no counted-name delimiter/zero recipes in original_declaration.rs)",
+    "xtask_retired_api_gate": "clean",
+    "check_name_resolution_proofs": "pre-existing STALE evidence digests at HEAD for both files (references.rs e5fc3101 vs fa9062c4; original_declaration.rs 2fb2df2a vs c0cc0ebe); must be refreshed before PR gate; not introduced by this patch",
+    "clippy_pedantic_expected": "no new warnings (.filter().last() over opaque impl Iterator; pub(crate)/private fns)"
+  },
+  "diagnosis": {
+    "confirmed": true,
+    "evidence": [
+      "rust/tcl-lsp-core/src/references.rs:4848-4851 (tcl8.6 helper)",
+      "rust/tcl-compiler/src/analyser/types.rs:3119-3127 + analyser/input.rs:85-95 (native protocol => no lexical advice)",
+      "rust/tcl-lsp-core/src/original_declaration.rs:716-718,744-752,1643-1647 (select -> Special identity on keyword)",
+      "rust/tcl-lsp-core/src/original_declaration.rs:926 (Special -> Vec::new())",
+      "rust/tcl-lsp-core/src/references.rs:1037-1039 (gate before constructor_or_destructor_references at :1176/:1245)"
+    ]
+  },
+  "findings": [
+    {
+      "id": "S4",
+      "severity": "blocking",
+      "native_specific": true,
+      "where": "patch references.rs original_special_next_chain_spans (qualified_name keying); rust/tcl-compiler/src/analyser/oo.rs:726-735; rust/tcl-lsp-core/src/original_declaration.rs:1643-1647; rust/tcl-lsp-core/src/definition.rs:1318-1319",
+      "summary": "Duplicate class records with the same rendered name (destroy+recreate, failed re-create) each get a Special identity; the provider walk is keyed by qualified_name so every record reports the same next site; only the live one is real (probe p5: new-Base). Breaks references<->definition symmetry; lexical path avoided it via all_classes body-span selection (references.rs:1257-1271)."
+    },
+    {
+      "id": "S5",
+      "severity": "low",
+      "native_specific": true,
+      "where": "rust/tcl-compiler/src/analyser/original_members.rs:1417-1421,993,1162-1171; class_hierarchy.rs:505-523",
+      "summary": "ClassObject-side Special rows (invalid in TclOO: probe p1) are routed through the side-blind instance provider."
+    },
+    {
+      "id": "S1",
+      "severity": "medium",
+      "native_specific": false,
+      "where": "rust/tcl-compiler/src/analyser/class_hierarchy.rs:444-499",
+      "summary": "nextto X where X has no own effective ctor/dtor falls through to the next provider; real Tcl errors 'has no non-filter implementation by X' (probe p2 a,b,g,g2). Shared with lexical refs and native definition."
+    },
+    {
+      "id": "S2",
+      "severity": "low",
+      "native_specific": false,
+      "where": "rust/tcl-compiler/src/analyser/class_hierarchy.rs:444-499",
+      "summary": "nextto a class that precedes the current class (e.g. its own mixin) returns that class; real Tcl errors 'not reachable from here' (probe p3 nexttomix, p2 self)."
+    },
+    {
+      "id": "S3",
+      "severity": "medium",
+      "native_specific": false,
+      "where": "rust/tcl-compiler/src/analyser/class_hierarchy.rs:474-499",
+      "summary": "Empty destructor body deletes the destructor on 8.6.18 and 9.0.4 (probe p1); destructor_next_provider treats existence as provider, so subclass next is attributed to a deleted keyword."
+    },
+    {
+      "id": "N1",
+      "severity": "info",
+      "summary": "NOTES inaccuracy: original_call_hierarchy::references is unaffected (Special arm adds nothing, original_call_hierarchy.rs:818-820). Affected consumers: references.rs:1016-1035, references.rs:4616-4629, code_lens.rs:119-138, tcl-lsp-server/src/readonly_reference_reports.rs:1673-1705. No edit/rename consumers."
+    },
+    {
+      "id": "N2",
+      "severity": "info",
+      "summary": "Contract-aligned record-based owner exists: class_hierarchy/original_metadata.rs:32-50 original_instance_metadata_order and analyser/types/original_member_context.rs:470-497 provider_start (enforces nextto reachability)."
+    },
+    {
+      "id": "N3",
+      "severity": "info",
+      "summary": "Tests via_nextto_explicit_target/via_braced_nextto_target query base_refs at (4,6) = 'superclass' word, not Base's constructor (line 5); that half is vacuous."
+    },
+    {
+      "id": "N4",
+      "severity": "info",
+      "summary": "Native lens cost becomes O(lifecycle identities x classes) body scans; counts are same-document only under ExistingInventory coverage."
+    }
+  ],
+  "semantics_confirmed_ok": [
+    "plain next with class and superclass mixins matches tcloo_linearise mixin-first order (probe p3)",
+    "filters do not apply to constructors/destructors (probe p3)",
+    "no class-side constructor/destructor in TclOO 8.6.18/9.0.4 (probe p1)",
+    "last constructor wins; empty constructor body deletes and is already honoured by constructor_next_provider",
+    "diamond: reported provider is true for direct instantiation; misses are acceptable (positive-only)"
+  ],
+  "amendments": {
+    "B_required": "Return empty unless special.side()==MemberSide::Instance and hierarchy.classes[class_q] via class_hierarchy::class_member_def(cd,&member) has name_span == special.keyword_word().span() (mirrors definition.rs:1318-1319; needs MemberSide import). Optionally join each other row by body span too.",
+    "A_recommended": "In the Some(target) arm skip unless target == class_q and target's position in hierarchy.mro_map[other_q] is after other_q's.",
+    "C_followup": "class_hierarchy.rs: apply is_empty_method_body to destructors; make nextto exact and reachable in constructor/destructor_next_provider (no hierarchy test pins the fall-through)."
+  },
+  "expected_flips": {
+    "fail_to_pass": [
+      "tcl-lsp-core references::tests::constructor_next_chain_reference_from_direct_subclass (references.rs:6077)",
+      "tcl-lsp-core references::tests::constructor_next_chain_reference_skips_ancestor_with_no_own_constructor (references.rs:6132)",
+      "tcl-lsp-core references::tests::constructor_next_chain_reference_via_nextto_explicit_target (references.rs:6151)",
+      "tcl-lsp-core references::tests::constructor_next_chain_reference_via_braced_nextto_target (references.rs:6177)",
+      "tcl-lsp-core references::tests::destructor_next_chain_reference_from_direct_subclass (references.rs:6206)",
+      "tcl-lsp-core references::tests::constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method (references.rs:6241)",
+      "tcl-lsp-core code_lens::tests::constructor_lens_counts_subclass_next_chain (code_lens.rs:885)",
+      "tcl-lsp-core code_lens::tests::destructor_lens_counts_subclass_next_chain (code_lens.rs:910)"
+    ],
+    "pass_to_fail": [],
+    "stay_pass": [
+      "references::tests::constructor_next_chain_reference_skips_non_overriding_subclass (references.rs:6098)",
+      "references::tests::constructor_next_chain_reference_not_counted_without_next (references.rs:6115)",
+      "code_lens::tests::constructor_lens_reports_zero_when_no_subclass_chains (code_lens.rs:928)",
+      "tcl-lsp-server e2e test_property_method_constructor_and_class_all_get_lenses_issue_992 (tests/e2e/editor_features.rs:336)",
+      "tcl-lsp-server e2e test_constructor_lens_counts_and_resolves_subclass_next_chain (tests/e2e/editor_features.rs:372; default logical dialect, unaffected)"
+    ],
+    "stay_fail_not_addressed": [
+      "references::tests::constructor_shadowed_by_a_later_redeclaration_has_no_references (references.rs:6223): native include_declaration pushes identity.span() at references.rs:1026-1028"
+    ],
+    "caveat": "Static prediction; flips assume declarations() succeeds for these sources and native scan_next_dispatch_sites_with_target finds next (supported by native jump_to_nextto_named_class_method being green). None are in the 1085-selector capture. Amendments A and B keep all eight flips."
+  },
+  "artifacts": {
+    "review_md": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-9/REVIEW.md",
+    "probes": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-9/probes/",
+    "probe_output": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-9/probes/probe-output.txt",
+    "patched_copies": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-9/fmt/"
+  }
+}
