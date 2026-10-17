@@ -3730,3 +3730,21 @@ physical component. This tightens only its own new positive veto and adds no
 new absence or motion authority.
 
 An original source invocation’s side-effect hints belong to its selected descriptor/form. The effect footprint filters those hints under the actual selected surface and retains unknown undeclared world effects. Interprocedural positioned calls continue through their original Normal-handler effect owner before fallback classification. A retained-source fallback without that receiver cannot use an older available declaration’s hints; it widens to unknown. The historical nominal C7 walk remains a separately documented standalone compatibility query, including its original counterexamples; it does not fill missing selected metadata or prove invocation effects.
+
+### Retained Logical class metadata in project role providers
+
+`AnalysisResult::logical_source_class_declaration` accepts only a class metadata allocation actually retained by that analysis: the current class roster, its original source declaration metadata, or its typed Logical declaration facade. Independently cloned equal metadata is not an issuer. Every accepted allocation still passes the existing unique declaration, full resolved input, source image/configuration and retained realm checks. This lets the real project procedure-role provider join its original class blocker record without turning a reporting label into identity or granting Native allocation/member dispatch. Missing or stale provider ownership still withdraws the entire project role census.
+
+
+### Fixed SpecTcl raw-word and descriptor-source authoring
+
+The existing Compiler `parsing::spectcl_source` owner authors export and Studio
+words with the actual fixed pack grammar and complete loader CST round-trip.
+Captured registration text preserves literal braced continuation bytes; static
+descriptor data additionally requires the actual Syntax Unicode value equality.
+The historical compact ASCII alphabet is a presentation recipe only, never
+a parser or admission proof. Descriptor lists rejoin every element and the
+outer braced word under the same configured list rules. Unrepresentable raw
+words retain ExportLoss and the explicitly lossy quoted recovery; Studio keeps
+its no-quoted-fallback boundary. These proposed words issue no original source,
+Native identity, selected command, package loading or execution guarantee.

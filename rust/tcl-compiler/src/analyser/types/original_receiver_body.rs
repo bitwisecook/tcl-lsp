@@ -53,7 +53,9 @@ impl OriginalSourceReceiverBodyDeclaration {
         let parameters = method.parameters_word()?.clone();
         let body = method.body_word()?.clone();
         let span = body.content_span().ok()?;
-        let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(&body)?;
+        // This owner retains source script bytes, not an engine string or
+        // executed receiver. Unicode source data does not require ASCII.
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(&body)?;
         if image.bytes().get(span.as_range())? != value.as_slice() {
             return None;
         }

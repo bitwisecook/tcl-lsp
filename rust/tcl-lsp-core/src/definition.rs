@@ -1291,7 +1291,14 @@ fn next_dispatch_target(
     character: u32,
 ) -> Option<tcl_lexer::Span> {
     let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
-    let (class_q, method, body) = enclosing_method(analysis, cursor)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let (class_q, method, body) =
+        tcl_compiler::analyser::class_hierarchy::original_source_member_at(
+            analysis,
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config(),
+            cursor,
+        )?;
     let (_, target) =
         crate::references::scan_next_dispatch_sites_with_target(source, analysis, body)
             .into_iter()
@@ -1310,47 +1317,6 @@ fn next_dispatch_target(
     )?;
     let cd = analysis.all_classes.get(next_class)?;
     tcl_compiler::analyser::class_hierarchy::class_member_def(cd, &method).map(|md| md.name_span)
-}
-
-/// The `(qualified_class, member_name)` whose member body contains the
-/// cursor offset, or `None` when the cursor is not inside one.
-///
-/// Covers all four member slots, not just the named ones: a `constructor`
-/// / `destructor` body reports the synthetic
-/// `<constructor>` / `<destructor>` label
-/// (`tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER`), which
-/// `member_next_provider` routes to the matching provider. Without them a
-/// cursor inside a constructor matches nothing here, and `next` — the
-/// ordinary way a subclass forwards to its superclass's constructor —
-/// resolves to no location at all.
-fn enclosing_method(
-    analysis: &AnalysisResult,
-    cursor: u32,
-) -> Option<(String, String, tcl_lexer::Span)> {
-    use tcl_compiler::analyser::class_hierarchy::{CONSTRUCTOR_MEMBER, DESTRUCTOR_MEMBER};
-    let cd = analysis
-        .all_classes
-        .get(enclosing_class_at(analysis, cursor)?)?;
-    let named = cd
-        .methods
-        .iter()
-        .chain(cd.class_methods.iter())
-        .map(|(mname, m)| (mname.as_str(), m));
-    let ctors = cd
-        .constructors
-        .iter()
-        .map(|c| (CONSTRUCTOR_MEMBER, c))
-        .chain(cd.destructor.iter().map(|d| (DESTRUCTOR_MEMBER, d)));
-    named
-        .chain(ctors)
-        .find(|(_, m)| m.body_span.start() <= cursor && cursor <= m.body_span.end())
-        .map(|(mname, method)| {
-            (
-                cd.qualified_name.clone(),
-                mname.to_owned(),
-                method.body_span,
-            )
-        })
 }
 
 /// Canonicalise a written class name to the qualified form keyed in

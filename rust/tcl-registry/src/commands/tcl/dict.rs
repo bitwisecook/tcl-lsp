@@ -1311,9 +1311,8 @@ mod selected_dictionary_layout_tests {
     fn filter_script_prefix_uses_fixed_binder_body_geometry() {
         let registry = crate::CommandRegistry::build_default();
         for selector in ["s", "sc", "script"] {
-            let selected = registry
-                .resolve_invocation("dict", &["filter", "value", selector, "k v", "body"], None)
-                .unwrap();
+            let words = ["filter", "value", selector, "k v", "body"];
+            let selected = registry.resolve_invocation("dict", &words, None).unwrap();
             let (roles, complete) = selected.authored_source_argument_roles();
             assert!(complete);
             assert!(roles.contains(&(2, ArgRole::LoopVarList)));

@@ -1,0 +1,33 @@
+{
+  "state": "USER_PAUSED",
+  "paused_at": "2026-10-17T17:45:44.019221+00:00",
+  "source_admissions": [34,35],
+  "unadmitted_next_composition": "integration-36: five applications/eight paths; source/static review only, no Main source changes",
+  "audit": {"baseline_source_adoption":570,"baseline_units":2158,"effective_source_adoption":640,"effective_units":2229,"original_lsp_source_adoption":290,"original_lsp_units":325,"verified_complete":0,"pending_studio_existing_none_rows":25},
+  "execution": {"build35r2":"PASS six actual selected library test ELFs; no compiler libtest, standalone server, integration or editor-host acceptance","planned_direct_lsp_tests":1085,"completed":790,"passed":636,"failed":154,"timeouts_in_failed":3,"core":{"complete":664,"expected":664,"passed":525,"failed":139,"timeouts":1},"db":{"complete":11,"expected":11,"passed":7,"failed":4},"server":{"complete":115,"expected":175,"passed":104,"failed":11,"timeouts":2},"unfinished_server_log":"test-116.log; not counted","additive230":"UNSTARTED","additional5":"UNSTARTED","stop_postflight":"PASS exact 52881 source files, six providers, six test ELF hashes, ordered completed selector prefixes and all completed raw log hashes","full_run_acceptance":false},
+  "scope":"LSP itself first, including direct Studio/DB and genuine required compiler/lexer/registry prerequisites. After LSP verified, remaining compiler dependencies. VM/runtime and dedicated BIG-IP semantics remain paused/deferred; unmeasured BIG-IP assumed Tcl8.4 only, never evidence.",
+  "rules":"Preserve original selectors, fixture values, assertions, 180-second tests, 30-second listings and source/provider/artifact guards. Recorded narrow genuine API setup adapters are explicit exceptions, never a blanket old-body byteexact claim. No new allow attributes, source-to-Native grants, missing-to-empty completeness, or report-to-semantic identity donations. Reports only chat/repository; resume 30-minute cadence during active work. Regular development checkpoints/pushes permitted before green; PR only all required gates green; no merge/issue closure.",
+  "immediate_actions_after_resume":[
+    "Read committed current-state/continuation and verify compact capture09 member index. Keep all held/unsealed packets unadmitted.",
+    "Review/admit integration36 small DB structural-class factory and Core syntax hazard/source census plus genuine roster API setup; actual full Core graph build still owed.",
+    "Compose reviewed direct Studio chain only after mandatory header/declaration/store API companions and owner-route documentation/whole review. Availability producer V2 is cumulative from Main: apply alone, never V1 then V2. Rust surface adapter is V1 then mandatory V2. SpecTcl availability adapter is V1 then mandatory V2. Notice field requires exact Log initializer companion. Rust literal V2 and stub V2 are mandatory.",
+    "Investigate Core nextto selector256 still red despite admission34; Node was tracing first genuine missing producer, no conclusion/sealed new fix.",
+    "Run isolated DB memo diagnostic after identifying actual current normal compiler rlib from Cargo JSON; diagnostic prepared, never compiled/executed. Do not drop dual bodies, weaken Eq or source-to-physical identity.",
+    "Finish/review genuine Studio notice, source edits/owner rows, bare definition hint source recipe (currently incomplete), corpus and remaining Rust expression/version inventory consumers. Existing25 Studio NONE rows are not closed.",
+    "Correct C/TU A4/B4 held findings before any admission: brace-coordinate reset, nested parameter/call name mistaken for top-level static declaration, external root uniqueness polluted by internal same-name function, and outside-literal phase-2 line splices hiding static. No original assertion changes approved.",
+    "Separate malformed incomplete-C-hex test proposal remains unadmitted. Once corrected whole source is reviewed, ask user for narrow original-assertion exception if still necessary; original preserve-assertion instruction currently forbids silently changing it.",
+    "Profile package-index nested-wrapper timeout before a lexer owner redesign. Static trace suggests recursive parse-cut re-lexing of whole child bodies; no measured cause or safe bounded fix. Do not suppress nested syntax validation.",
+    "Build fresh ordinary current-source artifacts and run exact original/additive/new controls with unchanged budgets and final guards. Paused35r2 is partial, not resumable as a full accepted1085 run after source changes.",
+    "After LSP fixes run genuine references_rename/server e2e/preview integration targets, actual non-test native server process, real Emacs/VSCode/JB/browser-WASM hosts, proof/owner/generated drift, rust-check and prep-pr gates. Current failures and old results do not certify this source.",
+    "Then address remaining compiler dependencies and locked contradictory Compiler221 same-input Some/None assertions; keep VM/runtime paused. Rebase origin/rust before green PR; no merge or issue closure."
+  ],
+  "pending_source_notes":{
+    "availability":"ProducerV2 + RustV1->V2 bounded peer clear; positive complete generated-module compilation and explicit compile_error negative diagnostic unrun. SpecTcl adapterV1->V2 bounded peer clear; no admission/build.",
+    "store":"remove preservation source clear; source-edits V1 requires header/declaration plus 11-column owner-route contract additions and whole peer still incomplete. Notice V1 source clear only with newly sealed companion, companion peer pending at stop.",
+    "definer_hint":"UNSEALED incomplete /workspace/naming-work/sol-studio-definer-hint-source-v1. Initial definer.rs/registry.rs drafts only; loader/draft/render/coverage/test adapters unfinished. No manifest/patch/AST/review; not admissible.",
+    "rust_semantics":"Pure string literal, comments and identifiers bounded source candidates do not close semantic enum/path/struct interpretation. Unknown is unavailable, not recovered by syn last path segment.",
+    "optimiser":"Five proof holds unresolved. O101 Native result allocation/protocol equivalence and O127 physical read/store/effect/motion require authentic proof; Logical quoting O100 separate. Do not relabel or waive assertions.",
+    "document_links":"124 rename source->load collision,136 prior unknown source effect barrier,140 unsupported source -- option remain unresolved. No consumer hardcode or provider semantics fabricated.",
+    "compiler":"General dependency packets parked; source-variable memo correspondence needs authentic source allocation proof. Compiler221 opposite expectations remain locked. Runtime/VM untouched this checkpoint."
+  }
+}

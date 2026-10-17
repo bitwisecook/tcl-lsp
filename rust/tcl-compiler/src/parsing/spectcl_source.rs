@@ -489,3 +489,207 @@ mod tests {
         assert!(pack_source_includes("speclib p 2.0 {include \"unclosed}", config).is_empty());
     }
 }
+
+/// Distinct data channels of the fixed SpecTcl source authoring language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackWordSourcePurpose {
+    /// Preserve the loader's captured CST text, including braced continuations.
+    CapturedRegistration,
+    /// Preserve both the captured text and the static Unicode descriptor value.
+    StaticDescriptor,
+}
+
+/// Historical presentation of an authored SpecTcl word, not a safety proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackWordSourceStyle {
+    /// Prefer the existing compact ASCII presentation, otherwise use braces.
+    Compact,
+    /// Keep prose, blocks and explicitly grouped input braced.
+    Braced,
+}
+
+// This is the authored export/Studio presentation recipe, not a Tcl parser.
+// Every proposed spelling below is separately joined to the actual loader CST.
+fn compact_pack_word_presentation(text: &str) -> bool {
+    !text.is_empty()
+        && !text.starts_with('#')
+        && text.chars().all(|c| {
+            c.is_ascii_alphanumeric() || "-_.:/+@=,<>*?!%^~|'`".contains(c) && c.is_ascii()
+        })
+}
+
+fn pack_word_source_matches(proposal: &str, text: &str, purpose: PackWordSourcePurpose) -> bool {
+    let admits = || -> Option<()> {
+        let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
+        let end = u32::try_from(proposal.len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(proposal),
+            tcl_lexer::Span::new(0, end),
+            config,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some()
+            || word.group().expand
+            || word.span() != tcl_lexer::Span::new(0, end)
+        {
+            return None;
+        }
+        let rows = pack_source_statements(proposal, config);
+        let [row] = rows.as_slice() else {
+            return None;
+        };
+        if row.is_partial
+            || row.argv.len() != 1
+            || row.texts.as_slice() != [text]
+            || !pack_source_word_is_literal(text, word.group().kind == tcl_lexer::WordKind::Braced)
+        {
+            return None;
+        }
+        if purpose == PackWordSourcePurpose::StaticDescriptor
+            && !tcl_syntax::word_rules::lexical_unicode_source_word_matches(proposal, text, config)
+        {
+            return None;
+        }
+        Some(())
+    };
+    admits().is_some()
+}
+
+/// Author one word under the actual fixed SpecTcl loader grammar.
+/// The real complete CST row must reproduce the raw captured text. Descriptor
+/// data additionally requires exact static Unicode value correspondence.
+/// This creates proposed source, never an original word or execution recipe.
+#[must_use]
+pub fn pack_verbatim_source_word(
+    text: &str,
+    purpose: PackWordSourcePurpose,
+    style: PackWordSourceStyle,
+) -> Option<String> {
+    let proposal = if style == PackWordSourceStyle::Compact && compact_pack_word_presentation(text)
+    {
+        text.to_owned()
+    } else {
+        format!("{{{text}}}")
+    };
+    pack_word_source_matches(&proposal, text, purpose).then_some(proposal)
+}
+
+/// Author a descriptor list with exact element and outer-word correspondence.
+/// Single compact elements retain the historical ungrouped presentation.
+#[must_use]
+pub fn pack_descriptor_list_source_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
+    if let [only] = items
+        && compact_pack_word_presentation(only.as_ref())
+    {
+        return pack_verbatim_source_word(
+            only.as_ref(),
+            PackWordSourcePurpose::StaticDescriptor,
+            PackWordSourceStyle::Compact,
+        );
+    }
+    let words = items
+        .iter()
+        .map(|item| {
+            pack_verbatim_source_word(
+                item.as_ref(),
+                PackWordSourcePurpose::StaticDescriptor,
+                PackWordSourceStyle::Compact,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let value = words.join(" ");
+    let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
+    let decoded = tcl_syntax::word_rules::WordValueRules::from_config(&config)
+        .split_list(&value)
+        .ok()?;
+    (decoded.len() == items.len()
+        && decoded
+            .iter()
+            .zip(items)
+            .all(|(a, b)| a.as_ref() == b.as_ref()))
+    .then_some(())?;
+    pack_verbatim_source_word(
+        &value,
+        PackWordSourcePurpose::StaticDescriptor,
+        PackWordSourceStyle::Braced,
+    )
+}
+
+/// Historical quoted recovery proposal for an export that already records a
+/// loss. Escaping does not establish raw CST round-trip or descriptor value;
+/// callers must retain the explicit ExportLoss rather than use it as admission.
+#[must_use]
+pub fn pack_lossy_quoted_source_word(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for c in text.chars() {
+        if matches!(c, '"' | '\\' | '$' | '[' | ']') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    out
+}
+
+#[cfg(test)]
+mod verbatim_pack_source_controls {
+    use super::*;
+    #[test]
+    fn captured_continuations_are_not_static_descriptor_values() {
+        let text = "one \\\n  two";
+        assert_eq!(
+            pack_verbatim_source_word(
+                text,
+                PackWordSourcePurpose::CapturedRegistration,
+                PackWordSourceStyle::Braced
+            ),
+            Some(format!("{{{text}}}"))
+        );
+        assert_eq!(
+            pack_verbatim_source_word(
+                text,
+                PackWordSourcePurpose::StaticDescriptor,
+                PackWordSourceStyle::Braced
+            ),
+            None
+        );
+        for text in ["a { brace", "trailing\\", "} ; command"] {
+            for purpose in [
+                PackWordSourcePurpose::CapturedRegistration,
+                PackWordSourcePurpose::StaticDescriptor,
+            ] {
+                assert!(
+                    pack_verbatim_source_word(text, purpose, PackWordSourceStyle::Braced).is_none()
+                );
+            }
+        }
+    }
+    #[test]
+    fn authored_unicode_and_metacharacters_keep_the_actual_loader_channel() {
+        for text in ["café", "${x}", "[command]", "# comment", "a b", ""] {
+            let source = pack_verbatim_source_word(
+                text,
+                PackWordSourcePurpose::StaticDescriptor,
+                PackWordSourceStyle::Compact,
+            )
+            .unwrap();
+            assert!(pack_word_source_matches(
+                &source,
+                text,
+                PackWordSourcePurpose::StaticDescriptor
+            ));
+        }
+        assert_eq!(
+            pack_descriptor_list_source_word(&["one", "a b", "${x}", "café"]),
+            Some("{one {a b} {${x}} {café}}".to_owned())
+        );
+        assert_eq!(pack_descriptor_list_source_word(&["one \\\n two"]), None);
+    }
+}

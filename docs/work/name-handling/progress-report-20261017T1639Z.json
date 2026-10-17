@@ -1,0 +1,153 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 567,
+    "full_scope_pending": 405,
+    "partial": 162,
+    "without_integration": 1591
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 637,
+    "without_integration": 1592,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "utc": "2026-10-17T16:39:58.253213+00:00",
+  "scheduled_report_utc": "2026-10-17T16:39:49Z",
+  "count_freeze": "Root confirmed actual admitted source counts at this report; only actual confirmed admissions since the16:09 snapshot counted; causal/helper/fixture repairs add zero; unadmitted candidates and causal type repairs add no units.",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "31": {
+      "path": "/workspace/naming-work/integration-31/composition.json",
+      "sha256": "1729921de55b92216f8e0088ed29c3db2be480c9b4ffec381fa55da021e9f076",
+      "new_baseline_unit_ids": [],
+      "causal_count": 0,
+      "old_test_API_formation_exception": "One isolated Write Verb fixture adds optional metadata_list_reader None; original assertion macros/data unchanged."
+    },
+    "32": {
+      "path": "/workspace/naming-work/integration-32/composition.json",
+      "sha256": "c3401644626fd81543cd385f83c752d6511816976c0cbabe91b0be45b98a6662",
+      "new_baseline_unit_ids": [],
+      "causal_count": 0,
+      "preservation": "Six API/helper joins; actual Root narrow proof189oldfunctions188byteexact1sameowner memo accessor formation preserving original expected values/predicates/fixtures."
+    },
+    "33": {
+      "path": "/workspace/naming-work/integration-33/composition.json",
+      "sha256": "9219a1ca13bed586936ce2ecaf803fe9025339bd4e17d71fdb0b571e5f7873a9",
+      "new_baseline_unit_ids": [],
+      "causal_count": 0,
+      "scope": "One accurate cfg(test) adapter doc line, no non-comment Rust token change."
+    }
+  },
+  "validation_recorded_at_capture": {
+    "ordinary21_final_postflight": {
+      "receipt": "/workspace/naming-work/integration-21/ordinary-final-postflight.json",
+      "sha256": "19b34bec59d39603249f2e11b227b20ad084fc413140590b7cb94e6efce364aa",
+      "original1024": {
+        "pass": 826,
+        "fail": 198,
+        "timeouts_in_failures": 3
+      },
+      "separate_additive314": {
+        "pass": 214,
+        "fail": 100,
+        "timeouts": 0
+      },
+      "guards": "PASS all1338 exact order/membership/raw-log hashes,52870 source inputs,six providers,ten test ELFs; source21 only, no newer acceptance."
+    },
+    "locked_original_Compiler221_conflict": {
+      "receipt": "/workspace/naming-work/integration-22/locked-compiler-test-conflict.json",
+      "sha256": "d17283c156c444341054f8f13dd05bf1f16882759e0252a18c58d28e971261ec",
+      "status": "LOCKED_EXPECTATIONS_CONFLICT",
+      "reason": "Same complete original source/dialects/Analyser constructor require original_completed_command_world Some versus None before the query; deterministic implementation cannot satisfy both. Assertions preserved; no waiver or change authorised."
+    },
+    "capture06": {
+      "status": "ADMITTED_ROOT_VERIFIED_ALL1400MEMBERS1338RAWLOGS",
+      "path": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-06/source-validation.tar.gz",
+      "sha256": "5aa5b73ec7325fd1e42f60b56cda61687a8a9aa2a81cd970803d5b390f28e94e",
+      "bytes": 4975428
+    },
+    "capture07": {
+      "path": "/workspace/tcl-lsp/experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-07/capture.json",
+      "sha256": "8a0ecbdfd9d859808e54cddb9584204f1177c72101ce8bc0b3aa27fc0704c7d8",
+      "scope": "424members ordered22\u201329 admissions/source reviews/API exceptions/raw compile attempts; all seven actual attempts failed; not ordinary semantic acceptance."
+    },
+    "actual_Main_check121": {
+      "status": "ACTUAL_FAIL1_COMPILER_TEST_ADAPTER_MISSING_DOCS",
+      "log": "/workspace/naming-work/integration-32/main-check121.log",
+      "tests_executed": false,
+      "scope": "Root actual12roots check after32causal admission; actual failed verdict retained.",
+      "causal_repair": "Integration33 admitted the accurate cfg(test) adapter doc line; actual121 remains immutable FAIL1. The correction is now compiling in ordinary33, without a combined-check-green claim.",
+      "warnings": "Root reports warnings remain across Runtime, xtask, Core tests and Compiler tests; no warning-clean claim.",
+      "result": {
+        "path": "/workspace/naming-work/integration-32/main-check121-result.json",
+        "sha256": "d166511392568c5a65ff68b33fca456bcf8420a6f875526bfe521a10d5ba7437"
+      }
+    },
+    "ordinary_build_after33": {
+      "status": "RUNNING",
+      "path": "/workspace/naming-work/ordinary-33",
+      "session": 38327,
+      "scope": "Root fresh ordinary33 build captures actual full source and six providers then builds nine library test targets plus xtask binary test target, debug0/j1. Prior ELF bindings explicitly retired only after ordinary21 final guards. No build verdict or new semantic execution result.",
+      "immutable_input_receipts": {
+        "build-inputs.json": {
+          "path": "/workspace/naming-work/ordinary-33/build-inputs.json",
+          "sha256": "4ded0e48c377aa96356c73841337bd97faf5609c52a4c08b92a2d9009a0b69b3",
+          "bytes": 8723303
+        },
+        "build-providers.json": {
+          "path": "/workspace/naming-work/ordinary-33/build-providers.json",
+          "sha256": "77691d142efad20acabbd01ba58f56ba75392b406ddd8d71cfdd60236ba9689c",
+          "bytes": 480335
+        },
+        "prebuild-check-status.json": {
+          "path": "/workspace/naming-work/ordinary-33/prebuild-check-status.json",
+          "sha256": "c5a1243c9a397ca846a917d12c7a8b9741fbd0cd79857eaeae0cf8259e1a6c15",
+          "bytes": 492
+        },
+        "retired-artifact-bindings.json": {
+          "path": "/workspace/naming-work/ordinary-33/retired-artifact-bindings.json",
+          "sha256": "c5acc7e1fb5c72d616a65accc865c749d13549744a033dcde1923a05c53938f1",
+          "bytes": 2640
+        }
+      }
+    },
+    "capture08": {
+      "path": "/workspace/tcl-lsp/experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-08/capture.json",
+      "sha256": "4e400fefd30ec7005c383565128d81ca5f6a78925dab7a1253710d5e56d9b667",
+      "scope": "75 members / 84249-byte archive; actual30\u201333 source applications, reviews, failed119/120/121 raw logs and Hook/Memo API formation proofs. Root independently verified all members and committed/pushed f1e36d8d6. No semantic acceptance."
+    }
+  },
+  "remaining_classification_counts": {
+    "deferred_bigip_related": 35,
+    "generic_unintegrated": 0,
+    "source_diagnostic_boundary_scope_review": 0
+  },
+  "pending": "35 original LSP NONE are dedicated BIGIP deferred. Generic cross-area dependency and real source/provider/host/generator/proof/regression gates remain open; source review is not execution/acceptance. Exactly nine ordinary library test targets plus separately required xtask binary test target, not ten library ELFs. Original1024 and separate additive selectors retained.",
+  "next_report_utc": "2026-10-17T17:09:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

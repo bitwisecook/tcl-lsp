@@ -2507,7 +2507,7 @@ mod evaluated_command_layout_controls {
             let spec = pack
                 .command("one")
                 .expect("actual evaluated body is not identified by whitespace");
-            assert_eq!(spec.spec.traits, Some(tcl_registry::traits::Traits::PURE));
+            assert_eq!(spec.spec.traits, tcl_registry::traits::Traits::PURE);
         }
     }
 

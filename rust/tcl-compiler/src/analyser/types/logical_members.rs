@@ -1061,6 +1061,15 @@ impl AnalysisResult {
     ) -> Option<&LogicalSourceClassDeclaration> {
         self.all_classes
             .values()
+            .chain(
+                self.original_class_declarations()
+                    .map(|declaration| declaration.metadata()),
+            )
+            .chain(
+                self.logical_class_declarations
+                    .iter()
+                    .map(LogicalSourceClassDeclaration::metadata),
+            )
             .any(|current| std::ptr::eq(current, class))
             .then_some(())?;
         let mut declarations = self
@@ -1630,5 +1639,57 @@ mod unicode_member_insertion_controls {
                     .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_class_metadata_provider_tests {
+    use crate::analyser::Analyser;
+    use crate::registry_invocation::source_structure::OriginalProjectProcedureRoles;
+
+    #[test]
+    fn project_roles_keep_actual_retained_class_metadata_allocations() {
+        let source = "oo::class create ::ProjectThing {method kept {} {}}\n::ProjectThing create specimen\nproc bind {name} {upvar 1 $name cell; set cell 1}";
+        let analysis = Analyser::new().structure_only().analyse(source, "tcl");
+        let record = analysis
+            .original_class_declarations()
+            .next()
+            .expect("actual retained class declaration");
+        let class = analysis
+            .logical_source_class_declaration(record.metadata())
+            .expect("retained original metadata is an issuing allocation");
+        assert_eq!(
+            class
+                .source_candidate_coordinate()
+                .unwrap()
+                .simple
+                .as_bytes(),
+            b"ProjectThing"
+        );
+        assert!(
+            OriginalProjectProcedureRoles::capture(&analysis)
+                .expect("whole real provider")
+                .has_roles()
+        );
+        assert!(
+            analysis
+                .logical_source_class_declaration(&record.metadata().clone())
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let record = missing.original_class_declarations().next().unwrap();
+        assert!(
+            missing
+                .logical_source_class_declaration(record.metadata())
+                .is_none()
+        );
+        let native = Analyser::new().structure_only().analyse(source, "tcl8.6");
+        let record = native.original_class_declarations().next().unwrap();
+        assert!(
+            native
+                .logical_source_class_declaration(record.metadata())
+                .is_none()
+        );
     }
 }

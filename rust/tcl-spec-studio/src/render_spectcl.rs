@@ -446,92 +446,33 @@ pub fn gap(key: &str) -> Option<&'static Gap> {
 
 // Tcl words
 
-/// Whether `text` can be written as a bare word.
-fn bare_safe(text: &str) -> bool {
-    !text.is_empty()
-        && !text.starts_with('#')
-        && text.chars().all(|c| {
-            c.is_ascii_alphanumeric() || "-_.:/+@=,<>*?!%^~|'`".contains(c) && c.is_ascii()
-        })
-}
-
-/// Whether `{text}` is a well-formed braced word whose value is `text` byte
-/// for byte.
-///
-/// The scan is Tcl's own: a backslash escapes the next character (so `\{` and
-/// `\}` do not nest), the depth may never go negative, and a trailing
-/// backslash would escape the closing brace. Anything else has to take the
-/// quoted form.
-fn brace_safe(text: &str) -> bool {
-    let mut depth = 0i32;
-    let mut chars = text.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                // Backslash-newline is the one substitution Tcl still performs
-                // inside braces, so a word carrying one does not come back out
-                // byte for byte.
-                match chars.next() {
-                    None | Some('\n') => return false,
-                    Some(_) => {}
-                }
-            }
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    depth == 0
-}
-
-/// One word carrying `text` verbatim, or `None` when no spelling does.
-///
-/// **There is no quoted fallback, because a quoted word is not verbatim.** The
-/// loader reads its words off the CST, where a quoted word keeps its
-/// backslashes (`\[` stays `\[`) and has its variable references normalised
-/// (`$c` becomes `${c}`), while a braced word really is every byte between the
-/// braces. So a bare or braced word is faithful and a quoted one is not, and
-/// text that can be neither is reported as a loss rather than written down
-/// wrong. In practice that is a handful of registry strings carrying a lone
-/// `{` from a man-page extractor.
+/// A descriptor word must retain both raw loader text and its Unicode value.
 fn word(text: &str) -> Option<String> {
-    if bare_safe(text) {
-        Some(text.to_owned())
-    } else if brace_safe(text) {
-        Some(format!("{{{text}}}"))
-    } else {
-        None
-    }
+    use tcl_compiler::parsing::spectcl_source::{
+        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
+    };
+    pack_verbatim_source_word(
+        text,
+        PackWordSourcePurpose::StaticDescriptor,
+        PackWordSourceStyle::Compact,
+    )
 }
 
-/// A braced word carrying `text` verbatim — the prose and block spelling.
-///
-/// Unlike [`word`] this never degrades to a bare word, because a `detail` or
-/// `description` is braced in every port whether or not it needs to be.
+/// Prose and blocks preserve the explicit braced presentation.
 fn braced(text: &str) -> Option<String> {
-    brace_safe(text).then(|| format!("{{{text}}}"))
+    use tcl_compiler::parsing::spectcl_source::{
+        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
+    };
+    pack_verbatim_source_word(
+        text,
+        PackWordSourcePurpose::StaticDescriptor,
+        PackWordSourceStyle::Braced,
+    )
 }
 
-/// A Tcl list word holding `items`, each element carrying its text verbatim.
-///
-/// A one-element list is written as the bare element — `dialects all-tcl`,
-/// `-dialects tcl8.6+` — which is how every port writes one, and which
-/// `split_list_lenient` reads back as the same single-element list. The braces
-/// stay whenever the element needs them, since a braced element inside a bare
-/// word would split into several.
+/// Each element and the enclosing word are checked by the same actual owner.
 fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
-    if let [only] = items
-        && bare_safe(only.as_ref())
-    {
-        return Some(only.as_ref().to_owned());
-    }
-    let words: Option<Vec<String>> = items.iter().map(|item| word(item.as_ref())).collect();
-    braced(&words?.join(" "))
+    tcl_compiler::parsing::spectcl_source::pack_descriptor_list_source_word(items)
 }
 
 /// The elements of a JSON string array as a list word.

@@ -1,0 +1,20 @@
+{
+  "status": "USER_PAUSED_PARTIAL_FAILED_LSP_CAPTURE_AND_SOURCE_CHECKPOINT",
+  "archive": "source-validation.tar.gz",
+  "sha256": "48dddad17e0e08fb85d3ecec1c97e1fa1a2e9c803a085fb808b1917982b76b83",
+  "bytes": 1060094,
+  "members": 1042,
+  "members_index_sha256": "183f51b0cdd422988185d0701ed9c6eeed73cd133565c3181c4fd6afa0a53f63",
+  "admissions": [
+    34,
+    35
+  ],
+  "pending_composition": 36,
+  "completed_tests": 790,
+  "passed": 636,
+  "failed": 154,
+  "timeouts_in_failed": 3,
+  "full1085_complete": false,
+  "poststop_guards": "PASS source52881/providers6/testELFs6/ordered prefixes/raw logs",
+  "scope": "Actual admitted patches/builds/partial execution; UNADMITTED pending patches and incomplete draft retained separately. No semantic acceptance or VM/runtime migration."
+}

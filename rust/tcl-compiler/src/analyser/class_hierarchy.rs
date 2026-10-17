@@ -44,28 +44,208 @@ pub const CONSTRUCTOR_MEMBER: &str = "<constructor>";
 /// [`CONSTRUCTOR_MEMBER`]'s twin for a `destructor` body.
 pub const DESTRUCTOR_MEMBER: &str = "<destructor>";
 
-/// The member of `class_def` named `member`, treating the two nameless
-/// slots by their synthetic labels ([`CONSTRUCTOR_MEMBER`] /
-/// [`DESTRUCTOR_MEMBER`]) and an ordinary name as an instance method,
-/// then a class-side one.
-///
-/// The lookup every `next`-resolution consumer needs once
-/// [`ClassHierarchy::member_next_provider`] has named the providing class:
-/// keeping it here means a constructor's `MethodDef` is fetched the same
-/// way in go-to-definition, find-references, and the arity check. The
-/// *effective* constructor is the last declared one, the
-/// same "most recent declaration wins" rule
-/// [`ClassHierarchy::constructor_provider`] applies.
+/// Source-selected member axis, independent of runtime receiver or dispatch.
+/// Ordinary names never stand for a nameless lifecycle slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceMemberKind {
+    /// Actual ordinary member name and its own definition table.
+    Method {
+        /// Retained source name value, not a lifecycle display label.
+        name: String,
+        /// Instance versus class-object definition table.
+        side: super::types::MemberSide,
+    },
+    /// Native source naming units retain their genuine original producer and
+    /// policy; they are not decoded as Unicode report text.
+    NativeMethod {
+        /// Actual canonical declared name input, without a new byte recipe.
+        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        /// Actual definition receiver table, independent of receiver entry.
+        side: super::types::MemberSide,
+    },
+    /// Independently selected Registry lifecycle declaration role.
+    Special(tcl_registry::definer::DefinitionSpecialMemberKind),
+}
+
+/// Read a typed source member slot from the selected class snapshot.
+/// This supplies reporting metadata, without entered receiver or MRO authority.
 #[must_use]
-pub fn class_member_def<'a>(class_def: &'a ClassDef, member: &str) -> Option<&'a MethodDef> {
+pub fn class_member_def(class_def: &ClassDef, member: &SourceMemberKind) -> Option<MethodDef> {
+    use super::types::MemberSide;
+    use tcl_registry::definer::DefinitionSpecialMemberKind;
     match member {
-        CONSTRUCTOR_MEMBER => class_def.constructors.last(),
-        DESTRUCTOR_MEMBER => class_def.destructor.as_ref(),
-        _ => class_def
-            .methods
-            .get(member)
-            .or_else(|| class_def.class_methods.get(member)),
+        SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor) => {
+            class_def.constructors.last().cloned()
+        }
+        SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor) => {
+            class_def.destructor.clone()
+        }
+        SourceMemberKind::Method {
+            name,
+            side: MemberSide::Instance,
+        } => class_def.methods.get(name).cloned(),
+        SourceMemberKind::Method {
+            name,
+            side: MemberSide::ClassObject,
+        } => class_def.class_methods.get(name).cloned(),
+        SourceMemberKind::NativeMethod { input, side } => {
+            native_source_member_def(class_def, *side, input)?
+        }
     }
+}
+
+fn native_source_member_def(
+    class: &ClassDef,
+    side: super::types::MemberSide,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<Option<MethodDef>> {
+    // Missing source inventory is not absence and cannot skip a provider.
+    let _complete = class.original_members.methods(side)?;
+    Some(
+        class
+            .original_members
+            .method_for_input(side, input)
+            .map(|method| method.metadata().clone()),
+    )
+}
+
+/// Reborrow the actual source member enclosing this current occurrence.
+/// Conditional Logical syntax remains source advice, never an entered frame.
+#[must_use]
+pub fn original_source_member_at(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    if input.lexer_config() != config || !analysis.matches_original_source_image(image, config) {
+        return None;
+    }
+    if analysis.allows_retained_logical_declaration_advice() {
+        if let Some(member) = analysis.logical_source_member_frame_at(image, config, cursor) {
+            let word = member.original_name_word()?;
+            let name = String::from_utf8(
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)?,
+            )
+            .ok()?;
+            let body = member.original_body_word()?.span();
+            return Some((
+                member.class().metadata().qualified_name.clone(),
+                SourceMemberKind::Method {
+                    name,
+                    side: member.side(),
+                },
+                body,
+            ));
+        }
+        return original_logical_special_member_at(analysis, image, config, cursor);
+    }
+    let mut pending = vec![&analysis.global_scope];
+    let mut candidates = Vec::new();
+    while let Some(scope) = pending.pop() {
+        pending.extend(&scope.children);
+        if let Some(candidate) = original_scope_member(analysis, image, config, cursor, scope) {
+            candidates.push(candidate);
+        }
+    }
+    unique_innermost_source_member(candidates)
+}
+
+fn original_scope_member(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+    scope: &super::types::Scope,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    let (class, body, member) = if let Some(context) = scope.original_member_context.as_deref() {
+        if context.resolved_input() != input || !context.matches_source(image, config) {
+            return None;
+        }
+        let member = if let Some(method) = context.ordinary_method() {
+            SourceMemberKind::NativeMethod {
+                input: method.declaration().original_name_input().clone(),
+                side: context.side(),
+            }
+        } else {
+            SourceMemberKind::Special(context.special_member()?.kind())
+        };
+        (context.source_class(analysis)?, context.body_word(), member)
+    } else {
+        let context = scope.original_receiver_body_declaration.as_deref()?;
+        if context.resolved_input() != input || !context.matches_source(image, input) {
+            return None;
+        }
+        let mut classes = analysis.original_class_declarations().filter(|class| {
+            class
+                .metadata()
+                .original_members
+                .declarations()
+                .any(|method| method == context.method())
+        });
+        let class = classes.next()?;
+        if classes.next().is_some() {
+            return None;
+        }
+        let member = SourceMemberKind::NativeMethod {
+            input: context.method().declaration().original_name_input().clone(),
+            side: context.side(),
+        };
+        (class, context.body_word(), member)
+    };
+    let content = body.content_span().ok()?;
+    (content.start() <= cursor && cursor <= content.end())
+        .then(|| (class.metadata().qualified_name.clone(), member, body.span()))
+}
+
+fn original_logical_special_member_at(
+    analysis: &super::types::AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    cursor: u32,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    let input = analysis.resolved_input.as_ref()?;
+    let mut candidates = Vec::new();
+    for class in analysis.all_classes.values() {
+        let Some(owner) = analysis.logical_source_class_declaration(class) else {
+            continue;
+        };
+        if !owner.matches_source(image, input) {
+            continue;
+        }
+        for member in class.original_special_members.declarations() {
+            let word = member.body_word();
+            if word.image() != image || word.config() != config || word.group().expand {
+                continue;
+            }
+            let body = word.content_span().ok()?;
+            if body.start() <= cursor && cursor <= body.end() {
+                candidates.push((
+                    owner.metadata().qualified_name.clone(),
+                    SourceMemberKind::Special(member.kind()),
+                    word.span(),
+                ));
+            }
+        }
+    }
+    unique_innermost_source_member(candidates)
+}
+
+fn unique_innermost_source_member(
+    mut candidates: Vec<(String, SourceMemberKind, tcl_lexer::Span)>,
+) -> Option<(String, SourceMemberKind, tcl_lexer::Span)> {
+    candidates.sort_by_key(|(_, _, span)| span.len());
+    let mut candidates = candidates.into_iter();
+    let selected = candidates.next()?;
+    if candidates
+        .next()
+        .is_some_and(|(_, _, span)| span.len() == selected.2.len())
+    {
+        return None;
+    }
+    Some(selected)
 }
 
 /// Immutable snapshot of the complete class hierarchy.
@@ -319,42 +499,53 @@ impl ClassHierarchy {
         })
     }
 
-    /// Resolve `TclOO` `next` / `nextto` from inside **any** member body,
-    /// routing the two nameless slots to their own providers.
-    ///
-    /// `member` is the enclosing member as the analyser names it — a
-    /// method's own name, or the synthetic [`CONSTRUCTOR_MEMBER`] /
-    /// [`DESTRUCTOR_MEMBER`] label a nameless body carries (the same
-    /// `<constructor>` / `<destructor>` spelling C Tcl's own `info object
-    /// call` reports, and the one `walk_method_body` builds a constructor
-    /// scope's name from).
-    ///
-    /// The single entry point for `next` resolution, so go-to-definition,
-    /// find-references, and the `next`-arity check cannot disagree about
-    /// which slot a `next` chains through. [`Self::next_provider`]'s
-    /// per-ancestor filter consults only `methods`/`class_methods`, so going
-    /// straight there leaves a `next` inside a `constructor` — the ordinary way
-    /// a subclass forwards to its superclass's constructor — resolving to
-    /// nothing at all and its arity unchecked, while the identical `next`
-    /// inside a plain `method` resolves (a real `next` there does dispatch,
-    /// pinned against tclsh 9.0.4).
-    ///
-    /// `source` is the document text `body_span`s index into, needed only
-    /// for the constructor slot's empty-body rule — see
-    /// [`Self::constructor_provider`].
+    /// Resolve a source-selected typed member slot through the retained MRO.
+    /// Lifecycle roles are never reconstructed from ordinary method names.
     #[must_use]
     pub fn member_next_provider(
         &self,
         class: &str,
-        member: &str,
+        member: &SourceMemberKind,
         current: &str,
         start_from: Option<&str>,
         source: &str,
     ) -> Option<&str> {
+        use tcl_registry::definer::DefinitionSpecialMemberKind;
         match member {
-            CONSTRUCTOR_MEMBER => self.constructor_next_provider(class, start_from, source),
-            DESTRUCTOR_MEMBER => self.destructor_next_provider(class, start_from),
-            _ => self.next_provider(class, member, current, start_from),
+            SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor) => {
+                self.constructor_next_provider(class, start_from, source)
+            }
+            SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor) => {
+                self.destructor_next_provider(class, start_from)
+            }
+            SourceMemberKind::Method { .. } | SourceMemberKind::NativeMethod { .. } => {
+                let mro = self.mro_map.get(class)?;
+                let anchor = start_from.unwrap_or(current);
+                let position = mro.iter().position(|name| name == anchor)?;
+                let start = if start_from.is_some() {
+                    position
+                } else {
+                    position + 1
+                };
+                for name in mro.iter().skip(start) {
+                    let Some(class) = self.classes.get(name) else {
+                        if matches!(member, SourceMemberKind::NativeMethod { .. }) {
+                            return None;
+                        }
+                        continue;
+                    };
+                    let selected = match member {
+                        SourceMemberKind::NativeMethod { input, side } => {
+                            native_source_member_def(class, *side, input)?
+                        }
+                        _ => class_member_def(class, member),
+                    };
+                    if selected.is_some() {
+                        return Some(name.as_str());
+                    }
+                }
+                None
+            }
         }
     }
 
@@ -1780,5 +1971,135 @@ mod constructed_projection_tests {
                 None,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod source_member_kind_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+    use tcl_registry::definer::DefinitionSpecialMemberKind;
+
+    #[test]
+    fn actual_source_members_do_not_decode_lifecycle_display_names() {
+        let source = "oo::class create C {method {<constructor>} {} {next}; constructor {} {next}; destructor {next}}";
+        for dialect in ["tcl", "tcl8.6"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+            let mut offsets = source
+                .match_indices("next")
+                .map(|(offset, _)| u32::try_from(offset).unwrap());
+            let ordinary =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            if dialect == "tcl" {
+                assert_eq!(
+                    ordinary.1,
+                    SourceMemberKind::Method {
+                        name: "<constructor>".to_string(),
+                        side: MemberSide::Instance
+                    }
+                );
+            } else {
+                let SourceMemberKind::NativeMethod { input, side } = ordinary.1 else {
+                    panic!("genuine Native name input")
+                };
+                assert_eq!(input.bytes(), b"<constructor>");
+                assert_eq!(side, MemberSide::Instance);
+            }
+            let constructor =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            assert_eq!(
+                constructor.1,
+                SourceMemberKind::Special(DefinitionSpecialMemberKind::Constructor)
+            );
+            let destructor =
+                original_source_member_at(&analysis, &image, config, offsets.next().unwrap())
+                    .unwrap();
+            assert_eq!(
+                destructor.1,
+                SourceMemberKind::Special(DefinitionSpecialMemberKind::Destructor)
+            );
+            let foreign = tcl_lexer::SourceImage::document(&format!("{source} changed"));
+            assert!(original_source_member_at(&analysis, &foreign, config, 0).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_class_object_member_kind_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+
+    #[test]
+    fn native_class_object_body_retains_its_actual_source_table() {
+        let source = "oo::class create C {self method {<constructor>} {} {next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (_, member, body) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        let SourceMemberKind::NativeMethod { input, side } = member else {
+            panic!("genuine Native name input")
+        };
+        assert_eq!(input.bytes(), b"<constructor>");
+        assert_eq!(side, MemberSide::ClassObject);
+        assert_eq!(&source[body.as_range()], "{next}");
+    }
+}
+
+#[cfg(test)]
+mod source_class_object_unicode_body_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+    use crate::analyser::types::MemberSide;
+
+    #[test]
+    fn source_only_class_object_body_keeps_unicode_literal_data() {
+        let source = "oo::class create C {self method m {} {puts café; next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (_, member, body) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        let SourceMemberKind::NativeMethod { input, side } = member else {
+            panic!("genuine Native name input")
+        };
+        assert_eq!(input.bytes(), b"m");
+        assert_eq!(side, MemberSide::ClassObject);
+        assert_eq!(&source[body.as_range()], "{puts café; next}");
+    }
+}
+
+#[cfg(test)]
+mod source_native_counted_member_name_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn native_method_input_reaches_target_without_unicode_redecoding() {
+        let source = "oo::class create Base {self method {m😀} {} {return ok}}; oo::class create C {superclass Base; self method {m😀} {} {next}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let cursor = u32::try_from(source.find("next").unwrap()).unwrap();
+        let (class, member, _) =
+            original_source_member_at(&analysis, &image, config, cursor).unwrap();
+        assert!(matches!(member, SourceMemberKind::NativeMethod { .. }));
+        let hierarchy = analysis.class_hierarchy();
+        let provider = hierarchy
+            .member_next_provider(&class, &member, &class, None, source)
+            .unwrap();
+        let target = class_member_def(&analysis.all_classes[provider], &member).unwrap();
+        assert_eq!(
+            target.name_span,
+            analysis.all_classes["::Base"].class_methods["m😀"].name_span
+        );
     }
 }
