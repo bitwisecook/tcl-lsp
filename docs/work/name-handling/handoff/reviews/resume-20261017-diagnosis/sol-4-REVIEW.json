@@ -1,0 +1,40 @@
+{
+  "reviewer": "sol-4",
+  "candidate": "scratchpad/i37/nextto/nextto-c-faithful.patch",
+  "base": "HEAD 4c3eb7953 (a/ == HEAD == worktree for definition.rs, references.rs)",
+  "verdict": "ADMIT",
+  "verdict_scope": "source-level; conditional on doc edit D1 (no code change required)",
+  "oracle": {"tclsh": ["8.6.18", "9.0.4"], "probes": "agents/sol-4/probes/p1..p8", "versions_agree": true},
+  "findings": [
+    {"id": "D1", "severity": "required-doc", "where": "b/rust/tcl-lsp-core/src/definition.rs:1328-1330",
+     "summary": "'The object namespace holds no retained class' is false: a relative oo::class create in a member body lives in ::oo::ObjN and wins for nextto (p7); the analyser retains it keyed ::Name with source_name None (scope.rs:166, handlers.rs:10721-10734). Reword as an explicit limitation; 'same-tail' -> 'name reached under a path namespace'."},
+    {"id": "R1", "severity": "low", "where": "tcl-registry/src/definer.rs:4375; b/definition.rs:1344-1348",
+     "summary": "Class-object frames (self method, mixins on a class object, metaclass instance methods) have path '::oo::Helpers ::oo' (p5,p6); same-tail ::oo class wins in tclsh, candidate answers root."},
+    {"id": "R2", "severity": "low", "where": "b/definition.rs:1344-1348",
+     "summary": "Only classes are probed on the path; a proc in ::oo::Helpers, builtin helpers (self/next/link/...) or per-object my shadow a root class -> tclsh 'does not refer to an object' (p1 G, p2), candidate answers root."},
+    {"id": "R3", "severity": "low", "where": "b/definition.rs:1346; class_hierarchy.rs:805-829,898-923",
+     "summary": "Shadow probe treats a None from collision/ambiguity withdrawal as absence (absence-as-completeness)."},
+    {"id": "R4", "severity": "low", "where": "b/definition.rs:1352",
+     "summary": "Runtime 'namespace path' edits in constructors (common idiom) change nextto resolution (p8); recorded namespace_path_computed is ignored."},
+    {"id": "R5", "severity": "low-preexisting", "where": "scope.rs:826",
+     "summary": "nextto inside namespace eval within a method raises in tclsh (p4) but path stays non-empty, so candidate answers."},
+    {"id": "S1", "severity": "style-recommended", "where": "b/definition.rs:1346",
+     "summary": "Use tcl_syntax::naming::qualify(namespace, name) (naming.rs:1445) instead of format!; keep the starts_with(\"::\") guard."}
+  ],
+  "compile": {"status": "expected-ok", "rustfmt_edition_2024": "clean (both files)", "callers_migrated": ["references.rs:2409", "references.rs:2450"], "notes": "implicit_command_namespace_path_at(&Scope,u32)->&'static [&'static str] at scope.rs:773, pub mod scope (analyser/mod.rs:67), already used from lsp-core references.rs:579"},
+  "snit_itcl_unchanged": true,
+  "tests": {
+    "flip_green": [
+      "definition::tests::nextto_picks_occurrence_at_cursor_not_first_on_line (test-256)",
+      "definition::tests::jump_to_nextto_named_class_method",
+      "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+      "references::tests::constructor_next_chain_reference_via_nextto_explicit_target",
+      "references::tests::constructor_next_chain_reference_via_braced_nextto_target"
+    ],
+    "stay_red": [
+      {"test": "definition::tests::jump_to_nextto_namespaced_class_method", "reason": "test contradicts tclsh 8.6.18/9.0.4 (nextto A in ::Ns::C raises); rewrite to assert no target, add Ns::A / ::Ns::A positives and an ::oo::Helpers shadow refusal"}
+    ],
+    "risk_of_green_to_red": "none found: HEAD returns None in every TclOO member body; other next-chain tests use plain next; tp_nextto_dispatch_top_level and references.rs:8946/8972 do not reach the helper"
+  },
+  "side_note": "docs/design/analysis/name-resolution.md:544-547 claims resolve_written_class_name has a unique-tail fallback; class_hierarchy.rs:896 says it does not (stale doc, out of scope)"
+}

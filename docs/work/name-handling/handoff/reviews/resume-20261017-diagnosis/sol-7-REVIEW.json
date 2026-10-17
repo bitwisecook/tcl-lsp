@@ -1,0 +1,44 @@
+{
+  "reviewer": "Sol-7",
+  "candidate": "luna-5/nested-body-cut-memo-v2.patch",
+  "base": "4c3eb7953 (touched files identical at f606aa20c); V2 committed byte-identically in HEAD 60051c3c2 during review",
+  "verdict": "ADMIT",
+  "verdict_scope": "source level; C4 (compile, clippy pedantic, run 8 new selectors, time deep-wrapper test vs 180 s) remains with orchestrator",
+  "conditions": {
+    "C1/F1": {"status": "met", "evidence": "rustfmt --edition 2024 --check exit 0 on all 5 b/ .rs files; V1 lib.rs reproduces F1 diff", "loc": "rust/tcl-lexer/src/lib.rs:110-115"},
+    "F2": {"status": "met", "loc": "rust/tcl-lexer/src/parse_cut.rs:413"},
+    "F3": {"status": "met", "loc": "rust/tcl-lexer/src/parse_cut.rs:337-348"},
+    "F4": {"status": "met", "loc": "rust/tcl-lexer/src/native_script_words.rs:4-9,255"},
+    "C2-lexer": {"status": "met", "loc": "rust/tcl-lexer/src/parse_cut.rs:1550-1763"},
+    "C2-linked": {"status": "met", "loc": "rust/tcl-compiler/src/command_binding/original_source_projection.rs:167-190,377-451"},
+    "C3": {"status": "met", "loc": ["docs/design/contracts/shared-utility-contracts-rust.md:424", "docs/design/analysis/name-resolution-proofs/manifest.json:1133863,1133947-1133951", "docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md:88,103,122"]},
+    "C4": {"status": "open", "note": "commit 60051c3c2 reports Build37 zero warnings and 19/24 targeted selectors pass; confirm the 5 failures exclude the 8 new tests and parse_pkg_index_survives_deeply_nested_source_wrapper"}
+  },
+  "tests_traced": {
+    "nested_body_memo_shares_a_clean_body_between_overlapping_regions": "correct; hits in regions 2-3, count 3",
+    "nested_body_memo_rewalks_a_cut_beside_a_clean_body": "correct; cut and cut-containing bodies not recorded, count 1",
+    "nested_body_memo_keeps_the_unterminated_quote_fallback_after_a_clean_body": "correct; body-level hit, MISSING_QUOTE fallback kept, count 2",
+    "nested_body_memo_keeps_the_variable_index_reporting_anchor": "correct; offset=$ , term=z, hit under report_at",
+    "nested_body_memo_never_records_unavailable_streams": "correct; LexicalStream from body lex, SourceGeometry from tampered top-level word",
+    "nested_body_memo_keys_each_lexer_configuration_separately": "correct; load-bearing key discrimination (8.6 clean, 8.4 welded cut)",
+    "nested_body_memo_bypasses_a_foreign_image": "correct; load-bearing bypass incl. channel-only difference",
+    "original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture": "correct; body_words mirrors capture; hits occur in both orders"
+  },
+  "proof_docs": {
+    "generator": "scripts/dev/update-name-resolution-proof-index.py render(); gate scripts/dev/check-name-resolution-proofs.py",
+    "rendered_prefix_byte_identical": true,
+    "manifest_serialisation_canonical": true,
+    "gate_error_delta_a_vs_b": 0,
+    "gate_errors_both": 2065
+  },
+  "owner_resolution": "satisfied: NestedBodyCutMemo pub struct parse_cut.rs:338; native_script_words_in_with_purpose_and_memo pub fn native_script_words.rs:215",
+  "forbidden_changes": "none (no assertion/selector/fixture/timeout edits; no #[allow]/#[expect]/#[ignore])",
+  "findings": [
+    {"id": "T-1", "severity": "low", "loc": "rust/tcl-lexer/src/parse_cut.rs:1550-1763", "text": "No test observes that a hit occurred; all assertions pass if is_clean always returns false. Hits proven harmless, wrong hits proven caught (tests 6/7); perf rests on C4."},
+    {"id": "T-2", "severity": "low", "loc": "rust/tcl-lexer/src/parse_cut.rs:1708-1724", "text": "Tampered half makes a top-level word unavailable (no clean_key); a pushed body failing geometry is not covered, though correct by reading."},
+    {"id": "T-3", "severity": "info", "loc": "rust/tcl-lexer/src/parse_cut.rs:1692-1705; rust/tcl-lexer/src/native_script_words.rs:248", "text": "Strict-stream case uses strict_quoting=true, which the production entry forces to false."},
+    {"id": "G-1", "severity": "info", "loc": "docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md:116-124", "text": "Hand-written appendix (incl. new paragraph :122) is outside the manifest; --render would drop it. Pre-existing; NOTES' byte-identical claim holds for the rendered prefix only."},
+    {"id": "O-1", "severity": "nit", "loc": "docs/design/contracts/shared-utility-contracts-rust.md:422,424", "text": "native_script_words.rs now listed in two owner rows; gate permits it."},
+    {"id": "M-1", "severity": "nit", "loc": "docs/design/analysis/name-resolution-proofs/manifest.json:1133947-1133951", "text": "Binding key order differs from neighbour; harmless."}
+  ]
+}

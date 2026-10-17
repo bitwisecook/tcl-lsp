@@ -1,0 +1,122 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-17T20:58:43.855081+00:00",
+  "scheduled_report_utc": "2026-10-17T20:58:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0,
+    "note": "Integration37 committed as a CANDIDATE (60051c3c2), not admitted until its regression capture and clippy complete; no unit counts move before admission and Root-style unit mapping."
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "capture36_final": {
+      "receipt": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-10/capture.json",
+      "completed": 1085,
+      "passed": 838,
+      "failed": 247,
+      "timeouts": 3,
+      "guards": "PASS source 114247 / providers 6 / ELFs 6"
+    },
+    "build37": {
+      "status": "PASS",
+      "warnings": 0,
+      "targets": 8,
+      "added": [
+        "tcl-lexer",
+        "tcl-compiler"
+      ],
+      "artifacts_sha256": "9e7ec85c1a42385d1c741f6a3c4cdc97855eed0099537bab8232c5364f0d38a9"
+    },
+    "targeted37": {
+      "passed": 19,
+      "of": 24,
+      "receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/targeted-37a-result.json",
+      "package_index_nested_wrapper_seconds": 165.93,
+      "budget_seconds": 180,
+      "still_failing": [
+        "jump_to_nextto_namespaced_class_method (tclsh correction pending)",
+        "constructor_next_chain_reference_via_nextto_explicit_target",
+        "constructor_next_chain_reference_via_braced_nextto_target",
+        "original_own_object_identity_keeps_uri_currency_and_wire_reselection",
+        "DB project_token_hints_withdraw_when_another_members_source_owner_is_unavailable"
+      ]
+    },
+    "capture37": {
+      "status": "RUNNING",
+      "db": [
+        11,
+        7,
+        4,
+        0
+      ],
+      "core_partial": {
+        "complete": 265,
+        "passed": 218,
+        "gains_vs_36": [
+          165,
+          172,
+          256
+        ],
+        "losses_vs_36": []
+      }
+    }
+  },
+  "reviews_since_previous_report": {
+    "nextto_c_faithful_v2": "Sol-4 ADMIT (doc fix applied); tclsh 8.6/9.0 probes",
+    "nested_body_cut_memo_v2": "Sol-7 ADMIT; proof gate errors unchanged (2065 pre-existing); C4 run: 8/8 new tests pass, wrapper 165.9 s",
+    "test_corrections_v1": "Luna-6 drafted with per-assertion tclsh probes; review pending",
+    "same_document_order_v1": "Sol-5 drafted; Luna-7 review running. Scope note: three 1b45c540e controls assert the same same-document shape and change; cross-document and branch variants retain the conditional intent",
+    "member_census_v2": "Sol-6 drafting"
+  },
+  "scope_flags_for_user": [
+    "Under 'correct to tclsh', two code_lens tests move from '0 references' to 'References unavailable' because tclsh cannot prove zero for bare greet / $x bark.",
+    "Same-document order changes three 1b45c540e controls, not one."
+  ],
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost"
+  ],
+  "next_report_utc": "2026-10-17T21:28:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
