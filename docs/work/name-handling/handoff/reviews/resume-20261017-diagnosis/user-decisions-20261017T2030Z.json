@@ -1,0 +1,11 @@
+{
+ "recorded_utc": "2026-10-17T20:30Z",
+ "source": "User answers in chat to orchestrator questions",
+ "decisions": {
+  "method_census_contradiction": {"answer": "Complete wins", "effect": "Once a sound method census exists (deferred my-dispatch, callbacks, forwards, filters handled fail-closed), test-096 readonly_member_reports_keep_source_spans_out_of_edit_inventories, server readonly_member_wire_retains_owner_and_partial_coverage and original-method-candidates.md:18 may change from Partial to Complete; code_lens 056/058 are the target. No change before such a census is reviewed and built."},
+  "document_links": {"answer": "Correct to tclsh", "effect": "Narrow exception: document_links 124 (rename source load) and 140 (source -- f) assertions follow tclsh 8.6/9.0 observed results; 136 stays fail-closed and red."},
+  "export_order": {"answer": "Same-document order", "effect": "Within one document the source sequence is known, so removals (export -clear, forget, redefinition) are ordered there; test-400 may pass; the 1b45c540e control workspace_order_keeps_original_export_evidence_without_conditional_clear_completion changes for the same-document shape only. Cross-document order stays conditional."},
+  "non_tcl_tests": {"answer": "Correct to tclsh", "effect": "Narrow, individually documented exceptions aligning assertions with tclsh-observed behaviour: proc ::a::helper in a missing namespace, classmethod under tcl8.6, jump_to_nextto_namespaced_class_method (tclsh: A does not refer to an object), and the two code_lens absence-as-completeness tests. Each change cites its tclsh probe; no blanket change."}
+ },
+ "still_open": ["Compiler221 same-input Some/None", "DB921 identity policy", "Server102/103 freshness vs snapshot", "Server108 validation cost design"]
+}
