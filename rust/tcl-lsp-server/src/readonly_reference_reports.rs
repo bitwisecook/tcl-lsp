@@ -41,6 +41,46 @@ pub(super) struct WorkspaceSymbolSourceAnalysis {
     kind: WorkspaceSymbolAnalysisKind,
 }
 
+/// Currency for an ordinary source action; Core still owns action admissibility.
+pub(super) struct OriginalCodeActionSource {
+    uri: Uri,
+    document: super::DocumentState,
+    analysis: WorkspaceSymbolSourceAnalysis,
+    inputs_epoch: u64,
+    factory_generation: u64,
+    index_generation: u64,
+    exports: Arc<tcl_lsp_core::workspace_index::NamespaceExportSnapshot>,
+}
+
+impl OriginalCodeActionSource {
+    pub(super) fn analysis(&self) -> Arc<AnalysisResult> {
+        match &self.analysis.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => Arc::clone(&document.analysis),
+            WorkspaceSymbolAnalysisKind::Fresh(document) => Arc::clone(&document.seed.analysis),
+        }
+    }
+
+    pub(super) fn contains_range(&self, range: tower_lsp_server::ls_types::Range) -> bool {
+        let exact = |position: tower_lsp_server::ls_types::Position| {
+            let offset = self.document.line_index.offset_at_utf16(
+                position.line,
+                tcl_lexer::Utf16Col::new(position.character),
+                &self.document.text,
+            );
+            let actual = self
+                .document
+                .line_index
+                .position_at_utf16(offset, &self.document.text);
+            actual.line == position.line && actual.character.get() == position.character
+        };
+        range.start <= range.end && exact(range.start) && exact(range.end)
+    }
+
+    pub(super) fn exports(&self) -> Arc<tcl_lsp_core::workspace_index::NamespaceExportSnapshot> {
+        Arc::clone(&self.exports)
+    }
+}
+
 enum WorkspaceSymbolAnalysisKind {
     Database(Box<OriginalReadonlyReferenceDocument>),
     Fresh(Box<WorkspaceSymbolFreshInput>),
@@ -451,6 +491,92 @@ impl Backend {
                 uri_generation,
             })),
         }))
+    }
+
+    pub(super) async fn capture_code_action_source(
+        &self,
+        uri: &Uri,
+        snapshot: &super::DocumentState,
+    ) -> DocumentSourceResult<Option<OriginalCodeActionSource>> {
+        if snapshot.version.is_none() {
+            return Ok(None);
+        }
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
+        let Some(analysis) = self
+            .capture_workspace_symbol_analysis(uri, snapshot)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let (exports, index_generation) = {
+            let index = self.workspace_index.read().await;
+            (index.export_snapshot(), index.generation())
+        };
+        Ok(Some(OriginalCodeActionSource {
+            uri: uri.clone(),
+            document: snapshot.clone(),
+            analysis,
+            inputs_epoch,
+            factory_generation,
+            index_generation,
+            exports,
+        }))
+    }
+
+    pub(super) async fn finish_code_action_response(
+        &self,
+        source: &OriginalCodeActionSource,
+        actions: Vec<tcl_lsp_core::code_actions::CodeAction>,
+        only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
+    ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::CodeActionOrCommand>>> {
+        let mut admissions = vec![source.analysis.admission()];
+        if let Some(admission) = source.document.path_admission.as_deref() {
+            if admission.uri() != &source.uri {
+                return Ok(None);
+            }
+            admissions.push(admission);
+        } else if self.store.workspace_source_inventory_provider()
+            == super::vfs::WorkspaceSourceInventoryProvider::HostReported
+            && source.uri.scheme().as_str() == "file"
+        {
+            return Ok(None);
+        }
+        // FnMut is called once by the shared transaction. Do not clone action
+        // plans or mint a second source receipt on a refused publication.
+        let mut actions = Some(actions);
+        self.with_current_readonly_source_state(
+            source.inputs_epoch,
+            source.factory_generation,
+            &admissions,
+            |state| {
+                let current = state.open.get(&source.uri)?;
+                (code_action_document_matches(&source.document, current)
+                    && source
+                        .analysis
+                        .matches_snapshot(&source.uri, &source.document)
+                    && source.analysis.matches_current_state(
+                        state,
+                        source.inputs_epoch,
+                        source.factory_generation,
+                    ))
+                .then_some(())
+            },
+            |_, _| {
+                let index = self.workspace_index.try_read().ok()?;
+                if index.generation() != source.index_generation {
+                    return None;
+                }
+                Some(super::lift_versioned_code_actions(
+                    actions.take()?,
+                    &source.uri,
+                    source.document.version?,
+                    source.document.raw(),
+                    only,
+                ))
+            },
+        )
+        .await
     }
 
     /// Project once while the actual full input/configuration, source/provider,
@@ -1515,6 +1641,25 @@ impl OriginalReadonlyReferenceDocument {
     fn matches_original_input(&self) -> bool {
         original_readonly_analysis_matches_input(&self.source, &self.analysis, &self.input)
     }
+}
+
+fn code_action_document_matches(
+    expected: &super::DocumentState,
+    current: &super::DocumentState,
+) -> bool {
+    expected.version.is_some()
+        && current.version == expected.version
+        && !current.backing_file_deleted
+        && current.revision == expected.revision
+        && current.raw() == expected.raw()
+        && current.clone().normalised_for_analysis().text
+            == expected.clone().normalised_for_analysis().text
+        && current.dialect == expected.dialect
+        && current.language_id == expected.language_id
+        && current.path_admission == expected.path_admission
+        && current.publication == expected.publication
+        && current.dialect_resolution_generation == expected.dialect_resolution_generation
+        && current.resolved_dialect_generation == expected.resolved_dialect_generation
 }
 
 fn original_readonly_analysis_matches_input(
@@ -3211,6 +3356,219 @@ mod workspace_symbol_original_admission_tests {
                 .await
                 .unwrap()
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod code_action_source_version_tests {
+    use super::*;
+    use crate::DocumentState;
+    use tower_lsp_server::LanguageServer;
+    use tower_lsp_server::ls_types::{
+        CodeActionContext, CodeActionOrCommand, CodeActionParams, DocumentChanges,
+        TextDocumentIdentifier,
+    };
+
+    const SOURCE: &str = "unset xs\n";
+
+    async fn open(backend: &Backend, uri: &Uri, source: &str) -> DocumentState {
+        let document = DocumentState::with_version(source.to_owned(), "tcl8.6".to_owned(), 23);
+        backend
+            .documents
+            .lock("source action fixture")
+            .await
+            .insert(uri.clone(), document.clone());
+        document
+    }
+
+    #[tokio::test]
+    async fn actual_code_action_endpoint_publishes_the_original_document_version() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///source-action-version.tcl".parse().unwrap();
+        open(&backend, &uri, SOURCE).await;
+        let actions = backend
+            .code_action(CodeActionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                range: Range::new(Position::new(0, 0), Position::new(0, 8)),
+                context: CodeActionContext::default(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .unwrap()
+            .expect("actual source action");
+        let action = actions
+            .iter()
+            .find_map(|item| match item {
+                CodeActionOrCommand::CodeAction(action)
+                    if action.title == "Add '-nocomplain' to unset" =>
+                {
+                    Some(action)
+                }
+                _ => None,
+            })
+            .expect("actual Core unset subject");
+        let edit = action.edit.as_ref().unwrap();
+        assert!(edit.changes.is_none());
+        let Some(DocumentChanges::Edits(documents)) = &edit.document_changes else {
+            panic!("expected a versioned edit");
+        };
+        assert_eq!(documents.len(), 1);
+        assert_eq!(documents[0].text_document.uri, uri);
+        assert_eq!(documents[0].text_document.version, Some(23));
+        assert!(!documents[0].edits.is_empty());
+        assert_eq!(
+            backend.documents.lock("unchanged source action").await[&uri]
+                .text
+                .as_ref(),
+            SOURCE
+        );
+    }
+
+    #[tokio::test]
+    async fn equal_source_does_not_replace_the_original_version_input_or_export_generation() {
+        use salsa::Setter as _;
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///source-action-currentness.tcl".parse().unwrap();
+        let document = open(&backend, &uri, SOURCE).await;
+        let owner = backend
+            .capture_code_action_source(&uri, &document)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        backend
+            .documents
+            .lock("version change")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .version = Some(24);
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let current = backend.documents.lock("current version").await[&uri].clone();
+        let owner = backend
+            .capture_code_action_source(&uri, &current)
+            .await
+            .unwrap()
+            .unwrap();
+        let config = backend.resolved_db_config(&uri).await;
+        config
+            .set_extra_commands(&mut *backend.db.lock().await)
+            .to(vec!["new_action_input".to_owned()]);
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let owner = backend
+            .capture_code_action_source(&uri, &current)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let external =
+            tcl_compiler::analyser::Analyser::new().analyse("proc external {} {}", "tcl8.6");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document("file:///action-external.tcl", &external);
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_versions_and_clamped_utf16_positions_cannot_issue_source_actions() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "untitled:source-action-unicode".parse().unwrap();
+        let document = open(&backend, &uri, "set x 😀\r\n").await;
+        let owner = backend
+            .capture_code_action_source(&uri, &document)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(owner.contains_range(Range::new(Position::new(0, 6), Position::new(0, 8))));
+        assert!(!owner.contains_range(Range::new(Position::new(0, 7), Position::new(0, 8))));
+        assert!(!owner.contains_range(Range::new(Position::new(0, 0), Position::new(0, 99))));
+        assert!(!owner.contains_range(Range::new(Position::new(9, 0), Position::new(9, 0))));
+        let mut unversioned = document;
+        unversioned.version = None;
+        assert!(
+            backend
+                .capture_code_action_source(&uri, &unversioned)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn equal_provider_replacement_cannot_renew_the_action_source_receipt() {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///source-action-provider.tcl".parse().unwrap();
+        store.upsert_uri_aliases(
+            &[uri.as_str()],
+            "/source-action-provider.tcl",
+            SOURCE.as_bytes().to_vec(),
+        );
+        backend.store = store.clone();
+        let mut document = open(&backend, &uri, SOURCE).await;
+        document.path_admission = Some(backend.document_path_admission(&uri).await.unwrap());
+        backend
+            .documents
+            .lock("actual source provider receipt")
+            .await
+            .insert(uri.clone(), document.clone());
+        let owner = backend
+            .capture_code_action_source(&uri, &document)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(store.remove_uri(uri.as_str()));
+        store.upsert_uri_aliases(
+            &[uri.as_str()],
+            "/source-action-provider.tcl",
+            SOURCE.as_bytes().to_vec(),
+        );
+        assert!(
+            backend
+                .finish_code_action_response(&owner, Vec::new(), None)
+                .await
+                .is_err()
         );
     }
 }

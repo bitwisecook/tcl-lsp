@@ -87,6 +87,31 @@ impl OriginalSourceTransitionAdviceCache {
     }
 }
 impl super::CommandBindingRealm {
+    pub(crate) fn original_conditional_lambda_formatting_body(
+        &self,
+        word: &tcl_lexer::NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Arc<crate::command_binding::OriginalConditionalLambdaFormattingBody>> {
+        if !input.has_logical_source_name_context()
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(word.image(), input.lexer_config())
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        crate::command_binding::OriginalSourceTransitionAdviceTape::decoded_lambda_formatting_phase(
+            prepared.as_ref().as_ref()?,
+            word,
+            input,
+        )
+    }
+
     pub(crate) fn original_logical_variable_scope_at(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -1268,14 +1293,8 @@ impl super::CommandBindingRealm {
         }
         let advice = if member {
             tape.member_catalogue(offset)?
-        } else if let Some(advice) = tape.body_catalogue(offset) {
-            advice
         } else {
-            match tape.lookup(offset) {
-                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
-                OriginalSourceTransitionAdviceLookup::Refused
-                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
-            }
+            OriginalSourceTransitionAdviceTape::prefix_catalogue_advice(tape, offset)?
         };
         if !advice.matches_context(context)
             || !advice.matches_source(image, config)

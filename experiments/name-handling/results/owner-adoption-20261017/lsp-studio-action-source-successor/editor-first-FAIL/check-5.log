@@ -1,0 +1,5 @@
+
+> @tcl-spec-studio/web@0.0.0 typecheck
+> tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json
+
+test/units.test.ts(345,29): error TS2550: Property 'at' does not exist on type 'Record<string, unknown>[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.

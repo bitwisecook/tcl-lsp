@@ -2184,6 +2184,118 @@ mod tests {
     }
 
     #[test]
+    fn original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies() {
+        // naming.core.original-definition-grammar-cursor
+        // This control stops at the genuine selected source-owner boundary;
+        // it does not depend on quick-fix diagnostics or candidate spelling.
+        for source in [
+            "speclib demo 1 {command demo {arty 1; arty 2; arg 0 -rle Body}}",
+            "speclib demo 1 {\n command demo::x {\n  arty 1\n }\n}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "spectcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let registry = context.commands();
+            let document = registry.document_grammar().unwrap();
+            let expected_pack = registry
+                .authored_document_member_grammar(document, "speclib")
+                .unwrap();
+            let expected_command = registry
+                .authored_document_member_grammar(expected_pack, "command")
+                .unwrap();
+
+            let root_command = segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .find(|command| command.name() == "speclib")
+                .unwrap();
+            let root_words =
+                crate::original_invocation::source_registry_words(source, &analysis, &root_command)
+                    .unwrap();
+            let mut root_bodies = root_words.source_script_bodies(&context);
+            assert_eq!(root_bodies.len(), 1);
+            let pack_body = root_bodies.remove(0);
+            let pack_parent = pack_body
+                .definition_parent_for(&context, None)
+                .expect("the authored speclib body must issue its own source owner");
+            assert!(pack_parent.matches_source(&SourceImage::document(source), config));
+            assert!(std::ptr::eq(
+                pack_parent
+                    .source_words()
+                    .with_source_schema(&context, |schema| {
+                        schema.authored_source_definition_body_grammar()
+                    })
+                    .flatten()
+                    .unwrap(),
+                expected_pack
+            ));
+
+            let pack_source = source.get(pack_parent.content_span().as_range()).unwrap();
+            let command = segment_commands_with_offset_and_config(
+                pack_source,
+                pack_parent.content_span().start(),
+                config,
+            )
+            .into_iter()
+            .find(|command| command.name() == "command")
+            .unwrap();
+            let command_words =
+                crate::original_invocation::source_registry_words(source, &analysis, &command)
+                    .unwrap();
+            let mut command_bodies = command_words.source_script_bodies(&context);
+            assert_eq!(command_bodies.len(), 1);
+            let command_body = command_bodies.remove(0);
+            let command_parent = command_body
+                .definition_parent_for(&context, Some(&pack_parent))
+                .expect("the authored command body must issue its actual child owner");
+            assert!(command_parent.matches_source(&SourceImage::document(source), config));
+            assert!(std::ptr::eq(
+                command_parent
+                    .source_words()
+                    .with_source_schema(&context, |schema| {
+                        schema.authored_source_definition_body_grammar()
+                    })
+                    .flatten()
+                    .unwrap(),
+                expected_command
+            ));
+
+            let captured = SourceStructure::capture_with_purpose(
+                source,
+                Some(&analysis),
+                config,
+                CapturePurpose::DefinitionCursor,
+            )
+            .unwrap();
+            for (body, expected_parent) in [
+                (&pack_parent, expected_pack),
+                (&command_parent, expected_command),
+            ] {
+                let region = captured
+                    .definition_cursor_regions
+                    .iter()
+                    .find(|region| region.span == body.content_span())
+                    .expect("the cursor walk must retain each source-issued body");
+                let parent = region
+                    .parent
+                    .as_ref()
+                    .expect("the retained body region must keep its genuine source owner");
+                assert!(region.members.is_some());
+                assert!(std::ptr::eq(
+                    parent
+                        .source_words()
+                        .with_source_schema(&context, |schema| {
+                            schema.authored_source_definition_body_grammar()
+                        })
+                        .flatten()
+                        .unwrap(),
+                    expected_parent
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies() {
         // Implementation contract: naming.source.original-editor-body-structure
         // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md

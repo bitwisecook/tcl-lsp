@@ -35,6 +35,20 @@ impl OriginalRegistryWords {
         self.structure.head_source()
     }
 
+    pub(crate) fn decoded_lambda_formatting_body(
+        &self,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        realm: &tcl_compiler::realm::CommandBindingRealm,
+        parent: &tcl_lexer::NativeWord,
+    ) -> Option<tcl_compiler::lambda_literal::OriginalDecodedLambdaFormattingBody> {
+        tcl_compiler::lambda_literal::OriginalDecodedLambdaFormattingBody::capture(
+            &self.structure,
+            input,
+            realm,
+            parent,
+        )
+    }
+
     /// Same Compiler-owned source schema; no text head or argv reconstruction.
     pub(crate) fn with_source_schema<'r, T>(
         &'r self,
@@ -198,6 +212,23 @@ pub(crate) fn selected_registry_words(
         source, analysis, segment, registry,
     )
     .map(from_source_words)
+}
+
+/// Same shared argv projection in a retained decoded-lambda source phase.
+pub(crate) fn decoded_lambda_registry_words(
+    phase: &tcl_compiler::lambda_literal::OriginalDecodedLambdaFormattingBody,
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Option<OriginalRegistryWords> {
+    phase.words(segment, input).map(from_source_words)
+}
+
+pub(crate) fn conditional_lambda_registry_words(
+    phase: &tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody,
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Option<OriginalRegistryWords> {
+    phase.words(segment, input).map(from_source_words)
 }
 
 /// Shared candidate-only structure, retaining all conditional applicability.

@@ -668,6 +668,10 @@ pub(crate) struct FormattingSourceLayout {
     analysis: Option<tcl_compiler::analyser::AnalysisResult>,
     input: tcl_compiler::analyser::ResolvedAnalysisInput,
     original: Option<super::analysis_layout::AnalysisFormattingLayout>,
+    decoded_phase: Option<tcl_compiler::lambda_literal::OriginalDecodedLambdaFormattingBody>,
+    conditional_phase: Option<
+        std::sync::Arc<tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody>,
+    >,
 }
 
 impl FormattingSourceLayout {
@@ -701,6 +705,8 @@ impl FormattingSourceLayout {
             analysis: Some(analysis),
             input: input.clone(),
             original: None,
+            decoded_phase: None,
+            conditional_phase: None,
         }
     }
 
@@ -714,6 +720,8 @@ impl FormattingSourceLayout {
             analysis: Some(analysis.clone()),
             input: analysis.resolved_input.as_ref()?.clone(),
             original: Some(original),
+            decoded_phase: None,
+            conditional_phase: None,
         })
     }
 
@@ -764,7 +772,10 @@ fn identify_body_args(
     config: &FormatterConfig,
     source: &str,
 ) {
-    if let Some(analysis) = &identities.analysis {
+    if identities.analysis.is_some()
+        || identities.decoded_phase.is_some()
+        || identities.conditional_phase.is_some()
+    {
         cmd.source_roles = Some(Vec::new());
         cmd.logical_roles = None;
         cmd.logical_context = None;
@@ -772,7 +783,10 @@ fn identify_body_args(
         cmd.source_words = None;
         cmd.resolved_name.clear();
         if identities.input.lexer_config() != config.lexer_config()
-            || analysis.body_lexer_config != Some(config.lexer_config())
+            || identities
+                .analysis
+                .as_ref()
+                .is_some_and(|analysis| analysis.body_lexer_config != Some(config.lexer_config()))
             || identities
                 .input
                 .context_registry()
@@ -783,7 +797,12 @@ fn identify_body_args(
         {
             return;
         }
-        let Some(image) = identities.realm.original_source_image() else {
+        let Some(image) = identities
+            .conditional_phase
+            .as_ref()
+            .map(|phase| phase.image())
+            .or_else(|| identities.realm.original_source_image())
+        else {
             return;
         };
         let Ok(whole) = std::str::from_utf8(image.bytes()) else {
@@ -859,9 +878,24 @@ fn identify_body_args(
                 return;
             }
         }
-        let Some(selected) =
-            crate::original_invocation::source_registry_words(whole, analysis, segment)
-        else {
+        let selected = if let Some(phase) = &identities.conditional_phase {
+            crate::original_invocation::conditional_lambda_registry_words(
+                phase,
+                segment,
+                &identities.input,
+            )
+        } else if let Some(phase) = &identities.decoded_phase {
+            crate::original_invocation::decoded_lambda_registry_words(
+                phase,
+                segment,
+                &identities.input,
+            )
+        } else {
+            identities.analysis.as_ref().and_then(|analysis| {
+                crate::original_invocation::source_registry_words(whole, analysis, segment)
+            })
+        };
+        let Some(selected) = selected else {
             // The shared original syntax inventory retains declaration-member
             // bodies independently of a global command schema. It donates no
             // formal value, expression rewrite or executed member identity.
@@ -891,9 +925,7 @@ fn identify_body_args(
             _ => false,
         };
         let roles = selected.roles.as_deref().unwrap_or_default();
-        let Some(input) = analysis.resolved_input.as_ref() else {
-            return;
-        };
+        let input = &identities.input;
         let context = input.context_registry();
         let Some((traits, presentations, case)) = selected.with_source_schema(&context, |schema| {
             (
@@ -926,7 +958,7 @@ fn identify_body_args(
                 _ => None,
             }
         });
-        if config.enforce_braced_expr {
+        if config.enforce_braced_expr && identities.conditional_phase.is_none() {
             let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
                 &SourceMap::new(whole),
                 config.lexer_config(),
@@ -2441,13 +2473,72 @@ pub(crate) fn format_body(
                     .original
                     .as_ref()
                     .and_then(|layout| layout.text().get(presented_body?.as_range()));
-                let formatted = format_body(
-                    presented_text.unwrap_or(&body_text),
-                    config,
-                    registry,
-                    identities,
-                    FormattingRegion::body(config, lambda_body_offset, inner_level),
-                );
+                let phase = original_body
+                    .is_none()
+                    .then(|| {
+                        let parent = commands[i].args[a].original_word.as_ref()?;
+                        commands[i]
+                            .source_words
+                            .as_ref()?
+                            .decoded_lambda_formatting_body(
+                                &identities.input,
+                                &identities.realm,
+                                parent,
+                            )
+                    })
+                    .flatten()
+                    .filter(|phase| phase.text() == Some(body_text.as_ref()));
+                let conditional_phase = original_body.is_none().then(|| {
+                    let parent = commands[i].args[a].original_word.as_ref()?;
+                    if let Some(current) = &identities.conditional_phase {
+                        current.child(parent, &identities.input)
+                    } else {
+                        tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody::capture(
+                            &identities.realm, &identities.input, parent)
+                    }
+                }).flatten().filter(|phase| phase.image().try_text().ok() == Some(body_text.as_ref()));
+                let formatted = if let Some(phase) = phase {
+                    let base = phase.source_base();
+                    let phase_layout = FormattingSourceLayout {
+                        realm: phase.realm().clone(),
+                        analysis: None,
+                        input: identities.input.clone(),
+                        original: None,
+                        decoded_phase: Some(phase),
+                        conditional_phase: None,
+                    };
+                    format_body(
+                        &body_text,
+                        config,
+                        registry,
+                        &phase_layout,
+                        FormattingRegion::body(config, base, inner_level),
+                    )
+                } else if let Some(phase) = conditional_phase {
+                    let phase_layout = FormattingSourceLayout {
+                        realm: identities.realm.clone(),
+                        analysis: None,
+                        input: identities.input.clone(),
+                        original: None,
+                        decoded_phase: None,
+                        conditional_phase: Some(phase),
+                    };
+                    format_body(
+                        &body_text,
+                        config,
+                        registry,
+                        &phase_layout,
+                        FormattingRegion::body(config, 0, inner_level),
+                    )
+                } else {
+                    format_body(
+                        presented_text.unwrap_or(&body_text),
+                        config,
+                        registry,
+                        identities,
+                        FormattingRegion::body(config, lambda_body_offset, inner_level),
+                    )
+                };
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -4285,5 +4376,59 @@ mod original_variable_reconstruction_tests {
             let foreign = SourceMap::new("puts other");
             assert!(parse_commands(source, &foreign, &tokens, config).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod decoded_logical_lambda_phase_tests {
+    use super::*;
+    #[test]
+    fn formatter_selects_decoded_logical_roles_in_the_field_phase_only() {
+        let source = r"apply {{} if\ 1\ \{puts\ hi\}}";
+        let config = FormatterConfig::default();
+        let registry = CommandRegistry::build_default();
+        let layout = FormattingSourceLayout::new(source, &config, &registry);
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config.lexer_config(),
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[1];
+        let phase =
+            tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody::capture(
+                &layout.realm,
+                &layout.input,
+                word,
+            )
+            .unwrap();
+        let text = phase.image().try_text().unwrap().to_owned();
+        let map = SourceMap::new(&text);
+        let tokens = Lexer::with_config(&text, config.lexer_config())
+            .tokenise_all()
+            .unwrap();
+        let mut command = parse_commands(&text, &map, &tokens, config.lexer_config())
+            .unwrap()
+            .0
+            .remove(0);
+        let phase_layout = FormattingSourceLayout {
+            realm: layout.realm.clone(),
+            analysis: None,
+            input: layout.input.clone(),
+            original: None,
+            decoded_phase: None,
+            conditional_phase: Some(phase),
+        };
+        identify_body_args(&mut command, &registry, &phase_layout, 0, &config, &text);
+        assert_eq!(command.args[2].kind, ArgKind::Body);
+        assert!(command.logical_roles.is_some());
+        assert!(command.args.iter().all(|arg| arg.original_input.is_none()));
+        assert!(command.expression_bracing.is_none());
+        let mut unjoined = parse_commands(&text, &map, &tokens, config.lexer_config())
+            .unwrap()
+            .0
+            .remove(0);
+        identify_body_args(&mut unjoined, &registry, &layout, u32::MAX, &config, &text);
+        assert_eq!(unjoined.args[2].kind, ArgKind::Word);
     }
 }

@@ -309,6 +309,7 @@ impl AdviceInvocationContext<'_> {
         if !matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
             return;
         }
+        self.retain_logical_lambda_formatting_phase(tape, graph, invocation, schema, None);
         let mut retained = OriginalSourceTransitionAdviceTape::default();
         let mut walk = LogicalBodyWalk {
             context: self,
@@ -1016,6 +1017,13 @@ impl LogicalBodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         let (advice, schema) = selected;
+        self.context.retain_logical_lambda_formatting_phase(
+            tape,
+            graph,
+            invocation,
+            schema,
+            Some(scope),
+        );
         if schema.authored_source_lambda_call().is_some()
             || schema.authored_source_procedure_arguments().is_some()
             || schema.semantics.traits.contains(Traits::DECLARES_NAMESPACE)

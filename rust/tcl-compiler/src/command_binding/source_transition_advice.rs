@@ -10,6 +10,8 @@ pub use interpreter_handle::OriginalSourceInterpreterHandleBody;
 mod interpreter_path;
 pub use interpreter_path::OriginalSourceInterpreterPathBinding;
 mod c_namespace;
+mod logical_lambda_formatting;
+pub use logical_lambda_formatting::OriginalConditionalLambdaFormattingBody;
 mod logical_body;
 mod source_parameter_template;
 pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
@@ -737,6 +739,7 @@ struct OriginalSourceArityPrefix {
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
     arity_prefixes: BTreeMap<u32, Option<OriginalSourceArityPrefix>>,
+    decoded_lambda_phases: BTreeMap<u32, Option<Arc<OriginalConditionalLambdaFormattingBody>>>,
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
     declared: BTreeMap<u32, Option<super::DeclaredSourceSelection>>,
     represented: BTreeSet<u32>,
@@ -808,6 +811,23 @@ impl OriginalSourceTransitionAdviceTape {
             OriginalSourceTransitionAdviceLookup::Refused
         } else {
             OriginalSourceTransitionAdviceLookup::Unrepresented
+        }
+    }
+
+    pub(crate) fn prefix_catalogue_advice(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceCommandTransitionAdvice> {
+        if self.blocks_registry_source(offset) {
+            return None;
+        }
+        if let Some(advice) = self.body_catalogue(offset) {
+            return Some(advice);
+        }
+        match self.lookup(offset) {
+            OriginalSourceTransitionAdviceLookup::Advice(advice) => Some(advice),
+            OriginalSourceTransitionAdviceLookup::Refused
+            | OriginalSourceTransitionAdviceLookup::Unrepresented => None,
         }
     }
 
@@ -1145,6 +1165,9 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, phase) in other.decoded_lambda_phases {
+            source_class::merge_receipt(&mut self.decoded_lambda_phases, offset, phase);
+        }
         for (offset, call) in other.logical_procedure_calls {
             source_class::merge_receipt(&mut self.logical_procedure_calls, offset, call);
         }
@@ -1282,6 +1305,7 @@ struct AdviceGraph {
     procedure_namespace: Option<ByteNamespacePath>,
     procedure_path: Vec<super::CommandAllocationSite>,
     procedure_steps: Arc<std::sync::atomic::AtomicUsize>,
+    decoded_phase_steps: Arc<std::sync::atomic::AtomicUsize>,
     handles: Vec<(
         registered_instance::SourceHandleKey,
         Arc<OriginalSourceRegisteredHandleBinding>,
@@ -1363,6 +1387,7 @@ impl AdviceGraph {
             procedure_namespace: None,
             procedure_path: Vec::new(),
             procedure_steps: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            decoded_phase_steps: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         };
         for command in context.commands().command_names() {
             if context

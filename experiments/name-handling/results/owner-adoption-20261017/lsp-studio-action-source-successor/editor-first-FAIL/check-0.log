@@ -1,0 +1,6 @@
+src/test/commands.test.ts(352,9): error TS2345: Argument of type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' is not assignable to parameter of type 'CodeActionContext'.
+  Property 'only' is missing in type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' but required in type 'CodeActionContext'.
+src/test/commands.test.ts(397,9): error TS2345: Argument of type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' is not assignable to parameter of type 'CodeActionContext'.
+  Property 'only' is missing in type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' but required in type 'CodeActionContext'.
+src/test/commands.test.ts(435,9): error TS2345: Argument of type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' is not assignable to parameter of type 'CodeActionContext'.
+  Property 'only' is missing in type '{ diagnostics: never[]; triggerKind: vscode.CodeActionTriggerKind.Invoke; }' but required in type 'CodeActionContext'.

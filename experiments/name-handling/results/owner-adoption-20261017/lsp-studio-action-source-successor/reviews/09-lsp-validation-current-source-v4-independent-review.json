@@ -1,0 +1,13 @@
+{
+  "packet": "lsp-validation-current-source-v4",
+  "parent_packet": "lsp-validation-current-source-v3",
+  "parent_patch_sha256": "54a5df331e4e155379ec2009b2f13fad580ee410615d77c3fac1f053277fa1eb",
+  "patch_sha256": "681dcbb438cd8e96a561202426d8a5ba48cfebd22fb91dc8ca205a05e678f8a2",
+  "review": "CLEAR_SOURCE_ONLY",
+  "baseline_units": ["lsp.validation.03.04.fn0", "lsp.validation.03.07.fn0"],
+  "scope": "The W120 precondition and cleared predicate consume source-current complete reports; the actual diagnostics publication listener is installed before each current-report request. The listener's timeout resolves false instead of rejecting while the report request is pending, avoiding an unhandled rejection. One scaled 20s/30s source-result budget remains per phase; variable completion restore uses one scaled 10s source-and-complete-result window. Caller source bytes and version remain checked after the watched update.",
+  "preserved": "No selector, assertion, fixture, Native execution, assertion weakening, or budget extension. Genuine complete reports that do not satisfy the W120 predicate continue waiting for a real publish until the original deadline.",
+  "review_basis": "Source inspection against exact catalogue rows, current-diagnostics publisher owner and existing extension wait contract. v3 held only for its timer rejection race; this successor changes only that waiter's timeout settlement.",
+  "validation": "git apply --check succeeded against current source. No test, build, Cargo, or main execution performed. Fresh forward/inverse application was not performed.",
+  "files": ["editors/vscode/src/test/helper.ts", "editors/vscode/src/test/w120WorkspaceReschedule.test.ts", "editors/vscode/src/test/variableCompletion.test.ts"]
+}

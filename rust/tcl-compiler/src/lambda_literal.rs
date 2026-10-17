@@ -283,6 +283,99 @@ pub fn split_original_lambda_literal_lexical_decoded(
     })
 }
 
+/// Formatting view of a lambda field already retained by the original source
+/// interpreter. Decoded offsets remain in that body's actual source origin;
+/// this view supplies no document-coordinate map or fresh body entry.
+#[derive(Debug, Clone)]
+pub struct OriginalDecodedLambdaFormattingBody {
+    input: crate::analyser::ResolvedAnalysisInput,
+    parent: tcl_lexer::NativeWord,
+    script: crate::command_binding::ExecutedScriptSource,
+    realm: crate::realm::CommandBindingRealm,
+}
+impl OriginalDecodedLambdaFormattingBody {
+    /// Reborrow the actual Registry-selected lambda field and retained body.
+    /// A merely decoded value or conditional body without this receipt refuses.
+    #[must_use]
+    pub fn capture(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+        parent: &tcl_lexer::NativeWord,
+    ) -> Option<Self> {
+        if !realm.matches_resolved_analysis_input(input)
+            || !realm.matches_original_source_image(parent.image(), input.lexer_config())
+            || !words.matches_source(parent.image(), input.lexer_config())
+            || !words.matches_registry(input.borrowed_context_registry().commands())
+        {
+            return None;
+        }
+        let context = input.context_registry();
+        let selected =
+            words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+        if words.original_argument_word(selected.lambda_argument) != Some(parent) {
+            return None;
+        }
+        let field = words
+            .operands()
+            .get(selected.lambda_argument)?
+            .as_ref()?
+            .input()?;
+        let decoded = split_original_lambda_literal_decoded(parent, field)?;
+        let text = decoded.body?;
+        let (script, selected_realm) =
+            realm.retained_list_element_source_realm(parent.span(), 1)?;
+        if script.text.try_text().ok()? != text.as_ref()
+            || selected_realm.original_source_image()? != script.origin.source_image()
+        {
+            return None;
+        }
+        Some(Self {
+            input: input.clone(),
+            parent: parent.clone(),
+            script,
+            realm: selected_realm,
+        })
+    }
+    /// Exact decoded body text from the retained field, not document source.
+    #[must_use]
+    pub fn text(&self) -> Option<&str> {
+        self.script.text.try_text().ok()
+    }
+    /// Actual base within this body's retained source instance.
+    #[must_use]
+    pub fn source_base(&self) -> u32 {
+        self.script.base()
+    }
+    /// Retained scoped interpretation; no new entry assumptions are created.
+    #[must_use]
+    pub fn realm(&self) -> &crate::realm::CommandBindingRealm {
+        &self.realm
+    }
+    /// Registry roles at a complete original command in this body's own origin.
+    #[must_use]
+    pub fn words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        if input != &self.input || self.parent.config() != input.lexer_config() {
+            return None;
+        }
+        let start = segment.span.start().checked_sub(self.script.base())?;
+        let end = segment.span.end().checked_sub(self.script.base())?;
+        self.script.text.bytes().get(start as usize..end as usize)?;
+        let context = input.borrowed_context_registry();
+        crate::registry_invocation::source_structure::selected_registry_words_in_original_image(
+            self.realm.original_source_image()?,
+            input.lexer_config(),
+            &self.realm,
+            segment,
+            context.commands(),
+        )
+    }
+}
+
 /// Decoded counterpart of [`split_lambda_literal`] — see
 /// [`DecodedLambdaLiteral`]. Returns `None` under the same conditions as
 /// [`split_lambda_literal`] (a `$var`/`[cmd]`-computed lambda, or content
@@ -583,5 +676,63 @@ mod original_decoded_tests {
                 assert_eq!(decoded.unwrap().body.as_deref(), Some("puts 😀"), "{name}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_decoded_formatting_phase_tests {
+    use super::*;
+    #[test]
+    fn decoded_lambda_roles_use_the_retained_materialised_body_origin() {
+        let source = r"apply {{} if\ 1\ \{puts\ hi\}}";
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let analysis = analyser
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl8.6");
+        let realm = analysis.retained_command_realm().unwrap();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source, &analysis, &command,
+        )
+        .unwrap();
+        let parent = words.original_argument_word(0).unwrap();
+        let phase =
+            OriginalDecodedLambdaFormattingBody::capture(&words, &input, realm, parent).unwrap();
+        assert_eq!(phase.text(), Some("if 1 {puts hi}"));
+        assert_eq!(phase.source_base(), 0);
+        assert_ne!(
+            phase.realm().original_source_image(),
+            realm.original_source_image()
+        );
+        let child = crate::segmenter::segment_commands_with_offset_and_config(
+            phase.text().unwrap(),
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let selected = phase.words(&child, &input).unwrap();
+        assert!(
+            selected
+                .roles()
+                .unwrap()
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+        );
+        let foreign = crate::segmenter::segment_commands_with_offset_and_config(
+            "if 1 {puts changed}",
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        assert!(phase.words(&foreign, &input).is_none());
+        let mut other_analyser = crate::analyser::Analyser::new();
+        let other = other_analyser.prepare_analysis_input("tcl9.0").unwrap();
+        assert!(phase.words(&child, &other).is_none());
     }
 }

@@ -1,0 +1,103 @@
+{
+  "utc": "2026-10-17T01:53:29.815007+00:00",
+  "source_head": "cf166eff497d6fe414c650c61cc1ec2dce609164",
+  "input_count": 443,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.488,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/tkParticipant.ts",
+        "src/clientCore.ts",
+        "src/codeActionSource.ts",
+        "src/extension.ts",
+        "src/extensionBrowser.ts",
+        "src/specStudio.ts",
+        "src/test/commands.test.ts",
+        "src/test/helper.ts",
+        "src/test/variableCompletion.test.ts",
+        "src/test/w120WorkspaceReschedule.test.ts"
+      ],
+      "exit_code": 1,
+      "seconds": 1.064,
+      "log": "check-1.log",
+      "log_sha256": "b64e56bc1ad00e276e674374cd5a3b0d1646c87f6dc43e0127c6429c3b998f13"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "../../rust/tcl-lsp-server-wasm/worker.js"
+      ],
+      "exit_code": 0,
+      "seconds": 0.023,
+      "log": "check-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.187,
+      "log": "check-3.log",
+      "log_sha256": "19e16aa1087f73c5de6cb4ee7c1259deb40161d8950262b3e7d4f7e7723d979f"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.179,
+      "log": "check-4.log",
+      "log_sha256": "8b4ee20de4b3be5019ced0a6cff1b7da82d894e824f1f3ebec48e44d2303600d"
+    },
+    {
+      "argv": [
+        "npm",
+        "--prefix",
+        "../../rust/tcl-spec-studio/web",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "seconds": 3.499,
+      "log": "check-5.log",
+      "log_sha256": "48dcb7514f6f0546917ce653c98397562d93e4dad5c0dcab07583e62bcf131a3"
+    },
+    {
+      "argv": [
+        "npm",
+        "--prefix",
+        "../../rust/tcl-spec-studio/web",
+        "test"
+      ],
+      "exit_code": 1,
+      "seconds": 0.219,
+      "log": "check-6.log",
+      "log_sha256": "23c2f2f55fe08642918bacbcd5204c7d8f379e9610bacef4950965a5b2ea2fc7"
+    }
+  ],
+  "status": "FAIL",
+  "input_drift": [],
+  "completed_utc": "2026-10-17T01:53:38.491435+00:00",
+  "host_execution": "ActualTS/format/worker/bundles only; editorhost unexecuted"
+}

@@ -6936,7 +6936,8 @@ pub(crate) fn segmented_body_assistance(
     let original = match bindings.source_origin()?.kind() {
         crate::command_binding::SourceOriginKind::Authored(text)
         | crate::command_binding::SourceOriginKind::Loaded { source: text, .. }
-        | crate::command_binding::SourceOriginKind::Derived { source: text, .. } => text,
+        | crate::command_binding::SourceOriginKind::Derived { source: text, .. }
+        | crate::command_binding::SourceOriginKind::ConditionalField { source: text, .. } => text,
     };
     let start = usize::try_from(base).ok()?;
     if original.get(start..start.checked_add(source.len())?) != Some(source.as_bytes()) {

@@ -1,0 +1,7 @@
+Independent Sol source review: CLEAR, narrow actual API repair.
+Patch /workspace/naming-validation/lsp-logical-lambda-existing-field-api-repair1/repair.patch SHA256004a18c242ed3ccd44274a5a3ce8e106926b5ffc4d4e873d5cee68a396e9e027.
+Exact current before4ac4048729c3698c1899ce145ee41d63eac5e2482c5097661038f13675ba9cc5; after8aa25f3952599f8fd7f2275eb118ccb0f08138fb54cca3f702af5fdd830d395c.
+
+LogicalSourceListNameInput has no value method. Actual signature_scan/name_value.rs789 pub(crate) original_field returns the exact retained roster element at ordinal, &tcl_syntax::word_rules::OriginalSourceListElement. Its public value()->&str exists at tcl-syntax/src/word_rules/source_list.rs30; source_units already returns precisely original_field value bytes via same internal fields/ordinal. Thus original_field().value() supplies required retained decoded source text at all3 actual callsites without conversion, reparsing, owner replacement or changed naming authority. Existing receipt fields/full-input/listcount/source guards remain unchanged; no Native value/activation/edit grant added.
+
+Independently verified whole before→after consists exactly of3 get(1)?.value()→get(1)?.original_field().value() substitutions and nothing else; all tests/assertions untouched. Exact current base and manifest hashes; afterimage AST parses; isolated forward/inverse --fuzz=0 nooffset exact. No main/Git/build/tests/execution. Source CLEAR only; Root owns actual next build and validation.

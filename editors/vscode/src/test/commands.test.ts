@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { provideSourceCodeActions } from "../codeActionSource";
 import * as assert from "assert";
 import * as vscode from "vscode";
 import {
@@ -305,7 +306,10 @@ suite("Source-bound transform no-op acceptance", () => {
     assert.strictEqual(result.source, snapshot.source.fullSource, "actual no-op safe-fix response");
     const foreign = {
       ...result,
-      editReceipt: { ...result.editReceipt, id: `unissued-${result.editReceipt.id}` },
+      editReceipt: {
+        ...result.editReceipt,
+        id: `unissued-${result.editReceipt.id}`,
+      },
     };
     assert.strictEqual(
       await applyDocumentTransform(snapshot, foreign),
@@ -315,5 +319,146 @@ suite("Source-bound transform no-op acceptance", () => {
     assert.strictEqual(document.getText(), snapshot.source.fullSource);
     assert.strictEqual(await applyDocumentTransform(snapshot, result), true);
     assert.strictEqual(document.getText(), snapshot.source.fullSource);
+  });
+});
+
+suite("Source-bound code action follow-ups", () => {
+  function action(document: vscode.TextDocument): vscode.CodeAction {
+    const result = new vscode.CodeAction("Retained source edit", vscode.CodeActionKind.QuickFix);
+    result.edit = new vscode.WorkspaceEdit();
+    result.edit.insert(document.uri, new vscode.Position(0, 0), "# retained\n");
+    return Object.assign(result, {
+      data: {
+        sourceAction: {
+          kind: "versioned",
+          uri: document.uri.toString(),
+          version: document.version,
+          source: document.getText(),
+        },
+      },
+    });
+  }
+
+  test("a source action uses the checked original document sink and consumes its receipt once", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc demo {} {}\n",
+    });
+    const token = new vscode.CancellationTokenSource();
+    try {
+      const candidate = action(document);
+      const returned = await provideSourceCodeActions(
+        document,
+        new vscode.Range(0, 0, 0, 0),
+        {
+          diagnostics: [],
+          only: undefined,
+          triggerKind: vscode.CodeActionTriggerKind.Invoke,
+        },
+        token.token,
+        () => [candidate],
+      );
+      assert.ok(returned?.includes(candidate));
+      assert.strictEqual(
+        candidate.edit,
+        undefined,
+        "never apply a converted version-less edit first",
+      );
+      assert.strictEqual(candidate.command?.command, "tclLsp.applySourceCodeAction");
+      const id: unknown = candidate.command?.arguments?.[0];
+      assert.strictEqual(typeof id, "string");
+      const other = await vscode.workspace.openTextDocument({
+        language: "tcl",
+        content: "proc other {} {}\n",
+      });
+      await vscode.window.showTextDocument(other);
+      assert.strictEqual(
+        await vscode.commands.executeCommand("tclLsp.applySourceCodeAction", id),
+        true,
+      );
+      assert.strictEqual(document.getText(), "# retained\nproc demo {} {}\n");
+      assert.strictEqual(other.getText(), "proc other {} {}\n");
+      assert.strictEqual(
+        await vscode.commands.executeCommand("tclLsp.applySourceCodeAction", id),
+        false,
+      );
+    } finally {
+      token.dispose();
+    }
+  });
+
+  test("an edit-revert cannot renew an earlier source action or bare rename coordinates", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc demo {} {}\n",
+    });
+    const token = new vscode.CancellationTokenSource();
+    try {
+      const candidate = action(document);
+      await provideSourceCodeActions(
+        document,
+        new vscode.Range(0, 0, 0, 0),
+        {
+          diagnostics: [],
+          only: undefined,
+          triggerKind: vscode.CodeActionTriggerKind.Invoke,
+        },
+        token.token,
+        () => [candidate],
+      );
+      const id: unknown = candidate.command?.arguments?.[0];
+      assert.strictEqual(typeof id, "string");
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(document.uri, new vscode.Position(0, 0), "# intervening\n");
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      const revert = new vscode.WorkspaceEdit();
+      revert.delete(document.uri, new vscode.Range(0, 0, 1, 0));
+      assert.ok(await vscode.workspace.applyEdit(revert));
+      assert.strictEqual(document.getText(), "proc demo {} {}\n");
+      assert.strictEqual(
+        await vscode.commands.executeCommand("tclLsp.applySourceCodeAction", id),
+        false,
+      );
+      assert.strictEqual(
+        await vscode.commands.executeCommand("tclLsp.renameSymbolAtPosition", 0, 5, 9),
+        false,
+      );
+    } finally {
+      token.dispose();
+    }
+  });
+
+  test("a changed provider document cannot donate its earlier action plan", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "proc demo {} {}\n",
+    });
+    const token = new vscode.CancellationTokenSource();
+    try {
+      const candidate = action(document);
+      const returned = await provideSourceCodeActions(
+        document,
+        new vscode.Range(0, 0, 0, 0),
+        {
+          diagnostics: [],
+          only: undefined,
+          triggerKind: vscode.CodeActionTriggerKind.Invoke,
+        },
+        token.token,
+        async () => {
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(document.uri, new vscode.Position(0, 0), "# changed during request\n");
+          assert.ok(await vscode.workspace.applyEdit(edit));
+          return [candidate];
+        },
+      );
+      assert.deepStrictEqual(returned, []);
+      assert.ok(candidate.edit, "a refused response has not mutated the plan into a command");
+    } finally {
+      token.dispose();
+    }
   });
 });

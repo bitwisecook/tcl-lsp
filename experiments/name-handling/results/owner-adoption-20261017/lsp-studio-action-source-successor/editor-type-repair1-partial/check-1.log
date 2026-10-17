@@ -1,0 +1,7 @@
+Checking formatting...
+[warn] src/chat/tkParticipant.ts
+[warn] src/specStudio.ts
+[warn] src/test/commands.test.ts
+[warn] src/test/helper.ts
+[warn] src/test/w120WorkspaceReschedule.test.ts
+[warn] Code style issues found in 5 files. Run Prettier with --write to fix.

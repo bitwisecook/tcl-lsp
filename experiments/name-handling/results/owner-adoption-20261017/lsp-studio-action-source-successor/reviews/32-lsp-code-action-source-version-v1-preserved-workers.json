@@ -1,0 +1,23 @@
+{
+  "lift_code_actions": [
+    "8bb0e9bf0fbe25fe805d03640dea1089a8a4053624ec12b5a36c090bd2f72c10"
+  ],
+  "action_command_to_lsp": [
+    "6f01f4f0d7d653ee24ea6f5caa0b484214500b6a10d22b41f698b7d77f4ee687"
+  ],
+  "code_action_report": [
+    "ed27184e07dac2b2a9d02f7585298b5686f666c4e91c870502cb71af31f2ac72"
+  ],
+  "with_current_readonly_source_state": [
+    "4add85ffa98930ea4cb11448f18ef2c7f4cd114057df7a1af8e0838b02829dc2"
+  ],
+  "capture_workspace_symbol_analysis": [
+    "7cf091b83aaa1655bf00115dce8eecb8c2e9d69cdac2e3290078989911725aac"
+  ],
+  "finish_workspace_symbol_response": [
+    "1abb89ff3a6a4e563e7791190a059ebae3eabf9df292d5ded082077d4efe7621"
+  ],
+  "matches_current_state": [
+    "331da3ae6f1db4390e2342818936cfa0e0cd5268a2333a1de178f737d0ec6205"
+  ]
+}

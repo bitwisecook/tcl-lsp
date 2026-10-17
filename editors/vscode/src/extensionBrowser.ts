@@ -34,6 +34,7 @@
  * support, not a shim.
  */
 
+import { registerSourceActionCommands } from "./codeActionSource";
 import * as vscode from "vscode";
 import {
   commands,
@@ -599,18 +600,7 @@ function registerCommands(context: ExtensionContext): void {
       }
       return applied;
     }),
-    commands.registerCommand(
-      "tclLsp.renameSymbolAtPosition",
-      async (line: number, startChar: number, endChar: number) => {
-        const editor = window.activeTextEditor;
-        if (!editor) return;
-        const pos = new vscode.Position(line, startChar);
-        const endPos = new vscode.Position(line, endChar);
-        editor.selection = new vscode.Selection(pos, endPos);
-        editor.revealRange(new Range(pos, endPos));
-        await commands.executeCommand("editor.action.rename");
-      },
-    ),
+    registerSourceActionCommands(),
     commands.registerCommand("tclLsp.generateDocstring", generateDocstring),
   );
 
@@ -1199,8 +1189,11 @@ async function generateDocstring(): Promise<void> {
     new Range(pos, pos),
   );
   const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
-  if (docAction?.edit) {
-    await workspace.applyEdit(docAction.edit);
+  if (docAction?.command?.command === "tclLsp.applySourceCodeAction") {
+    await commands.executeCommand(
+      docAction.command.command,
+      ...(docAction.command.arguments ?? []),
+    );
   } else {
     window.showInformationMessage("No proc found at cursor, or it already has a docstring.");
   }

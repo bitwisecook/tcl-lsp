@@ -601,7 +601,12 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
 /** Read the active extension's source-current diagnostics owner. */
 export async function waitForCurrentDiagnostics(
   uri: vscode.Uri,
-  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
+  opts?: {
+    timeout?: number;
+    minCount?: number;
+    expectedSource?: string;
+    predicate?: (diagnostics: vscode.Diagnostic[]) => boolean;
+  },
 ): Promise<vscode.Diagnostic[]> {
   const ext = vscode.extensions.getExtension<{
     waitForCurrentDiagnostics(
@@ -612,7 +617,84 @@ export async function waitForCurrentDiagnostics(
   if (!ext?.isActive || typeof ext.exports?.waitForCurrentDiagnostics !== "function") {
     throw new Error("The active Tcl LSP extension does not expose current diagnostics");
   }
-  return ext.exports.waitForCurrentDiagnostics(uri, opts);
+
+  if (opts?.predicate && opts.timeout === undefined) {
+    throw new Error("Predicate-based current diagnostics require a bounded timeout");
+  }
+  const deadline = opts?.timeout === undefined ? undefined : Date.now() + opts.timeout;
+  for (;;) {
+    // Subscribe before asking for the current report, so a publication arriving
+    // while the request is in flight cannot be missed. Cancel the unused
+    // subscription when this complete report satisfies the caller's predicate.
+    const nextPublish = opts?.predicate ? diagnosticsPublishWaiter(uri, deadline) : undefined;
+    try {
+      const remaining = deadline === undefined ? opts?.timeout : deadline - Date.now();
+      if (remaining !== undefined && remaining <= 0) {
+        throw new Error(`Timed out waiting for current diagnostics for ${uri.toString()}`);
+      }
+      const diagnostics = await ext.exports.waitForCurrentDiagnostics(uri, {
+        timeout: remaining,
+        minCount: opts?.minCount,
+        expectedSource: opts?.expectedSource,
+      });
+      if (deadline !== undefined && Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for current diagnostics for ${uri.toString()}`);
+      }
+      if (!opts?.predicate || opts.predicate(diagnostics)) {
+        nextPublish?.cancel();
+        return diagnostics;
+      }
+      if (!nextPublish) {
+        return diagnostics;
+      }
+      if (!(await nextPublish.promise)) {
+        throw new Error(
+          `Timed out waiting for a completed diagnostic update for ${uri.toString()}`,
+        );
+      }
+    } catch (error) {
+      nextPublish?.cancel();
+      throw error;
+    }
+  }
+}
+
+function diagnosticsPublishWaiter(
+  uri: vscode.Uri,
+  deadline: number | undefined,
+): { promise: Promise<boolean>; cancel: () => void } {
+  let settled = false;
+  let resolvePromise: (published: boolean) => void = () => undefined;
+  const promise = new Promise<boolean>((resolve) => {
+    resolvePromise = resolve;
+  });
+  const dispose = vscode.languages.onDidChangeDiagnostics((event) => {
+    if (event.uris.some((changed) => changed.toString() === uri.toString())) {
+      finish();
+      resolvePromise(true);
+    }
+  });
+  const remaining = deadline === undefined ? undefined : Math.max(0, deadline - Date.now());
+  const timer =
+    remaining === undefined
+      ? undefined
+      : setTimeout(() => {
+          finish();
+          resolvePromise(false);
+        }, remaining);
+  function finish(): void {
+    if (settled) return;
+    settled = true;
+    dispose.dispose();
+    if (timer !== undefined) clearTimeout(timer);
+  }
+  return {
+    promise,
+    cancel: () => {
+      finish();
+      resolvePromise(false);
+    },
+  };
 }
 
 /** Fixture the liveness probe asks about — a document no test drives, so a

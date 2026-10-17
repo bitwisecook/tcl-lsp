@@ -42,6 +42,8 @@ export interface OutputSurfaceSpec {
   container: HTMLElement;
   /** The hidden `<pre>` whose current text seeds the model. */
   source: HTMLElement;
+  /** Exact pack document source from the successful export that produced this text. */
+  sourceBasis: string | null;
 }
 
 /** Everything the host needs to stand all four editors up. */
@@ -75,9 +77,9 @@ export interface EditorHost {
   /** Replace the sample's text without re-entering `onChange`. */
   setSampleText(text: string): void;
   /** Replace the rendered Rust model. */
-  setRustText(text: string): void;
+  setRustText(text: string, sourceBasis: string | null): void;
   /** Replace the rendered Tcl-stub model. */
-  setStubText(text: string): void;
+  setStubText(text: string, sourceBasis: string | null): void;
   /** Re-open the sample under a new dialect (its LSP language id). */
   setDialect(dialect: string): void;
   /** Re-measure after the containing tab became visible. */

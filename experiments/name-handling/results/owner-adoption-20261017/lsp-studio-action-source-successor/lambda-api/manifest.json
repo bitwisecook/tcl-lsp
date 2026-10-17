@@ -1,0 +1,11 @@
+{
+  "patch_sha256": "004a18c242ed3ccd44274a5a3ce8e106926b5ffc4d4e873d5cee68a396e9e027",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "before_sha256": "4ac4048729c3698c1899ce145ee41d63eac5e2482c5097661038f13675ba9cc5",
+      "after_sha256": "8aa25f3952599f8fd7f2275eb118ccb0f08138fb54cca3f702af5fdd830d395c"
+    }
+  ],
+  "purpose": "Actual E0599 compilefailure: existing LogicalSourceListNameInput exposes original_field() and source_units(), not value(). Use retained actual OriginalSourceListElement::value() without any owner/guard/semantic expansion. Three callsites only; no assertions or new API."
+}

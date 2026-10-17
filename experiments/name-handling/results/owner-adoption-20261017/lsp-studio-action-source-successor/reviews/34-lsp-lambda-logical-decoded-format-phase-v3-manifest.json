@@ -1,0 +1,108 @@
+{
+  "status": "SOURCE_PEER_PENDING_691_NATIVE_AND_LOGICAL_PHASES_NO_EXECUTION",
+  "patch_sha256": "fc59836d36bec026b39ee77ee81a2255e80490974313f02484719d52b6583b1f",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+      "before_sha256": "abe40c51f9f6b90536d1a35c610fb7b81f997ba0139600f5da8313e37968c1c9",
+      "after_sha256": "d39eca09dc0697bbad9b7e412e2f1c6e70323551a28ed90458320d91cd8c64b2",
+      "new_file": false
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "1b5a2be7243dc2dee3043abcfc609f1c4fc291e50d63ec5971b5f87c896c00db",
+      "new_file": false
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "8f6d8ac194c340713f7806df4b3060ec0afc90b7106afb63f7833f9e56439aeb",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "5aaa90178bb97463984b52dfa2688b9aef6d1523a8f52343434806a50fead4d0",
+      "after_sha256": "c29efbd802efe043f4fb49d926144beb3a35a21896a4d922275bba6565c25258",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "0b4e6edfae879cc1cbdeefd8a923f4706b1f1b062592d6feba485004df59bc4d",
+      "after_sha256": "490e2d20b11f3be56e22d34627c91d8e57ae7bbc6088e303bdaee2f78b7f5279",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "7fc916e7915c22946e0291b633156cdacdcf201246cf35a66fc641d44515ad87",
+      "after_sha256": "12ab0290aca78d042ffb1945709e0b2ddbe1467e937fff6839703c8ccaa45516",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "before_sha256": null,
+      "after_sha256": "4ac4048729c3698c1899ce145ee41d63eac5e2482c5097661038f13675ba9cc5",
+      "new_file": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lambda_literal.rs",
+      "before_sha256": "b7b9093eebdfc455b1a714ad799c270d67de158ff723a428166c0a44ff63eb6a",
+      "after_sha256": "f6e9c9b0cd6e3a074699ef91c97bc1c8c17a6dc5fe10afaaf8077805dd9074ba",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "before_sha256": "852691e81d244832027eb51a9e4c5a784b8dff6b7cc60cd17753c8e065f76c32",
+      "after_sha256": "ad8c1ad10a6a32394019fc3ddc551f6817dd7f8d748e1f514e99220dd32b3c19",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "da03677c3e488df509d84a3f80df6badb48da2e7073e33a5d8c786a1b0115f90",
+      "after_sha256": "c0633216c26723d807a5d5a94c47d22f22912f9aeee693c337565662ed3bb588",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "9dc92908161471433ee3a9761eb088cf2ea246e90106f32b8b68676eab79a0b6",
+      "after_sha256": "7e06df1c54f803e9e80a11efd8c956f6218aee49b264433744db8c6158b89b34",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "3643fcf6cba618e1760a4ac2866aaa7099e406e3b0bcbcf5434c614836b10ee0",
+      "after_sha256": "1e4fd2c53894ff78cb2479cb11612b166646166b824fe6a3bcc7bf11d41df40c",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "before_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "after_sha256": "8102d2df874421f2ed2e1cb53d2e916850e2add1b484c12cef6a0583611b927f",
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "before_sha256": "612144201df1acc3d6e1e2f2f5e5eff83b1d6ac03481c6471e4a0ea09c37089c",
+      "after_sha256": "63fe0a501c30f5be42643022388623464eb5b405b482ed1a60435cef8eb0ee7d",
+      "new_file": false
+    }
+  ],
+  "old_test_module_function_items_byte_exact": 469,
+  "original_test_changes": [],
+  "new_controls_unexecuted": [
+    "lambda_literal::original_decoded_formatting_phase_tests::decoded_lambda_roles_use_the_retained_materialised_body_origin",
+    "command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt",
+    "command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_field_phase_does_not_recover_a_shadowed_registry_command",
+    "command_binding::source_transition_advice::logical_lambda_formatting::tests::decoded_logical_unicode_and_nested_bom_keep_the_field_grammar",
+    "formatting::engine::decoded_logical_lambda_phase_tests::formatter_selects_decoded_logical_roles_in_the_field_phase_only"
+  ],
+  "checks": [
+    "scoped rustfmt",
+    "twelve Rust AST parses"
+  ],
+  "main_changes": "none",
+  "execution": "none",
+  "baseline": "lsp-format-engine-lambda-decoded-body-source",
+  "scope": "actual retained interpreted field phase plus conditional Logical derived field source transport; no frame/lookup/edit/Normal/Native grant; unsupported source remains unavailable",
+  "count_scope": "Root-owned; no full completion or additional requirement claim"
+}

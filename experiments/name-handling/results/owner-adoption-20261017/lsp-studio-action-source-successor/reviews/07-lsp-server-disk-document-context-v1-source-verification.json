@@ -1,0 +1,42 @@
+{
+  "scope": "source-only; no Cargo/build/tests/list/gates/main/Git",
+  "rust_parse_no_errors": true,
+  "all_original_functions_except_read_document_at_byte_exact": 1443,
+  "old_function_removals": 1,
+  "new_functions_including_replacement": 6,
+  "whole_forward_inverse_fuzz0_offset0": [
+    {
+      "reverse": false,
+      "exit": 0,
+      "stdout": "patching file docs/design/contracts/name-handling.md\npatching file docs/design/contracts/shared-utility-contracts-rust.md\npatching file rust/tcl-lsp-server/src/lib.rs\n"
+    },
+    {
+      "reverse": true,
+      "exit": 0,
+      "stdout": "patching file docs/design/contracts/name-handling.md\npatching file docs/design/contracts/shared-utility-contracts-rust.md\npatching file rust/tcl-lsp-server/src/lib.rs\n"
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "faf2f4eae0cf6948e0b4371b1a71b8ffc8c56435089d958c09532d73ed7c7d94",
+      "actual_current_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "faf3b16c341e1d30384096f56832a508cf2915179e4f892d4496f785cf178fdc",
+      "actual_current_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "after_sha256": "94067b29146a45d73388db0105de9cdd2ccb62df1dfe4a70bdb3afa53bf21568",
+      "actual_current_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "actual_current_matches_before": true
+    }
+  ]
+}

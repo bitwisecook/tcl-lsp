@@ -815,6 +815,14 @@ impl Backend {
         }
 
         let lift = LiftInputs {
+            rewrite_source: Some(rewrite_wire::RewriteWireSource::Proposal {
+                uri: expected.uri.clone(),
+                version: expected.version,
+                original_source: Arc::from(expected.source.as_str()),
+                proposal: Arc::from(expected.proposal.as_str()),
+                revision: document_revision,
+                inputs_epoch,
+            }),
             text: &expected.proposal,
             decode_report: None,
             dialect: dialect_profile,
@@ -1488,6 +1496,27 @@ impl DiagnosticPass {
         Ok(())
     }
 
+    pub(super) fn rewrite_source_association(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<serde_json::Value> {
+        if self.source.as_ref() != source || !self.matches_completed_analysis(analysis) {
+            return None;
+        }
+        Some(serde_json::json!({
+            "schema": 1,
+            "purpose": "original-document-optimiser-rewrite",
+            "uri": self.path_admission.uri(),
+            "version": self.version,
+            "source": source,
+            "analysisSource": tcl_lexer::normalise_lone_cr(source),
+            "revision": self.revision.to_string(),
+            "inputsEpoch": self.inputs_epoch.to_string(),
+            "dialectId": self.dialect,
+        }))
+    }
+
     fn matches_completed_analysis(&self, analysis: &AnalysisResult) -> bool {
         let Some(input) = self.input.as_ref() else {
             return false;
@@ -1550,6 +1579,9 @@ impl Backend {
                 dialect: profile,
             };
             let lift = LiftInputs {
+                rewrite_source: Some(rewrite_wire::RewriteWireSource::Document(Arc::clone(
+                    source,
+                ))),
                 text: &job.text,
                 decode_report: job.decode_report,
                 dialect: profile,
@@ -1641,6 +1673,57 @@ impl Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn actual_direct_and_push_rewrites_retain_their_captured_document_source() {
+        let backend = crate::tests::test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({"optimiser": {"profile": "full"}}))
+            .await;
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_str("file:///rewrite-wire-captured-source.tcl").unwrap(),
+            version: 7,
+            source: "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n".into(),
+        };
+        open_source(&backend, &expected).await;
+        let direct = backend
+            .produce_direct_diagnostic_report(&expected.uri)
+            .await
+            .unwrap_or_else(|_| panic!("direct report"));
+        assert_document_rewrites(&direct.diagnostics, &expected);
+        run_provider(&backend, &expected.uri).await;
+        let CurrentDiagnostics::Complete { report } =
+            backend.current_diagnostics(&expected).await.unwrap()
+        else {
+            panic!("actual completed push report");
+        };
+        assert_document_rewrites(&report.diagnostics, &expected);
+    }
+
+    fn assert_document_rewrites(
+        diagnostics: &[tower_lsp_server::ls_types::Diagnostic],
+        expected: &DiagnosticSourceExpectation,
+    ) {
+        let rewrites: Vec<_> = diagnostics
+            .iter()
+            .filter_map(|diagnostic| diagnostic.data.as_ref())
+            .filter(|data| data.get("sourceAssociation").is_some())
+            .collect();
+        assert!(
+            !rewrites.is_empty(),
+            "actual worker must retain an applicable rewrite"
+        );
+        for rewrite in rewrites {
+            let source = &rewrite["sourceAssociation"];
+            assert_eq!(source["purpose"], "original-document-optimiser-rewrite");
+            assert_eq!(source["uri"], expected.uri.as_str());
+            assert_eq!(source["version"], expected.version);
+            assert_eq!(source["source"], expected.source);
+            assert!(source["revision"].is_string());
+            assert!(source["inputsEpoch"].is_string());
+            assert!(source.get("originalSource").is_none());
+        }
+    }
 
     async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) {
         backend

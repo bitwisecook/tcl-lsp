@@ -1,0 +1,46 @@
+{
+  "fuzz": 0,
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "editors/vscode/src/clientCore.ts",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "editors/vscode/src/codeActionSource.ts",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "after_sha256_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "after_sha256_equal": true
+    }
+  ],
+  "tests_executed": false
+}

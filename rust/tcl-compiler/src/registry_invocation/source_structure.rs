@@ -971,6 +971,20 @@ pub fn selected_registry_words_in_realm(
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     let image = retained_document_image(source, realm, config)?;
+    selected_registry_words_in_original_image(&image, config, realm, segment, registry)
+}
+
+pub(crate) fn selected_registry_words_in_original_image(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> Option<OriginalRegistryWords> {
+    realm
+        .matches_original_source_image(image, config)
+        .then_some(())?;
+    let image = image.clone();
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::from_image(&image),
         config,
@@ -3341,6 +3355,19 @@ fn source_transition_registry_words(
 /// Project a sealed original source receipt through the same role/body owner.
 /// The original vector is recaptured in its whole-image address space; a
 /// detached script or reconstructed argv cannot supply this correspondence.
+pub(crate) fn conditional_lambda_formatting_words(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    advice: &crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    let mut words =
+        source_transition_words_with_segment(source, config, context, segment, advice.clone())?;
+    words.operands_preserve_source_lookup = false;
+    Some(words)
+}
+
 pub(crate) fn source_transition_words_from_advice(
     source: &str,
     config: tcl_lexer::LexerConfig,

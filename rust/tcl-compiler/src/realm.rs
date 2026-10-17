@@ -589,6 +589,27 @@ impl CommandBindingRealm {
         self.bindings.executed_script_for_word(span)
     }
 
+    pub(crate) fn retained_list_element_source_realm(
+        &self,
+        span: tcl_lexer::Span,
+        ordinal: usize,
+    ) -> Option<(crate::command_binding::ExecutedScriptSource, Self)> {
+        let script = self
+            .bindings
+            .executed_script_for_list_element(span, ordinal)?
+            .clone();
+        let bindings = self.bindings.selected_source(&script)?;
+        let realm = Self {
+            bindings,
+            source_input: self.source_input.clone(),
+            specs: self.specs.clone(),
+            original_tokens: Default::default(),
+            original_bindings: Default::default(),
+            source_advice: Default::default(),
+        };
+        Some((script, realm))
+    }
+
     /// Head-only role projection at an actual site in an evaluated body.
     #[must_use]
     pub fn head_words_at_origin<'a>(

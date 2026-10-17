@@ -1,0 +1,69 @@
+{
+  "patch_sha256": "3fea5e4825fbcbf4ef2ba1479a56777a9c146d1cf24e8080d186d295bf8011ea",
+  "scope": "existing regression selector source supplement; no listing or binary binding/execution",
+  "original_controls": [
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::read_document_hands_out_analysis_text_and_keeps_the_raw_bytes",
+      "old_source_sha256": "60e083191a779981d272e2305e6a4ac2cae316ffc1cfebe2225b27ee9f36e9db",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::dialect_for_closed_honours_directive_basename_and_extension",
+      "old_source_sha256": "1d7041ca48009e10b012930fe6486342b11438089fdd6b24493aa83816461753",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::reindex_stores_source_directed_dialect",
+      "old_source_sha256": "f41e82062d5745072e5d264c1622deb4dc0f5960b3e4c0c97fb31cd01b9f8d39",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::reading_a_closed_on_disk_file_does_not_retain_it",
+      "old_source_sha256": "3c1e1750a2ceb690be318c860816eca237f0f5518542cfb864fe957c604db437",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::read_document_waits_for_an_in_flight_edit",
+      "old_source_sha256": "f9cea65bb42d88e63687268535f69364ccdeaff27c65cd26afe240c75441c558",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "tests::fresh_open_index_seed_normalises_lone_cr_1854",
+      "old_source_sha256": "b506e3898520ea6f0aaec6c3bba14061dad62aad1f6f55dff1a689c10d6f17c9",
+      "executed": false
+    }
+  ],
+  "new_controls": [
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_read_uses_detected_configured_and_document_override_dialect",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_read_retains_actual_decoder_report_and_pre_normalised_text",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_selected_source_and_dialect_reach_real_fresh_analysis_input",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_source_read_does_not_renew_retired_provider_mapping",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_context_does_not_replace_live_editor_source_or_language_choice",
+      "executed": false
+    }
+  ]
+}

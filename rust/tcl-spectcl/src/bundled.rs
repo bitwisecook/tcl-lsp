@@ -226,7 +226,49 @@ pub fn load_discovered_in(
     files: &[PackFile],
     trust: WorkspaceTrust,
 ) -> PackSet {
-    let (mut sources, notices) = crate::pack::read_sources(store, files);
+    load_selected_sources_in(store, files, None, trust)
+}
+
+/// Load discovered ordinary packs with exact caller-retained Studio source
+/// images instead of rereading those paths. Only matching Studio-tier entries
+/// are substituted; missing Studio images are not reread. The caller retains its separate active-session, source,
+/// provider and publication guards; source text supplies no such authority.
+/// Preparation does not publish global extension routing: the actual host
+/// publishes through the registration owner at its final source boundary.
+/// Embedded fallback, evaluation, cache, merge and tier rules are unchanged.
+#[must_use]
+pub fn load_discovered_with_studio_sources_in(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+    studio: &[(PathBuf, String)],
+    trust: WorkspaceTrust,
+) -> PackSet {
+    load_selected_sources_in(store, files, Some(studio), trust)
+}
+
+fn load_selected_sources_in(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+    studio: Option<&[(PathBuf, String)]>,
+    trust: WorkspaceTrust,
+) -> PackSet {
+    let ordinary: Vec<_> = files
+        .iter()
+        .filter(|file| studio.is_none() || file.tier != Tier::StudioOverride)
+        .cloned()
+        .collect();
+    let (mut sources, notices) = crate::pack::read_sources(store, &ordinary);
+    if let Some(studio) = studio {
+        sources.extend(files.iter().filter_map(|file| {
+            if file.tier != Tier::StudioOverride {
+                return None;
+            }
+            let (_, source) = studio
+                .iter()
+                .find(|(path, _)| path.as_os_str() == file.path.as_os_str())?;
+            Some((file.clone(), source.clone()))
+        }));
+    }
     // The host mount is deliberately *not* counted as a real bundled
     // directory. A `specs/` on disk holds the eight shipped loadables, so
     // finding one means the shipped set is already accounted for; a host that
@@ -250,7 +292,11 @@ pub fn load_discovered_in(
                 .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
         );
     }
-    crate::pack::load_sources(sources, notices, trust, Some(store))
+    if studio.is_some() {
+        crate::pack::load_sources_unpublished(sources, notices, trust, Some(store))
+    } else {
+        crate::pack::load_sources(sources, notices, trust, Some(store))
+    }
 }
 
 /// [`packs`]'s resolution, factored out so a test can drive it with an
@@ -776,5 +822,54 @@ mod tests {
             .get("synth_design")
             .expect("a standalone install must resolve the Xilinx `synth_design` command");
         assert_eq!(command.name, "synth_design");
+    }
+}
+
+#[cfg(test)]
+mod retained_studio_source_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn active_studio_loader_uses_retained_image_and_missing_receipt_does_not_reread() {
+        let store = MemoryStore::new();
+        let file = PackFile {
+            tier: Tier::StudioOverride,
+            path: PathBuf::from("/ws/.tcl-lsp/.spec-studio/panel/active.tclspec"),
+            origin: Origin::StudioOverride,
+            dependency_tier: None,
+        };
+        let original = "speclib studio_original 1 {command studio_original_command {arity 0}}";
+        store.upsert(
+            &file.path,
+            b"speclib studio_replacement 1 {command studio_replacement_command {arity 0}}".to_vec(),
+        );
+        let files = std::slice::from_ref(&file);
+        let loaded = load_discovered_with_studio_sources_in(
+            &store,
+            files,
+            &[(file.path.clone(), original.to_owned())],
+            WorkspaceTrust::Trusted,
+        );
+        assert!(
+            loaded
+                .packs
+                .iter()
+                .any(|pack| pack.name == "studio_original")
+        );
+        assert!(
+            !loaded
+                .packs
+                .iter()
+                .any(|pack| pack.name == "studio_replacement")
+        );
+        let unavailable =
+            load_discovered_with_studio_sources_in(&store, files, &[], WorkspaceTrust::Trusted);
+        assert!(
+            !unavailable
+                .packs
+                .iter()
+                .any(|pack| pack.tier == Tier::StudioOverride)
+        );
     }
 }

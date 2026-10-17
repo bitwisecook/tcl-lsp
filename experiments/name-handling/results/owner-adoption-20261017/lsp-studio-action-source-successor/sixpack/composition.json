@@ -1,0 +1,884 @@
+{
+  "edits": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+      "replacements": [
+        {
+          "start_line0": 152,
+          "end_line0": 152,
+          "ingredient": "691V3",
+          "replacement_sha256": "bf45e1e1a0dcdbb735ecaad7a9abd2bf0a66e9ef8ccdb053e7388212b774ff10"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "replacements": [
+        {
+          "start_line0": 0,
+          "end_line0": 0,
+          "ingredient": "724",
+          "replacement_sha256": "fa5a604763bce14bd26aaedd834da8c54cd31d10858badc6517bc1f46200849d"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/compacted-source-names.md",
+      "replacements": [
+        {
+          "start_line0": 0,
+          "end_line0": 0,
+          "ingredient": "569",
+          "replacement_sha256": "0f40f5a681e2b6bfd155c3c3759a8794f45efe622e11cce441acb14d2f526f0f"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "replacements": [
+        {
+          "start_line0": 2203,
+          "end_line0": 2203,
+          "ingredient": "705",
+          "replacement_sha256": "314fc06c998dd15cca9e7bccda670fa48d62ed5cb033bb637e2639ce32c38eba"
+        },
+        {
+          "start_line0": 2203,
+          "end_line0": 2203,
+          "ingredient": "569",
+          "replacement_sha256": "d7630edc394b39db215c394b9949caca7a37517f16404f0db0ffcb47059abd3d"
+        },
+        {
+          "start_line0": 2203,
+          "end_line0": 2203,
+          "ingredient": "691V3",
+          "replacement_sha256": "b5e3c2fc1d498ebcd1b01cd19717fdfe547634819f146c29b305fa9077871ae0"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "replacements": [
+        {
+          "start_line0": 19,
+          "end_line0": 19,
+          "ingredient": "569",
+          "replacement_sha256": "7fcc4c2adc47d5d7d9bbb4f8f69ad0fd2a51796db8f60eaba434b2ad3f976fb7"
+        },
+        {
+          "start_line0": 675,
+          "end_line0": 675,
+          "ingredient": "724",
+          "replacement_sha256": "ca66dea92d20a361afc667f69fdde6e70d2b9a9b5b36fa1a2c7a067cdf75efc7"
+        }
+      ]
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "replacements": [
+        {
+          "start_line0": 43,
+          "end_line0": 44,
+          "ingredient": "705",
+          "replacement_sha256": "3b5b9514d0ef5336d4929d0e17f5a6ab915d07938f7c742e5a9cd7b787d55139"
+        },
+        {
+          "start_line0": 66,
+          "end_line0": 67,
+          "ingredient": "691V3",
+          "replacement_sha256": "7ba107a71c1b63adaebc510a712cca1609fb05f9b5b770ca65775944b2dc2ba8"
+        },
+        {
+          "start_line0": 532,
+          "end_line0": 532,
+          "ingredient": "569",
+          "replacement_sha256": "6eb52928d27bcfb9ab67f91d747339e0d161b4f4c32e1302b8a7b4958ce4c38f"
+        },
+        {
+          "start_line0": 626,
+          "end_line0": 627,
+          "ingredient": "724",
+          "replacement_sha256": "998e7762e7acfaa6ca24b9913b34932cd903a1d4df735e7524f79967913548f1"
+        },
+        {
+          "start_line0": 1343,
+          "end_line0": 1343,
+          "ingredient": "724",
+          "replacement_sha256": "fd9c17f6350ff6418b772bea73682b24639fa4b5c10dc132d80d9cc0fd0608df"
+        },
+        {
+          "start_line0": 1376,
+          "end_line0": 1376,
+          "ingredient": "705",
+          "replacement_sha256": "7103fae0d679dc0334436bd2bbcd5dd868cef3b393e8d0d3a742bafc36bba4b1"
+        },
+        {
+          "start_line0": 1376,
+          "end_line0": 1376,
+          "ingredient": "691V3",
+          "replacement_sha256": "8a75576a4f6b42af39871fe828b189279ef9f06159a03ebd961a0e0feeb973f1"
+        },
+        {
+          "start_line0": 5594,
+          "end_line0": 5594,
+          "ingredient": "724",
+          "replacement_sha256": "e0695b4acedaa206561a8483fe2e468e7b05384b5fd55aa982f96784ab4137eb"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/chat/tkParticipant.ts",
+      "replacements": [
+        {
+          "start_line0": 21,
+          "end_line0": 22,
+          "ingredient": "601",
+          "replacement_sha256": "3d8529d0f5e60f0fccc41bfadb2010eb69728d289ff91fc3eb8f0d7cf79a80e6"
+        },
+        {
+          "start_line0": 23,
+          "end_line0": 24,
+          "ingredient": "601",
+          "replacement_sha256": "4298feb56fc896b3b447a0cd9f34369cb32b0e4721367fdbdece96307fc6c445"
+        },
+        {
+          "start_line0": 25,
+          "end_line0": 26,
+          "ingredient": "601",
+          "replacement_sha256": "dd32c7e63d56a104eea416b325018fbb4eec26a5b53902ce4ed6696460d0c700"
+        },
+        {
+          "start_line0": 29,
+          "end_line0": 29,
+          "ingredient": "601",
+          "replacement_sha256": "bdac0a07bb36f0b0d13bb60c3cf8536163aeb5238c9eb9e558116dcbfa0f17ab"
+        },
+        {
+          "start_line0": 46,
+          "end_line0": 47,
+          "ingredient": "601",
+          "replacement_sha256": "e0764199efc5d8a2ae1629c6fce30d91291562f6c83143b260fdc6ed7ac02db5"
+        },
+        {
+          "start_line0": 127,
+          "end_line0": 128,
+          "ingredient": "601",
+          "replacement_sha256": "dac023a29f9601e39e33a13d6cfc4c132c4760b7b4dd20f182ae114a0cf11f5a"
+        },
+        {
+          "start_line0": 159,
+          "end_line0": 159,
+          "ingredient": "601",
+          "replacement_sha256": "8c5d07c4a4cbe8213919640bbd0b199f9b43ea496a96153acbda480ce77b6d7b"
+        },
+        {
+          "start_line0": 160,
+          "end_line0": 163,
+          "ingredient": "601",
+          "replacement_sha256": "c9506a1a71ac11fee1fe6ef6cc0e050e383f1795a067648bf252f683fcab3c75"
+        },
+        {
+          "start_line0": 167,
+          "end_line0": 167,
+          "ingredient": "601",
+          "replacement_sha256": "efda114a3c775482f412715c1f7874bcee38019342d776a327a06422e292df87"
+        },
+        {
+          "start_line0": 168,
+          "end_line0": 170,
+          "ingredient": "601",
+          "replacement_sha256": "aa63fe3ce749c63f85de330bfc54a0c9cc39ee230878a3aab4c4ac5af6671134"
+        },
+        {
+          "start_line0": 173,
+          "end_line0": 176,
+          "ingredient": "601",
+          "replacement_sha256": "400deb0913dc79ad4bb142ff7ff75a890cf1d224998732db3e85dbd42c0f703f"
+        },
+        {
+          "start_line0": 177,
+          "end_line0": 177,
+          "ingredient": "601",
+          "replacement_sha256": "6b5f093eb2262f1a0108417e6b5797a6b6834fefeeab0803e690b1acc99654b4"
+        },
+        {
+          "start_line0": 178,
+          "end_line0": 179,
+          "ingredient": "601",
+          "replacement_sha256": "59a8541f73ca742b24581384823d607fd45de44b0f2d43713397bd811f73a4ba"
+        },
+        {
+          "start_line0": 180,
+          "end_line0": 180,
+          "ingredient": "601",
+          "replacement_sha256": "09001954703a2232c8f023c70f746697af424abb03f6e7916a380dea82f5a039"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/clientCore.ts",
+      "replacements": [
+        {
+          "start_line0": 41,
+          "end_line0": 41,
+          "ingredient": "724",
+          "replacement_sha256": "4b2cf7572c2c61b9bb1f9d710515bfa4fe9326e6f766501465541508327632fb"
+        },
+        {
+          "start_line0": 286,
+          "end_line0": 286,
+          "ingredient": "724",
+          "replacement_sha256": "073065ab644c53316a68127d53f61989f4671d632d7630bf48f9939e8b4a8fb2"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/codeActionSource.ts",
+      "replacements": [
+        {
+          "start_line0": 0,
+          "end_line0": 0,
+          "ingredient": "724",
+          "replacement_sha256": "f680f203ce2b501b8c2b8e83241af1098a4ca3f3fe7a040e291070e85e765dc1"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "replacements": [
+        {
+          "start_line0": 18,
+          "end_line0": 18,
+          "ingredient": "724",
+          "replacement_sha256": "4021e2be0b30b962e31b9309eb6df7d37e0543dd303d53e7ef5e89f505dc9ed2"
+        },
+        {
+          "start_line0": 526,
+          "end_line0": 538,
+          "ingredient": "724",
+          "replacement_sha256": "c3fb4cd0504895d6d598cd2e531999a0541e3d9ec6f156f7f1a7fb566ae09373"
+        },
+        {
+          "start_line0": 549,
+          "end_line0": 551,
+          "ingredient": "724",
+          "replacement_sha256": "c2c5ac34a1876e21d3788164d34fa2cb487450a3d9d37f70985abbc93f22a0a9"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "replacements": [
+        {
+          "start_line0": 36,
+          "end_line0": 36,
+          "ingredient": "724",
+          "replacement_sha256": "4021e2be0b30b962e31b9309eb6df7d37e0543dd303d53e7ef5e89f505dc9ed2"
+        },
+        {
+          "start_line0": 601,
+          "end_line0": 613,
+          "ingredient": "724",
+          "replacement_sha256": "c3fb4cd0504895d6d598cd2e531999a0541e3d9ec6f156f7f1a7fb566ae09373"
+        },
+        {
+          "start_line0": 1201,
+          "end_line0": 1203,
+          "ingredient": "724",
+          "replacement_sha256": "420bb6e7c92aecb787e396926063205000ff17120a4102677df61d0577ca30f2"
+        }
+      ]
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "replacements": [
+        {
+          "start_line0": 18,
+          "end_line0": 18,
+          "ingredient": "724",
+          "replacement_sha256": "9750fce26b4e778d7c63cd8416348409da41c2fbc59a0ed252a915c3020aa202"
+        },
+        {
+          "start_line0": 319,
+          "end_line0": 319,
+          "ingredient": "724",
+          "replacement_sha256": "455b255f819f037f0734e32db1e03b9e919e480344c211c5ddd5af7250932029"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "replacements": [
+        {
+          "start_line0": 148,
+          "end_line0": 148,
+          "ingredient": "691V3",
+          "replacement_sha256": "00bf6c5922a9f0e30f6ca3fecc206ba88068e4ece7fa7ee0a3eccc27aa3a4a0b"
+        },
+        {
+          "start_line0": 473,
+          "end_line0": 473,
+          "ingredient": "691V3",
+          "replacement_sha256": "4028ca56e193ea853d55bf8ed95a9e5eca2502abf1eedff0c654ff48165f6465"
+        },
+        {
+          "start_line0": 536,
+          "end_line0": 537,
+          "ingredient": "691V3",
+          "replacement_sha256": "a4eda0d27a8a4d1b619ffe82758f12caf11b104923f1965cd1fa24c1bbc628e8"
+        },
+        {
+          "start_line0": 3060,
+          "end_line0": 3061,
+          "ingredient": "691V3",
+          "replacement_sha256": "999d140036bf48797e1778430117888d918cf2382cb79a3ee0e882ad953e18c9"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "replacements": [
+        {
+          "start_line0": 12,
+          "end_line0": 12,
+          "ingredient": "691V3",
+          "replacement_sha256": "2cce66a7c1bbde72f3fbf025b88a33a854d77efd9a3b6c9525eb958ff61514cf"
+        },
+        {
+          "start_line0": 739,
+          "end_line0": 739,
+          "ingredient": "691V3",
+          "replacement_sha256": "add83c3f05929508626d4dc1e58fe753793ab1426b3dcfbbaa83751eed333a0f"
+        },
+        {
+          "start_line0": 810,
+          "end_line0": 810,
+          "ingredient": "691V3",
+          "replacement_sha256": "85ce95efbe340906eec5ad9b8ca8fcf49e4081de2a76a1dab5f80946b9819aed"
+        },
+        {
+          "start_line0": 1147,
+          "end_line0": 1147,
+          "ingredient": "691V3",
+          "replacement_sha256": "5c055a7608e504577d10b34c48105c10b5b2c006f69040983975d084fe84f73e"
+        },
+        {
+          "start_line0": 1284,
+          "end_line0": 1284,
+          "ingredient": "691V3",
+          "replacement_sha256": "fbd5a02684078728a5d862ae0f111cc4945c01d1e925bc8e7931705fe597d4a9"
+        },
+        {
+          "start_line0": 1365,
+          "end_line0": 1365,
+          "ingredient": "691V3",
+          "replacement_sha256": "2fa512b0068be71300e8931fab0dc2219b33a1a48f06274df92ce019ddd04e2b"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "replacements": [
+        {
+          "start_line0": 311,
+          "end_line0": 311,
+          "ingredient": "691V3",
+          "replacement_sha256": "a7d12ae5141bbe1299a61d6d94e81190de2a4afdb1ae7d33d2e917a8f433c3fb"
+        },
+        {
+          "start_line0": 1018,
+          "end_line0": 1018,
+          "ingredient": "691V3",
+          "replacement_sha256": "c562cbbdd450bccee361f0d3f77a61d12746957ee895881530619461f68c94bf"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "replacements": [
+        {
+          "start_line0": 0,
+          "end_line0": 0,
+          "ingredient": "691V3",
+          "replacement_sha256": "4ac4048729c3698c1899ce145ee41d63eac5e2482c5097661038f13675ba9cc5"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/lambda_literal.rs",
+      "replacements": [
+        {
+          "start_line0": 283,
+          "end_line0": 283,
+          "ingredient": "691V3",
+          "replacement_sha256": "2a1618334142b3c6629e664165d1c1e541be332a99ccb13a9f950513072243e8"
+        },
+        {
+          "start_line0": 587,
+          "end_line0": 587,
+          "ingredient": "691V3",
+          "replacement_sha256": "e914f57f884f7b522cb2c5e8a5531d08b85d8708e982c8f77ec43bc89c40d63b"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "replacements": [
+        {
+          "start_line0": 589,
+          "end_line0": 589,
+          "ingredient": "691V3",
+          "replacement_sha256": "765d0a0a385ab509acddfd8add79a7b9d911c9dfdde4a6e0315488c4bdaa20c0"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "replacements": [
+        {
+          "start_line0": 89,
+          "end_line0": 89,
+          "ingredient": "691V3",
+          "replacement_sha256": "56120b612c49d992ec698b2ced59a1decec3a0ee64518ecd1a51f11321821be7"
+        },
+        {
+          "start_line0": 1270,
+          "end_line0": 1272,
+          "ingredient": "691V3",
+          "replacement_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "start_line0": 1273,
+          "end_line0": 1278,
+          "ingredient": "691V3",
+          "replacement_sha256": "643ea9e67c0e0efa4d63a33492ba17b5f1877c85661417e5c23aef7e896afb5e"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "replacements": [
+        {
+          "start_line0": 6938,
+          "end_line0": 6939,
+          "ingredient": "691V3",
+          "replacement_sha256": "bbc7e9211a353225667375c7f247bac2f42989fa1970686ef2c5f2669a5ebbf2"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "replacements": [
+        {
+          "start_line0": 973,
+          "end_line0": 973,
+          "ingredient": "691V3",
+          "replacement_sha256": "ce3e37e278a60f964cc53b955e17a5b5757b68c324ca1520c84150c43d69354f"
+        },
+        {
+          "start_line0": 3343,
+          "end_line0": 3343,
+          "ingredient": "691V3",
+          "replacement_sha256": "b15993eaace90f172ec964e9be75460086d114945b81f8ffca77c35c07fc654b"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "replacements": [
+        {
+          "start_line0": 670,
+          "end_line0": 670,
+          "ingredient": "691V3",
+          "replacement_sha256": "07be96ec382672853a8f5d2935089fbd4e3042d4f9ed385f663e0a89e01a5b64"
+        },
+        {
+          "start_line0": 703,
+          "end_line0": 703,
+          "ingredient": "691V3",
+          "replacement_sha256": "892c76d0475100a65f833fef3e23aa56d05adca2273f4be857dafde6399d202d"
+        },
+        {
+          "start_line0": 716,
+          "end_line0": 716,
+          "ingredient": "691V3",
+          "replacement_sha256": "892c76d0475100a65f833fef3e23aa56d05adca2273f4be857dafde6399d202d"
+        },
+        {
+          "start_line0": 766,
+          "end_line0": 767,
+          "ingredient": "691V3",
+          "replacement_sha256": "294363c8ab3e24263a64f140c1329b8474f96a06a8a79f2dc0e9789363fa6ab5"
+        },
+        {
+          "start_line0": 774,
+          "end_line0": 775,
+          "ingredient": "691V3",
+          "replacement_sha256": "101501881b15e8bea39af1b33b69e48f6d77583017106bc4bc062cefe3e72c35"
+        },
+        {
+          "start_line0": 785,
+          "end_line0": 786,
+          "ingredient": "691V3",
+          "replacement_sha256": "3484fc95e539967a0e7ec8973a8d379580cbd71ef7f23549e87621094774cd66"
+        },
+        {
+          "start_line0": 861,
+          "end_line0": 864,
+          "ingredient": "691V3",
+          "replacement_sha256": "b17821be73a30653eb867476ce9e932749d85336fc161d8e76b7292d912f470f"
+        },
+        {
+          "start_line0": 893,
+          "end_line0": 896,
+          "ingredient": "691V3",
+          "replacement_sha256": "4ccfa2f008760ec23071f0a66e0238de0a60166f2b65cbe036fbd68e6a177db0"
+        },
+        {
+          "start_line0": 928,
+          "end_line0": 929,
+          "ingredient": "691V3",
+          "replacement_sha256": "8b14ef9f8e43fe1ac87880818bda67a10defd7e15855347dc73c3b787ba42887"
+        },
+        {
+          "start_line0": 2443,
+          "end_line0": 2450,
+          "ingredient": "691V3",
+          "replacement_sha256": "dcfc79d8b1cb1b6efd8945a60d56b6ac9b5c42852dc84396c51ba24b0021cf70"
+        },
+        {
+          "start_line0": 4289,
+          "end_line0": 4289,
+          "ingredient": "691V3",
+          "replacement_sha256": "751182ab30ab67c03afd133651b04cc1332057c4bcd20e3b13579436d5671975"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "replacements": [
+        {
+          "start_line0": 155,
+          "end_line0": 155,
+          "ingredient": "569",
+          "replacement_sha256": "299c38bdd7d1dc09b2a31c1b134d4fb377f0a5ae4f6cd6dd552d999978579f50"
+        },
+        {
+          "start_line0": 741,
+          "end_line0": 743,
+          "ingredient": "569",
+          "replacement_sha256": "d26b7bd82683954e14c31997f6f15ed8f447429daae5aa229dcefcacbdda02ef"
+        },
+        {
+          "start_line0": 744,
+          "end_line0": 745,
+          "ingredient": "569",
+          "replacement_sha256": "5fb5414f8b78a015269eceb17e340a80a3deeebd355fc2410aac8c782de0b7eb"
+        },
+        {
+          "start_line0": 992,
+          "end_line0": 1031,
+          "ingredient": "569",
+          "replacement_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "start_line0": 1180,
+          "end_line0": 1195,
+          "ingredient": "569",
+          "replacement_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "start_line0": 1348,
+          "end_line0": 1348,
+          "ingredient": "569",
+          "replacement_sha256": "93a5f1ade83845714ea2132c97b2cb0281a80589560510e72b24147b824eb3db"
+        },
+        {
+          "start_line0": 1371,
+          "end_line0": 1372,
+          "ingredient": "569",
+          "replacement_sha256": "4fa3b65f10fafb91b21b22e3f725d89c9b69f2eb940b186301d9e093c5aec51a"
+        },
+        {
+          "start_line0": 1388,
+          "end_line0": 1392,
+          "ingredient": "569",
+          "replacement_sha256": "52d49fc26c6c2f71e8d7cab481af7fe92292336c98e72fdc962297d82791c8fc"
+        },
+        {
+          "start_line0": 1468,
+          "end_line0": 1469,
+          "ingredient": "569",
+          "replacement_sha256": "d3201babc504466384b0a0f63cc1751a662ac3a0fef7e5b8250126bac6820eea"
+        },
+        {
+          "start_line0": 1475,
+          "end_line0": 1476,
+          "ingredient": "569",
+          "replacement_sha256": "68b90bcfa34e55c51b34d20426005776c3d6890bb59dcd6ff4733aa5e1960a03"
+        },
+        {
+          "start_line0": 1478,
+          "end_line0": 1478,
+          "ingredient": "569",
+          "replacement_sha256": "3395cb876f3c4524dd342702f57e00300268d408ade2c6188941a56f98cc7551"
+        },
+        {
+          "start_line0": 1502,
+          "end_line0": 1502,
+          "ingredient": "569",
+          "replacement_sha256": "93e53eec3c77e50c2ff1980d07c86e17ab23adf35951f0521667edfc7f8fcca9"
+        },
+        {
+          "start_line0": 1550,
+          "end_line0": 1550,
+          "ingredient": "569",
+          "replacement_sha256": "3d0ad71a54ccf641e0565304fc4d86db184b731ad6f8f04bf8a26beba9faf143"
+        },
+        {
+          "start_line0": 1586,
+          "end_line0": 1587,
+          "ingredient": "569",
+          "replacement_sha256": "81611be9e528a38c82096c3b4e98935c09bfcab2313c8e929a5ef08d2c24b8e4"
+        },
+        {
+          "start_line0": 1641,
+          "end_line0": 1642,
+          "ingredient": "569",
+          "replacement_sha256": "cf04e17b1cdead18845f61d4609dac0aceb79ba8a6ccf7ba6b1436e73840478d"
+        },
+        {
+          "start_line0": 1644,
+          "end_line0": 1644,
+          "ingredient": "569",
+          "replacement_sha256": "3395cb876f3c4524dd342702f57e00300268d408ade2c6188941a56f98cc7551"
+        },
+        {
+          "start_line0": 1861,
+          "end_line0": 1861,
+          "ingredient": "569",
+          "replacement_sha256": "93e53eec3c77e50c2ff1980d07c86e17ab23adf35951f0521667edfc7f8fcca9"
+        },
+        {
+          "start_line0": 1875,
+          "end_line0": 1876,
+          "ingredient": "569",
+          "replacement_sha256": "cdd26a2e71ca89b063126e307fa11660224d538758411c5c2139d108a3c39581"
+        },
+        {
+          "start_line0": 1882,
+          "end_line0": 1886,
+          "ingredient": "569",
+          "replacement_sha256": "b099ff1d4ebdd51ec9860de7474f9702fb1069f69ae3a8f82cedb244f275d2bb"
+        },
+        {
+          "start_line0": 1919,
+          "end_line0": 1919,
+          "ingredient": "569",
+          "replacement_sha256": "93e53eec3c77e50c2ff1980d07c86e17ab23adf35951f0521667edfc7f8fcca9"
+        },
+        {
+          "start_line0": 1935,
+          "end_line0": 1936,
+          "ingredient": "569",
+          "replacement_sha256": "5eab526d2708e8ffc01578abffd81ba2f26ad29e4b82ea72c0e98ba103fae841"
+        },
+        {
+          "start_line0": 1993,
+          "end_line0": 1993,
+          "ingredient": "569",
+          "replacement_sha256": "93e53eec3c77e50c2ff1980d07c86e17ab23adf35951f0521667edfc7f8fcca9"
+        },
+        {
+          "start_line0": 2068,
+          "end_line0": 2069,
+          "ingredient": "569",
+          "replacement_sha256": "5eab526d2708e8ffc01578abffd81ba2f26ad29e4b82ea72c0e98ba103fae841"
+        },
+        {
+          "start_line0": 2200,
+          "end_line0": 2201,
+          "ingredient": "569",
+          "replacement_sha256": "966cd3dc211a0a2b7d186760fb574a5fc45d041af35179c4abc16358d99c7a43"
+        },
+        {
+          "start_line0": 2223,
+          "end_line0": 2227,
+          "ingredient": "569",
+          "replacement_sha256": "b099ff1d4ebdd51ec9860de7474f9702fb1069f69ae3a8f82cedb244f275d2bb"
+        },
+        {
+          "start_line0": 5777,
+          "end_line0": 5777,
+          "ingredient": "569",
+          "replacement_sha256": "7f9c8e7e58625518d1564433d0c23b58f770b4dbea55e8c59d304d97da29a0a1"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "replacements": [
+        {
+          "start_line0": 35,
+          "end_line0": 35,
+          "ingredient": "691V3",
+          "replacement_sha256": "f98afc0f417a9ae4c4a6ac88cbfc72cf2c362e6d71abe0657bb5ef3194ee0e01"
+        },
+        {
+          "start_line0": 200,
+          "end_line0": 200,
+          "ingredient": "691V3",
+          "replacement_sha256": "e67925f9c785781068049494480ddee2c34ca3dfe4e98fe5b7722f5b238c232c"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "replacements": [
+        {
+          "start_line0": 694,
+          "end_line0": 696,
+          "ingredient": "705",
+          "replacement_sha256": "6f4d3ec8b3e6e5bf760522dc035521bb3e1289ada32f445646b4a97d471cbf00"
+        },
+        {
+          "start_line0": 711,
+          "end_line0": 713,
+          "ingredient": "705",
+          "replacement_sha256": "9390e44032f43e57846c4c934e426b1c1251fe6016600ecb52120631be212ced"
+        },
+        {
+          "start_line0": 818,
+          "end_line0": 820,
+          "ingredient": "705",
+          "replacement_sha256": "2452586704433c17ec3201a25ae7809c18d7c84d0723b88926b738f602de9ce0"
+        },
+        {
+          "start_line0": 13521,
+          "end_line0": 13541,
+          "ingredient": "705",
+          "replacement_sha256": "a475ea87678c667dee98dfbe3754fba7d4b942fac4d75d2f68d25df592e676bf"
+        },
+        {
+          "start_line0": 13542,
+          "end_line0": 13547,
+          "ingredient": "705",
+          "replacement_sha256": "bb5f08f01dbcdf266b4e10a18aef30bb735a7458855a9240e2e853d9ccc20e9f"
+        },
+        {
+          "start_line0": 30357,
+          "end_line0": 30360,
+          "ingredient": "724",
+          "replacement_sha256": "7c97d066ee4493a56529c93f56419cfecea22862442057abf8e9224564504da9"
+        },
+        {
+          "start_line0": 30425,
+          "end_line0": 30426,
+          "ingredient": "724",
+          "replacement_sha256": "b8be199052e5a412b071498585074b2bdd129aa984dcbf970e5d1030613f941f"
+        },
+        {
+          "start_line0": 30477,
+          "end_line0": 30478,
+          "ingredient": "724",
+          "replacement_sha256": "fda39948cd8f031d1899af527cd3521c0e3e1f1f1d684e163059448562ecfda4"
+        },
+        {
+          "start_line0": 31817,
+          "end_line0": 31817,
+          "ingredient": "724",
+          "replacement_sha256": "59af8fe819a4410a63c55ec6822775ef6add5e3d691d07420e809c198f46f3cd"
+        },
+        {
+          "start_line0": 62812,
+          "end_line0": 62812,
+          "ingredient": "705",
+          "replacement_sha256": "817d185b55abdc4766273ee759344ba7454c47f7dfc31a5747da6ce9df44fe47"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "replacements": [
+        {
+          "start_line0": 41,
+          "end_line0": 41,
+          "ingredient": "724",
+          "replacement_sha256": "79e3bc5dd2224efc90f443e82b2c56ff86de7eca74b6e7e2ec78457ac1cf2af7"
+        },
+        {
+          "start_line0": 453,
+          "end_line0": 453,
+          "ingredient": "724",
+          "replacement_sha256": "4f6d39b7c734e1a28c7116eeb700813b1fc2010a91a42982ea8b5a1d58b340cf"
+        },
+        {
+          "start_line0": 1517,
+          "end_line0": 1517,
+          "ingredient": "724",
+          "replacement_sha256": "aaa5542fe10c0e50b734c517da0d412a599ede3d841d5a96c70a3b22230bf855"
+        },
+        {
+          "start_line0": 3216,
+          "end_line0": 3216,
+          "ingredient": "724",
+          "replacement_sha256": "e0fec2fe988905926c22347d523eed544c2fb9957fb6dbccb2598f6027c51f98"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "replacements": [
+        {
+          "start_line0": 29,
+          "end_line0": 29,
+          "ingredient": "569",
+          "replacement_sha256": "eb1b5529da30c5cb24f6b5fe041dc801799f5aeff92dc6bfeea6d952e511b873"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/compacted_source.rs",
+      "replacements": [
+        {
+          "start_line0": 0,
+          "end_line0": 0,
+          "ingredient": "569",
+          "replacement_sha256": "dcc822127c258dcf9eac0fd1083f27a93f605747bb493492fce64b72c7018083"
+        }
+      ]
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "replacements": [
+        {
+          "start_line0": 899,
+          "end_line0": 900,
+          "ingredient": "xtaskSyn3",
+          "replacement_sha256": "5562ac29568d63ffe1ced94cff6f2cd35cfd4fbeef39f1d3756e458639101b0e"
+        }
+      ]
+    }
+  ],
+  "coincident_insertions": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "line0": 2203,
+      "ordering": [
+        "705",
+        "569",
+        "691V3"
+      ],
+      "policy": "Concatenate exact independent insertions in authorised ingredient order; no bytes of either insertion or original source changed."
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line0": 1376,
+      "ordering": [
+        "705",
+        "691V3"
+      ],
+      "policy": "Concatenate exact independent insertions in authorised ingredient order; no bytes of either insertion or original source changed."
+    }
+  ]
+}

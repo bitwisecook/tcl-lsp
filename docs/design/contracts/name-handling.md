@@ -2201,3 +2201,110 @@ authoring, explicit Standalone with retained input, or retained-entry analysis.
 The uncached analysis reborrow selects that same existing producer and requires
 its rebuilt origin to match before exposing the unit. A retained source entry
 alone cannot convert Standalone authoring into supplied-document analysis.
+
+
+### Closed-document decoded source context
+
+The Server's closed-file fallback reads the actual path selected by the original
+SourceStore URI admission. It retains that read's DecodeReport with the decoded
+pre-normalisation Unicode text and uses the existing closed-file dialect owner
+on the original document URI and the same decoded source. Deliberate document
+overrides, source directives/version detection, extension selection, folder
+configuration and session fallback keep their shared precedence. A provider
+path's spelling cannot replace the document URI used for dialect selection.
+
+The existing lone-CR analysis view remains separate from decoded `raw()` text.
+Neither lossy replacement nor newline normalisation establishes original disk
+bytes or Native source identity. The existing analysis producers still resolve
+complete per-file resource/configuration inputs; independent original image,
+input, provider, publication and stronger feature/edit guards remain required.
+The returned document is a read snapshot, not a final saved-byte lease or proof
+that an external writer has not changed the file. A retired provider mapping
+cannot be renewed by equal text, and an open editor document keeps its own
+source, language choice and version. Missing paths and unavailable provider or
+read contexts retain their existing distinct results. This adopts existing
+source/path/decoder/dialect owners for the closed-document context purpose; it
+adds no execution, physical file identity, Native, absence or edit authority.
+
+## Newly authored compacted names
+
+The [compacted source-name sequence](compacted-source-names.md) constructs new
+lowercase ASCII spellings under the complete supplied lexer configuration.
+Existing literal-word and scalar-reference constructors validate the proposal;
+no existing Tcl name is resolved or selected. The shared sequence rejects exact
+observed collisions and preserves the caller's attempt budget. A false collision
+predicate records only that the supplied observations did not reject this
+spelling. Partial Logical analyser/report/SSA inventories cannot become complete
+collision coverage or prove an unused name. General minifier census and edit
+barriers, original Native alpha and independently bounded Logical formal binding
+remain separate. Aggressive aliases still author observable new variables.
+
+
+### Decoded lambda formatting source phase
+
+A decoded bare/quoted lambda field is not a document substring. Formatting
+may reborrow `OriginalDecodedLambdaFormattingBody` only from the actual
+Registry-selected lambda/full original word, complete editing input and
+already retained interpreted list-element body. The field decoder's bytes
+must equal the retained body exactly. Commands then use that body's real
+source origin and base through the existing original argv/role worker. A
+materialised body starts in its own source instance; it never borrows the
+lambda's document offset or a guessed source-start estimate.
+
+The ordinary document-only Registry geometry entry remains unchanged. The
+phase facade authenticates its own retained source image/configuration before
+calling the same private worker. Missing body interpretation, unknown input,
+changed fields/configuration or missing lookup advice refuses. This view does
+not establish Native activation, new execution, body reachability, variable
+cells, complete reference coverage or independent expression/edit permission.
+Logical decoded fields use a separate conditional phase captured by the existing
+source-transition producer at the actual selected lambda schema. It retains the
+full original parent vector/input, configured field receipts, namespace and
+argument count, then clones that actual parent graph for a distinct private-minted
+`SourceOriginKind::ConditionalField`. The same generic invocation walker supplies
+possible Registry roles in that source instance. It creates neither a Document
+navigation recipe nor a lexical variable frame, and publishes no branch mutations
+into the parent graph. Every exposed child advice retains deferred-body
+applicability; unknown prefix/operand/arity debt remains, and lookup-preserving
+rewrite permission is explicitly withheld. Nested phases retain their actual
+parent carrier. Unchanged braced bodies continue to use their existing owner.
+
+Only the selected phase's complete original command vector can reborrow roles.
+A decoded string, foreign configuration or report label cannot supply a phase;
+known shadowing cannot fall through to a nominal Registry schema. The bounded
+phase census has its own depth/command limits, and missing/refused syntax is
+unavailable rather than complete empty coverage. The Source-only field origin
+is terminal for the existing Authored/Loaded/Native-derived admission guards.
+
+
+Studio overrides use a Backend-owned active-source lease, not a path-name
+inverse for live-session identity. The independently issued transport allocation
+selects only that Backend's retained lease. Original source-provider admission,
+exact saved UTF-8 image and published revision remain separate obligations.
+The actual reload carries those receipts through its final ledger-generation
+and provider/saved-source reborrow before hook/Registry/Salsa publication and
+again after response awaits. MemoryStore holds aliases and bytes jointly;
+Native/WASI retains only actual last saved-byte observation, without atomic
+external-writer exclusion. A retirement reply confirms actual published-owner
+withdrawal, and exact retired leases can retry after reload refusal without
+revival; retirement withdraws
+metadata without deleting or fabricating a filesystem event. Default and
+restarted Backends never reconstruct a live override from `.spec-studio`
+contents. Standalone filesystem pack discovery retains its separate
+compatibility purpose. See [Studio active sources](studio-active-source.md)
+for the actual editor protocol and the missed-disposal limitation.
+
+
+Diagnostic rewrite JSON carries a schema-1 `sourceAssociation` only after the
+server reborrows its captured diagnostic pass and the Core diagnostic edit owner
+authenticates every complete worker-issued rewrite group. The pass checks exact
+raw source, normalised analysis source, complete retained analysis input and
+Registry identity. The association retains the original URI, version, revision
+and input epoch. Push and direct production transport their own captured pass.
+Detached proposal reports explicitly identify the proposed-source purpose and
+retain both original and proposal text under the existing final proposal lease;
+they never borrow the live document's diagnostic pass. Missing, foreign, partial
+or manually assembled rewrite provenance leaves diagnostic presentation intact
+without a rewrite payload. Wire associations are presentation data and confer no
+Native or edit permission: code actions repeat the Core issuer/currentness checks
+and document application retains its existing versioned source lease.

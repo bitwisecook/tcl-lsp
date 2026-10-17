@@ -1,0 +1,40 @@
+[
+  {
+    "package": "tcl_lsp_server",
+    "selector": "readonly_reference_reports::code_action_source_version_tests::actual_code_action_endpoint_publishes_the_original_document_version",
+    "scope": "actual endpoint/source currency"
+  },
+  {
+    "package": "tcl_lsp_server",
+    "selector": "readonly_reference_reports::code_action_source_version_tests::equal_source_does_not_replace_the_original_version_input_or_export_generation",
+    "scope": "actual endpoint/source currency"
+  },
+  {
+    "package": "tcl_lsp_server",
+    "selector": "readonly_reference_reports::code_action_source_version_tests::missing_versions_and_clamped_utf16_positions_cannot_issue_source_actions",
+    "scope": "actual endpoint/source currency"
+  },
+  {
+    "package": "tcl_lsp_server",
+    "selector": "readonly_reference_reports::code_action_source_version_tests::equal_provider_replacement_cannot_renew_the_action_source_receipt",
+    "scope": "actual endpoint/source currency"
+  },
+  {
+    "file": "editors/vscode/src/test/commands.test.ts",
+    "suite": "Source-bound code action follow-ups",
+    "name": "a source action uses the checked original document sink and consumes its receipt once",
+    "scope": "actual editor source/write adapter"
+  },
+  {
+    "file": "editors/vscode/src/test/commands.test.ts",
+    "suite": "Source-bound code action follow-ups",
+    "name": "an edit-revert cannot renew an earlier source action or bare rename coordinates",
+    "scope": "actual editor source/write adapter"
+  },
+  {
+    "file": "editors/vscode/src/test/commands.test.ts",
+    "suite": "Source-bound code action follow-ups",
+    "name": "a changed provider document cannot donate its earlier action plan",
+    "scope": "actual editor source/write adapter"
+  }
+]

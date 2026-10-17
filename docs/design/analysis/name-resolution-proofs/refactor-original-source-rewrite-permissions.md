@@ -91,3 +91,19 @@ These source bindings establish no executed assertion result; exact software out
 ## Replay
 
 The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+
+## Source-action obligation boundary
+
+Logical declaration applicability does not discharge expression evaluation,
+control-flow evaluation, or fresh-store/insertion obligations. The common
+selector retains all three for every source domain. Expression bracing may
+produce edits only through the existing independently checked original literal
+expression bracing issuer; unsupported Logical advice yields the same explicit
+no-edit obligation. No public request, selected schema, or declaration Boolean
+is an authoring-intent or evaluation-equivalence receipt.
+
+All earlier tests and assertions are retained. Historical Logical tests that
+require unconditional edits or a cleared obligation conflict with this boundary
+and are not claimed passing or corrected by changing their premises. The added
+`source_action_obligation_tests::logical_declaration_advice_retains_each_independent_rewrite_obligation`
+control is unexecuted. No Native issuer or execution permission is broadened.

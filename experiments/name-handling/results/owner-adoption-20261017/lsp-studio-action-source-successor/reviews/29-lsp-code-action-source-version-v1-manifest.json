@@ -1,0 +1,93 @@
+{
+  "status": "source-only; independent review and ordinary validation pending",
+  "baseline_id": "lsp-server-code-action-wire-source-version",
+  "catalogue_index": 724,
+  "patch": "repair.patch",
+  "patch_sha256": "d0b431d6ebd0c3b1814f01c611604b9e2ff66b24fde9e7b755f3e80df832ba7b",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "before_sha256": null,
+      "after_sha256": "fa5a604763bce14bd26aaedd834da8c54cd31d10858badc6517bc1f46200849d",
+      "current_before_equal": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "dbc22e8f87e383cb214659a545c943c6cf33b47530a1490ba2e16159e058e4d8",
+      "after_sha256": "947f2b2e75a11b2f40547869c3ef7e9d4fd42d0413d8bf474a3ebc4d4eafb1f4",
+      "current_before_equal": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "31f1dc946f0e75c7358c7ae3bb9ff03b7644dffaf8baf491a544a3d53eb9ae0e",
+      "current_before_equal": true
+    },
+    {
+      "path": "editors/vscode/src/clientCore.ts",
+      "before_sha256": "cc2b8efc3f2d432c41f5d9f70153724bf88518e78411fe54bc744206b1cbbb4b",
+      "after_sha256": "bbbdb558a5af539cb31256396375bed79c7e146fc8b970b7d13f60ed3ccf36e5",
+      "current_before_equal": true
+    },
+    {
+      "path": "editors/vscode/src/codeActionSource.ts",
+      "before_sha256": null,
+      "after_sha256": "f680f203ce2b501b8c2b8e83241af1098a4ca3f3fe7a040e291070e85e765dc1",
+      "current_before_equal": true
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "before_sha256": "a3df74ca1a1d18f0fd4aec66d02d50664e855253ce0fbaba0a997558d36ad685",
+      "after_sha256": "e8667532cac5d32f1ac6a92ac8c9db381fc74f6ad9d2d102986b28cf4a9a0e5f",
+      "current_before_equal": true
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "before_sha256": "a3701cfd08040c75e8c4d09d2b9cacc83ce7b043a0915b90cacb92737a4be549",
+      "after_sha256": "aaa5f8b0eb0306aae47a470c31866b7e8a7688184d7a58234efecb4a23ecb6d7",
+      "current_before_equal": true
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "before_sha256": "0ec5cfe2cbc8ab67be78b95f8a617d34fdd58a0aa70867044feee8ff6b746802",
+      "after_sha256": "59e364542ebf7b55b59f4dba96bf46a09cd916f0953d27f26ae01e595760676d",
+      "current_before_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "after_sha256": "581a27c06659862a1b101a170e18ba493308308fb74165d9a0d4b4eb56f317ce",
+      "current_before_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "cf027427ed3e7888c96d0bb46c17c153a37a2552759948a52e9b0ab09245e7b7",
+      "after_sha256": "97c38f0cb8b52e54837812febecea9b56618ce6b0dbc881dbb185541312ced85",
+      "current_before_equal": true
+    }
+  ],
+  "unchanged_provider_hashes": {
+    "rust/tcl-lsp-core/src/code_actions.rs": "0a6d7ae97a9790f6ef52be6d9b77519fc5444b7e1369202b22574e404661af88",
+    "rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs": "7195c855c6d05150b525e97a1e691c05f18df59108e1f59af78fa0d20cd926e2",
+    "editors/vscode/src/chat/codeUtils.ts": "705e5de26c14ed45cfa6b74be18d18157e0e678f3e83c80bf0fc10f9e091dcef",
+    "editors/vscode/src/chat/diagnosticAccess.ts": "7b0bc4f193742e476666e2e1e237ccd9bba1587930183cdfa37695639fec0b31",
+    "editors/vscode/node_modules/vscode-languageclient/lib/common/protocolConverter.js": "91257bc29d9e911761a7ba16f131d18c44f1e705def8345cefe90ec708831f2e"
+  },
+  "preserved_workers": "preserved-workers.json",
+  "old_test_preservation": [
+    "old-test-preservation.json",
+    "old-ts-test-preservation.json"
+  ],
+  "new_controls": "controls.json",
+  "new_control_count": 7,
+  "executed_tests": false,
+  "build_or_typecheck_run": false,
+  "main_modified": false,
+  "count_claim": null,
+  "scope_limitations": [
+    "versionNone ordinary source edits unavailable; originals preserved",
+    "BIGIP explicit existing adapter unchanged; no migration acceptance",
+    "VSCode converted edit field replaced by checked command; old assumptions preserved in tests",
+    "publication-time server input lease; no distributed post-publication transaction claim"
+  ]
+}

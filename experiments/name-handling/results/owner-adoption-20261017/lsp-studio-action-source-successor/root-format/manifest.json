@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "b5d9abc5efdc17a9315f11e92689d65b11a05a1481d15470093c820a74148bcc",
+      "after_sha256": "257d1d2d6b7335360dfbaabf9e40332ed123b1e5944b0238b5a41e56b2679943"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/irules.rs",
+      "before_sha256": "6db7f46a6537ee1323c07731883e3c17765a6cf082003484c8b8aa377d1ed68d",
+      "after_sha256": "2ca51843ca3a2254c34bb0cc07d0d5eff74c5932c894ceb9c4b9f7ab36b6c510"
+    }
+  ],
+  "purpose": "Onlyrustfmt moduleordering andiruleslinewrap; semanticsunchanged; originalcontrols preserved"
+}

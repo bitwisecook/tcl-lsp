@@ -65,7 +65,8 @@ use crate::PACK_EXTENSION;
 /// winner first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
-    /// A live editor-hosted Spec Studio session under `.tcl-lsp/.spec-studio/`.
+    /// Editor-hosted Studio metadata under `.tcl-lsp/.spec-studio/`.
+    /// Actual session admission is separate from this precedence tier.
     StudioOverride,
     /// The `tclLsp.specPacks` setting, `.tcl-lsp/`, or beside a `tclpkg.tcl`.
     Workspace,
@@ -342,17 +343,67 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
 /// filled in, so a page's `.tclspec` files are discovered from memory.
 #[must_use]
 pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<PackFile> {
+    discover_selected_in(store, options, None)
+}
+
+/// Discover ordinary packs and only the explicitly retained active Studio
+/// paths. This does not issue a session/source lease: the caller must retain
+/// and revalidate its actual source, provider and publication owner.
+/// Unregistered files in a workspace's reserved Studio directory cannot enter
+/// through the workspace/configured scan. Standalone [`discover_in`] retains
+/// its separate filesystem-only compatibility purpose.
+#[must_use]
+pub fn discover_with_active_studio_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: &[PathBuf],
+) -> Vec<PackFile> {
+    discover_selected_in(store, options, Some(active))
+}
+
+/// Whether this original provider Path is a pack file strictly below one of
+/// these workspace Studio directories. No canonicalisation, URI inverse,
+/// file existence, source currency or active-session grant follows.
+#[must_use]
+pub fn is_workspace_studio_source(path: &Path, roots: &[PathBuf]) -> bool {
+    is_pack_file(path)
+        && roots.iter().any(|root| {
+            path.strip_prefix(root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR))
+                .ok()
+                .is_some_and(|relative| {
+                    relative.components().next().is_some()
+                        && relative
+                            .components()
+                            .all(|part| matches!(part, std::path::Component::Normal(_)))
+                })
+        })
+}
+
+fn is_reserved_workspace_studio_path(path: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|root| {
+        let reserved = root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR);
+        path.starts_with(&reserved) || path.starts_with(normalise(&reserved))
+    })
+}
+
+fn discover_selected_in(
+    store: &dyn SourceStore,
+    options: &DiscoveryOptions,
+    active: Option<&[PathBuf]>,
+) -> Vec<PackFile> {
     let mut found: BTreeSet<PackFile> = BTreeSet::new();
 
     // --- workspace tier -----------------------------------------------------
     for root in &options.workspace_roots {
-        collect_dir(
-            store,
-            &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
-            Tier::StudioOverride,
-            Origin::StudioOverride,
-            &mut found,
-        );
+        if active.is_none() {
+            collect_dir(
+                store,
+                &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
+                Tier::StudioOverride,
+                Origin::StudioOverride,
+                &mut found,
+            );
+        }
         for configured in &options.configured {
             let path = if configured.is_absolute() {
                 configured.clone()
@@ -425,6 +476,22 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
             Origin::HostMount,
             &mut found,
         );
+    }
+
+    if let Some(active) = active {
+        found.retain(|file| {
+            !is_reserved_workspace_studio_path(&file.path, &options.workspace_roots)
+        });
+        for path in active {
+            if is_workspace_studio_source(path, &options.workspace_roots) {
+                found.insert(PackFile {
+                    tier: Tier::StudioOverride,
+                    path: path.clone(),
+                    origin: Origin::StudioOverride,
+                    dependency_tier: None,
+                });
+            }
+        }
     }
 
     // One entry per path: the set is already ordered by (tier, path, origin),
@@ -1626,5 +1693,110 @@ mod tests {
             "`json` is direct and asked for development; `http` is transitive and asked for direct"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod active_studio_discovery_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn checked_studio_discovery_requires_explicit_paths_and_preserves_ordinary_tiers() {
+        let store = MemoryStore::new();
+        let active = PathBuf::from("/ws/.tcl-lsp/.spec-studio/a/active.tclspec");
+        let retired = PathBuf::from("/ws/.tcl-lsp/.spec-studio/b/active.tclspec");
+        for path in [&active, &retired] {
+            store.upsert(path, b"speclib studio 1 {}".to_vec());
+        }
+        store.upsert(
+            "/ws/.tcl-lsp/ordinary.tclspec",
+            b"speclib ordinary 1 {}".to_vec(),
+        );
+        store.upsert("/user/user.tclspec", b"speclib user 1 {}".to_vec());
+        store.upsert("/bundled/bundled.tclspec", b"speclib bundled 1 {}".to_vec());
+        let options = DiscoveryOptions {
+            workspace_roots: vec![PathBuf::from("/ws")],
+            configured: vec![retired.clone()],
+            user_dir: Some(PathBuf::from("/user")),
+            bundled_dir: Some(PathBuf::from("/bundled")),
+            ..DiscoveryOptions::default()
+        };
+        let closed = discover_with_active_studio_in(&store, &options, &[]);
+        assert_eq!(
+            closed.iter().map(|file| file.tier).collect::<Vec<_>>(),
+            vec![Tier::Workspace, Tier::User, Tier::Bundled]
+        );
+        let opened =
+            discover_with_active_studio_in(&store, &options, std::slice::from_ref(&active));
+        assert_eq!(opened[0].tier, Tier::StudioOverride);
+        assert_eq!(opened[0].path, active);
+        assert!(!opened.iter().any(|file| file.path == retired));
+        assert_eq!(opened[1..], closed);
+        assert!(!is_workspace_studio_source(
+            Path::new("/ws/.tcl-lsp/.spec-studio/a/../outside.tclspec"),
+            &options.workspace_roots
+        ));
+        assert!(!is_workspace_studio_source(
+            Path::new("/other/.tcl-lsp/.spec-studio/a/active.tclspec"),
+            &options.workspace_roots
+        ));
+    }
+}
+
+#[cfg(test)]
+mod reserved_studio_path_tests {
+    use super::*;
+    use tcl_lsp_core::vfs::MemoryStore;
+
+    #[test]
+    fn malformed_reserved_path_cannot_fall_through_as_workspace_metadata() {
+        let store = MemoryStore::new();
+        let malformed = PathBuf::from("/ws/.tcl-lsp/.spec-studio/panel/../retired.tclspec");
+        store.upsert(&malformed, b"speclib retired 1 {}".to_vec());
+        let options = DiscoveryOptions {
+            workspace_roots: vec![PathBuf::from("/ws")],
+            configured: vec![malformed.clone()],
+            skip_user_tier: true,
+            bundled_dir: Some(PathBuf::from("/no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        assert!(!is_workspace_studio_source(
+            &malformed,
+            &options.workspace_roots
+        ));
+        assert!(discover_with_active_studio_in(&store, &options, &[]).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_symlink_workspace_quarantines_canonical_retired_studio_files() {
+        let nonce = tcl_lsp_core::wire_session::EditorWireSession::allocate().unwrap();
+        let root = std::env::temp_dir().join(format!("tcl-studio-quarantine-{nonce:?}"));
+        let real = root.join("real");
+        let linked = root.join("linked");
+        let reserved = real.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR);
+        std::fs::create_dir_all(reserved.join("panel")).unwrap();
+        std::fs::write(reserved.join("retired.tclspec"), "speclib retired 1 {}").unwrap();
+        std::os::unix::fs::symlink(&real, &linked).unwrap();
+        let options = DiscoveryOptions {
+            workspace_roots: vec![linked.clone()],
+            configured: vec![
+                linked
+                    .join(WORKSPACE_PACK_DIR)
+                    .join(STUDIO_OVERRIDE_DIR)
+                    .join("panel/../retired.tclspec"),
+            ],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-bundled")),
+            ..DiscoveryOptions::default()
+        };
+        assert!(discover_with_active_studio_in(&NativeStore, &options, &[]).is_empty());
+        assert!(
+            discover_in(&NativeStore, &options)
+                .iter()
+                .any(|file| file.tier == Tier::StudioOverride)
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

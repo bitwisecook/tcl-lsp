@@ -39,6 +39,7 @@ import type { Disposable } from "vscode";
 import type { BaseLanguageClient, LanguageClientOptions } from "vscode-languageclient";
 import type { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS } from "./languageIds";
+import { provideSourceCodeActions } from "./codeActionSource";
 
 // The dialect a document is analysed under when nothing selects another: the
 // generated copy of `tcl_dialect::model::DEFAULT_ENVIRONMENT_ID`.
@@ -284,6 +285,7 @@ export function buildClientOptions(
       // `.apl` — and would make every watched change arrive twice.
     },
     middleware: {
+      provideCodeActions: provideSourceCodeActions,
       handleDiagnostics: (uri, diagnostics, next) =>
         diffSuppressor.handleDiagnostics(uri, diagnostics, next),
       workspace: {

@@ -53,6 +53,7 @@ import {
 } from "./docsDock.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
+import { GeneratedOutputOrigins } from "./generatedOutputOrigins.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
 import {
@@ -258,6 +259,9 @@ let state: State;
 let editors: Record<string, Editor>;
 /** The pack's last export, and which of its files the pane is showing. */
 let packExport: PackExport | null = null;
+/** Exact DSL source that produced `packExport`; kept with stale exports until replaced. */
+let packExportSource: string | null = null;
+const generatedOutputOrigins = new GeneratedOutputOrigins();
 let shownExportPath: string | null = null;
 /**
  * Which row of the list that path is, so a collision — two commands rendered
@@ -1351,8 +1355,11 @@ function renderExport(): void {
     window.clearTimeout(exportTimer);
     exportTimer = undefined;
   }
+  const source = state.pack.source;
   try {
-    packExport = unwrap<PackExport>(wasm.pack_export(state.pack.source, packDir(), state.dialect));
+    const rendered = unwrap<PackExport>(wasm.pack_export(source, packDir(), state.dialect));
+    packExport = rendered;
+    packExportSource = source;
   } catch (e) {
     setStatus("exportSummary", `could not export the pack: ${message(e)}`, "err");
     return;
@@ -1505,8 +1512,13 @@ function showExportFile(path: string | null, at = -1): void {
 
   const rust = surfaceOf(file.kind) === "rust";
   byId(rust ? "rsOut" : "stubOut").firstElementChild!.textContent = file.source;
-  if (rust) editorHost?.setRustText(file.source);
-  else editorHost?.setStubText(file.source);
+  if (rust) {
+    generatedOutputOrigins.set("rust", packExportSource);
+    editorHost?.setRustText(file.source, packExportSource);
+  } else {
+    generatedOutputOrigins.set("stub", packExportSource);
+    editorHost?.setStubText(file.source, packExportSource);
+  }
   // Monaco measures the container it was created in, and the surface coming
   // forward was `display: none` when it last did — but only the swap needs
   // re-measuring, and this runs on every settled edit.
@@ -3344,10 +3356,12 @@ async function mountEditorHost(): Promise<void> {
       rust: {
         container: byId("rsEditor"),
         source: byId("rsOut"),
+        sourceBasis: generatedOutputOrigins.get("rust"),
       },
       stub: {
         container: byId("stubEditor"),
         source: byId("stubOut"),
+        sourceBasis: generatedOutputOrigins.get("stub"),
       },
     });
     // Generated-code state remains in hidden elements which seed Monaco or

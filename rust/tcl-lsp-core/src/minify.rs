@@ -153,6 +153,7 @@ use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
 use tcl_lexer::close_quote_offset;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_syntax::naming::AuthoredCompactNameSequence;
 
 /// Depth cap for [`minify_body`]'s recursion over nested control-flow
 /// bodies, `[…]` command substitutions, and `expr` bodies.
@@ -739,10 +740,16 @@ fn lexical_aggressive(
     let _unresolved_collision_debt = &live_names.gaps;
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
     claimed_names.extend(live_names.names.iter().cloned());
-    let (renamed, cmd_aliases) =
-        alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
+    let (renamed, cmd_aliases) = alias_repeated_commands(
+        &renamed,
+        dialect,
+        &mut claimed_names,
+        registry,
+        input.lexer_config(),
+    );
     symbol_map.command_aliases = cmd_aliases;
-    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, dialect, &mut claimed_names);
+    let (renamed, arg_aliases) =
+        alias_repeated_arguments(&renamed, dialect, &mut claimed_names, input.lexer_config());
     symbol_map.argument_aliases = arg_aliases;
     let (renamed, str_aliases) = alias_string_literals(&renamed, input, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
@@ -990,45 +997,6 @@ fn minify_body(
     parts.join(";")
 }
 
-/// Lazy generator of short identifier names: `a`, `b`, …, `z`,
-/// `aa`, `ab`, ….
-struct NameGenerator {
-    indices: Vec<usize>,
-}
-
-impl NameGenerator {
-    fn new() -> Self {
-        Self { indices: vec![0] }
-    }
-
-    fn next_name(&mut self) -> String {
-        let name: String = self
-            .indices
-            .iter()
-            .map(|&i| (b'a' + u8::try_from(i).unwrap_or(0)) as char)
-            .collect();
-        self.advance();
-        name
-    }
-
-    fn advance(&mut self) {
-        let mut pos = self.indices.len();
-        loop {
-            if pos == 0 {
-                // All positions wrapped — grow the length.
-                self.indices = vec![0; self.indices.len() + 1];
-                return;
-            }
-            pos -= 1;
-            if self.indices[pos] + 1 < 26 {
-                self.indices[pos] += 1;
-                return;
-            }
-            self.indices[pos] = 0;
-        }
-    }
-}
-
 // Local-name compaction (compact_names tier)
 
 /// A text edit: replace `length` bytes at `offset` with `text`.
@@ -1178,21 +1146,6 @@ fn apply_rename_traits(out: &mut RenameBarriers, traits: Traits, scope: Option<S
         .intersects(Traits::ALIASES_CALLER_FRAME | Traits::EVALUATES_IN_SHIFTED_FRAME)
         || (reflects_vars && reflects_commands);
     out.procs |= reflects_commands;
-}
-
-/// Next short name avoiding existing and claimed names.
-fn next_unused_name(
-    r#gen: &mut NameGenerator,
-    existing: &FxHashSet<String>,
-    claimed: &FxHashSet<String>,
-) -> Option<String> {
-    for _ in 0..1000 {
-        let short = r#gen.next_name();
-        if !existing.contains(&short) && !claimed.contains(&short) {
-            return Some(short);
-        }
-    }
-    None
 }
 
 /// Apply only the original formal-name fields already checked for this header.
@@ -1346,6 +1299,7 @@ fn compact_names(
         crate::source_structure::OriginalVariableReferences::capture(source, &analysis);
     let scope_ctx = ScopeCtx {
         references: references.as_ref(),
+        config: input.lexer_config(),
         source,
         analysis: &analysis,
         isolated,
@@ -1369,7 +1323,7 @@ fn compact_names(
     // asserts a closed world (`isolated`) AND no command-name
     // reflection or computed command name is present.
     if isolated && !barriers.procs {
-        let mut proc_gen = NameGenerator::new();
+        let mut proc_gen = AuthoredCompactNameSequence::new(input.lexer_config());
         let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
         let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
         proc_keys.sort();
@@ -1386,10 +1340,13 @@ fn compact_names(
             if builtin_names.contains(name.as_str()) {
                 continue;
             }
-            let mut short = proc_gen.next_name();
-            while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
-                short = proc_gen.next_name();
-            }
+            let Some(short) = proc_gen.next_avoiding_observed(
+                |name| builtin_names.contains(name) || used_proc_names.contains(name),
+                None,
+            ) else {
+                continue;
+            };
+            let short = short.into_name();
             if short.len() >= name.len() {
                 continue;
             }
@@ -1466,16 +1423,20 @@ fn compact_logical_formals(
             .map(|formal| formal.name().to_owned())
             .chain(std::iter::once("args".to_owned()))
             .collect::<FxHashSet<_>>();
-        let mut names = NameGenerator::new();
+        let mut names = AuthoredCompactNameSequence::new(input.lexer_config());
         let mut mapping = BTreeMap::new();
         let mut claimed = FxHashSet::default();
         for formal in procedure.formals() {
             if formal.name().len() <= 1 {
                 continue;
             }
-            let Some(short) = next_unused_name(&mut names, &existing, &claimed) else {
+            let Some(short) = names.next_avoiding_observed(
+                |name| existing.contains(name) || claimed.contains(name),
+                Some(1000),
+            ) else {
                 continue;
             };
+            let short = short.into_name();
             if short.len() >= formal.name().len() {
                 continue;
             }
@@ -1500,6 +1461,7 @@ fn compact_logical_formals(
 #[derive(Clone, Copy)]
 struct ScopeCtx<'a> {
     references: Option<&'a crate::source_structure::OriginalVariableReferences<'a>>,
+    config: LexerConfig,
     source: &'a str,
     analysis: &'a AnalysisResult,
     isolated: bool,
@@ -1548,6 +1510,7 @@ fn variable_reference_name_spans(
 fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut ScopeOut<'_>) {
     let ScopeCtx {
         references,
+        config,
         source,
         analysis,
         isolated,
@@ -1584,7 +1547,7 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             lexical_metadata::parameter_name_sources(source, analysis, procedure)
         });
 
-        let mut var_gen = NameGenerator::new();
+        let mut var_gen = AuthoredCompactNameSequence::new(config);
         let existing: FxHashSet<String> = scope.variables.keys().cloned().collect();
         let mut var_map: BTreeMap<String, String> = BTreeMap::new();
 
@@ -1639,9 +1602,13 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
                 continue;
             };
             let claimed: FxHashSet<String> = var_map.values().cloned().collect();
-            let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
+            let Some(short) = var_gen.next_avoiding_observed(
+                |name| existing.contains(name) || claimed.contains(name),
+                Some(1000),
+            ) else {
                 continue;
             };
+            let short = short.into_name();
             if short.len() >= var_name.len() {
                 continue;
             }
@@ -1859,6 +1826,7 @@ fn alias_by_uses(
     order: &[String],
     uses: &HashMap<String, Vec<usize>>,
     claimed: &mut HashSet<String>,
+    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
     if order.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -1873,17 +1841,17 @@ fn alias_by_uses(
                 .cmp(&order.iter().position(|x| x == b))
         })
     });
-    let mut r#gen = NameGenerator::new();
+    let mut names = AuthoredCompactNameSequence::new(config);
     let mut aliases: Vec<(String, String)> = Vec::new();
     for name in &cands {
         let count = uses[name].len();
         if count < 2 {
             continue;
         }
-        let mut alias = r#gen.next_name();
-        while claimed.contains(&alias) {
-            alias = r#gen.next_name();
-        }
+        let Some(alias) = names.next_avoiding_observed(|name| claimed.contains(name), None) else {
+            continue;
+        };
+        let alias = alias.into_name();
         let original_cost = count * name.len();
         let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
         let aliased_cost = preamble_cost + count * (alias.len() + 1);
@@ -1917,6 +1885,7 @@ fn alias_repeated_commands(
     dialect: &'static tcl_dialect::DialectProfile,
     claimed: &mut HashSet<String>,
     registry: &CommandRegistry,
+    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
     let analysis = original::analysis_for_profile(source, dialect, registry);
     let mut order: Vec<String> = Vec::new();
@@ -1933,7 +1902,7 @@ fn alias_repeated_commands(
             })
             .push(inv.range.start() as usize);
     }
-    alias_by_uses(source, &order, &uses, claimed)
+    alias_by_uses(source, &order, &uses, claimed, config)
 }
 
 /// Emit unique-prefix keyword abbreviations, after the aliasing passes.
@@ -1991,6 +1960,7 @@ fn alias_repeated_arguments(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     claimed: &mut HashSet<String>,
+    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
     let mut order: Vec<String> = Vec::new();
     let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
@@ -2066,7 +2036,7 @@ fn alias_repeated_arguments(
                 .push(abs_off);
         }
     }
-    alias_by_uses(source, &order, &uses, claimed)
+    alias_by_uses(source, &order, &uses, claimed, config)
 }
 
 /// Build a suffix array for `text` (naive sort of byte suffixes).
@@ -2198,7 +2168,7 @@ fn alias_string_literals(
     }
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
 
-    let mut r#gen = NameGenerator::new();
+    let mut names = AuthoredCompactNameSequence::new(input.lexer_config());
     let mut claimed_bytes: HashSet<usize> = HashSet::new();
     let mut aliases: Vec<(String, String, Vec<Edit>)> = Vec::new();
     for (_, sub, offsets) in scored {
@@ -2221,10 +2191,10 @@ fn alias_string_literals(
         if free.len() < 2 {
             continue;
         }
-        let mut alias = r#gen.next_name();
-        while claimed.contains(&alias) {
-            alias = r#gen.next_name();
-        }
+        let Some(alias) = names.next_avoiding_observed(|name| claimed.contains(name), None) else {
+            continue;
+        };
+        let alias = alias.into_name();
         let count = free.len();
         let original_cost = count * sub.len();
         let preamble_cost = 4 + alias.len() + 1 + 1 + sub.len() + 1 + 1;
@@ -5773,5 +5743,40 @@ mod original_formal_name_geometry_tests {
                     .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod authored_compact_candidate_tests {
+    use super::*;
+
+    #[test]
+    fn aggressive_alias_candidates_reject_only_observed_spellings_under_whole_config() {
+        let word = "retained_long_argument";
+        let source = [word; 3].join(" ");
+        let order = vec![word.to_owned()];
+        let uses = HashMap::from([(
+            word.to_owned(),
+            vec![0, word.len() + 1, 2 * (word.len() + 1)],
+        )]);
+        let mut claimed = HashSet::from([
+            "a".to_owned(),
+            "b".to_owned(),
+            "$c".to_owned(),
+            "c(index)".to_owned(),
+            "::c".to_owned(),
+            "é".to_owned(),
+        ]);
+        let mut config = LexerConfig::default();
+        config.strict_quoting = true;
+        config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        let (rewritten, aliases) = alias_by_uses(&source, &order, &uses, &mut claimed, config);
+        assert_eq!(aliases.get(word).map(String::as_str), Some("c"));
+        assert_eq!(rewritten, format!("set c {word}\n$c $c $c"));
+        assert!(claimed.contains("c"));
+        assert_eq!(
+            tcl_syntax::naming::scalar_source_reference("c", config, false).as_deref(),
+            Some("$c")
+        );
     }
 }

@@ -1,0 +1,21 @@
+{
+  "status": "SOURCE_REPAIR_PENDING_INDEPENDENT_REVIEW_NOT_INTEGRATED",
+  "files": [
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "before_sha256": "efb4075d57d48d2fae4ba350970cb11ce9053ec2c72c0bd2795edc8af53fc92b",
+      "after_sha256": "75935322156f8b1779aea9d11047359dc0ab53b35a54d9db48b0c32675af93cd"
+    }
+  ],
+  "patch_sha256": "d55714d0688f54b7242b9fff4037fc25053b1882acd0f7a33ca77f2c80e79ac8",
+  "actual_failure": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-xtask/build.log",
+  "actual_failure_status": "CargoFAIL139.812s39030inputs0drift; noxtaskELF/tests.",
+  "locked_API": {
+    "path": "/workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-3.0.6/src/item.rs",
+    "sha256": "11529dc48c5045d3b0f7947d05ea5aadf0f389f4a8e0b25222333042721ab10f",
+    "actual_enum": "ReceiverKind::Reference(Token![&], Option<Lifetime>, Option<Token![mut]>); Typed separate; oldfields unavailable."
+  },
+  "scope": "Same borrowed shorthand-self predicate as intended originalsyn2 reference-present/colon-absent; actual locked syn3 enum. Allgenericresult/traitowner/cfg/visibility/negativeguards and allold/newtestbodies unchanged.",
+  "main": "No changes, current930fullsource/artifactfreeze respected.",
+  "actual_typecheck_tests": "Pending after freeze and actual newartifact build."
+}

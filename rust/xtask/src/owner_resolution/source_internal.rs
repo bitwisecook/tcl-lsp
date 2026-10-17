@@ -897,7 +897,7 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
 fn supported_self_method_generics(signature: &syn::Signature, owner: &syn::Path) -> bool {
     signature
         .receiver()
-        .is_some_and(|receiver| receiver.reference.is_some() && receiver.colon_token.is_none())
+        .is_some_and(|receiver| matches!(&receiver.kind, syn::ReceiverKind::Reference(..)))
         && signature.generics.where_clause.is_none()
         && signature
             .generics

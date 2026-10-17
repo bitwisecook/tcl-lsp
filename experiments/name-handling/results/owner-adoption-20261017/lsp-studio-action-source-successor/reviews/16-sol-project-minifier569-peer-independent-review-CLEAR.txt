@@ -1,0 +1,62 @@
+SOURCE / CONTRACT CLEAR — minifier569, bounded new-source construction
+
+Reviewed immutable packet:
+  /tmp/lsp-minifier-new-name-sequence-v1/new-name-sequence.patch
+  SHA-256 a5db0a7fa7fde7a910c001e0e4ef09fe0790e3554360bed786b8831e97d6e5f4
+  manifest.json SHA-256 74fd9b6dfe722a74d7fd7c60788990dcd6bd5d3dffc7de87859c003816933c05
+Independent verification:
+  /tmp/sol-project-minifier569-peer/source-verification.json
+  SHA-256 d7b22b1269980d8a2f7f737383b4725f529080f73581ef734895bf58abd635b8
+
+Exact audited purpose569 is new compacted procedure/local/formal/alias candidate
+construction, not existing-name lookup. The Syntax naming extension is the real
+public source-construction owner, exported through naming.rs and adopted by all
+six existing Core uses. Five constructor/query sites cover procedure, Logical
+formal, local, shared command/argument alias helper, and string aliases. Each
+receives the actual whole input's LexerConfig (copied through ScopeCtx or the
+actual alias caller). No local fallback profile, command resolver, existing-name
+inverse or Native cast is introduced.
+
+The new sequence preserves the old a..z, aa..az, ba... length-first ordering.
+Private indices remain in 0..25; carry/grow matches the removed generator.
+Every proposed candidate advances before rejection/cost/claim checks, as before.
+Some(1000) is retained per local/formal request; Some(0) consumes no candidate;
+None keeps the original unbounded procedure/alias search. The shared existing
+literal-word and scalar-reference constructors independently validate source
+spelling under the retained full grammar and conservatively refuse without
+trying a substitute grammar. Observed String-set predicates and claiming after
+cost/length acceptance are unchanged. The typed candidate's private fields and
+public config/into_name expose new source data, with no uniqueness, complete
+collision coverage, lookup, creation or transformation grant.
+
+Actual lexical_compact / lexical_aggressive admission is still owned by the
+unchanged minify/original.rs planner: current source/input/profile, actual
+lexical-declaration advice and supported full configuration/context are required.
+The Native branch is terminal and remains independently guarded by original
+scalar alpha/source/formal/reference coverage. All minify submodule source hashes
+are recorded; none is modified by this packet. compact_names' incomplete census
+barriers, parameter/reference geometry, isolated Logical formal binding closure,
+unknown/alias/reflection barriers and all unrelated source/rendering guards are
+unchanged. Aggressive alias insertion remains explicitly observable authoring;
+its old unresolved collision debt is not relabelled complete or absent. The new
+API and durable contracts do not convert partial Logical observations into an
+unused-name, Native, Normal, edit-equivalence or frame-transparent claim.
+
+All seven captured before/after hashes and current main bases independently
+match, including absence of the two new files. Fresh forward/inverse patch checks
+pass with zero fuzz and zero offset (--remove-empty-files preserves new-file
+absence on inverse). All three Rust afterimages parse without error. The whole
+original Core test suffix from its first tests module through original EOF is
+byte-identical, including later test modules; the 112 functions in the primary
+old tests module are also checked individually. Across all old function items,
+only the exact planned twelve production/generator functions changed/retired.
+The three appended fixed controls meaningfully exercise sequence rollover,
+consumed collision budgets, whole nondefault grammar and the actual alias
+selection/reconstruction helper. Their availability and output remain unexecuted.
+
+No demonstrated source/API/contract blocker found within this purpose. This
+receipt is not a typecheck, Cargo/build/test/list/gate execution, Native oracle,
+performance/efficacy proof, complete collision census, baseline admission or
+count advance. No main, Git, runtime or fixture/assertion changes performed by
+this reviewer. Root owns executable validation and reconciliation once per
+existing purpose/shared facet.

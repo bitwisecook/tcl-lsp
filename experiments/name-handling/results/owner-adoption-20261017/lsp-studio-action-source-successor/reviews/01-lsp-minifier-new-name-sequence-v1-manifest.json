@@ -1,0 +1,78 @@
+{
+  "purpose": "lsp-minifier-new-name-sequence",
+  "catalogue_site": "rust/tcl-lsp-core/src/minify.rs::NameGenerator / next_unused_name",
+  "patch_sha256": "a5db0a7fa7fde7a910c001e0e4ef09fe0790e3554360bed786b8831e97d6e5f4",
+  "files": [
+    {
+      "path": "docs/design/contracts/compacted-source-names.md",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "0f40f5a681e2b6bfd155c3c3759a8794f45efe622e11cce441acb14d2f526f0f",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_exists": true,
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "9658e15de808afc724783312f2ad9a6986aae9871f22d03fcd9daeffbe6fee83",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_exists": true,
+      "before_sha256": "dbc22e8f87e383cb214659a545c943c6cf33b47530a1490ba2e16159e058e4d8",
+      "after_sha256": "016145b63fe4fa3222a5ad6c22f90f1d7cb36df1c3918b53900dd2b962757228",
+      "current_before_matches": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_exists": true,
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "b001799cdb59dd83cb12a23cd9169d33bd8b00bb46bf1f5a5bbf9e0f4347f720",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_exists": true,
+      "before_sha256": "fbde190793fbd6924b68dc41c647c37e079080fcdbda4f1a6ec5f12d5e557bdb",
+      "after_sha256": "0579839afa45172eb7f6ea45fda804db8480bee2ef238ab58b69ace05f78a417",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/compacted_source.rs",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "dcc822127c258dcf9eac0fd1083f27a93f605747bb493492fce64b72c7018083",
+      "current_before_matches": true
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "before_exists": true,
+      "before_sha256": "555e646b11574b90768747f5ed6a2953ac095c6f84975b4bdf7b3c7287cad484",
+      "after_sha256": "171d1c46bfedb9fe714c085ca806d5f0d55d8108619ff451d8a12442a014c99f",
+      "current_before_matches": true
+    }
+  ],
+  "new_controls": [
+    {
+      "crate": "tcl_syntax",
+      "selector": "naming::compacted_source::tests::authored_compact_names_preserve_length_order_and_observed_collisions"
+    },
+    {
+      "crate": "tcl_syntax",
+      "selector": "naming::compacted_source::tests::authored_compact_names_retain_custom_whole_grammar_without_lookup"
+    },
+    {
+      "crate": "tcl_lsp_core",
+      "selector": "minify::authored_compact_candidate_tests::aggressive_alias_candidates_reject_only_observed_spellings_under_whole_config"
+    }
+  ],
+  "execution": "NOT RUN; no Cargo/build/test/artifact execution; Root owns ordinary validation",
+  "count": "No tracking or count advance. One audited adopter with actual necessary shared new-source sequence facet; Root reconciles owner overlap once, no per-helper/test count.",
+  "limits": [
+    "False observed-collision predicate grants no absence/uniqueness/completeness",
+    "Aggressive observable new-source policy unchanged",
+    "Native alpha/source census/edit permission stay independent",
+    "Other minifier scope-label and report identity units untouched"
+  ]
+}

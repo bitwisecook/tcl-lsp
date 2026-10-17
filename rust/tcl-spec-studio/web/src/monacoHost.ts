@@ -686,8 +686,8 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   return {
     setDslText: (text) => dsl.setText(text),
     setSampleText: (text) => sample.setText(text),
-    setRustText: (text) => rust.setText(text),
-    setStubText: (text) => stub.setText(text),
+    setRustText: (text, _sourceBasis) => rust.setText(text),
+    setStubText: (text, _sourceBasis) => stub.setText(text),
     setDialect: (dialect) => sample.setLanguageId(dialect),
     layout: () => {
       dsl.layout();

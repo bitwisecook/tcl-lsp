@@ -1,0 +1,68 @@
+{
+  "purpose": "lsp-server-disk-document-context",
+  "catalogue_index": 705,
+  "scope": "closed selected-source decode/report/dialect context adoption only",
+  "patch": "repair.patch",
+  "patch_sha256": "3fea5e4825fbcbf4ef2ba1479a56777a9c146d1cf24e8080d186d295bf8011ea",
+  "source_basis_sha256": "9bc3a73d5a793f609298e1dfc954104695a56089f40c531fbebeb17db229d1cd",
+  "source_verification_sha256": "160a68519b936e267c0be800b4f4513495717c24977e8b80b4df24ac40f2b505",
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "faf2f4eae0cf6948e0b4371b1a71b8ffc8c56435089d958c09532d73ed7c7d94",
+      "actual_current_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "faf3b16c341e1d30384096f56832a508cf2915179e4f892d4496f785cf178fdc",
+      "actual_current_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "after_sha256": "94067b29146a45d73388db0105de9cdd2ccb62df1dfe4a70bdb3afa53bf21568",
+      "actual_current_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "actual_current_matches_before": true
+    }
+  ],
+  "new_test_selectors": [
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_read_uses_detected_configured_and_document_override_dialect",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_read_retains_actual_decoder_report_and_pre_normalised_text",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_selected_source_and_dialect_reach_real_fresh_analysis_input",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_source_read_does_not_renew_retired_provider_mapping",
+      "executed": false
+    },
+    {
+      "crate": "tcl_lsp_server",
+      "selector": "closed_document_source_context_tests::closed_context_does_not_replace_live_editor_source_or_language_choice",
+      "executed": false
+    }
+  ],
+  "original_assertions_fixtures": "all original fn items except actual production read_document_at byte-identical; five new independent fixed controls appended",
+  "requirements_reconciliation": "existing baseline705 caller adoption reuses existing shared path/decoder/dialect/full-input owners; no new facet/annex or count advance claimed",
+  "executions": "none; source parsing, TMP formatting and patch forward/inverse only",
+  "residuals": [
+    "No atomic disk source lease or external-writer exclusion is added; downstream publication/currentness guards remain independent.",
+    "No original byte image, Native execution/identity, absence, frame or edit authority is supplied by decoding/normalisation.",
+    "New control availability/efficacy remains unexecuted.",
+    "Cached analysis and stronger per-feature source/input refusal remain independently owned; this packet does not manufacture a refreshed indexed SourceFile."
+  ]
+}

@@ -1295,6 +1295,53 @@
         "verified_complete": false
       },
       "implementation_scope": "WholeV3/source contracts and independent kernel/whole reviews CLEAR; actual integration all19 hashes exact,16Rust parse/formatPASS. No Native/execution/effect/absence/Normal grant. Actual build/tests/gates unexecuted."
+    },
+    {
+      "id": "lsp.owner.studio-source-publication-lifetime",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-jetbrains-studio-generated-source-lifetime",
+        "lsp-editor-studio-source-lifecycle"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/studio_source.rs",
+          "symbol": "Saved-source lease acquire/publish/retire and same-session final publication guard"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/source_store.rs",
+          "symbol": "Actual saved source image closure"
+        },
+        {
+          "path": "rust/tcl-spectcl/src/pack.rs",
+          "symbol": "Unpublished checked source preparation"
+        }
+      ],
+      "rationale": "One missing shared genuine Studio source publication owner, independent of the two actual IDE caller lifetimes. Existing source reads or pack load APIs did not retain final saved-image/session/publication generation through publishing and retirement. SourceStore/pack helpers implement this single purpose; no per API/helper/test counting.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Actual reviewed source integration; initial build/editor failures retained; positive execution/fullgates pending. Native/absence/execution/effect/Normal grants unchanged."
+    },
+    {
+      "id": "syntax.owner.configured-authored-compact-name-sequence",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-minifier-new-name-sequence"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming/compacted_source.rs",
+          "symbol": "Shared configured source candidate sequence and observed collision policy"
+        }
+      ],
+      "rationale": "One missing shared generated source-name sequence owner required by existing minifier caller569; distinct from existing native-original-expression gap action owner, which supplies existing-name/equivalence geometry rather than generation order/configured candidate construction/observed collisions. Six minifier candidate uses share one owner and count as one existing caller, not six.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "Actual reviewed source integration; initial build/editor failures retained; positive execution/fullgates pending. Native/absence/execution/effect/Normal grants unchanged."
     }
   ],
   "unverified_or_open": [
@@ -1308,26 +1355,26 @@
   "status": "accepted_additional_obligations_unverified",
   "utc": "2026-10-16T22:00:47.293633+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 59,
+    "semantic_code_changes": 61,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 60,
+    "all_required_changes": 62,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 33,
+      "shared_owner_extension": 35,
       "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1858,
+    "semantic_code_changes": 1860,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2218
+    "all_required_changes": 2220
   },
   "implementation_progress": {
-    "implemented_pending_validation": 59,
+    "implemented_pending_validation": 61,
     "not_integrated": 1,
     "verified_complete": 0
   }

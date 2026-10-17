@@ -234,6 +234,9 @@ pub enum SourceUriPathUnavailable {
     WithdrawnMapping,
     /// A stronger URI mapping selects a different path from the actual source producer.
     PathOriginMismatch,
+    /// The exact selected saved image is missing, changed or unreadable.
+    /// This supplies no file-absence or physical-identity verdict.
+    SourceImageUnavailable,
 }
 
 impl std::fmt::Display for SourceUriPathUnavailable {
@@ -248,6 +251,9 @@ impl std::fmt::Display for SourceUriPathUnavailable {
             }
             Self::WithdrawnMapping => {
                 out.write_str("the selected URI mapping is no longer current")
+            }
+            Self::SourceImageUnavailable => {
+                out.write_str("the selected saved source image is unavailable")
             }
             Self::PathOriginMismatch => {
                 out.write_str("the selected URI mapping does not name the produced source path")
@@ -477,6 +483,24 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
         Err(SourceUriPathUnavailable::ProviderUnavailable)
     }
 
+    /// Reborrow the actual selected saved images before one bounded synchronous
+    /// publication. MemoryStore holds mappings and bytes throughout; Native/WASI
+    /// reobserves actual saved bytes immediately before the callback, without
+    /// excluding external writers or granting a physical snapshot/Native role.
+    /// The callback must not await, perform I/O or reenter this store.
+    /// Missing capability is unavailable, never successful empty standing.
+    ///
+    /// # Errors
+    /// Refuses an unavailable/foreign/withdrawn selection or changed/unreadable
+    /// expected saved image before invoking the callback.
+    fn with_current_document_sources(
+        &self,
+        _selected: &[(&SourceUriPath, &[u8])],
+        _publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
     /// Identify the source-census authority for this provider.
     fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
         WorkspaceSourceInventoryProvider::Untracked
@@ -680,6 +704,21 @@ impl SourceStore for NativeStore {
     ) -> Result<(), SourceUriPathUnavailable> {
         for path in selected {
             self.validate_document_uri_path(path)?;
+        }
+        publish();
+        Ok(())
+    }
+
+    fn with_current_document_sources(
+        &self,
+        selected: &[(&SourceUriPath, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        for (path, expected) in selected {
+            self.validate_document_uri_path(path)?;
+            if self.read(path.path()).ok().as_deref() != Some(*expected) {
+                return Err(SourceUriPathUnavailable::SourceImageUnavailable);
+            }
         }
         publish();
         Ok(())
@@ -925,6 +964,31 @@ impl MemoryStore {
     }
 }
 
+impl MemoryStore {
+    fn validate_locked_document_paths(
+        &self,
+        aliases: &HashMap<String, Arc<UriAliasBinding>>,
+        selected: &[&SourceUriPath],
+    ) -> Result<(), SourceUriPathUnavailable> {
+        for path in selected {
+            let SourceUriSelection::Memory { owner, binding } = &path.selection else {
+                return Err(SourceUriPathUnavailable::ForeignProvider);
+            };
+            if path.kind != SourceUriPathKind::Virtual
+                || !Weak::ptr_eq(owner, &Arc::downgrade(&self.aliases))
+            {
+                return Err(SourceUriPathUnavailable::ForeignProvider);
+            }
+            match (aliases.get(path.original_uri()), binding) {
+                (None, None) => {}
+                (Some(current), Some(retained)) if Arc::ptr_eq(current, retained) => {}
+                _ => return Err(SourceUriPathUnavailable::WithdrawnMapping),
+            }
+        }
+        Ok(())
+    }
+}
+
 impl SourceStore for MemoryStore {
     fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
         WorkspaceSourceInventoryProvider::HostReported
@@ -1034,19 +1098,23 @@ impl SourceStore for MemoryStore {
         publish: &mut dyn FnMut(),
     ) -> Result<(), SourceUriPathUnavailable> {
         let aliases = Self::lock(&self.aliases);
-        for path in selected {
-            let SourceUriSelection::Memory { owner, binding } = &path.selection else {
-                return Err(SourceUriPathUnavailable::ForeignProvider);
-            };
-            if path.kind != SourceUriPathKind::Virtual
-                || !Weak::ptr_eq(owner, &Arc::downgrade(&self.aliases))
-            {
-                return Err(SourceUriPathUnavailable::ForeignProvider);
-            }
-            match (aliases.get(path.original_uri()), binding) {
-                (None, None) => {}
-                (Some(current), Some(retained)) if Arc::ptr_eq(current, retained) => {}
-                _ => return Err(SourceUriPathUnavailable::WithdrawnMapping),
+        self.validate_locked_document_paths(&aliases, selected)?;
+        publish();
+        Ok(())
+    }
+
+    fn with_current_document_sources(
+        &self,
+        selected: &[(&SourceUriPath, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        let aliases = Self::lock(&self.aliases);
+        let paths = selected.iter().map(|(path, _)| *path).collect::<Vec<_>>();
+        self.validate_locked_document_paths(&aliases, &paths)?;
+        let files = Self::lock(&self.files);
+        for (path, expected) in selected {
+            if files.get(path.path()).map(Vec::as_slice) != Some(*expected) {
+                return Err(SourceUriPathUnavailable::SourceImageUnavailable);
             }
         }
         publish();
@@ -1461,5 +1529,39 @@ mod actual_source_path_origin_tests {
         assert_eq!(origin.kind(), SourceUriPathKind::WasiGuest);
         assert_eq!(origin.path().as_os_str(), path.as_os_str());
         NativeStore.validate_source_path_origin(&origin).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod saved_source_publication_tests {
+    use super::*;
+
+    #[test]
+    fn selected_memory_source_holds_mapping_and_bytes_and_refuses_in_place_change() {
+        let store = MemoryStore::new();
+        let uri = "file:///studio/active.tclspec";
+        store.upsert_uri(uri, "/studio/active.tclspec", b"original".to_vec());
+        let selected = store.document_uri_path(uri).unwrap();
+        let mut published = 0;
+        store
+            .with_current_document_sources(&[(&selected, b"original")], &mut || {
+                assert!(store.aliases.try_lock().is_err());
+                assert!(store.files.try_lock().is_err());
+                published += 1;
+            })
+            .unwrap();
+        assert_eq!(published, 1);
+        store.upsert("/studio/active.tclspec", b"changed".to_vec());
+        store.validate_document_uri_path(&selected).unwrap();
+        assert_eq!(
+            store
+                .with_current_document_sources(&[(&selected, b"original")], &mut || published += 1),
+            Err(SourceUriPathUnavailable::SourceImageUnavailable)
+        );
+        assert_eq!(published, 1);
+        store
+            .with_current_document_sources(&[(&selected, b"changed")], &mut || published += 1)
+            .unwrap();
+        assert_eq!(published, 2);
     }
 }

@@ -1,0 +1,14 @@
+Independent Sol source review — Studio TypeScript literal/API plus scoped formatting repair
+Status: CLEAR for exact narrow source integration.
+Patch /tmp/luna-studio-ts-repair-v1/frozen/repair.patch SHA2569a9c001979c40c17509f4eb70b7be9f38f51e9cbe5ff8dda8686603900a29a13.
+Manifest SHA256e14389ad4a1581dcc299cd66a6f9329fcbe4dd33b0dbbaa070b595c9a25cae03.
+Captured basecf166eff497d6fe414c650c61cc1ec2dce609164; exact six beforeimages independently read from current main and match frozen manifest. All six candidate after hashes match.
+
+Actual captured TS2345 identifies three CodeActionContext literals missing required only. Installed @types/vscode/index.d.ts2588 declares readonly only:CodeActionKind|undefined. Adding only:undefined supplies that required field without restricting selected kinds, changing diagnostics or triggerKind, or suppressing checking. Exactly three literal additions in commands.test.ts.
+Actual captured web TS2550 names messages.at(-1), not updates("dsl").at(-1). Replacing exactly that last-element access with messages[messages.length-1] keeps existing optional dialect projection/assertion, including undefined for empty array, without changing tsconfig/lib target. Exact changed expression follows captured source.
+
+Independent TypeScript AST comparison over all six source files: after applying only those three property additions and one last-element expression replacement to before text, both full files parse and their ASTs match (normalised source positions and transparent parentheses). Therefore all remaining differences are formatting, including whole web units.test.ts formatting. Original assertions/fixtures/selectors/control flow and timeout budgets have no semantic changes. No changes to publication identity, pending/source checks, output tuple cache or binding owners.
+
+Exact patch apply/reversal independently pass --fuzz=0 zerooffset and restore all six original before hashes. Four actual failure-log hashes match manifest, preserving TS2345, TS2550, formatting and original EPERM. Root separately owns permission-retry result; this review claims no Node-test rerun. Evidence verify.py/ast.cjs/fresh/forward.log/inverse.log beside receipt. Review performed static TS AST parsing only, no typecheck/tests/bundles/Cargo/build/IDE/main/Git execution or edits.
+
+Packaging note: packet baseline/ tree does not match manifest original-before hashes (it appears transformed), so it was not used as original authority. Verified actual-main beforeimages and immutable manifest/fresh reversal provide exact original basis. Preserve that evidence and do not describe baseline/ as byte-exact captured-before storage without correction. No source blocker follows because every actual current beforeimage matches claimed captured hash and patch applies exactly.

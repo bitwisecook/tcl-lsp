@@ -1,0 +1,50 @@
+{
+  "scope": "exact actual current main file snapshots, no guessed Git/source/ELF binding",
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "faf2f4eae0cf6948e0b4371b1a71b8ffc8c56435089d958c09532d73ed7c7d94",
+      "actual_current_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "faf3b16c341e1d30384096f56832a508cf2915179e4f892d4496f785cf178fdc",
+      "actual_current_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "actual_current_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "after_sha256": "94067b29146a45d73388db0105de9cdd2ccb62df1dfe4a70bdb3afa53bf21568",
+      "actual_current_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "actual_current_matches_before": true
+    }
+  ],
+  "catalogue": {
+    "path": "docs/work/name-handling/repository-consumer-audit-final.json",
+    "unit": "lsp-server-disk-document-context",
+    "index": 705,
+    "sha256": "84dc1388628719624e6b4845780ed0e8fc4c87b7f5551686141a60df3466028b"
+  },
+  "shared_owners": [
+    {
+      "path": "rust/tcl-lsp-core/src/vfs.rs",
+      "sha256": "9fd6591848434cdf5e1367b76c68a7067a63c18ca4c7ba010c51b631b91bc577"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_decode.rs",
+      "sha256": "7167c837ec3840e37af234bffafa122fd67e3c26371fe6b330d9ad5dc4714cb7"
+    },
+    {
+      "path": "rust/tcl-registry/src/dialects.rs",
+      "sha256": "91e64d85884c8d3ede0b7ecddd3e86b56a79659daeb28f75da932d6212b9ad8f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/input.rs",
+      "sha256": "c7a6775b946e6a8ea62790c7b05ea7613b8eef0a4e7268eab1a76e03fc9b6e66"
+    }
+  ]
+}

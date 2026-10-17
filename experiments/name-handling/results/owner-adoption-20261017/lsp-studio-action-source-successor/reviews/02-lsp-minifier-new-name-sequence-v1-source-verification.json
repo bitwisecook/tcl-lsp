@@ -1,0 +1,7 @@
+{
+  "fresh_fuzz0_zero_offset_forward_inverse": true,
+  "rust_afterimages_parse": 3,
+  "whole_old_core_test_suffix_byte_exact": true,
+  "all_current_beforeimages_exact": true,
+  "no_execution": true
+}

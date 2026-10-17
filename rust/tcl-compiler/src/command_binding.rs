@@ -146,6 +146,7 @@ pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
+pub use source_transition_advice::OriginalConditionalLambdaFormattingBody;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
     LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
@@ -471,6 +472,18 @@ pub enum SourceOriginKind {
         /// Exact decoded script bytes consumed by native source evaluation.
         source: tcl_lexer::SourceImage,
     },
+    /// Conditional source syntax decoded from an original configured list field.
+    /// This is not native script materialisation, a document root or body entry.
+    ConditionalField {
+        /// Actual original parent invocation in its own source instance.
+        parent: CommandAllocationSite,
+        /// Actual effective post-head lambda argument ordinal.
+        argument: usize,
+        /// Actual list field ordinal within the complete lambda word.
+        field: usize,
+        /// Decoded source-only script bytes in their distinct source instance.
+        source: tcl_lexer::SourceImage,
+    },
     /// Script materialised from the frozen operands of another invocation.
     Derived {
         /// Parent invocation, including its source instance.
@@ -534,7 +547,8 @@ impl SourceOriginId {
         match self.kind() {
             SourceOriginKind::Authored(source)
             | SourceOriginKind::Loaded { source, .. }
-            | SourceOriginKind::Derived { source, .. } => source,
+            | SourceOriginKind::Derived { source, .. }
+            | SourceOriginKind::ConditionalField { source, .. } => source,
         }
     }
 
@@ -3058,7 +3072,9 @@ impl CommandAllocation {
                     implementation_id,
                     ..
                 } => !implementation_id.is_empty() && text == source,
-                SourceOriginKind::Derived { .. } => false,
+                SourceOriginKind::Derived { .. } | SourceOriginKind::ConditionalField { .. } => {
+                    false
+                }
             }
     }
 }

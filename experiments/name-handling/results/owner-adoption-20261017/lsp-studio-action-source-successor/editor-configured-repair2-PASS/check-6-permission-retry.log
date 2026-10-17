@@ -1,0 +1,214 @@
+
+> @tcl-spec-studio/web@0.0.0 test
+> node build.mjs --tests && node --test dist/tests/units.test.mjs
+
+
+  dist/tests/units.test.mjs  99.3kb
+
+⚡ Done in 12ms
+▶ mapSelectionThroughFormat
+  ✔ keeps a caret after its text when formatting inserts indentation (1.423523ms)
+  ✔ keeps the caret at the end of indentation before the next token (0.146859ms)
+  ✔ maps both ends of a selection through whitespace-only edits (0.170214ms)
+✔ mapSelectionThroughFormat (2.802581ms)
+▶ parseRepoRef
+  ✔ accepts the shapes a repository actually reaches a clipboard in (0.445315ms)
+  ✔ refuses what is not a repository reference (0.184876ms)
+✔ parseRepoRef (0.790269ms)
+▶ native editor bridge generated-source protocol
+  ✔ keeps bootstrap and selected output tied to the exact acknowledged DSL image (1.466688ms)
+✔ native editor bridge generated-source protocol (1.599456ms)
+▶ versionFromTag
+  ✔ reads the version out of the usual tag spellings (0.338655ms)
+  ✔ hands back a tag it cannot read rather than dropping it (0.092127ms)
+✔ versionFromTag (0.591913ms)
+▶ versionFromFileName
+  ✔ suggests a label from the archive names GitHub produces (0.377663ms)
+  ✔ suggests nothing rather than something wrong (0.197054ms)
+✔ versionFromFileName (0.692033ms)
+▶ nextPageUrl
+  ✔ finds the next link among several relations (0.183644ms)
+  ✔ reports no next page on the last one, and on no header at all (0.113319ms)
+✔ nextPageUrl (0.38214ms)
+▶ failureMessage
+  ✔ names the reset time when the rate limit is what failed (12.041701ms)
+  ✔ treats 429 with no remaining quota as a rate limit too (0.110194ms)
+  ✔ does not blame the rate limit for a 403 that still has quota (0.07356ms)
+  ✔ explains a 404 in terms a user can act on (0.158897ms)
+✔ failureMessage (12.51662ms)
+▶ listTags
+  ✔ returns tags in GitHub's order with a version derived for each (0.533115ms)
+  ✔ follows the Link header until it has enough, then stops (0.213719ms)
+  ✔ stops at the last page rather than asking forever (0.269432ms)
+  ✔ turns a failed page into the message the panel shows (0.666424ms)
+  ✔ ignores entries a page carries that are not named tags (0.206969ms)
+✔ listTags (2.065922ms)
+▶ zipballUrl and fetchZipball
+  ✔ addresses the tag through refs/tags so a same-named branch cannot win (0.118377ms)
+  ✔ escapes each path segment of a slashed tag without escaping the slash (0.106589ms)
+  ✔ returns the archive bytes on success (0.295561ms)
+  ✔ names the release in the failure so a partial fetch says which one stopped (0.248761ms)
+✔ zipballUrl and fetchZipball (0.909888ms)
+▶ validateReleases
+  ✔ passes a well-formed set silently (0.235341ms)
+  ✔ says a single release cannot witness a range (0.08695ms)
+  ✔ names every unlabelled archive rather than only the first (0.087972ms)
+  ✔ refuses duplicate labels, which would collapse two releases into one (0.159278ms)
+  ✔ reports an archive that yielded no Tcl at all (0.14078ms)
+  ✔ refuses release inference from a lossy source preview (0.119458ms)
+✔ validateReleases (1.008445ms)
+▶ snapshotsJson
+  ✔ retains unrepresentable source metadata through the WASM boundary (0.209713ms)
+  ✔ emits exactly the shape the wasm export parses, with labels trimmed (0.111627ms)
+✔ snapshotsJson (0.391084ms)
+▶ lifecycleOf
+  ✔ reads the bounds off the draft that is about to be written (0.197515ms)
+  ✔ treats an absent, null, or empty field as no claim (0.086198ms)
+✔ lifecycleOf (0.394509ms)
+▶ groupByPack
+  ✔ files each command under the pack that declares it, names ascending (0.22118ms)
+  ✔ has no pack at all for an empty index (0.06007ms)
+✔ groupByPack (0.345836ms)
+▶ packSections
+  ✔ keeps the catalogue's order and drops the packs this dialect never reaches (0.259086ms)
+  ✔ keeps only the packs a filter leaves something in (0.159819ms)
+  ✔ still browses a dialect the catalogue does not describe (0.161851ms)
+  ✔ files a command with no declared pack rather than losing it (0.149583ms)
+✔ packSections (1.869779ms)
+▶ packIndex
+  ✔ answers a chip's question: what is this pack id called, and where is it (0.153429ms)
+✔ packIndex (0.210093ms)
+▶ packCountLabel
+  ✔ names the pack's size when nothing is filtered out (0.132418ms)
+  ✔ gives the share of the pack a filter left (0.049434ms)
+✔ packCountLabel (0.236282ms)
+▶ browserCountLine
+  ✔ says what is being viewed and where it lives (0.086178ms)
+  ✔ names the packs a filter matched as well as the commands (0.065518ms)
+  ✔ says so plainly when there is nothing to show (0.050044ms)
+✔ browserCountLine (0.266717ms)
+▶ alsoInSentence
+  ✔ names the other packs that declare the same command (0.079579ms)
+  ✔ says nothing about a name only one pack declares (0.041081ms)
+✔ alsoInSentence (0.166328ms)
+▶ describeSubject
+  ✔ documents a setting with its schema help and its example (0.472866ms)
+  ✔ falls back to the subcommand table, then to nested properties (0.226608ms)
+  ✔ documents a group, a catalogue, one of its values, and a pack (0.269452ms)
+  ✔ resolves nothing it cannot document, so the dock keeps what it had (0.372325ms)
+✔ describeSubject (1.478876ms)
+▶ relatedGroups
+  ✔ labels every key, marks the field itself, and flags keys the schema lacks (0.211556ms)
+  ✔ sends a nested key to the row it is edited in, and offers no other (0.122402ms)
+  ✔ says nothing when a studio build predates the key (0.079298ms)
+✔ relatedGroups (0.492205ms)
+▶ ownerField
+  ✔ answers with the row a key is edited in, and nothing for a key it lacks (0.083114ms)
+  ✔ indexes every documented key, nested properties included (0.061381ms)
+✔ ownerField (0.194059ms)
+▶ fieldAnchorId
+  ✔ derives one stable id per key (0.112378ms)
+✔ fieldAnchorId (0.153189ms)
+▶ parseHash and formatHash
+  ✔ round-trips a command, a focused setting, and a reference entry (0.28135ms)
+  ✔ encodes a command name that a path would otherwise split (0.103053ms)
+  ✔ reads a fragment that names no view of the studio as no route (0.090014ms)
+  ✔ survives a hand-edited fragment rather than throwing during boot (0.093369ms)
+✔ parseHash and formatHash (0.692273ms)
+▶ historyMode
+  ✔ replaces within one command so Back moves between commands (0.114591ms)
+  ✔ pushes for another command, another dialect, or another kind of view (0.061903ms)
+  ✔ replaces when a route is re-written over itself, as restoring one does (0.056094ms)
+✔ historyMode (0.303833ms)
+▶ restoreFor
+  ✔ restores a Reference entry as the Reference view, not as the visit it was opened from (0.150955ms)
+  ✔ opens the visit an entry names when the fragment agrees it is that command (0.077666ms)
+  ✔ follows the fragment when the visit stack disagrees or has lost the visit (0.077075ms)
+  ✔ falls back to the entry's visit only where there is no view to restore (0.061631ms)
+  ✔ takes X → Reference → Y back to the Reference entry and then to X (0.104866ms)
+✔ restoreFor (0.720635ms)
+▶ routeSubject
+  ✔ documents the setting a command route focuses, and nothing when it names none (0.114051ms)
+  ✔ documents a reference route as its catalogue, or as the one value it names (0.197665ms)
+✔ routeSubject (0.407247ms)
+▶ openTab
+  ✔ adds a command and gives it the form, in the order it was opened (0.319386ms)
+  ✔ focuses a command already open rather than opening it twice (0.159938ms)
+  ✔ keeps where a command was opened from, which is how it reopens (0.077446ms)
+✔ openTab (0.633525ms)
+▶ the cap on open tabs
+  ✔ closes the least recently used clean tab, and says which (0.210194ms)
+  ✔ counts a revisit as use, so the tab you keep returning to survives (0.12718ms)
+  ✔ passes over a tab that has been edited while a clean one is available (0.163834ms)
+  ✔ closes the oldest edited tab when every other one is edited (0.099268ms)
+  ✔ never closes the tab the form is showing (0.070856ms)
+✔ the cap on open tabs (0.790799ms)
+▶ closeTab
+  ✔ brings the tab to the right forward, then the one to the left (0.130284ms)
+  ✔ leaves the form alone when the tab closed was not the one showing (0.070465ms)
+  ✔ empties out rather than leaving a phantom focus (0.078807ms)
+  ✔ ignores a name it does not have open (0.063315ms)
+✔ closeTab (0.430161ms)
+▶ cycleIndex
+  ✔ wraps both ways over the strip (0.137976ms)
+  ✔ has nowhere to go with nothing open, and enters at an end otherwise (0.124065ms)
+✔ cycleIndex (0.325405ms)
+▶ renameTab
+  ✔ follows a rename in place, keeping the tab's position and its view (0.16043ms)
+  ✔ leaves an unopened or unchanged name alone (0.057756ms)
+  ✔ does not leave two tabs over one declaration (0.074071ms)
+✔ renameTab (0.36161ms)
+▶ retainTabs
+  ✔ closes the tabs whose declaration the document no longer has (0.136473ms)
+  ✔ says nothing came forward when the tab showing survived (0.113169ms)
+✔ retainTabs (0.30848ms)
+▶ readStoredTabs and restoreTabs
+  ✔ keeps the rows a session record actually carries and drops the rest (1.287771ms)
+  ✔ keeps an all-closed view distinct from a tab that was never left (0.32141ms)
+  ✔ reads a record written before tabs existed as no tabs, not as a failure (0.085828ms)
+  ✔ round-trips the strip and reopens on the command that was showing (0.126759ms)
+  ✔ restores a list the studio could have produced: no duplicates, within the cap (0.098346ms)
+  ✔ keeps the restored tab clear of the first eviction (0.135953ms)
+  ✔ has no tab to give when the record named none (0.057797ms)
+✔ readStoredTabs and restoreTabs (2.289685ms)
+▶ highlight
+  ✔ finds the query case-insensitively and keeps the source's own casing (0.123774ms)
+  ✔ marks nothing rather than everything when there is nothing to mark (0.063134ms)
+✔ highlight (0.238866ms)
+▶ searchPalette
+  ✔ answers with the best kind of match first (0.272307ms)
+  ✔ puts the pack under edit before the registry, and both before the Reference (0.128462ms)
+  ✔ prefers the shorter name among equals, then the alphabet (0.097796ms)
+  ✔ locates the match in the name and in the summary alike (0.136824ms)
+  ✔ offers the surfaces in their own order when nothing has been typed (0.105257ms)
+  ✔ counts every match, not only the ones the cap left room for (0.080139ms)
+✔ searchPalette (0.93892ms)
+▶ paletteSummary and surfaceLabel
+  ✔ names every surface it is about to search before anything is typed (0.206428ms)
+  ✔ says where it looked when it found nothing, which is what makes that useful (0.071917ms)
+  ✔ breaks the hits down by surface, and says so when the cap held some back (0.149623ms)
+  ✔ leaves out a surface that answered nothing, and counts one match as one (0.070865ms)
+  ✔ names the pack under edit even before the document has one (0.11376ms)
+✔ paletteSummary and surfaceLabel (0.71691ms)
+▶ the pack export
+  ✔ files the artefacts as a contribution is read: document, sources, stub (0.445805ms)
+  ✔ offers one stub spelling at a time, because they say the same thing (0.145387ms)
+  ✔ drops a section the export has nothing for rather than showing it empty (0.082212ms)
+  ✔ names every kind, and sends each to the surface that can render it (0.143814ms)
+  ✔ stops calling the registry sources drop-in when the collector is an addition (0.224886ms)
+  ✔ renders into the pack's own directory until the author names another (0.079759ms)
+  ✔ follows the document's name, but never over a value the author typed (0.059549ms)
+  ✔ says which commands met at one path, and what it costs (0.209373ms)
+  ✔ counts what the list shows, not what the export holds (0.072668ms)
+  ✔ says an empty pack is empty rather than counting nothing (0.092738ms)
+  ✔ keeps the reader on the file they were reading across a recompute (0.076374ms)
+  ✔ splits a path into the name a row leads with and the directory under it (0.122433ms)
+✔ the pack export (2.017769ms)
+ℹ tests 124
+ℹ suites 37
+ℹ pass 124
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.071985

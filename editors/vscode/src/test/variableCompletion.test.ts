@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, pollUntil } from "./helper";
+import { getDocUri, activate, pollUntil, scaledTimeout, waitForCurrentDiagnostics } from "./helper";
 
 /**
  * Open the fixture, apply an in-memory edit that inserts a probe (``$`` or
@@ -82,19 +82,32 @@ async function completionItems(
 }
 
 /**
- * Revert `doc` and wait until its buffer is actually back to `baseline`.
- *
- * The revert command resolves before the restored text is necessarily visible
- * to everything downstream; returning early leaves the *next* test reading a
- * document — and diagnostics — that still reflect the edit.
+ * Revert `doc`, then wait for a complete current diagnostic result for the
+ * restored source before the next completion test can reuse the fixture.
  */
 async function revertToBaseline(doc: vscode.TextDocument, baseline: string): Promise<void> {
   await vscode.commands.executeCommand("workbench.action.files.revert", doc);
-  await pollUntil(
-    () => Promise.resolve(doc.getText()),
-    (text) => text === baseline,
-    { timeout: 10_000, label: "document reverted to its on-disk content" },
-  );
+  const deadline = Date.now() + scaledTimeout(10_000);
+  while (doc.getText() !== baseline && Date.now() < deadline) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(50, Math.max(1, deadline - Date.now()))),
+    );
+  }
+  if (doc.getText() !== baseline) {
+    throw new Error("Timed out waiting for document to revert to its on-disk content");
+  }
+  const remaining = (): number => Math.max(0, deadline - Date.now());
+  const restoredVersion = doc.version;
+  if (remaining() <= 0) {
+    throw new Error("Timed out waiting for restored-source diagnostics");
+  }
+  await waitForCurrentDiagnostics(doc.uri, {
+    expectedSource: baseline,
+    timeout: remaining(),
+  });
+  if (doc.version !== restoredVersion || doc.getText() !== baseline) {
+    throw new Error("Document changed while restored-source diagnostics were settling");
+  }
 }
 
 function labelOf(item: vscode.CompletionItem): string {

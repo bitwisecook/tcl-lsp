@@ -1,0 +1,18 @@
+{
+  "root_independent_all31_actual_bases_afterimages_patch_ingredients_reviews_verified": true,
+  "patch_sha256": "ac7a976b047564d5a202f7bf27cd0c519a16526e46a106f9affa44e635c3ccf6",
+  "all_actual_main_afterimages_match": true,
+  "independent_validation_peer_supplements": [
+    [
+      "/workspace/naming-validation/agent-work/independent-validation-v4-review/independent-review-CLEAR.txt",
+      "6c4584fbb088031fe121175f23b805244efee8b855b77de9bf0fc7c27b907c57"
+    ],
+    [
+      "/workspace/naming-validation/agent-work/independent-irules-v1-review/independent-review-CLEAR.txt",
+      "3046bba69108b5ba421f2d9eb399171d3b82885e2bb2e430a92837dc79ae752a"
+    ]
+  ],
+  "source_only": true,
+  "format_only_moduleordering_irules_linewrap_pending": true,
+  "counts_execution": "Root reconciliation and actual successor builds/tests pending"
+}

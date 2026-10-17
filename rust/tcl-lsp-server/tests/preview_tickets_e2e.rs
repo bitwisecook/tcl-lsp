@@ -116,7 +116,17 @@ async fn read_until_id<R>(reader: &mut BufReader<R>, id: &str) -> Option<String>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
-    let deadline = tokio::time::Instant::now() + RESPONSE_BACKSTOP;
+    read_until_id_before(reader, id, tokio::time::Instant::now() + RESPONSE_BACKSTOP).await
+}
+
+async fn read_until_id_before<R>(
+    reader: &mut BufReader<R>,
+    id: &str,
+    deadline: tokio::time::Instant,
+) -> Option<String>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
@@ -203,7 +213,7 @@ async fn did_open(
     writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
     uri: &str,
     text: &str,
-) {
+) -> String {
     let escaped = text
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
@@ -212,6 +222,7 @@ async fn did_open(
         r#"{{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{{"textDocument":{{"uri":"{uri}","languageId":"tcl","version":1,"text":"{escaped}"}}}}}}"#,
     );
     writer.write_all(frame(&msg).as_bytes()).await.unwrap();
+    text.to_owned()
 }
 
 async fn did_close(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, uri: &str) {
@@ -224,21 +235,136 @@ async fn did_close(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, u
 /// The next `publishDiagnostics` frame for `uri`.
 ///
 /// Waits for the publish instead of collecting whatever turns up inside a
-/// fixed window. The publish is the server's terminal signal for the work it
-/// was just asked to do, so waiting for it is exact; a window is a bet on how
-/// long that work takes, and losing the bet is silent — the caller is handed
-/// an empty string and every `!diags.contains(CODE)` assertion passes as
-/// though the server had cleanly reported nothing. Returns empty only if the
-/// backstop expires, which means the server really did stop publishing.
+/// fixed window. The publish is a wake-up signal, not source/config
+/// completion: open-document callers also require the exact current report.
+/// A missing publish is an error, so negative assertions cannot treat a
+/// timeout as an empty diagnostic set. The closed-document caller uses this
+/// only to require the post-close publication and still asserts its expected
+/// positive diagnostic.
 async fn published_codes(
     reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
     uri: &str,
-) -> String {
+) -> Result<String, String> {
+    published_codes_before(reader, uri, tokio::time::Instant::now() + ANALYSIS_BACKSTOP).await
+}
+
+/// Wait for the open document's publish, then query the existing publisher
+/// owner for that exact client-authored source and version. A notification is
+/// only the wake-up signal; only a complete matching report supplies findings.
+async fn current_published_codes(
+    reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+    writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
+    uri: &str,
+    version: i32,
+    source: &str,
+) -> Result<String, String> {
     let deadline = tokio::time::Instant::now() + ANALYSIS_BACKSTOP;
+    published_codes_before(reader, uri, deadline).await?;
+
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
-            return String::new();
+            return Err(format!(
+                "current diagnostics exceeded {ANALYSIS_BACKSTOP:?}: {uri}"
+            ));
+        }
+        let id = "preview-current-diagnostics";
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "workspace/executeCommand",
+            "params": {
+                "command": "tcl-lsp.currentDiagnostics",
+                "arguments": [{"uri": uri, "version": version, "source": source}],
+            },
+        })
+        .to_string();
+        writer
+            .write_all(frame(&request).as_bytes())
+            .await
+            .map_err(|error| format!("sending current-diagnostics request failed: {error}"))?;
+        let response =
+            read_until_id_before(reader, r#""id":"preview-current-diagnostics""#, deadline)
+                .await
+                .ok_or_else(|| {
+                    format!("current-diagnostics request exceeded {ANALYSIS_BACKSTOP:?}: {uri}")
+                })?;
+        let response = json_rpc_message(&response)
+            .ok_or_else(|| "current-diagnostics response was not valid JSON-RPC JSON".to_owned())?;
+        if let Some(error) = response.get("error") {
+            return Err(format!("current-diagnostics request failed: {error}"));
+        }
+        let report = response
+            .get("result")
+            .ok_or_else(|| "current-diagnostics response lacked a result".to_owned())?;
+        match report.get("status").and_then(serde_json::Value::as_str) {
+            Some("complete") => {
+                if report.get("uri").and_then(serde_json::Value::as_str) != Some(uri)
+                    || report.get("version").and_then(serde_json::Value::as_i64)
+                        != Some(i64::from(version))
+                    || report.get("source").and_then(serde_json::Value::as_str) != Some(source)
+                {
+                    return Err(format!(
+                        "current-diagnostics response did not match its request: {report}"
+                    ));
+                }
+                for field in ["dialectId", "revision", "inputsEpoch", "resultId"] {
+                    if !report
+                        .get(field)
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|value| !value.is_empty())
+                    {
+                        return Err(format!(
+                            "current-diagnostics response lacks {field}: {report}"
+                        ));
+                    }
+                }
+                let diagnostics = report
+                    .get("diagnostics")
+                    .and_then(serde_json::Value::as_array)
+                    .ok_or_else(|| {
+                        format!("complete current-diagnostics response lacks diagnostics: {report}")
+                    })?;
+                let _: Vec<tower_lsp_server::ls_types::Diagnostic> = serde_json::from_value(
+                    serde_json::Value::Array(diagnostics.clone()),
+                )
+                .map_err(|error| {
+                    format!("current-diagnostics returned malformed diagnostics: {error}")
+                })?;
+                return Ok(serde_json::Value::Array(diagnostics.clone()).to_string());
+            }
+            Some("unavailable")
+                if matches!(
+                    report.get("reason").and_then(serde_json::Value::as_str),
+                    Some("pending" | "stale")
+                ) =>
+            {
+                tokio::time::sleep(
+                    Duration::from_millis(2)
+                        .min(deadline.saturating_duration_since(tokio::time::Instant::now())),
+                )
+                .await;
+            }
+            _ => {
+                return Err(format!(
+                    "current-diagnostics is unavailable for {uri}: {report}"
+                ));
+            }
+        }
+    }
+}
+
+async fn published_codes_before(
+    reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+    uri: &str,
+    deadline: tokio::time::Instant,
+) -> Result<String, String> {
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Err(format!(
+                "timed out waiting for publishDiagnostics for {uri}"
+            ));
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
             Ok(body)
@@ -251,10 +377,14 @@ async fn published_codes(
                             == Some(uri)
                 }) =>
             {
-                return body;
+                return Ok(body);
             }
             Ok(_) => {}
-            Err(_) => return String::new(),
+            Err(_) => {
+                return Err(format!(
+                    "timed out waiting for publishDiagnostics for {uri}"
+                ));
+            }
         }
     }
 }
@@ -262,13 +392,11 @@ async fn published_codes(
 #[tokio::test]
 async fn after_integer_ms_is_not_flagged_w001_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
-        &mut writer,
-        "file:///after.tcl",
-        "after 200 {puts \"Hello world!\"}\n",
-    )
-    .await;
-    let diags = published_codes(&mut reader, "file:///after.tcl").await;
+    let source = "after 200 {puts \"Hello world!\"}\n";
+    did_open(&mut writer, "file:///after.tcl", source).await;
+    let diags = current_published_codes(&mut reader, &mut writer, "file:///after.tcl", 1, source)
+        .await
+        .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("W001"),
         "after-integer must not raise W001 (#720): {diags}",
@@ -299,7 +427,9 @@ async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
 
     let (mut reader, mut writer, server) = start_session().await;
     did_open(&mut writer, &uri, src).await;
-    let opened = published_codes(&mut reader, &uri).await;
+    let opened = current_published_codes(&mut reader, &mut writer, &uri, 1, src)
+        .await
+        .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         opened.contains("W211"),
         "the open file should surface W211 first: {opened}",
@@ -307,7 +437,9 @@ async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
 
     // Close the tab; the file stays on disk.
     did_close(&mut writer, &uri).await;
-    let after_close = published_codes(&mut reader, &uri).await;
+    let after_close = published_codes(&mut reader, &uri)
+        .await
+        .expect("server must publish diagnostics before the analysis backstop");
     assert!(
         after_close.contains("publishDiagnostics") && after_close.contains("W211"),
         "#865: a closed on-disk file must retain its W211 badge, not be cleared: {after_close:?}",
@@ -325,13 +457,15 @@ async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
 #[tokio::test]
 async fn nested_expr_in_command_sub_is_not_flagged_w114_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///w114.tcl",
         "proc myCmd {a} {return $a}\nif {[myCmd [expr {1 + 1}]]} {puts hi}\n",
     )
     .await;
-    let diags = published_codes(&mut reader, "file:///w114.tcl").await;
+    let diags = current_published_codes(&mut reader, &mut writer, "file:///w114.tcl", 1, &source)
+        .await
+        .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("W114"),
         "nested [expr] inside a command sub must not raise W114 (#726): {diags}",
@@ -351,7 +485,7 @@ async fn lassign_targets_not_flagged_s100_shimmer_e2e() {
     // the arithmetic on the last line would fire S100 "variable has list
     // intrep used in arithmetic expression".
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///lassign.tcl",
         "set point [list 1 2 3]\n\
@@ -359,7 +493,12 @@ async fn lassign_targets_not_flagged_s100_shimmer_e2e() {
          set offset [expr {$x + $y + $z}]\n",
     )
     .await;
-    let diags = published_codes(&mut reader, "file:///lassign.tcl").await;
+    let diags =
+        current_published_codes(&mut reader, &mut writer, "file:///lassign.tcl", 1, &source)
+            .await
+            .expect(
+                "server must publish complete current diagnostics before the analysis backstop",
+            );
     assert!(
         !diags.contains("S100"),
         "lassign targets are list elements, not lists — no S100 shimmer (#867): {diags}",
@@ -378,7 +517,7 @@ async fn regexp_capture_not_flagged_s100_shimmer_e2e() {
     // Int match count the command returns.  Comparing it as a string must not
     // fire S100 "numeric variable used in string comparison".
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///regexp.tcl",
         "set s \"abc\"\n\
@@ -386,7 +525,9 @@ async fn regexp_capture_not_flagged_s100_shimmer_e2e() {
          if {$letter eq \"a\"} { puts yes }\n",
     )
     .await;
-    let diags = published_codes(&mut reader, "file:///regexp.tcl").await;
+    let diags = current_published_codes(&mut reader, &mut writer, "file:///regexp.tcl", 1, &source)
+        .await
+        .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("S100"),
         "regexp capture is a string, not the Int count — no S100 (#867): {diags}",
@@ -983,13 +1124,21 @@ async fn genuinely_dynamic_rename_still_abstains_from_definition_e2e() {
 #[tokio::test]
 async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///nsunknown.tcl",
         "proc handler {args} { puts $args }\nnamespace eval ::target [list namespace unknown handler]\nmystery_cmd 1\n",
     )
     .await;
-    let diags = published_codes(&mut reader, "file:///nsunknown.tcl").await;
+    let diags = current_published_codes(
+        &mut reader,
+        &mut writer,
+        "file:///nsunknown.tcl",
+        1,
+        &source,
+    )
+    .await
+    .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("W123"),
         "a resolvable list-wrapped namespace-unknown installer must suppress W123: {diags}",
@@ -1096,14 +1245,22 @@ async fn class_member_bareword_call_requires_link_e2e() {
 #[tokio::test]
 async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///dyninterp.tcl",
         "namespace eval ::app {}\nproc ::app::Helper {} { return 42 }\nset s [interp create -safe]\ninterp alias $s greet {} ::app::Helper\ninterp eval $s { greet }\n",
     )
     .await;
 
-    let diags = published_codes(&mut reader, "file:///dyninterp.tcl").await;
+    let diags = current_published_codes(
+        &mut reader,
+        &mut writer,
+        "file:///dyninterp.tcl",
+        1,
+        &source,
+    )
+    .await
+    .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("W123") && !diags.contains("W140"),
         "tracked binding must not leave a spurious unknown-command or \
@@ -1140,14 +1297,22 @@ async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e(
 #[tokio::test]
 async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///activerecord.tcl",
         "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n",
     )
     .await;
 
-    let diags = published_codes(&mut reader, "file:///activerecord.tcl").await;
+    let diags = current_published_codes(
+        &mut reader,
+        &mut writer,
+        "file:///activerecord.tcl",
+        1,
+        &source,
+    )
+    .await
+    .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         !diags.contains("W123"),
         "unexpected unknown-command: {diags}"
@@ -1194,14 +1359,16 @@ async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
 #[tokio::test]
 async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///widget.tcl",
         "oo::class create Widget {\n    self method make {n} {\n        string length a b c d\n        return \"made $n\"\n    }\n}\noo::class create Gadget {\n    superclass Widget\n}\nWidget make gadget\nGadget make gadget\n",
     )
     .await;
 
-    let diags = published_codes(&mut reader, "file:///widget.tcl").await;
+    let diags = current_published_codes(&mut reader, &mut writer, "file:///widget.tcl", 1, &source)
+        .await
+        .expect("server must publish complete current diagnostics before the analysis backstop");
     assert!(
         diags.contains("E003"),
         "the wrong-arity call inside the self-method body must now be walked: {diags}",
@@ -1249,14 +1416,19 @@ async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
 #[tokio::test]
 async fn apply_namespace_override_resolves_bareword_to_the_lambdas_own_namespace_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
-    did_open(
+    let source = did_open(
         &mut writer,
         "file:///apply_ns.tcl",
         "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n",
     )
     .await;
 
-    let diags = published_codes(&mut reader, "file:///apply_ns.tcl").await;
+    let diags =
+        current_published_codes(&mut reader, &mut writer, "file:///apply_ns.tcl", 1, &source)
+            .await
+            .expect(
+                "server must publish complete current diagnostics before the analysis backstop",
+            );
     assert!(
         !diags.contains("W123"),
         "unexpected unknown-command: {diags}"

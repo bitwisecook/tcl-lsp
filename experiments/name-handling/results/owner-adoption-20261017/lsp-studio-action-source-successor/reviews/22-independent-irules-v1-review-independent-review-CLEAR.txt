@@ -1,0 +1,5 @@
+Patch SHA256: 2946c162e49d4b25f3acd902b584ead4a1704024d6231a783e2f5a4ed44ab9ea
+
+Independent SOURCE CLEAR for existing lsp.validation.03.09.fn0 only. Exact original two-handler source bytes/language, version1 and open_ready_lang preserved; current_complete_diagnostics requests actual PublisherOnly currentDiagnostics owner, validates full source/version/URI and report identity/revision/inputsEpoch/findings array, rejects terminal unavailable/suppressed/malformed, retries pending/stale inside one actual deadline. It does not start analysis or turn a publish notification/count into completion. Raw25s caller duration receives exactly one load scaling in existing helper. All original Rust assertion macro items and function names retained exactly; Rust AST parse pass. Native/iRules execution authority unchanged; no executed test or positive outcome claim.
+
+Independent current before/after hashes and fresh isolated fuzz0 forward/inverse hashes verified in adjacent hash-verification.json. No main edits, Cargo/builds/tests, Git, or host execution. Source-only clearance; Root owns integration, counts and execution.

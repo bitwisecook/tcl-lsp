@@ -252,3 +252,5 @@ indicate recording completion; inspect the records and actual Tcltest counts
 before making a conformance claim. The tool enables frame debugging on C/runtime
 and records it; absolute-frame-depth/default-debug upstream expectations still
 need launch-context interpretation. Use a new output directory for each run.
+
+- [Studio and checked source-action adoption](results/owner-adoption-20261017/lsp-studio-action-source-successor/README.md): exact reviewed source integration and first native failure, repaired editor443-input checks and original Studio Node124PASS; fresh native repair1 running, no gate acceptance.

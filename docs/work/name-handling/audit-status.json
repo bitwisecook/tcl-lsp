@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-16T22:00:47.293633+00:00",
+    "utc": "2026-10-17T01:58:13.551966+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 313,
+    "implemented_pending_validation": 328,
     "verified_complete": 0,
-    "not_started": 1845,
+    "not_started": 1830,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "60 annex purposes:59 integrated pending validation,1blocked. One grouped original optimiser source/worker/full report collection owner added once; DB memo/context/rebind helpers are part of that same purpose. Existing Core692 caller separate; definition grammar cursor reuses existing selected member/body owners.",
+    "owner_facet_reconciliation": "62annex purposes61integrated1blocked. New Studio source publication owner and shared configured authored compact-name sequence counted once each; existing Compiler decodedlambda owner288 and Core691 caller count separately. No API/helper/test multiplicity.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 60,
-      "implemented_pending_validation": 59,
+      "required": 62,
+      "implemented_pending_validation": 61,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2218,
-    "effective_implemented_pending_validation": 372,
+    "effective_required_units": 2220,
+    "effective_implemented_pending_validation": 389,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 293,
-    "partially_implemented_pending_validation": 20,
+    "fully_implemented_pending_validation": 306,
+    "partially_implemented_pending_validation": 22,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1001,14 +1001,14 @@
         "validation": 122,
         "documentation": 2
       },
-      "lsp_integrated_pending_validation": 177,
+      "lsp_integrated_pending_validation": 195,
       "lsp_by_kind_integrated": {
-        "semantic": 83,
-        "validation": 92,
+        "semantic": 97,
+        "validation": 96,
         "documentation": 2
       },
       "lsp_verified_complete": 0,
-      "lsp_without_integrated_implementation": 148,
+      "lsp_without_integrated_implementation": 130,
       "shared_dependencies": "Counted under their original Compiler/DB/Registry units or reconciled annex; not counted again as LSP consumers.",
       "deferred": "Runtime174 remaining54,VM133,RuntimeJim execution and BIG-IP source inventory/provider work; retain all existing artifacts.",
       "new_source_alias_caller_annex": "compiler.consumer.logical-source-alias-declaration-observations"
@@ -2639,6 +2639,96 @@
       "ordinary_acceptance": false,
       "completed_utc": "2026-10-17T01:38:51.668529+00:00",
       "failure_limits": "Loader helper Nativeprotocol refusal retained. Cache cold/disk-warm notice control regressed fromPASS toFAIL and needs diagnosis; no Runtime/VM guard weakening."
+    },
+    "studio_action_source_batch": {
+      "utc": "2026-10-17T01:51:40.909028+00:00",
+      "new_baseline_purposes": [
+        {
+          "id": "lsp-jetbrains-studio-generated-source-lifetime",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 551
+        },
+        {
+          "id": "lsp-minifier-new-name-sequence",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 569
+        },
+        {
+          "id": "lsp-ai-tk-new-source-context",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 601
+        },
+        {
+          "id": "lsp-editor-studio-source-lifecycle",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 605
+        },
+        {
+          "id": "lsp-refactor-logical-rewrite-obligation",
+          "status": "partially_implemented_pending_validation",
+          "catalogue_index": 619
+        },
+        {
+          "id": "lsp-brace-expr-source-action-boundary",
+          "status": "partially_implemented_pending_validation",
+          "catalogue_index": 623
+        },
+        {
+          "id": "lsp-format-engine-lambda-decoded-body-source",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 691
+        },
+        {
+          "id": "lsp-server-rewrite-wire-source-association",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 703
+        },
+        {
+          "id": "lsp-server-disk-document-context",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 705
+        },
+        {
+          "id": "lsp-server-code-action-wire-source-version",
+          "status": "implemented_pending_validation",
+          "catalogue_index": 724
+        },
+        {
+          "id": "lsp.validation.03.04.fn0",
+          "status": "implemented_pending_validation"
+        },
+        {
+          "id": "lsp.validation.03.07.fn0",
+          "status": "implemented_pending_validation"
+        },
+        {
+          "id": "lsp.validation.03.09.fn0",
+          "status": "implemented_pending_validation"
+        },
+        {
+          "id": "lsp.validation.03.10.fn0",
+          "status": "implemented_pending_validation"
+        },
+        {
+          "id": "compiler.owner.source.lambda-decoded-field-source:1279",
+          "status": "implemented_pending_validation"
+        }
+      ],
+      "baseline_delta": 15,
+      "new_LSP": 14,
+      "new_compiler_owner": 1,
+      "new_annex": [
+        "lsp.owner.studio-source-publication-lifetime",
+        "syntax.owner.configured-authored-compact-name-sequence"
+      ],
+      "effective_delta": 17,
+      "native": "Actualfirst5libFAIL82.321s39052unchanged,E0599fieldgetterrepairpending",
+      "editor": "PASS443inputs0drift:bothTypeScriptprojects/configuredscopedPrettier/worker/Node+browserbundles; originalunchangedStudioNodepermissionretry124PASS0FAIL0skips afterretainedGitEPERM. ActualIDEhostsnotaccepted.",
+      "required_gates": "Notgreen,noPR/merge/issueclosure",
+      "source_admission": "/workspace/naming-validation/lsp-studio-action-source-admission/admission.json",
+      "native_repair1": "RUNNING01:56:33UTC39052inputs127admitted58changedpaths; sourceFROZEN; finalbuild/source/artifacts pending",
+      "capsule": "experiments/name-handling/results/owner-adoption-20261017/lsp-studio-action-source-successor",
+      "actual_source_repairs": "Independentlyreviewed3existinggettercalls +3requirednewfixturefields +newlastarrayindex +actualconfiguredformat; oneadditionalfixedowneravailabilitycontrol, alloldassertionspreserved, no countdelta."
     }
   }
 }

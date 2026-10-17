@@ -1,0 +1,13 @@
+DB724 independent source review — CLEAR (source-only)
+
+Reviewed frozen packet:
+  patch /workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/repair.patch
+  SHA-256 d0b431d6ebd0c3b1814f01c611604b9e2ff66b24fde9e7b755f3e80df832ba7b
+  manifest /workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/manifest.json
+  SHA-256 201c34289e8a92ae4973560066aad3a6cb3d5c96b03a31cf5f9c0441506f53eb
+
+All ten declared beforeimage hashes match current source. The packet's recorded fresh apply has zero fuzz and all ten afterimage hashes match its manifest. I reviewed the server capture/final publication path, Node/browser client middleware, checked writer handoff, receipt disposal, and rename continuation.
+
+The server binds an ordinary code action to an actual versioned raw document, source analysis/path admission, input and factory generations, and export/index state. It rechecks the retained source and analysis in the shared final currency transaction before returning versioned document edits. The client captures the original TextDocument/source/version, session and full per-resource settings before the provider await; it accepts only the explicit matching intent, rejects unsupported/malformed edit geometry, and routes the result through the existing checked writer because the installed protocol converter drops TextDocumentEdit.version. The one-use receipt and settings invalidation remain live through that writer and any rename continuation. The continuation uses the exact post-write snapshot and original document, checks after opening that document, validates UTF-16 boundaries and rejects bare numeric invocation. The explicit BIG-IP marker preserves the pre-existing adapter without treating missing metadata as legacy.
+
+No concrete source blocker found. No tests, builds, typecheck, or runtime execution were performed. This review does not claim those gates passed or a distributed server transaction after response publication.

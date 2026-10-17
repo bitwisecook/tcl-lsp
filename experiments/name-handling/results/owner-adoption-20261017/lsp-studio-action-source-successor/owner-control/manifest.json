@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "2ba1161c8383d1414376627d76a753d3a1da03b1d0f06ab7ee576dff24c7b139",
+      "after_sha256": "59b38823eeeee2fcb49606b574abc644508c37b3f7a447f6659ed72725355ce5"
+    }
+  ],
+  "ingredient_patch_sha256": "0194650a4c3817fbad895c822bc5c27111b4a4f6dcc6b664f4e5fae3f52eae51",
+  "patch_sha256": "e562e7414029aba8408f5759e7b07d0bdfb48a82bb16b64da5d0c0beaa6dc2be",
+  "source_review": "Root independently read fullcontrol V1/V2 and actual Registry original_document_grammar_tests19221-19243 and body method signatures. Correct actualdocument->speclib(pack)->command owner chain; oldmodules/assertions/fixtures unchanged; insertiononly plus mechanicalrustfmt. Actualavailability assertions unexecuted, may failatgenuinefirstownerboundary.",
+  "actual_main_integration": true,
+  "count_delta": 0
+}

@@ -1,0 +1,8 @@
+Independent source review: CLEAR
+Packet: /tmp/lsp-server-disk-document-context-v1/repair.patch
+Patch SHA-256: 3fea5e4825fbcbf4ef2ba1479a56777a9c146d1cf24e8080d186d295bf8011ea
+Manifest SHA-256: 6f31d65e1f49781860f863011de0e2e4225e91f02aa581c8f645560ed1d3fe3f
+
+Reviewed the three actual patch files and the production read_document_at path. The closed fallback retains the path admitted for the original URI, reads through SourceStore::read_source, carries that read's DecodeReport with the decoded pre-normalisation text, and selects dialect via dialect_for_closed(original_uri, same_decoded_text). That existing owner preserves document override, source detection, URI extension, folder, and session precedence. Open-document reads continue to return their current editor DocumentState and language choice. The decoder report is tied to the exact decoded text returned as raw(); the candidate does not claim original-byte identity, disk lease, Native identity/execution, source absence, or edit authority. The tests exercise URI-versus-provider-path mismatch, source directives/config/document override, lossy decoder report plus lone-CR normalization, actual FreshAnalysis input/profile, retired provider mapping, and open-editor preservation. Contract edits describe these limits and register the existing dialect_for_closed -> read_document_at route.
+
+Independent verification: copied exact current beforeimages to a fresh /tmp tree, applied with patch --fuzz=0, and verified all three after SHA-256 values against the manifest. Reverse-applied with patch --fuzz=0 and verified all three before SHA-256 values. No tests/builds were run; test controls remain unexecuted.

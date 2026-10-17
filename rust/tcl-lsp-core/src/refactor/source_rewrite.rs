@@ -130,12 +130,10 @@ pub(super) fn select(
     if !walk.complete() {
         return None;
     }
-    // Logical compatibility and original conditional source geometry retain
-    // separate rewrite permissions after the same current source selection.
-    Some((
-        command,
-        (!analysis.allows_lexical_declaration_advice()).then_some(obligation),
-    ))
+    // Selecting a source handler does not establish evaluation equivalence,
+    // replacement dispatch or fresh-cell/insertion permission. Logical
+    // declaration advice retains these obligations exactly as Native advice.
+    Some((command, Some(obligation)))
 }
 
 fn original_command_at(
@@ -461,5 +459,35 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod source_action_obligation_tests {
+    use super::*;
+
+    #[test]
+    fn logical_declaration_advice_retains_each_independent_rewrite_obligation() {
+        let source = "expr $left + $right";
+        let analysis = lexical_analysis(source, &super::super::test_registry());
+        for obligation in [
+            RewriteObligation::ExpressionEvaluation,
+            RewriteObligation::ControlFlowEvaluation,
+            RewriteObligation::FreshStoreAndInsertion,
+        ] {
+            let (_, retained) = select(source, 0, &analysis, LoweringHookId::Expr, obligation)
+                .expect("actual current source handler");
+            assert!(retained.is_some());
+        }
+        let action = super::super::brace_expr(source, 0, &analysis)
+            .expect("selected source expression with missing equivalence");
+        assert!(action.edits.is_empty());
+        assert!(
+            action
+                .disabled
+                .unwrap()
+                .starts_with("missing-expression-evaluation-equivalence:")
+        );
+        assert!(super::super::brace_expr("expr $other + $right", 0, &analysis).is_none());
     }
 }

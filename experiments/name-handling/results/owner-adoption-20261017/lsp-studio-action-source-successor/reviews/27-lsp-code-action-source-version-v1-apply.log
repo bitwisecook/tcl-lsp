@@ -1,0 +1,10 @@
+patching file docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md
+patching file docs/design/contracts/naming-consumer-matrix.md
+patching file docs/design/contracts/shared-utility-contracts-rust.md
+patching file editors/vscode/src/clientCore.ts
+patching file editors/vscode/src/codeActionSource.ts
+patching file editors/vscode/src/extension.ts
+patching file editors/vscode/src/extensionBrowser.ts
+patching file editors/vscode/src/test/commands.test.ts
+patching file rust/tcl-lsp-server/src/lib.rs
+patching file rust/tcl-lsp-server/src/readonly_reference_reports.rs

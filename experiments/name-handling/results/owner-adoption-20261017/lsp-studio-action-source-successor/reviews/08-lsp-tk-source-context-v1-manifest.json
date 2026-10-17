@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "purpose": "lsp-ai-tk-new-source-context",
+  "baseline_units": ["lsp-ai-tk-new-source-context"],
+  "files": {
+    "editors/vscode/src/chat/tkParticipant.ts": {
+      "before_sha256": "2fd9a257a51672b0334d6019b421d523ede339483fee521a72125965a7ac9444",
+      "after_sha256": "ae446ebbc807947f9190a5d84100d7c540a1917b98509d9f8aa012f4a39a3188"
+    }
+  },
+  "patch_sha256": "7643147bdb47dbd20f3a283c52e8c30413b732d956423ea95c656365593b3ef4",
+  "source_basis": {
+    "new_source_dialect": "Explicit constant tk is used for both creation system prompt and runAgenticLoop targetDialect; no post-model getActiveDialect read.",
+    "clean_result": "Existing runAgenticLoop shared report path remains the source of validation; its completed report/clean checks are unchanged.",
+    "document_source": "handleTkExplain now uses codeUtils.resolveIruleSource and retains DocumentSourceSnapshot URI/version/full source/selected source/language and AnalysisContextSnapshot.",
+    "source_currency": "Shared isDocumentSourceSnapshotCurrent and isAnalysisContextCurrent are checked before the request, before model send via isSourceCurrent, and before output publication.",
+    "prompt_scope": "Explanations use buildDialectNeutralSourcePrompt and disable ambient diagnostics, symbols, and event metadata. The requested Tk focus is explicitly not claimed as proof of the file's effective dialect.",
+    "preview": "The existing static preview command remains unchanged."
+  },
+  "validation": {
+    "forward_patch": "TMP exact replay matched the declared after hash",
+    "inverse_patch": "TMP exact replay restored the declared before hash",
+    "tests_builds": "not run, per task scope"
+  }
+}

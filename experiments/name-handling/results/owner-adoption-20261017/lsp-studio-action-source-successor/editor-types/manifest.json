@@ -1,0 +1,72 @@
+{
+  "packet": "LSP Studio TypeScript narrow compile-test and scoped formatting repair",
+  "base_source_head": "cf166eff497d6fe414c650c61cc1ec2dce609164",
+  "captured_gate": "/workspace/naming-validation/lsp-studio-action-editor-batch1",
+  "base_binding_sha256": "4e0b1a9e3a85fdf4f943adcf6b68138be3646c8bc6ffaa13d4cc1393cdce0db4",
+  "failure_logs": {
+    "check-0.log": "76fd469fb9e48c183b036a1890bce9fa6ae1e83a7e0b4432262f7022ca3cd09f",
+    "check-1.log": "b64e56bc1ad00e276e674374cd5a3b0d1646c87f6dc43e0127c6429c3b998f13",
+    "check-5.log": "e04208d8b2b7e4c571d6ccbf5d8c7fe1f120d11c6164036556ecb0d3ed3c2bb0",
+    "check-6.log": "97dacbbcaf36a3ee5397429e592676d6d0ffe3ce072027f51da2274ce6aac33c"
+  },
+  "source_files": [
+    {
+      "path": "editors/vscode/src/chat/tkParticipant.ts",
+      "before_sha256": "ae446ebbc807947f9190a5d84100d7c540a1917b98509d9f8aa012f4a39a3188",
+      "after_sha256": "6decd73996d8c60e1b41866fcdfb649351de2fe316089799a29617121a8f3d3c",
+      "before_bytes": 9231,
+      "after_bytes": 9387
+    },
+    {
+      "path": "editors/vscode/src/specStudio.ts",
+      "before_sha256": "34529093396b05e6b9501077a296aa51a1d4151635ded8c2dc895dc7dab45cc7",
+      "after_sha256": "d4a9d123374b58ad6bf06f7652de956480a3f0884dc87c6049c236d3034b6e3d",
+      "before_bytes": 31318,
+      "after_bytes": 34246
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "before_sha256": "59e364542ebf7b55b59f4dba96bf46a09cd916f0953d27f26ae01e595760676d",
+      "after_sha256": "9e17868156a3cc1064ce70dc158172d4a737f35328a4e7ceab74718474899444",
+      "before_bytes": 17201,
+      "after_bytes": 18028
+    },
+    {
+      "path": "editors/vscode/src/test/helper.ts",
+      "before_sha256": "047b2eab6b90510ffaf0d8a3c4ae2bc01eeee3578107ac34f5efc2380bf1d3ab",
+      "after_sha256": "edd06100a752e0ee0c1035ae8e938c4c655eb0c52c60eb5f69208f5714f903a7",
+      "before_bytes": 58697,
+      "after_bytes": 59161
+    },
+    {
+      "path": "editors/vscode/src/test/w120WorkspaceReschedule.test.ts",
+      "before_sha256": "79f9a5d7a1089af7789083e0170437cab6fe3ba8c2114202b53f9ca91f976a01",
+      "after_sha256": "0315f222262dc5de18ea96722ebdc39533e0b2de70cfed27f4a1cca4e8571f11",
+      "before_bytes": 6035,
+      "after_bytes": 6069
+    },
+    {
+      "path": "rust/tcl-spec-studio/web/test/units.test.ts",
+      "before_sha256": "4a2a7ff0cf30026dcbd1deb451730ad69342e831dcef95de40d8baad9021089e",
+      "after_sha256": "f0b7e21f1b08bfe8c45f59cc327058ea08c399b8fd06890967465ce16989abf8",
+      "before_bytes": 69119,
+      "after_bytes": 72323
+    }
+  ],
+  "patch_sha256": "9a9c001979c40c17509f4eb70b7be9f38f51e9cbe5ff8dda8686603900a29a13",
+  "scope": [
+    "Add only: undefined to the three new CodeActionContext literals.",
+    "Replace unsupported Array.prototype.at(-1) test expression with indexed last-element access; assertion remains otherwise unchanged.",
+    "Apply scoped Prettier to the five VSCode files named by failed check-1.",
+    "Prettier-format the touched SpecTcl web test if needed."
+  ],
+  "validation": [
+    "Copied-after source only. Prettier check passed for the five VSCode files.",
+    "No TypeScript, test, worker, bundle, IDE-host, build or main-branch execution claimed.",
+    "Original failure gate retained unchanged; captured commands and diagnostics identify check-0 TS2345, check-5 TS2550, check-1 formatting and check-6 EPERM spawnSync git."
+  ],
+  "notes": [
+    "Current captured source had messages.at(-1), not updates(\"dsl\").at(-1); change follows exact current bytes.",
+    "No tsconfig, fixtures, guard behavior or existing assertions widened."
+  ]
+}

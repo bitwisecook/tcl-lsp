@@ -456,6 +456,19 @@ pub(crate) fn read_sources(
 #[must_use]
 pub(crate) fn load_sources(
     sources: Vec<(PackFile, String)>,
+    notices: Vec<PackNotice>,
+    trust: WorkspaceTrust,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+) -> PackSet {
+    let set = load_sources_unpublished(sources, notices, trust, store);
+    crate::registration::publish_pack_extension_routes(&set);
+    set
+}
+
+/// Prepare through the same evaluator/merge without publishing global routing.
+/// The actual host must publish only at its own current-source boundary.
+pub(crate) fn load_sources_unpublished(
+    sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
     trust: WorkspaceTrust,
     store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
@@ -577,19 +590,6 @@ pub(crate) fn load_sources(
         load_errors,
         key,
     };
-    // Publish the packs' declared extension routing so dialect detection's
-    // extension tier sees it — every consumer funnels through this merge
-    // (bundled, discovered, server reloads), which is what makes a pack the
-    // source of truth for its own extensions.
-    //
-    // Both kinds of claim: the explicit `file_extension … -dialect D` rows
-    // and each `environment` block's own detection rows, which is how a
-    // pack-declared environment's documents find it. Published here rather
-    // than only at the registration seam because a reload whose content is
-    // unchanged never reaches that seam, and the routing must survive it.
-    tcl_registry::dialects::register_pack_extension_dialects(
-        crate::registration::extension_routes(&set),
-    );
     set
 }
 

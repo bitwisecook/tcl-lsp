@@ -90,31 +90,9 @@ pub fn brace_expr(source: &str, cursor: u32, analysis: &AnalysisResult) -> Optio
         });
     }
 
-    // Unwrap a quoted expression argument (`expr "$a + $b"` → `expr {$a + $b}`)
-    // only when the whole expression is a *single* quoted word (`argv` is
-    // `expr` + one arg).  A multi-word expression that merely starts and ends
-    // with `"` (`expr "1" + "2"`) must be braced verbatim — stripping the outer
-    // quotes there would leave stray inner quotes (`{1" + "2}`) that fail to
-    // parse.
-    let single_quoted_arg =
-        cmd.argv.len() == 2 && raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2;
-    let braced = if single_quoted_arg {
-        format!("{{{}}}", &raw[1..raw.len() - 1])
-    } else {
-        format!("{{{raw}}}")
-    };
-
-    Some(Refactoring {
-        title: "Brace expr for safety and performance".to_owned(),
-        edits: vec![RefactorEdit {
-            start: raw_start,
-            end: raw_end,
-            new_text: braced,
-        }],
-        kind: ActionKind::RefactorRewrite,
-        data_group: None,
-        disabled: None,
-    })
+    // No source-advice or caller request can replace the independent issuer.
+    // In particular, do not unwrap and rebrace Logical source text here.
+    None
 }
 
 #[cfg(test)]

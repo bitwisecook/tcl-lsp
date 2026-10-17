@@ -1,0 +1,253 @@
+{
+  "actual_result": "/workspace/naming-validation/lsp-retained-report-action-source-successor/retained930-results/result.json",
+  "result_sha256": "627231933aeb26d63b3acb9f57931688e449bc1d7970c2bba6ee4fe339ad5904",
+  "runs": [
+    {
+      "number": 905,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+        "optimiser::original_report::tests::complete_raw_worker_refuses_changed_analysis_dialect_and_vector_reconstruction",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.6159848800016334,
+      "log": "test-905.log",
+      "log_sha256": "5135d6ee00d665252627772b7a140503d9aad683718d79c77293bf210c99764d",
+      "target": "tcl_compiler",
+      "selector": "optimiser::original_report::tests::complete_raw_worker_refuses_changed_analysis_dialect_and_vector_reconstruction",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 906,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+        "optimiser::original_report::tests::complete_body_roster_includes_empty_batches_and_top_level_selection",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8162098459943081,
+      "log": "test-906.log",
+      "log_sha256": "776f03e350d55d8d405a10267065c13692f0b850af4951cbc2fffec61128ed6c",
+      "target": "tcl_compiler",
+      "selector": "optimiser::original_report::tests::complete_body_roster_includes_empty_batches_and_top_level_selection",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 908,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+        "optimiser::original_report::tests::neutral_body_reports_cannot_rebind_across_actual_evaluator_hosts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8664598739997018,
+      "log": "test-908.log",
+      "log_sha256": "abdf43fd2c7c84922864844d54ffdf1c9c64e4071d817622221021b92fac66d8",
+      "target": "tcl_compiler",
+      "selector": "optimiser::original_report::tests::neutral_body_reports_cannot_rebind_across_actual_evaluator_hosts",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 909,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+        "code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.5155907540029148,
+      "log": "test-909.log",
+      "log_sha256": "9a191b49c9ba3bac0824d7546c7c2d95c7a2e7514b56206027981e5511100fdb",
+      "target": "tcl_lsp_core",
+      "selector": "code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 921,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+        "original_optimiser_memo_transport_tests::a_legacy_lattice_key_cannot_replace_a_later_original_worker_request",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.3650388880050741,
+      "log": "test-921.log",
+      "log_sha256": "dd73801c7c29bb178a77689f33d9cc2c9dfb717376cb152eeedd90ed2b29a2a0",
+      "target": "tcl_lsp_db",
+      "selector": "original_optimiser_memo_transport_tests::a_legacy_lattice_key_cannot_replace_a_later_original_worker_request",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 922,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+        "original_optimiser_memo_transport_tests::legacy_equal_capsules_cannot_occupy_original_report_memo_keys",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.5656569540005876,
+      "log": "test-922.log",
+      "log_sha256": "06cef0320ecf39549f500bbd12ab00f6659278908552bd33f43e0893b1579645",
+      "target": "tcl_lsp_db",
+      "selector": "original_optimiser_memo_transport_tests::legacy_equal_capsules_cannot_occupy_original_report_memo_keys",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    },
+    {
+      "number": 923,
+      "argv": [
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+        "original_optimiser_memo_transport_tests::original_report_keys_keep_actual_evaluator_context_across_neutral_capsules",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "timed_out": false,
+      "seconds": 0.8665748519997578,
+      "log": "test-923.log",
+      "log_sha256": "d8270380fe5acad1959e59f884a603093681cb05209d3f0bdafb41ec467085b5",
+      "target": "tcl_lsp_db",
+      "selector": "original_optimiser_memo_transport_tests::original_report_keys_keep_actual_evaluator_context_across_neutral_capsules",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "test_passed": false
+    }
+  ],
+  "source_read_snapshot": [
+    {
+      "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+      "sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "sha256": "9900d4fa239c128e07f3bcdcd3207eb20ff1d2f6922baf4d1f611d187f73dfff"
+    },
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "sha256": "6f9d8a14315bd1d97c0a9acee70f1820a8e6ce6d19e86d78bb284b5f95168c7b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/authored_source_bodies.rs",
+      "sha256": "0ca608d3f9163a3b57245e64928dbd8c769d620f319d403618e0fb9296e0fbc5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/installed_bodies.rs",
+      "sha256": "ddba7e876557384c2ee537a9ff9d200779f9cb02a6ba3475b90aa72ac8f730c8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "sha256": "eb9874eb99f81979af566e918d4fd2cfaacf24de96381d671c9daa8526e5b272"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "sha256": "4bd4a61ed8d8506c574226c6ad53aa724d4f572a1339fb28f9931c8bb3b35605"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "sha256": "0da1f39821e4159f0f8a76d729b611d65c2c9db6b310a1ec0d16364bf978444d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "sha256": "0a6d7ae97a9790f6ef52be6d9b77519fc5444b7e1369202b22574e404661af88"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "sha256": "2d7735c7ea4c95358a7f576b5b8856252744187004c791eadeaf346b9222c0ae"
+    },
+    {
+      "path": "rust/tcl-dialect/src/profile.rs",
+      "sha256": "446f933dc9edecc27e0b19f7aea699c36d8875d61a5718855298723219f110ab"
+    },
+    {
+      "path": "rust/tcl-registry/src/invocation_words.rs",
+      "sha256": "373758b5b89ee2e9704445ba75ba8ca040966febeffe209262778dda152d0cff"
+    }
+  ],
+  "execution": "none; original actual run receipts read only; no main/Git/tests/build/provider actions"
+}

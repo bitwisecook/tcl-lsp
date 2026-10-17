@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-17T01:52:31.095836+00:00",
+  "command": [
+    "npm",
+    "--prefix",
+    "../../rust/tcl-spec-studio/web",
+    "test"
+  ],
+  "cwd": "/workspace/tcl-lsp/editors/vscode",
+  "original_exit_code": 1,
+  "original_failure": "git subprocess EPERM; actualstdout stillcontaineddescribeoutput. Originalfailure preserved.",
+  "permission_retry_exit_code": 0,
+  "log_sha256": "cbcd1a0c52592d0f79e72e12b9391223a9771c416df089f2d231278f0db35592",
+  "tests": 124,
+  "passed": 124,
+  "failed": 0,
+  "skipped": 0,
+  "all443_editor_and_web_inputs_still_match_original_snapshot": true,
+  "limits": "Actual unchanged Node harness only; no actual VSCode/JetBrains/browser host acceptance and type/format gates still fail."
+}

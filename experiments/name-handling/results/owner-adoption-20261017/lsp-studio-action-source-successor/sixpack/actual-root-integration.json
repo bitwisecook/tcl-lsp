@@ -1,0 +1,7 @@
+{
+  "root_independent_manifest_ingredient_receipts_and_all29_bases_afterimages_match": true,
+  "patch_sha256": "96e5499273d60a7019d96d086af44ee19022e8a660b89100d1b6b67be054c852",
+  "all29_actual_main_afterimages_match": true,
+  "source_only": true,
+  "counts_and_execution": "Pending Root reconciliation and actual successor builds/tests; no verified completion."
+}

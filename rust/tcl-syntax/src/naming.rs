@@ -28,6 +28,9 @@
 //! and namespace objects have separate flat composition rules. Constructed
 //! namespace segments are retained directly, without reparsing display text.
 
+mod compacted_source;
+pub use compacted_source::{AuthoredCompactName, AuthoredCompactNameSequence};
+
 mod scaffold;
 pub use scaffold::{
     GeneratedScaffoldNamespace, PACKAGE_SCAFFOLD_NAMESPACE_CASES,

@@ -1,0 +1,372 @@
+{
+  "status": "IMMUTABLE_SOURCE_ONLY_COMPOSITION_PENDING_ROOT_REVIEW",
+  "ingredients": [
+    {
+      "id": "705",
+      "directory": "/tmp/lsp-server-disk-document-context-v1",
+      "patch": "repair.patch",
+      "patch_sha256": "3fea5e4825fbcbf4ef2ba1479a56777a9c146d1cf24e8080d186d295bf8011ea",
+      "manifest_sha256": "6f31d65e1f49781860f863011de0e2e4225e91f02aa581c8f645560ed1d3fe3f",
+      "receipts": [
+        {
+          "path": "/tmp/lsp-server-disk-document-context-independent-review.txt",
+          "sha256": "0b95e46822cda8c34b970e377657196dd52b78c66e27048dd195de9f469bd9d6"
+        },
+        {
+          "path": "/tmp/lsp-server-disk-document-context-v1/SOURCE-BASIS.json",
+          "sha256": "9bc3a73d5a793f609298e1dfc954104695a56089f40c531fbebeb17db229d1cd"
+        },
+        {
+          "path": "/tmp/lsp-server-disk-document-context-v1/manifest.json",
+          "sha256": "6f31d65e1f49781860f863011de0e2e4225e91f02aa581c8f645560ed1d3fe3f"
+        },
+        {
+          "path": "/tmp/lsp-server-disk-document-context-v1/selection-supplement.json",
+          "sha256": "ab2a317e7a53f54162ba7bb6bdf90dd0e1b1339bbd807779426710e44f6de8d5"
+        },
+        {
+          "path": "/tmp/lsp-server-disk-document-context-v1/source-verification.json",
+          "sha256": "160a68519b936e267c0be800b4f4513495717c24977e8b80b4df24ac40f2b505"
+        }
+      ]
+    },
+    {
+      "id": "569",
+      "directory": "/tmp/lsp-minifier-new-name-sequence-v1",
+      "patch": "new-name-sequence.patch",
+      "patch_sha256": "a5db0a7fa7fde7a910c001e0e4ef09fe0790e3554360bed786b8831e97d6e5f4",
+      "manifest_sha256": "74fd9b6dfe722a74d7fd7c60788990dcd6bd5d3dffc7de87859c003816933c05",
+      "receipts": [
+        {
+          "path": "/tmp/lsp-minifier-new-name-sequence-v1/SOURCE-BASIS.md",
+          "sha256": "5ee123cf10d1eee8e6eb62118b8be68bc27aea52fec43f1cd00629636491cdfb"
+        },
+        {
+          "path": "/tmp/lsp-minifier-new-name-sequence-v1/manifest.json",
+          "sha256": "74fd9b6dfe722a74d7fd7c60788990dcd6bd5d3dffc7de87859c003816933c05"
+        },
+        {
+          "path": "/tmp/lsp-minifier-new-name-sequence-v1/source-verification.json",
+          "sha256": "828cb897e57dc6afc6ea414a04644100855fd1a9af502227068369841b878c67"
+        },
+        {
+          "path": "/tmp/sol-project-minifier569-peer/independent-review-CLEAR.txt",
+          "sha256": "5d10602a3a49277f601e376fba220c50cadd4f1bf66b8a39fe96b80708ef84a7"
+        }
+      ]
+    },
+    {
+      "id": "724",
+      "directory": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1",
+      "patch": "repair.patch",
+      "patch_sha256": "d0b431d6ebd0c3b1814f01c611604b9e2ff66b24fde9e7b755f3e80df832ba7b",
+      "manifest_sha256": "201c34289e8a92ae4973560066aad3a6cb3d5c96b03a31cf5f9c0441506f53eb",
+      "receipts": [
+        {
+          "path": "/tmp/luna-db724-independent-source-review-CLEAR.txt",
+          "sha256": "c5e2ebfe549fd6bef1f932cb1baf0ba0e16c80f3c78c6bb613704be8c9dfb3ce"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/SOURCE-BASIS.md",
+          "sha256": "23ad2a2026b5952c1d2854c70e3261133ffe4a9e5b85d33a9be91e979485eca8"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/apply-verification.json",
+          "sha256": "2b2db43415959f4fd7a3efd41409b51f12646c814d8c95e5660807f76a6a028a"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/apply.log",
+          "sha256": "8459040b87f9b4a66d2fc15a05aae6450783d94d0bd29292827e68e1a49fe0b2"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/controls.json",
+          "sha256": "e6ff373e138a3279eb65c0ccec8784c67a70a68cc52458ad322e458c7d4f1f2e"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/manifest.json",
+          "sha256": "201c34289e8a92ae4973560066aad3a6cb3d5c96b03a31cf5f9c0441506f53eb"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/old-test-preservation.json",
+          "sha256": "feb3eb941619371430440d263b71b1023c5623b29777389e624c526a5190553f"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/old-ts-test-preservation.json",
+          "sha256": "dad65684b492028949e194e257ec04fe4db06a81d330b33c85541df330ccf0c6"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-code-action-source-version-v1/preserved-workers.json",
+          "sha256": "ff9a907f1ab5a3d41909740b3abc0fddf4ee1017e39a17ef76b9eea8a6d7e434"
+        }
+      ]
+    },
+    {
+      "id": "601",
+      "directory": "/tmp/lsp-tk-source-context-v1",
+      "patch": "repair.patch",
+      "patch_sha256": "7643147bdb47dbd20f3a283c52e8c30413b732d956423ea95c656365593b3ef4",
+      "manifest_sha256": "f3ac5792e404cc2b957c49c67ffa1cd02e6e381eb8d35b582fee94ddd1456333",
+      "receipts": [
+        {
+          "path": "/tmp/lsp-tk-source-context-v1/manifest.json",
+          "sha256": "f3ac5792e404cc2b957c49c67ffa1cd02e6e381eb8d35b582fee94ddd1456333"
+        },
+        {
+          "path": "/workspace/naming-validation/root-reviews/tk-source-v1/independent-source-review-CLEAR.txt",
+          "sha256": "3a7ce45835fd2ab6ee056910bc2ceab9d71cbbcb25ef64fe0bc0a587d4149f39"
+        }
+      ]
+    },
+    {
+      "id": "691V3",
+      "directory": "/workspace/naming-validation/agent-work/lsp-lambda-logical-decoded-format-phase-v3",
+      "patch": "logical-decoded-formatting-phase-v3.patch",
+      "patch_sha256": "fc59836d36bec026b39ee77ee81a2255e80490974313f02484719d52b6583b1f",
+      "manifest_sha256": "e9212030a263ea5075716d5b32c836d74811620e773116f633ef312ba0c8f910",
+      "receipts": [
+        {
+          "path": "/tmp/sol-logical-lambda-phase691-v3-review/independent-review-CLEAR.txt",
+          "sha256": "98d5640e5e2508d0911e07e87cf0414679c59a29a17a9a6619f63e2cba75105d"
+        },
+        {
+          "path": "/tmp/sol-logical-lambda-phase691-v3-review/source-verification.json",
+          "sha256": "e6057806e93f588dc17e069b1ee2528c68a436f75c4ddaf2efbf3d94d749bcbd"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-lambda-logical-decoded-format-phase-v3/SOURCE-BASIS.md",
+          "sha256": "123924c01e925dd9c62ca10e4bf519091f75074f7fe418e0f8b3c18eede8a409"
+        },
+        {
+          "path": "/workspace/naming-validation/agent-work/lsp-lambda-logical-decoded-format-phase-v3/manifest.json",
+          "sha256": "e9212030a263ea5075716d5b32c836d74811620e773116f633ef312ba0c8f910"
+        }
+      ]
+    },
+    {
+      "id": "xtaskSyn3",
+      "directory": "/workspace/naming-validation/source-owner-self-route-receiver-syn3-repair1",
+      "patch": "repair.patch",
+      "patch_sha256": "d55714d0688f54b7242b9fff4037fc25053b1882acd0f7a33ca77f2c80e79ac8",
+      "manifest_sha256": "66d8149875255bb9807669a4624d280fb506f084a9510cf404645c57b191ce92",
+      "receipts": [
+        {
+          "path": "/workspace/naming-validation/source-owner-self-route-receiver-syn3-repair1/independent-review-CLEAR.txt",
+          "sha256": "12712f15a677f26a2a440d7479543c11717a04b492756669b32d4003f22e074a"
+        },
+        {
+          "path": "/workspace/naming-validation/source-owner-self-route-receiver-syn3-repair1/manifest.json",
+          "sha256": "66d8149875255bb9807669a4624d280fb506f084a9510cf404645c57b191ce92"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md",
+      "before_exists": true,
+      "before_sha256": "abe40c51f9f6b90536d1a35c610fb7b81f997ba0139600f5da8313e37968c1c9",
+      "after_sha256": "d39eca09dc0697bbad9b7e412e2f1c6e70323551a28ed90458320d91cd8c64b2"
+    },
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/source-current-code-action-publication.md",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "fa5a604763bce14bd26aaedd834da8c54cd31d10858badc6517bc1f46200849d"
+    },
+    {
+      "path": "docs/design/contracts/compacted-source-names.md",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "0f40f5a681e2b6bfd155c3c3759a8794f45efe622e11cce441acb14d2f526f0f"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_exists": true,
+      "before_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "after_sha256": "433fd5f1abf4e0ecddd6b6f5d851c50359f542a12f4ab3941d0a9e665528d325"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_exists": true,
+      "before_sha256": "dbc22e8f87e383cb214659a545c943c6cf33b47530a1490ba2e16159e058e4d8",
+      "after_sha256": "01bfdebb7a2b3f0bb0aa9deebe76faf929b9e6cd62a2f2ec4b23997fe1957c8c"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_exists": true,
+      "before_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "after_sha256": "0180984a40f257a73f0d77550c0c3ba7954a9c940db42d5c71d703eb50ae8883"
+    },
+    {
+      "path": "editors/vscode/src/chat/tkParticipant.ts",
+      "before_exists": true,
+      "before_sha256": "2fd9a257a51672b0334d6019b421d523ede339483fee521a72125965a7ac9444",
+      "after_sha256": "ae446ebbc807947f9190a5d84100d7c540a1917b98509d9f8aa012f4a39a3188"
+    },
+    {
+      "path": "editors/vscode/src/clientCore.ts",
+      "before_exists": true,
+      "before_sha256": "cc2b8efc3f2d432c41f5d9f70153724bf88518e78411fe54bc744206b1cbbb4b",
+      "after_sha256": "bbbdb558a5af539cb31256396375bed79c7e146fc8b970b7d13f60ed3ccf36e5"
+    },
+    {
+      "path": "editors/vscode/src/codeActionSource.ts",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "f680f203ce2b501b8c2b8e83241af1098a4ca3f3fe7a040e291070e85e765dc1"
+    },
+    {
+      "path": "editors/vscode/src/extension.ts",
+      "before_exists": true,
+      "before_sha256": "a3df74ca1a1d18f0fd4aec66d02d50664e855253ce0fbaba0a997558d36ad685",
+      "after_sha256": "e8667532cac5d32f1ac6a92ac8c9db381fc74f6ad9d2d102986b28cf4a9a0e5f"
+    },
+    {
+      "path": "editors/vscode/src/extensionBrowser.ts",
+      "before_exists": true,
+      "before_sha256": "a3701cfd08040c75e8c4d09d2b9cacc83ce7b043a0915b90cacb92737a4be549",
+      "after_sha256": "aaa5f8b0eb0306aae47a470c31866b7e8a7688184d7a58234efecb4a23ecb6d7"
+    },
+    {
+      "path": "editors/vscode/src/test/commands.test.ts",
+      "before_exists": true,
+      "before_sha256": "0ec5cfe2cbc8ab67be78b95f8a617d34fdd58a0aa70867044feee8ff6b746802",
+      "after_sha256": "59e364542ebf7b55b59f4dba96bf46a09cd916f0953d27f26ae01e595760676d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_exists": true,
+      "before_sha256": "5aaa90178bb97463984b52dfa2688b9aef6d1523a8f52343434806a50fead4d0",
+      "after_sha256": "c29efbd802efe043f4fb49d926144beb3a35a21896a4d922275bba6565c25258"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_exists": true,
+      "before_sha256": "0b4e6edfae879cc1cbdeefd8a923f4706b1f1b062592d6feba485004df59bc4d",
+      "after_sha256": "490e2d20b11f3be56e22d34627c91d8e57ae7bbc6088e303bdaee2f78b7f5279"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_exists": true,
+      "before_sha256": "7fc916e7915c22946e0291b633156cdacdcf201246cf35a66fc641d44515ad87",
+      "after_sha256": "12ab0290aca78d042ffb1945709e0b2ddbe1467e937fff6839703c8ccaa45516"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "4ac4048729c3698c1899ce145ee41d63eac5e2482c5097661038f13675ba9cc5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lambda_literal.rs",
+      "before_exists": true,
+      "before_sha256": "b7b9093eebdfc455b1a714ad799c270d67de158ff723a428166c0a44ff63eb6a",
+      "after_sha256": "f6e9c9b0cd6e3a074699ef91c97bc1c8c17a6dc5fe10afaaf8077805dd9074ba"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "before_exists": true,
+      "before_sha256": "852691e81d244832027eb51a9e4c5a784b8dff6b7cc60cd17753c8e065f76c32",
+      "after_sha256": "ad8c1ad10a6a32394019fc3ddc551f6817dd7f8d748e1f514e99220dd32b3c19"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_exists": true,
+      "before_sha256": "da03677c3e488df509d84a3f80df6badb48da2e7073e33a5d8c786a1b0115f90",
+      "after_sha256": "c0633216c26723d807a5d5a94c47d22f22912f9aeee693c337565662ed3bb588"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_exists": true,
+      "before_sha256": "9dc92908161471433ee3a9761eb088cf2ea246e90106f32b8b68676eab79a0b6",
+      "after_sha256": "7e06df1c54f803e9e80a11efd8c956f6218aee49b264433744db8c6158b89b34"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_exists": true,
+      "before_sha256": "3643fcf6cba618e1760a4ac2866aaa7099e406e3b0bcbcf5434c614836b10ee0",
+      "after_sha256": "1e4fd2c53894ff78cb2479cb11612b166646166b824fe6a3bcc7bf11d41df40c"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "before_exists": true,
+      "before_sha256": "fbdc7fab42074c6679aeefdaabdde07d4d18348570410b034e9bd844c0a2c5f6",
+      "after_sha256": "8102d2df874421f2ed2e1cb53d2e916850e2add1b484c12cef6a0583611b927f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_exists": true,
+      "before_sha256": "fbde190793fbd6924b68dc41c647c37e079080fcdbda4f1a6ec5f12d5e557bdb",
+      "after_sha256": "0579839afa45172eb7f6ea45fda804db8480bee2ef238ab58b69ace05f78a417"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "before_exists": true,
+      "before_sha256": "612144201df1acc3d6e1e2f2f5e5eff83b1d6ac03481c6471e4a0ea09c37089c",
+      "after_sha256": "63fe0a501c30f5be42643022388623464eb5b405b482ed1a60435cef8eb0ee7d"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_exists": true,
+      "before_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "after_sha256": "0ac798083cdb7b82009b35ef86013fc886412ef52f64f404dcc9d7d16be70f9c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_exists": true,
+      "before_sha256": "cf027427ed3e7888c96d0bb46c17c153a37a2552759948a52e9b0ab09245e7b7",
+      "after_sha256": "97c38f0cb8b52e54837812febecea9b56618ce6b0dbc881dbb185541312ced85"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "before_exists": true,
+      "before_sha256": "555e646b11574b90768747f5ed6a2953ac095c6f84975b4bdf7b3c7287cad484",
+      "after_sha256": "171d1c46bfedb9fe714c085ca806d5f0d55d8108619ff451d8a12442a014c99f"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/compacted_source.rs",
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "dcc822127c258dcf9eac0fd1083f27a93f605747bb493492fce64b72c7018083"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "before_exists": true,
+      "before_sha256": "efb4075d57d48d2fae4ba350970cb11ce9053ec2c72c0bd2795edc8af53fc92b",
+      "after_sha256": "75935322156f8b1779aea9d11047359dc0ab53b35a54d9db48b0c32675af93cd"
+    }
+  ],
+  "patch_sha256": "96e5499273d60a7019d96d086af44ee19022e8a660b89100d1b6b67be054c852",
+  "composition_sha256": "9f71de8f3971e91d492212090a7ab38cb7310c98a8c40edff242b2f8e252ada8",
+  "source_count": 29,
+  "ingredient_count": 6,
+  "same_coordinate_insertions": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "line0": 2203,
+      "ordering": [
+        "705",
+        "569",
+        "691V3"
+      ],
+      "policy": "Concatenate exact independent insertions in authorised ingredient order; no bytes of either insertion or original source changed."
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line0": 1376,
+      "ordering": [
+        "705",
+        "691V3"
+      ],
+      "policy": "Concatenate exact independent insertions in authorised ingredient order; no bytes of either insertion or original source changed."
+    }
+  ],
+  "checks": [
+    "all ingredient patches/hashes/before/after exact",
+    "current before images unchanged before and after composition",
+    "all six ingredient patch replays exact",
+    "disjoint common-base edits; non-insertion overlaps fail closed",
+    "joint patch fresh forward/inverse exact"
+  ],
+  "no_execution": "No Cargo/build/test/provider/Git operations; Main unchanged."
+}

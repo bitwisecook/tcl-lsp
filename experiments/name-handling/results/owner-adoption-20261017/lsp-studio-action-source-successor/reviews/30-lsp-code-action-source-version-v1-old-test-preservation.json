@@ -1,0 +1,14 @@
+{
+  "rust/tcl-lsp-server/src/lib.rs": {
+    "old_test_modules_byte_equal": 6,
+    "new_test_modules": [],
+    "rust_ast_parse": true
+  },
+  "rust/tcl-lsp-server/src/readonly_reference_reports.rs": {
+    "old_test_modules_byte_equal": 9,
+    "new_test_modules": [
+      "code_action_source_version_tests"
+    ],
+    "rust_ast_parse": true
+  }
+}

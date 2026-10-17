@@ -69,6 +69,7 @@ class TclLspServerDescriptor(project: Project) :
     override val lspServerListener: LspServerListener = object : LspServerListener {
         override fun serverInitialized(params: InitializeResult) {
             TclLspPackAssociations.getInstance().pull(project)
+            SpecStudioPanelGenerations.serverInitialized()
         }
     }
 

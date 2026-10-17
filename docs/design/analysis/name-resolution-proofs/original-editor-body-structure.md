@@ -150,3 +150,33 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The exact linked Rust selectors exercise the source geometry and owner premises. No Rust or native execution receipt is attached to this implementation contract.
+
+
+## Decoded lambda field source phases
+
+A decoded non-braced lambda body retains a separate source instance instead
+of acquiring original document coordinates. `OriginalDecodedLambdaFormattingBody`
+reborrows the existing interpreted list-element ledger only when the actual
+Registry-selected lambda/full original word/input and exact decoded bytes agree.
+It retains the interpreted body's actual origin/base and selects its existing
+original argv/role proofs. This is source interpretation, including the separately
+selected authored simulation purpose where applicable, not measured Native
+activation or a new body entry.
+
+`OriginalConditionalLambdaFormattingBody` is a separate Logical source issuer.
+The actual source-transition lambda producer retains its selected schema, whole
+original vector/input, configured list fields and parent graph. The body gets a
+private-minted `ConditionalField` origin and the same generic invocation walker,
+with actual namespace/count data, unknown debts and deferred-body applicability.
+Its map is independent of document offsets and parent mutations. The existing
+prefix-catalogue refusal/body/advice selector is shared with the ordinary realm;
+known barriers and missing advice remain terminal. No Document navigation recipe,
+variable frame, complete effects, lookup-preserving rewrite or Native policy is
+issued. Native Authored/Loaded/materialised-script admission remains separate.
+
+Core formatting consumes the corresponding phase at its actual local base;
+conditional phases never stamp tokens against the parent realm. Unchanged
+braced bodies keep the original body owner. The fixed new phase/foreign-vector,
+foreign-input, known-shadowing and actual formatter-role controls are source
+validation obligations until an ordinary run establishes their results; this
+appendix changes no existing provider status, evidence hash or replay result.

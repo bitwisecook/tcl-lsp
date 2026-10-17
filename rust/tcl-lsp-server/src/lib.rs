@@ -37,6 +37,8 @@ pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
 mod document_transform;
 mod proposal_diagnostics;
+mod rewrite_wire;
+mod studio_source;
 use current_diagnostics::{
     DiagnosticCacheReceipt, DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression,
     DiagnosticUnavailable,
@@ -692,8 +694,9 @@ struct DocumentState {
     /// why `text` and `line_index` must only ever be replaced together (see
     /// the type-level invariant on [`DocumentState`]).
     text: Arc<str>,
-    /// The client's exact bytes, when they differ from `text` — i.e. only for
-    /// an old-Mac / mixed document handed out by [`Backend::read_document`].
+    /// The client's Unicode text or the selected file's decoded text, when it
+    /// differs from `text` — only for an old-Mac / mixed document handed out
+    /// by [`Backend::read_document`]. This is not original file bytes.
     /// Read it via [`DocumentState::raw`] for anything that must see the real
     /// terminators: the W118 line-ending lint and the formatter (whose output
     /// EOL and whose replace range are both computed from the real document).
@@ -709,8 +712,10 @@ struct DocumentState {
     /// uses this to decide whether [`tcl_lexer::LineIndex::apply_edit`] remains
     /// sound for the next incremental edit (see [`apply_content_change_indexed`]).
     has_bare_cr: bool,
-    /// Byte-level decoding evidence retained only when the backing file
-    /// lossily decoded to this exact buffer at `didOpen`. It is cleared by an
+    /// Byte-level decoding evidence from the selected closed-file read, or
+    /// a backing file that decoded to this exact buffer at `didOpen`. The
+    /// report describes the pre-normalisation decoded text returned by `raw`,
+    /// not original-byte identity for the analysis view. It is cleared by an
     /// edit: LSP carries text, not source bytes, so an edited buffer must not
     /// inherit a verdict about an older on-disk version.
     decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
@@ -816,8 +821,9 @@ impl DocumentState {
         self
     }
 
-    /// The client's exact bytes — `text` unless this snapshot has been
-    /// normalised for analysis, in which case the originals are in `raw_text`.
+    /// The pre-normalisation Unicode text — `text` unless this snapshot has
+    /// been normalised for analysis, in which case it is in `raw_text`.
+    /// For a closed file this is decoded text, not original file bytes.
     fn raw(&self) -> &str {
         self.raw_text.as_deref().unwrap_or(&self.text)
     }
@@ -6336,6 +6342,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     }
 
     let lift_inputs = LiftInputs {
+        rewrite_source: diagnostic_pass
+            .as_ref()
+            .map(|pass| rewrite_wire::RewriteWireSource::Document(Arc::clone(pass))),
         text: &text,
         decode_report,
         dialect: tcl_lsp_core::profile_for_dialect(&dialect),
@@ -6977,8 +6986,20 @@ fn lifted_report(
     directives: core_policy::Directives,
     analysis: Option<&AnalysisResult>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    lifted_report_with_rewrite_source(doc, produced, layers, directives, analysis, None)
+}
+
+fn lifted_report_with_rewrite_source(
+    doc: &core_report::DocumentSource<'_>,
+    produced: Vec<core_policy::Finding>,
+    layers: &PolicyLayers,
+    directives: core_policy::Directives,
+    analysis: Option<&AnalysisResult>,
+    source: Option<&rewrite_wire::RewriteWireSource>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let report = published_report(doc, produced, layers, directives, analysis);
-    lift_report(doc.text, &report)
+    let payloads = rewrite_wire::original_rewrite_payloads(doc, &report, analysis, source);
+    lift_report_with_payloads(doc.text, &report, payloads)
 }
 
 /// `produced` plus the report's own producers under `layers` and
@@ -7017,13 +7038,21 @@ fn published_report(
 /// policy carry no payload. Nothing here decides anything, and nothing here
 /// may: the three publish paths, the pull provider and the F5 report reach it
 /// through [`lifted_report`], one call each.
+#[cfg(test)]
 fn lift_report(
     text: &str,
     report: &core_policy::Report,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    lift_report_with_payloads(text, report, rewrite_payloads(report))
+}
+
+fn lift_report_with_payloads(
+    text: &str,
+    report: &core_policy::Report,
+    payloads: HashMap<*const core_policy::Finding, serde_json::Value>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
     let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    let payloads = rewrite_payloads(report);
     let mut diagnostics: Vec<_> = report
         .shown()
         .map(|shown| {
@@ -7070,6 +7099,7 @@ fn lift_report(
 /// rides on (the report's own element, so identity is the key): the flat
 /// edit for an ungrouped rewrite, and the whole group's edits on every
 /// member of a group.
+#[cfg(test)]
 fn rewrite_payloads(
     report: &core_policy::Report,
 ) -> std::collections::HashMap<*const core_policy::Finding, serde_json::Value> {
@@ -7176,6 +7206,7 @@ fn published_findings(
 /// The document-style toggles + buffer the diagnostic lifts read; borrows for
 /// one `run_diagnostics_core` call.
 struct LiftInputs<'a> {
+    rewrite_source: Option<rewrite_wire::RewriteWireSource>,
     text: &'a str,
     decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -7327,6 +7358,7 @@ async fn refine_and_lift_diagnostics(
         |code| inputs.disabled.iter().any(|c| c == code),
     ));
 
+    let rewrite_source = inputs.rewrite_source.clone();
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
     let decode_report = inputs.decode_report;
@@ -7362,12 +7394,13 @@ async fn refine_and_lift_diagnostics(
                 line_length: style_line_length as usize,
             },
         };
-        lifted_report(
+        lifted_report_with_rewrite_source(
             &doc,
             produced,
             &policy_layers,
             core_policy::Directives::from_analysis(&analysis_lifts, &lift_text),
             Some(&analysis_lifts),
+            rewrite_source.as_ref(),
         )
     })
     .await
@@ -8176,6 +8209,8 @@ enum ReloadTrigger {
     Startup,
     /// A `.tclspec` appeared, changed, or was deleted.
     WatchedFile,
+    /// An actual Studio session acquired, published or retired a source.
+    StudioSource,
     /// `tclLsp.specPacks` may have moved, so the discovery inputs did.
     Config,
     /// The client reported a different Workspace Trust state, so a workspace
@@ -8663,6 +8698,8 @@ pub struct Backend {
     /// one published, so whichever runs last re-reads the true state. It costs
     /// nothing on the common path: reloads are workspace-scoped, not per-edit.
     spec_pack_reload: Arc<Mutex<()>>,
+    /// Active Studio publications belong to this Backend, never to a directory.
+    studio_sources: Mutex<studio_source::StudioSources>,
     /// Absolute watch globs currently registered for pack directories that lie
     /// **outside every workspace folder** — the per-user tier, and any
     /// absolute `tclLsp.specPacks` entry.
@@ -10149,6 +10186,7 @@ impl Backend {
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
+            studio_sources: Mutex::new(Default::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
@@ -13519,32 +13557,35 @@ impl Backend {
         // from cross-document navigation.
         let store = Arc::clone(&self.store);
         let selected_path = path.clone();
-        let (text, _) = match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
-            Ok(Ok(source)) => source,
-            Ok(Err(cause))
-                if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
-            {
-                path_admission.check_for(url, self.store.as_ref())?;
-                return Ok(None);
-            }
-            Ok(Err(cause)) => {
-                return Err(DocumentSourceUnavailable::Read {
-                    uri: url.clone(),
-                    cause: Arc::new(cause),
-                });
-            }
-            Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
-        };
-        let dialect = match self.resolve_folder_dialect(url).await {
-            Some(d) => d,
-            None => self.session_dialect().await,
-        };
+        let (text, decode_report) =
+            match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
+                Ok(Ok(source)) => source,
+                Ok(Err(cause))
+                    if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
+                {
+                    path_admission.check_for(url, self.store.as_ref())?;
+                    return Ok(None);
+                }
+                Ok(Err(cause)) => {
+                    return Err(DocumentSourceUnavailable::Read {
+                        uri: url.clone(),
+                        cause: Arc::new(cause),
+                    });
+                }
+                Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
+            };
+        // The same selected decoded source and original URI drive the
+        // closed-file dialect owner used by indexing and diagnostics. Its
+        // document override, source detection and configured fallbacks remain
+        // independent of the provider path's spelling.
+        let dialect = self.dialect_for_closed(url, &text).await;
         path_admission.check_for(url, self.store.as_ref())?;
-        Ok(Some(
-            DocumentState::new(text, dialect)
-                .with_path_admission(path_admission)
-                .normalised_for_analysis(),
-        ))
+        let mut document = DocumentState::new(text, dialect).with_path_admission(path_admission);
+        // Preserve the decoder's evidence before lone-CR normalisation. Neither
+        // a lossy decode nor the normalised analysis view is original bytes;
+        // downstream source/input/Native admission remains independent.
+        document.decode_report = Some(decode_report);
+        Ok(Some(document.normalised_for_analysis()))
     }
 
     /// Read a document only after its Salsa source **and** workspace-index view
@@ -14905,6 +14946,7 @@ impl Backend {
             workspace_trust: _,
             spec_packs: _,
             spec_pack_reload: _,
+            studio_sources: _,
             spec_pack_reload_seq: _,
             bigip_version: _,
             declared_targets: _,
@@ -24905,17 +24947,29 @@ impl Backend {
             _ => (std::time::Duration::ZERO, None, None),
         };
         let pack_store = Arc::clone(&self.store);
+        let mut studio_snapshot = self.studio_sources.lock().await.snapshot();
         let load = crate::rt::spawn_blocking(move || {
-            let files = tcl_spectcl::discovery::discover_in(pack_store.as_ref(), &options);
+            let studio =
+                studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
+            let active_paths = studio
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>();
+            let files = tcl_spectcl::discovery::discover_with_active_studio_in(
+                pack_store.as_ref(),
+                &options,
+                &active_paths,
+            );
             // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
             // release binary (Zed, the standalone-editor instructions) has no
             // `specs/` directory beside it, so discovery finds no bundled tier
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            let loaded = tcl_spectcl::bundled::load_discovered_in(
+            let loaded = tcl_spectcl::bundled::load_discovered_with_studio_sources_in(
                 pack_store.as_ref(),
                 &files,
+                &studio,
                 options.workspace_trust,
             );
             // The test seam, and the only place it can go: the snapshot is
@@ -24927,11 +24981,11 @@ impl Backend {
                 let _ = tx.send(());
                 std::thread::sleep(hold);
             }
-            loaded
+            (loaded, studio_snapshot)
         });
         self.announce_pack_snapshot_hold(hold, held_rx).await;
         let loaded = load.await;
-        let Ok(loaded) = loaded else {
+        let Ok((loaded, studio_snapshot)) = loaded else {
             // A panic in the loader must not take the session with it: the
             // workspace keeps whatever pack set it already had.
             self.client
@@ -24947,47 +25001,60 @@ impl Backend {
         // generation. A standalone index seed either commits before this
         // writer or observes the bumped epoch after the complete transition.
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
+        let mut studio_sources = self.studio_sources.lock().await;
+        if !studio_sources.matches_snapshot(&studio_snapshot) {
+            return Ok(false);
+        }
         // What publishing the set did to the live environment registry, when
         // it was published — `None` when this reload changed nothing.
         let mut registration: Option<tcl_spectcl::PackSetRegistration> = None;
+        let loaded = Arc::new(loaded);
         let changed = {
             let mut guard = self.spec_packs.lock().await;
-            // Newest snapshot wins, decided by when the disk was read. With
-            // `spec_pack_reload` held this is always true — see
-            // `spec_pack_reload_seq` for why it is checked anyway.
-            let newest = seq > guard.seq;
-            let changed = newest && guard.packs.key != loaded.key;
-            if changed {
-                // Publish the hook plan *before* the new pack set becomes
-                // visible, and under the same lock: slots are allocated once,
-                // here, for the whole process, and each worker thread builds
-                // its own sandboxed host from the plan the first time it runs
-                // analysis (`with_pack_hooks`).  A `HookHost` owns VM
-                // instances, which are not `Send`, so this cannot install
-                // anything itself — it records what to install.  Publishing
-                // after the swap would leave a window in which a query sees
-                // the pack's commands with their hooks still abstaining.
-                tcl_spectcl::hooks::publish(&loaded);
-                let loaded = Arc::new(loaded);
-                // Publish the same set to every other consumer in this process
-                // — the compiler explorer most of all, which built a plain
-                // registry and so reported a pack's (and every EDA) command
-                // unknown on the very line whose diagnostic resolved it.
-                //
-                // This is also where a pack's `environment` blocks go live:
-                // the publish registers them into the one environment
-                // registry the ingress resolves against, retires the ones a
-                // pack that has left the workspace declared, and republishes
-                // the extension routing detection reads — so a document with
-                // a pack-declared extension resolves to that environment
-                // through the ordinary ingress from here on.
-                registration = Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
-                // The stamp moves with the content: it records which snapshot
-                // the *current* set came from, so a reload that read the disk
-                // earlier than that can never take its place.
-                *guard = PublishedPackSet { seq, packs: loaded };
-            }
-            changed
+            studio_snapshot.with_current_saved_sources(self.store.as_ref(), || {
+                // Newest snapshot wins, decided by when the disk was read. With
+                // `spec_pack_reload` held this is always true — see
+                // `spec_pack_reload_seq` for why it is checked anyway.
+                let newest = seq > guard.seq;
+                let changed = newest
+                    && (guard.packs.key != loaded.key || studio_sources.has_unpublished_changes());
+                if changed {
+                    // Publish the hook plan *before* the new pack set becomes
+                    // visible, and under the same lock: slots are allocated once,
+                    // here, for the whole process, and each worker thread builds
+                    // its own sandboxed host from the plan the first time it runs
+                    // analysis (`with_pack_hooks`).  A `HookHost` owns VM
+                    // instances, which are not `Send`, so this cannot install
+                    // anything itself — it records what to install.  Publishing
+                    // after the swap would leave a window in which a query sees
+                    // the pack's commands with their hooks still abstaining.
+                    tcl_spectcl::hooks::publish(&loaded);
+                    let loaded = Arc::clone(&loaded);
+                    // Publish the same set to every other consumer in this process
+                    // — the compiler explorer most of all, which built a plain
+                    // registry and so reported a pack's (and every EDA) command
+                    // unknown on the very line whose diagnostic resolved it.
+                    //
+                    // This is also where a pack's `environment` blocks go live:
+                    // the publish registers them into the one environment
+                    // registry the ingress resolves against, retires the ones a
+                    // pack that has left the workspace declared, and republishes
+                    // the extension routing detection reads — so a document with
+                    // a pack-declared extension resolves to that environment
+                    // through the ordinary ingress from here on.
+                    registration =
+                        Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
+                    // The stamp moves with the content: it records which snapshot
+                    // the *current* set came from, so a reload that read the disk
+                    // earlier than that can never take its place.
+                    *guard = PublishedPackSet { seq, packs: loaded };
+                    studio_sources.mark_published(&studio_snapshot);
+                }
+                if !changed {
+                    tcl_spectcl::registration::publish_pack_extension_routes(&loaded);
+                }
+                changed
+            })?
         };
 
         let packs = self.spec_packs().await;
@@ -25027,6 +25094,7 @@ impl Backend {
             // Bump only after the registry and Salsa config key are both live.
             self.invalidate_diag_inputs();
         }
+        drop(studio_sources);
         drop(analyser_inputs_guard);
         self.report_pack_reload(&packs, registration.as_ref(), changed)
             .await?;
@@ -27584,7 +27652,25 @@ impl LanguageServer for Backend {
     }
 
     fn shutdown(&self) -> impl Future<Output = jsonrpc::Result<()>> {
-        std::future::ready(Ok(()))
+        async move {
+            let retired = self.studio_sources.lock().await.close();
+            if retired {
+                self.reload_spec_packs(ReloadTrigger::StudioSource).await?;
+                if !self
+                    .studio_sources
+                    .lock()
+                    .await
+                    .shutdown_publication_complete()
+                {
+                    return Err(jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InternalError,
+                        message: "Studio source withdrawal publication is unavailable".into(),
+                        data: None,
+                    });
+                }
+            }
+            Ok(())
+        }
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -30355,9 +30441,26 @@ impl LanguageServer for Backend {
             end_line: params.range.end.line,
             end_character: params.range.end.character,
         };
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
+        // The dedicated BIG-IP adapter retains its existing routing. Ordinary
+        // source edits require an actual open, versioned document receipt.
+        let source = if doc.dialect == "f5-bigip" {
+            None
+        } else {
+            let Some(source) = self.capture_code_action_source(&uri, &doc).await? else {
+                return Ok(None);
+            };
+            if !source.contains_range(params.range) {
+                return Ok(None);
+            }
+            Some(source)
+        };
+        let analysis = match &source {
+            Some(source) => source.analysis(),
+            None => {
+                self.analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+                    .await?
+            }
+        };
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
         // requested range, plus fuzzy `package require`
@@ -30423,7 +30526,10 @@ impl LanguageServer for Backend {
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         // The inline-proc refactor substitutes the reached proc's body, so
         // it needs the same export view definition uses.
-        let exports = self.export_snapshot().await;
+        let exports = match &source {
+            Some(source) => source.exports(),
+            None => self.export_snapshot().await,
+        };
         // `tclLsp.formatting.docstringStyle` — resolved the same way
         // as every other folder-overridable formatting setting, then handed
         // to the docstring source action so it actually governs where (or
@@ -30475,7 +30581,24 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         core_code_actions::retarget_newlines(&mut actions, &line_ending);
-        let lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
+        let lifted = match &source {
+            Some(source) => {
+                let Some(lifted) = self
+                    .finish_code_action_response(source, actions, params.context.only.as_ref())
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                lifted
+            }
+            None => {
+                let mut lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
+                for action in &mut lifted {
+                    attach_source_action_data(action, serde_json::json!({"kind": "legacy-bigip"}));
+                }
+                lifted
+            }
+        };
         if lifted.is_empty() {
             return Ok(None);
         }
@@ -30537,6 +30660,7 @@ impl LanguageServer for Backend {
                 self.set_session_dialect_override_command(&params.arguments)
                     .await
             }
+            "tcl-lsp.studioSource" => self.studio_source_command(&params.arguments).await,
             "tcl-lsp.setDocumentDialectOverride" => {
                 self.set_document_dialect_override_command(&params.arguments)
                     .await
@@ -31815,6 +31939,49 @@ fn lift_code_actions(
             })
         })
         .collect()
+}
+
+/// Retain edit versions for LSP clients and the original source for the
+/// checked editor adapter. The caller holds source/input/provider currency.
+fn lift_versioned_code_actions(
+    actions: Vec<core_code_actions::CodeAction>,
+    uri: &Uri,
+    version: i32,
+    source: &str,
+    only: Option<&Vec<tower_lsp_server::ls_types::CodeActionKind>>,
+) -> Vec<CodeActionOrCommand> {
+    let mut lifted = lift_code_actions(actions, uri, only);
+    for action in &mut lifted {
+        attach_source_action_data(
+            action,
+            serde_json::json!({
+                "kind": "versioned", "uri": uri.as_str(), "version": version, "source": source,
+            }),
+        );
+        if let CodeActionOrCommand::CodeAction(action) = action
+            && let Some(edit) = &mut action.edit
+            && let Some(mut changes) = edit.changes.take()
+        {
+            let edits = changes.remove(uri).unwrap_or_default();
+            edit.document_changes = Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: Some(version),
+                },
+                edits: edits.into_iter().map(OneOf::Left).collect(),
+            }]));
+        }
+    }
+    lifted
+}
+
+fn attach_source_action_data(action: &mut CodeActionOrCommand, intent: serde_json::Value) {
+    if let CodeActionOrCommand::CodeAction(action) = action {
+        let data = action.data.get_or_insert_with(|| serde_json::json!({}));
+        if let Some(object) = data.as_object_mut() {
+            object.insert("sourceAction".to_owned(), intent);
+        }
+    }
 }
 
 /// Lift a [`tcl_bigip::Range`] (UTF-16 columns, **inclusive** end — the last
@@ -35488,6 +35655,7 @@ fn build_server_capabilities(
                 "tcl-lsp.setDialect".to_owned(),
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.setDocumentDialectOverride".to_owned(),
+                "tcl-lsp.studioSource".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
                 "tcl-lsp.compilerExplorerView".to_owned(),
                 "tcl-lsp.tkPreview".to_owned(),
@@ -43734,6 +43902,7 @@ info exists ::N::v\uD800";
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
+            studio_sources: Mutex::new(Default::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
@@ -62808,5 +62977,233 @@ mod retained_class_family_receiver_tests {
         assert!(
             Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod closed_document_source_context_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn closed_read_uses_detected_configured_and_document_override_dialect() {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///workspace/closed.tcl").unwrap();
+        store.upsert_uri(
+            uri.as_str(),
+            "/mounted/closed.tcl",
+            b"# tcl-dialect: tcl8.4\rset x 1\r".to_vec(),
+        );
+        let mut backend = tests::test_backend();
+        backend.store = store.clone();
+        *backend.session_dialect_override.lock().await = Some("tcl9.0".to_owned());
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "tcl8.5".to_owned(),
+        )];
+        let extension_uri = Uri::from_str("file:///workspace/plain.exp").unwrap();
+        store.upsert_uri(
+            extension_uri.as_str(),
+            "/mounted/plain.data",
+            b"set x 1\n".to_vec(),
+        );
+        assert_eq!(
+            backend
+                .read_document(&extension_uri)
+                .await
+                .unwrap()
+                .unwrap()
+                .dialect,
+            "expect"
+        );
+        let detected = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(detected.dialect, "tcl8.4");
+        assert_eq!(detected.raw(), "# tcl-dialect: tcl8.4\rset x 1\r");
+        assert_eq!(detected.text.as_ref(), "# tcl-dialect: tcl8.4\nset x 1\n");
+        store.upsert("/mounted/closed.tcl", b"set x 1\n".to_vec());
+        assert_eq!(
+            backend.read_document(&uri).await.unwrap().unwrap().dialect,
+            "tcl8.5"
+        );
+        backend.folder_dialects.lock().await.clear();
+        assert_eq!(
+            backend.read_document(&uri).await.unwrap().unwrap().dialect,
+            "tcl9.0"
+        );
+        backend
+            .document_dialect_overrides
+            .lock()
+            .await
+            .insert(uri.as_str().to_owned(), "tcl8.6".to_owned());
+        store.upsert(
+            "/mounted/closed.tcl",
+            b"# tcl-dialect: tcl8.4\nset x 1\n".to_vec(),
+        );
+        assert_eq!(
+            backend.read_document(&uri).await.unwrap().unwrap().dialect,
+            "tcl8.6"
+        );
+    }
+
+    #[tokio::test]
+    async fn closed_read_retains_actual_decoder_report_and_pre_normalised_text() {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///decode.tcl").unwrap();
+        let mut bytes = "# 😀\rputs \u{fffd}\rputs ".as_bytes().to_vec();
+        bytes.extend_from_slice(b"\xff\r");
+        let (decoded, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+        store.upsert_uri(uri.as_str(), "/actual/decode.tcl", bytes);
+        let mut backend = tests::test_backend();
+        backend.store = store;
+        for readiness in [DocumentReadiness::Indexed, DocumentReadiness::Salsa] {
+            let document = backend
+                .read_document_at(&uri, readiness)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(document.raw(), decoded);
+            assert_eq!(
+                document.text.as_ref(),
+                tcl_lexer::normalise_lone_cr(&decoded)
+            );
+            assert_eq!(document.decode_report, Some(report));
+            assert_eq!(report.error_count, 1);
+            assert!(!report.is_faithful());
+            assert!(
+                report.first_error.unwrap().replacement_text_offset
+                    > decoded.find('\u{fffd}').unwrap()
+            );
+            let at = document.text.find("puts").unwrap() as u32;
+            let position = document.line_index.position_at_utf16(at, &document.text);
+            assert_eq!((position.line, position.character.get()), (1, 0));
+        }
+        let document = backend
+            .read_document_for_semantic_tokens(&uri)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(document.decode_report, Some(report));
+        let non_text_uri = Uri::from_str("file:///utf16.tcl").unwrap();
+        let store = Arc::new(vfs::MemoryStore::new());
+        store.upsert_uri(
+            non_text_uri.as_str(),
+            "/actual/utf16.tcl",
+            vec![0xff, 0xfe, b'x', 0],
+        );
+        backend.store = store;
+        let document = backend
+            .read_local_document(&non_text_uri)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(tcl_lsp_core::source_decode::should_abstain(
+            document.decode_report.as_ref()
+        ));
+    }
+
+    #[tokio::test]
+    async fn closed_selected_source_and_dialect_reach_real_fresh_analysis_input() {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///client/app.tcl").unwrap();
+        let source = "# tcl-dialect: tcl8.4\nproc p {} {return 1}\np\n";
+        store.upsert_uri(
+            uri.as_str(),
+            "/mounted/app.data",
+            source.as_bytes().to_vec(),
+        );
+        store.upsert("/client/app.tcl", b"# tcl-dialect: tcl9.0\n".to_vec());
+        let mut backend = tests::test_backend();
+        backend.store = store;
+        let document = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(document.text.as_ref(), source);
+        assert_eq!(document.dialect, "tcl8.4");
+        assert_eq!(
+            document.path_admission.as_ref().unwrap().path(),
+            Some(Path::new("/mounted/app.data"))
+        );
+        let seed = backend
+            .fresh_analysis_seed(&uri, Arc::clone(&document.text), document.dialect.clone())
+            .await
+            .unwrap();
+        assert!(std::ptr::eq(
+            seed.analysis.resolved_profile().unwrap(),
+            tcl_lsp_core::profile_for_dialect("tcl8.4")
+        ));
+        assert!(
+            tcl_compiler::source_graph::current_analysis(&document.text, &seed.analysis).is_some()
+        );
+        assert!(
+            tcl_compiler::source_graph::current_analysis("set different 1\n", &seed.analysis)
+                .is_none()
+        );
+        backend
+            .document_dialect_overrides
+            .lock()
+            .await
+            .insert(uri.as_str().to_owned(), "tcl9.0".to_owned());
+        let changed = backend.read_document(&uri).await.unwrap().unwrap();
+        let changed_seed = backend
+            .fresh_analysis_seed(&uri, Arc::clone(&changed.text), changed.dialect)
+            .await
+            .unwrap();
+        assert!(std::ptr::eq(
+            changed_seed.analysis.resolved_profile().unwrap(),
+            tcl_lsp_core::profile_for_dialect("tcl9.0")
+        ));
+        assert_ne!(
+            seed.analysis.resolved_input,
+            changed_seed.analysis.resolved_input
+        );
+    }
+
+    #[tokio::test]
+    async fn closed_source_read_does_not_renew_retired_provider_mapping() {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///client/same.tcl").unwrap();
+        let source = b"# tcl-dialect: tcl8.4\nset x 1\n".to_vec();
+        store.upsert_uri(uri.as_str(), "/mounted/same.tcl", source.clone());
+        let mut backend = tests::test_backend();
+        backend.store = store.clone();
+        let original = backend.read_document(&uri).await.unwrap().unwrap();
+        assert!(store.remove_uri(uri.as_str()));
+        store.upsert_uri(uri.as_str(), "/mounted/same.tcl", source);
+        assert!(
+            original
+                .path_admission
+                .as_ref()
+                .unwrap()
+                .check_for(&uri, store.as_ref())
+                .is_err()
+        );
+        let current = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(original.text, current.text);
+        assert_eq!(original.dialect, current.dialect);
+        assert_ne!(original.path_admission, current.path_admission);
+    }
+
+    #[tokio::test]
+    async fn closed_context_does_not_replace_live_editor_source_or_language_choice() {
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///live.tcl").unwrap();
+        store.upsert_uri(
+            uri.as_str(),
+            "/mounted/live.tcl",
+            b"# tcl-dialect: tcl8.4\n".to_vec(),
+        );
+        let mut backend = tests::test_backend();
+        backend.store = store;
+        let admission = backend.document_path_admission(&uri).await.unwrap();
+        backend.documents.lock("closed_source_test").await.insert(
+            uri.clone(),
+            DocumentState::with_version("set live 1\r".to_owned(), "tcl9.0".to_owned(), 17)
+                .with_path_admission(admission)
+                .with_language_id("tcl9.0".to_owned()),
+        );
+        let document = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(document.raw(), "set live 1\r");
+        assert_eq!(document.text.as_ref(), "set live 1\n");
+        assert_eq!(document.dialect, "tcl9.0");
+        assert_eq!(document.language_id, "tcl9.0");
+        assert_eq!(document.version, Some(17));
+        assert!(document.decode_report.is_none());
     }
 }

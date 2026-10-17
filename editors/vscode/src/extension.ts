@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { registerSourceActionCommands } from "./codeActionSource";
 import {
   closeSync,
   existsSync,
@@ -524,18 +525,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.extractLinkedObjects", extractLinkedObjectsAtCursor),
     commands.registerCommand("tclLsp.bigipCleanup", generateBigipCleanupScript),
     commands.registerCommand("tclLsp.renamePartition", renamePartition),
-    commands.registerCommand(
-      "tclLsp.renameSymbolAtPosition",
-      async (line: number, startChar: number, endChar: number) => {
-        const editor = window.activeTextEditor;
-        if (!editor) return;
-        const pos = new vscode.Position(line, startChar);
-        const endPos = new vscode.Position(line, endChar);
-        editor.selection = new vscode.Selection(pos, endPos);
-        editor.revealRange(new Range(pos, endPos));
-        await commands.executeCommand("editor.action.rename");
-      },
-    ),
+    registerSourceActionCommands(),
     commands.registerCommand("tclLsp.generateDocstring", async () => {
       const editor = window.activeTextEditor;
       if (!editor) return;
@@ -547,8 +537,11 @@ export async function activate(context: ExtensionContext) {
         range,
       );
       const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
-      if (docAction?.edit) {
-        await vscode.workspace.applyEdit(docAction.edit);
+      if (docAction?.command?.command === "tclLsp.applySourceCodeAction") {
+        await commands.executeCommand(
+          docAction.command.command,
+          ...(docAction.command.arguments ?? []),
+        );
       } else {
         window.showInformationMessage("No proc found at cursor, or it already has a docstring.");
       }

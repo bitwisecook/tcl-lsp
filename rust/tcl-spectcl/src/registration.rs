@@ -303,8 +303,15 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
 #[must_use]
 pub fn publish_pack_set(packs: &PackSet) -> PackSetRegistration {
     let registration = register_pack_set(packs);
-    tcl_registry::dialects::register_pack_extension_dialects(extension_routes(packs));
+    publish_pack_extension_routes(packs);
     registration
+}
+
+/// Publish this prepared pack set's extension routing at the caller's actual
+/// current-source publication boundary. This changes routing only; it does not
+/// register environments, install hooks or issue source/session authority.
+pub fn publish_pack_extension_routes(packs: &PackSet) {
+    tcl_registry::dialects::register_pack_extension_dialects(extension_routes(packs));
 }
 
 /// Retire every environment the pack channel registered — the answer to
