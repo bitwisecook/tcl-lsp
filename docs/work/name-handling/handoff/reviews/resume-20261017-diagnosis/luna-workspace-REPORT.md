@@ -1,0 +1,11 @@
+# Luna diagnosis (orchestrator-recorded copy of hand-back)
+- A test-172 package-index nested wrapper TIMEOUT: CONFIRMED hot path (gdb samples full1-6/stack1-3): parse_pkg_index -> scan_survey -> OriginalPackageIndexSourceSurvey::capture -> readonly_source_registry_realm -> SourceCommandBindings::walk_source (to depth 64) -> record_evaluated_source_point -> OriginalSourceProjectionMemo::capture -> native_script_words_in_with_purpose -> first_parse_cut_image_in_checked -> body_frame re-lex. O((L-k)^2) per level. fix-1-nested-body-cut-memo.patch (tcl_lexer::NestedBodyCutMemo; clean-only cache; cuts never cached; nested validation preserved). Uncompiled.
+- B1 cross-document source edges never resolved (389,390,392,516,517): resolved_source_edges() empty; gates capture_source_target_path_expression (source_expression.rs:394), matches_assignments (path_constants.rs:121 Arc::ptr_eq), span cover.
+- B2 conditional source order withholds removals (commit 1b45c540e; import-order-source-graph.md section 8). 404 etc. LOCKED CONTRADICTION: test-400 original_export_snapshot (:15629) requires NotExported after same-document export -clear; passing control workspace_order_keeps_original_export_evidence_without_conditional_clear_completion requires Exported for same shape.
+- B3 cross-document invocation settlement empty (396-399,403): settle_invocation workspace_index.rs:7207/7133/7214 hypothesis.
+- C document_links 124 (rename source load -> tclsh8.6/9.0 error: load exists), 140 (source -- f errors in both), 136 fail-closed barrier: CONFIRMED test-vs-Tcl disagreements; need user exception.
+- D package_resolver 174,178,179: retained_body executed_script_for_word span mismatch (#527 braced closer) hypothesis.
+- E code_actions 197-199,246,247,251,252: positioned-absence for unknown qualified head; census value-propagated head/dynamic operand.
+- F workspace_symbols 491-493: symbol_advice.rs:47-60 declines for imported/namespace-relative heads.
+- G project_token_inputs: OriginalProjectProcedureRoles::capture None for empty file or object command file.
+- Disk fell to 1.1 GB during the capture window (luna-i36 worktree 7.7 GB); recovered.

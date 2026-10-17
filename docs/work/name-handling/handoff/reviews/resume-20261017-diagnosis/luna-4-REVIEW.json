@@ -1,0 +1,162 @@
+{
+  "reviewer": "Luna-4",
+  "repo": "/home/user/tcl-lsp",
+  "branch": "work",
+  "head_observed": "4c3eb7953",
+  "head_expected": "2a3928bc6",
+  "head_delta": "docs/handoff only; no Rust source change",
+  "method": "static source review; no cargo/test binaries/gdb/tclsh; patches dry-run+applied to mini copies",
+  "patches": {
+    "fix-1": {
+      "verdict": "HOLD",
+      "applies_cleanly": true,
+      "compile_risk": "low",
+      "fixes": [
+        "256 nextto_picks_occurrence_at_cursor_not_first_on_line",
+        "jump_to_nextto_named_class_method",
+        "original_next_definition_uses_captured_target_and_selected_availability",
+        "references constructor_next_chain_reference_via_{nextto_explicit,braced_nextto}_target (likely)"
+      ],
+      "pass_to_fail_in_selection": [],
+      "findings": [
+        {
+          "id": "F1-1",
+          "blocking": true,
+          "where": [
+            "rust/tcl-compiler/src/analyser/class_hierarchy.rs:895-906 (patched)",
+            "rust/tcl-lsp-core/src/definition.rs:1329-1333 (patched)",
+            "rust/tcl-lsp-core/src/references.rs:2356-2360 (patched)"
+          ],
+          "text": "Resolves nextto class operand in the owner class's publication-slot namespace (snit/itcl defining-namespace rule). Real Tcl resolves via Tcl_GetObjectFromObj->Tcl_GetCommandFromObj in the object instance namespace (path ::oo::Helpers) then ::; class defining namespace never searched. Contradicts analyser/types.rs:2196-2205, analyser/scope.rs:131-133,160-166, name-resolution.md:393-396, naming-consumer-matrix.md:312 (withdraw missing contexts). Matches only legacy prose definition.rs:1321-1328 and test jump_to_nextto_namespaced_class_method (definition.rs:7075) which asserts tclsh-rejected behaviour."
+        },
+        {
+          "id": "F1-2",
+          "blocking": false,
+          "text": "Namespace taken from publication slot, so oo::class create ::Other::C inside Ns yields ::Other; neither lexical nor C."
+        },
+        {
+          "id": "F1-3",
+          "blocking": false,
+          "where": [
+            "rust/tcl-lsp-core/src/references.rs:2348-2355"
+          ],
+          "text": "Doc comment left stale (registry resolve_class_name / falls back to written name)."
+        }
+      ],
+      "ambiguity_refusal": "ok (owner source_name_ambiguous refuses; resolve_class_lookup withdraws target collisions)",
+      "native_or_object_frame_identity_grant": "none; but grants a lookup context the contract says must be withdrawn",
+      "contract_row": "not required by xtask owner-resolution gate or precedent (source_namespace_at / resolve_written_class_name_in_scope have none); if admitted, naming-consumer-matrix.md:312 and TclOO method-body contract must be amended",
+      "head_api": {
+        "source_namespace_at": "class_hierarchy.rs:877 pub fn source_namespace_at(scope:&Scope, offset:u32)->Option<&SignatureNamespaceScope>",
+        "resolve_written_class_name_in_scope": "class_hierarchy.rs:849 pub fn <S:BuildHasher>(name:&str, namespace:&SignatureNamespaceScope, classes:&HashMap<String,ClassDef,S>)->Option<String>",
+        "resolve_written_class_name": "class_hierarchy.rs:898 pub fn <S:BuildHasher>(name:&str, classes:&HashMap<String,ClassDef,S>)->Option<String>",
+        "body_scope": "signature_scan/scope.rs:460 pub(crate) fn body_scope(&self)->Option<SignatureNamespaceScope>",
+        "ClassDef.source_name": "analyser/types.rs:1455 Option<SignatureSourceCommand>",
+        "ClassDef.source_name_ambiguous": "analyser/types.rs:1457 SourceNameAmbiguity (is_observed const fn :1422)",
+        "innermost_scope_reaches_oo_helpers": "analyser/scope.rs:750 pub fn (root:&Scope, byte_offset:u32)->bool",
+        "canonicalise_class": "definition.rs:1330 fn (analysis:&AnalysisResult, at:u32, name:&str)->Option<String>",
+        "canonicalise_class_name": "references.rs:2356 fn (analysis:&AnalysisResult, at:u32, name:&str)->Option<String>"
+      },
+      "recommended_alternative": "In both canonicalisers, when innermost_scope_reaches_oo_helpers(&analysis.global_scope, at) use existing resolve_written_class_name (documented :: reporting approximation); else keep source_namespace_at path. No new pub fn. Leaves jump_to_nextto_namespaced_class_method red -> needs user decision (test asserts non-C behaviour).",
+      "rules": {
+        "assertion_selector_fixture_timeout_change": false,
+        "new_allow": false,
+        "hardcoded_command_names": false,
+        "absence_as_completeness": false,
+        "comment_density": "ok"
+      }
+    },
+    "fix-3": {
+      "verdict": "HOLD",
+      "applies_cleanly": true,
+      "compile_risk": "low (Option::is_none_or already used in tcl-lsp-core)",
+      "fixes": [
+        "466 namespace_hazard_negative_requires_complete_original_source_coverage",
+        "656 missing_body_and_parse_phases_cannot_be_a_negative_hazard_census"
+      ],
+      "structural_finding": {
+        "id": "F3-1",
+        "blocking": true,
+        "text": "UnknownRole (words None / roles None / no source schema) always coincides with Incomplete checked coverage: SourceStructure::census_command_bodies (tcl-lsp-core/src/source_structure.rs:1594-1607,1641-1646) pushes unavailable/syntax_unavailable on exactly those conditions (source_scoped_body.rs:1766 roles()?, :1784 with_source_schema()?), census runs for every command under CheckedSyntax (source_structure.rs:1107,1257,1497), applicability -> Incomplete (389-405) -> visit_checked_analysis_executable_commands Incomplete (executable_regions.rs:203-212). So fix-3 makes the unknown-role message effectively unreachable."
+      },
+      "unknown_role_assertions": [
+        {
+          "test": "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+          "fn_line": 640,
+          "assert_lines": "681-687",
+          "case": "custom spec unavailable under tcl8.4",
+          "with_fix3": "pass->fail"
+        },
+        {
+          "test": "namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles",
+          "fn_line": 706,
+          "assert_lines": "762-774",
+          "case": "custom spec unavailable under tcl8.4",
+          "with_fix3": "pass->fail"
+        },
+        {
+          "test": "rename_safety::...::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+          "fn_line": 2044,
+          "assert_lines": "2061-2066",
+          "case": "source_var under tcl8.4 (direct + interp alias)",
+          "with_fix3": "pass->fail"
+        },
+        {
+          "test": "rename_safety::...::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+          "fn_line": 2044,
+          "assert_lines": "2077-2082",
+          "case": "proc-shadowed source_var under tcl8.6",
+          "with_fix3": "pass->fail (high confidence)"
+        },
+        {
+          "test": "rename_safety::...::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible",
+          "fn_line": 2086,
+          "assert_lines": "2118-2123",
+          "case": "source_var under tcl8.4",
+          "with_fix3": "pass->fail"
+        }
+      ],
+      "unknown_role_assertions_head_status": "unmeasured (outside 664 selection; no capture lists them)",
+      "selected_checks": {
+        "461": "unaffected (executable_regions.rs not patched)",
+        "657": "unaffected (asserts method_rename_hazard 'class is not tracked'; not patched)",
+        "655,658,659,660": "unaffected"
+      },
+      "secondary": [
+        {
+          "id": "F3-2",
+          "text": "namespace_rename visitor early-returns after first hazard (:491-493) so complete_dispatch is truncated; precedence now reads it (still a refusal)."
+        },
+        {
+          "id": "F3-3",
+          "text": "Coverage refusal has no span; UnknownRole refusal had Some(span) - editor placement changes."
+        }
+      ],
+      "direction": "Suppress UnknownRole when every possible role at the position excludes the name role (if: ?then? noise or Body) so 466/656 fall to coverage refusal while unavailable-command cases keep the roles message; or obtain user decision on precedence (would change one test group).",
+      "rules": {
+        "assertion_selector_fixture_timeout_change": false,
+        "new_allow": false,
+        "hardcoded_command_names": false,
+        "absence_as_completeness": false,
+        "comment_density": "ok"
+      }
+    },
+    "fix-2": {
+      "verdict": "PENDING_USER_POLICY",
+      "applies_cleanly": true,
+      "opinion": "Mechanically sound (declaration_site: Option<CommandAllocationSite>, ir.rs:2494). Omits already_named's site.source==source.origin / executed-source equality check; also suppresses chained declaration_bodies entries; comment asserts authored-readonly == installed identity which is the open policy point (current-state.md:44 'do not drop parallel body identities'). If identity accepted, add source-origin equality before admitting."
+    }
+  },
+  "evidence": {
+    "failing_logs": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/cp09/partial-lsp35r2/original-tcl_lsp_core/test-{256,466,656}.log",
+    "result_json": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/cp09/partial-lsp35r2/original-tcl_lsp_core/result.json",
+    "tcl_sources": [
+      "/home/user/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c:827",
+      "/home/user/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c:699",
+      "/home/user/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c:815-835",
+      "/home/user/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c:941",
+      "/home/user/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c (TclOONextToObjCmd)"
+    ],
+    "mini": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-4/mini"
+  }
+}

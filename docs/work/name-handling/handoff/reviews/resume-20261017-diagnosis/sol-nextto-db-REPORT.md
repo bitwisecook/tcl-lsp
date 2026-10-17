@@ -1,0 +1,11 @@
+# Sol-2 diagnosis (orchestrator-recorded copy of hand-back)
+- Core256 nextto: canonicalise_class uses source_namespace_at inside a TclOO method body (deliberately namespace-less, class_hierarchy.rs:877-893) -> None. definition.rs:1331-1338, references.rs:2356-2363. fix-1 adds class_hierarchy::class_declaration_namespace(&ClassDef). Also fixes non-selected siblings jump_to_nextto_named_class_method, jump_to_nextto_namespaced_class_method, original_next_definition_uses_captured_target_and_selected_availability. Measured.
+- DB921: duplicate Installed body unit beside authored readonly declaration body; installed_bodies.rs:40-51,75-85 dedup only scans module.procedures. fix-2 (POLICY DECISION: are authored-readonly and installed distinct identities?). Measured.
+- DB922/923: no Native body gets a neutral closed projection (proved_execution_target None for Conditional reachability, body_template.rs:645-685). Needs compiler body-scoped closed handler-target receipt without entry. Next blocker relocated_variable_proofs with Source SSA. No patch.
+- DB-001: db042 structural factory (integration36 packet).
+- Server101: Native producer for foreign factory headers missing (tcl9.0). Server102/103: freshness check (readonly_reference_reports.rs:1923-1960, :786-797) vs #1854 snapshot results; POLICY DECISION. Server108 TIMEOUT: symbol() full fresh analysis per hit document (~6.5s x25); design needed. Server040 TIMEOUT: hang, unmeasured (runs/hang.py). Server041: BIG-IP SSL::c3d availability (deferred). Server092-097: group A.
+- Core A logical hierarchy/implementation (293,409-411,419,432-435,290,291,429,431,444,445,448,450): hypothesis stale snapshot in retain_original_provider_class (oo.rs:705-725) vs LogicalSourceClassDeclaration::matches.
+- Core B Native variable declaration (214,216,225; 211; 186): declaration.rs:89-91 Logical-only scan.
+- Core C rename hazards (466,656): unknown-role hazard masks incomplete coverage (namespace_rename.rs:570-583, rename_safety.rs:1031-1034). fix-3; check namespace_rename tests at lines 640/706.
+- Core F untraced: 043,053,234,242,404,406,413,512,513,576,608,611,616.
+- NOTE: gdb runs of test binaries at nice 19 overlapped the capture 19:42-~19:56 before the stop message.

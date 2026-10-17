@@ -1,0 +1,169 @@
+{
+ "reviewer": "Luna-3",
+ "repo_head": "4c3eb7953",
+ "source_equivalent_to": "2a3928bc6",
+ "head_note": "HEAD differs from 2a3928bc6 only in docs/work files; Rust source identical",
+ "executed": {
+  "cargo": false,
+  "tests": false,
+  "rustfmt_on_scratch_copies": true
+ },
+ "application": {
+  "each_alone_git_apply_check": "ok",
+  "sequence_1_3_2_4_5_patch": "ok, no fuzz",
+  "fix3_alone": "ok, offset -7"
+ },
+ "rustfmt": {
+  "fix-1": "clean",
+  "fix-2": "DRIFT handlers.rs:6360-6365 (see fmt/all-handlers.rs.diff)",
+  "fix-3": "clean",
+  "fix-4": "clean",
+  "fix-5": "clean"
+ },
+ "patches": {
+  "fix-1": {
+   "verdict": "HOLD",
+   "diagnosis": "confirmed (census_command_bodies global head lookup in definition bodies; member_matches compares against Sep-bearing all_tokens)",
+   "compile": "ok",
+   "findings": [
+    {
+     "id": "F1-a",
+     "severity": "blocking",
+     "rule": "no absence-as-completeness",
+     "where": "rust/tcl-lsp-core/src/original_declaration.rs:977-1059 (made reachable)",
+     "text": "Activates the property census for the first time while CommandPrefix/OpaqueScript callbacks (trace ... [list my size], namespace code {my size}) and member forwards (forward f my size) are unrepresented, so it can claim CompleteSourceOccurrenceCensus / '0 references'. Sol's REPORT says this hole is guarded only in fix-3, whose guard is broken."
+    },
+    {
+     "id": "F1-b",
+     "severity": "should-fix",
+     "where": "fix-1 hunk at rust/tcl-lsp-core/src/source_structure.rs:~1597",
+     "text": "When definition_parent is Some but definition_members or original_command_words_at is None, the code falls through to the global lookup, contrary to its own comment; readonly twin returns early (source_structure.rs:1348-1356). Push unavailable and return instead."
+    }
+   ],
+   "expected_fail_to_pass": [
+    "code_lens::tests::lens_reports_zero_for_unused_property",
+    "code_lens::tests::lens_counts_property_my_dispatch_within_class_body (medium)"
+   ],
+   "possible_fail_to_pass_unverified": [
+    "call_hierarchy::logical_source::tests::genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives",
+    "original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census (to :1823; not in capture)",
+    "rename_safety fn_guard_allows_*/tn_allows_* class tests (not in capture)"
+   ],
+   "pass_to_fail_risk": [
+    "none found in captured passing set",
+    "uncaptured consumers of SourceSyntaxCoverage on class documents (rename_safety, namespace_rename, minify census, extract/inline variable, receiver_identity, references.rs:4321) may change verdicts; need a run"
+   ]
+  },
+  "fix-2": {
+   "verdict": "ADMIT",
+   "conditions": [
+    "apply rustfmt (handlers.rs:6360-6365)"
+   ],
+   "diagnosis": "confirmed: authored_source_definition_body_grammar (tcl-registry/src/resolved_invocation.rs:5468-5497) returns None for the inline oo::objdefine member form, so handle_oo_objdefine_at (handlers.rs:6352-6363) returns before retaining object configuration",
+   "compile": "ok",
+   "findings": [
+    {
+     "id": "F2-a",
+     "severity": "must-fix (mechanical)",
+     "text": "rustfmt drift"
+    },
+    {
+     "id": "F2-b",
+     "severity": "optional",
+     "text": "consider a registry-owned inline-member grammar accessor instead of an analyser-local fallback"
+    }
+   ],
+   "expected_fail_to_pass": [
+    "original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection",
+    "code_lens::native_lens_presentation_tests::native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable"
+   ],
+   "possible_fail_to_pass_unverified": [
+    "original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker (REPORT G9 second cause at :926)"
+   ],
+   "pass_to_fail_risk": [
+    "low; restores pre-ab88e9f0d walk; tcl-compiler objdefine tests not captured"
+   ]
+  },
+  "fix-3": {
+   "verdict": "HOLD",
+   "compile": "ok",
+   "findings": [
+    {
+     "id": "F3-a",
+     "severity": "blocking",
+     "where": "fix-3 deferred check; tcl-registry/src/commands/tcl/oo_my.rs:58,145; tcl-registry/src/registry.rs:9382; tcl-registry/src/resolved_invocation.rs:3123-3130",
+     "text": "arg_roles() is None for `my <method>` (Unknown subcommand), so is_none_or marks every self-dispatch as deferred; property and method censuses never complete. This reverts fix-1's gain (059, admission26 control) and cannot flip 056."
+    },
+    {
+     "id": "F3-b",
+     "severity": "blocking/escalate",
+     "where": "rust/tcl-lsp-core/src/original_declaration.rs:1691; rust/tcl-lsp-server/src/readonly_reference_reports.rs:2017,2098,2136; docs/design/analysis/name-resolution-proofs/original-method-candidates.md:18",
+     "text": "Promoting method coverage contradicts passing readonly_member_reports_keep_source_spans_out_of_edit_inventories and server readonly_member_wire_retains_owner_and_partial_coverage, which assert Partial on the same shape that lens_counts_method_calls_within_class_body wants exact. This is a test/contract conflict that no source change can satisfy."
+    },
+    {
+     "id": "F3-c",
+     "severity": "major",
+     "text": "Method-referencing members (filter greet, forward f my greet) take the Some(false) arm, so a method Complete census would miss them (absence-as-completeness)."
+    }
+   ],
+   "expected_fail_to_pass_as_written": [
+    "code_lens::tests::lens_reports_zero_for_uncalled_method"
+   ],
+   "regressions_vs_fix1_alone": [
+    "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+    "readonly_property_reports_promote_only_a_complete_typed_source_census (:1757)"
+   ],
+   "pass_to_fail_if_F3a_corrected": [
+    "original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories",
+    "tcl_lsp_server readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage"
+   ]
+  },
+  "fix-4": {
+   "verdict": "ADMIT",
+   "compile": "ok",
+   "diagnosis": "confirmed: native edges() has no producer for direct self selectors (546/561 logs show empty incoming/outgoing)",
+   "findings": [
+    {
+     "id": "F4-a",
+     "severity": "non-blocking/policy",
+     "text": "Inconsistent with fix-5: ignores reference.source_schema().uncertain_operations(), so `method m {} {mystery; my greet}` still issues an edge. If a check is added, verify it does not drop the second `my greet` range that 546/561 need."
+    },
+    {
+     "id": "F4-b",
+     "severity": "note",
+     "text": "Self-reference obligations (inheritance/lookup/receiver) are dropped because the native API has no debt channel; same as the existing method_symbol edges."
+    }
+   ],
+   "expected_fail_to_pass": [
+    "call_hierarchy::tests::incoming_calls_for_method_grouped_by_caller_method",
+    "call_hierarchy::tests::outgoing_calls_from_method_to_sibling_method"
+   ],
+   "likely_fail_to_pass_unverified": [
+    "call_hierarchy::tests::incoming_calls_for_method_nested_in_control_flow",
+    "call_hierarchy::tests::outgoing_calls_from_method_nested_in_control_flow"
+   ],
+   "pass_to_fail_risk": [
+    "none found"
+   ]
+  },
+  "fix-5": {
+   "verdict": "ADMIT",
+   "compile": "ok",
+   "diagnosis": "confirmed: procedure_target and references() already decline; the residual incoming edge comes from source_procedure_edges, whose call carries graph.uncertain_operations (source_procedure.rs:449-452)",
+   "findings": [
+    {
+     "id": "F5-a",
+     "severity": "note",
+     "text": "has_lookup_operand_effects counts any $var/[cmd] operand (body_effects.rs:147-169), so same-document source-only edges with substituted operands are also withheld (fail-closed)."
+    }
+   ],
+   "expected_fail_to_pass": [
+    "original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_does_not_restore_deleted_or_unknown_occupied_headers"
+   ],
+   "pass_to_fail_risk": [
+    "none found"
+   ]
+  }
+ },
+ "summary": "ADMIT fix-2 (after rustfmt), fix-4, fix-5. HOLD fix-1 until it ships with a corrected deferred-callback guard and fails closed on missing member geometry. HOLD fix-3: the `my` arg_roles None bug, plus an unresolvable G3a conflict with passing test-096 and the server partial-wire test; escalate."
+}

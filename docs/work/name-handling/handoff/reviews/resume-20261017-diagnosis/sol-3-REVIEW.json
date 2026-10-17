@@ -1,0 +1,46 @@
+{
+  "reviewer": "Sol-3",
+  "candidate": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-workspace/fix-1-nested-body-cut-memo.patch",
+  "base": "work@2a3928bc6 (touched files identical at 4c3eb7953; patch applies cleanly)",
+  "method": "source reading; patch applied to scratch copies in sol-3/mini; rustfmt --edition 2024 --check on the copies; no cargo, tests or gdb",
+  "verdict": "ADMIT (source-level), conditional",
+  "exactness": {
+    "result": "no counterexample found",
+    "basis": [
+      "A body walk is a pure function of the body bytes, the drain LexerConfig and the channel; base and report_at change only cut offsets.",
+      "Key = whole-image span (origin+base+body) + normalised drain LexerConfig (every dialect axis is Hash/Eq) + channel; the memo binds to one image, and anchored proves local == whole[origin..].",
+      "Bodies are recorded only when their Words frame is exhausted; cuts, Parts fallbacks and Err return early and are never recorded.",
+      "The parse-cut walk is unbounded; lexer and structural-index depth caps count depth within the scanned buffer, so MAX_SOURCE_NEST_DEPTH cannot make a clean body unclean.",
+      "Descendants are recorded before their parent, so a skip omits no state."
+    ],
+    "theoretical_gap": "arena.bytes(body)==None for a span already keyed clean would turn Err(SourceBounds) into a skip; unreachable because arena body spans lie inside their own image"
+  },
+  "scope": {
+    "wired_only_through": "rust/tcl-compiler/src/command_binding/original_source_projection.rs:114-120",
+    "unchanged_paths": ["OriginalSourceCommandProjection::capture", "original_native_compiler_words", "native_script_words_in", "native_script_words_in_with_purpose", "reborrow_command_substitution_plan (None)"],
+    "reborrow_reuse": "Not applicable: reborrow_command_substitution_plan works top-down and needs the parent plan, but captures run bottom-up (record_evaluated_source_point after prepare_source_arguments) and are keyed by offset/config/vector with a single-command region. The new type sits in the right owner (parse_cut.rs).",
+    "contract_row_required": "docs/design/contracts/shared-utility-contracts-rust.md:424 (parse-error cut) and docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md:88; the xtask owner-resolution gate itself will not fail"
+  },
+  "findings": [
+    {"id": "F1", "severity": "Medium (gate)", "file": "rust/tcl-lexer/src/lib.rs", "line": "110-114", "issue": "rustfmt rejects the pub use parse_cut::{...} reflow; make rust-check fmt fails", "fix": "cargo fmt"},
+    {"id": "F2", "severity": "Low", "file": "rust/tcl-lexer/src/parse_cut.rs", "line": 406, "issue": "first_parse_cut_region_in_checked_with_memo is pub in pub mod parse_cut but has only an in-crate consumer", "fix": "make it pub(crate) or list it in the contract row"},
+    {"id": "F3", "severity": "Low", "file": "rust/tcl-lexer/src/parse_cut.rs", "line": 337, "issue": "derived Debug on the public NestedBodyCutMemo prints the image bytes and cache warmth; OriginalSourceProjectionMemo deliberately hides warmth", "fix": "manual Debug"},
+    {"id": "F4", "severity": "Nit", "file": "rust/tcl-lexer/src/native_script_words.rs", "line": "4, 256", "issue": "separate use line and fully qualified call instead of the crate::{...} group"},
+    {"id": "F5", "severity": "Medium (process)", "file": "rust/tcl-lexer/src/parse_cut.rs", "line": "320-434", "issue": "no tests for the new public API or for the exactness claim"},
+    {"id": "F6", "severity": "Info", "file": "rust/tcl-lexer/src/parse_cut.rs", "line": "463, 560, 832; 406", "issue": "four functions now have exactly 7 parameters (clippy too_many_arguments fires at >7); they pass but leave no headroom"},
+    {"id": "R1", "severity": "Residual", "file": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs", "line": "414-421", "issue": "in BytecodeObject mode, preflight does a full recursive walk per level over a fresh per-level image the memo cannot key; inactive in this test (default entry, no samples)"}
+  ],
+  "compile_risk": "low; signatures checked against HEAD; let-chain needs edition 2024 (workspace is 2024, rust-version 1.99); missing_docs satisfied; no new #[allow]",
+  "complexity": {
+    "before": "about 64 levels x a full O(D*L) nested re-lex (D=2000, L about 14 KB)",
+    "after": "1 full walk (first capture) + 1 full walk (survey Walker, once per region) + O(L_k) per level from region lex/decompose/segmenter/from_bytes plus body k+1",
+    "o_l_per_level": "plausible for the capture path; key config is stable across levels (nested() is idempotent, config normalised)",
+    "needs_timing": true
+  },
+  "conditions": [
+    "C1 cargo fmt (F1)",
+    "C2 deterministic differential tests memo vs no-memo over a fixed adversarial corpus (shared clean body, nested cut, quote fallback, $a([..]) report_at, unavailable stream, config-dependent clean/cut, foreign-image bypass) plus a linked projection-memo proof test",
+    "C3 update contract row :424 and proof doc :88; apply F2/F3",
+    "C4 compile, clippy pedantic, and time parse_pkg_index_survives_deeply_nested_source_wrapper against the unchanged 180 s budget once the guarded capture finishes"
+  ]
+}
