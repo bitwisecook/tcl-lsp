@@ -1,0 +1,204 @@
+{
+  "scheduled_utc": "2026-10-17T04:07:00Z",
+  "last_utc": "2026-10-17T04:07:39.631305+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T04:37:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 212,
+  "lsp_required": 325,
+  "lsp_by_kind_integrated": {
+    "semantic": 107,
+    "validation": 103,
+    "documentation": 2
+  },
+  "lsp_without_integration": 113,
+  "gains_since_previous_report": {
+    "LSP": 0,
+    "effective": 0,
+    "reason": "Full source freeze for actual994/18 capture; next source packets remain outside main and uncounted."
+  },
+  "baseline_integrated": 345,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 317,
+  "baseline_partial": 28,
+  "baseline_without_integration": 1813,
+  "annex_integrated": 61,
+  "annex_required": 62,
+  "effective_integrated_at_report": 406,
+  "effective_required": 2220,
+  "effective_without_integration": 1814,
+  "verified": 0,
+  "actual_standard994": {
+    "selected": 994,
+    "counts": {
+      "PASS": 795,
+      "FAIL": 197,
+      "TIMEOUT": 2
+    },
+    "retained962_counts": {
+      "PASS": 768,
+      "FAIL": 192,
+      "TIMEOUT": 2
+    },
+    "new32_counts": {
+      "PASS": 27,
+      "FAIL": 5
+    },
+    "retained962_status_changes": [
+      {
+        "target": "tcl_lsp_core",
+        "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary",
+        "before": "FAIL",
+        "after": "PASS"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_completion_preserves_unicode_utf16_and_selected_store",
+        "before": "FAIL",
+        "after": "PASS"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "oo_body::original_definition_grammar_cursor_tests::original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject",
+        "before": "FAIL",
+        "after": "PASS"
+      },
+      {
+        "target": "tcl_lsp_core",
+        "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+        "before": "FAIL",
+        "after": "PASS"
+      },
+      {
+        "target": "tcl_lsp_server",
+        "selector": "studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry",
+        "before": "TIMEOUT",
+        "after": "PASS"
+      }
+    ],
+    "prior_PASS_regressions": [],
+    "harness_errors": [],
+    "artifact_drift": {},
+    "actual_wrapper_exit_code": 1,
+    "actual_invocation_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+    "completed_utc": "2026-10-17T04:05:51.498876+00:00",
+    "all39058_inputs_five_ELFs_providers_final_pre_postflight_match": true,
+    "continuous_source_freeze": true,
+    "historical962_continuous_source_freeze": false,
+    "historical962_exception": "Previous962 transient two-file edit/restoration retained in its immutable capsule; current repair2 run is a separate source freeze.",
+    "new_owner_control": {
+      "argv": [
+        "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+        "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.9676600860111648,
+      "log": "test-938.log",
+      "log_sha256": "d07d1d26bd64be7687fe568a4ed0af445a7e59addf5fd11a390c756943a20481",
+      "target": "tcl_lsp_core",
+      "selector": "source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies",
+      "running_counts": [
+        "1"
+      ],
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "test_passed": true
+    },
+    "focused2": "Actual repaired nested parent transport and Studio retirement retry both passed beforefull994; final fullselection outcomes recorded here.",
+    "ordinary_acceptance": false,
+    "limits": "Actual outcomes against pinned current ELFs and final source/provider checks, all current source/provider/artifact postflights equal. Historical962 exception retained separately. Global/host/integration/required gates not accepted; no verified completion."
+  },
+  "actual_extra18": {
+    "selected": 18,
+    "counts": {
+      "PASS": 17,
+      "FAIL": 1
+    },
+    "by_target": {
+      "tcl_lexer": {
+        "PASS": 6
+      },
+      "tcl_syntax": {
+        "PASS": 3
+      },
+      "tcl_spectcl": {
+        "PASS": 5,
+        "FAIL": 1
+      },
+      "xtask": {
+        "PASS": 3
+      }
+    },
+    "harness_errors": [],
+    "actual_wrapper_exit_code": 1,
+    "completed_utc": "2026-10-17T03:49:44.925392+00:00",
+    "all39058_inputs_nine_ELFs_providers_postflight_match": true,
+    "retained_extra18_status_changes": [
+      {
+        "target": "tcl_spectcl",
+        "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "before": "FAIL",
+        "after": "PASS"
+      }
+    ],
+    "prior_PASS_regressions": [],
+    "ordinary_acceptance": false,
+    "limits": "One original SpecTcl Native command-name protocol refusal remains; all original assertions and guards preserved. Standard994 separately running; global/host gates pending.",
+    "launch_preparation_error": "Initial Root invocation supplied a mistyped binding SHA and was refused before capture; corrected exact independently peered SHA launched successfully. No selections or outputs from rejected invocation."
+  },
+  "actual_builds": {
+    "standard5": "PASS323.055s",
+    "extra3libraries": "PASS201.675s",
+    "xtaskBIN": "PASS213.169s",
+    "source_inputs": 39058,
+    "admitted_paths": 151,
+    "actual_ELFs": 9,
+    "build_source_drift": 0
+  },
+  "actual_focused2": {
+    "counts": {
+      "PASS": 2
+    },
+    "completed_utc": "2026-10-17T03:29:29.275119+00:00",
+    "all39058_source_fiveELFs_provider_prepost_match": true
+  },
+  "actual_native_e2e_build": {
+    "status": "FAIL_NATIVE_E2E_BUILD",
+    "exit_code": 101,
+    "seconds": 246.436,
+    "completed_utc": "2026-10-17T03:59:42.240771+00:00",
+    "source_inputs": 39058,
+    "all_nine_ELFs_providers_prepost_equal": true,
+    "compile_errors": 6,
+    "cause": "Existing tracked nonblocking try_read method is cfg(test)-only, but five readonly reference and one current-diagnostic production callers require it. Exact existing method availability repair independently source-cleared outside main.",
+    "tests_executed": 0
+  },
+  "actual_editor": {
+    "status": "PASS",
+    "inputs": 443,
+    "drift": 0,
+    "scope": "Both TypeScriptprojects/configured scopedformat/worker/Node+browserbundles; actual IDEhosts pending."
+  },
+  "actual_full_proof_gate": {
+    "exit_code": 1,
+    "structural_errors": 2094,
+    "seconds": 317.636,
+    "source_inputs": 39058,
+    "captured_checker_inputs": 73450,
+    "drift": 0
+  },
+  "next_source": "Prospective compositionV3 39files source-only Rootwhole-review pending, including16LSP purposes plus packconfiguration validation, existingTkRegistry owner, genuine selected-form correspondence facet and narrow productiontry_read repair. No counts until actualRootintegration. Additional generic diagnostic caller/refactor/633 packets held for review or correction.",
+  "deferred_scope": "F5/iRules-specific multifolder03.05 fourpurposes and ILX explicitly excluded after exact source reborrow. Dedicated BIG-IP and Runtime/VM remain deferred; uncovered BIG-IP Tcl8.4 is assumption only.",
+  "historical962_exception": "Prior962 temporary two-file source edit/restoration remains in its immutable capsule and ordinaryacceptancefalse. Current994 is separate: source remained frozen and all final checks equal.",
+  "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr not all green; actual nativeE2E build failed before execution; VSCode/browser/JetBrains hosts pending. NoPR/merge/#2286closure.",
+  "latest_push": "eb3581f7e30ffa81b1914c4021c8f16c082cce6e"
+}

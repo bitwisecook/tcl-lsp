@@ -1,0 +1,7 @@
+{
+  "log_sha256": "e20486b03353e5d6f9c493448fc349f77e483372e3735393fb531fa4e29e5491",
+  "log_bytes": 176181,
+  "archive_sha256": "db263ea9ed870801581952ac835b68af6978e524c3198b268d1545bf985e30d3",
+  "preparation": "Initial wrapper SyntaxError occurred before any preflight/output/Cargo invocation; corrected wrapper above executed actual Cargo and preserved6production E0599 failures.",
+  "scope": "All39058inputs/nineELFs/providers prepost equal. No tests executed or source integration."
+}

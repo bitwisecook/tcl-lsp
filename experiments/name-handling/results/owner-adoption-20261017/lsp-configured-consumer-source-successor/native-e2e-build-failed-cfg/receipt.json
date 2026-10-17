@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-17T03:55:35.804687+00:00",
+  "status": "FAIL_NATIVE_E2E_BUILD",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "tcl-lsp-server",
+    "--test",
+    "e2e",
+    "--no-run",
+    "--message-format=json-render-diagnostics"
+  ],
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "scope": "Actual native LSP e2e test and server binary build only; no tests executed. BIG-IP/Runtime/VM suites deferred. Original39058 source/all9 actual ELF/provider bindings checked before/after.",
+  "exit_code": 101,
+  "seconds": 246.436,
+  "completed_utc": "2026-10-17T03:59:42.240771+00:00",
+  "actual_executable_cargo_messages": [],
+  "all39058_source_nine_ELFs_provider_pins_prepost_match": true
+}

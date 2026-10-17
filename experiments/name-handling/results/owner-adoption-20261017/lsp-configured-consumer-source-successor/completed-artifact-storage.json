@@ -1,0 +1,83 @@
+{
+  "utc": "2026-10-17T04:07:10.855458+00:00",
+  "status": "ALL_NINE_OWNED_ARTIFACTS_LOSSLESSLY_ARCHIVED_MEMBERS_VERIFIED",
+  "archive": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/completed-nine-actual-artifacts.tar.zst",
+  "archive_sha256": "bdea02421df6a4c8725a0f572ba776d4cbd2cdac8fc4e6ed88b2e12efd7e6034",
+  "archive_bytes": 235831169,
+  "original_bytes": 1524745712,
+  "artifacts": {
+    "tcl_compiler": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+      "sha256": "f605d90a01588bf74a6a68f6bb4829e392023ec6c09df28f0abb13d0df4418c6",
+      "bytes": 252393744,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_compiler-30b36f5fc9611193",
+      "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+    },
+    "tcl_lsp_core": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+      "sha256": "ff2f50f2cb19b60b2e307c87c242b0eea493788f9d677afd0e1d2eda3470e58b",
+      "bytes": 203283992,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_core-894b7574946ed478",
+      "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+    },
+    "tcl_lsp_db": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+      "sha256": "4624a19fcb7165e8b6791183d16a44d2156a1e595a592a78848e0a1f225e7bca",
+      "bytes": 215880008,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-4adc210b216c0747",
+      "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+    },
+    "tcl_lsp_server": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_lsp_server-0d3d6c6a75aed312",
+      "sha256": "5d2640d4bc25372bb67b47b1b04e868d47a83ce1cbf1b23652265ab52f48f220",
+      "bytes": 342449880,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-0d3d6c6a75aed312",
+      "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+    },
+    "tcl_registry": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/frozen-binaries/tcl_registry-24ca9a1c83ae5946",
+      "sha256": "9f4fa525ed555226cd35a6489a101d5b1fa5524a5ea8a4cccf8c10a70ecda22f",
+      "bytes": 61689512,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_registry-24ca9a1c83ae5946",
+      "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+    },
+    "tcl_lexer": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+      "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+      "bytes": 5324952,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+      "actual_target_kind": "lib",
+      "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+    },
+    "tcl_spectcl": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+      "sha256": "5945830e75960a7524cc6da603c42c8c63f9aa22e679409d20d340e113c23be7",
+      "bytes": 185318880,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+      "actual_target_kind": "lib",
+      "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+    },
+    "tcl_syntax": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+      "sha256": "c07d33530bb6492cbeed81c52a37b978332237d6d82b3f16d583096b5fde66b7",
+      "bytes": 12561160,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+      "actual_target_kind": "lib",
+      "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+    },
+    "xtask": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/extra-xtask/frozen-binaries/xtask-1aaf2017ca651392",
+      "sha256": "4ab97229eb3db2275daf9350b171d265dc479ed08c0ad028074e7bde01870d58",
+      "bytes": 245843584,
+      "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/xtask-1aaf2017ca651392",
+      "actual_target_kind": "bin",
+      "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+    }
+  },
+  "all_archive_member_bytes_and_hashes_verified": true,
+  "completed994_and_extra18_postflight_passed_before_archiving": true,
+  "continuous_source_freeze": true,
+  "historical962_exception": "Previous962 continuous-freeze exception remains in its separate immutable capsule; current994 capture has equal final source/provider/artifact checks.",
+  "ordinary_acceptance": false,
+  "reuse": "Restore original exact paths and verify hashes/sizes before any replay; original artifact/build/postflight manifests are unchanged."
+}
