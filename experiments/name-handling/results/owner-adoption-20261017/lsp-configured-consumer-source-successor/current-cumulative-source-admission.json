@@ -1,9 +1,9 @@
 {
-  "status": "ROOT_REVIEWED_NONGENERIC_PARENT_PROJECTOR_REPAIR_PENDING_ACTUAL_BUILD",
-  "utc": "2026-10-17T03:10:19.324314+00:00",
+  "status": "ROOT_REVIEWED_ACTUAL_TEST_API_REPAIR_PENDING_FRESH_BUILD",
+  "utc": "2026-10-17T03:20:34.783116+00:00",
   "prior_admission": {
-    "path": "/workspace/naming-validation/lsp-fourteen-owner-source-admission/admission.json",
-    "sha256": "041b45c7d76db1cdafd287d059212b7701f8b763d0336d7fc13bffe4327ffdb2"
+    "path": "/workspace/naming-validation/lsp-configured-consumer-source-admission-repair1/admission.json",
+    "sha256": "f734ba46c8f7b4698ce93fdb2188aa300ab235476246e020444e1871a79bdf4b"
   },
   "integrated_composition": {
     "path": "/workspace/naming-validation/agent-work/queued-lsp-next-batch-composition-v10/manifest.json",
@@ -963,14 +963,24 @@
     },
     {
       "path": "rust/tcl-lsp-server/src/lib.rs",
-      "after_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "after_sha256": "b9cef46c025626b273729ae10c1186fcc21694a066f117f7b0ecfbd8b1e6e653",
       "provenance": {
-        "reviewed_manifest": "/workspace/naming-validation/agent-work/queued-lsp-next-batch-composition-v10/manifest.json",
-        "manifest_sha256": "b0139f391da4912440bfdb0a692bdb64f9086f8cac03309b6d0b0a8f71ab68aa",
-        "reviewed_patch_sha256": "675fc1186c9910ce322095e9ade3dc1d48429c15aa4466cbd2468101cdae8e04",
-        "root_review": "/workspace/naming-validation/root-reviews/queued-next-seventeen-v10/independent-source-review-CLEAR.txt",
-        "root_review_sha256": "ac1a9da88ef0986bbf1d8ad41b53a3d4710e0a22d3c62603982b902ec1ed4a6d",
-        "prior_admission_member": true
+        "manifest": "/tmp/lsp-configured-consumer-test-compile-repair-v1/manifest.json",
+        "manifest_sha256": "ca28713df48f068765575331a73917a949227c5b05b6563aff8001fb55d57a97",
+        "patch_sha256": "f03e56ca0c52a55ed03b44db4df42bd13dc388f231fcd9c0c4a3ac5eb3a12d80",
+        "independent_peer": "/tmp/sol-configured-consumer-test-compile-repair-independent/independent-review-CLEAR.txt",
+        "independent_peer_sha256": "ac931a5c3cd541636102fdcf13d8052a6f3479779d31cc9d1f45f1b32ad5219a"
+      }
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "after_sha256": "d42590a13fc76aa10a6c7a1915c114ace8c68d468d530e99ccbec7722b21c4b9",
+      "provenance": {
+        "manifest": "/tmp/lsp-configured-consumer-test-compile-repair-v1/manifest.json",
+        "manifest_sha256": "ca28713df48f068765575331a73917a949227c5b05b6563aff8001fb55d57a97",
+        "patch_sha256": "f03e56ca0c52a55ed03b44db4df42bd13dc388f231fcd9c0c4a3ac5eb3a12d80",
+        "independent_peer": "/tmp/sol-configured-consumer-test-compile-repair-independent/independent-review-CLEAR.txt",
+        "independent_peer_sha256": "ac931a5c3cd541636102fdcf13d8052a6f3479779d31cc9d1f45f1b32ad5219a"
       }
     },
     {
@@ -1168,11 +1178,24 @@
     "independent_peer_sha256": "213f7d86366d1cff785b03dbceeebd946a3fbe4dfe877762363accd8162b9352"
   },
   "failed_actual_predecessor": {
-    "receipt": "/workspace/naming-validation/lsp-configured-consumer-source-successor/source-binding.json",
-    "sha256": "d71bfec5482b072219e39c89eda1c5fc99ad24fd8a77e3b61e59a1212bb73f2f",
+    "receipt": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/source-binding.json",
+    "sha256": "a6c80235c5de02326a0258b28279fdd7a375efec843fa6317ad5827a3dd3d9d8",
     "exit_code": 101,
-    "build_seconds": 104.987,
+    "build_seconds": 196.031,
     "source_drift": 0
   },
-  "scope": "One nongeneric projector fixes compiler monomorphisation; all source/parent/Registry guards and original tests byte-exact. Existing17LSPpurpose counts unchanged, noannex."
+  "scope": "Only actual test API adapters/imports repair8compileerrors; all2117existingassertionmacro bodies byte-exact, no source fixture/producer/selector/budget/provider guard changes. Counts212LSP/effective406/zeroverified unchanged.",
+  "test_compile_repair": {
+    "manifest": "/tmp/lsp-configured-consumer-test-compile-repair-v1/manifest.json",
+    "manifest_sha256": "ca28713df48f068765575331a73917a949227c5b05b6563aff8001fb55d57a97",
+    "patch_sha256": "f03e56ca0c52a55ed03b44db4df42bd13dc388f231fcd9c0c4a3ac5eb3a12d80",
+    "independent_peer": "/tmp/sol-configured-consumer-test-compile-repair-independent/independent-review-CLEAR.txt",
+    "independent_peer_sha256": "ac931a5c3cd541636102fdcf13d8052a6f3479779d31cc9d1f45f1b32ad5219a"
+  },
+  "actual_full_proof_gate": {
+    "receipt": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/full-proof-gate-retry1/receipt.json",
+    "sha256": "8d89dcd20609e23ff44ac9aaf5e7c64a1c3c8ec4ea4fabdf26742e455f33b8d7",
+    "exit_code": 1,
+    "input_drift": 0
+  }
 }

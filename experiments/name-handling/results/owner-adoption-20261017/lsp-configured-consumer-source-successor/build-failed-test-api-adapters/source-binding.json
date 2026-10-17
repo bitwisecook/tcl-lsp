@@ -1,0 +1,30 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-configured-consumer-source-admission-repair1/admission.json",
+  "approved_union_manifest_sha256": "f734ba46c8f7b4698ce93fdb2188aa300ab235476246e020444e1871a79bdf4b",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 150,
+  "source_head": "dadf3ff4f5cfb980d6c230fe3ce119a503d8e2aa",
+  "rust_diff_sha256": "a201eaa8515b448fd6681e951a1368d00162e0bf142411901367cdc1ef651a68",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "FAIL",
+  "input_before_count": 39058,
+  "utc": "2026-10-17T03:10:24.075624+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed current LSP owner/adopter source batch and necessary Compiler/DB/Registry only. Actual source checked linked original and Logical geometry, hover, Itcl references, semantic full/delta current input, shared INI parser, Node validation snapshot, library publication, configured workspace scan coverage, Logical definition, seven validation callers, genuine nested SpecTcl parent transport and original Studio retirement socket fixture repair. Completed962+extra18 outcomes/source-freeze exception preserved; next controls bind only after successful actual artifacts. Runtime/VM/BIGIP dedicated work deferred. No traces, budget changes or stronger Native/edit/absence/Normal grants.",
+  "exit_code": 101,
+  "build_seconds": 196.031,
+  "input_after_count": 39058,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-17T03:13:40.106446+00:00"
+}

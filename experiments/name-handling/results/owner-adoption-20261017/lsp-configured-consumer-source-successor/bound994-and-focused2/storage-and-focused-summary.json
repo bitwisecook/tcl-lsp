@@ -1,0 +1,200 @@
+{
+  "utc": "2026-10-17T03:34:14.033233+00:00",
+  "archive_sha256": "8b1aa6e04c77717f04f0ea7b882b03bf62590224793d0ce664a953b459f4a711",
+  "archive_bytes": 331789,
+  "all_member_bytes_and_hashes_roundtrip_verified": true,
+  "members": {
+    "actual-bound994/admission.json": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/admission.json",
+      "sha256": "83dcac61c24b623c238256202c2872bb60d25e4ee8710f20c8208cb6988afd41",
+      "bytes": 38937
+    },
+    "actual-bound994/binding-preflight.log": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/binding-preflight.log",
+      "sha256": "630709ec0bb5c358bff35388928f3ac9c6a6dba8b8f32a6535aa95caabd4f068",
+      "bytes": 481
+    },
+    "actual-bound994/current-source-evidence.json": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/current-source-evidence.json",
+      "sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774",
+      "bytes": 2313296
+    },
+    "actual-bound994/launch.py": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/launch.py",
+      "sha256": "bc0ee7b282d9191738cb104f87502e66a893f5c775d625bfab4066b6e8ccd4a0",
+      "bytes": 23237
+    },
+    "actual-bound994/manifest.json": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/manifest.json",
+      "sha256": "22606273ee96fc95fa63685980fd2dc495c5cc8e8cdcfec6a6f824a923e136c0",
+      "bytes": 1753
+    },
+    "actual-bound994/selection.json": {
+      "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/selection.json",
+      "sha256": "10e06ad9f46ed380175ab7a504a4caa0d5222de5ef80ca9559f77e06da3d7942",
+      "bytes": 2722959
+    },
+    "actual-source994/current-source-evidence.json": {
+      "path": "/workspace/naming-validation/configured-consumer-standard994-source-v3/current-source-evidence.json",
+      "sha256": "19171559e60309f8e48f6057d49c562538119f598b6a161956c73bb114d5fd5e",
+      "bytes": 2207708
+    },
+    "actual-source994/manifest.json": {
+      "path": "/workspace/naming-validation/configured-consumer-standard994-source-v3/manifest.json",
+      "sha256": "530cabb706cd426b349289a747b23becd096ca1e2a8e4a6e4f9388809850b551",
+      "bytes": 2945
+    },
+    "actual-source994/selection.json": {
+      "path": "/workspace/naming-validation/configured-consumer-standard994-source-v3/selection.json",
+      "sha256": "a39bf6cce0dc726560b10227acafc467aeca9908f0b5b3bf7b8e314926496ec6",
+      "bytes": 2722548
+    },
+    "actual-source994/source-routes.json": {
+      "path": "/workspace/naming-validation/configured-consumer-standard994-source-v3/source-routes.json",
+      "sha256": "474c190642692ea1e444e77c83a90cf1c2e1b8ce1a48d6329e8b207e6c143999",
+      "bytes": 16195
+    },
+    "actual-source-extra18/current-source-evidence.json": {
+      "path": "/workspace/naming-validation/configured-consumer-extra18-source-v3/current-source-evidence.json",
+      "sha256": "a76e15fdc95b2cc495ae42c2e01cc6a061704d03a2763a16f9e0f4cb336d55f1",
+      "bytes": 43136
+    },
+    "actual-source-extra18/manifest.json": {
+      "path": "/workspace/naming-validation/configured-consumer-extra18-source-v3/manifest.json",
+      "sha256": "fe5b2503a18a2a512b883136e38c3c1d6ca828092a04d54c5fba15b3d805aa06",
+      "bytes": 2908
+    },
+    "actual-source-extra18/prepared-selections.json": {
+      "path": "/workspace/naming-validation/configured-consumer-extra18-source-v3/prepared-selections.json",
+      "sha256": "b6c135731b8b31882f7473daa179094a808d1dc57fe037a520e8352fd8abc684",
+      "bytes": 122120
+    },
+    "actual-source-extra18/source-routes.json": {
+      "path": "/workspace/naming-validation/configured-consumer-extra18-source-v3/source-routes.json",
+      "sha256": "25b9e7388c8da29f99a1dd7cc02bd91042db17850c37f6373bf84840095f8a73",
+      "bytes": 1926
+    },
+    "binder-template-v3/bind.py": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/bind.py",
+      "sha256": "1b6484180c0655ae5c49162155231ddd4f1fddd478ad4ac82176c72ab2d49c64",
+      "bytes": 10737
+    },
+    "binder-template-v3/launch.template.py": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/launch.template.py",
+      "sha256": "bc0ee7b282d9191738cb104f87502e66a893f5c775d625bfab4066b6e8ccd4a0",
+      "bytes": 23237
+    },
+    "binder-template-v3/manifest.json": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/manifest.json",
+      "sha256": "06e0ea21ad45d28e845fa6fa81fbaee20683ee04e0285c9e0d4cc0a1c66c0330",
+      "bytes": 2358
+    },
+    "binder-template-v3/newline-literal-only.diff": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/newline-literal-only.diff",
+      "sha256": "0670ead4a0d96faada37c0f7854ed1b124d74653cb9594f2f0942702cb766a44",
+      "bytes": 720
+    },
+    "binder-template-v3/newline-literal-static-proof.json": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/newline-literal-static-proof.json",
+      "sha256": "16b29a64486a3a4c91ac3eeffcb8ce3946376f62adfe1dd54d6823d9e01b0b87",
+      "bytes": 697
+    },
+    "binder-template-v3/reviewed-existing-test-body-updates.json": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/reviewed-existing-test-body-updates.json",
+      "sha256": "13b313392e8832847347aef1c9d3d70b38d794d5c5d9aec3ef90bcf4e1cb61f4",
+      "bytes": 3297
+    },
+    "binder-template-v3/reviewed-new-control-and-metadata-body-updates.json": {
+      "path": "/workspace/naming-validation/configured-consumer-994-binder-template-v3/reviewed-new-control-and-metadata-body-updates.json",
+      "sha256": "364d9f36d715f91bb3e87ae2efb8cc8cf3dc86d1c04345a51b86808990a57e04",
+      "bytes": 9762
+    },
+    "focused2/invocation.json": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/invocation.json",
+      "sha256": "a5e232321c802079875de218835c7db87f7c6f88ac2207267c6c7c42025e8aa4",
+      "bytes": 2257
+    },
+    "focused2/results/result.json": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results/result.json",
+      "sha256": "757482accb6bcae8782972fe7df86812b619d7897d43533fcec6052c4b4f9750",
+      "bytes": 3628
+    },
+    "focused2/results/tcl_lsp_core.list": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results/tcl_lsp_core.list",
+      "sha256": "9559fa122cc5083d294144d99d536beae8533551914da06ce2726f1a567a9de5",
+      "bytes": 294541
+    },
+    "focused2/results/tcl_lsp_server.list": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results/tcl_lsp_server.list",
+      "sha256": "7f20b398e2ce529c852d8b99aa673dac4b7d8f7135373a3d64f017b20c05ee9d",
+      "bytes": 61942
+    },
+    "focused2/results/test-001.log": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results/test-001.log",
+      "sha256": "23d2092955d0b3c2f4740afb8be5a232fd0f5f0df3cea2d35f4f735a9897fb43",
+      "bytes": 229
+    },
+    "focused2/results/test-002.log": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results/test-002.log",
+      "sha256": "c85da2cd81bc5a7e508776253c0baa663d7796fa5f3042373604099b614671de",
+      "bytes": 571
+    },
+    "focused2/selection.json": {
+      "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/selection.json",
+      "sha256": "222f77ae531a9fecbcd56b4b513a8484bcdc9a23d63b5f33910248b81fab6bcf",
+      "bytes": 2316820
+    }
+  },
+  "focused2": {
+    "utc": "2026-10-17T03:29:03.351751+00:00",
+    "status": "FOCUSED2_COMPLETED_FULL994_SOURCE_PROVIDER_FIVE_ELF_PREFLIGHTS_MATCH",
+    "selected": 2,
+    "mandatory_full994_still_owed": true,
+    "bound_manifest_sha256": "22606273ee96fc95fa63685980fd2dc495c5cc8e8cdcfec6a6f824a923e136c0",
+    "before": {
+      "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+      "selected": 994,
+      "preflight": {
+        "count": 39058,
+        "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+        "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+        "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+        "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+      }
+    },
+    "argv": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+      "--manifest",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/selection.json",
+      "--manifest-sha256",
+      "222f77ae531a9fecbcd56b4b513a8484bcdc9a23d63b5f33910248b81fab6bcf",
+      "--artifacts",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/artifacts.json",
+      "--root",
+      "/workspace/tcl-lsp",
+      "--out",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results"
+    ],
+    "ordinary_acceptance": false,
+    "canonical_exit_code": 0,
+    "after": {
+      "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+      "selected": 994,
+      "preflight": {
+        "count": 39058,
+        "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+        "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+        "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+        "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+      }
+    },
+    "completed_utc": "2026-10-17T03:29:29.275119+00:00",
+    "counts": {
+      "PASS": 2
+    },
+    "harness_errors": []
+  },
+  "full994_status": "Running separately; focused2 does not discharge retained/full selection.",
+  "ordinary_acceptance": false
+}

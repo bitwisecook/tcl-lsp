@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-17T03:19:53.230578+00:00",
+  "argv": [
+    "python3",
+    "scripts/dev/check-name-resolution-proofs.py"
+  ],
+  "exit_code": 1,
+  "seconds": 317.636,
+  "source_inputs": 39058,
+  "checker_inputs": 73450,
+  "source_and_checker_input_drift": 0,
+  "stdout_sha256": "ca585e47ffa15e9e1c183d2ea2212d40590acd0edee69b6b12ed2b10cbcf5071",
+  "stderr_sha256": "91246eaa9df63510960c12ceba1a8e85ebec65b2189eabcd5b9e28b238bd6009",
+  "checker_inputs_sha256": "ceaec23d7c1eaabe2bd86884e0ad77ba1bc574c7a29f83de672504c7468283d9",
+  "stdout": "{\"candidate_records\": 7072, \"corpus_files\": 32025, \"pending_candidates\": 0, \"questions\": 2606, \"structural_errors\": 2094, \"unlinked_tests\": 0}\n",
+  "scope": "Original full proof checker on actual current checkout, no structure-only/write-inventory flags; no runtime/oracle acceptance."
+}

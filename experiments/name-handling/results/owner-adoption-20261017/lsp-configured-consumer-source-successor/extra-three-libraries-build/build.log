@@ -1,0 +1,45 @@
+   Compiling syn v3.0.6
+   Compiling thiserror-impl v2.0.21
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling displaydoc v0.2.7
+   Compiling asn1-rs v0.7.2
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling serde_json v1.0.151
+   Compiling serde_derive v1.0.229
+   Compiling serde v1.0.229
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling ref-cast-impl v1.0.27
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling ref-cast v1.0.27
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 18s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lexer-f732dc7297a6f699)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_spectcl-044bc5818fd04c5c)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_syntax-ef1635272356f2b5)

@@ -100,6 +100,7 @@ async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
         .semantic_tokens_core_data(&uri, &document)
         .await
         .unwrap();
+    let tokens = tokens.data;
     assert!(is_variable(&tokens, source, "retained"));
     let analysis = backend
         .fresh_analysis_for(&uri, Arc::clone(&document.text), document.dialect.clone())
@@ -149,6 +150,7 @@ async fn unindexed_range_request_keeps_workspace_pack_roles() {
         .semantic_tokens_core_data(&uri, &document)
         .await
         .unwrap();
+    let full = full.data;
     assert!(is_variable(&full, source, "retained"));
     assert_eq!(tokens.data, lift_semantic_token_data(&full));
     assert!(!backend.db_files.lock().await.contains_key(&uri));

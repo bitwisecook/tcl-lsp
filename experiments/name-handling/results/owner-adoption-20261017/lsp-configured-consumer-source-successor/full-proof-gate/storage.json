@@ -1,0 +1,8 @@
+{
+  "raw_stderr_bytes": 299339,
+  "raw_stderr_sha256": "91246eaa9df63510960c12ceba1a8e85ebec65b2189eabcd5b9e28b238bd6009",
+  "compressed_sha256": "1520236b655e52f67baeff54d056398cb5a6219c3b939cd74c149f1377f2f2ff",
+  "roundtrip_verified": true,
+  "checker_73450_input_index": "OutsideGit at /workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/full-proof-gate-retry1/checker-inputs.json",
+  "scope": "Original full checker result on repair1 snapshot; source and captured checker inputs zero drift; missing sparse proof paths remain actual unavailable, not fabricated."
+}

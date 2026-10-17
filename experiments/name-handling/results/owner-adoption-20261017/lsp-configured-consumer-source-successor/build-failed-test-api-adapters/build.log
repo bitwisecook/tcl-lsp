@@ -1,0 +1,181 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling hashlink v0.12.2
+   Compiling hashbrown v0.14.5
+   Compiling salsa v0.28.5
+   Compiling ls-types v0.0.6
+   Compiling dashmap v6.2.1
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+warning: unused import: `tcl_compiler::interprocedural::InterproceduralAnalysis`
+   --> rust/tcl-lsp-db/src/lib.rs:218:5
+    |
+218 | use tcl_compiler::interprocedural::InterproceduralAnalysis;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-db` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-db` to apply 1 suggestion)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+error[E0425]: cannot find function `profile_for_dialect` in the crate root
+    --> rust/tcl-lsp-server/src/readonly_reference_reports.rs:3830:20
+     |
+3830 |             crate::profile_for_dialect("tcl8.4")
+     |                    ^^^^^^^^^^^^^^^^^^^ not found in the crate root
+
+error[E0308]: mismatched types
+   --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:103:25
+    |
+103 |     assert!(is_variable(&tokens, source, "retained"));
+    |             ----------- ^^^^^^^ expected `&[u32]`, found `&SemanticTokenCoreData`
+    |             |
+    |             arguments to this function are incorrect
+    |
+    = note: expected reference `&[u32]`
+               found reference `&SemanticTokenCoreData`
+note: function defined here
+   --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:32:4
+    |
+ 32 | fn is_variable(data: &[u32], source: &str, value: &str) -> bool {
+    |    ^^^^^^^^^^^ ------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:152:25
+    |
+152 |     assert!(is_variable(&full, source, "retained"));
+    |             ----------- ^^^^^ expected `&[u32]`, found `&SemanticTokenCoreData`
+    |             |
+    |             arguments to this function are incorrect
+    |
+    = note: expected reference `&[u32]`
+               found reference `&SemanticTokenCoreData`
+note: function defined here
+   --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:32:4
+    |
+ 32 | fn is_variable(data: &[u32], source: &str, value: &str) -> bool {
+    |    ^^^^^^^^^^^ ------------
+
+error[E0308]: mismatched types
+     --> rust/tcl-lsp-server/src/original_document_metadata_tests.rs:153:54
+      |
+  153 |     assert_eq!(tokens.data, lift_semantic_token_data(&full));
+      |                             ------------------------ ^^^^^ expected `&[u32]`, found `&SemanticTokenCoreData`
+      |                             |
+      |                             arguments to this function are incorrect
+      |
+      = note: expected reference `&[u32]`
+                 found reference `&SemanticTokenCoreData`
+note: function defined here
+     --> rust/tcl-lsp-server/src/lib.rs:36178:4
+      |
+36178 | fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp_server::ls_types::SemanticToken> {
+      |    ^^^^^^^^^^^^^^^^^^^^^^^^ ------------
+
+error[E0599]: no method named `workspace_source_inventory_provider` found for struct `std::sync::Arc<MemoryStore>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:49410:30
+      |
+49410 |         let provider = store.workspace_source_inventory_provider();
+      |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = help: items from traits can only be used if the trait is in scope
+help: there is a method `workspace_source_inventory` with a similar name, but with different arguments
+     --> rust/tcl-lsp-core/src/vfs.rs:511:5
+      |
+  511 |     fn workspace_source_inventory(&self, _root: &Path) -> WorkspaceSourceInventoryObservation {
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: trait `SourceStore` which provides `workspace_source_inventory_provider` is implemented but not in scope; perhaps you want to import it
+      |
+36310 +     use tcl_lsp_core::vfs::SourceStore;
+      |
+
+error[E0599]: no method named `workspace_source_inventory` found for struct `std::sync::Arc<MemoryStore>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:49411:39
+      |
+49411 |         let observations = vec![store.workspace_source_inventory(&root)];
+      |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = help: items from traits can only be used if the trait is in scope
+help: there is a method `set_workspace_source_inventory` with a similar name, but with different arguments
+     --> rust/tcl-lsp-core/src/vfs.rs:880:5
+      |
+  880 | /     pub fn set_workspace_source_inventory(
+  881 | |         &self,
+  882 | |         root: impl Into<PathBuf>,
+  883 | |         selection: impl Into<String>,
+  884 | |         completeness: WorkspaceSourceInventoryCompleteness,
+  885 | |     ) {
+      | |_____^
+help: trait `SourceStore` which provides `workspace_source_inventory` is implemented but not in scope; perhaps you want to import it
+      |
+36310 +     use tcl_lsp_core::vfs::SourceStore;
+      |
+
+error[E0599]: no method named `to` found for opaque type `impl Setter<FieldTy = Option<Arc<BTreeMap<String, ClassFactory>>>>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:55359:22
+      |
+55357 | /                 files[&uri]
+55358 | |                     .set_workspace_class_factories(&mut *db)
+55359 | |                     .to(Some(oracle));
+      | |_____________________-^^
+      |
+     ::: /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-0.28.5/src/input/setter.rs:21:8
+      |
+   21 |       fn to(self, value: Self::FieldTy) -> Self::FieldTy;
+      |          -- the method is available for `impl salsa::Setter<FieldTy = std::option::Option<std::sync::Arc<BTreeMap<std::string::String, ClassFactory>>>>` here
+      |
+      = help: items from traits can only be used if the trait is in scope
+help: there is a method `into` with a similar name, but with different arguments
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/convert/mod.rs:456:4
+      = note: the full name for the type has been written to '/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-0d3d6c6a75aed312.long-type-8178156225733454165.txt'
+      = note: consider using `--verbose` to print the full type name to the console
+help: trait `Setter` which provides `to` is implemented but not in scope; perhaps you want to import it
+      |
+36310 +     use salsa::Setter;
+      |
+
+error[E0599]: no method named `to` found for opaque type `impl salsa::Setter<FieldTy = Vec<std::string::String>>` in the current scope
+     --> rust/tcl-lsp-server/src/lib.rs:55366:22
+      |
+55364 | /                 config
+55365 | |                     .set_extra_commands(&mut *db)
+55366 | |                     .to(vec!["library_new_command".to_owned()]);
+      | |_____________________-^^
+      |
+     ::: /workspace/.toolchains/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-0.28.5/src/input/setter.rs:21:8
+      |
+   21 |       fn to(self, value: Self::FieldTy) -> Self::FieldTy;
+      |          -- the method is available for `impl salsa::Setter<FieldTy = Vec<std::string::String>>` here
+      |
+      = help: items from traits can only be used if the trait is in scope
+help: there is a method `into` with a similar name, but with different arguments
+     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/convert/mod.rs:456:4
+help: trait `Setter` which provides `to` is implemented but not in scope; perhaps you want to import it
+      |
+36310 +     use salsa::Setter;
+      |
+
+Some errors have detailed explanations: E0308, E0425, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `tcl-lsp-server` (lib test) due to 8 previous errors

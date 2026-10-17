@@ -1,0 +1,46 @@
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -49,6 +49,8 @@
+ /// exits the process, neither of which apply to a browser worker.
+ #[cfg(not(target_family = "wasm"))]
+ pub mod exit_watchdog;
++#[cfg(test)]
++use tcl_lsp_core::profile_for_dialect;
+ #[cfg(test)]
+ mod original_document_metadata_tests;
+ #[cfg(test)]
+@@ -49390,6 +49392,7 @@
+     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+     async fn workspace_scan_unavailable_analysis_keeps_coverage_incomplete() {
+         use salsa::Setter as _;
++        use vfs::SourceStore as _;
+ 
+         let root = PathBuf::from("/workspace/scan-unavailable-analysis");
+         let path = root.join("source.tcl");
+@@ -55332,6 +55335,8 @@
+ 
+     #[tokio::test]
+     async fn library_publication_refuses_actual_configuration_and_factory_changes() {
++        use salsa::Setter as _;
++
+         for factory_change in [false, true] {
+             let backend = test_backend();
+             let uri = Uri::from_str("untitled:library-full-input").unwrap();
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -100,6 +100,7 @@
+         .semantic_tokens_core_data(&uri, &document)
+         .await
+         .unwrap();
++    let tokens = tokens.data;
+     assert!(is_variable(&tokens, source, "retained"));
+     let analysis = backend
+         .fresh_analysis_for(&uri, Arc::clone(&document.text), document.dialect.clone())
+@@ -149,6 +150,7 @@
+         .semantic_tokens_core_data(&uri, &document)
+         .await
+         .unwrap();
++    let full = full.data;
+     assert!(is_variable(&full, source, "retained"));
+     assert_eq!(tokens.data, lift_semantic_token_data(&full));
+     assert!(!backend.db_files.lock().await.contains_key(&uri));

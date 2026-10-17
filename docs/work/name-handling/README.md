@@ -4,7 +4,7 @@ Active work is all LSP consumers and their required shared Compiler/DB/Registry 
 
 The LSP baseline has **325 obligations**:201semantic,122validation and2documentation. **212 have integrated changes pending validation**:107semantic,103validation and2documentation;113have no integration,zeroverified. Across the immutable2,158 baseline,345are integrated (317full-scope pending and28partial),1,813have none. The annex adds62distinct obligations:61integrated andoneblocked. Effective scope is **2,220required /406integrated /1,814without integration /zeroverified**. Count distinct changed purposes, not helpers/tests/API multiplicity.
 
-Current34-path reviewed batch is integrated with150cumulativeadmittedpaths; fresh five-library build and editor checks are running on39,058capturedinputs. Previous standard962 completed **763 PASS /196 FAIL /3 TIMEOUT**, allretained930outcomesunchanged; extra18 **16 PASS /2 FAIL**. Final source/artifact/provider checks matched, but the temporary source-freeze violation is explicitly preserved and ordinary acceptance remainsfalse. Both SpecTcl failures persist. All original assertions/fixtures/selectors/budgets retained. Actual host and repository gates remain unaccepted. See [current state](current-state.md), [exact catalogue](repository-consumer-audit-final.json) and [implementation ledger](implementation-ledger.md).
+Current34-path reviewed batch is integrated with151cumulativeadmittedpaths; fresh five-library buildPASS323.055s39,058inputsunchanged, all5ELFshashverified; editor443inputsunchanged allchecksPASS. Focused2PASS withallprepostchecks; full994running. Extra3librariesbuildPASS201.675s; xtaskbuildrunning beforeextra18. Previous standard962 completed **763 PASS /196 FAIL /3 TIMEOUT**, allretained930outcomesunchanged; extra18 **16 PASS /2 FAIL**. Final source/artifact/provider checks matched, but the temporary source-freeze violation is explicitly preserved and ordinary acceptance remainsfalse. Both SpecTcl failures persist. All original assertions/fixtures/selectors/budgets retained. Actual host and repository gates remain unaccepted. See [current state](current-state.md), [exact catalogue](repository-consumer-audit-final.json) and [implementation ledger](implementation-ledger.md).
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. Implementation progress is tracked separately from these immutable audit totals. Examined requirements and original/provider provenance questions remain separate.
 
@@ -17,7 +17,7 @@ Keep written source, evaluated names, namespace identity, command slots, live co
 | Area | Semantic code | Validation repairs | Authored docs | Total |
 |---|---:|---:|---:|---:|
 | Compiler, analyser, inference and optimisation | 297 | 44 | 0 | 341 |
-| Database, registry and SpecTcl | 177 | 7 | 0 | 182 |
+| Database, registry and SpecTcl | 177 | 7 | 0 | 184 |
 | LSP, server, editors, iRules and MCP | 201 | 122 | 2 | 325 |
 | Runtime, shared Core/API and hosts | 370 | 5 | 1 | 376 |
 | VM, codegen and registered targets | 319 | 9 | 0 | 328 |

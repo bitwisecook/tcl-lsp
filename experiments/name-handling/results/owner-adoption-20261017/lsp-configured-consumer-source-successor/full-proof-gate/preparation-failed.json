@@ -1,0 +1,5 @@
+{
+  "status": "WRAPPER_PREPARATION_FAILED_BEFORE_ORIGINAL_CHECKER_EXECUTION",
+  "reason": "Tracked sparse proof README absent; first snapshot required everytrackedinputexisting. No checker/acceptance result. Retry records stable actual missing paths explicitly.",
+  "missing": "docs/design/analysis/name-resolution-proofs/rust-validation/README.md"
+}

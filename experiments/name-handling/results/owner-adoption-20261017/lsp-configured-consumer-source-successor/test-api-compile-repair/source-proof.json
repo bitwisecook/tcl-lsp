@@ -1,0 +1,38 @@
+{
+  "status": "SOURCE_ONLY_PREPARED_AWAITING_PEER",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+      "after_sha256": "b9cef46c025626b273729ae10c1186fcc21694a066f117f7b0ecfbd8b1e6e653",
+      "all_assertion_macro_bodies_byte_identical": true,
+      "assertion_macros": 1940
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "b322e595a6189fb18227fe81c7434227a1cccb25ae0838ce7b2c58b03bb82c75",
+      "after_sha256": "d42590a13fc76aa10a6c7a1915c114ace8c68d468d530e99ccbec7722b21c4b9",
+      "all_assertion_macro_bodies_byte_identical": true,
+      "assertion_macros": 177
+    }
+  ],
+  "readonly_reference_reports_unchanged_sha256": "33cf484ee2bc8142182d1fd357d355d21f259c40c9192152730df90e95ce4bf2",
+  "edits": "Test-only genuine owner import; actual SemanticTokenCoreData.data unpacked before identical assertions; function-local genuine SourceStore and Setter trait imports. No producer, fixture, assertion, timeout or ignore changes.",
+  "new_fuzz_shaped_bodies": 0,
+  "scope": "Outside-main copies only; no builds, tests, listings, ELF or Git.",
+  "static_rustfmt_parse_and_format": "PASS: rustfmt --edition 2024 --config skip_children=true --check on both complete after files, exit0; empty rustfmt-check.log",
+  "failed_build_receipt": {
+    "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/source-binding.json",
+    "sha256": "a6c80235c5de02326a0258b28279fdd7a375efec843fa6317ad5827a3dd3d9d8",
+    "status": "FAIL",
+    "input_before_count": 39058,
+    "input_after_count": 39058,
+    "input_drift_count": 0
+  },
+  "failed_build_log": {
+    "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/build.log",
+    "sha256": "ee20b98e3872b735c1a8c8dce0257f0265f3f45d381c0d33e21a92844058f5a7",
+    "server_compile_errors": 8
+  },
+  "patch_sha256": "f03e56ca0c52a55ed03b44db4df42bd13dc388f231fcd9c0c4a3ac5eb3a12d80"
+}

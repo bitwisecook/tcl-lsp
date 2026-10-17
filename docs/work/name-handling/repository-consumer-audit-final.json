@@ -135463,8 +135463,92 @@
         "input_drift": [],
         "scope": "BothTSprojects/configuredformat/worker/Node+browserbundles;actualhostunexecuted"
       },
-      "current_admission": "/workspace/naming-validation/lsp-configured-consumer-source-admission-repair1/admission.json",
-      "current_actual_build": "Repair1running after independently reviewed nongeneric projector; initialFAIL104.987s39058inputs0drift retained"
+      "current_admission": "/workspace/naming-validation/lsp-configured-consumer-source-admission-repair2/admission.json",
+      "current_actual_build": {
+        "status": "PASS_FIVE_LIBRARY_BUILD",
+        "exit_code": 0,
+        "build_seconds": 323.055,
+        "input_before_count": 39058,
+        "input_after_count": 39058,
+        "input_drift_count": 0,
+        "completed_utc": "2026-10-17T03:26:02.085600+00:00"
+      },
+      "current_admitted_paths": 151,
+      "actual_full_proof_gate": {
+        "receipt": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair1/full-proof-gate-retry1/receipt.json",
+        "exit_code": 1,
+        "seconds": 317.636,
+        "structural_errors": 2094,
+        "source_inputs": 39058,
+        "checker_inputs": 73450,
+        "drift": 0
+      },
+      "latest_development_push": "212542632",
+      "current_actual_source_bound_selection": {
+        "path": "/workspace/naming-validation/configured-consumer994-bound-repair2-v1/manifest.json",
+        "sha256": "22606273ee96fc95fa63685980fd2dc495c5cc8e8cdcfec6a6f824a923e136c0",
+        "status": "Independentactualboundpeer10af5a79CLEAR; Rootfocused2PASS withfullsource/provider/fiveELFprepostmatch; full994running",
+        "selected": 994,
+        "source_inputs": 39058,
+        "admitted_paths": 151
+      },
+      "current_actual_focused2": {
+        "utc": "2026-10-17T03:29:03.351751+00:00",
+        "status": "FOCUSED2_COMPLETED_FULL994_SOURCE_PROVIDER_FIVE_ELF_PREFLIGHTS_MATCH",
+        "selected": 2,
+        "mandatory_full994_still_owed": true,
+        "bound_manifest_sha256": "22606273ee96fc95fa63685980fd2dc495c5cc8e8cdcfec6a6f824a923e136c0",
+        "before": {
+          "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+          "selected": 994,
+          "preflight": {
+            "count": 39058,
+            "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+            "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+            "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+            "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+          }
+        },
+        "argv": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+          "--manifest",
+          "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/selection.json",
+          "--manifest-sha256",
+          "222f77ae531a9fecbcd56b4b513a8484bcdc9a23d63b5f33910248b81fab6bcf",
+          "--artifacts",
+          "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/artifacts.json",
+          "--root",
+          "/workspace/tcl-lsp",
+          "--out",
+          "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results"
+        ],
+        "ordinary_acceptance": false,
+        "canonical_exit_code": 0,
+        "after": {
+          "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+          "selected": 994,
+          "preflight": {
+            "count": 39058,
+            "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+            "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+            "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+            "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+          }
+        },
+        "completed_utc": "2026-10-17T03:29:29.275119+00:00",
+        "counts": {
+          "PASS": 2
+        },
+        "harness_errors": []
+      },
+      "current_extra_three_libraries_build": {
+        "status": "PASS",
+        "seconds": 201.675,
+        "source_inputs": 39058,
+        "drift": 0,
+        "standard_five_artifacts_unchanged": true
+      }
     }
   }
 }

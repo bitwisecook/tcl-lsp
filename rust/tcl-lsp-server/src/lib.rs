@@ -50,6 +50,8 @@ mod environment_notice;
 #[cfg(not(target_family = "wasm"))]
 pub mod exit_watchdog;
 #[cfg(test)]
+use tcl_lsp_core::profile_for_dialect;
+#[cfg(test)]
 mod original_document_metadata_tests;
 #[cfg(test)]
 mod original_document_path_admission_tests;
@@ -49390,6 +49392,7 @@ proc p {} {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn workspace_scan_unavailable_analysis_keeps_coverage_incomplete() {
         use salsa::Setter as _;
+        use vfs::SourceStore as _;
 
         let root = PathBuf::from("/workspace/scan-unavailable-analysis");
         let path = root.join("source.tcl");
@@ -55332,6 +55335,8 @@ proc p {} {
 
     #[tokio::test]
     async fn library_publication_refuses_actual_configuration_and_factory_changes() {
+        use salsa::Setter as _;
+
         for factory_change in [false, true] {
             let backend = test_backend();
             let uri = Uri::from_str("untitled:library-full-input").unwrap();

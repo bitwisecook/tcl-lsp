@@ -1,0 +1,14 @@
+{
+  "status": "IMMUTABLE_OUTSIDE_MAIN_REPAIR_SOURCE_ONLY",
+  "files": {
+    "after/rust/tcl-lsp-server/src/lib.rs": "b9cef46c025626b273729ae10c1186fcc21694a066f117f7b0ecfbd8b1e6e653",
+    "after/rust/tcl-lsp-server/src/original_document_metadata_tests.rs": "d42590a13fc76aa10a6c7a1915c114ace8c68d468d530e99ccbec7722b21c4b9",
+    "before/rust/tcl-lsp-server/src/lib.rs": "f296720eaf4bb66ca104e093b0ac6db7e111f39d6fb2a6903a92f496d844ba2e",
+    "before/rust/tcl-lsp-server/src/original_document_metadata_tests.rs": "b322e595a6189fb18227fe81c7434227a1cccb25ae0838ce7b2c58b03bb82c75",
+    "prepare.py": "3013ccfbe42705c654d3fa993d61d4f59be060de1df3b5b0f0acdbee59c2f294",
+    "repair.patch": "f03e56ca0c52a55ed03b44db4df42bd13dc388f231fcd9c0c4a3ac5eb3a12d80",
+    "rustfmt-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source-proof.json": "b73018a6e5f539043b5436954f058bff2a96e901b95d3a292011ef607f939aa1"
+  },
+  "limits": "No Rust type-check/build/test/list executed. Rustfmt parsed both complete after-files and passed format check. Root peer review/application and fresh complete source snapshot/artifact binding required."
+}
