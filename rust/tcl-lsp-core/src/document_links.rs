@@ -1076,7 +1076,6 @@ mod tests {
         };
         for source in [
             "::source /tmp/é.tcl",
-            "rename source load; load /tmp/é.tcl",
             "interp alias {} load {} source; load /tmp/é.tcl",
         ] {
             let analysis = path_analysis(source, profile, config);
@@ -1095,7 +1094,10 @@ mod tests {
             });
             assert!(lexical_document_links_in_context(source, &stale, &context).is_empty());
         }
+        // tclsh 8.4-9.1: `rename source load` fails with "can't rename to
+        // \"load\": command already exists", so nothing is sourced.
         for source in [
+            "rename source load; load /tmp/é.tcl",
             "proc source {path} {}; source /tmp/a.tcl",
             "proc file {args} {return /BAD}; set d [file join /tmp sub]; source $d/a.tcl",
             "interp alias {} load {} source /tmp/fixed.tcl; load",
@@ -1470,14 +1472,15 @@ mod tests {
 
     #[test]
     fn double_dash_terminator_skipped() {
+        // `source` takes no `--`: tclsh 8.4-8.6 raise "wrong # args" and
+        // 9.0/9.1 "bad option \"--\": must be -nopkg", so nothing is sourced.
         let src = "source -- /tmp/x.tcl\n";
         let links = document_links(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
         );
-        assert_eq!(links.len(), 1);
-        assert_eq!(links[0].target, "file:///tmp/x.tcl");
+        assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]

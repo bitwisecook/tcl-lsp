@@ -618,7 +618,9 @@ mod tests {
         // FP guard: a bare `greet` inside a sibling method body is a normal
         // command call, NOT TclOO self-dispatch (that is `my greet`), so it
         // must not be counted as a reference to the method.  The old
-        // head-token heuristic wrongly counted these.
+        // head-token heuristic wrongly counted these.  tclsh 8.6/9.0 raise
+        // `invalid command name "greet"` here, but an embedding's `unknown`
+        // or `::greet` can still reach the method, so the count stays partial.
         let src = "oo::class create C {\n    method greet {} {}\n    method other {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         assert!(
@@ -636,7 +638,10 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("greet lens");
-        assert_eq!(greet_lens.command_title, "0 references", "{lenses:?}");
+        assert_eq!(
+            greet_lens.command_title, "References unavailable",
+            "{lenses:?}"
+        );
     }
 
     #[test]
@@ -1454,6 +1459,9 @@ mod tests {
     fn lens_unknown_instance_method_is_not_counted() {
         // TN/FP guard: `$x bark` where `x` has no recorded class is not a
         // resolvable dispatch, so it must not count toward `Dog::bark`.
+        // tclsh 8.6/9.0: with `x` unset the site raises `can't read "x"`, but
+        // an embedding that sets `x` can reach `bark`, so the count stays
+        // partial.
         let src = concat!(
             "oo::class create Dog {\n",
             "    method bark {} {}\n",
@@ -1476,7 +1484,7 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("bark lens");
-        assert_eq!(bark.command_title, "0 references", "{lenses:?}");
+        assert_eq!(bark.command_title, "References unavailable", "{lenses:?}");
     }
 
     #[test]

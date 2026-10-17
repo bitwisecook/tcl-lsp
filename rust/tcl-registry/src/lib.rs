@@ -478,10 +478,11 @@ pub use resolved_invocation::{
     AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall, AuthoredSourceOption,
     AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
     AuthoredSourceOptionScan, AuthoredSourceProcedureArguments, AuthoredSourceScopeAliasArgument,
-    AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount, InvocationFacts,
-    InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics, NamedObjectFactory,
-    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
-    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
+    AuthoredSourceSelfDispatch, AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount,
+    InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
+    NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation,
+    ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
+    SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
 pub use runtime_backing::{BodySource, RuntimeBacking};

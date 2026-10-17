@@ -1428,6 +1428,16 @@ pub struct AuthoredSourceDescriptors<'r> {
     pub subcommand: Option<&'r crate::SubCommand>,
 }
 
+/// Selector layout of an immediate self-dispatch on the current object.
+/// It describes source layout only; no method lookup or dispatch is proved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredSourceSelfDispatch {
+    /// The method selector is this one literal effective argument ordinal.
+    Selector(usize),
+    /// The selector is computed, expanded or missing.
+    Unproven,
+}
+
 /// Selected original credential metadata, independent of runtime values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredSourceCredentialPosition {
@@ -3881,6 +3891,89 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         self.semantics
             .script_metadata
             .prefix_arguments(self, &roles, complete)
+    }
+
+    /// Selector layout when this call is an immediate self-dispatch on the
+    /// current object ([`Traits::TCLOO_SELF_DISPATCH`]). The trait fixes the
+    /// layout: argument 0 selects a method and every later word is a value
+    /// passed to it, whether or not the command's open subcommand vocabulary
+    /// lists that selector, so an unlisted selector is not an unproven role
+    /// layout here. A deferred capture of a selector (`callback`, a list built
+    /// around the keyword) does not carry the trait. `None` means the call is
+    /// not a self-dispatch. This grants no method lookup or dispatch.
+    #[must_use]
+    pub fn authored_source_self_dispatch(&self) -> Option<AuthoredSourceSelfDispatch> {
+        if !self.semantics.traits.contains(Traits::TCLOO_SELF_DISPATCH) {
+            return None;
+        }
+        Some(
+            self.words
+                .arguments()
+                .literal_at(0)
+                .map_or(AuthoredSourceSelfDispatch::Unproven, |_| {
+                    AuthoredSourceSelfDispatch::Selector(0)
+                }),
+        )
+    }
+
+    /// Whether this selected call may keep a script or command prefix for
+    /// later evaluation: a wrapped prefix, a stored script that does not
+    /// become a definition body of its own
+    /// ([`Traits::BODY_RUNS_IN_OWN_FRAME`]), or a command-prefix operand.
+    /// A descriptor without any prefix-bearing position answers without a
+    /// layout proof; otherwise the selected layout must place no prefix
+    /// operand. Unresolved selectors and unproven layouts answer `None`.
+    /// Deferred script-valued options (a Tk `-command` script) are not read
+    /// here: they are Body roles, which checked syntax coverage walks when
+    /// literal and refuses when dynamic, so a consumer that relies on this
+    /// answer must also require that coverage. This grants no callback
+    /// entry, frame or dispatch.
+    #[must_use]
+    pub fn authored_source_retains_callback(&self) -> Option<bool> {
+        let traits = self.semantics.traits;
+        if traits.contains(Traits::WRAPS_COMMAND_PREFIX)
+            || (traits.contains(Traits::DEFERS_BODY)
+                && !traits.contains(Traits::BODY_RUNS_IN_OWN_FRAME))
+        {
+            return Some(true);
+        }
+        if matches!(
+            self.subcommand,
+            SubcommandResolution::Indeterminate { .. }
+                | SubcommandResolution::Unknown { .. }
+                | SubcommandResolution::Ambiguous { .. }
+        ) {
+            return None;
+        }
+        let AuthoredSourceDescriptors {
+            command,
+            subcommand,
+        } = self.authored_source_descriptors();
+        let (prefixes, resolver) = subcommand.map_or(
+            (command.command_prefixes, command.command_prefix_resolver),
+            |sub| (sub.command_prefixes, sub.command_prefix_resolver),
+        );
+        let (roles, _) = self.authored_source_argument_roles();
+        let possible = !prefixes.is_empty()
+            || resolver.is_some()
+            || roles
+                .iter()
+                .chain(self.semantics.arg_roles)
+                .any(|&(_, role)| role == ArgRole::CommandPrefix)
+            || self
+                .semantics
+                .arg_role_resolver_roles
+                .contains(&ArgRole::CommandPrefix)
+            || self
+                .semantics
+                .options
+                .available()
+                .any(|option| option.value_role() == Some(ArgRole::CommandPrefix));
+        if !possible {
+            return Some(false);
+        }
+        self.authored_source_command_prefix_arguments()
+            .map(|positions| !positions.is_empty())
     }
 
     /// Command-prefix positions under the independently retained Logical source

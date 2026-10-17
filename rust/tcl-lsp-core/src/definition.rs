@@ -7093,15 +7093,54 @@ c\uD800";
     #[test]
     fn jump_to_nextto_namespaced_class_method() {
         // `nextto A` names a namespaced sibling bare from within `::Ns::C`.
-        // Owner-aware canonicalisation resolves it to `::Ns::A` (a global-only
-        // `::A` match would produce nothing here).
+        // A method body resolves `A` through the object namespace, its
+        // `::oo::Helpers` path, then `::` — never `::Ns` — so tclsh 8.6/9.0
+        // raise "A does not refer to an object" and there is no target.
         let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto A }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 28, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn jump_to_nextto_relative_qualified_class_method() {
+        // `nextto Ns::A` inside `::Ns::C` falls back to `::` and reaches
+        // `::Ns::A` (tclsh 8.6/9.0 dispatch `::Ns::A::greet`).
+        let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto Ns::A }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on `nextto` inside C::greet (line 10).
         let locs = definition(src, 10, 28, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         // ::Ns::A::greet's name token is on line 2.
         assert_eq!(locs[0].start_line, 2, "should land on ::Ns::A::greet");
+    }
+
+    #[test]
+    fn jump_to_nextto_fully_qualified_class_method() {
+        // `nextto ::Ns::A` inside `::Ns::C` (tclsh 8.6/9.0 dispatch
+        // `::Ns::A::greet`).
+        let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto ::Ns::A }\n    }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 28, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // ::Ns::A::greet's name token is on line 2.
+        assert_eq!(locs[0].start_line, 2, "should land on ::Ns::A::greet");
+    }
+
+    #[test]
+    fn nextto_refuses_a_class_name_reached_through_the_helpers_path() {
+        // Bare `A` reaches `::oo::Helpers::A` through the method body's
+        // namespace path before `::A`: tclsh 8.6/9.0 dispatch
+        // `::oo::Helpers::A::greet` (line 2), never `::A::greet` (line 6).
+        // The run-time object namespace is not modelled, so the answer is
+        // refused rather than guessed.
+        let src = "namespace eval ::oo::Helpers {\n    oo::class create A {\n        method greet {} { return helpers }\n    }\n}\noo::class create A {\n    method greet {} { return root }\n}\noo::class create C {\n    superclass ::A ::oo::Helpers::A\n    method greet {} { nextto A }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on `nextto` inside C::greet (line 10).
+        let locs = definition(src, 10, 22, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]

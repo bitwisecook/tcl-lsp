@@ -753,4 +753,89 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn self_dispatch_and_retained_callbacks_answer_from_selected_descriptors() {
+        use crate::AuthoredSourceSelfDispatch::{Selector, Unproven};
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let context = crate::model::ingress::static_context_for(name);
+            let registry = context.commands();
+            // The open `my` vocabulary keeps its selector layout whether or
+            // not the selector is listed.
+            for (arguments, dispatch) in [
+                (vec![Literal("ping"), Dynamic], Selector(0)),
+                (vec![Literal("variable"), Literal("v")], Selector(0)),
+                (vec![Dynamic], Unproven),
+                (vec![Expanded], Unproven),
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    InvocationWords::structured(Literal("my"), &arguments)
+                        .with_profile(Some(registry.profile().unwrap())),
+                    registry.own_surface_query(),
+                );
+                assert_eq!(
+                    resolution
+                        .resolved()
+                        .unwrap()
+                        .authored_source_self_dispatch(),
+                    Some(dispatch),
+                    "{name}: my {arguments:?}"
+                );
+            }
+            for (head, arguments, callback) in [
+                ("set", vec![Literal("v"), Dynamic], Some(false)),
+                (
+                    "proc",
+                    vec![Literal("p"), Literal(""), Dynamic],
+                    Some(false),
+                ),
+                ("after", vec![Literal("idle"), Dynamic], Some(true)),
+                ("namespace", vec![Literal("code"), Dynamic], Some(true)),
+                (
+                    "trace",
+                    vec![
+                        Literal("add"),
+                        Literal("variable"),
+                        Literal("v"),
+                        Literal("write"),
+                        Dynamic,
+                    ],
+                    Some(true),
+                ),
+                ("string", vec![Dynamic, Dynamic], None),
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    InvocationWords::structured(Literal(head), &arguments)
+                        .with_profile(Some(registry.profile().unwrap())),
+                    registry.own_surface_query(),
+                );
+                let schema = resolution.resolved().unwrap();
+                assert_eq!(
+                    schema.authored_source_self_dispatch(),
+                    None,
+                    "{name}: {head} {arguments:?}"
+                );
+                assert_eq!(
+                    schema.authored_source_retains_callback(),
+                    callback,
+                    "{name}: {head} {arguments:?}"
+                );
+            }
+            // A command-prefix option never answers as callback-free.
+            let arguments = [Literal("-command"), Dynamic, Dynamic];
+            let resolution = registry.resolve_structured_invocation(
+                InvocationWords::structured(Literal("lsort"), &arguments)
+                    .with_profile(Some(registry.profile().unwrap())),
+                registry.own_surface_query(),
+            );
+            assert_ne!(
+                resolution
+                    .resolved()
+                    .unwrap()
+                    .authored_source_retains_callback(),
+                Some(false),
+                "{name}: lsort -command"
+            );
+        }
+    }
 }

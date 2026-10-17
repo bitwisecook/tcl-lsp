@@ -62,7 +62,9 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::types::OriginalSourceSpecialMemberMetadata;
 use tcl_compiler::ir::MethodKind;
+use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
@@ -2406,6 +2408,96 @@ pub(crate) fn constructor_next_chain_references(
         }
     }
     Some((decl_span, call_spans))
+}
+
+/// The selected original lifecycle declaration's `next` / `nextto` sites:
+/// the counterpart of [`constructor_next_chain_references`] /
+/// [`destructor_next_chain_references`] for an analysis without lexical
+/// declaration advice. The selected row must be the instance-side keyword the
+/// live provider walk names, as native go-to-definition resolves it. Each
+/// other original class's effective body of the same kind is scanned; a site
+/// counts when the shared MRO provider walk from that class reaches `class`,
+/// and a `nextto` must name `class` itself, after the scanning class.
+pub(crate) fn original_special_next_chain_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    class: &SourceDeclarationMetadata<tcl_compiler::analyser::ClassDef>,
+    special: &OriginalSourceSpecialMemberMetadata,
+) -> Vec<tcl_lexer::Span> {
+    use tcl_compiler::analyser::class_hierarchy::{SourceMemberKind, class_member_def};
+    let class_q = class.metadata().qualified_name.as_str();
+    let member = SourceMemberKind::Special(special.kind());
+    let hierarchy = analysis.class_hierarchy();
+    if special.side() != tcl_compiler::analyser::types::MemberSide::Instance
+        || effective_special_member(class, special) != Some(special)
+        || hierarchy
+            .classes
+            .get(class_q)
+            .and_then(|live| class_member_def(live, &member))
+            .is_none_or(|live| live.name_span != special.keyword_word().span())
+    {
+        return Vec::new();
+    }
+    let mut call_spans = Vec::new();
+    for other in analysis.original_class_declarations() {
+        let other_q = other.metadata().qualified_name.as_str();
+        if other_q == class_q {
+            continue;
+        }
+        let Some(row) = effective_special_member(other, special) else {
+            continue;
+        };
+        for (span, target) in
+            scan_next_dispatch_sites_with_target(source, analysis, row.metadata().body_span)
+        {
+            let start_from = match target {
+                Some(target) => {
+                    let Some(target) =
+                        crate::definition::canonicalise_class(analysis, span.start(), &target)
+                    else {
+                        continue;
+                    };
+                    let reachable = target == class_q
+                        && hierarchy.mro_map.get(other_q).is_some_and(|mro| {
+                            let at = |name: &str| mro.iter().position(|entry| entry == name);
+                            at(other_q)
+                                .zip(at(target.as_str()))
+                                .is_some_and(|(from, to)| from < to)
+                        });
+                    if !reachable {
+                        continue;
+                    }
+                    Some(target)
+                }
+                None => None,
+            };
+            if hierarchy.member_next_provider(
+                other_q,
+                &member,
+                other_q,
+                start_from.as_deref(),
+                source,
+            ) == Some(class_q)
+            {
+                call_spans.push(span);
+            }
+        }
+    }
+    call_spans
+}
+
+/// The last original lifecycle declaration of `special`'s kind and side in
+/// `record`: the one a `next` / `nextto` chain can reach.
+fn effective_special_member<'a>(
+    record: &'a SourceDeclarationMetadata<tcl_compiler::analyser::ClassDef>,
+    special: &OriginalSourceSpecialMemberMetadata,
+) -> Option<&'a OriginalSourceSpecialMemberMetadata> {
+    record
+        .metadata()
+        .original_special_members
+        .declarations()
+        .filter(|row| row.kind() == special.kind() && row.side() == special.side())
+        .last()
 }
 
 /// The destructor counterpart of [`constructor_next_chain_references`].

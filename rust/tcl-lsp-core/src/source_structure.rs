@@ -490,6 +490,7 @@ pub struct SourceSyntaxRegion {
 pub(crate) struct SourceSyntaxDefinitionMember<'a> {
     words: &'a [NativeWord],
     bodies: Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+    region: &'a tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion,
 }
 
 /// Missing correspondence within an otherwise genuine member source query.
@@ -515,6 +516,13 @@ impl SourceSyntaxDefinitionMember<'_> {
     ) -> Option<Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>
     {
         Some(self.bodies.clone())
+    }
+
+    /// The genuine parent vocabulary region that selected this member.
+    pub(crate) const fn region(
+        &self,
+    ) -> &tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion {
+        self.region
     }
 }
 
@@ -621,7 +629,11 @@ impl SourceSyntaxStructure {
                 D::Unavailable => return Err(SourceSyntaxMemberUnavailable::MemberDisposition),
                 D::CompleteNonMember => {}
                 D::CompleteMember(bodies) => {
-                    selected = Some(SourceSyntaxDefinitionMember { words, bodies })
+                    selected = Some(SourceSyntaxDefinitionMember {
+                        words,
+                        bodies,
+                        region: selection,
+                    });
                 }
             }
         }
@@ -1594,6 +1606,44 @@ impl SourceStructure {
             return;
         };
         let context = input.context_registry();
+        // A definition body has its own scoped member vocabulary, which a
+        // global head lookup cannot represent. Classify each command through
+        // the retained grammar and complete member geometry first, as the
+        // checked potential-source walker does. Missing member geometry or an
+        // unavailable disposition stays incomplete without a global fallback;
+        // only a complete nonmember keeps the ordinary lookup below.
+        if script.definition_parent.is_some() {
+            use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
+            let disposition = script
+                .definition_members
+                .zip(command.argv.first())
+                .and_then(|(members, head)| {
+                    members
+                        .original_command_words_at(head.span.start())
+                        .map(|words| members.script_body_disposition(&context, words))
+                });
+            match disposition {
+                Some(D::CompleteNonMember) => {}
+                Some(D::CompleteMember(bodies)) => {
+                    for body in bodies {
+                        queue.push_back((
+                            body.content_span(),
+                            script.depth + 1,
+                            body.definition_parent().cloned(),
+                        ));
+                    }
+                    return;
+                }
+                Some(D::Unavailable) | None => {
+                    self.package_census
+                        .as_mut()
+                        .unwrap()
+                        .unavailable
+                        .push(command.span);
+                    return;
+                }
+            }
+        }
         let Some(words) = source_registry_words(source, analysis, command) else {
             if original_positioned_absent_head(source, analysis, command) {
                 // A genuine positioned nonpackage leaf is sufficient only for

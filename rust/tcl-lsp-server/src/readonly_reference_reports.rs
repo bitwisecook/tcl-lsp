@@ -138,6 +138,29 @@ pub(super) struct OriginalReadonlyReferenceReport {
     pub(super) coverage: ReadonlyReferenceCoverage,
 }
 
+/// Whether a coverage claims a complete source occurrence census.
+pub(super) const fn is_source_census(coverage: ReadonlyReferenceCoverage) -> bool {
+    matches!(
+        coverage,
+        ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+    )
+}
+
+/// A source occurrence census covers its own document only: any other
+/// retained document, or an unavailable inventory, may hold references it
+/// never inspected.
+pub(super) const fn single_document_coverage(
+    coverage: ReadonlyReferenceCoverage,
+    retained_documents: usize,
+) -> ReadonlyReferenceCoverage {
+    match coverage {
+        ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus if retained_documents != 1 => {
+            ReadonlyReferenceCoverage::Partial
+        }
+        coverage => coverage,
+    }
+}
+
 pub(super) const fn coverage_tag(coverage: ReadonlyReferenceCoverage) -> &'static str {
     match coverage {
         ReadonlyReferenceCoverage::ExistingInventory => "existing-inventory",
@@ -1706,10 +1729,11 @@ impl Backend {
             targets.push((identity.uri().to_owned(), identity.span()));
         }
         super::dedup_span_targets(&mut targets);
+        let coverage = single_document_coverage(report.coverage(), retained.len());
         self.finish_readonly_reference_report(
             &retained,
             targets,
-            report.coverage(),
+            coverage,
             inputs_epoch,
             factory_generation,
         )
@@ -2095,7 +2119,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(report.coverage, ReadonlyReferenceCoverage::Partial);
+        assert_eq!(
+            report.coverage,
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        );
         assert_eq!(report.locations.len(), 2);
         assert!(report.locations.iter().all(|location| location.uri == uri));
         assert!(
@@ -2122,7 +2149,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             lens.data.as_ref().unwrap()["sourceReferenceCoverage"],
-            "partial"
+            "complete-source-census"
         );
         let data = lens.data.as_mut().unwrap();
         data["sourceReferenceCoverage"] = serde_json::json!("existing-inventory");
@@ -2130,14 +2157,57 @@ mod tests {
         let lens = backend.code_lens_resolve(lens).await.unwrap();
         assert_eq!(
             lens.data.as_ref().unwrap()["sourceReferenceCoverage"],
-            "partial"
+            "complete-source-census"
         );
         let command = lens.command.unwrap();
-        assert_eq!(command.title, "at least 2 references");
+        assert_eq!(command.title, "2 references");
         assert_eq!(command.command, "tcl-lsp.showReferences");
         let locations: Vec<Location> =
             serde_json::from_value(command.arguments.unwrap()[2].clone()).unwrap();
         assert_eq!(locations, report.locations);
+    }
+
+    #[tokio::test]
+    async fn readonly_member_census_stays_partial_beside_other_documents() {
+        // A complete census of one document cannot close references that
+        // another retained document may hold.
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///readonly-member-census.tcl".parse().unwrap();
+        let other: Uri = "file:///readonly-member-other.tcl".parse().unwrap();
+        register_current(&backend, &uri, SOURCE).await;
+        register_current(&backend, &other, "proc other {} {}").await;
+        let identity = ping_identity(&backend, &uri).await;
+        let report = backend
+            .readonly_original_declaration_reference_report(&identity, &uri, false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(report.coverage, ReadonlyReferenceCoverage::Partial);
+        assert_eq!(report.locations.len(), 2);
+        let lenses = backend
+            .code_lens(CodeLensParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        let lens = lenses
+            .into_iter()
+            .find(|lens| {
+                lens.range.start.character == u32::try_from(SOURCE.find("ping").unwrap()).unwrap()
+            })
+            .unwrap();
+        assert_eq!(
+            lens.data.as_ref().unwrap()["sourceReferenceCoverage"],
+            "partial"
+        );
+        let lens = backend.code_lens_resolve(lens).await.unwrap();
+        assert_eq!(
+            lens.data.as_ref().unwrap()["sourceReferenceCoverage"],
+            "partial"
+        );
     }
 
     #[tokio::test]

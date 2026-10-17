@@ -572,11 +572,6 @@ fn edges(
                 edges.push(edge);
             }
         }
-        for edge in source_self_method_edges(document) {
-            if !edges.contains(&edge) {
-                edges.push(edge);
-            }
-        }
         for occurrence in
             crate::math_function_symbol::occurrences(document.source, document.analysis)
                 .into_iter()
@@ -634,6 +629,28 @@ fn edges(
     edges
 }
 
+// Call-hierarchy edges add direct `my` selector relations. Member reference
+// inventories stay with the readonly member report, so `references` keeps the
+// plain edge set.
+fn hierarchy_edges(
+    documents: &[OriginalCallDocument<'_>],
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+) -> Vec<(
+    OriginalDeclarationIdentity,
+    OriginalDeclarationIdentity,
+    Span,
+)> {
+    let mut edges = edges(documents, workspace);
+    for document in documents {
+        for edge in source_self_method_edges(document) {
+            if !edges.contains(&edge) {
+                edges.push(edge);
+            }
+        }
+    }
+    edges
+}
+
 /// Incoming readonly source call edges, grouped by actual owning declaration.
 /// Every supplied document must independently retain complete source currency.
 #[must_use]
@@ -649,7 +666,7 @@ pub fn incoming(
         return Vec::new();
     }
     let mut groups: Vec<(OriginalDeclarationIdentity, Vec<Span>)> = Vec::new();
-    for (caller, callee, span) in edges(documents, workspace) {
+    for (caller, callee, span) in hierarchy_edges(documents, workspace) {
         if &callee != target {
             continue;
         }
@@ -694,7 +711,7 @@ pub fn outgoing(
         return Vec::new();
     };
     let mut groups: Vec<(OriginalDeclarationIdentity, Vec<Span>)> = Vec::new();
-    for (from, target, span) in edges(documents, workspace) {
+    for (from, target, span) in hierarchy_edges(documents, workspace) {
         if &from != caller {
             continue;
         }

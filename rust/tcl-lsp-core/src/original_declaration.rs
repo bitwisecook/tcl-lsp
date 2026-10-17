@@ -923,7 +923,15 @@ pub fn reference_spans(
                 })
                 .collect()
         }
-        OriginalDeclarationRole::Special(_, _) | OriginalDeclarationRole::Document => Vec::new(),
+        OriginalDeclarationRole::Special(_, _) => identity
+            .class_metadata(analysis)
+            .zip(identity.special_metadata(analysis))
+            .map_or_else(Vec::new, |(class, special)| {
+                crate::references::original_special_next_chain_spans(
+                    source, analysis, class, special,
+                )
+            }),
+        OriginalDeclarationRole::Document => Vec::new(),
     }
 }
 
@@ -932,7 +940,9 @@ pub fn reference_spans(
 pub enum ReadonlyReferenceCoverage {
     /// This role uses its existing inventory; no member source facet was requested.
     ExistingInventory,
-    /// The checked source walk and typed member tape cover every selector.
+    /// The checked source walk and typed member tape cover every selector,
+    /// and no other command in this document may dispatch or capture the
+    /// member. Other documents remain outside this census.
     CompleteSourceOccurrenceCensus,
     /// Genuine whole-source ownership retains partial positive occurrences.
     Partial,
@@ -971,9 +981,8 @@ impl ReadonlyReferenceReport {
     }
 }
 
-/// Exact property occurrences require the checked source walker to see every
-/// self-dispatch command and the compiler's typed method/property tape to map
-/// each one to exactly one retained declaration. Applicability remains separate.
+/// Exact property occurrences require a complete member source census.
+/// Applicability remains separate.
 fn complete_property_source_occurrences(
     identity: &OriginalDeclarationIdentity,
     source: &str,
@@ -982,76 +991,7 @@ fn complete_property_source_occurrences(
 ) -> Option<Vec<Span>> {
     let methods = tcl_compiler::analyser::class_hierarchy::original_metadata::
         original_source_self_method_references(source, analysis)?;
-    let input = analysis.resolved_input.as_ref()?;
-    let context = input.context_registry();
-    let syntax = crate::source_structure::SourceSyntaxStructure::capture(source, analysis)?;
-    let mut walked = Vec::new();
-    let mut uncertain = false;
-    let status = crate::executable_regions::visit_checked_analysis_executable_commands(
-        source,
-        analysis,
-        &mut |command, _head, execution_context| {
-            let selected =
-                crate::original_invocation::source_registry_words(source, analysis, command)
-                    .and_then(|words| {
-                        words.with_source_schema(&context, |schema| {
-                            schema
-                                .semantics
-                                .traits
-                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
-                        })
-                    });
-            // Selected definition members have their own scoped vocabulary;
-            // a global name lookup cannot classify them. Join the complete
-            // actual member vector to this checked source command first.
-            let member = command.argv.first().and_then(|head| {
-                syntax
-                    .definition_member_at(head.span.start())
-                    .ok()
-                    .flatten()
-            });
-            let member_matches = member.as_ref().is_some_and(|member| {
-                let words = member.original_words();
-                words
-                    .first()
-                    .is_some_and(|word| word.span().start() == command.span.start())
-                    && words
-                        .last()
-                        .is_some_and(|word| word.span().end() == command.span.end())
-                    && words
-                        .iter()
-                        .flat_map(|word| word.tokens().iter())
-                        .copied()
-                        .eq(command.all_tokens.iter().copied())
-            });
-            let self_dispatch = selected.or_else(|| member_matches.then_some(false));
-            match self_dispatch {
-                Some(false) => {}
-                Some(true)
-                    if execution_context
-                        == crate::executable_regions::ExecutableContext::PotentialBody =>
-                {
-                    walked.push(command.span);
-                }
-                Some(true) => uncertain = true,
-                None => uncertain = true,
-            }
-            false
-        },
-    );
-    if status != crate::executable_regions::PotentialSourceVisit::Complete || uncertain {
-        return None;
-    }
-    walked.sort_by_key(|span| (span.start(), span.end()));
-    let mut recorded = methods
-        .iter()
-        .map(|reference| reference.command_span())
-        .collect::<Option<Vec<_>>>()?;
-    recorded.extend(properties.iter().map(|reference| reference.command_span()));
-    recorded.sort_by_key(|span| (span.start(), span.end()));
-    if walked != recorded || recorded.windows(2).any(|pair| pair[0] == pair[1]) {
-        return None;
-    }
+    complete_member_source_census(identity, source, analysis, &methods, properties).then_some(())?;
     Some(
         properties
             .iter()
@@ -1069,6 +1009,368 @@ fn complete_property_source_occurrences(
             })
             .collect(),
     )
+}
+
+/// One classified command of a readonly member census.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MemberCensusCommand {
+    /// An immediate self-dispatch whose selector the typed tape must record.
+    SelfDispatch,
+    /// A command whose proven layout dispatches and captures no member.
+    Other,
+}
+
+/// Inputs shared by every command of one readonly member census.
+struct MemberCensus<'a> {
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    syntax: crate::source_structure::SourceSyntaxStructure,
+    name: &'a [u8],
+    /// Literal operand text naming the member, with its whole word extent.
+    mentions: Vec<(Span, Span)>,
+}
+
+/// A complete readonly census of one member's source occurrences. The
+/// checked source walk must observe every command of every reachable region,
+/// and every command must be classified with a proven layout:
+/// - a definition member routes by its selected effect, and forwards,
+///   filters, visibility, retraction, mixin relations, method references and
+///   command-prefix, command-name or opaque-script roles stay incomplete;
+/// - an immediate self-dispatch keeps the Registry selector layout and must
+///   correspond one-to-one with the compiler's typed method/property tape;
+/// - any other command needs complete selected roles, no retained callback
+///   (stored script or command prefix), no substitution template, no
+///   unrepresented definer form, no descriptor declaring an implementation
+///   namespace (qualified `oo::Helpers` spellings and every `dict` call) and
+///   no method-context helper without a declared dispatch kind;
+/// - no other literal operand text may name the member outside a walked
+///   nested script, since a captured selector (`[list my m]`, `callback m`,
+///   an object command call) can dispatch without a self-dispatch site.
+///
+/// Unknown or dynamic heads, unavailable member geometry and dynamic
+/// selectors stay incomplete. The census covers this one document only.
+fn complete_member_source_census(
+    identity: &OriginalDeclarationIdentity,
+    source: &str,
+    analysis: &AnalysisResult,
+    methods: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference],
+    properties: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference],
+) -> bool {
+    let Some(name) = identity
+        .input
+        .as_ref()
+        .map(SignatureSourceNameInput::bytes)
+        .filter(|name| !name.is_empty() && name.is_ascii())
+    else {
+        return false;
+    };
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let Some(syntax) = crate::source_structure::SourceSyntaxStructure::capture(source, analysis)
+    else {
+        return false;
+    };
+    let mut census = MemberCensus {
+        source,
+        analysis,
+        context: input.context_registry(),
+        syntax,
+        name,
+        mentions: Vec::new(),
+    };
+    let mut walked = Vec::new();
+    let mut uncertain = false;
+    let mut regions = Vec::new();
+    let status = crate::executable_regions::visit_checked_analysis_executable_commands_with_regions(
+        source,
+        analysis,
+        &mut |command, _head, execution_context| {
+            match census.classify(command) {
+                Some(MemberCensusCommand::Other) => {}
+                Some(MemberCensusCommand::SelfDispatch)
+                    if execution_context
+                        == crate::executable_regions::ExecutableContext::PotentialBody =>
+                {
+                    walked.push(command.span);
+                }
+                Some(MemberCensusCommand::SelfDispatch) | None => uncertain = true,
+            }
+            false
+        },
+        &mut regions,
+    );
+    if status != crate::executable_regions::PotentialSourceVisit::Complete || uncertain {
+        return false;
+    }
+    // A mention is excused only inside a walked script nested in its own
+    // word, whose commands were classified one by one.
+    if census.mentions.iter().any(|&(mention, word)| {
+        !regions.iter().any(|&(region, _)| {
+            word.start() <= region.start()
+                && region.end() <= word.end()
+                && region.start() <= mention.start()
+                && mention.end() <= region.end()
+        })
+    }) {
+        return false;
+    }
+    walked.sort_by_key(|span| (span.start(), span.end()));
+    let Some(mut recorded) = methods
+        .iter()
+        .map(|reference| reference.command_span())
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    recorded.extend(properties.iter().map(|reference| reference.command_span()));
+    recorded.sort_by_key(|span| (span.start(), span.end()));
+    walked == recorded && !recorded.windows(2).any(|pair| pair[0] == pair[1])
+}
+
+impl MemberCensus<'_> {
+    fn classify(
+        &mut self,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+    ) -> Option<MemberCensusCommand> {
+        use tcl_registry::{AuthoredSourceSelfDispatch, Traits};
+        let head = command.argv.first()?;
+        // Selected definition members have their own scoped vocabulary; a
+        // global name lookup cannot classify them, and unavailable member
+        // geometry has no global fallback.
+        if let Some(member) = self.syntax.definition_member_at(head.span.start()).ok()? {
+            return (census_member_matches(&member, command) && census_admits_member(&member))
+                .then_some(MemberCensusCommand::Other);
+        }
+        let words =
+            crate::original_invocation::source_registry_words(self.source, self.analysis, command)?;
+        let selected = words
+            .with_source_schema(&self.context, |schema| {
+                if let Some(dispatch) = schema.authored_source_self_dispatch() {
+                    return (dispatch != AuthoredSourceSelfDispatch::Unproven)
+                        .then_some(MemberCensusCommand::SelfDispatch);
+                }
+                // `next`, `link`, `callback`/`mymethod` and any other
+                // method-context helper without a declared dispatch kind can
+                // reach a member without a self-dispatch site.
+                let traits = schema.semantics.traits;
+                if traits
+                    .intersects(Traits::TCLOO_NEXT_CHAIN.union(Traits::TCLOO_BINDS_METHOD_ALIAS))
+                    || (traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+                        && !traits.contains(Traits::TCLOO_INTROSPECTION))
+                {
+                    return None;
+                }
+                // A substitution template (`subst`) evaluates command
+                // substitutions that neither the walker nor syntax coverage
+                // enters, so an escaped or computed selector stays unseen.
+                if traits.contains(Traits::PERFORMS_SUBSTITUTION)
+                    || matches!(
+                        schema.semantics.body_execution,
+                        Some(tcl_registry::body_execution::BodyExecutionSpec::SubstitutionTemplate)
+                    )
+                {
+                    return None;
+                }
+                // A descriptor that declares an implementation namespace is
+                // not classified here: the qualified `::oo::Helpers::next` and
+                // `::oo::Helpers::link` spellings drop the dispatch traits of
+                // their contextual twins. Every `dict` call is also excluded,
+                // because the bare `dict` descriptor declares `::tcl::dict`.
+                if schema
+                    .authored_source_descriptors()
+                    .command
+                    .implementation_namespace
+                    .is_some()
+                {
+                    return None;
+                }
+                // A definer form without a selected definition body (an inline
+                // `oo::define C forward …`) installs members no region shows.
+                if schema
+                    .authored_source_descriptors()
+                    .command
+                    .definition_body
+                    .is_some()
+                    && schema.authored_source_definition_body_grammar().is_none()
+                {
+                    return None;
+                }
+                (schema.authored_source_retains_callback() == Some(false))
+                    .then_some(MemberCensusCommand::Other)
+            })
+            .flatten()?;
+        if selected == MemberCensusCommand::SelfDispatch {
+            // The selector is reconciled with the typed tape; passed values
+            // may still carry a captured selector.
+            return self
+                .record_mentions(&words.operands, |position| position == 0)
+                .then_some(selected);
+        }
+        let roles = words.roles.as_deref()?;
+        if roles
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::OpaqueScript)
+        {
+            return None;
+        }
+        // Variable-name operands cannot carry a selector.
+        let exempt = roles
+            .iter()
+            .filter(|(_, role)| {
+                matches!(
+                    role,
+                    tcl_registry::ArgRole::VarRead
+                        | tcl_registry::ArgRole::VarWrite
+                        | tcl_registry::ArgRole::LoopVarList
+                        | tcl_registry::ArgRole::StaticVarList
+                        | tcl_registry::ArgRole::ParamList
+                )
+            })
+            .map(|(position, _)| *position)
+            .collect::<Vec<_>>();
+        self.record_mentions(&words.operands, |position| exempt.contains(&position))
+            .then_some(selected)
+    }
+
+    /// Record literal operand text naming the member. This is a conservative
+    /// lexical token scan of literal parts, not a list or script parse;
+    /// command substitutions are classified as commands of their own. An
+    /// operand without an original word (a captured or expanded argument)
+    /// cannot be scanned, so the command stays unclassified.
+    fn record_mentions(
+        &mut self,
+        operands: &[Option<crate::original_invocation::OriginalOperandSource>],
+        skip: impl Fn(usize) -> bool,
+    ) -> bool {
+        for (position, operand) in operands.iter().enumerate() {
+            if skip(position) {
+                continue;
+            }
+            let Some(word) = operand.as_ref().and_then(|operand| operand.word.as_ref()) else {
+                return false;
+            };
+            for part in word.executable_parts().all_parts() {
+                let tcl_lexer::ExecutablePart::Text(text) = &part.part else {
+                    continue;
+                };
+                if let tcl_lexer::ExecutableText::Decoded(bytes) = text {
+                    if census_tokens(bytes).any(|(_, token)| census_names_member(token, self.name))
+                    {
+                        self.mentions.push((part.span, word.span()));
+                    }
+                    continue;
+                }
+                let Some(raw) = self.source.get(part.span.as_range()) else {
+                    return false;
+                };
+                for (offset, token) in census_tokens(raw.as_bytes()) {
+                    if !census_names_member(token, self.name) {
+                        continue;
+                    }
+                    let mention = u32::try_from(offset)
+                        .ok()
+                        .and_then(|offset| part.span.start().checked_add(offset))
+                        .zip(u32::try_from(token.len()).ok())
+                        .and_then(|(start, len)| Some(Span::new(start, start.checked_add(len)?)))
+                        .unwrap_or(part.span);
+                    self.mentions.push((mention, word.span()));
+                }
+            }
+        }
+        true
+    }
+}
+
+/// The selected member vector is exactly the walked command: equal extents
+/// and word tokens, without the separators a segmented command also keeps.
+/// An expanded member keeps its `Expand` token and stays unmatched.
+fn census_member_matches(
+    member: &crate::source_structure::SourceSyntaxDefinitionMember<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+) -> bool {
+    let words = member.original_words();
+    words
+        .first()
+        .is_some_and(|word| word.span().start() == command.span.start())
+        && words
+            .last()
+            .is_some_and(|word| word.span().end() == command.span.end())
+        && words
+            .iter()
+            .flat_map(|word| word.tokens().iter())
+            .copied()
+            .eq(command.all_tokens.iter().copied().filter(|token| {
+                !matches!(
+                    token.kind,
+                    tcl_lexer::TokenType::Sep | tcl_lexer::TokenType::Eol
+                )
+            }))
+}
+
+/// A member admitted by the census declares or relates only: its effect
+/// cannot dispatch or name a method later, and it carries no method
+/// reference, command prefix, command name or opaque script. Routing uses
+/// the selected member row's effect, never its keyword.
+fn census_admits_member(
+    member: &crate::source_structure::SourceSyntaxDefinitionMember<'_>,
+) -> bool {
+    use tcl_registry::ArgRole;
+    use tcl_registry::definer::{MemberEffect, MemberRefKind, RelationSlot};
+    let region = member.region();
+    let words = member.original_words();
+    region.checked_member_row(words).is_some_and(|row| {
+        matches!(
+            row.effect,
+            MemberEffect::Callable { .. }
+                | MemberEffect::StateDeclaration { .. }
+                | MemberEffect::InitScript { .. }
+                | MemberEffect::Configuration
+                | MemberEffect::Relation {
+                    slot: RelationSlot::Superclass
+                }
+        )
+    }) && region.checked_references(words).is_some_and(|references| {
+        references
+            .iter()
+            .all(|reference| reference.kind() == MemberRefKind::Class)
+    }) && [
+        ArgRole::CommandPrefix,
+        ArgRole::CommandName,
+        ArgRole::OpaqueScript,
+    ]
+    .into_iter()
+    .all(|role| {
+        region
+            .argument_words_for_role(words, role)
+            .is_some_and(|words| words.is_empty())
+    })
+}
+
+/// Tokens of literal text split at whitespace and Tcl word, script, list and
+/// substitution punctuation, with their byte offsets.
+fn census_tokens(bytes: &[u8]) -> impl Iterator<Item = (usize, &[u8])> {
+    let mut start = 0;
+    bytes
+        .split(|byte| byte.is_ascii_whitespace() || b"[]{}\";$\\()".contains(byte))
+        .map(move |token| {
+            let offset = start;
+            start += token.len() + 1;
+            (offset, token)
+        })
+        .filter(|(_, token)| !token.is_empty())
+}
+
+/// Whether a literal token may name the member: the name itself, a unique
+/// `-` option prefix of it (property `configure`/`cget`), or an internal
+/// accessor method name such as `<ReadProp-name>`.
+fn census_names_member(token: &[u8], name: &[u8]) -> bool {
+    token == name
+        || token
+            .strip_prefix(b"-")
+            .is_some_and(|prefix| !prefix.is_empty() && name.starts_with(prefix))
+        || (token.contains(&b'<') && token.windows(name.len()).any(|window| window == name))
 }
 
 /// Add conditional original member-body source correspondences for reporting.
@@ -1127,7 +1429,22 @@ pub fn readonly_reference_report(
         original_source_self_method_references(source, analysis);
     match references {
         Some(references) => {
-            report.coverage = ReadonlyReferenceCoverage::Partial;
+            let complete = tcl_compiler::analyser::class_hierarchy::original_metadata::
+                original_source_self_property_references(source, analysis)
+                .is_some_and(|properties| {
+                    complete_member_source_census(
+                        identity,
+                        source,
+                        analysis,
+                        &references,
+                        &properties,
+                    )
+                });
+            report.coverage = if complete {
+                ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+            } else {
+                ReadonlyReferenceCoverage::Partial
+            };
             report.extend(references.into_iter().filter_map(|reference| {
                 (OriginalDeclarationIdentity::for_method(
                     identity.uri(),
@@ -1688,7 +2005,10 @@ mod readonly_source_reference_tests {
             OriginalDeclarationIdentity::for_method("", source, &analysis, class, method).unwrap();
         let old = reference_spans(&identity, source, &analysis, true);
         let report = readonly_reference_report(&identity, source, &analysis, true).unwrap();
-        assert_eq!(report.coverage(), ReadonlyReferenceCoverage::Partial);
+        assert_eq!(
+            report.coverage(),
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        );
         assert_eq!(report.spans().len(), 2);
         assert!(
             report
@@ -1737,6 +2057,209 @@ mod readonly_source_reference_tests {
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         assert!(readonly_reference_report(&identity, source, &missing, true).is_none());
+    }
+
+    fn member_report(source: &str, dialect: &str, name: &[u8]) -> ReadonlyReferenceReport {
+        let analysis = Analyser::new().analyse(source, dialect);
+        let class = analysis
+            .original_class_declarations()
+            .find(|class| {
+                class
+                    .metadata()
+                    .original_members
+                    .declarations()
+                    .any(|method| method.original_name_input().bytes() == name)
+                    || class
+                        .metadata()
+                        .original_properties
+                        .declarations()
+                        .any(|property| property.original_name_input().bytes() == name)
+            })
+            .unwrap();
+        let identity = class
+            .metadata()
+            .original_members
+            .declarations()
+            .find(|method| method.original_name_input().bytes() == name)
+            .map_or_else(
+                || {
+                    let property = class
+                        .metadata()
+                        .original_properties
+                        .declarations()
+                        .find(|property| property.original_name_input().bytes() == name)
+                        .unwrap();
+                    OriginalDeclarationIdentity::for_property(
+                        "", source, &analysis, class, property,
+                    )
+                },
+                |method| {
+                    OriginalDeclarationIdentity::for_method("", source, &analysis, class, method)
+                },
+            )
+            .unwrap();
+        readonly_reference_report(&identity, source, &analysis, true).unwrap()
+    }
+
+    #[test]
+    fn readonly_method_census_completes_only_proven_self_dispatch_shapes() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        for (source, spans) in [
+            ("oo::class create C {method ping {} {}}", 0),
+            (
+                "oo::class create C {method ping {} {}; method body {} {my ping; my ping}}",
+                2,
+            ),
+            (
+                "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method body {} {my ping}}",
+                1,
+            ),
+        ] {
+            let report = member_report(source, "tcl8.6", b"ping");
+            assert_eq!(
+                report.coverage(),
+                ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus,
+                "{source}"
+            );
+            assert_eq!(report.spans().len(), spans, "{source}");
+        }
+    }
+
+    #[test]
+    fn readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        let body = |tail: &str| {
+            format!(
+                "oo::class create C {{method ping {{}} {{}}; method body {{script cmd}} {{my ping; {tail}}}}}"
+            )
+        };
+        let member = |member: &str| {
+            format!(
+                "oo::class create M {{}}; oo::class create C {{method ping {{}} {{}}; {member}; method body {{}} {{my ping}}}}"
+            )
+        };
+        let mut cases = vec![
+            // Retained callbacks: a stored script, a command prefix or a
+            // wrapped prefix may dispatch later without a self-dispatch site.
+            ("tcl8.6", body("after 0 [list my ping]")),
+            ("tcl8.6", body("after idle {my ping}")),
+            (
+                "tcl8.6",
+                body("trace add variable ::v write [list my ping]"),
+            ),
+            ("tcl8.6", body("set handler [namespace code {my ping}]")),
+            ("tcl8.6", body("lsort -command {my ping} {b a}")),
+            // A captured selector that leaves the document.
+            ("tcl8.6", body("return [list my ping]")),
+            ("tcl8.6", body("set captured {my ping}")),
+            // Dynamic selectors, heads and scripts.
+            ("tcl8.6", body("my $script")),
+            ("tcl8.6", body("{*}$cmd")),
+            ("tcl8.6", body("[self] ping")),
+            ("tcl8.6", body("eval $script")),
+            ("tcl8.6", body("uplevel 1 $script")),
+            ("tcl8.6", body("mystery")),
+            // Substitution templates evaluate escaped or computed selectors.
+            ("tcl8.6", body(r"subst {[my p\x69ng]}")),
+            ("tcl9.0", body(r"subst {[my p\x69ng]}")),
+            ("tcl8.6", body("set s [string cat pi ng]; subst {[my $s]}")),
+            ("tcl9.0", body("set s [string cat pi ng]; subst {[my $s]}")),
+            // Method-chain and alias helpers, bare and namespaced.
+            ("tcl8.6", body("next")),
+            (
+                "tcl8.6",
+                "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method ping {} {::oo::Helpers::next}}".to_owned(),
+            ),
+            (
+                "tcl9.0",
+                "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method ping {} {::oo::Helpers::next}}".to_owned(),
+            ),
+            (
+                "tcl8.6",
+                "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method ping {} {::oo::Helpers::nextto Base}}".to_owned(),
+            ),
+            (
+                "tcl9.0",
+                "oo::class create C {method ping {} {}; constructor {} {::oo::Helpers::link [list set [string cat pi ng]]}; method body {} {set a 1}}".to_owned(),
+            ),
+            // Definition members that dispatch, name or reorder methods.
+            ("tcl8.6", member("forward fw my ping")),
+            ("tcl8.6", member("filter ping")),
+            ("tcl8.6", member("export ping")),
+            ("tcl8.6", member("mixin M")),
+            // Members installed outside a selected definition body, and an
+            // object command call.
+            (
+                "tcl8.6",
+                format!("{}; oo::define C forward fw my ping", body("return")),
+            ),
+            ("tcl8.6", format!("{}; C create c; c ping", body("return"))),
+        ];
+        for tail in [
+            "callback ping",
+            "mymethod ping",
+            "oo::Helpers::callback ping",
+            "link ping",
+        ] {
+            cases.push(("tcl9.0", body(tail)));
+        }
+        for (dialect, source) in &cases {
+            let report = member_report(source, dialect, b"ping");
+            assert_eq!(
+                report.coverage(),
+                ReadonlyReferenceCoverage::Partial,
+                "{dialect}: {source}"
+            );
+        }
+        for source in [
+            "oo::class create C {property size; method body {} {my size; my configure -size 3}}",
+            "oo::class create C {property size; method body {} {my size}}; C create c; c configure -si 4",
+        ] {
+            let report = member_report(source, "tcl9.0", b"size");
+            assert_eq!(
+                report.coverage(),
+                ReadonlyReferenceCoverage::Partial,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn readonly_member_census_stays_partial_for_other_class_families() {
+        // naming.editor.original-method-candidates
+        // docs/design/analysis/name-resolution-proofs/original-method-candidates.md
+        // A snit method dispatches through `$self`, which has no typed
+        // self-dispatch tape. itcl is not covered: nothing establishes that
+        // `itcl::class` publishes original method declarations, and a
+        // control that checks no identity proves nothing.
+        let source = "snit::type C {method ping {} {}; method body {} {$self ping}}";
+        for dialect in ["tcl8.5", "tcl8.6"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let mut checked = 0;
+            for class in analysis.original_class_declarations() {
+                for method in class.metadata().original_members.declarations() {
+                    let Some(identity) = OriginalDeclarationIdentity::for_method(
+                        "", source, &analysis, class, method,
+                    ) else {
+                        continue;
+                    };
+                    checked += 1;
+                    assert_ne!(
+                        readonly_reference_report(&identity, source, &analysis, true)
+                            .map(|report| report.coverage()),
+                        Some(ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus),
+                        "{dialect}: {}",
+                        identity.label()
+                    );
+                }
+            }
+            assert!(
+                checked > 0,
+                "{dialect}: no snit method identity was checked"
+            );
+        }
     }
 
     #[test]

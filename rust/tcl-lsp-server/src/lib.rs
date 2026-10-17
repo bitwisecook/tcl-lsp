@@ -33022,6 +33022,19 @@ impl LanguageServer for Backend {
                 uri.as_str(),
             );
             drop(workspace);
+            // The unresolved tag follows the same single-document census
+            // scope as the resolved report.
+            let retained_documents = if lenses.iter().any(|lens| {
+                lens.reference_coverage
+                    .is_some_and(readonly_reference_reports::is_source_census)
+            }) {
+                // An unavailable inventory degrades the tag, never the request.
+                self.original_declaration_documents(&uri)
+                    .await
+                    .map_or(0, |documents| documents.len())
+            } else {
+                1
+            };
             let mut lifted = Vec::new();
             for lens in lenses {
                 let Some(mut data) = self
@@ -33038,7 +33051,12 @@ impl LanguageServer for Backend {
                 data["uri"] = serde_json::Value::String(uri.to_string());
                 if let Some(coverage) = lens.reference_coverage {
                     data["sourceReferenceCoverage"] =
-                        serde_json::json!(readonly_reference_reports::coverage_tag(coverage));
+                        serde_json::json!(readonly_reference_reports::coverage_tag(
+                            readonly_reference_reports::single_document_coverage(
+                                coverage,
+                                retained_documents,
+                            )
+                        ));
                 }
                 lifted.push(CodeLens {
                     range: lift_lsp_range(lens.range),

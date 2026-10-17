@@ -1281,37 +1281,7 @@ impl OriginalSourceDefinitionMemberRegion {
                 Some(self.context.authoring_query()),
             )?
         };
-        // Row selectors require an independent original Document literal,
-        // not a text projection of the retained counted value alone.
-        let source_literals = original
-            .iter()
-            .map(tcl_syntax::word_rules::original_static_word_ascii_presentation)
-            .collect::<Vec<_>>();
-        let member_words = original
-            .iter()
-            .zip(&values)
-            .zip(&source_literals)
-            .map(|((word, value), literal)| {
-                if word.group().expand {
-                    return tcl_registry::InvocationWord::Expanded;
-                }
-                let counted = value.as_deref().map_or(
-                    tcl_registry::InvocationWord::Dynamic,
-                    tcl_registry::InvocationWord::KnownBytes,
-                );
-                match (value.as_deref(), literal.as_deref()) {
-                    (Some(value), Some(literal)) if value == literal && !literal.contains(&0) => {
-                        super::source_structure::source_schema_word(counted)
-                    }
-                    _ => counted,
-                }
-            })
-            .collect::<Vec<_>>();
-        let member_row = self.grammar.member_row(
-            0,
-            tcl_registry::InvocationArguments::structured(&member_words),
-            Some(self.context.authoring_query()),
-        );
+        let member_row = self.source_member_row(original, &values);
         let bodies = selected
             .into_iter()
             .map(|selected| {
@@ -1339,6 +1309,57 @@ impl OriginalSourceDefinitionMemberRegion {
         } else {
             Some(bodies.into_iter().flatten().collect())
         }
+    }
+
+    /// Member row (effect, receiver, body slot) selected by this genuine
+    /// parent vocabulary for complete original argv. Consumers route a member
+    /// by this effect, never by its keyword; it grants no installed member,
+    /// dispatch or entered body.
+    #[must_use]
+    pub fn checked_member_row(
+        &self,
+        original: &[NativeWord],
+    ) -> Option<tcl_registry::definer::MemberRow> {
+        let values = self.member_values(original)?;
+        self.source_member_row(original, &values)
+    }
+
+    fn source_member_row(
+        &self,
+        original: &[NativeWord],
+        values: &[Option<Vec<u8>>],
+    ) -> Option<tcl_registry::definer::MemberRow> {
+        // Row selectors require an independent original Document literal,
+        // not a text projection of the retained counted value alone.
+        let source_literals = original
+            .iter()
+            .map(tcl_syntax::word_rules::original_static_word_ascii_presentation)
+            .collect::<Vec<_>>();
+        let member_words = original
+            .iter()
+            .zip(values)
+            .zip(&source_literals)
+            .map(|((word, value), literal)| {
+                if word.group().expand {
+                    return tcl_registry::InvocationWord::Expanded;
+                }
+                let counted = value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::KnownBytes,
+                );
+                match (value.as_deref(), literal.as_deref()) {
+                    (Some(value), Some(literal)) if value == literal && !literal.contains(&0) => {
+                        super::source_structure::source_schema_word(counted)
+                    }
+                    _ => counted,
+                }
+            })
+            .collect::<Vec<_>>();
+        self.grammar.member_row(
+            0,
+            tcl_registry::InvocationArguments::structured(&member_words),
+            Some(self.context.authoring_query()),
+        )
     }
 
     /// Source keyword selected from complete original argv in this genuine

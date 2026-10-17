@@ -1891,8 +1891,9 @@ mod tests {
         // `helper`; the call-hierarchy item must resolve to the definition at
         // its own `selectionRange`, not whichever `all_procs` entry hashes
         // first. Each helper calls a distinct callee so the wrong resolution
-        // is observable.
-        let src = "proc ::a::helper {} { aCallee }\n\
+        // is observable. tclsh rejects `proc` into a missing namespace, so
+        // line 0 creates both.
+        let src = "namespace eval a {}; namespace eval b {}; proc ::a::helper {} { aCallee }\n\
                    proc ::b::helper {} { bCallee }\n\
                    proc aCallee {} {}\n\
                    proc bCallee {} {}\n";
@@ -2258,10 +2259,11 @@ mod tests {
     /// instance method exists in the same class — the previous
     /// methods-first lookup ignored where the cursor actually was and would
     /// have silently returned the instance method's item instead.
+    /// `classmethod` is Tcl 9.0+, so this analyses at 9.0.
     #[test]
     fn prepare_resolves_classmethod_over_same_named_method_by_cursor() {
         let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n}\n";
-        let analysis = analyse(src);
+        let analysis = analyse_tcl9(src);
         // Cursor on the *classmethod* declaration (line 2, col 16).
         let items = prepare(src, 2, 16, &analysis);
         assert_eq!(items.len(), 1, "{items:?}");
@@ -2272,18 +2274,17 @@ mod tests {
         );
     }
 
-    /// Regression: a `method` and a `classmethod` sharing a name (rare, but
-    /// `TclOO` keeps them in independent tables, so it's legal) must not
-    /// collide. `my greet` dispatched from an ordinary method's body can
-    /// only reach the *instance* method `greet` — never the classmethod of
-    /// the same name, since `self` inside an instance method is the
-    /// instance, whose method table never includes classmethods.
-    /// Matching both by name alone double-counts the single real call site
-    /// under one item key.
+    /// Regression: a `method` and a `classmethod` sharing a name must not
+    /// collide. In Tcl 9 `classmethod greet` also installs the instance forward
+    /// `greet` -> `myclass greet`; the later `method greet` replaces it, so
+    /// `my greet` from an instance method enters only the instance method
+    /// (tclsh 9.0.4/9.1.0). Matching both by name alone double-counts the
+    /// single real call site under one item key. `classmethod` is Tcl 9.0+,
+    /// so this analyses at 9.0 and declares the classmethod first.
     #[test]
     fn outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name() {
-        let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
-        let analysis = analyse(src);
+        let src = "oo::class create C {classmethod greet {} {}\n    method greet {} {}\n\n    method twice {} { my greet }\n}\n";
+        let analysis = analyse_tcl9(src);
         let items = prepare(src, 3, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
         let outgoing = outgoing_calls(
@@ -2299,7 +2300,7 @@ mod tests {
             "must not double-count the single `my greet` site: {outgoing:?}"
         );
         // The resolved item is the instance method (line 1), not the
-        // classmethod (line 2).
+        // classmethod (line 0).
         assert_eq!(outgoing[0].to.selection_range.start_line, 1, "{outgoing:?}");
     }
 
