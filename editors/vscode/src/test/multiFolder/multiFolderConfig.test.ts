@@ -23,6 +23,7 @@
 import * as assert from "assert";
 import * as path from "path";
 import * as vscode from "vscode";
+import { waitForCurrentDiagnosticsSnapshot } from "../helper";
 
 interface EffectiveConfig {
   uri: string;
@@ -293,17 +294,20 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      // Poll for the *expected* state, not merely "some diagnostics exist" —
-      // this file carries the previous test's diagnostics until the server
-      // republishes, so a bare length check reads the stale set.
-      const has = () =>
-        vscode.languages
-          .getDiagnostics(fileUri)
-          .some((d) => d.code === "W123" && d.message.includes("puts"));
-      for (let i = 0; i < 30 && has() !== expected; i++) {
-        await new Promise((r) => setTimeout(r, 200));
+      // The prior publication is only a wakeup/history signal. Require a
+      // complete report for this exact post-edit source and folder settings.
+      const report = await waitForCurrentDiagnosticsSnapshot(fileUri, {
+        expectedSource: source,
+        timeout: 6000,
+        predicate: (diagnostics) =>
+          diagnostics.some((d) => d.code === "W123" && d.message.includes("puts")) === expected,
+      });
+      if (!(await report.isStillPublished()) || !report.isCurrent()) {
+        throw new Error(
+          "The complete current-source report became stale before the W123 predicate",
+        );
       }
-      return has();
+      return report.report.diagnostics.some((d) => d.code === "W123" && d.message.includes("puts"));
     }
 
     assert.strictEqual(
@@ -382,15 +386,20 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      // Poll for the *expected* W108 state (up to 6s), not merely "some
-      // diagnostics exist": this file still carries the previous test's
-      // diagnostics until the server republishes, so a bare length check
-      // returns the stale set immediately.
-      const w108 = () => vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W108");
-      for (let i = 0; i < 30 && w108().length > 0 !== wantW108; i++) {
-        await new Promise((r) => setTimeout(r, 200));
+      // Require the expected state from a complete report for this exact
+      // post-edit source and folder settings.
+      const report = await waitForCurrentDiagnosticsSnapshot(fileUri, {
+        expectedSource: source,
+        timeout: 6000,
+        predicate: (diagnostics) =>
+          diagnostics.filter((d) => d.code === "W108").length > 0 === wantW108,
+      });
+      if (!(await report.isStillPublished()) || !report.isCurrent()) {
+        throw new Error(
+          "The complete current-source report became stale before the W108 predicate",
+        );
       }
-      return w108();
+      return report.report.diagnostics.filter((d) => d.code === "W108");
     }
 
     const w108A = await w108DiagsFor("proj-a", true);
@@ -436,14 +445,20 @@ suite("Multi-folder workspace configuration (#230)", () => {
           source,
         );
       });
-      // Poll for the expected state.  Folder A's answer is "none", which is
-      // also what an un-analysed document reports, so it drains the full
-      // budget before concluding — that is the price of asserting an absence.
-      const w123 = () => vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W123");
-      for (let i = 0; i < 30 && w123().length > 0 !== wantW123; i++) {
-        await new Promise((r) => setTimeout(r, 200));
+      // Require the expected state from a complete report for this exact
+      // post-edit source and folder settings, including Folder A's absence.
+      const report = await waitForCurrentDiagnosticsSnapshot(fileUri, {
+        expectedSource: source,
+        timeout: 6000,
+        predicate: (diagnostics) =>
+          diagnostics.filter((d) => d.code === "W123").length > 0 === wantW123,
+      });
+      if (!(await report.isStillPublished()) || !report.isCurrent()) {
+        throw new Error(
+          "The complete current-source report became stale before the W123 predicate",
+        );
       }
-      return w123();
+      return report.report.diagnostics.filter((d) => d.code === "W123");
     }
 
     const w123A = await w123DiagsFor("proj-a", false);
@@ -569,12 +584,18 @@ async function waitForDiagnostic(
   wantPresent: boolean,
   timeoutMs: number = 6000,
 ): Promise<vscode.Diagnostic[]> {
-  const deadline = Date.now() + timeoutMs;
-  let matches: vscode.Diagnostic[] = [];
-  while (Date.now() < deadline) {
-    matches = vscode.languages.getDiagnostics(uri).filter((d) => d.code === code);
-    if (wantPresent ? matches.length > 0 : matches.length === 0) return matches;
-    await new Promise((r) => setTimeout(r, 100));
+  const report = await waitForCurrentDiagnosticsSnapshot(uri, {
+    timeout: timeoutMs,
+    predicate: (diagnostics) => {
+      const matches = diagnostics.filter((d) => d.code === code);
+      return wantPresent ? matches.length > 0 : matches.length === 0;
+    },
+  });
+  if (!(await report.isStillPublished()) || !report.isCurrent()) {
+    throw new Error(
+      "The complete current-source report became stale before the diagnostic predicate",
+    );
   }
+  const matches = report.report.diagnostics.filter((d) => d.code === code);
   return matches;
 }

@@ -1465,7 +1465,7 @@ function buildScenes(): Scene[] {
       },
     },
     {
-      name: "18-rename",
+      name: "18-rename-authored-demo",
       run: async () => {
         await closePanel();
         const baseFile = path.join(workspaceRoot(), "samples/for_screenshots/03-completions.tcl");
@@ -1479,6 +1479,8 @@ function buildScenes(): Scene[] {
           waitForSemanticTokens(split.left.document.uri, 60, 10_000),
           waitForSemanticTokens(split.right.document.uri, 60, 10_000),
         ]);
+        // Explicitly authored screenshot illustration, not provider output.
+        // Keep the original sample transformation as a demo fixture only.
         await split.right.edit((editBuilder) => {
           const text = split.right.document.getText();
           const renamed = text.replace(/\badd\b/g, "sum_values");

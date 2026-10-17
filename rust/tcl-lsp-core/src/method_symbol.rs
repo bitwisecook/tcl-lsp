@@ -671,6 +671,7 @@ fn select_at_offset(
                 .metadata()
                 .original_members
                 .declarations()
+                .filter(|method| method.is_primary_source_declaration())
                 .map(move |method| (class, method))
         })
         .filter(|(_, method)| {

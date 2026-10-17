@@ -19,15 +19,20 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { isTclLanguage } from "../extension";
-import { resolveIruleCode } from "./codeUtils";
 import {
+  resolveIruleCode,
+  snapshotDocumentSource,
+  isDocumentSourceSnapshotCurrent,
+} from "./codeUtils";
+import {
+  captureAnalysisContext,
+  isAnalysisContextCurrent,
+  resourceConfiguration,
   currentDiagnosticsReportMatches,
-  currentDiagnosticsReportIsStillPublished,
+  validateCurrentDiagnosticsPublication,
   waitForDiagnosticsReport,
   type CurrentDiagnosticsReport,
 } from "./diagnosticAccess";
-import { DEFAULT_DIALECT } from "./dialectCatalog";
-import { LANGUAGE_ID_DIALECTS } from "../languageIds";
 import { buildPrompt } from "./promptLoader";
 import { CommandContext } from "./types";
 
@@ -92,10 +97,6 @@ function diagnosticSeverity(severity: vscode.DiagnosticSeverity): string {
     return "info";
   }
   return "hint";
-}
-
-function activeDialect(): string {
-  return vscode.workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
 }
 
 function formatDocumentLabel(document: vscode.TextDocument): string {
@@ -216,12 +217,7 @@ export async function extractSourceSymbolDefinitions(
 ): Promise<SourceSymbolDefinition[] | undefined> {
   try {
     const language =
-      languageId ??
-      (document && isTclLanguage(document.languageId)
-        ? document.languageId
-        : (Object.entries(LANGUAGE_ID_DIALECTS).find(
-            ([, dialect]) => dialect === activeDialect(),
-          )?.[0] ?? "tcl"));
+      languageId ?? (document && isTclLanguage(document.languageId) ? document.languageId : "tcl");
     if (!isTclLanguage(language)) {
       return undefined;
     }
@@ -388,14 +384,38 @@ function buildEventSection(
 async function buildPromptContextWithReport(
   ctx: CommandContext,
   options: PromptContextOptions = {},
-): Promise<{ block: string; diagnosticsReport?: CurrentDiagnosticsReport }> {
+): Promise<{
+  block: string;
+  diagnosticsReport?: CurrentDiagnosticsReport;
+  assertCurrent?: () => void;
+}> {
+  const diagnosticDeadline =
+    Date.now() + (options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS);
+  const remainingDiagnosticBudget = () => Math.max(0, diagnosticDeadline - Date.now());
   const allowAmbientContext = options.allowAmbientContext ?? true;
   const includeDiagnostics = options.includeDiagnostics ?? true;
   const includeSymbolDefinitions = options.includeSymbolDefinitions ?? true;
   const includeEventMetadata = options.includeEventMetadata ?? true;
 
   const document = await resolveContextDocument(ctx, options.document, allowAmbientContext);
+  // Retain the actual document image and resource input before any provider await.
+  // A detached code proposal remains source-only; a configured dialect is a hint,
+  // while only a completed resource report supplies an analysed dialect.
+  const snapshot = document ? snapshotDocumentSource(document) : undefined;
+  const analysisContext = snapshot?.analysisContext ?? captureAnalysisContext();
+  const configuration = document ? resourceConfiguration(document) : undefined;
+  const assertCurrent = () => {
+    if (
+      (snapshot && !isDocumentSourceSnapshotCurrent(snapshot)) ||
+      (document && resourceConfiguration(document) !== configuration) ||
+      (analysisContext && !isAnalysisContextCurrent(analysisContext)) ||
+      (options.isSourceCurrent && !options.isSourceCurrent())
+    ) {
+      throw new Error("The captured prompt source or analysis input changed");
+    }
+  };
   const code = await resolveContextCode(ctx, options.code, document, allowAmbientContext);
+  assertCurrent();
   if (!document && !code) {
     return { block: "" };
   }
@@ -421,7 +441,7 @@ async function buildPromptContextWithReport(
       document,
       code,
       options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
-      options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
+      remainingDiagnosticBudget(),
     );
     diagnosticsReport = diagnosticSection.report;
     diagnosticsText = diagnosticSection.text;
@@ -433,7 +453,9 @@ async function buildPromptContextWithReport(
       ? `- Completed resource analysis: ${diagnosticsReport.response.dialectId} (source version ${diagnosticsReport.response.version})`
       : options.sourceContextLabel
         ? `- Captured source: ${options.sourceContextLabel}`
-        : `- Selected session dialect hint: ${activeDialect()}`,
+        : snapshot
+          ? `- Captured resource dialect hint (not completed analysis): ${snapshot.resourceDialectHint}`
+          : "- Detached source: no resource analysis dialect is available",
   );
   if (document) {
     summary.push(`- File: ${formatDocumentLabel(document)}`);
@@ -501,7 +523,25 @@ async function buildPromptContextWithReport(
     }
   }
 
+  assertCurrent();
+  if (
+    diagnosticsReport &&
+    !(await validateCurrentDiagnosticsPublication(
+      diagnosticsReport,
+      {
+        document: diagnosticsReport.document,
+        uri: diagnosticsReport.document.uri,
+        version: diagnosticsReport.response.version,
+        source: diagnosticsReport.response.source,
+      },
+      remainingDiagnosticBudget(),
+    ))
+  ) {
+    throw new Error("The completed report was retired while prompt context was packed");
+  }
+  assertCurrent();
   return {
+    assertCurrent,
     block: [
       "Use this deterministic project/editor context when generating the answer:",
       ...sections,
@@ -524,6 +564,7 @@ async function buildContextualMessagesWithReport(
 ): Promise<{
   messages: vscode.LanguageModelChatMessage[];
   diagnosticsReport?: CurrentDiagnosticsReport;
+  assertCurrent?: () => void;
 }> {
   const packed = await buildPromptContextWithReport(ctx, options);
   const userPrompt = packed.block ? `${prompt.trimEnd()}\n\n${packed.block}` : prompt;
@@ -536,6 +577,7 @@ async function buildContextualMessagesWithReport(
       vscode.LanguageModelChatMessage.User(userPrompt),
     ],
     diagnosticsReport: packed.diagnosticsReport,
+    assertCurrent: packed.assertCurrent,
   };
 }
 
@@ -592,13 +634,14 @@ export async function sendContextualRequest(
   const built = await buildContextualMessagesWithReport(ctx, prompt, options);
   const messages = built.messages;
   const assertSourceCurrent = async () => {
+    built.assertCurrent?.();
     if (options.isSourceCurrent && !options.isSourceCurrent()) {
       throw new Error("The captured source changed before the model request could be sent");
     }
     const report = built.diagnosticsReport;
     if (
       report &&
-      !(await currentDiagnosticsReportIsStillPublished(report, {
+      !(await validateCurrentDiagnosticsPublication(report, {
         document: report.document,
         uri: report.document.uri,
         version: report.response.version,
@@ -609,6 +652,8 @@ export async function sendContextualRequest(
         "The completed diagnostics report is no longer current for its source/session",
       );
     }
+    // The publisher check itself awaits: rejoin the original host image/input.
+    built.assertCurrent?.();
   };
   await assertSourceCurrent();
   const sendOpts = {

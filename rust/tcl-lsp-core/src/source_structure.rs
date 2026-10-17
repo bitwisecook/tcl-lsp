@@ -46,6 +46,10 @@ pub(crate) struct SourceStructure {
     definition_members:
         Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
     definition_members_unavailable: Vec<Span>,
+    scoped_environment_regions: Vec<(
+        tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+        u32,
+    )>,
     package_census: Option<PackageCensusState>,
     definition_cursor_regions: Vec<DefinitionCursorRegion>,
     definition_cursor_unavailable: Vec<Span>,
@@ -338,6 +342,42 @@ impl SourceSyntaxCoverage {
     ) -> Option<&'a [(Span, u32)]> {
         self.matches(source, analysis)
             .then_some(self.structure.scripts.as_slice())
+    }
+
+    /// Candidate-only scoped vocabulary from genuine original Body/schema
+    /// owners. Inner frame boundaries stop inheritance; no report span can
+    /// manufacture a selected scoped parent or complete command table.
+    pub fn logical_scoped_environment_at(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<tcl_compiler::registry_invocation::OriginalLogicalScopedEnvironment> {
+        self.matches(source, analysis).then_some(())?;
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        let mut regions = self
+            .structure
+            .scoped_environment_regions
+            .iter()
+            .filter(|(body, _)| {
+                body.content_span().start() <= cursor && cursor < body.content_span().end()
+            })
+            .collect::<Vec<_>>();
+        regions.sort_by_key(|(body, depth)| {
+            (
+                std::cmp::Reverse(*depth),
+                body.content_span().end() - body.content_span().start(),
+            )
+        });
+        for (body, _) in regions {
+            if let Some(environment) = body.logical_scoped_environment(&context) {
+                return Some(environment);
+            }
+            if !body.inherits_immediate_caller_source_context(&context) {
+                return None;
+            }
+        }
+        None
     }
 
     /// Complete means every represented selected script syntax body was
@@ -1056,6 +1096,7 @@ impl SourceStructure {
             caller_context_unavailable_bodies: Vec::new(),
             definition_members: Vec::new(),
             definition_members_unavailable: Vec::new(),
+            scoped_environment_regions: Vec::new(),
             definition_cursor_regions: Vec::new(),
             definition_cursor_unavailable: Vec::new(),
             package_census: (purpose == CapturePurpose::CheckedSyntax)
@@ -1581,6 +1622,8 @@ impl SourceStructure {
         match words.source_script_bodies_for_syntax_coverage(&context) {
             Some(bodies) => {
                 for body in bodies {
+                    self.scoped_environment_regions
+                        .push((body.clone(), script.depth + 1));
                     queue.push_back((
                         body.content_span(),
                         script.depth + 1,

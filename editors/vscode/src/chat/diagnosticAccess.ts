@@ -146,6 +146,8 @@ export interface CurrentDiagnosticsTransport {
   /** Stable opaque identity for one actual client/server session generation. */
   readonly sessionIdentity: object;
   request(params: { uri: string; version: number; source: string }): Promise<unknown>;
+  /** Read-only validation of the actual publisher ledger, without analysis/reissue. */
+  validatePublication?(publication: DiagnosticPublicationExpectation): Promise<unknown>;
   requestProposal?(params: {
     uri: string;
     version: number;
@@ -585,6 +587,12 @@ function validDiagnostics(value: unknown): value is LspDiagnostic[] {
  * pending/stale states are retried within the caller's original budget; a local
  * document change and all terminal unavailable states remain explicit errors.
  */
+/** Exact identity of a completed publication; no diagnostics payload or analysis request. */
+export type DiagnosticPublicationExpectation = Pick<
+  CurrentDiagnosticsResponse,
+  "uri" | "version" | "source" | "dialectId" | "revision" | "inputsEpoch" | "resultId"
+>;
+
 export interface CurrentDiagnosticsResponse {
   readonly status: "complete";
   readonly uri: string;
@@ -665,6 +673,48 @@ export async function currentDiagnosticsReportIsStillPublished(
     raw.inputsEpoch === report.response.inputsEpoch &&
     raw.resultId === report.response.resultId &&
     validDiagnostics(raw.diagnostics)
+  );
+}
+
+/** Validate a retained publication identity through the separate read-only ledger purpose. */
+export async function validateCurrentDiagnosticsPublication(
+  report: CurrentDiagnosticsReport,
+  expected: { document: vscode.TextDocument; uri: vscode.Uri; version: number; source: string },
+  timeout = 5_000,
+): Promise<boolean> {
+  if (!currentDiagnosticsReportMatches(report, expected)) return false;
+  const transport = report.analysisContext.transport;
+  if (!transport.validatePublication || timeout <= 0) return false;
+  // This read-only operation has its own caller budget. A completed report's
+  // original acquisition timeout is not a TTL for its publisher allocation.
+  const deadline = Date.now() + timeout;
+  if (deadline <= Date.now()) return false;
+  const publication: DiagnosticPublicationExpectation = {
+    uri: report.response.uri,
+    version: report.response.version,
+    source: report.response.source,
+    dialectId: report.response.dialectId,
+    revision: report.response.revision,
+    inputsEpoch: report.response.inputsEpoch,
+    resultId: report.response.resultId,
+  };
+  let raw: unknown;
+  try {
+    raw = await withinDeadline(transport.validatePublication(publication), deadline);
+  } catch {
+    return false;
+  }
+  return (
+    currentDiagnosticsReportMatches(report, expected) &&
+    isRecord(raw) &&
+    raw.status === "current" &&
+    raw.uri === report.response.uri &&
+    raw.version === report.response.version &&
+    raw.source === report.response.source &&
+    raw.dialectId === report.response.dialectId &&
+    raw.revision === report.response.revision &&
+    raw.inputsEpoch === report.response.inputsEpoch &&
+    raw.resultId === report.response.resultId
   );
 }
 

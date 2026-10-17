@@ -21,7 +21,9 @@
 #[cfg(test)]
 use tcl_lexer::Span;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Token};
-use tcl_registry::{CommandRegistry, InvocationDialect, InvocationWord, InvocationWords};
+use tcl_registry::CommandRegistry;
+#[cfg(test)]
+use tcl_registry::{InvocationDialect, InvocationWord, InvocationWords};
 
 pub(super) struct Registration {
     name: Option<String>,
@@ -90,6 +92,7 @@ pub(super) fn select(
     select_in_plan(source, tokens, registry, config, &plan)
 }
 
+#[cfg(test)]
 pub(super) fn select_in_plan(
     source: &str,
     tokens: &[Vec<Token>],

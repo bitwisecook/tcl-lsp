@@ -94,8 +94,7 @@ object PackAssociationReconciler {
         val claims = LinkedHashMap<String, String>()
         for (element in rows) {
             val row = element as? JsonObject ?: continue
-            val extension = row.string("extension")?.trim()?.lowercase() ?: continue
-            if (extension.isEmpty() || extension.any { it == '.' || it.isWhitespace() }) continue
+            val extension = row.string("extension")?.takeIf(::isDeclaredExtension)?.asciiLowercase() ?: continue
             claims.putIfAbsent(extension, fileTypeNameFor(row.string("language_id")))
         }
         return claims
@@ -196,6 +195,21 @@ object PackAssociationReconciler {
         }
 
         return PackAssociationPlan(associate, disassociate, ledger, deferred)
+    }
+
+    private fun isDeclaredExtension(extension: String): Boolean =
+        extension.isNotEmpty() && extension.none { it == '.' || it.isRustWhitespace() }
+
+    private fun Char.isRustWhitespace(): Boolean =
+        this in '\u0009'..'\u000d' || this == '\u0020' || this == '\u0085' ||
+            this == '\u00a0' || this == '\u1680' || this in '\u2000'..'\u200a' ||
+            this == '\u2028' || this == '\u2029' || this == '\u202f' ||
+            this == '\u205f' || this == '\u3000'
+
+    private fun String.asciiLowercase(): String = buildString(length) {
+        for (character in this@asciiLowercase) {
+            append(if (character in 'A'..'Z') character + ('a' - 'A') else character)
+        }
     }
 
     private fun JsonObject.string(name: String): String? =

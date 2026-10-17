@@ -330,6 +330,8 @@ struct TkAnalysis {
 struct TkSourceCommand<'a> {
     command: &'a SegmentedCommand,
     original_words: Option<Vec<NativeWord>>,
+    registry_words:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
 }
 
 impl<'a> TkSourceCommand<'a> {
@@ -354,9 +356,15 @@ impl<'a> TkSourceCommand<'a> {
                 tokens.native_lexer_config(current.config()),
             )
         });
+        let registry_words = original_words.as_ref().and_then(|_| {
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, command,
+            )
+        });
         Self {
             command,
             original_words,
+            registry_words,
         }
     }
 }
@@ -423,7 +431,10 @@ pub fn analyse_tk_ui_with_analysis(source: &str, retained: &AnalysisResult) -> T
         collect_tk_command(
             &command,
             &head,
-            registry,
+            TkRegistryContext {
+                registry,
+                source_analysis: retained,
+            },
             Some(context.context().authoring_query()),
             tk_version,
             &mut analysis,
@@ -542,15 +553,22 @@ fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
     }
 }
 
+struct TkRegistryContext<'a> {
+    registry: &'a CommandRegistry,
+    source_analysis: &'a AnalysisResult,
+}
+
 fn collect_tk_command(
     command: &TkSourceCommand<'_>,
     resolved_head: &str,
-    registry: &CommandRegistry,
+    registry_context: TkRegistryContext<'_>,
     dialect: Option<SurfaceQuery<'_>>,
     tk_version: Option<&str>,
     analysis: &mut TkAnalysis,
     context: ExecutableContext,
 ) {
+    let registry = registry_context.registry;
+    let source_analysis = registry_context.source_analysis;
     collect_known_widget_mutation(
         command,
         resolved_head,
@@ -604,7 +622,15 @@ fn collect_tk_command(
             context,
         );
     }
-    collect_registry_lifecycle_effect(command, resolved_head, spec, registry, analysis, context);
+    collect_registry_lifecycle_effect(
+        command,
+        resolved_head,
+        spec,
+        registry,
+        source_analysis,
+        analysis,
+        context,
+    );
 }
 
 // Serde's `skip_serializing_if` callback receives a shared reference even for
@@ -955,42 +981,39 @@ fn collect_registry_lifecycle_effect(
     resolved_head: &str,
     spec: &CommandSpec,
     registry: &CommandRegistry,
+    source_analysis: &AnalysisResult,
     analysis: &mut TkAnalysis,
     context: ExecutableContext,
 ) {
     let releases_geometry = spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
         && spec.required_package == Some("Tk");
-    // Which calls move a command binding, and which word carries the moved
-    // name, is registry data read through the one transition vocabulary
-    // (centralisation ledger C8) — never a coarse effect word this consumer
-    // then re-destructures.
-    let renames_commands =
+    let possible_command_table_change =
         tcl_compiler::alias::command_table_transitions(registry, resolved_head, command.args())
-            .command_bindings()
-            .any(|transition| {
-                matches!(
-                    transition,
-                    tcl_registry::CommandBindingTransition::Move { .. }
-                        | tcl_registry::CommandBindingTransition::Delete { .. }
-                )
-            });
-    if !(releases_geometry || renames_commands) {
+            .touches_command_bindings();
+    let selected = command
+        .registry_words
+        .as_ref()
+        .and_then(|words| source_lifecycle_effects(words, source_analysis));
+    let mut effects = match selected {
+        Some(effects) => effects,
+        None if releases_geometry || possible_command_table_change => SourceLifecycleEffects {
+            operands: Vec::new(),
+            unknown: true,
+        },
+        None => return,
+    };
+    if !releases_geometry && !possible_command_table_change && effects.operands.is_empty() {
         return;
     }
-    let mut affected_indices = BTreeSet::new();
-    if releases_geometry {
-        affected_indices.extend(1..command.texts.len());
-    }
-    if renames_commands {
-        // `rename oldName newName` only changes the binding of `oldName`.
-        // A widget-looking destination is unrelated to an existing widget
-        // command (and normally makes the Tcl call fail because it exists).
-        affected_indices.insert(1);
-    }
-    for index in affected_indices {
-        let Some((path, source)) = literal_word(command, index) else {
+
+    let mut seen = BTreeSet::new();
+    effects
+        .operands
+        .retain(|(_, source)| seen.insert((source.start, source.end)));
+    for (path, source) in effects.operands {
+        if !tcl_registry::tk_geometry::is_widget_path_or_root(&path) {
             continue;
-        };
+        }
         let affected: Vec<String> = analysis
             .widgets
             .keys()
@@ -998,9 +1021,7 @@ fn collect_registry_lifecycle_effect(
             .cloned()
             .collect();
         if affected.is_empty() {
-            if context == ExecutableContext::PotentialBody
-                && tcl_registry::tk_geometry::is_widget_path_or_root(&path)
-            {
+            if context == ExecutableContext::PotentialBody {
                 analysis
                     .pending_lifecycle
                     .entry(path)
@@ -1028,6 +1049,130 @@ fn collect_registry_lifecycle_effect(
             ));
         }
     }
+    if effects.unknown {
+        let source = TkSourceSpan::from(command.span);
+        if context == ExecutableContext::Direct {
+            for widget in analysis.widgets.values_mut() {
+                widget.certainty = TkFactCertainty::Potential;
+            }
+        } else {
+            analysis
+                .pending_lifecycle
+                .entry(".".to_owned())
+                .or_default()
+                .push(source);
+        }
+        analysis.uncertainties.push(uncertainty(
+            TkUncertaintyKind::WidgetLifecycleMutation,
+            source,
+            "A Registry-described lifecycle effect has unavailable original operand ownership; affected widget names are unknown.",
+        ));
+    }
+}
+
+#[derive(Default)]
+struct SourceLifecycleEffects {
+    operands: Vec<(String, TkSourceSpan)>,
+    unknown: bool,
+}
+
+fn source_lifecycle_effects(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    source_analysis: &AnalysisResult,
+) -> Option<SourceLifecycleEffects> {
+    let input = source_analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let original_head = words.head_source()?.word()?;
+    if !words.matches_source(original_head.image(), input.lexer_config()) {
+        return None;
+    }
+    words.with_source_schema(&context, |schema| {
+        let transitions = schema.state_transitions();
+        let mut effects = SourceLifecycleEffects::default();
+        if transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings) {
+            effects.unknown = true;
+        }
+        for binding in transitions.command_bindings() {
+            use tcl_registry::CommandBindingTransition as Binding;
+            match binding {
+                Binding::Move { from, .. } => {
+                    if let Some(operand) = source_lifecycle_operand(words, from) {
+                        effects.operands.push(operand);
+                    } else {
+                        effects.unknown = true;
+                    }
+                }
+                Binding::Delete { interpreter, name } => {
+                    match interpreter {
+                        None => {}
+                        Some(subject) => match subject.literal() {
+                            Some("") => {}
+                            Some(_) => continue,
+                            None => {
+                                effects.unknown = true;
+                                continue;
+                            }
+                        },
+                    }
+                    if let Some(operand) = source_lifecycle_operand(words, name) {
+                        effects.operands.push(operand);
+                    } else {
+                        effects.unknown = true;
+                    }
+                }
+                Binding::Alias {
+                    source_interpreter,
+                    alias,
+                    ..
+                } => match source_interpreter.literal() {
+                    Some("") => {
+                        if let Some(operand) = source_lifecycle_operand(words, alias) {
+                            effects.operands.push(operand);
+                        } else {
+                            effects.unknown = true;
+                        }
+                    }
+                    Some(_) => {}
+                    None => effects.unknown = true,
+                },
+                Binding::Unknown { .. } => effects.unknown = true,
+                Binding::Define { .. } => {}
+            }
+        }
+        let descriptor = schema.authored_source_descriptors().command;
+        let selected_tk_teardown = descriptor.required_package == Some("Tk")
+            && descriptor.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN);
+        if selected_tk_teardown {
+            let Some(layout) = schema.authored_source_teardown_arguments() else {
+                effects.unknown = true;
+                return effects;
+            };
+            for ordinal in layout.arguments {
+                if let Some(operand) = source_lifecycle_word(words, ordinal) {
+                    effects.operands.push(operand);
+                } else {
+                    effects.unknown = true;
+                }
+            }
+        }
+        effects
+    })
+}
+
+fn source_lifecycle_operand(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    subject: &tcl_registry::TransitionSubject,
+) -> Option<(String, TkSourceSpan)> {
+    source_lifecycle_word(words, subject.argument_index()?)
+}
+
+fn source_lifecycle_word(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    ordinal: usize,
+) -> Option<(String, TkSourceSpan)> {
+    let word = words.original_argument_word(ordinal)?;
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    Some((String::from_utf8(value).ok()?, word.span().into()))
 }
 
 fn apply_pending_lifecycle(

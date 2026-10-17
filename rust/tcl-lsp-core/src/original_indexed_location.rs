@@ -279,6 +279,372 @@ impl OriginalIndexedSourceLocation {
     }
 }
 
+/// An actual indexed Logical source declaration, independently of Native facts.
+/// This is conditional readonly declaration advice, never loading or dispatch.
+#[derive(Debug, Clone)]
+pub struct LogicalIndexedDeclarationLocation {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    declaration: LogicalDeclaration,
+}
+
+#[derive(Debug, Clone)]
+enum LogicalDeclaration {
+    Procedure(Box<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>),
+    Class(Box<tcl_compiler::analyser::types::LogicalSourceClassDeclaration>),
+}
+
+impl LogicalIndexedDeclarationLocation {
+    pub(crate) fn procedure(
+        uri: &str,
+        context: &WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        declaration: &tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
+    ) -> Option<Self> {
+        declaration
+            .matches_source(context.image(), input)
+            .then_some(())?;
+        declaration.original_name_word()?;
+        declaration.original_definition_site()?;
+        Some(Self {
+            uri: uri.to_owned(),
+            context: context.clone(),
+            input: input.clone(),
+            declaration: LogicalDeclaration::Procedure(Box::new(declaration.clone())),
+        })
+    }
+
+    pub(crate) fn class(
+        uri: &str,
+        context: &WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        declaration: &tcl_compiler::analyser::types::LogicalSourceClassDeclaration,
+    ) -> Option<Self> {
+        declaration
+            .matches_source(context.image(), input)
+            .then_some(())?;
+        declaration.original_name_word()?;
+        Some(Self {
+            uri: uri.to_owned(),
+            context: context.clone(),
+            input: input.clone(),
+            declaration: LogicalDeclaration::Class(Box::new(declaration.clone())),
+        })
+    }
+
+    /// Independent document ownership, never derived from a declaration label.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    pub(crate) fn retains_procedure(
+        &self,
+        current: &tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
+    ) -> bool {
+        let LogicalDeclaration::Procedure(held) = &self.declaration else {
+            return false;
+        };
+        current.matches_source(self.context.image(), &self.input)
+            && current
+                .original_definition_site()
+                .zip(held.original_definition_site())
+                .is_some_and(|(current, held)| std::ptr::eq(current, held))
+    }
+
+    pub(crate) fn retains_class(
+        &self,
+        current: &tcl_compiler::analyser::types::LogicalSourceClassDeclaration,
+    ) -> bool {
+        let LogicalDeclaration::Class(held) = &self.declaration else {
+            return false;
+        };
+        current.matches_source(self.context.image(), &self.input)
+            && std::ptr::eq(current.metadata(), held.metadata())
+    }
+
+    /// Recheck the exact current image, complete input and genuine declaration.
+    /// The caller must also hold actual indexed allocation membership through
+    /// its final provider observation; byte equality alone is not that owner.
+    #[must_use]
+    pub fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<Span> {
+        let current = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        (current == self.context
+            && current.image() == &SourceImage::document(source)
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && self.input.has_logical_source_name_context())
+        .then_some(())?;
+        let span = match &self.declaration {
+            LogicalDeclaration::Procedure(held) => {
+                analysis
+                    .logical_source_procedure_declarations()
+                    .any(|candidate| candidate == held.as_ref())
+                    .then_some(())?;
+                held.original_name_word()?.span()
+            }
+            LogicalDeclaration::Class(held) => {
+                analysis
+                    .all_classes
+                    .values()
+                    .any(|class| {
+                        analysis.logical_source_class_declaration(class) == Some(held.as_ref())
+                    })
+                    .then_some(())?;
+                held.original_name_word()?.span()
+            }
+        };
+        (span.start() < span.end() && source.get(span.as_range()).is_some()).then_some(span)
+    }
+}
+
+/// A genuine Logical variable source occurrence, never a Native table fact.
+/// Source naming geometry supplies no current cell, alias or edit authority.
+#[derive(Debug, Clone)]
+pub struct LogicalIndexedVariableLocation {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    occurrence: SignatureSourceVariableOccurrence,
+}
+
+impl LogicalIndexedVariableLocation {
+    pub(crate) fn input(&self) -> &tcl_compiler::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+
+    pub(crate) fn symbol(
+        &self,
+    ) -> &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol {
+        self.occurrence.symbol()
+    }
+
+    pub(crate) fn capture(
+        uri: &str,
+        context: &WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        occurrence: &SignatureSourceVariableOccurrence,
+    ) -> Option<Self> {
+        (occurrence.symbol().is_namespace()
+            && occurrence.matches_logical_source_view(context.image(), input))
+        .then_some(Self {
+            uri: uri.to_owned(),
+            context: context.clone(),
+            input: input.clone(),
+            occurrence: occurrence.clone(),
+        })
+    }
+
+    /// The independent document issuer, never rendered from a variable key.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Whether the original receiver was selected as a declaration occurrence.
+    #[must_use]
+    pub fn is_declaration(&self) -> bool {
+        self.occurrence.is_declaration()
+    }
+
+    pub(crate) fn retains(&self, occurrence: &SignatureSourceVariableOccurrence) -> bool {
+        self.occurrence.shares_logical_source_allocation(occurrence)
+    }
+
+    /// Current complete input/image and genuine occurrence membership. Index
+    /// allocation and URI/provider currency remain independent obligations.
+    #[must_use]
+    pub fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<Span> {
+        (WorkspaceDiagnosticSourceContext::for_analysis(analysis).as_ref() == Some(&self.context)
+            && self.context.image() == &SourceImage::document(source)
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && self
+                .occurrence
+                .matches_logical_source_view(self.context.image(), &self.input)
+            && !analysis
+                .original_variable_symbol_conflicts
+                .contains(&self.occurrence.span())
+            && analysis
+                .original_variable_symbols
+                .iter()
+                .any(|current| current == &self.occurrence))
+        .then_some(())?;
+        let span = self.occurrence.span();
+        (span.start() < span.end() && source.get(span.as_range()).is_some()).then_some(span)
+    }
+}
+
+/// Actual Logical namespace-role geometry with its complete original issuer.
+/// Independent URI/currentness checks remain mandatory before any span lift.
+#[derive(Debug, Clone)]
+pub struct LogicalIndexedNamespaceLocation {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    occurrence: tcl_compiler::signature_scan::original_name::LogicalSourceNamespaceOccurrence,
+    implicit_parent: Option<OriginalNamespaceSymbol>,
+}
+
+impl LogicalIndexedNamespaceLocation {
+    pub(crate) fn capture(
+        uri: &str,
+        analysis: &AnalysisResult,
+        row: &NamespaceRef,
+    ) -> Option<Self> {
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        let occurrence =
+            tcl_compiler::signature_scan::original_name::LogicalSourceNamespaceOccurrence::capture(
+                analysis, row,
+            )?;
+        (context.image() == occurrence.image()).then_some(Self {
+            uri: uri.to_owned(),
+            context,
+            occurrence,
+            implicit_parent: None,
+        })
+    }
+
+    /// The independently retained document issuer.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Declaration role selected by the original Registry and Ensure descriptor.
+    #[must_use]
+    pub fn is_declaration(&self) -> bool {
+        self.occurrence.row().declares
+    }
+
+    pub(crate) fn input(&self) -> &tcl_compiler::analyser::ResolvedAnalysisInput {
+        self.occurrence.input()
+    }
+
+    pub(crate) fn names(&self, symbol: &OriginalNamespaceSymbol) -> bool {
+        self.occurrence.row().source_namespace.as_ref() == Some(symbol.scope())
+            && self.occurrence.row().name_policy == Some(symbol.policy())
+    }
+
+    pub(crate) fn for_implicit_parent(&self, parent: &OriginalNamespaceSymbol) -> Option<Self> {
+        let row = self.occurrence.row();
+        (row.declares
+            && row.name_policy == Some(parent.policy())
+            && parent
+                .scope()
+                .is_strict_ancestor_of(row.source_namespace.as_ref()?, parent.policy())
+                == Some(true))
+        .then_some(())?;
+        let mut location = self.clone();
+        location.implicit_parent = Some(parent.clone());
+        Some(location)
+    }
+
+    pub(crate) fn retains(&self, current: &Self) -> bool {
+        self.uri == current.uri
+            && self.context == current.context
+            && self
+                .occurrence
+                .shares_original_allocation(&current.occurrence)
+    }
+
+    /// Recheck the genuine original role/context against the actual complete
+    /// analysis. Report labels cannot provide original operands or parent spans.
+    #[must_use]
+    pub fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<Span> {
+        (WorkspaceDiagnosticSourceContext::for_analysis(analysis).as_ref() == Some(&self.context)
+            && self.context.image() == &SourceImage::document(source)
+            && self.occurrence.is_current(analysis))
+        .then_some(())?;
+        let row = self.occurrence.row();
+        let span = match &self.implicit_parent {
+            Some(parent) => crate::namespace_symbol::namespace_implicit_parent_span_in(
+                source,
+                row,
+                parent.scope(),
+            )?,
+            None => row.span,
+        };
+        (span.start() < span.end() && source.get(span.as_range()).is_some()).then_some(span)
+    }
+}
+
+/// One original Logical class-object method declaration, without a Native
+/// receiver, installed class, method lookup or dispatch-entry assertion.
+#[derive(Debug, Clone)]
+pub struct LogicalIndexedMemberLocation {
+    uri: String,
+    context: WorkspaceDiagnosticSourceContext,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    member: tcl_compiler::analyser::types::LogicalSourceMemberDeclaration,
+}
+
+impl LogicalIndexedMemberLocation {
+    pub(crate) fn capture(
+        uri: &str,
+        context: &WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        member: tcl_compiler::analyser::types::LogicalSourceMemberDeclaration,
+    ) -> Option<Self> {
+        member
+            .class()
+            .matches_source(context.image(), input)
+            .then_some(())?;
+        (member.class_object_source_visibility()
+            == Some(tcl_registry::definer::DeclaredMemberVisibility::Public))
+        .then_some(())?;
+        member.original_name_word()?;
+        member.original_body_word()?;
+        Some(Self {
+            uri: uri.to_owned(),
+            context: context.clone(),
+            input: input.clone(),
+            member,
+        })
+    }
+
+    /// Independent actual document issuer, never a rendered class key.
+    #[must_use]
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    pub(crate) fn retains_class(
+        &self,
+        current: &tcl_compiler::analyser::types::LogicalSourceClassDeclaration,
+    ) -> bool {
+        current.matches_source(self.context.image(), &self.input)
+            && std::ptr::eq(current.metadata(), self.member.class().metadata())
+            && current
+                .member(self.member.side(), self.member.metadata())
+                .as_ref()
+                == Some(&self.member)
+    }
+
+    /// Current full source/input and original class/member vector correspondence.
+    /// Actual caller/target index membership and URI/provider currency are separate.
+    #[must_use]
+    pub fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<Span> {
+        (WorkspaceDiagnosticSourceContext::for_analysis(analysis).as_ref() == Some(&self.context)
+            && self.context.image() == &SourceImage::document(source)
+            && analysis.resolved_input.as_ref() == Some(&self.input)
+            && self
+                .member
+                .class()
+                .matches_source(self.context.image(), &self.input)
+            && self.member.class_object_source_visibility()
+                == Some(tcl_registry::definer::DeclaredMemberVisibility::Public))
+        .then_some(())?;
+        analysis
+            .all_classes
+            .values()
+            .any(|class| {
+                analysis.logical_source_class_declaration(class) == Some(self.member.class())
+            })
+            .then_some(())?;
+        let span = self.member.original_name_word()?.span();
+        (span.start() < span.end() && source.get(span.as_range()).is_some()).then_some(span)
+    }
+}
+
 fn same_namespace_fact(left: &NamespaceRef, right: &NamespaceRef) -> bool {
     left.original_name_input == right.original_name_input
         && left.source_context == right.source_context

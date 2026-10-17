@@ -86,3 +86,13 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The named fixed Rust selectors are source coverage bindings. Their execution results are recorded separately; no native provider execution is asserted for this source contract.
+
+
+## Primary authored declaration product
+
+A genuine Registry-described classmethod retains its ClassObject declaration and Instance forward as separate typed products sharing one written name. The existing original member owner exposes which product selects that authored declaration cursor. Declaration-only enumeration and method cursor selection use the primary product; the secondary forward remains available to independently selected call/reference lookup. This projection does not establish installation, receiver identity, body entry, runtime equivalence or editing authority. CALL labels render the independently retained class spelling and member label after identity selection; internal kind keys remain identity bookkeeping, not visible names.
+
+
+Conditional source caller lineage is distinct from entered procedure/receiver frames. Actual retained member bodies join the complete original member argv and selected body ordinal against current class/member allocations; no surrounding span creates a receiver. Original Native procedure source calls retain the existing graph-selected declaration at their real call horizon, original argv, held lineage, unknown mutations and enclosing original procedure body. They supply possible readonly source relations only, never runtime target selection, observer absence, completed call census or edit equivalence. Unsupported body phases, self-selector targets and unavailable source issuers remain partial. Fixed source controls are unexecuted.
+
+Original Native procedure-body command suggestions reborrow the existing retained body-children owner, exact original vectors, full input and source-analysis allocation. Inert braced data is not traversed as script. The unresolved-head adapter retains literal source head data and genuine declaration membership without inventing a qualified target or Logical candidate. It remains a positive partial inventory, including non-local built-in heads as before; it cannot prove unknown-body absence or physical dispatch.

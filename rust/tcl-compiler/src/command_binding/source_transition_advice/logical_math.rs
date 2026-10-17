@@ -74,6 +74,23 @@ impl OriginalLogicalMathFunctionOccurrence {
     pub fn coordinates(&self) -> Option<&[ByteCommandSlot]> {
         self.coordinates.as_deref()
     }
+    /// Ordered external source-header coordinates remaining after this exact
+    /// expression occurrence's selected local occupants. Unknown mutations or
+    /// opaque expression operands leave the lookup conditional and unavailable.
+    #[must_use]
+    pub fn external_header_coordinates(&self) -> Option<Vec<ByteCommandSlot>> {
+        if self.earlier_unknown_mutations || self.operand_obligations {
+            return None;
+        }
+        Some(
+            self.coordinates
+                .as_ref()?
+                .iter()
+                .filter(|coordinate| !self.excluded_headers.contains(coordinate))
+                .cloned()
+                .collect(),
+        )
+    }
     /// Earlier unknown effects remain conditional applicability obligations.
     #[must_use]
     pub const fn has_earlier_unknown_mutations(&self) -> bool {

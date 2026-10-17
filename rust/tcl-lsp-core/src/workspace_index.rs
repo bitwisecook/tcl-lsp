@@ -1258,6 +1258,16 @@ pub struct WorkspaceLogicalCommandCall {
     candidates: Arc<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>,
 }
 
+/// Conditional own class-object method cards selected from an actual caller
+/// recipe and independent indexed original class headers. No dispatch follows.
+#[derive(Debug, Clone)]
+pub struct WorkspaceLogicalClassMemberTargets {
+    /// Actual retained caller source allocation, rechecked after asynchronous reads.
+    pub call: WorkspaceLogicalCommandCall,
+    /// Genuine direct public source method declarations, possibly unavailable/empty.
+    pub targets: Vec<crate::original_indexed_location::LogicalIndexedMemberLocation>,
+}
+
 impl WorkspaceLogicalCommandCall {
     /// Original scope and word geometry for declaration suggestions only.
     #[must_use]
@@ -1324,6 +1334,8 @@ struct DocumentRecords {
     original_source_classes: Option<tcl_compiler::command_binding::OriginalSourceClassPublications>,
     original_source_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
     logical_command_calls: Vec<WorkspaceLogicalCommandCall>,
+    logical_namespace_locations:
+        Vec<crate::original_indexed_location::LogicalIndexedNamespaceLocation>,
     logical_procedure_declarations:
         Vec<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>,
     original_procs: Vec<
@@ -1695,6 +1707,7 @@ impl DocumentRecords {
             original_source_classes,
             original_source_input,
             logical_command_calls,
+            logical_namespace_locations,
             logical_procedure_declarations,
             original_procs,
             original_classes,
@@ -1735,6 +1748,7 @@ impl DocumentRecords {
         *original_source_classes = None;
         *original_source_input = None;
         logical_command_calls.clear();
+        logical_namespace_locations.clear();
         logical_procedure_declarations.clear();
         original_procs.clear();
         original_classes.clear();
@@ -1949,6 +1963,12 @@ impl DocumentRecords {
                 })
             }));
         }
+        self.logical_namespace_locations
+            .extend(analysis.namespace_refs.iter().filter_map(|row| {
+                crate::original_indexed_location::LogicalIndexedNamespaceLocation::capture(
+                    uri, analysis, row,
+                )
+            }));
         self.original_namespace_patterns
             .extend(analysis.original_namespace_patterns().cloned());
         if let Some(context) = self.diagnostic_source.as_ref() {
@@ -4551,6 +4571,356 @@ impl WorkspaceIndex {
         Some(selected.clone())
     }
 
+    /// Conditional external declaration cards selected by an actual retained
+    /// Logical call. Occupied, deleted or unavailable source slots cannot be
+    /// renewed from report names. An empty result is not a workspace census.
+    #[must_use]
+    pub fn logical_declaration_targets_for_call(
+        &self,
+        call: &WorkspaceLogicalCommandCall,
+    ) -> Option<Vec<crate::original_indexed_location::LogicalIndexedDeclarationLocation>> {
+        call.is_retained_in(self).then_some(())?;
+        let coordinates = call.candidates().external_header_coordinates()?;
+        let mut targets = Vec::new();
+        for document in &self.docs {
+            let (Some(context), Some(input)) =
+                (&document.diagnostic_source, &document.original_source_input)
+            else {
+                continue;
+            };
+            if input != &call.input {
+                continue;
+            }
+            for declaration in &document.logical_procedure_declarations {
+                let Some(coordinate) = declaration.source_candidate_coordinate() else {
+                    continue;
+                };
+                if coordinates.contains(&coordinate) {
+                    if let Some(target) = crate::original_indexed_location::LogicalIndexedDeclarationLocation::procedure(&document.uri, context, input, declaration) {
+                        targets.push(target);
+                    }
+                }
+            }
+            for declaration in document
+                .classes
+                .iter()
+                .filter_map(|class| class.logical_declaration.as_ref())
+            {
+                if declaration
+                    .source_candidate_coordinate()
+                    .is_some_and(|coordinate| coordinates.contains(coordinate))
+                {
+                    if let Some(target) =
+                        crate::original_indexed_location::LogicalIndexedDeclarationLocation::class(
+                            &document.uri,
+                            context,
+                            input,
+                            declaration,
+                        )
+                    {
+                        targets.push(target);
+                    }
+                }
+            }
+        }
+        Some(targets)
+    }
+
+    /// Actual immutable declaration allocation membership, independent of equal
+    /// names or images. Adding a view keeps it; replacement/removal retracts it.
+    #[must_use]
+    pub fn logical_declaration_location_is_retained(
+        &self,
+        location: &crate::original_indexed_location::LogicalIndexedDeclarationLocation,
+    ) -> bool {
+        self.slots
+            .get(location.uri())
+            .and_then(|slot| self.docs.get(*slot))
+            .is_some_and(|document| {
+                document
+                    .logical_procedure_declarations
+                    .iter()
+                    .any(|current| location.retains_procedure(current))
+                    || document
+                        .classes
+                        .iter()
+                        .filter_map(|class| class.logical_declaration.as_ref())
+                        .any(|current| location.retains_class(current))
+            })
+    }
+
+    /// Retain the actual indexed source recipe for this current Logical
+    /// variable occurrence. Equal report keys cannot supply membership.
+    #[must_use]
+    pub fn logical_variable_location_for_occurrence(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    ) -> Option<crate::original_indexed_location::LogicalIndexedVariableLocation> {
+        let input = analysis.resolved_input.as_ref()?;
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        (context.image().bytes() == source.as_bytes()).then_some(())?;
+        let document = self.docs.get(*self.slots.get(uri)?)?;
+        document
+            .original_variables
+            .iter()
+            .any(|current| occurrence.shares_logical_source_allocation(current))
+            .then_some(())?;
+        crate::original_indexed_location::LogicalIndexedVariableLocation::capture(
+            uri, &context, input, occurrence,
+        )
+    }
+
+    /// Conditional same-symbol source occurrences retain actual Logical naming
+    /// recipes and complete input correspondence. This is no cell census.
+    pub fn logical_variable_source_locations(
+        &self,
+        request: &crate::original_indexed_location::LogicalIndexedVariableLocation,
+    ) -> Vec<crate::original_indexed_location::LogicalIndexedVariableLocation> {
+        if !self.logical_variable_location_is_retained(request) {
+            return Vec::new();
+        }
+        self.docs
+            .iter()
+            .flat_map(|document| {
+                document.original_variables.iter().filter_map(|occurrence| {
+                    (document.original_source_input.as_ref() == Some(request.input())
+                        && occurrence.symbol() == request.symbol())
+                    .then_some(())?;
+                    crate::original_indexed_location::LogicalIndexedVariableLocation::capture(
+                        &document.uri,
+                        document.diagnostic_source.as_ref()?,
+                        document.original_source_input.as_ref()?,
+                        occurrence,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    /// Actual immutable variable recipe allocation retained by this document.
+    #[must_use]
+    pub fn logical_variable_location_is_retained(
+        &self,
+        location: &crate::original_indexed_location::LogicalIndexedVariableLocation,
+    ) -> bool {
+        self.slots
+            .get(location.uri())
+            .and_then(|slot| self.docs.get(*slot))
+            .is_some_and(|document| {
+                document
+                    .original_variables
+                    .iter()
+                    .any(|occurrence| location.retains(occurrence))
+            })
+    }
+
+    /// One exact represented namespace-role occurrence in the caller's actual
+    /// indexed source view. Missing scope/role/word remains unavailable.
+    #[must_use]
+    pub fn logical_namespace_location_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> Option<crate::original_indexed_location::LogicalIndexedNamespaceLocation> {
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        (context.image().bytes() == source.as_bytes()).then_some(())?;
+        let document = self.docs.get(*self.slots.get(uri)?)?;
+        let mut locations = analysis
+            .namespace_refs
+            .iter()
+            .filter(|row| row.span.start() <= offset && offset < row.span.end())
+            .filter_map(|row| {
+                crate::original_indexed_location::LogicalIndexedNamespaceLocation::capture(
+                    uri, analysis, row,
+                )
+            })
+            .filter(|location| {
+                document
+                    .logical_namespace_locations
+                    .iter()
+                    .any(|current| location.retains(current))
+            });
+        let selected = locations.next()?;
+        locations.next().is_none().then_some(selected)
+    }
+
+    /// Same typed source namespace under the actual request's complete input.
+    /// Parent locations are independent positive geometry, never an absence proof.
+    #[must_use]
+    pub fn logical_namespace_source_locations(
+        &self,
+        request: &crate::original_indexed_location::LogicalIndexedNamespaceLocation,
+        symbol: &crate::namespace_symbol::OriginalNamespaceSymbol,
+    ) -> Vec<crate::original_indexed_location::LogicalIndexedNamespaceLocation> {
+        if !request.names(symbol) || !self.logical_namespace_location_is_retained(request) {
+            return Vec::new();
+        }
+        self.docs
+            .iter()
+            .flat_map(|document| document.logical_namespace_locations.iter())
+            .filter(|location| location.input() == request.input() && location.names(symbol))
+            .cloned()
+            .collect()
+    }
+
+    /// Original declaring descendants may project a written implicit parent.
+    #[must_use]
+    pub fn logical_namespace_parent_locations(
+        &self,
+        request: &crate::original_indexed_location::LogicalIndexedNamespaceLocation,
+        symbol: &crate::namespace_symbol::OriginalNamespaceSymbol,
+    ) -> Vec<crate::original_indexed_location::LogicalIndexedNamespaceLocation> {
+        if !request.names(symbol) || !self.logical_namespace_location_is_retained(request) {
+            return Vec::new();
+        }
+        self.docs
+            .iter()
+            .flat_map(|document| document.logical_namespace_locations.iter())
+            .filter(|location| location.input() == request.input())
+            .filter_map(|location| location.for_implicit_parent(symbol))
+            .collect()
+    }
+
+    /// Actual retained original namespace source allocation, not a report key.
+    #[must_use]
+    pub fn logical_namespace_location_is_retained(
+        &self,
+        location: &crate::original_indexed_location::LogicalIndexedNamespaceLocation,
+    ) -> bool {
+        self.slots
+            .get(location.uri())
+            .and_then(|slot| self.docs.get(*slot))
+            .is_some_and(|document| {
+                document
+                    .logical_namespace_locations
+                    .iter()
+                    .any(|current| location.retains(current))
+            })
+    }
+
+    /// Literal selector source advice for an independently indexed class header.
+    /// Only direct public class-object methods are represented; these cards are
+    /// not a method dispatch chain, instance receiver or negative member census.
+    #[must_use]
+    pub fn logical_class_member_targets_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> Option<WorkspaceLogicalClassMemberTargets> {
+        let input = analysis.resolved_input.as_ref()?;
+        input.has_logical_source_name_context().then_some(())?;
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        (context.image().bytes() == source.as_bytes()).then_some(())?;
+        let candidates =
+            tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+                source, analysis,
+            )?;
+        let mut selectors = candidates
+            .iter()
+            .filter_map(|call| call.external_class_member_selector_at(cursor));
+        let selector = selectors.next()?;
+        selectors.next().is_none().then_some(())?;
+        let document = self.docs.get(*self.slots.get(uri)?)?;
+        let mut calls = document.logical_command_calls.iter().filter(|call| {
+            call.input == *input
+                && call.source == context
+                && selector.matches_call(call.candidates())
+        });
+        let call = calls.next()?;
+        calls.next().is_none().then_some(())?;
+        self.logical_class_member_targets(call, &selector)
+    }
+
+    fn logical_class_member_targets(
+        &self,
+        call: &WorkspaceLogicalCommandCall,
+        selector: &tcl_compiler::command_binding::LogicalExternalClassMemberSelector,
+    ) -> Option<WorkspaceLogicalClassMemberTargets> {
+        (call.is_retained_in(self) && selector.matches_call(call.candidates())).then_some(())?;
+        let coordinates = call.candidates().external_header_coordinates()?;
+        let mut represented_class = false;
+        let mut targets = Vec::new();
+        for document in &self.docs {
+            let (Some(context), Some(input)) =
+                (&document.diagnostic_source, &document.original_source_input)
+            else {
+                continue;
+            };
+            if input != &call.input {
+                continue;
+            }
+            for declaration in document
+                .classes
+                .iter()
+                .filter_map(|class| class.logical_declaration.as_ref())
+            {
+                if !declaration.matches_source(context.image(), input)
+                    || !declaration
+                        .source_candidate_coordinate()
+                        .is_some_and(|coordinate| coordinates.contains(coordinate))
+                {
+                    continue;
+                }
+                represented_class = true;
+                for method in declaration.metadata().class_methods.values() {
+                    let Some(member) = declaration.member(
+                        tcl_compiler::analyser::types::MemberSide::ClassObject,
+                        method,
+                    ) else {
+                        continue;
+                    };
+                    if member
+                        .original_name_word()
+                        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                        .as_deref()
+                        != Some(selector.name())
+                    {
+                        continue;
+                    }
+                    if let Some(location) =
+                        crate::original_indexed_location::LogicalIndexedMemberLocation::capture(
+                            &document.uri,
+                            context,
+                            input,
+                            member,
+                        )
+                    {
+                        targets.push(location);
+                    }
+                }
+            }
+        }
+        represented_class.then(|| WorkspaceLogicalClassMemberTargets {
+            call: call.clone(),
+            targets,
+        })
+    }
+
+    /// Actual immutable declaring class/member allocation, independent of labels.
+    #[must_use]
+    pub fn logical_member_location_is_retained(
+        &self,
+        location: &crate::original_indexed_location::LogicalIndexedMemberLocation,
+    ) -> bool {
+        self.slots
+            .get(location.uri())
+            .and_then(|slot| self.docs.get(*slot))
+            .is_some_and(|document| {
+                document
+                    .classes
+                    .iter()
+                    .filter_map(|class| class.logical_declaration.as_ref())
+                    .any(|class| location.retains_class(class))
+            })
+    }
+
     /// Every indexed proc.
     pub fn procs(&self) -> impl Iterator<Item = &WorkspaceProc> {
         self.docs.iter().flat_map(|doc| doc.procs.iter())
@@ -4598,6 +4968,56 @@ impl WorkspaceIndex {
                         .then_some((document.uri.as_str(), declaration))
                 })
         })
+    }
+
+    /// Current Logical procedure source cards for one exact original
+    /// math-function occurrence. The occurrence must reborrow from the caller's
+    /// actual AnalysisResult; candidate labels and report names cannot create
+    /// this query. Positive cards grant no loaded function or dispatch result.
+    #[must_use]
+    pub fn logical_math_source_candidates(
+        &self,
+        occurrence: &tcl_compiler::command_binding::OriginalLogicalMathFunctionOccurrence,
+        caller_analysis: &tcl_compiler::analyser::AnalysisResult,
+        exclude_uri: &str,
+    ) -> Option<
+        Vec<(
+            String,
+            tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
+        )>,
+    > {
+        let image = occurrence.original_word().image();
+        let source = image.try_text().ok()?;
+        if caller_analysis
+            .logical_math_function_at(source, occurrence.span().start())
+            .as_ref()
+            != Some(occurrence)
+        {
+            return None;
+        }
+        let coordinates = occurrence.external_header_coordinates()?;
+        for coordinate in coordinates {
+            let candidates = self
+                .logical_procedure_source_candidates()
+                .filter(|(uri, declaration)| {
+                    *uri != exclude_uri
+                        && self
+                            .slots
+                            .get(*uri)
+                            .and_then(|slot| self.docs.get(*slot))
+                            .is_some_and(|document| {
+                                document.original_source_input.as_ref()
+                                    == caller_analysis.resolved_input.as_ref()
+                            })
+                        && declaration.source_candidate_coordinate().as_ref() == Some(&coordinate)
+                })
+                .map(|(uri, declaration)| (uri.to_owned(), declaration.clone()))
+                .collect::<Vec<_>>();
+            if !candidates.is_empty() {
+                return Some(candidates);
+            }
+        }
+        Some(Vec::new())
     }
 
     /// Current readonly procedure source suggestions. Actual completed publications
@@ -5748,6 +6168,7 @@ impl WorkspaceIndex {
             let mut candidates = Vec::new();
             for (uri, declaration) in self.logical_procedure_source_candidates() {
                 if uri != exclude_uri
+                    && self.logical_request_matches_document_input(request, uri)
                     && declaration.source_candidate_coordinate().as_ref() == Some(coordinate)
                 {
                     let Some(context) = self.diagnostic_source_context(uri) else {
@@ -5771,11 +6192,12 @@ impl WorkspaceIndex {
                 .classes()
                 .filter(|class| class.uri != exclude_uri && !class.via_define)
             {
-                if class
-                    .logical_declaration
-                    .as_ref()
-                    .and_then(|declaration| declaration.source_candidate_coordinate())
-                    == Some(coordinate)
+                if self.logical_request_matches_document_input(request, &class.uri)
+                    && class
+                        .logical_declaration
+                        .as_ref()
+                        .and_then(|declaration| declaration.source_candidate_coordinate())
+                        == Some(coordinate)
                 {
                     let Some(context) = self.diagnostic_source_context(&class.uri) else {
                         continue;
@@ -5798,6 +6220,24 @@ impl WorkspaceIndex {
             }
         }
         Vec::new()
+    }
+
+    fn logical_request_matches_document_input(
+        &self,
+        request: &tcl_compiler::command_binding::OriginalLogicalCommandCandidates,
+        uri: &str,
+    ) -> bool {
+        let Some(input) = self
+            .slots
+            .get(uri)
+            .and_then(|slot| self.docs.get(*slot))
+            .and_then(|document| document.original_source_input.as_ref())
+        else {
+            return false;
+        };
+        request
+            .original_head()
+            .is_some_and(|head| request.matches_source(head.image(), input))
     }
 
     /// The independently selected declaring revision still owns this candidate.
@@ -15668,5 +16108,426 @@ mod retained_logical_call_membership_tests {
                 .logical_command_call_at(uri, source, &second, 0)
                 .is_some()
         );
+    }
+}
+
+#[cfg(test)]
+mod logical_indexed_declaration_membership_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_target_cards_retain_actual_call_and_declaration_allocations() {
+        let caller = "helper";
+        let source = "proc helper {} {}";
+        let call_analysis = Analyser::new().analyse(caller, "tcl");
+        let declaration_analysis = Analyser::new().analyse(source, "tcl");
+        let caller_uri = "file:///caller.tcl";
+        let target_uri = "file:///target.tcl";
+        let mut index = WorkspaceIndex::from_documents([
+            (caller_uri, &call_analysis),
+            (target_uri, &declaration_analysis),
+        ]);
+        let call = index
+            .logical_command_call_at(caller_uri, caller, &call_analysis, 0)
+            .unwrap();
+        let targets = index.logical_declaration_targets_for_call(&call).unwrap();
+        let target = targets
+            .iter()
+            .find(|target| target.uri() == target_uri)
+            .unwrap();
+        assert!(index.logical_declaration_location_is_retained(target));
+        let span = target
+            .validated_span(source, &declaration_analysis)
+            .unwrap();
+        assert_eq!(source.get(span.as_range()), Some("helper"));
+        assert!(
+            target
+                .validated_span("proc changed {} {}", &declaration_analysis)
+                .is_none()
+        );
+        let other = Analyser::new().analyse("proc other {} {}", "tcl");
+        index.add_document(target_uri, &other);
+        assert!(index.logical_declaration_location_is_retained(target));
+        index.replace_document(target_uri, &declaration_analysis);
+        // Reusing the same analysis preserves its actual header allocation.
+        assert!(index.logical_declaration_location_is_retained(target));
+        let reanalysed = Analyser::new().analyse(source, "tcl");
+        index.replace_document(target_uri, &reanalysed);
+        assert!(!index.logical_declaration_location_is_retained(target));
+        index.replace_document(caller_uri, &Analyser::new().analyse(caller, "tcl"));
+        assert!(!call.is_retained_in(&index));
+        assert!(index.logical_declaration_targets_for_call(&call).is_none());
+    }
+
+    #[test]
+    fn logical_class_cards_are_source_factories_not_equal_report_names() {
+        let caller = "C";
+        let source = "oo::class create C {}";
+        let call_analysis = Analyser::new().analyse(caller, "tcl");
+        let declaration_analysis = Analyser::new().analyse(source, "tcl");
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &call_analysis),
+            ("file:///class.tcl", &declaration_analysis),
+        ]);
+        let call = index
+            .logical_command_call_at("file:///caller.tcl", caller, &call_analysis, 0)
+            .unwrap();
+        let targets = index.logical_declaration_targets_for_call(&call).unwrap();
+        let target = targets
+            .iter()
+            .find(|target| target.uri() == "file:///class.tcl")
+            .unwrap();
+        let span = target
+            .validated_span(source, &declaration_analysis)
+            .unwrap();
+        assert_eq!(source.get(span.as_range()), Some("C"));
+        assert!(index.logical_declaration_location_is_retained(target));
+        index.remove_document("file:///class.tcl");
+        assert!(!index.logical_declaration_location_is_retained(target));
+    }
+}
+
+#[cfg(test)]
+mod logical_indexed_variable_location_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_namespace_variable_locations_retain_the_actual_recipe() {
+        let source = "set ::shared 1";
+        let caller = "puts $::shared";
+        let declaration_analysis = Analyser::new().analyse(source, "tcl");
+        let caller_analysis = Analyser::new().analyse(caller, "tcl");
+        let image = tcl_lexer::SourceImage::document(caller);
+        let occurrence = caller_analysis
+            .original_variable_symbol_in_source(
+                &image,
+                caller_analysis.body_lexer_config.unwrap(),
+                u32::try_from(caller.find("::shared").unwrap()).unwrap(),
+            )
+            .expect("original Logical namespace variable root");
+        assert!(
+            occurrence.matches_logical_source_view(
+                &image,
+                caller_analysis.resolved_input.as_ref().unwrap()
+            )
+        );
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &caller_analysis),
+            ("file:///variable.tcl", &declaration_analysis),
+        ]);
+        let request = index
+            .logical_variable_location_for_occurrence(
+                "file:///caller.tcl",
+                caller,
+                &caller_analysis,
+                occurrence,
+            )
+            .unwrap();
+        let targets = index.logical_variable_source_locations(&request);
+        let target = targets
+            .iter()
+            .find(|target| target.uri() == "file:///variable.tcl" && target.is_declaration())
+            .unwrap();
+        let span = target
+            .validated_span(source, &declaration_analysis)
+            .unwrap();
+        assert_eq!(source.get(span.as_range()), Some("::shared"));
+        assert!(index.logical_variable_location_is_retained(&request));
+        assert!(index.logical_variable_location_is_retained(target));
+        assert!(
+            target
+                .validated_span("set ::shared 2", &declaration_analysis)
+                .is_none()
+        );
+        let other = Analyser::new().analyse("set ::other 2", "tcl");
+        index.add_document("file:///variable.tcl", &other);
+        assert!(index.logical_variable_location_is_retained(target));
+        index.replace_document(
+            "file:///variable.tcl",
+            &Analyser::new().analyse(source, "tcl"),
+        );
+        assert!(!index.logical_variable_location_is_retained(target));
+        index.remove_document("file:///caller.tcl");
+        assert!(!index.logical_variable_location_is_retained(&request));
+    }
+}
+
+#[cfg(test)]
+mod logical_variable_input_correspondence_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    #[test]
+    fn same_variable_geometry_cannot_join_a_different_complete_input() {
+        let source = "set ::shared 1";
+        let caller = "puts $::shared";
+        let caller_analysis = Analyser::new().analyse(caller, "tcl");
+        let target_analysis = Analyser::new().analyse(source, "tcl");
+        let retained = target_analysis.resolved_input.as_ref().unwrap();
+        let mut config = retained.lexer_config();
+        config.strict_quoting ^= true;
+        let foreign_input = ResolvedAnalysisInput::new(
+            retained.analyser_profile(),
+            retained.unit_profile(),
+            retained.context_registry(),
+            config,
+        );
+        let foreign = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(source, "tcl");
+        assert!(!foreign.original_variable_symbols.is_empty());
+        let occurrence = caller_analysis
+            .original_variable_symbols
+            .iter()
+            .find(|occurrence| occurrence.symbol().is_namespace())
+            .unwrap();
+        assert!(
+            foreign
+                .original_variable_symbols
+                .iter()
+                .any(|candidate| candidate.symbol() == occurrence.symbol())
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &caller_analysis),
+            ("file:///target.tcl", &target_analysis),
+            ("file:///foreign.tcl", &foreign),
+        ]);
+        let request = index
+            .logical_variable_location_for_occurrence(
+                "file:///caller.tcl",
+                caller,
+                &caller_analysis,
+                occurrence,
+            )
+            .unwrap();
+        let locations = index.logical_variable_source_locations(&request);
+        assert!(
+            locations
+                .iter()
+                .any(|location| location.uri() == "file:///target.tcl")
+        );
+        assert!(
+            locations
+                .iter()
+                .all(|location| location.uri() != "file:///foreign.tcl")
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_indexed_namespace_locations_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn namespace_locations_keep_source_issuer_and_represented_parent_geometry() {
+        let caller = "namespace exists ::A";
+        let target = "namespace eval ::A::B {}";
+        let caller_analysis = Analyser::new().analyse(caller, "tcl");
+        let target_analysis = Analyser::new().analyse(target, "tcl");
+        let offset = u32::try_from(caller.find("::A").unwrap()).unwrap();
+        let std::ops::ControlFlow::Break(Some(symbol)) =
+            crate::namespace_symbol::select_at_offset(caller, &caller_analysis, offset)
+        else {
+            panic!("genuine Logical namespace operand");
+        };
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &caller_analysis),
+            ("file:///target.tcl", &target_analysis),
+        ]);
+        let request = index
+            .logical_namespace_location_at("file:///caller.tcl", caller, &caller_analysis, offset)
+            .unwrap();
+        assert!(index.logical_namespace_location_is_retained(&request));
+        let parents = index.logical_namespace_parent_locations(&request, &symbol);
+        let parent = parents
+            .iter()
+            .find(|location| location.uri() == "file:///target.tcl")
+            .unwrap();
+        let span = parent.validated_span(target, &target_analysis).unwrap();
+        assert_eq!(target.get(span.as_range()), Some("::A"));
+        assert!(index.logical_namespace_location_is_retained(parent));
+        assert!(
+            parent
+                .validated_span("namespace eval ::A::C {}", &target_analysis)
+                .is_none()
+        );
+        let other = Analyser::new().analyse("namespace eval ::X {}", "tcl");
+        index.add_document("file:///target.tcl", &other);
+        assert!(index.logical_namespace_location_is_retained(parent));
+        index.replace_document("file:///target.tcl", &other);
+        assert!(!index.logical_namespace_location_is_retained(parent));
+        index.remove_document("file:///caller.tcl");
+        assert!(!index.logical_namespace_location_is_retained(&request));
+    }
+}
+
+#[cfg(test)]
+mod logical_namespace_request_symbol_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn a_retained_namespace_request_cannot_select_an_unrelated_genuine_symbol() {
+        let source = "namespace exists ::A; namespace exists ::B";
+        let target = "namespace eval ::B {}; namespace eval ::B::C {}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let target_analysis = Analyser::new().analyse(target, "tcl");
+        let a = u32::try_from(source.find("::A").unwrap()).unwrap();
+        let b = u32::try_from(source.find("::B").unwrap()).unwrap();
+        let std::ops::ControlFlow::Break(Some(symbol_b)) =
+            crate::namespace_symbol::select_at_offset(source, &analysis, b)
+        else {
+            panic!("genuine other namespace operand");
+        };
+        let index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &analysis),
+            ("file:///target.tcl", &target_analysis),
+        ]);
+        let request_a = index
+            .logical_namespace_location_at("file:///caller.tcl", source, &analysis, a)
+            .unwrap();
+        assert!(
+            index
+                .logical_namespace_source_locations(&request_a, &symbol_b)
+                .is_empty()
+        );
+        assert!(
+            index
+                .logical_namespace_parent_locations(&request_a, &symbol_b)
+                .is_empty()
+        );
+        let request_b = index
+            .logical_namespace_location_at("file:///caller.tcl", source, &analysis, b)
+            .unwrap();
+        assert!(
+            !index
+                .logical_namespace_source_locations(&request_b, &symbol_b)
+                .is_empty()
+        );
+        assert!(
+            !index
+                .logical_namespace_parent_locations(&request_b, &symbol_b)
+                .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_cross_document_class_member_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn external_class_selector_keeps_original_header_member_and_call_allocations() {
+        let source = "oo::class create C {self method ping {} {return ok}}";
+        let caller = "C ping";
+        let provider = Analyser::new().analyse(source, "tcl");
+        let analysis = Analyser::new().analyse(caller, "tcl");
+        let mut index = WorkspaceIndex::from_documents([
+            ("file:///caller.tcl", &analysis),
+            ("file:///provider.tcl", &provider),
+        ]);
+        let selected = index
+            .logical_class_member_targets_at("file:///caller.tcl", caller, &analysis, 2)
+            .unwrap();
+        let target = selected
+            .targets
+            .iter()
+            .find(|target| target.uri() == "file:///provider.tcl")
+            .unwrap();
+        let span = target.validated_span(source, &provider).unwrap();
+        assert_eq!(source.get(span.as_range()), Some("ping"));
+        assert!(selected.call.is_retained_in(&index));
+        assert!(index.logical_member_location_is_retained(target));
+        assert!(
+            index
+                .logical_class_member_targets_at("file:///caller.tcl", caller, &analysis, 0)
+                .is_none()
+        );
+        assert!(
+            index
+                .logical_class_member_targets_at("file:///caller.tcl", "C pong", &analysis, 2)
+                .is_none()
+        );
+        let changed = Analyser::new().analyse("oo::class create C {self method pong {} {}}", "tcl");
+        index.replace_document("file:///provider.tcl", &changed);
+        assert!(!index.logical_member_location_is_retained(target));
+        index.remove_document("file:///caller.tcl");
+        assert!(!selected.call.is_retained_in(&index));
+    }
+
+    #[test]
+    fn unexported_or_instance_members_are_not_public_class_object_cards() {
+        let source =
+            "oo::class create C {self method ping {} {}; self unexport ping; method pong {} {}}";
+        let provider = Analyser::new().analyse(source, "tcl");
+        for caller in ["C ping", "C pong"] {
+            let analysis = Analyser::new().analyse(caller, "tcl");
+            let index = WorkspaceIndex::from_documents([
+                ("file:///caller.tcl", &analysis),
+                ("file:///provider.tcl", &provider),
+            ]);
+            let selected = index
+                .logical_class_member_targets_at("file:///caller.tcl", caller, &analysis, 2)
+                .unwrap();
+            assert!(selected.targets.is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_library_input_correspondence_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn foreign_analysis(source: &str) -> tcl_compiler::analyser::AnalysisResult {
+        let original = Analyser::new().analyse(source, "tcl");
+        let input = original.resolved_input.as_ref().unwrap();
+        let mut config = input.lexer_config();
+        config.strict_quoting ^= true;
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            ))
+            .analyse(source, "tcl")
+    }
+
+    #[test]
+    fn library_source_candidates_do_not_mix_same_slots_from_foreign_complete_inputs() {
+        let source = "helper";
+        let caller = Analyser::new().analyse(source, "tcl");
+        let request = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            source, &caller, 0,
+        ).unwrap();
+        let target_source = "proc helper {} {}";
+        let target = Analyser::new().analyse(target_source, "tcl");
+        let foreign = foreign_analysis(target_source);
+        let index = WorkspaceIndex::from_documents([("target", &target), ("foreign", &foreign)]);
+        let candidates = index.logical_command_candidates(&request, "caller");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].uri(), "target");
+    }
+
+    #[test]
+    fn expression_source_candidates_do_not_mix_same_slots_from_foreign_complete_inputs() {
+        let source = "expr {Pi()}";
+        let caller = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("Pi").unwrap()).unwrap();
+        let occurrence = caller.logical_math_function_at(source, offset).unwrap();
+        let target_source = "namespace eval ::tcl::mathfunc {proc Pi {} {}}";
+        let target = Analyser::new().analyse(target_source, "tcl");
+        let foreign = foreign_analysis(target_source);
+        let index = WorkspaceIndex::from_documents([("target", &target), ("foreign", &foreign)]);
+        let candidates = index
+            .logical_math_source_candidates(&occurrence, &caller, "caller")
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].0, "target");
     }
 }

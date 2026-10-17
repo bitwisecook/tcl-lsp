@@ -414,7 +414,72 @@ impl OriginalConditionalSourceCaseBodies {
     }
 }
 
+/// Original Logical body and its descriptor-selected candidate vocabulary.
+/// This retains full source/input/schema ownership, without a runtime scope,
+/// entered frame, complete command presence or editing permission.
+#[derive(Debug, Clone)]
+pub struct OriginalLogicalScopedEnvironment {
+    body: OriginalSourceScriptBody,
+    environment: &'static tcl_registry::scoped::ScopedCommandEnv,
+}
+
+impl OriginalLogicalScopedEnvironment {
+    /// Actual original parent body, including whole argv and source premises.
+    #[must_use]
+    pub const fn body(&self) -> &OriginalSourceScriptBody {
+        &self.body
+    }
+
+    /// Reborrow candidate vocabulary only under the actual retained context.
+    #[must_use]
+    pub fn environment(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let selected = self.body.logical_scoped_environment(context)?;
+        std::ptr::eq(selected.environment, self.environment).then_some(self.environment)
+    }
+}
+
 impl OriginalSourceScriptBody {
+    /// Retain scoped candidate vocabulary from this exact genuine Logical
+    /// Body operand and its selected parent descriptor. A script/Expr child
+    /// or captured prefix cannot borrow a whole written Body's environment.
+    #[must_use]
+    pub fn logical_scoped_environment(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<OriginalLogicalScopedEnvironment> {
+        self.matches_context(context).then_some(())?;
+        let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            self.source.source()
+        else {
+            return None;
+        };
+        let input = advice.logical_source_input()?;
+        (input.has_logical_source_name_context()
+            && advice.matches_context(context)
+            && self.matches_source(self.container.image(), input.lexer_config())
+            && self.source.roles()?.iter().any(|&(argument, role)| {
+                role == ArgRole::Body
+                    && self
+                        .source
+                        .operands()
+                        .get(argument)
+                        .and_then(Option::as_ref)
+                        .and_then(super::source_structure::OriginalOperandSource::word)
+                        == Some(&self.container)
+            }))
+        .then_some(())?;
+        let environment = self.source.with_source_schema(context, |schema| {
+            schema.authored_source_descriptors().command.body_scope
+        })??;
+        Some(OriginalLogicalScopedEnvironment {
+            body: self.clone(),
+            environment,
+        })
+    }
+
     /// Whole original word owning this body or exact source list child.
     #[must_use]
     pub const fn original_container(&self) -> &NativeWord {

@@ -18,6 +18,137 @@ use tcl_registry::{ArgRole, CommandBindingDefinitionKind, CommandBindingTransiti
 const MAX_DEPTH: usize = 64;
 const MAX_COMMANDS: usize = 16_384;
 
+/// A conditional procedure source call at its actual original source horizon.
+/// This is not a resolved runtime invocation, entered body or current slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceProcedureCall {
+    original: Arc<[tcl_lexer::NativeWord]>,
+    procedure: Arc<OriginalSourceProcedureBody>,
+    caller: Option<Arc<OriginalSourceScriptBody>>,
+    uncertain_operations: Vec<Arc<[tcl_lexer::NativeWord]>>,
+    future_body: bool,
+    input: Option<crate::analyser::ResolvedAnalysisInput>,
+    analysis_owner: Option<Arc<crate::command_binding::OriginalSourceAnalysisOwner>>,
+}
+impl OriginalSourceProcedureCall {
+    /// Actual complete written vector; reporting invocation labels do not issue it.
+    #[must_use]
+    pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+        &self.original
+    }
+    /// Original declaring header joined against the retained analysis allocation.
+    #[must_use]
+    pub fn declaration<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<
+        &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    > {
+        self.matches_analysis(analysis).then_some(())?;
+        self.procedure.source_procedure(analysis)
+    }
+    fn matches_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        let (Some(input), Some(owner), Some(realm)) = (
+            &self.input,
+            &self.analysis_owner,
+            analysis.retained_command_realm(),
+        ) else {
+            return false;
+        };
+        analysis.resolved_input.as_ref() == Some(input)
+            && realm
+                .source_bindings_ref()
+                .original_analysis_owner()
+                .is_some_and(|current| Arc::ptr_eq(current, owner))
+            && owner.matches(realm.source_bindings_ref(), input)
+    }
+    pub(crate) fn with_input(
+        mut self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        owner: Arc<crate::command_binding::OriginalSourceAnalysisOwner>,
+    ) -> Self {
+        self.input = Some(input.clone());
+        self.analysis_owner = Some(owner);
+        self
+    }
+    /// Actual declaration premises remain conditional source obligations.
+    #[must_use]
+    pub fn declaration_advice(&self) -> &OriginalSourceCommandTransitionAdvice {
+        &self.procedure.declaration
+    }
+    /// Held alias/move lineage at this original call horizon.
+    #[must_use]
+    pub fn lineage(&self) -> &[Arc<super::OriginalSourceCommandTransition>] {
+        &self.procedure.lineage
+    }
+    /// Operand effects remain an independent pre-lookup applicability debt.
+    #[must_use]
+    pub fn has_lookup_operand_effects(&self) -> bool {
+        !super::body_effects::original_operand_effects(&self.original).is_empty()
+    }
+    /// Authentic enclosing procedure declaration, independently of entry.
+    #[must_use]
+    pub fn caller_declaration<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<
+        &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    > {
+        self.matches_analysis(analysis).then_some(())?;
+        let body = self.caller.as_ref()?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = body.source_words().source()
+        else {
+            return None;
+        };
+        let mut records = analysis.original_procedure_declarations().filter(|record| {
+            record.declaration_site() == advice.site()
+                && advice
+                    .original_words()
+                    .contains(record.name_input().original_word())
+                && record.metadata().source_name.as_ref() == Some(record.name())
+        });
+        let record = records.next()?;
+        records.next().is_none().then_some(record)
+    }
+    /// Authentic enclosing procedure source body, without entry or frame proof.
+    #[must_use]
+    pub fn caller_body(&self) -> Option<&OriginalSourceScriptBody> {
+        self.caller.as_deref()
+    }
+    /// Earlier unknown mutation vectors remain debt, never an absence proof.
+    #[must_use]
+    pub fn uncertain_operations(&self) -> &[Arc<[tcl_lexer::NativeWord]>] {
+        &self.uncertain_operations
+    }
+    /// The body was surveyed conditionally rather than observed entered.
+    #[must_use]
+    pub const fn is_future_body(&self) -> bool {
+        self.future_body
+    }
+    pub(crate) fn matches_source_context(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        self.procedure.declaration.matches_source(image, config)
+            && self.procedure.declaration.matches_context(context)
+            && self
+                .original
+                .iter()
+                .all(|word| word.image() == image && word.config() == config)
+            && self.caller.as_ref().is_none_or(|body| {
+                body.matches_source(image, config) && body.matches_context(context)
+            })
+    }
+}
+
 /// Genuine original declaration body, independently of installed or entered state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalSourceProcedureBody {
@@ -293,6 +424,20 @@ impl AdviceInvocationContext<'_> {
         let Some(procedure) = graph.original_procedure(head) else {
             return false;
         };
+        let call = OriginalSourceProcedureCall {
+            original: Arc::from(native),
+            procedure: Arc::clone(&procedure),
+            caller: graph.procedure_body.clone(),
+            uncertain_operations: graph.uncertain_operations.clone(),
+            future_body: graph.future_procedure_source,
+            input: None,
+            analysis_owner: None,
+        };
+        super::source_class::merge_receipt(
+            &mut tape.native_procedure_calls,
+            native[0].span().start(),
+            Some(call),
+        );
         self.retain_original_procedure_body(tape, graph, &procedure)
     }
 
@@ -410,6 +555,47 @@ pub(super) fn install_original_procedure(
 mod tests {
     use crate::analyser::Analyser;
     use crate::registry_invocation::source_structure::source_registered_instance_words_at;
+
+    #[test]
+    fn source_procedure_calls_retain_actual_horizon_and_unentered_caller_body() {
+        let source = "proc target {} {}; proc owner {} {target}; owner; rename target held";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("{target}").unwrap() + 1).unwrap();
+        let call = crate::registry_invocation::source_structure::source_original_procedure_call_at(
+            source, &analysis, offset,
+        )
+        .expect("actual source call before later rename");
+        assert_eq!(
+            call.declaration(&analysis).unwrap().name_input().bytes(),
+            b"target"
+        );
+        assert_eq!(
+            call.caller_declaration(&analysis)
+                .unwrap()
+                .name_input()
+                .bytes(),
+            b"owner"
+        );
+        let body = call
+            .caller_body()
+            .expect("authentic owner body without entry");
+        assert_eq!(&source[body.content_span().as_range()], "target");
+        assert!(!call.declaration_advice().obligations().is_empty());
+        assert!(analysis.original_completed_command_world().is_none());
+        assert!(
+            crate::registry_invocation::source_structure::source_original_procedure_call_at(
+                &source.replace("held", "gone"),
+                &analysis,
+                offset,
+            )
+            .is_none()
+        );
+        let independent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(call.declaration(&independent).is_none());
+        assert!(call.caller_declaration(&independent).is_none());
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        assert!(call.declaration(&foreign).is_none());
+    }
 
     #[test]
     fn original_future_procedure_joins_later_current_factory_with_authentic_parent_body() {

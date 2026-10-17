@@ -23,6 +23,34 @@
 // Suppress the snake_case warnings for these.
 #![allow(non_snake_case)]
 
+/// Explicit ordering policy of the cross-editor static source display. Rows
+/// remain conditional on the actual authored descriptors; this recipe selects
+/// no runtime command or definition member. New option rows append after this
+/// historical prefix so existing alternatives retain their precedence.
+pub(crate) const STATIC_DISPLAY_NAMED_CALLABLES: &[&str] = &["proc", "method"];
+pub(crate) const STATIC_DISPLAY_CONSTRUCTORS: &[&str] = &["constructor"];
+pub(crate) const STATIC_DISPLAY_CLASSES: &[(&str, Option<&str>)] = &[
+    ("oo::class", Some("create")),
+    ("oo::define", None),
+    ("oo::objdefine", None),
+    ("itcl::class", None),
+];
+pub(crate) const STATIC_DISPLAY_CLASS_REFERENCES: &[&str] = &["superclass", "mixin"];
+pub(crate) const STATIC_DISPLAY_REGEX_COMMANDS: &[&str] = &["regexp", "regsub"];
+pub(crate) const STATIC_DISPLAY_REGEX_TERMINATOR: &str = "--";
+pub(crate) const STATIC_DISPLAY_REGEX_OPTIONS: &[&str] = &[
+    "-nocase",
+    "-expanded",
+    "-line",
+    "-linestop",
+    "-lineanchor",
+    "-indices",
+    "-all",
+    "-inline",
+    "-about",
+    "-start",
+];
+
 mod after_;
 mod alias_;
 mod append_;

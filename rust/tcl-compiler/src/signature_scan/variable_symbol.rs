@@ -662,6 +662,31 @@ pub struct SignatureSourceVariableOccurrence {
 }
 
 impl SignatureSourceVariableOccurrence {
+    /// Exact retained Logical source recipe, independent of Native selection.
+    /// This grants naming geometry only, never a current cell or edit.
+    #[must_use]
+    pub fn matches_logical_source_view(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        self.logical_scope.as_ref().is_some_and(|scope| {
+            scope.matches_source(image, input) && scope.matches_name(self.span, &self.input)
+        })
+    }
+
+    /// Membership of this actual immutable source recipe allocation. Equal
+    /// source reanalysis cannot replace the issuer of an indexed occurrence.
+    #[must_use]
+    pub fn shares_logical_source_allocation(&self, other: &Self) -> bool {
+        self == other
+            && self
+                .logical_scope
+                .as_ref()
+                .zip(other.logical_scope.as_ref())
+                .is_some_and(|(left, right)| left.shares_original_allocation(right))
+    }
+
     pub(crate) fn from_logical_lambda_formal(
         field: crate::signature_scan::scope::OriginalLogicalListField,
         scope: crate::command_binding::OriginalLogicalVariableScope,

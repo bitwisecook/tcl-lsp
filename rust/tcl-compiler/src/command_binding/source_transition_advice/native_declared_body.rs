@@ -218,6 +218,69 @@ pub(crate) struct OriginalNativeSourceCommand {
     owner: Arc<OriginalNativeSourceBodyChildren>,
     original: Arc<[tcl_lexer::NativeWord]>,
 }
+/// A positive original command occurrence under an authentic procedure body.
+/// This retains only source phase/caller membership, never dispatch or census closure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalNativeProcedureBodyCommand {
+    owner: Arc<OriginalNativeSourceBodyChildren>,
+    original: Arc<[tcl_lexer::NativeWord]>,
+}
+impl OriginalNativeProcedureBodyCommand {
+    /// Complete original configured words retained by the shared body issuer.
+    #[must_use]
+    pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+        &self.original
+    }
+    /// Literal source head data, independent of actual lookup or selected handler.
+    #[must_use]
+    pub fn static_head(&self) -> Option<Vec<u8>> {
+        let head = self.original.first()?;
+        (!head.group().expand).then_some(())?;
+        tcl_syntax::word_rules::original_static_word_unicode_value(head)
+    }
+    /// Current declaration from this exact retained source body allocation.
+    #[must_use]
+    pub fn caller_declaration<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<
+        &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    > {
+        (analysis.resolved_input.as_ref() == Some(&self.owner.input)).then_some(())?;
+        let realm = analysis.retained_command_realm()?;
+        let current = realm.source_bindings_ref().original_analysis_owner()?;
+        Arc::ptr_eq(current, &self.owner.declaration.analysis_owner).then_some(())?;
+        self.owner
+            .declaration
+            .analysis_owner
+            .matches(realm.source_bindings_ref(), &self.owner.input)
+            .then_some(())?;
+        self.owner.declaration.procedure.source_procedure(analysis)
+    }
+}
+impl SourceCommandBindings {
+    pub(crate) fn original_native_procedure_body_commands(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<OriginalNativeProcedureBodyCommand>> {
+        let mut commands = Vec::new();
+        for declaration in self.original_native_source_declarations(input)? {
+            let Some(owner) = declaration.children(self, input) else {
+                continue;
+            };
+            for original in owner.commands.values() {
+                commands.push(OriginalNativeProcedureBodyCommand {
+                    owner: Arc::clone(&owner),
+                    original: Arc::clone(original),
+                });
+            }
+        }
+        Some(commands)
+    }
+}
+
 impl OriginalNativeSourceDeclaration {
     pub(crate) fn children(
         self: &Arc<Self>,

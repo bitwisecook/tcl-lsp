@@ -618,6 +618,64 @@ impl super::CommandBindingRealm {
             .then(|| receipt.clone())
     }
 
+    pub(crate) fn original_native_procedure_body_commands(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalNativeProcedureBodyCommand>> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        self.bindings.original_native_procedure_body_commands(input)
+    }
+
+    pub(crate) fn original_source_procedure_calls(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalSourceProcedureCall>> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let owner = self.bindings.original_analysis_owner()?;
+        owner.matches(&self.bindings, input).then_some(())?;
+        let image = self.original_source_image()?;
+        self.matches_original_source_image(image, input.lexer_config())
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .native_procedure_calls()
+                .filter(|call| call.matches_source_context(image, input.lexer_config(), &context))
+                .map(|call| call.clone().with_input(input, Arc::clone(owner)))
+                .collect(),
+        )
+    }
+
+    pub(crate) fn original_source_procedure_call_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<crate::command_binding::OriginalSourceProcedureCall> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let owner = self.bindings.original_analysis_owner()?;
+        owner.matches(&self.bindings, input).then_some(())?;
+        let image = self.original_source_image()?;
+        self.matches_original_source_image(image, input.lexer_config())
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let call = prepared
+            .as_ref()
+            .as_ref()?
+            .native_procedure_call_at(offset)?;
+        call.matches_source_context(image, input.lexer_config(), &context)
+            .then(|| call.clone().with_input(input, Arc::clone(owner)))
+    }
+
     /// Final conditional root procedure publications, not a completed runtime world.
     pub(crate) fn original_source_procedure_publications(
         &self,

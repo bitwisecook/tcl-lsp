@@ -25,6 +25,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
@@ -35,6 +36,11 @@ import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.testFramework.LightVirtualFile
 import com.tcllsp.jetbrains.TclFileType
+import com.tcllsp.jetbrains.CommandSourceSnapshot
+import com.tcllsp.jetbrains.CommandSyncPublication
+import com.tcllsp.jetbrains.capturePublishedCommandSource
+import com.tcllsp.jetbrains.publishedCommandSourceIsCurrent
+import com.tcllsp.jetbrains.commandTransformProposal
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import org.eclipse.lsp4j.ExecuteCommandParams
 
@@ -68,6 +74,9 @@ abstract class TclLspActionBase : AnAction() {
      */
     protected open val needsEditor: Boolean = true
 
+    /** Uses the existing whole-source worker/edit-receipt protocol. */
+    protected open val documentTransform: Boolean = false
+
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
@@ -85,30 +94,46 @@ abstract class TclLspActionBase : AnAction() {
         val project = e.project ?: return
         val file = e.getData(CommonDataKeys.VIRTUAL_FILE)
         val editor = e.getData(CommonDataKeys.EDITOR)
+        val snapshot = if (needsEditor) {
+            if (file == null || editor == null) return
+            CommandSourceSnapshot.capture(file, editor.document) ?: return
+        } else null
         val args = try {
             buildArguments(project, file?.url, editor?.document?.text, e)
         } catch (cancel: ActionCancelledException) {
             return
         }
-        if (args == null) return
+        if (args == null || (snapshot != null && !snapshot.isCurrent(project))) return
 
         object : Task.Backgroundable(project, "Running ${templatePresentation.text}", true) {
             override fun run(indicator: ProgressIndicator) {
-                runCommand(project, args)
+                runCommand(project, args, snapshot)
             }
         }.queue()
     }
 
-    private fun runCommand(project: Project, args: List<Any>) {
+    private fun runCommand(project: Project, args: List<Any>, snapshot: CommandSourceSnapshot?) {
         try {
             @Suppress("UnstableApiUsage")
             val servers = LspServerManager.getInstance(project)
                 .getServersForProvider(TclLspServerSupportProvider::class.java)
-            val server = servers.firstOrNull()
+            val server = servers.singleOrNull()
             if (server == null) {
-                notify(project, "LSP server not running", NotificationType.ERROR)
+                notify(project, if (servers.isEmpty()) "LSP server not running" else "No unique Tcl LSP server is available", NotificationType.ERROR)
                 return
             }
+
+            val publication = snapshot?.let { CommandSyncPublication.capture(project, server, it) }
+            if (snapshot != null && publication == null) return
+            val source = publication?.let { capturePublishedCommandSource(it) }
+            if (snapshot != null && source == null) {
+                notify(project, "Document synchronization or analysis context is not current; run the command again.", NotificationType.INFORMATION)
+                return
+            }
+            val dispatched = if (documentTransform) {
+                if (source == null || snapshot == null || args.firstOrNull() != snapshot.file.url) return
+                listOf(source.transformArgument()) + args.drop(1)
+            } else args
 
             // Pass the timeout explicitly. Omitting it makes Kotlin emit a call
             // to the synthetic `LspServer.sendRequestSync$default` bridge, bound
@@ -120,16 +145,42 @@ abstract class TclLspActionBase : AnAction() {
             // a compile-time const (10_000 ms) that inlines, so behaviour is
             // unchanged. Do not "simplify" this back to the no-timeout form.
             // See the jetbrains-plugin-compat skill.
+            if (publication != null && !publication.readCurrent()) return
             val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                 lsp4j.workspaceService.executeCommand(
-                    ExecuteCommandParams(commandId, args)
+                    ExecuteCommandParams(commandId, dispatched)
                 )
             }
 
+            if (publication != null && !publication.readCurrent()) return
+            if (source != null && !publishedCommandSourceIsCurrent(server, source)) return
+            if (publication != null && !publication.readCurrent()) return
+            val proposal = if (documentTransform) {
+                if (source == null) return
+                val candidate = commandTransformProposal(result, source) ?: return
+                val valid = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { client ->
+                    client.workspaceService.executeCommand(ExecuteCommandParams(
+                        "tcl-lsp.validateDocumentTransform", listOf(candidate.second),
+                    ))
+                } == true
+                if (!valid || publication == null || !publication.readCurrent()) return
+                candidate.first
+            } else null
             ApplicationManager.getApplication().invokeLater {
-                if (acceptResult(project, result, args)) {
-                    presentResult(project, result)
-                }
+                if (project.isDisposed || (snapshot != null && !snapshot.isCurrent(project))) return@invokeLater
+                val currentServers = LspServerManager.getInstance(project)
+                    .getServersForProvider(TclLspServerSupportProvider::class.java)
+                if (currentServers.singleOrNull() !== server ||
+                    (publication != null && !publication.readCurrent()) || !acceptResult(project, result, args)) return@invokeLater
+                if (documentTransform) {
+                    if (snapshot == null || proposal == null) return@invokeLater
+                    WriteCommandAction.runWriteCommandAction(project) {
+                        if (snapshot.isCurrent(project) && publication != null && publication.isCurrent()) {
+                            snapshot.document.setText(proposal)
+                            presentResult(project, result)
+                        }
+                    }
+                } else presentResult(project, result)
             }
         } catch (ex: Exception) {
             notify(project, ex.message ?: "Command failed", NotificationType.ERROR)

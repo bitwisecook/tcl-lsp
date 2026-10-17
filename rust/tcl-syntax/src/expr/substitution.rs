@@ -976,3 +976,195 @@ mod original_source_expression_tests {
         assert!(OriginalSourceExpression::capture("max(1,2) tail", &context, config).is_none());
     }
 }
+
+impl OriginalSourceExpression {
+    /// Correspondence for replacing one actual scalar source substitution by
+    /// a numeric literal. Complete parsing and original token topology prevent
+    /// adjacent numeral/operator text from silently changing the container.
+    /// Quoted expression operands retain their existing substitution grammar.
+    /// No evaluation, binding or transformation permission follows.
+    #[must_use]
+    pub fn scalar_numeric_literal_substitution(
+        &self,
+        reference: Span,
+        value: &str,
+    ) -> Option<String> {
+        use tcl_lexer::ExprTokenType;
+        let admits = || -> Option<String> {
+            if !crate::number::is_whole_number(value, self.context.lexer_grammar.numbers) {
+                return None;
+            }
+            let tokens = |text: &str| -> Option<Vec<tcl_lexer::ExprToken<Vec<u8>>>> {
+                let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+                    text.as_bytes(),
+                    &self.context.lexer_grammar,
+                    self.context.expr_grammar_base,
+                    self.context.f5_word_grammar,
+                    self.config,
+                );
+                failures.is_empty().then_some(tokens)
+            };
+            let original = tokens(&self.source)?;
+            let mut expected = Vec::new();
+            let mut replaced = false;
+            let mut fragment = value.to_owned();
+            for token in original {
+                let end = token.end.checked_add(1)?;
+                if token.start <= reference.start() && reference.end() <= end {
+                    if replaced {
+                        return None;
+                    }
+                    let token_source = std::str::from_utf8(&token.text).ok()?;
+                    let extent = Span::new(0, u32::try_from(token_source.len()).ok()?);
+                    let plan = tcl_lexer::native_script_words_in_with_purpose(
+                        tcl_lexer::SourceImage::document(token_source),
+                        extent,
+                        self.config,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    )
+                    .ok()?;
+                    let [command] = plan.commands.as_slice() else {
+                        return None;
+                    };
+                    let [word] = command.words.as_slice() else {
+                        return None;
+                    };
+                    let local = Span::new(
+                        reference.start().checked_sub(token.start)?,
+                        reference.end().checked_sub(token.start)?,
+                    );
+                    if plan.fatal_tail.is_some()
+                        || word.span() != extent
+                        || !crate::word_rules::lexical_source_scalar_literal_substitution(
+                            word, local, value,
+                        )
+                    {
+                        return None;
+                    }
+                    if token.kind == ExprTokenType::Variable {
+                        let literal = tokens(value)?
+                            .into_iter()
+                            .filter(|token| token.kind != ExprTokenType::Eof)
+                            .collect::<Vec<_>>();
+                        if !matches!(literal.as_slice(), [token] if token.kind==ExprTokenType::Number)
+                        {
+                            // A variable is an atom. Preserve that topology for
+                            // signed numbers instead of donating unary precedence.
+                            fragment = format!("({value})");
+                        }
+                    }
+                    match token.kind {
+                        ExprTokenType::Variable
+                            if token.start == reference.start() && end == reference.end() =>
+                        {
+                            for literal in tokens(&fragment)? {
+                                if literal.kind == ExprTokenType::Eof {
+                                    continue;
+                                }
+                                if !matches!(
+                                    literal.kind,
+                                    ExprTokenType::Number
+                                        | ExprTokenType::Operator
+                                        | ExprTokenType::ParenOpen
+                                        | ExprTokenType::ParenClose
+                                ) {
+                                    return None;
+                                }
+                                if literal.kind == ExprTokenType::Operator
+                                    && literal.text != b"+"
+                                    && literal.text != b"-"
+                                {
+                                    return None;
+                                }
+                                expected.push((literal.kind, literal.text));
+                            }
+                        }
+                        ExprTokenType::String if token.text.first() == Some(&b'"') => {
+                            let from = usize::try_from(reference.start().checked_sub(token.start)?)
+                                .ok()?;
+                            let to =
+                                usize::try_from(reference.end().checked_sub(token.start)?).ok()?;
+                            let mut text = token.text;
+                            text.get(from..to)?;
+                            drop(text.splice(from..to, value.bytes()));
+                            expected.push((token.kind, text));
+                        }
+                        _ => return None,
+                    }
+                    replaced = true;
+                } else {
+                    expected.push((token.kind, token.text));
+                }
+            }
+            if !replaced {
+                return None;
+            }
+            let mut proposal = self.source.clone();
+            proposal.get(reference.as_range())?;
+            proposal.replace_range(reference.as_range(), &fragment);
+            Self::capture(&proposal, &self.context, self.config)?;
+            let actual = tokens(&proposal)?
+                .into_iter()
+                .map(|token| (token.kind, token.text))
+                .collect::<Vec<_>>();
+            (expected == actual).then_some(fragment)
+        };
+        admits()
+    }
+}
+
+#[cfg(test)]
+mod numeric_source_substitution_tests {
+    use super::*;
+    fn expression(source: &str) -> Option<OriginalSourceExpression> {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        OriginalSourceExpression::capture(
+            source,
+            &ExprParseContext::for_profile(profile),
+            LexerConfig::for_profile(profile),
+        )
+    }
+    #[test]
+    fn numeric_atom_and_quoted_scalar_keep_the_original_expression_language() {
+        let original = expression("$x + 1").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "7")
+                .is_some()
+        );
+        assert_eq!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "-1")
+                .as_deref(),
+            Some("(-1)")
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "abc")
+                .is_none()
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(0, 2), "0xZZZ")
+                .is_none()
+        );
+        let original = expression("{${x}} eq \"$x\"").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(1, 5), "7")
+                .is_none()
+        );
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(11, 13), "7")
+                .is_some()
+        );
+        assert!(expression("${x}2 + 1").is_none());
+        let original = expression("\"$arr($x)\" eq 0").unwrap();
+        assert!(
+            original
+                .scalar_numeric_literal_substitution(Span::new(6, 8), "7")
+                .is_none()
+        );
+    }
+}

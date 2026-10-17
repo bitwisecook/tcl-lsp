@@ -1445,12 +1445,23 @@ impl Analyser {
         else {
             return;
         };
+        let mut parameters =
+            statement
+                .member
+                .indices_for_call_in(statement.args(), surface, ArgRole::ParamList);
+        let first_parameter = parameters.next();
+        let parameter_ordinal = if parameters.next().is_none() {
+            first_parameter.map(|index| statement.row.keyword_index + 1 + index)
+        } else {
+            None
+        };
         class.original_members.retain_logical_name_operand(
             input,
             words,
-            (name_ordinal, body.0),
+            (name_ordinal, body.0, parameter_ordinal),
             side,
             (name_token.span, body_token.span),
+            statement.row.clone(),
         );
     }
 

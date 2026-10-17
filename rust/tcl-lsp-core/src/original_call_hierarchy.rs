@@ -26,9 +26,18 @@ pub fn item(
     let index = LineIndex::new_lsp(document.source);
     Some(CallHierarchyItem {
         name: if matches!(identity.role(), OriginalDeclarationRole::Method(_)) {
-            identity
-                .reporting_key(document.analysis)
-                .unwrap_or_else(|| identity.label())
+            // The selected declaration retains its side independently. Internal
+            // member keys include that side for identity; CALL presentation has
+            // always shown the actual class spelling followed by the member.
+            identity.class_metadata(document.analysis).map_or_else(
+                || identity.label(),
+                |class| {
+                    let owner = tcl_syntax::native_string::resident_name_label(
+                        &tcl_syntax::naming::native_command_full_name_bytes(class.name().slot()),
+                    );
+                    format!("{owner}::{}", identity.label())
+                },
+            )
         } else {
             identity.label()
         },
@@ -426,6 +435,55 @@ fn math_target(
     selected.next().is_none().then_some(first)
 }
 
+// Conditional source relations are issued at the original call horizon.
+// They do not renew the independent Native execution-site branch.
+fn source_procedure_edges(
+    document: &OriginalCallDocument<'_>,
+) -> Vec<(
+    OriginalDeclarationIdentity,
+    OriginalDeclarationIdentity,
+    Span,
+)> {
+    let mut edges = Vec::new();
+    for call in
+        tcl_compiler::registry_invocation::source_structure::source_original_procedure_calls(
+            document.source,
+            document.analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
+        let Some((caller_record, target_record)) = call
+            .caller_declaration(document.analysis)
+            .zip(call.declaration(document.analysis))
+        else {
+            continue;
+        };
+        let Some((caller, target)) = OriginalDeclarationIdentity::for_procedure(
+            document.uri,
+            document.source,
+            document.analysis,
+            caller_record,
+        )
+        .zip(OriginalDeclarationIdentity::for_procedure(
+            document.uri,
+            document.source,
+            document.analysis,
+            target_record,
+        )) else {
+            continue;
+        };
+        let Some(head) = call.original_words().first() else {
+            continue;
+        };
+        let edge = (caller, target, head.span());
+        if !edges.contains(&edge) {
+            edges.push(edge);
+        }
+    }
+    edges
+}
+
 fn edges(
     documents: &[OriginalCallDocument<'_>],
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
@@ -456,6 +514,11 @@ fn edges(
                 continue;
             };
             let edge = (caller, target, invocation.range);
+            if !edges.contains(&edge) {
+                edges.push(edge);
+            }
+        }
+        for edge in source_procedure_edges(document) {
             if !edges.contains(&edge) {
                 edges.push(edge);
             }

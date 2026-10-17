@@ -22,6 +22,7 @@ import * as path from "path";
 import {
   CurrentDiagnosticsUnavailableError,
   captureAnalysisContext,
+  currentDiagnosticsReportIsStillPublished,
   currentDiagnosticsReportMatches,
   isAnalysisContextCurrent,
   resourceConfiguration,
@@ -643,6 +644,7 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
 export interface CurrentDiagnosticsSnapshot {
   report: CurrentDiagnosticsReport;
   isCurrent(): boolean;
+  isStillPublished(): Promise<boolean>;
 }
 
 export async function waitForCurrentDiagnosticsSnapshot(
@@ -696,7 +698,16 @@ export async function waitForCurrentDiagnosticsSnapshot(
           version,
           source,
         });
-      const snapshot = Object.freeze({ report, isCurrent });
+      const isStillPublished = async () => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return false;
+        return currentDiagnosticsReportIsStillPublished(
+          report,
+          { document, uri, version, source },
+          remaining,
+        );
+      };
+      const snapshot = Object.freeze({ report, isCurrent, isStillPublished });
       if (!snapshot.isCurrent()) {
         throw new CurrentDiagnosticsUnavailableError("stale");
       }

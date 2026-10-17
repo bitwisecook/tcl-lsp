@@ -32,6 +32,7 @@ import {
   waitForDiagnosticsReport,
   currentDiagnosticsReportMatches,
   currentDiagnosticsReportIsStillPublished,
+  validateCurrentDiagnosticsPublication,
   resourceConfiguration,
   waitForProposalDiagnostics,
   proposalDiagnosticsReportMatches,
@@ -82,9 +83,31 @@ function transport(
   current: () => boolean = () => true,
   converted: string[] = [],
 ): CurrentDiagnosticsTransport {
+  let published: unknown;
   return {
     sessionIdentity: testSessionIdentity,
-    request,
+    request: async (params) => {
+      const response = await request(params);
+      published = response;
+      return response;
+    },
+    validatePublication: async (expected) => {
+      const publication = published as Record<string, unknown> | undefined;
+      const keys = [
+        "uri",
+        "version",
+        "source",
+        "dialectId",
+        "revision",
+        "inputsEpoch",
+        "resultId",
+      ] as const;
+      return current() &&
+        publication?.status === "complete" &&
+        keys.every((key) => publication[key] === expected[key])
+        ? { ...expected, status: "current" }
+        : { status: "unavailable" };
+    },
     isCurrent: current,
     convert: async (items) => {
       converted.push(...items.map((item) => String(item.code)));
@@ -996,6 +1019,122 @@ suite("Chat current diagnostic publication adapter", () => {
       });
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0].message, "NEW");
+    } finally {
+      lease.dispose();
+    }
+  });
+  test("source-only prompt context retains the resource hint without claiming completed analysis", async () => {
+    const document = await openFixture("set promptSourceOnly 1");
+    const lease = setCurrentDiagnosticsTransportProvider(() =>
+      transport(async (request) => complete(request, [])),
+    );
+    try {
+      const block = await buildPromptContextBlock(
+        { request: { references: [] } } as unknown as CommandContext,
+        {
+          document,
+          code: document.getText(),
+          includeDiagnostics: false,
+          includeSymbolDefinitions: false,
+          includeEventMetadata: false,
+        },
+      );
+      assert.ok(block.includes("Captured resource dialect hint (not completed analysis):"));
+      assert.ok(!block.includes("Completed resource analysis:"));
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("source-only prompt context rejects an analysis generation retired during packing", async () => {
+    const document = await openFixture("set promptRetired 1");
+    const lease = setCurrentDiagnosticsTransportProvider(() =>
+      transport(async (request) => complete(request, [])),
+    );
+    let first = true;
+    try {
+      await assert.rejects(
+        buildPromptContextBlock({ request: { references: [] } } as unknown as CommandContext, {
+          document,
+          code: document.getText(),
+          includeDiagnostics: false,
+          includeSymbolDefinitions: false,
+          includeEventMetadata: false,
+          isSourceCurrent: () => {
+            if (first) {
+              first = false;
+              invalidateAnalysisContext();
+            }
+            return true;
+          },
+        }),
+        /captured prompt source or analysis input changed/,
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+  test("prompt packing refuses a completed report replaced in the publisher ledger", async () => {
+    const document = await openFixture("set promptLedger 1");
+    const publisher = transport(async (request) => complete(request, []));
+    const lease = setCurrentDiagnosticsTransportProvider(() => publisher);
+    try {
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: 1000,
+        expectedSource: document.getText(),
+      });
+      publisher.validatePublication = async () => ({ status: "unavailable" });
+      await assert.rejects(
+        buildPromptContextBlock({ request: { references: [] } } as unknown as CommandContext, {
+          document,
+          code: document.getText(),
+          completedDiagnosticsReport: report,
+          includeDiagnostics: false,
+          includeSymbolDefinitions: false,
+          includeEventMetadata: false,
+        }),
+        /report was retired while prompt context was packed/,
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+  test("a still-published report remains valid after its analysis query budget", async () => {
+    const document = await openFixture("set promptLongLivedPublication 1");
+    let requests = 0;
+    const publisher = transport(async (request) => {
+      requests += 1;
+      return complete(request, []);
+    });
+    const lease = setCurrentDiagnosticsTransportProvider(() => publisher);
+    try {
+      const started = Date.now();
+      const queryBudget = 250;
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: queryBudget,
+        expectedSource: document.getText(),
+      });
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.max(0, started + queryBudget + 10 - Date.now())),
+      );
+      assert.strictEqual(
+        await validateCurrentDiagnosticsPublication(
+          report,
+          {
+            document,
+            uri: document.uri,
+            version: document.version,
+            source: document.getText(),
+          },
+          1000,
+        ),
+        true,
+      );
+      assert.strictEqual(
+        requests,
+        1,
+        "publication validation does not restart the completed analysis query",
+      );
     } finally {
       lease.dispose();
     }

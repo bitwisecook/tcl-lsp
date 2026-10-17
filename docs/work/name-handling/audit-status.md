@@ -2,14 +2,14 @@
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. The catalogue records required work; current integrated/partial/verified status is maintained separately below. Examined requirements and original/provider provenance questions remain separate.
 
-Current implementation:279/2,158baseline units integrated pending validation (269full,10partial), plus55/56annex obligations, gives334/2,214effective integrations and zero verified complete. LSP priority is143/325integrated (56semantic,85validation,2docs),176without integration. Runtime/VM/BIG-IP work is deferred. Completed446controls:375PASS/69FAIL/twoTIMEOUTS, all338retained,5gains,1Jimdoclink regression,zero drops; independently cleared repair awaits execution. Completed460controls:389PASS/69FAIL/twoTIMEOUTS, all446retained unchanged,14newPASS,zero regressions/drops and no artifact drift. Source-order/member five-library build passes466.661seconds,39001inputs0drift; one unused test import and scoped formatting are repaired; fresh compile pending. Prior actual editor TypeScript/format/npm Node+browser bundles pass405inputs0drift; browser and resource-context changes are integrated; fresh checks pending. Last owner gate310errors remains red. The M12 figures below are historical.
+Current implementation through reviewed integration12: **418/2,158 baseline units integrated pending validation (355 full scope, 63 partial)**, plus **70/71 annex obligations**, gives **488/2,229 effective integrations**, 1,741 without integration and zero verified complete. LSP priority is **284/325 integrated (161 semantic, 121 validation, two documentation)**, 41 without integration. The scheduled 11:39 report is separately frozen at 281 LSP and 485 effective integrations. Integration10 library/VS Code typechecks and latest JetBrains tests passed; later integration12 test typecheck failed one case-field construction. No fresh regression ELF or ordinary acceptance follows e739 Core664. Runtime/VM and dedicated BIG-IP-related work remain deferred. See [current state](current-state.md) and [11:39 report](progress-report-20261017T1139Z.json); the M12 figures below are historical.
 
 [Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
 
 | Area | Semantic code | Validation repairs | Authored docs | Total |
 |---|---:|---:|---:|---:|
 | Compiler, analyser, inference and optimisation | 297 | 44 | 0 | 341 |
-| Database, registry and SpecTcl | 177 | 7 | 0 | 182 |
+| Database, registry and SpecTcl | 177 | 7 | 0 | 184 |
 | LSP, server, editors, iRules and MCP | 201 | 122 | 2 | 325 |
 | Runtime, shared Core/API and hosts | 370 | 5 | 1 | 376 |
 | VM, codegen and registered targets | 319 | 9 | 0 | 328 |

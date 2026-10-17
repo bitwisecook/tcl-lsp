@@ -26,6 +26,26 @@ pub use bytes::{
     parse_formal_parameter_values,
 };
 
+/// Static display fragments for formal-list elements. These preserve the
+/// historical non-nested fallback shapes; actual validation and activation
+/// continue through the complete list/formal owners in this module.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StaticFormalParameterDisplay {
+    /// One bare displayed parameter token.
+    pub plain: &'static str,
+    /// A shallow defaulted element, with the name in capture one.
+    pub defaulted: &'static str,
+}
+
+/// Source colouring only; nested/escaped list geometry remains approximate.
+#[must_use]
+pub const fn static_formal_parameter_display() -> StaticFormalParameterDisplay {
+    StaticFormalParameterDisplay {
+        plain: r"[^\s{}]+",
+        defaulted: r"\{\s*([^\s{}]+)([^{}]*)\}",
+    }
+}
+
 /// Pure native formal count shape, independently of values and activation.
 /// The maximum is absent for a variadic signature; this supplies no local
 /// cell, argument materialization, body entry or successful execution.

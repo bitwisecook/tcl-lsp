@@ -243,6 +243,95 @@ enum TokenKind {
     Class = 56,
 }
 
+impl TokenKind {
+    /// Whether Sublime needs a custom scope entry for this token type.
+    /// Standard LSP token types are already styled by the client.
+    const fn needs_sublime_custom_scope(self) -> bool {
+        !matches!(
+            self,
+            Self::Class
+                | Self::Comment
+                | Self::Decorator
+                | Self::EnumMember
+                | Self::Event
+                | Self::Function
+                | Self::Keyword
+                | Self::Method
+                | Self::Namespace
+                | Self::Number
+                | Self::Operator
+                | Self::OptionValue
+                | Self::Parameter
+                | Self::Regexp
+                | Self::String
+                | Self::Variable
+        )
+    }
+}
+
+/// The typed semantic-token variants in wire order. Keep this beside the
+/// private kind enum so editor projections derive custom names from the same
+/// semantic owner rather than maintaining another string vocabulary.
+const ALL_TOKEN_KINDS: &[TokenKind] = &[
+    TokenKind::Keyword,
+    TokenKind::Function,
+    TokenKind::Variable,
+    TokenKind::String,
+    TokenKind::Number,
+    TokenKind::Comment,
+    TokenKind::Namespace,
+    TokenKind::Regexp,
+    TokenKind::Event,
+    TokenKind::RegexpGroup,
+    TokenKind::RegexpCharClass,
+    TokenKind::RegexpQuantifier,
+    TokenKind::RegexpAnchor,
+    TokenKind::RegexpEscape,
+    TokenKind::RegexpBackref,
+    TokenKind::RegexpAlternation,
+    TokenKind::FormatPercent,
+    TokenKind::FormatSpec,
+    TokenKind::FormatFlag,
+    TokenKind::FormatWidth,
+    TokenKind::ClockPercent,
+    TokenKind::ClockSpec,
+    TokenKind::ClockModifier,
+    TokenKind::BinarySpec,
+    TokenKind::BinaryCount,
+    TokenKind::BinaryFlag,
+    TokenKind::Operator,
+    TokenKind::Object,
+    TokenKind::Decorator,
+    TokenKind::Escape,
+    TokenKind::EnumMember,
+    TokenKind::OptionValue,
+    TokenKind::AplSection,
+    TokenKind::AplFieldType,
+    TokenKind::AplAttribute,
+    TokenKind::AplSectionName,
+    TokenKind::AplFieldName,
+    TokenKind::AplDefine,
+    TokenKind::AplDefineName,
+    TokenKind::AplDirective,
+    TokenKind::AplOptional,
+    TokenKind::AplValidator,
+    TokenKind::Partition,
+    TokenKind::Pool,
+    TokenKind::Monitor,
+    TokenKind::Profile,
+    TokenKind::Vlan,
+    TokenKind::BigipInterface,
+    TokenKind::IpAddress,
+    TokenKind::Port,
+    TokenKind::RouteDomain,
+    TokenKind::Fqdn,
+    TokenKind::Username,
+    TokenKind::Encrypted,
+    TokenKind::Parameter,
+    TokenKind::Method,
+    TokenKind::Class,
+];
+
 /// The iApps dialect key — the dialect an APL presentation's embedded `[ … ]`
 /// Tcl is written in.
 const IAPPS_DIALECT: &str = "f5-iapps";
@@ -318,6 +407,26 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "method",
         "class",
     ]
+}
+
+/// Semantic-token types that need a Sublime custom scope. The names are
+/// projected from the advertised legend through the typed token variants.
+#[must_use]
+pub fn legend_custom_token_types() -> Option<Vec<&'static str>> {
+    let legend = legend_token_types();
+    if ALL_TOKEN_KINDS.len() != legend.len()
+        || ALL_TOKEN_KINDS
+            .iter()
+            .enumerate()
+            .any(|(index, kind)| *kind as usize != index)
+    {
+        return None;
+    }
+    ALL_TOKEN_KINDS
+        .iter()
+        .filter(|kind| kind.needs_sublime_custom_scope())
+        .map(|kind| legend.get(*kind as usize).copied())
+        .collect()
 }
 
 /// Token-modifiers part of the legend.  Order is fixed and must
@@ -5333,6 +5442,21 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 mod tests {
     use super::*;
     use tcl_dialect::model::{Family, SurfaceLayer};
+
+    #[test]
+    fn typed_token_kinds_project_custom_legend_names_in_wire_order() {
+        let legend = legend_token_types();
+        assert_eq!(ALL_TOKEN_KINDS.len(), legend.len());
+        for (index, kind) in ALL_TOKEN_KINDS.iter().enumerate() {
+            assert_eq!(
+                *kind as usize, index,
+                "token kind and legend order diverged"
+            );
+        }
+        let custom = legend_custom_token_types().unwrap();
+        assert!(custom.contains(&"bigipInterface"));
+        assert!(!custom.contains(&"interface"));
+    }
 
     /// The plain-Tcl profile these tests tokenise under. A named helper keeps
     /// the 140-odd call sites readable — spelling the resolution out at each

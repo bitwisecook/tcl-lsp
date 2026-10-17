@@ -211,6 +211,7 @@ pub(super) fn walk_command_words_with_config(
 /// For a `[...]` command-substitution word the lexer's `Cmd` token excludes
 /// the closing `]` from its span, so this returns `[list …` (no trailing
 /// bracket).
+#[cfg(test)]
 pub(super) fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
     let start = word[0].span.start() as usize;
     let end = word[word.len() - 1].span.end() as usize;
@@ -728,6 +729,7 @@ pub fn auto_qualify(cmd: &str, namespace: &str) -> Vec<String> {
 pub struct PackageResolver {
     packages: HashMap<String, Vec<PackageInfo>>,
     auto_index: HashMap<String, Vec<PathBuf>>,
+    source_auto_index: HashMap<tcl_core_types::ByteCommandSlot, Vec<PathBuf>>,
     original_packages: HashMap<
         tcl_registry::native_package::NativePackageNameKey,
         Vec<original_names::OriginalPackageInfo>,
@@ -764,6 +766,7 @@ impl Default for PackageResolver {
         Self {
             packages: HashMap::new(),
             auto_index: HashMap::new(),
+            source_auto_index: HashMap::new(),
             original_auto_index: HashMap::new(),
             original_packages: HashMap::new(),
             scanned_dirs: Vec::new(),
@@ -818,6 +821,17 @@ impl PackageResolver {
     pub fn add_tcl_index(&mut self, entries: Vec<AutoIndexEntry>) {
         self.invalidate();
         for entry in entries {
+            let parts = tcl_syntax::naming::written_command_parts(entry.proc_name.as_bytes());
+            if !parts.simple.is_empty() {
+                let slot = tcl_core_types::ByteCommandSlot::new(
+                    tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers),
+                    tcl_core_types::NameBytes::from(parts.simple),
+                );
+                self.source_auto_index
+                    .entry(slot)
+                    .or_default()
+                    .push(entry.source_file.clone());
+            }
             self.auto_index
                 .entry(entry.proc_name)
                 .or_default()
@@ -1146,6 +1160,21 @@ impl PackageResolver {
             }
         }
         Vec::new()
+    }
+
+    /// Files registered for one exact source-owned command coordinate. The
+    /// coordinate is already selected by the caller's retained source lookup;
+    /// this query does not recover a name from report text or select a runtime
+    /// command. Duplicate registrations retain their discovery order.
+    #[must_use]
+    pub fn resolve_logical_auto_command(
+        &self,
+        candidate: &tcl_core_types::ByteCommandSlot,
+    ) -> Vec<PathBuf> {
+        self.source_auto_index
+            .get(candidate)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Every package name known to the scanned paths.

@@ -367,7 +367,14 @@ async function openProjection(
       : undefined;
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.compilerExplorerView",
-    arguments: [source, dialect, view],
+    arguments: exactBinding
+      ? [
+          source,
+          dialect,
+          view,
+          { uri: exactBinding.snapshot.uri.toString(), version: exactBinding.snapshot.version },
+        ]
+      : [source, dialect, view],
   })) as { text?: string; lines?: (ExplorerRange | null)[]; error?: string };
 
   if (!isCompileLeaseCurrent(lease)) {
@@ -905,7 +912,16 @@ async function runCompile(lease: CompileLease): Promise<void> {
 
     const result = await client.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.compilerExplorer",
-      arguments: [lease.source, lease.dialect],
+      arguments: lease.binding
+        ? [
+            lease.source,
+            lease.dialect,
+            {
+              uri: lease.binding.snapshot.uri.toString(),
+              version: lease.binding.snapshot.version,
+            },
+          ]
+        : [lease.source, lease.dialect],
     });
 
     if (!isCompileLeaseCurrent(lease)) {

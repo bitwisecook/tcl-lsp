@@ -473,6 +473,17 @@ impl OriginalSourceMethodMetadata {
     pub const fn native_class_delegate(&self) -> bool {
         self.native_class_delegate
     }
+
+    /// The authored declaration's primary source product. A Registry-described
+    /// classmethod retains both a class-side declaration and an instance-side
+    /// forward at one written name. Only the former selects that declaration
+    /// cursor; the secondary receipt remains available to explicit call lookup.
+    /// This is source presentation/selection, never Native installation.
+    #[must_use]
+    pub fn is_primary_source_declaration(&self) -> bool {
+        !self.native_class_delegate || self.side != MemberSide::Instance
+    }
+
     /// Original target and captured values of a forward, when independently
     /// retained. Reporting strings cannot fill a missing prefix.
     #[must_use]
@@ -576,6 +587,8 @@ struct LogicalSourceMemberNameOperand {
     words: Vec<tcl_lexer::NativeWord>,
     name_ordinal: usize,
     body_ordinal: usize,
+    parameter_ordinal: Option<usize>,
+    row: tcl_registry::definer::MemberRow,
     side: MemberSide,
     name_span: tcl_lexer::Span,
     body_span: tcl_lexer::Span,
@@ -648,19 +661,36 @@ impl OriginalSourceMemberLedger {
         &mut self,
         input: crate::analyser::ResolvedAnalysisInput,
         words: Vec<tcl_lexer::NativeWord>,
-        ordinals: (usize, usize),
+        ordinals: (usize, usize, Option<usize>),
         side: MemberSide,
         spans: (tcl_lexer::Span, tcl_lexer::Span),
+        row: tcl_registry::definer::MemberRow,
     ) {
         self.logical_names.push(LogicalSourceMemberNameOperand {
             input,
             words,
+            row,
             name_ordinal: ordinals.0,
             body_ordinal: ordinals.1,
+            parameter_ordinal: ordinals.2,
             side,
             name_span: spans.0,
             body_span: spans.1,
         });
+    }
+
+    pub(crate) fn logical_declaration_row(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_registry::definer::MemberRow> {
+        Some(
+            &self
+                .logical_member_operands(side, method, input, image)?
+                .row,
+        )
     }
 
     /// Selected original name operands remain separate from native declarations.
@@ -686,6 +716,33 @@ impl OriginalSourceMemberLedger {
         let selected = self.logical_member_operands(side, method, input, image)?;
         let body = selected.words.get(selected.body_ordinal)?;
         (body.tokens().first()?.span == selected.body_span).then_some(body)
+    }
+
+    /// ParamList from the same genuine member vector and selected role ordinal.
+    pub(crate) fn logical_parameter_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        let selected = self.logical_member_operands(side, method, input, image)?;
+        selected.words.get(selected.parameter_ordinal?)
+    }
+
+    pub(crate) fn logical_member_body_corresponds(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        body: &crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody,
+    ) -> bool {
+        self.logical_member_operands(side, method, input, image)
+            .is_some_and(|selected| {
+                selected.words == body.original_words()
+                    && selected.words.get(selected.body_ordinal) == Some(body.original_container())
+            })
     }
 
     fn logical_member_operands(
@@ -738,7 +795,20 @@ impl OriginalSourceMemberLedger {
         input: &crate::analyser::ResolvedAnalysisInput,
         image: &tcl_lexer::SourceImage,
     ) -> Option<tcl_registry::definer::MemberVisibility> {
-        if name.as_bytes().contains(&0) {
+        if !name.is_ascii() {
+            return None;
+        }
+        self.logical_visibility_for_side(name.as_bytes(), MemberSide::Instance, input, image)
+    }
+
+    pub(crate) fn logical_visibility_for_side(
+        &self,
+        name: &[u8],
+        side: MemberSide,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<tcl_registry::definer::MemberVisibility> {
+        if name.contains(&0) {
             return None;
         }
         let matching = self
@@ -746,14 +816,13 @@ impl OriginalSourceMemberLedger {
             .iter()
             .filter(|entry| {
                 entry.input == *input
-                    && entry.side == MemberSide::Instance
+                    && entry.side == side
                     && entry.words.iter().all(|word| {
                         word.image() == image && word.config() == input.lexer_config().nested()
                     })
                     && entry.words.get(entry.ordinal).is_some_and(|word| {
-                        tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
-                            .as_deref()
-                            == Some(name.as_bytes())
+                        tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref()
+                            == Some(name)
                     })
             })
             .collect::<Vec<_>>();
@@ -1172,6 +1241,43 @@ mod input_purpose_tests {
             ledger
                 .inherited_visibility_for_input(MemberSide::Instance, &root("inherited"), false)
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod primary_source_declaration_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn classmethod_source_name_selects_primary_without_removing_secondary_product() {
+        let analysis =
+            Analyser::new().analyse("oo::class create C {classmethod make {} {}}", "tcl9.0");
+        let class = analysis.original_class_declarations().next().unwrap();
+        let products = class
+            .metadata()
+            .original_members
+            .declarations()
+            .filter(|method| method.metadata().name == "make")
+            .collect::<Vec<_>>();
+        assert_eq!(products.len(), 2);
+        let primary = products
+            .iter()
+            .copied()
+            .filter(|method| method.is_primary_source_declaration())
+            .collect::<Vec<_>>();
+        assert_eq!(primary.len(), 1);
+        assert_eq!(primary[0].side(), MemberSide::ClassObject);
+        let secondary = products
+            .iter()
+            .copied()
+            .find(|method| method.side() == MemberSide::Instance)
+            .unwrap();
+        assert!(!secondary.is_primary_source_declaration());
+        assert_eq!(
+            primary[0].declaration().original_word(),
+            secondary.declaration().original_word()
         );
     }
 }

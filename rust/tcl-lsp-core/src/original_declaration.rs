@@ -999,14 +999,34 @@ pub fn readonly_reference_report(
 
 /// Compact editor data locating a sealed readonly receipt. Decoding the token
 /// supplies no declaration or native authority until the registry reselects it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OriginalDeclarationHandle {
     schema: u8,
     token: u64,
     // Lossless JSON bytes identify this registry allocation only. Legacy
     // Native/TYPE wire objects retain exactly their existing two fields.
-    #[serde(skip_serializing_if = "Option::is_none")]
     session: Option<EditorWireSession>,
+}
+
+impl Serialize for OriginalDeclarationHandle {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Wire {
+            schema: u8,
+            token: u64,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            session: Option<EditorWireSession>,
+            #[serde(rename = "wirePurpose", skip_serializing_if = "Option::is_none")]
+            purpose: Option<&'static str>,
+        }
+        Wire {
+            schema: self.schema,
+            token: self.token,
+            session: self.session,
+            purpose: self.session.map(|_| "logicalSourceRelationship"),
+        }
+        .serialize(serializer)
+    }
 }
 
 impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
@@ -1023,6 +1043,13 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
             schema: u8,
             token: u64,
             session: EditorWireSession,
+            #[serde(rename = "wirePurpose")]
+            _purpose: RelationshipPurpose,
+        }
+        #[derive(Deserialize)]
+        enum RelationshipPurpose {
+            #[serde(rename = "logicalSourceRelationship")]
+            LogicalSourceRelationship,
         }
         #[derive(Deserialize)]
         #[serde(untagged)]
@@ -1036,14 +1063,14 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
                 token: wire.token,
                 session: None,
             }),
-            Wire::Session(wire) if matches!(wire.schema, 3 | 4) => Ok(Self {
+            // The explicit transport variant is independent of the claimed
+            // semantic schema. Wrong schemas decode as inert locators; every
+            // actual resolver still enforces its own kind and retained owner.
+            Wire::Session(wire) => Ok(Self {
                 schema: wire.schema,
                 token: wire.token,
                 session: Some(wire.session),
             }),
-            Wire::Session(_) => Err(serde::de::Error::custom(
-                "session discriminator is only valid for Logical CALL/lens handles",
-            )),
         }
     }
 }
@@ -1209,7 +1236,7 @@ impl OriginalDeclarationRegistry {
         source: &str,
         analysis: &AnalysisResult,
     ) -> Option<OriginalDeclarationIdentity> {
-        if handle.schema != 1 {
+        if handle.schema != 1 || handle.session.is_some() {
             return None;
         }
         let RetainedDeclaration::Original(identity) = self.rows.get(&handle.token)? else {
@@ -1228,7 +1255,7 @@ impl OriginalDeclarationRegistry {
         source: &str,
         analysis: &AnalysisResult,
     ) -> Option<crate::type_hierarchy::LogicalHierarchyClass> {
-        if handle.schema != 2 {
+        if handle.schema != 2 || handle.session.is_some() {
             return None;
         }
         let RetainedDeclaration::LogicalClass(identity) = self.rows.get(&handle.token)? else {
@@ -1454,7 +1481,12 @@ pub fn declarations(
         rows.push(OriginalDeclarationIdentity::for_class(
             uri, source, analysis, class,
         )?);
-        for method in class.metadata().original_members.declarations() {
+        for method in class
+            .metadata()
+            .original_members
+            .declarations()
+            .filter(|method| method.is_primary_source_declaration())
+        {
             rows.push(OriginalDeclarationIdentity::for_method(
                 uri, source, analysis, class, method,
             )?);
@@ -1891,5 +1923,49 @@ mod logical_session_tests {
                 .is_err()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod relationship_transport_purpose_tests {
+    use super::*;
+    #[test]
+    fn tagged_wrong_kind_decodes_without_becoming_legacy_authority() {
+        let source = "proc p {} {}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let document = OriginalDeclarationDocument {
+            uri: "file:///tagged-call.tcl",
+            source,
+            analysis: &analysis,
+        };
+        let identity =
+            OriginalDeclarationIdentity::for_document(document.uri, source, &analysis).unwrap();
+        let mut registry = OriginalDeclarationRegistry::default();
+        let native = registry.issue(identity).unwrap();
+        let nonce: EditorWireSession =
+            serde_json::from_value(serde_json::json!(vec![255; 16])).unwrap();
+        for schema in [1, 2, 4] {
+            let wire = serde_json::json!({"schema":schema,"token":1,"session":nonce,"wirePurpose":"logicalSourceRelationship"});
+            let inert: OriginalDeclarationHandle = serde_json::from_value(wire).unwrap();
+            assert!(
+                registry
+                    .resolve(inert, document.uri, source, &analysis)
+                    .is_none()
+            );
+            assert!(
+                registry
+                    .resolve_logical_class(inert, document.uri, source, &analysis)
+                    .is_none()
+            );
+        }
+        assert!(
+            registry
+                .resolve(native, document.uri, source, &analysis)
+                .is_some()
+        );
+        assert_eq!(
+            serde_json::to_value(native).unwrap(),
+            serde_json::json!({"schema":1,"token":1})
+        );
     }
 }

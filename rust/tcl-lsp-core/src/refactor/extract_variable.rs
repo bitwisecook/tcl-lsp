@@ -28,8 +28,11 @@ use crate::code_actions::ActionKind;
 /// Extract `[selection.0, selection.1)` using the retained full source grammar
 /// and Registry. Native naming proposals supply only name availability and
 /// current setter selection; missing insertion, store or movement authority
-/// returns a disabled action with no edits. Compatibility extraction is
-/// restricted to the explicit lexical declaration-advice domain.
+/// returns a disabled action with no edits. The existing explicit Logical
+/// authoring feature proposes conditional source edits, not runtime cell,
+/// observer, store or evaluation equivalence. Its retained recipe checks source
+/// occupancy, original word ordering and insertion geometry independently of
+/// source-advice eligibility. Hosted lexical compatibility remains separate.
 #[must_use]
 pub fn extract_variable(
     source: &str,
@@ -92,6 +95,21 @@ pub fn extract_variable(
             disabled: Some(reason),
         });
     }
+    if analysis
+        .resolved_input
+        .as_ref()?
+        .has_logical_source_name_context()
+    {
+        return LogicalVariableExtractionRecipe::capture(
+            source,
+            analysis,
+            &command,
+            Span::new(start, end),
+            var_name,
+            value,
+        )?
+        .into_source_action(source, analysis, line_index);
+    }
     if !crate::rename::is_safe_symbol_name(var_name) {
         return None;
     }
@@ -135,6 +153,191 @@ pub fn extract_variable(
         data_group: None,
         disabled: None,
     })
+}
+
+/// The existing Logical extraction feature proposes an authored edit, not an
+/// execution-equivalence promise. This recipe owns actual source, invocation,
+/// scalar spelling, ordering and insertion data; unresolved runtime observers,
+/// inserted-cell/store semantics and reached-frame obligations remain separate.
+struct LogicalVariableExtractionRecipe {
+    image: SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    invocation: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    selected: tcl_lexer::NativeWord,
+    name: String,
+    setter: String,
+    value: String,
+    reference: String,
+    command_start: u32,
+}
+
+impl LogicalVariableExtractionRecipe {
+    fn capture(
+        source: &str,
+        analysis: &AnalysisResult,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+        selected: Span,
+        name: &str,
+        value: String,
+    ) -> Option<Self> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let input = analysis.resolved_input.as_ref()?;
+        if !input.has_logical_source_name_context() || !crate::rename::is_safe_symbol_name(name) {
+            return None;
+        }
+        let config = current.config();
+        let walk = super::FrameWalk::new(source, analysis)?;
+        let (command_start, command_end) = walk.command_span_offsets(source, command)?;
+        let invocation = walk.source_words(source, command)?;
+        let mut selected_words = (0..invocation.arguments().len()).filter_map(|argument| {
+            invocation
+                .original_argument_word(argument)
+                .filter(|word| word.word_span() == selected)
+        });
+        let word = selected_words.next()?.clone();
+        if selected_words.any(|other| *other != word) {
+            return None;
+        }
+        // Preserve the source's left-to-right operand evaluation order: only
+        // static, unexpanded words may precede the extracted word. This does
+        // not prove that an added setter/read is invisible to runtime observers.
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(command_start, command_end),
+            config,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let [original] = plan.commands.as_slice() else {
+            return None;
+        };
+        for before in original
+            .words
+            .iter()
+            .take_while(|before| before.word_span() != selected)
+        {
+            if before.group().expand
+                || tcl_syntax::word_rules::original_static_word_unicode_value(before).is_none()
+            {
+                return None;
+            }
+        }
+        if !Self::source_spelling_available(source, analysis, name, &walk) {
+            return None;
+        }
+        let setter = unique_logical_command(current.registry(), analysis, LoweringHookId::Set)?;
+        match analysis
+            .retained_command_realm()?
+            .binding_at(setter, command_start)
+        {
+            tcl_compiler::realm::RealmBindingFact::Unchanged => {}
+            tcl_compiler::realm::RealmBindingFact::Command(selected)
+                if current
+                    .registry()
+                    .get(selected)
+                    .is_some_and(|spec| spec.lowering_hook == Some(LoweringHookId::Set)) => {}
+            _ => return None,
+        }
+        Some(Self {
+            image: SourceImage::document(source),
+            input: input.clone(),
+            invocation,
+            selected: word,
+            name: name.to_owned(),
+            setter: setter.to_owned(),
+            value,
+            reference: tcl_syntax::naming::scalar_source_reference(name, config, false)?,
+            command_start,
+        })
+    }
+
+    fn source_spelling_available(
+        source: &str,
+        analysis: &AnalysisResult,
+        name: &str,
+        walk: &super::FrameWalk<'_>,
+    ) -> bool {
+        let mut unoccupied = true;
+        let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+            source,
+            analysis,
+            &mut |command, _, _| {
+                let names = super::extract_proc::logical_source_variable_spellings(
+                    source, analysis, command, walk,
+                );
+                if names.as_ref().is_none_or(|names| names.contains(name)) {
+                    unoccupied = false;
+                }
+                let traits = walk.source_traits(source, command);
+                let observers = tcl_registry::Traits::INTROSPECTS_BY_NAME
+                    | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
+                    | tcl_registry::Traits::TARGETS_VARIABLE_BY_NAME
+                    | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE
+                    | tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                    | tcl_registry::Traits::DYNAMIC_EVAL_BODY;
+                if traits.is_none_or(|traits| traits.intersects(observers)) {
+                    unoccupied = false;
+                }
+                false
+            },
+        );
+        unoccupied
+            && walk.complete()
+            && coverage == crate::executable_regions::PotentialSourceVisit::Complete
+    }
+
+    fn into_source_action(
+        self,
+        source: &str,
+        analysis: &AnalysisResult,
+        line_index: &LineIndex,
+    ) -> Option<Refactoring> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if self.image.bytes() != source.as_bytes()
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+            || !self
+                .invocation
+                .matches_source(&self.image, current.config())
+            || self.selected.image() != &self.image
+            || self.selected.config() != current.config()
+        {
+            return None;
+        }
+        let line_start = line_index.line_start(line_index.line_at(self.command_start));
+        let before = source.get(line_start as usize..self.command_start as usize)?;
+        let (insertion, assignment) = if before.trim().is_empty() {
+            (
+                line_start,
+                format!("{before}{} {} {}\n", self.setter, self.name, self.value),
+            )
+        } else {
+            (
+                self.command_start,
+                format!("{} {} {}; ", self.setter, self.name, self.value),
+            )
+        };
+        let selected = self.selected.word_span();
+        Some(Refactoring {
+            title: format!("Extract into variable '${}'", self.name),
+            edits: vec![
+                RefactorEdit {
+                    start: insertion,
+                    end: insertion,
+                    new_text: assignment,
+                },
+                RefactorEdit {
+                    start: selected.start(),
+                    end: selected.end(),
+                    new_text: self.reference,
+                },
+            ],
+            kind: ActionKind::RefactorExtract,
+            data_group: None,
+            disabled: None,
+        })
+    }
 }
 
 fn unique_logical_command<'a>(
@@ -590,5 +793,46 @@ mod tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod logical_source_recipe_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn proposal(source: &str, selected: &str, name: &str) -> Option<Refactoring> {
+        let start = u32::try_from(source.find(selected)?).ok()?;
+        let end = start.checked_add(u32::try_from(selected.len()).ok()?)?;
+        let analysis = Analyser::new().analyse(source, "tcl");
+        extract_variable(
+            source,
+            (start, end),
+            name,
+            &analysis,
+            &LineIndex::new(source),
+        )
+    }
+
+    #[test]
+    fn original_source_recipe_keeps_supported_edits_and_declines_capture_or_reordering() {
+        let source = "puts [string length $name]";
+        let action = proposal(source, "[string length $name]", "length").unwrap();
+        assert!(action.disabled.is_none());
+        assert_eq!(
+            action.apply(source),
+            "set length [string length $name]\nputs $length"
+        );
+        assert!(proposal("puts $value; puts literal", "literal", "value").is_none());
+        assert!(proposal("proc p {value} {puts literal}", "literal", "value").is_none());
+        assert!(
+            proposal(
+                "puts $channel [string length $name]",
+                "[string length $name]",
+                "length"
+            )
+            .is_none()
+        );
+        assert!(proposal("info locals; puts literal", "literal", "value").is_none());
     }
 }

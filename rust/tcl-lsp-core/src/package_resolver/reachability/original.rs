@@ -218,7 +218,6 @@ impl Walker<'_, '_> {
         let original = OriginalScript {
             image: self.image.clone(),
             span: region,
-            config: self.config,
         };
         let Ok(plan) =
             tcl_lexer::native_script_words_in(original.image.clone(), region, self.config)
@@ -621,7 +620,9 @@ impl Walker<'_, '_> {
             guard @ Guard::Constant(_) => guard,
             // Selected package-query syntax alone cannot establish that the
             // current Tcl package provision still equals the running release.
-            Guard::TclSatisfies { .. } | Guard::SourceTarget(_) | Guard::Unknown => Guard::Unknown,
+            #[cfg(test)]
+            Guard::TclSatisfies { .. } => Guard::Unknown,
+            Guard::SourceTarget(_) | Guard::Unknown => Guard::Unknown,
         }
     }
 }
@@ -635,13 +636,6 @@ fn additional_unknown(after: &Conditions, before: &Conditions) -> bool {
             .count()
     };
     count(after) > count(before)
-}
-
-fn bodies_len(roles: &[(usize, ArgRole)]) -> usize {
-    roles
-        .iter()
-        .filter(|(_, role)| *role == ArgRole::Body)
-        .count()
 }
 
 #[cfg(test)]
@@ -797,7 +791,6 @@ mod original_package_region_purpose_tests {
             let original = OriginalScript {
                 image: SourceImage::document(source),
                 span: region,
-                config,
             };
             let plan =
                 tcl_lexer::native_script_words_in(original.image.clone(), region, config).unwrap();

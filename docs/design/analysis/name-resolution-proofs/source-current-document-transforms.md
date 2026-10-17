@@ -77,3 +77,54 @@ refuses. A fresh-two-Backend control retains identical URI/version/source/result
 and first numeric ID: each own issuer passes and both crossed receipts refuse.
 Root alone runs ordinary Rust and host/browser checks; source review,
 formatting and patch/hash verification claim no build, gate or efficacy result.
+
+## JetBrains sync publication and command results
+
+The Server's existing source-publication owner can also issue a metadata-only
+context receipt for an exact already-open raw source image. Its version comes
+from the actual document synchronization publication, never an editor stamp.
+The retained owner includes the original path admission, revision, complete
+analysis input, diagnostic configuration and policy, Registry/factory/overlay
+generations and raw-versus-normalised analysis images. Publication and final
+validation use the same locked currency guard as document transforms. Context
+handles occupy a separate typed ledger from transform results: they recover no
+worker, replacement or edit permission, even under the same session issuer.
+
+JetBrains captures the actual VirtualFile, Document, complete original text,
+editor modification stamp and local settings before dispatch. The stamp only
+checks the local document's lifetime. The host obtains the URI and version directly from the selected SDK
+LspServer.getDocumentIdentifier(VirtualFile) and getDocumentVersion(Document).
+It holds and rejoins that exact unique server, descriptor and InitializeResult
+allocation, Running state, SDK URI/version and original VirtualFile URL at each
+request boundary and at the final UI sink. The Server snapshot must agree with
+that SDK version; it never supplies a replacement version when they differ.
+The independent opaque context still retains complete resource input/config.
+A restarted backend cannot accept the prior issuer. Exact wire integer decoding preserves real versions
+without turning a missing value into a default. Raw and analysis images remain
+separate. Global dialect labels never reconstruct the resource input.
+
+Optimise, minify and safe-fix actions pass the actual versioned raw snapshot to
+the existing worker commands. Before an atomic local document write, the host
+validates the independently worker-issued edit receipt and exact replacement;
+it then rejoins its actual document/file/source/settings and live server before
+writing. Metadata receipt acceptance alone cannot apply a result. Other editor
+commands retain their own purpose and payload, with the shared source-currentness
+guard before presentation; dedicated XC/BIGIP/iRules semantics are unchanged.
+
+The settings panel retains an unknown configured dialect as an explicit
+unavailable choice. Applying an unrelated setting or clearing a combo selection
+keeps that identifier. Only an actual generated choice replaces it; display
+labels, trimming, case folding and the first catalogue entry supply no identity.
+
+Fixed controls cover the actual Server sync version, raw/analysis images,
+foreign issuer and configuration/reopen/source withdrawal, rejection of metadata
+receipts as edits, strict host wire decoding/Unicode, and unknown settings.
+These controls require the ordinary Server and JetBrains gates; source review
+does not claim a build, test result or live SDK synchronization result.
+
+The Server receipt validation is a linearisation point, not a distributed lock.
+An independent Server input/provider can change after its final RPC reply and
+before the queued EDT write. The host rejoins the actual SDK publication and
+local source/settings immediately inside the write action, but does not claim
+to hold Server provider state across that gap. Worker equivalence and edit
+safety remain independent, and no stronger distributed atomicity is promised.

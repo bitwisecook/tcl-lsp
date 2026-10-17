@@ -168,6 +168,7 @@ pub(super) struct TransformLedger {
     issuer: Option<EditorWireSession>,
     next: u64,
     entries: VecDeque<(String, Arc<TransformResult>)>,
+    source_contexts: VecDeque<(String, Arc<TransformSource>)>,
 }
 
 impl Default for TransformLedger {
@@ -178,6 +179,7 @@ impl Default for TransformLedger {
             issuer: EditorWireSession::allocate(),
             next: 0,
             entries: VecDeque::new(),
+            source_contexts: VecDeque::new(),
         }
     }
 }
@@ -193,6 +195,14 @@ impl TransformLedger {
         self.entries.push_back((id.clone(), Arc::new(result)));
         Some((id, issuer))
     }
+}
+
+/// Metadata publication is separate from a worker-issued edit result. Only
+/// the transform variant checks/retains workers or can issue edit receipts.
+#[derive(Clone, Copy)]
+enum SourcePublication<'a> {
+    Context,
+    Transform(&'a [TransformWorkerSource]),
 }
 
 fn stale_transform() -> jsonrpc::Error {
@@ -256,7 +266,7 @@ impl Backend {
     async fn with_current_transform_source<T>(
         &self,
         source: &TransformSource,
-        workers: &[TransformWorkerSource],
+        purpose: SourcePublication<'_>,
         mut publish: impl FnMut() -> Option<T>,
     ) -> DocumentSourceResult<Option<T>> {
         let _inputs = self.analyser_inputs_gate.read().await;
@@ -272,41 +282,43 @@ impl Backend {
         if current.input != source.input.input || policy != source.policy {
             return Ok(None);
         }
-        let Some(first) = workers.first() else {
-            return Ok(None);
-        };
-        match &first.purpose {
-            TransformWorkerPurpose::Document => {
-                if workers.len() != 1 || !first.matches_document(source) {
-                    return Ok(None);
+        if let SourcePublication::Transform(workers) = purpose {
+            let Some(first) = workers.first() else {
+                return Ok(None);
+            };
+            match &first.purpose {
+                TransformWorkerPurpose::Document => {
+                    if workers.len() != 1 || !first.matches_document(source) {
+                        return Ok(None);
+                    }
                 }
-            }
-            TransformWorkerPurpose::FixAll(configuration) => {
-                let na_mode = *self.non_ascii_mode.lock().await;
-                let extra = self
-                    .extra_commands
-                    .lock()
-                    .await
-                    .iter()
-                    .cloned()
-                    .collect::<HashSet<_>>();
-                let packs = self.spec_packs().await;
-                let resource = self.resource_analyser_inputs(Some(&source.uri)).await;
-                if first.source.as_ref() != tcl_lexer::normalise_lone_cr(&source.source).as_ref()
-                    || configuration.dialect != source.dialect
-                    || configuration.decode_report != source.decode_report
-                    || configuration.policy != policy
-                    || configuration.disabled != policy.production_skip()
-                    || configuration.na_mode != na_mode
-                    || configuration.extra != extra
-                    || !Arc::ptr_eq(&configuration.packs, &packs)
-                    || configuration.resource != resource
-                    || workers.iter().any(|worker| {
-                        !matches!(&worker.purpose,
-                        TransformWorkerPurpose::FixAll(other) if Arc::ptr_eq(other, configuration))
-                    })
-                {
-                    return Ok(None);
+                TransformWorkerPurpose::FixAll(configuration) => {
+                    let na_mode = *self.non_ascii_mode.lock().await;
+                    let extra = self
+                        .extra_commands
+                        .lock()
+                        .await
+                        .iter()
+                        .cloned()
+                        .collect::<HashSet<_>>();
+                    let packs = self.spec_packs().await;
+                    let resource = self.resource_analyser_inputs(Some(&source.uri)).await;
+                    if first.source.as_ref() != tcl_lexer::normalise_lone_cr(&source.source).as_ref()
+                        || configuration.dialect != source.dialect
+                        || configuration.decode_report != source.decode_report
+                        || configuration.policy != policy
+                        || configuration.disabled != policy.production_skip()
+                        || configuration.na_mode != na_mode
+                        || configuration.extra != extra
+                        || !Arc::ptr_eq(&configuration.packs, &packs)
+                        || configuration.resource != resource
+                        || workers.iter().any(|worker| {
+                            !matches!(&worker.purpose,
+                            TransformWorkerPurpose::FixAll(other) if Arc::ptr_eq(other, configuration))
+                        })
+                    {
+                        return Ok(None);
+                    }
                 }
             }
         }
@@ -317,7 +329,8 @@ impl Backend {
         let Some(doc) = documents.get(&source.uri) else {
             return Ok(None);
         };
-        if doc.version != Some(source.version)
+        if (matches!(purpose, SourcePublication::Context) && doc.dialect_resolution_pending())
+            || doc.version != Some(source.version)
             || doc.revision != source.revision
             || doc.raw() != source.source.as_ref()
             || doc.dialect != source.dialect
@@ -380,7 +393,7 @@ impl Backend {
         let workers: Arc<[TransformWorkerSource]> = workers.into();
         let mut replacement = Some(replacement);
         let mut value = Some(value);
-        self.with_current_transform_source(&source, &workers, || {
+        self.with_current_transform_source(&source, SourcePublication::Transform(&workers), || {
             let mut value = value.take()?;
             let (id, issuer) = self.document_transforms.lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -390,6 +403,143 @@ impl Backend {
             });
             Some(value)
         }).await?.map(Some).ok_or_else(stale_transform)
+    }
+
+    /// Receive the actual open-document sync publication, rather than asking a
+    /// host to invent an LSP version from its editor modification stamp. The
+    /// supplied version must be the actual selected SDK sync publication.
+    pub(super) async fn capture_document_source_context_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri) = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| Uri::from_str(value).ok())
+        else {
+            return Ok(None);
+        };
+        let Some(expected_version) = args
+            .get(1)
+            .and_then(serde_json::Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+        else {
+            return Ok(None);
+        };
+        let Some(expected) = args.get(2).and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await? else {
+            return Ok(None);
+        };
+        let Some(version) = doc.version else {
+            return Ok(None);
+        };
+        if version != expected_version || doc.raw() != expected || doc.dialect_resolution_pending()
+        {
+            return Ok(None);
+        }
+        let request = TransformRequest::Snapshot {
+            uri,
+            version,
+            source: expected.to_owned(),
+        };
+        let Some(source) = self.capture_transform_source(&request, &doc).await? else {
+            return Ok(None);
+        };
+        self.with_current_transform_source(&source, SourcePublication::Context, || {
+            let mut ledger = self
+                .document_transforms
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let issuer = ledger.issuer?;
+            ledger.next = ledger.next.checked_add(1)?;
+            let id = ledger.next.to_string();
+            if ledger.source_contexts.len() == 128 {
+                ledger.source_contexts.pop_front();
+            }
+            ledger
+                .source_contexts
+                .push_back((id.clone(), Arc::clone(&source)));
+            Some(serde_json::json!({
+                "schema": 1, "purpose": "current-document-source-context",
+                "id": id, "issuer": issuer, "uri": source.uri.as_str(),
+                "version": source.version, "source": source.source.as_ref(),
+                "analysisSource": tcl_lexer::normalise_lone_cr(&source.source).as_ref(),
+                "dialect": source.dialect, "inputsEpoch": source.epoch,
+            }))
+        })
+        .await
+        .map_err(Into::into)
+    }
+
+    /// This metadata-only receipt never recovers a transform result or edit.
+    pub(super) async fn validate_document_source_context_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let current = self.current_document_source_context(args.first()).await?;
+        Ok(Some(serde_json::Value::Bool(current)))
+    }
+
+    async fn current_document_source_context(
+        &self,
+        value: Option<&serde_json::Value>,
+    ) -> jsonrpc::Result<bool> {
+        let Some(value) = value else {
+            return Ok(false);
+        };
+        if value.get("schema").and_then(serde_json::Value::as_u64) != Some(1)
+            || value.get("purpose").and_then(serde_json::Value::as_str)
+                != Some("current-document-source-context")
+        {
+            return Ok(false);
+        }
+        let Some(id) = value.get("id").and_then(serde_json::Value::as_str) else {
+            return Ok(false);
+        };
+        let Some(issuer) = value
+            .get("issuer")
+            .and_then(|value| serde_json::from_value::<EditorWireSession>(value.clone()).ok())
+        else {
+            return Ok(false);
+        };
+        let source = {
+            let ledger = self
+                .document_transforms
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if ledger.issuer != Some(issuer) {
+                return Ok(false);
+            }
+            ledger
+                .source_contexts
+                .iter()
+                .find(|(key, _)| key == id)
+                .map(|(_, source)| Arc::clone(source))
+        };
+        let Some(source) = source else {
+            return Ok(false);
+        };
+        if value.get("uri").and_then(serde_json::Value::as_str) != Some(source.uri.as_str())
+            || value.get("version").and_then(serde_json::Value::as_i64)
+                != Some(i64::from(source.version))
+            || value.get("source").and_then(serde_json::Value::as_str)
+                != Some(source.source.as_ref())
+            || value
+                .get("analysisSource")
+                .and_then(serde_json::Value::as_str)
+                != Some(tcl_lexer::normalise_lone_cr(&source.source).as_ref())
+            || value.get("dialect").and_then(serde_json::Value::as_str)
+                != Some(source.dialect.as_str())
+            || value.get("inputsEpoch").and_then(serde_json::Value::as_u64) != Some(source.epoch)
+        {
+            return Ok(false);
+        }
+        Ok(self
+            .with_current_transform_source(&source, SourcePublication::Context, || Some(true))
+            .await?
+            .unwrap_or(false))
     }
 
     /// Validate the original result after the client's dialog and immediately
@@ -440,9 +590,13 @@ impl Backend {
                 .and_then(serde_json::Value::as_str)
                 == Some(result.replacement.as_str());
         let current = if matches {
-            self.with_current_transform_source(&result.source, &result.workers, || Some(true))
-                .await?
-                .unwrap_or(false)
+            self.with_current_transform_source(
+                &result.source,
+                SourcePublication::Transform(&result.workers),
+                || Some(true),
+            )
+            .await?
+            .unwrap_or(false)
         } else {
             false
         };
@@ -751,3 +905,6 @@ mod worker_purpose_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod source_context_tests;

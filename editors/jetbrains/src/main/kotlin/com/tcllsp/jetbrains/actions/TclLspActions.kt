@@ -33,6 +33,7 @@ import java.security.MessageDigest
 // lsp4j applies in-place, so the action just dispatches the command.
 
 class OptimiseDocumentAction : TclLspActionBase() {
+    override val documentTransform = true
     override val commandId = "tcl-lsp.optimiseDocument"
     override fun buildArguments(project: Project, documentUri: String?, documentText: String?, event: AnActionEvent): List<Any>? {
         val uri = documentUri ?: return null
@@ -44,6 +45,7 @@ class OptimiseDocumentAction : TclLspActionBase() {
 }
 
 class MinifyDocumentAction : TclLspActionBase() {
+    override val documentTransform = true
     override val commandId = "tcl-lsp.minifyDocument"
     override fun buildArguments(project: Project, documentUri: String?, documentText: String?, event: AnActionEvent): List<Any>? {
         val uri = documentUri ?: return null
@@ -55,6 +57,7 @@ class MinifyDocumentAction : TclLspActionBase() {
 }
 
 class FixAllSafeIssuesAction : TclLspActionBase() {
+    override val documentTransform = true
     override val commandId = "tcl-lsp.fixAllSafeIssues"
     override fun buildArguments(project: Project, documentUri: String?, documentText: String?, event: AnActionEvent): List<Any>? {
         val uri = documentUri ?: return null

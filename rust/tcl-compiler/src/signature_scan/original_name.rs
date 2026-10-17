@@ -1121,3 +1121,186 @@ mod original_import_publication_tests {
         );
     }
 }
+
+/// Genuine Logical namespace source role and its independently retained caller
+/// context. This supplies neither namespace existence nor entered execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalSourceNamespaceOccurrence {
+    image: SourceImage,
+    input: crate::analyser::ResolvedAnalysisInput,
+    operand: SourceOriginalNamespaceOperand,
+    row: crate::analyser::types::NamespaceRef,
+    words: crate::registry_invocation::source_structure::OriginalRegistryWords,
+}
+
+impl LogicalSourceNamespaceOccurrence {
+    /// Join the exact analyser row to its whole original argv, Registry role,
+    /// independent namespace context and actual source allocation instruction.
+    #[must_use]
+    pub fn capture(
+        analysis: &crate::analyser::AnalysisResult,
+        row: &crate::analyser::types::NamespaceRef,
+    ) -> Option<Self> {
+        let input = analysis.resolved_input.as_ref()?;
+        input.has_logical_source_name_context().then_some(())?;
+        analysis
+            .namespace_refs
+            .iter()
+            .any(|current| std::ptr::eq(current, row))
+            .then_some(())?;
+        let realm = analysis.retained_command_realm()?;
+        realm.matches_resolved_analysis_input(input).then_some(())?;
+        let original = row.original_name_input.as_ref()?;
+        let word = original.original_word_key()?.original_word();
+        let image = word.image();
+        analysis
+            .matches_original_source_image(image, input.lexer_config())
+            .then_some(())?;
+        let operand = realm.original_namespace_operand_at_span_in_source(
+            image,
+            row.span,
+            input.lexer_config(),
+        )?;
+        (operand.name_input() == original
+            && row.source_context.as_ref() == Some(operand.context())
+            && row.source_namespace == operand.context().child_from_input(original)
+            && row.source_namespace.is_some()
+            && row.name_policy == Some(original.policy()))
+        .then_some(())?;
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            image.try_text().ok()?,
+            analysis,
+            operand.site().offset,
+        )?;
+        let mut ordinals = words.roles()?.iter().filter_map(|(ordinal, role)| {
+            (*role == tcl_registry::ArgRole::NamespaceName
+                && words.original_argument_word(*ordinal) == Some(word))
+            .then_some(*ordinal)
+        });
+        let ordinal = ordinals.next()?;
+        ordinals.next().is_none().then_some(())?;
+        let context = input.borrowed_context_registry();
+        let declaration_agrees = words.with_source_schema(context, |schema| {
+            let declares = schema.semantics.traits.contains(tcl_registry::Traits::DECLARES_NAMESPACE);
+            let ensure = schema.authored_logical_source_state_transitions().is_some_and(|transitions| transitions.facts().iter().any(|fact| {
+                matches!(&fact.transition, tcl_registry::StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure { namespace: tcl_registry::NamespaceTransitionTarget::Named(subject) }) if subject.argument_index() == Some(ordinal))
+            }));
+            row.declares == declares && (!declares || ensure)
+        })?;
+        declaration_agrees.then_some(Self {
+            image: image.clone(),
+            input: input.clone(),
+            operand,
+            row: row.clone(),
+            words,
+        })
+    }
+
+    /// Exact original row; report labels are not its source identity.
+    #[must_use]
+    pub fn row(&self) -> &crate::analyser::types::NamespaceRef {
+        &self.row
+    }
+
+    /// Full immutable input for independent cross-document correspondence.
+    #[must_use]
+    pub fn input(&self) -> &crate::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+
+    /// Immutable whole original document image.
+    #[must_use]
+    pub fn image(&self) -> &SourceImage {
+        &self.image
+    }
+
+    /// Actual original source allocation, independent of equal source reanalysis.
+    #[must_use]
+    pub fn shares_original_allocation(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.operand.site().source, &other.operand.site().source)
+            && self.operand.site().offset == other.operand.site().offset
+            && same_namespace_source_row(&self.row, &other.row)
+            && self.input == other.input
+    }
+
+    /// Revalidate the actual complete input and retained role/context producer.
+    /// Equal reports cannot stand in for the original operand or Ensure facet.
+    #[must_use]
+    pub fn is_current(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        analysis
+            .namespace_refs
+            .iter()
+            .filter(|row| same_namespace_source_row(row, &self.row))
+            .any(|row| {
+                Self::capture(analysis, row).is_some_and(|current| {
+                    current.input == self.input
+                        && current.image == self.image
+                        && current.operand == self.operand
+                        && current.words == self.words
+                })
+            })
+    }
+}
+
+fn same_namespace_source_row(
+    left: &crate::analyser::types::NamespaceRef,
+    right: &crate::analyser::types::NamespaceRef,
+) -> bool {
+    left.original_name_input == right.original_name_input
+        && left.source_context == right.source_context
+        && left.source_namespace == right.source_namespace
+        && left.name_policy == right.name_policy
+        && left.span == right.span
+        && left.declares == right.declares
+}
+
+#[cfg(test)]
+mod logical_namespace_occurrence_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn namespace_source_occurrence_requires_the_actual_role_scope_and_ensure() {
+        let source = "namespace eval ::A {}; namespace exists ::A";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let declaration = analysis
+            .namespace_refs
+            .iter()
+            .find(|row| row.declares)
+            .unwrap();
+        let captured = LogicalSourceNamespaceOccurrence::capture(&analysis, declaration).unwrap();
+        assert!(captured.is_current(&analysis));
+        assert_eq!(captured.image(), &SourceImage::document(source));
+        let mut reporting = analysis.clone();
+        for row in &mut reporting.namespace_refs {
+            row.original_name = "OTHER".to_owned();
+            row.qualified_name = "OTHER".to_owned();
+            row.source_span = None;
+        }
+        assert!(captured.is_current(&reporting));
+        let mut wrong_declaration = analysis.clone();
+        let reference_span = {
+            let reference = wrong_declaration
+                .namespace_refs
+                .iter_mut()
+                .find(|row| !row.declares)
+                .unwrap();
+            reference.declares = true;
+            reference.span
+        };
+        let reference = wrong_declaration
+            .namespace_refs
+            .iter()
+            .find(|row| row.span == reference_span)
+            .unwrap();
+        assert!(LogicalSourceNamespaceOccurrence::capture(&wrong_declaration, reference).is_none());
+        let mut no_scope = analysis.clone();
+        no_scope.namespace_refs[0].source_context = None;
+        assert!(
+            LogicalSourceNamespaceOccurrence::capture(&no_scope, &no_scope.namespace_refs[0])
+                .is_none()
+        );
+        let changed = Analyser::new().analyse("namespace eval ::B {}", "tcl");
+        assert!(!captured.is_current(&changed));
+    }
+}

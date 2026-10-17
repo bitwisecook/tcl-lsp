@@ -291,6 +291,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         remote_method: _,
         creates_instance_at: _,
         defines_command_at: _,
+        teardown_argument_layout: _,
         context_gate: _,
         implementation_namespace: _,
         oo_context_facts: _,
@@ -539,6 +540,12 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("remote_method", Surface::Key("remote_method")),
     f("creates_instance_at", Surface::Key("creates_instance_at")),
     f("defines_command_at", Surface::Key("defines_command_at")),
+    f(
+        "teardown_argument_layout",
+        Surface::Excluded(
+            "Registry-only effective argv layout derived from a selected teardown command; SpecTcl has no authored source layout",
+        ),
+    ),
     f("context_gate", Surface::Key("context_gate")),
     f(
         "implementation_namespace",

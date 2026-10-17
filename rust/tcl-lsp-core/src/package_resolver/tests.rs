@@ -1357,3 +1357,27 @@ fn retained_registration_transport_keeps_nested_survey_source_and_body_ordinals(
     assert_eq!(entries[0].version, "2.0");
     assert_eq!(entries[0].source_files, vec![directory.join("nested.tcl")]);
 }
+
+#[test]
+fn logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip() {
+    let mut resolver = PackageResolver::default();
+    let first = PathBuf::from("/library/first.tcl");
+    resolver.add_tcl_index(vec![AutoIndexEntry {
+        proc_name: "::widgets::render".to_owned(),
+        source_file: first.clone(),
+    }]);
+
+    let requested = tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(["widgets"]),
+        tcl_core_types::NameBytes::from("render"),
+    );
+    assert_eq!(
+        resolver.resolve_logical_auto_command(&requested),
+        vec![first]
+    );
+    let unrelated = tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(["widgets"]),
+        tcl_core_types::NameBytes::from("other"),
+    );
+    assert!(resolver.resolve_logical_auto_command(&unrelated).is_empty());
+}

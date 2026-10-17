@@ -1075,46 +1075,73 @@ enum SourceWordComponent {
 }
 
 fn source_word_components(word: &tcl_lexer::NativeWord) -> Option<Vec<SourceWordComponent>> {
+    source_word_components_replacing(word, None)
+}
+
+fn source_word_components_replacing(
+    word: &tcl_lexer::NativeWord,
+    replacement: Option<(tcl_lexer::Span, &[u8])>,
+) -> Option<Vec<SourceWordComponent>> {
     use tcl_lexer::{ExecutablePart, SourceChannel};
     if word.image().channel() != SourceChannel::Document || word.group().expand {
         return None;
     }
     word.image().try_text().ok()?;
-    if let Some(value) = original_static_word_unicode_value(word) {
+    if replacement.is_none()
+        && let Some(value) = original_static_word_unicode_value(word)
+    {
         return Some(vec![SourceWordComponent::Text(value)]);
     }
     let arena = word.executable_parts();
     let mut components = Vec::new();
+    let mut replaced = false;
     for component in arena.list(arena.root()) {
-        let selected = match component.part {
-            ExecutablePart::Text(_) => {
-                let value = original_unicode_text_component(arena, component)?;
-                if value.is_empty() {
-                    continue;
+        let selected = if let Some((span, value)) =
+            replacement.filter(|(span, _)| *span == component.span)
+        {
+            let _ = span;
+            if replaced || !matches!(component.part, ExecutablePart::Variable { index: None, .. }) {
+                return None;
+            }
+            replaced = true;
+            SourceWordComponent::Text(value.to_vec())
+        } else {
+            match component.part {
+                ExecutablePart::Text(_) => {
+                    let value = original_unicode_text_component(arena, component)?;
+                    if value.is_empty() {
+                        continue;
+                    }
+                    if let Some(SourceWordComponent::Text(previous)) = components.last_mut() {
+                        previous.extend(value);
+                        continue;
+                    }
+                    SourceWordComponent::Text(value)
                 }
-                if let Some(SourceWordComponent::Text(previous)) = components.last_mut() {
-                    previous.extend(value);
-                    continue;
+                ExecutablePart::Variable { name, index: None } => {
+                    SourceWordComponent::Scalar(arena.bytes(name)?.to_vec())
                 }
-                SourceWordComponent::Text(value)
+                ExecutablePart::Variable { index: Some(_), .. } => {
+                    SourceWordComponent::Array(arena.bytes(component.span)?.to_vec())
+                }
+                ExecutablePart::Command { body } => {
+                    SourceWordComponent::Command(arena.bytes(body)?.to_vec())
+                }
+                ExecutablePart::Expression { expression } => {
+                    SourceWordComponent::Expression(arena.bytes(expression)?.to_vec())
+                }
+                ExecutablePart::ParseError(_) => return None,
             }
-            ExecutablePart::Variable { name, index: None } => {
-                SourceWordComponent::Scalar(arena.bytes(name)?.to_vec())
-            }
-            ExecutablePart::Variable { index: Some(_), .. } => {
-                SourceWordComponent::Array(arena.bytes(component.span)?.to_vec())
-            }
-            ExecutablePart::Command { body } => {
-                SourceWordComponent::Command(arena.bytes(body)?.to_vec())
-            }
-            ExecutablePart::Expression { expression } => {
-                SourceWordComponent::Expression(arena.bytes(expression)?.to_vec())
-            }
-            ExecutablePart::ParseError(_) => return None,
         };
-        components.push(selected);
+        if let SourceWordComponent::Text(value) = &selected
+            && let Some(SourceWordComponent::Text(previous)) = components.last_mut()
+        {
+            previous.extend(value);
+        } else {
+            components.push(selected);
+        }
     }
-    Some(components)
+    (replacement.is_none() || replaced).then_some(components)
 }
 
 #[cfg(test)]
@@ -1551,5 +1578,103 @@ mod standalone_fragment_tests {
             standalone_static_word_fragment_value("$(1 + 2)", true, config).as_deref(),
             Some("$(1 + 2)")
         );
+    }
+}
+
+/// Check an intended Unicode literal in one exact original scalar component's
+/// actual whole-word container. Existing components, channel and full grammar
+/// remain owned by that word; array-index children and expansion refuse.
+/// This is syntax correspondence only, not binding, movement or edit permission.
+#[must_use]
+pub fn lexical_source_scalar_literal_substitution(
+    original: &tcl_lexer::NativeWord,
+    reference: tcl_lexer::Span,
+    value: &str,
+) -> bool {
+    let admits = || -> Option<()> {
+        if value.is_empty()
+            || !lexical_unicode_source_word_matches(value, value, original.config().nested())
+        {
+            return None;
+        }
+        let expected =
+            source_word_components_replacing(original, Some((reference, value.as_bytes())))?;
+        let from = usize::try_from(reference.start().checked_sub(original.span().start())?).ok()?;
+        let to = usize::try_from(reference.end().checked_sub(original.span().start())?).ok()?;
+        let mut proposal = std::str::from_utf8(original.written_bytes())
+            .ok()?
+            .to_owned();
+        proposal.get(from..to)?;
+        proposal.replace_range(from..to, value);
+        let end = u32::try_from(proposal.len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(&proposal),
+            tcl_lexer::Span::new(0, end),
+            original.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        (plan.fatal_tail.is_none()
+            && word.span() == tcl_lexer::Span::new(0, end)
+            && source_word_components(word)? == expected)
+            .then_some(())
+    };
+    admits().is_some()
+}
+
+#[cfg(test)]
+mod scalar_literal_construction_tests {
+    use super::*;
+    use tcl_lexer::{LexerConfig, SourceImage, Span};
+    fn word(source: &str) -> tcl_lexer::NativeWord {
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            LexerConfig::for_dialect("tcl9.0"),
+        )
+        .unwrap();
+        plan.commands[0].words[0].clone()
+    }
+    #[test]
+    fn actual_scalar_container_retains_neighbors_and_rejects_activation_or_index_children() {
+        let receiver = word("pre-${x}-$other");
+        assert!(lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(4, 8),
+            "VALUE"
+        ));
+        assert!(lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(4, 8),
+            "a#b"
+        ));
+        assert!(!lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(4, 8),
+            "a b"
+        ));
+        assert!(!lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(4, 8),
+            "$run"
+        ));
+        let receiver = word("$arr($x)");
+        assert!(!lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(5, 7),
+            "VALUE"
+        ));
+        let receiver = word("{$x}");
+        assert!(!lexical_source_scalar_literal_substitution(
+            &receiver,
+            Span::new(1, 3),
+            "VALUE"
+        ));
     }
 }

@@ -1,7 +1,7 @@
 {
   "baseline": "cc24c394004fc187378ba0eefb6c2c5b2615fb00",
-  "current_head": "ffecb525169ff1fab75fb7cc4b801cadde294438",
-  "utc": "2026-10-16T12:13:36.083444+00:00",
+  "current_head": "0597b94c5907470df67b0dd293bf35e2a89152c2",
+  "utc": "2026-10-17T11:44:24.975389+00:00",
   "status": "FINAL_SOURCE_AUDIT_RECONCILED",
   "counts": {
     "semantic_code_changes": 1799,
@@ -207,7 +207,7 @@
   "all_required_change_total": 2158,
   "final_catalogue": {
     "path": "repository-consumer-audit-final.json",
-    "sha256": "dc99eb87febfb3853ad33b16d382dad64037b8ffd2fc7287d7ea06dbd84dbe51"
+    "sha256": "5d675da8efe634254026e77cc78854607b05ea3e733c9638ffdf8b140493765b"
   },
   "primary_packet": {
     "status": "FINAL_SOURCE_AUDIT_RECONCILED",
@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T10:54:01.698007+00:00",
+    "utc": "2026-10-17T11:44:24.975389+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 393,
+    "implemented_pending_validation": 418,
     "verified_complete": 0,
-    "not_started": 1765,
+    "not_started": 1740,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -665,7 +665,7 @@
       "verified_complete": 0
     },
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 463,
+    "effective_implemented_pending_validation": 488,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 338,
-    "partially_implemented_pending_validation": 55,
+    "fully_implemented_pending_validation": 355,
+    "partially_implemented_pending_validation": 63,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1115,86 +1115,26 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "utc": "2026-10-17T09:38:57.233687+00:00",
-      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD03_RUNNING",
-      "base": "671100ac1",
-      "baseline_delta": 13,
-      "baseline_units": [
-        "lsp-browser-package-insertion-source-and-identity",
-        "lsp-node-package-insertion-source-identity",
-        "lsp-if-switch-source-action-boundary",
-        "lsp-switch-dict-source-action-and-fresh-name",
-        "lsp-receiver-incomplete-hazard-query",
-        "lsp-inherited-receiver-method-label-filter",
-        "lsp-method-workspace-slot-projection",
-        "lsp-definition-logical-autoload-head-context",
-        "lsp-hover-logical-command-class-ensemble-binding",
-        "lsp-hover-alias-original-vs-legacy-map",
-        "lsp-hover-logical-member-and-provider-notes",
-        "lsp-workspace-report-proc-class-records",
-        "lsp-workspace-command-existence-settlement"
-      ],
-      "new_owner_facets": [
-        "registry.owner.source-package-query-selection",
-        "dialect.owner.core-package-role",
-        "compiler.owner.package-unicode-source-value-comparison"
-      ],
-      "LSP": {
+      "path": "/workspace/tcl-lsp/docs/work/name-handling/progress-report-20261017T1139Z.json",
+      "sha256": "b13ebea589b81cff4a2a37f3fdcb69a19f2edc5c8c13af0825f8d4024f053d1d",
+      "frozen_counts": {
         "required": 325,
-        "integrated": 250,
-        "semantic_integrated": 133,
-        "validation_integrated": 115,
+        "integrated": 281,
+        "semantic_integrated": 158,
+        "validation_integrated": 121,
         "documentation_integrated": 2,
-        "without_integration": 75,
+        "without_integration": 44,
         "verified_complete": 0
       },
-      "baseline": {
-        "required": 2158,
-        "integrated": 384,
-        "full_scope_pending": 334,
-        "partial": 50,
-        "without_integration": 1774
-      },
-      "annex": {
-        "required": 67,
-        "integrated": 66,
-        "blocked": 1
-      },
-      "effective": {
-        "required": 2225,
-        "integrated": 450,
-        "without_integration": 1775,
+      "current_counts": {
+        "required": 325,
+        "integrated": 284,
+        "semantic_integrated": 161,
+        "validation_integrated": 121,
+        "documentation_integrated": 2,
+        "without_integration": 41,
         "verified_complete": 0
-      },
-      "causal_and_gate_repairs_not_extra_units": [
-        "minifier actual selected semantics.traits projection",
-        "genuine retained Logical class metadata accessor",
-        "smoke compile-time recursion_limit256 (Tcl runtime/test budgets unchanged)",
-        "unused Hash import/dead private wrapper/test-only method cleanup and actual fixture config-result validation"
-      ],
-      "validation": "Build01 FAIL E0609; Build02 FAIL E0599, product inputs stable. Both actual-owner projections repaired and source-reviewed. Build03 ordinary five libraries RUNNING one job/debug0. No new test execution or verified count.",
-      "evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-01 (compact25KB failure/source-review records)",
-      "retained_controls": "All1024 retained function body hashes exact after integration01. Build03 changes one existing diagnostic fixture setup await to expect(valid); assertions/fixtures/budgets unchanged, independent source review retained. New tests require exact source/artifact/provider binding.",
-      "outside_main": "Typed taint sink subject, dispatch census successor, saved+Studio pack notices, Native class/type source lifts, deeper refs/alias/ensemble/package633 owners are queued/unadmitted and uncounted.",
-      "deferred": "Runtime/VM and dedicated BIG-IP; Tcl8.4 assumption only where evidence lacks.",
-      "observed_utc": "2026-10-17T09:39:47.942740+00:00",
-      "observed_user_time": "2026-10-17T10:39:47.942740+01:00",
-      "user_timezone": "Europe/London",
-      "delivery": "Chat and repository only; external guide unchanged.",
-      "gains_since_last_report": {
-        "lsp_integrated": 21,
-        "additional_owner_facets": 3,
-        "effective_integrated": 24,
-        "verified": 0
-      },
-      "current_build": "Build03 ordinary five libraries running; prior E0609/E0599 failures retained, reviewed repairs included. No new test execution.",
-      "next_actions": [
-        "Finish actual source-owner consumers in parallel; keep all outside-Main candidates uncounted until reviewed integration.",
-        "Complete fresh ordinary builds, independently bind actual source/artifacts/providers and replay retained1024/focused6/extra controls with original assertions and180/30 guards.",
-        "Fix scoped validation and required owner/proof/generated/editor-host/rust-check/prep-pr gates; no PR until green."
-      ],
-      "report_cadence_minutes": 30,
-      "next_report_utc": "2026-10-17T10:09:47.942740+00:00"
+      }
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -1722,12 +1662,13 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "last_utc": "2026-10-17T09:39:47.942740+00:00",
-      "next_utc": "2026-10-17T10:09:47.942740+00:00",
+      "last_utc": "2026-10-17T11:44:24.975389+00:00",
+      "scheduled_utc": "2026-10-17T11:39:49Z",
+      "next_utc": "2026-10-17T12:09:49Z",
       "cadence_minutes": 30,
       "delivery": "Chat and repository only; external guide unchanged.",
-      "lsp_integrated_at_report": 250,
-      "effective_integrated": 450
+      "lsp_integrated_at_report": 281,
+      "effective_integrated": 485
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -3474,70 +3415,866 @@
       ]
     },
     "current_generic_lsp_integration": {
-      "status": "REVIEWED_SOURCE_INTEGRATED_TYPECHECK_PASS",
-      "source_base": "e73901bca",
-      "LSP": {
+      "utc": "2026-10-17T11:44:24.975389+00:00",
+      "source_head": "0597b94c5907470df67b0dd293bf35e2a89152c2 plus reviewed integrations09\u201312 working tree",
+      "original_LSP": {
         "required": 325,
-        "integrated": 259,
-        "semantic_integrated": 142,
-        "validation_integrated": 115,
+        "integrated": 284,
+        "semantic_integrated": 161,
+        "validation_integrated": 121,
         "documentation_integrated": 2,
-        "without_integration": 66,
+        "without_integration": 41,
         "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 393,
-        "full_scope_pending": 338,
-        "partial": 55,
-        "without_integration": 1765
+        "integrated": 418,
+        "full_scope_pending": 355,
+        "partial": 63,
+        "without_integration": 1740
       },
       "annex": {
         "required": 71,
         "integrated": 70,
-        "blocked": 1
+        "blocked": 1,
+        "verified_complete": 0
       },
       "effective": {
         "required": 2229,
-        "integrated": 463,
-        "without_integration": 1766,
+        "integrated": 488,
+        "without_integration": 1741,
         "verified_complete": 0
       },
-      "validation": "Current integration06 cargo check lib+alltests PASS444s15deadcodewarnings; strictclippy stopped5missingmustuse sharedtype annotations. Frozen priorCore capture completed all664519PASS145FAILincl1timeout,new35 29PASS6FAIL,focused6 2PASS4FAIL; complete43580input/providers/ELF postflightPASS. Five-librarybuild05FAIL threeAPIerrors; source repair integrated awaiting check/runtime. SDKbaselineKotlincompileFAIL existing listener API mismatch; exactSDKrepair queued.",
-      "deferred": "Runtime/VM and dedicatedBIGIP; original325 denominator includes deferredBIGIP obligations. Scope accounting pending, no deferred changes claimed."
+      "last_report": {
+        "path": "docs/work/name-handling/progress-report-20261017T1139Z.json",
+        "sha256": "b13ebea589b81cff4a2a37f3fdcb69a19f2edc5c8c13af0825f8d4024f053d1d",
+        "frozen_LSP_integrated": 281
+      },
+      "new_since_report": {
+        "integrated_LSP": 3,
+        "semantic": 3,
+        "validation": 0,
+        "admissions": {
+          "11": {
+            "path": "/workspace/naming-work/integration-11/composition.json",
+            "sha256": "09196f097c44706c35f3cea2391d808b5741be90950a9093561ae134df4dde49",
+            "composed_patch_sha256": "480e80ab0c79bb27a58508bedf83d83d4201e6f430f1c24bdf100b8a5bd340eb",
+            "new_baseline_unit_ids": [
+              "lsp-refactor-selected-case-descriptor-transport",
+              "lsp-sublime-token-vocabulary"
+            ],
+            "applied_patches": [
+              {
+                "path": "/workspace/naming-work/sol-call-source-composed-v1/change.patch",
+                "sha256": "0dc1fb037c605a0319b692a79d0fc7a004f171325e0437ae7a918c9917a038c5"
+              },
+              {
+                "path": "/workspace/naming-work/luna-refactor-case-current/change.patch",
+                "sha256": "148841e576637131c832dc3f6bff0dfa65a5ceeea157c733f0a485e31b0ff23f"
+              },
+              {
+                "path": "/workspace/naming-work/luna-sublime-token-vocabulary-v3/change.patch",
+                "sha256": "ec57bf99e20b3c6aeef78b763a65efb74f1696ef8a80bfb3714647759666cc32"
+              }
+            ]
+          },
+          "12": {
+            "path": "/workspace/naming-work/integration-12/composition.json",
+            "sha256": "8c73a275d9e86a3c4fe38f11ea44cf3f60af3fa243468ffa6a46fa9a80b038bb",
+            "composed_patch_sha256": "b7d7aae4d54d1e0e1f6d6f34b4427cde23fcef5e4d5b445ec8bf4c128385d5b4",
+            "new_baseline_unit_ids": [
+              "lsp-inline-variable-logical-edit-admission"
+            ],
+            "applied_patches": [
+              {
+                "path": "/workspace/naming-work/sol-inline-variable/v2/repair.patch",
+                "sha256": "6a8c3f58ecf4d838e90fc084ad28115d317d0a5cc81db9488cb14760157225a4"
+              }
+            ]
+          }
+        }
+      },
+      "admissions": {
+        "09": {
+          "path": "/workspace/naming-work/integration-09/composition.json",
+          "sha256": "67a982911974feae7371d206eb2f3e27824a302baa650721b630c37a57f105f6",
+          "composed_patch_sha256": "3f5edb61f9b1976d35348052085e66c4aca5a58c6d0a2881f9e011ab27483548",
+          "new_baseline_unit_ids": [
+            "lsp-inline-proc-literal-substitution-constructor",
+            "lsp.validation.03.05.fn0",
+            "lsp.validation.03.05.fn1",
+            "lsp.validation.03.05.fn2",
+            "lsp.validation.03.05.fn3",
+            "lsp.validation.02.00.fn0"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/integration-09/crossdoc-rebased.patch",
+              "sha256": "4ea3254a3aa5dcdaf342dc69b85f8dc96f04864cc5b89a53e92420323f5997df"
+            },
+            {
+              "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v2/candidate.patch",
+              "sha256": "1375cb7450c753da8bf0aaec0dd89dd1d7735dbd57a73c325afbce7f90efaff1"
+            },
+            {
+              "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v4/candidate.patch",
+              "sha256": "b665c1870441b8e3caa689ce3c02e217b50e144b8cd3bc7250d9076646a967ed"
+            },
+            {
+              "path": "/workspace/naming-work/sol-inline-literal/v1/repair.patch",
+              "sha256": "cefef825eb45ea402ca34f6441b1e84993879e48c537f4994f4c765aca51602d"
+            }
+          ]
+        },
+        "10": {
+          "path": "/workspace/naming-work/integration-10/composition.json",
+          "sha256": "e9d063e0b41daa02edebfa74888a0bae9c9dde74e3a743ff79af42f2175f7eb8",
+          "composed_patch_sha256": "cf288740da6c1f093dd6b6510590cb03f2013cad81943938f3fd5f25afa00fa2",
+          "new_baseline_unit_ids": [
+            "lsp-server-legacy-library-candidates",
+            "lsp-server-legacy-package-root-transport",
+            "lsp-server-logical-w123-report-name-refinement",
+            "lsp-editor-context-availability"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-libcheck09-repair-v1/repair.patch",
+              "sha256": "0c8882861265707a115078d0d4946062fdb397051f3cecf9577deb40c723e063"
+            },
+            {
+              "path": "/workspace/naming-work/sol-composition/legacy-server-v3-rebased/change.patch",
+              "sha256": "a483896f4067c4f01567c03ad40cad132dfb487141a0961637c05b188e235603"
+            },
+            {
+              "path": "/workspace/naming-work/sol-call-wire-purpose/v1/change.patch",
+              "sha256": "3ce2f74c362c882119307c153f507882a7237810d26a0d417b1efff4c1ff39df"
+            },
+            {
+              "path": "/workspace/naming-work/sol-chat-context/v4/change.patch",
+              "sha256": "458ca2d818e582fc8b220ff36159c501bdaa8527f51d37df20ea0f44a08a06cc"
+            }
+          ]
+        },
+        "11": {
+          "path": "/workspace/naming-work/integration-11/composition.json",
+          "sha256": "09196f097c44706c35f3cea2391d808b5741be90950a9093561ae134df4dde49",
+          "composed_patch_sha256": "480e80ab0c79bb27a58508bedf83d83d4201e6f430f1c24bdf100b8a5bd340eb",
+          "new_baseline_unit_ids": [
+            "lsp-refactor-selected-case-descriptor-transport",
+            "lsp-sublime-token-vocabulary"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-call-source-composed-v1/change.patch",
+              "sha256": "0dc1fb037c605a0319b692a79d0fc7a004f171325e0437ae7a918c9917a038c5"
+            },
+            {
+              "path": "/workspace/naming-work/luna-refactor-case-current/change.patch",
+              "sha256": "148841e576637131c832dc3f6bff0dfa65a5ceeea157c733f0a485e31b0ff23f"
+            },
+            {
+              "path": "/workspace/naming-work/luna-sublime-token-vocabulary-v3/change.patch",
+              "sha256": "ec57bf99e20b3c6aeef78b763a65efb74f1696ef8a80bfb3714647759666cc32"
+            }
+          ]
+        },
+        "12": {
+          "path": "/workspace/naming-work/integration-12/composition.json",
+          "sha256": "8c73a275d9e86a3c4fe38f11ea44cf3f60af3fa243468ffa6a46fa9a80b038bb",
+          "composed_patch_sha256": "b7d7aae4d54d1e0e1f6d6f34b4427cde23fcef5e4d5b445ec8bf4c128385d5b4",
+          "new_baseline_unit_ids": [
+            "lsp-inline-variable-logical-edit-admission"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-inline-variable/v2/repair.patch",
+              "sha256": "6a8c3f58ecf4d838e90fc084ad28115d317d0a5cc81db9488cb14760157225a4"
+            }
+          ]
+        }
+      },
+      "validation": {
+        "integration10_library_check": {
+          "status": "PASS",
+          "seconds": 97,
+          "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+          "stderr": {
+            "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+            "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+          },
+          "machine_stdout": {
+            "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+            "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+          }
+        },
+        "vscode_types10": {
+          "status": "PASS",
+          "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "jetbrains_current_tests": {
+          "status": "PASS",
+          "seconds": 24,
+          "tasks": 14,
+          "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+          "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+        },
+        "integration12_library_and_test_typecheck": {
+          "status": "FAIL",
+          "root_reported_errors": 1,
+          "cause": "PossibleBodyInvocation construction lacks the new selected-case field; narrow causal repair being prepared.",
+          "ordinary_acceptance": false
+        },
+        "latest_regression_ELF": "No fresh regression ELF since e739519/664. Historical retained Core664: 519 PASS and 145 failures including one timeout; new35: 29 PASS/6 FAIL; focused6: 2 PASS/4 FAIL. Original budgets and guards remain unchanged.",
+        "required_current_gates": "Fresh ordinary library/test artifacts and retained controls, full1024 plus new controls, extra18, Native34, original C providers, actual Node/browser hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted."
+      },
+      "remaining_LSP_unintegrated": [
+        {
+          "id": "lsp-server-xc-diagnostic-input",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-xc-document-context",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-ai-create-clean-report",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-tmsh-context-routing",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-iapps-variable-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-irules-variable-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-apl-static-name-presentation",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-tmsh-static-name-presentation",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-completion-event-clause-template",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-workspace-edit-command-wire",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-event-skeleton-construction",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-write-rule-back-currency",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-semantic-embedded-bigip-body-owner",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-datagroup-source-diagnostic-context",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-review-source-diagnostic-context",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-find-legacy-action-admission",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-event-new-scaffold",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-event-command-query-context",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-diagram-source-purpose",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-generated-editor-event-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-vscode-textmate-static-name-role-residue",
+          "classification": "generic_unintegrated",
+          "reason": "Generator source is reviewed; actual generation/output verification is still required before counting this purpose."
+        },
+        {
+          "id": "lsp-jetbrains-textmate-static-name-role-residue",
+          "classification": "generic_unintegrated",
+          "reason": "Generator source is reviewed; actual generation/output verification is still required before counting this purpose."
+        },
+        {
+          "id": "lsp-vscode-apl-static-name-projection",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-vscode-bigip-static-name-projection",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-bigip-basename-uri-consumer",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-datagroup-command-and-name-source-construction",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-browser-rule-scratch-source-and-byte-currency",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-browser-xc-document-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-rule-scratch-source-byte-and-lifetime",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-browser-bigip-cursor-byte-boundary",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-xc-document-full-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-irule-skeleton-source-inference",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ilx-navigation-sibling-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-ilx-per-document-source-and-candidate-ingress",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-hover-configured-valid-event-guidance",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-semantic-irules-original-input-overlay",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-code-actions-bigip-rename-command-routing",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-method-dispatch-entry-report-fallback",
+          "classification": "generic_unintegrated",
+          "reason": "Cross-document facet is preparatory only; full method-dispatch fallback remains unadopted."
+        },
+        {
+          "id": "lsp-server-irules-metadata-commands",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-bigip-linked-object-report",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp.validation.00.00.fn0",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        }
+      ],
+      "remaining_classification_counts": {
+        "deferred_bigip_related": 35,
+        "source_diagnostic_boundary_scope_review": 3,
+        "generic_unintegrated": 3
+      },
+      "scope": "Generic LSP and necessary shared owners. Runtime/VM and dedicated BIG-IP-related work deferred; uncovered BIG-IP Tcl8.4 remains a working assumption, not measured Native evidence. Original325 denominator retained.",
+      "next_report_utc": "2026-10-17T12:09:49Z",
+      "green_PR": false,
+      "merge_or_issue_closure": false
     },
     "current_snapshot": {
-      "status": "REVIEWED_SOURCE_INTEGRATED_TYPECHECK_PASS",
-      "source_base": "e73901bca",
-      "LSP": {
+      "utc": "2026-10-17T11:44:24.975389+00:00",
+      "source_head": "0597b94c5907470df67b0dd293bf35e2a89152c2 plus reviewed integrations09\u201312 working tree",
+      "original_LSP": {
         "required": 325,
-        "integrated": 259,
-        "semantic_integrated": 142,
-        "validation_integrated": 115,
+        "integrated": 284,
+        "semantic_integrated": 161,
+        "validation_integrated": 121,
         "documentation_integrated": 2,
-        "without_integration": 66,
+        "without_integration": 41,
         "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 393,
-        "full_scope_pending": 338,
-        "partial": 55,
-        "without_integration": 1765
+        "integrated": 418,
+        "full_scope_pending": 355,
+        "partial": 63,
+        "without_integration": 1740
       },
       "annex": {
         "required": 71,
         "integrated": 70,
-        "blocked": 1
+        "blocked": 1,
+        "verified_complete": 0
       },
       "effective": {
         "required": 2229,
-        "integrated": 463,
-        "without_integration": 1766,
+        "integrated": 488,
+        "without_integration": 1741,
         "verified_complete": 0
       },
-      "validation": "Current integration06 cargo check lib+alltests PASS444s15deadcodewarnings; strictclippy stopped5missingmustuse sharedtype annotations. Frozen priorCore capture completed all664519PASS145FAILincl1timeout,new35 29PASS6FAIL,focused6 2PASS4FAIL; complete43580input/providers/ELF postflightPASS. Five-librarybuild05FAIL threeAPIerrors; source repair integrated awaiting check/runtime. SDKbaselineKotlincompileFAIL existing listener API mismatch; exactSDKrepair queued.",
-      "deferred": "Runtime/VM and dedicatedBIGIP; original325 denominator includes deferredBIGIP obligations. Scope accounting pending, no deferred changes claimed."
+      "last_report": {
+        "path": "docs/work/name-handling/progress-report-20261017T1139Z.json",
+        "sha256": "b13ebea589b81cff4a2a37f3fdcb69a19f2edc5c8c13af0825f8d4024f053d1d",
+        "frozen_LSP_integrated": 281
+      },
+      "new_since_report": {
+        "integrated_LSP": 3,
+        "semantic": 3,
+        "validation": 0,
+        "admissions": {
+          "11": {
+            "path": "/workspace/naming-work/integration-11/composition.json",
+            "sha256": "09196f097c44706c35f3cea2391d808b5741be90950a9093561ae134df4dde49",
+            "composed_patch_sha256": "480e80ab0c79bb27a58508bedf83d83d4201e6f430f1c24bdf100b8a5bd340eb",
+            "new_baseline_unit_ids": [
+              "lsp-refactor-selected-case-descriptor-transport",
+              "lsp-sublime-token-vocabulary"
+            ],
+            "applied_patches": [
+              {
+                "path": "/workspace/naming-work/sol-call-source-composed-v1/change.patch",
+                "sha256": "0dc1fb037c605a0319b692a79d0fc7a004f171325e0437ae7a918c9917a038c5"
+              },
+              {
+                "path": "/workspace/naming-work/luna-refactor-case-current/change.patch",
+                "sha256": "148841e576637131c832dc3f6bff0dfa65a5ceeea157c733f0a485e31b0ff23f"
+              },
+              {
+                "path": "/workspace/naming-work/luna-sublime-token-vocabulary-v3/change.patch",
+                "sha256": "ec57bf99e20b3c6aeef78b763a65efb74f1696ef8a80bfb3714647759666cc32"
+              }
+            ]
+          },
+          "12": {
+            "path": "/workspace/naming-work/integration-12/composition.json",
+            "sha256": "8c73a275d9e86a3c4fe38f11ea44cf3f60af3fa243468ffa6a46fa9a80b038bb",
+            "composed_patch_sha256": "b7d7aae4d54d1e0e1f6d6f34b4427cde23fcef5e4d5b445ec8bf4c128385d5b4",
+            "new_baseline_unit_ids": [
+              "lsp-inline-variable-logical-edit-admission"
+            ],
+            "applied_patches": [
+              {
+                "path": "/workspace/naming-work/sol-inline-variable/v2/repair.patch",
+                "sha256": "6a8c3f58ecf4d838e90fc084ad28115d317d0a5cc81db9488cb14760157225a4"
+              }
+            ]
+          }
+        }
+      },
+      "admissions": {
+        "09": {
+          "path": "/workspace/naming-work/integration-09/composition.json",
+          "sha256": "67a982911974feae7371d206eb2f3e27824a302baa650721b630c37a57f105f6",
+          "composed_patch_sha256": "3f5edb61f9b1976d35348052085e66c4aca5a58c6d0a2881f9e011ab27483548",
+          "new_baseline_unit_ids": [
+            "lsp-inline-proc-literal-substitution-constructor",
+            "lsp.validation.03.05.fn0",
+            "lsp.validation.03.05.fn1",
+            "lsp.validation.03.05.fn2",
+            "lsp.validation.03.05.fn3",
+            "lsp.validation.02.00.fn0"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/integration-09/crossdoc-rebased.patch",
+              "sha256": "4ea3254a3aa5dcdaf342dc69b85f8dc96f04864cc5b89a53e92420323f5997df"
+            },
+            {
+              "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v2/candidate.patch",
+              "sha256": "1375cb7450c753da8bf0aaec0dd89dd1d7735dbd57a73c325afbce7f90efaff1"
+            },
+            {
+              "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v4/candidate.patch",
+              "sha256": "b665c1870441b8e3caa689ce3c02e217b50e144b8cd3bc7250d9076646a967ed"
+            },
+            {
+              "path": "/workspace/naming-work/sol-inline-literal/v1/repair.patch",
+              "sha256": "cefef825eb45ea402ca34f6441b1e84993879e48c537f4994f4c765aca51602d"
+            }
+          ]
+        },
+        "10": {
+          "path": "/workspace/naming-work/integration-10/composition.json",
+          "sha256": "e9d063e0b41daa02edebfa74888a0bae9c9dde74e3a743ff79af42f2175f7eb8",
+          "composed_patch_sha256": "cf288740da6c1f093dd6b6510590cb03f2013cad81943938f3fd5f25afa00fa2",
+          "new_baseline_unit_ids": [
+            "lsp-server-legacy-library-candidates",
+            "lsp-server-legacy-package-root-transport",
+            "lsp-server-logical-w123-report-name-refinement",
+            "lsp-editor-context-availability"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-libcheck09-repair-v1/repair.patch",
+              "sha256": "0c8882861265707a115078d0d4946062fdb397051f3cecf9577deb40c723e063"
+            },
+            {
+              "path": "/workspace/naming-work/sol-composition/legacy-server-v3-rebased/change.patch",
+              "sha256": "a483896f4067c4f01567c03ad40cad132dfb487141a0961637c05b188e235603"
+            },
+            {
+              "path": "/workspace/naming-work/sol-call-wire-purpose/v1/change.patch",
+              "sha256": "3ce2f74c362c882119307c153f507882a7237810d26a0d417b1efff4c1ff39df"
+            },
+            {
+              "path": "/workspace/naming-work/sol-chat-context/v4/change.patch",
+              "sha256": "458ca2d818e582fc8b220ff36159c501bdaa8527f51d37df20ea0f44a08a06cc"
+            }
+          ]
+        },
+        "11": {
+          "path": "/workspace/naming-work/integration-11/composition.json",
+          "sha256": "09196f097c44706c35f3cea2391d808b5741be90950a9093561ae134df4dde49",
+          "composed_patch_sha256": "480e80ab0c79bb27a58508bedf83d83d4201e6f430f1c24bdf100b8a5bd340eb",
+          "new_baseline_unit_ids": [
+            "lsp-refactor-selected-case-descriptor-transport",
+            "lsp-sublime-token-vocabulary"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-call-source-composed-v1/change.patch",
+              "sha256": "0dc1fb037c605a0319b692a79d0fc7a004f171325e0437ae7a918c9917a038c5"
+            },
+            {
+              "path": "/workspace/naming-work/luna-refactor-case-current/change.patch",
+              "sha256": "148841e576637131c832dc3f6bff0dfa65a5ceeea157c733f0a485e31b0ff23f"
+            },
+            {
+              "path": "/workspace/naming-work/luna-sublime-token-vocabulary-v3/change.patch",
+              "sha256": "ec57bf99e20b3c6aeef78b763a65efb74f1696ef8a80bfb3714647759666cc32"
+            }
+          ]
+        },
+        "12": {
+          "path": "/workspace/naming-work/integration-12/composition.json",
+          "sha256": "8c73a275d9e86a3c4fe38f11ea44cf3f60af3fa243468ffa6a46fa9a80b038bb",
+          "composed_patch_sha256": "b7d7aae4d54d1e0e1f6d6f34b4427cde23fcef5e4d5b445ec8bf4c128385d5b4",
+          "new_baseline_unit_ids": [
+            "lsp-inline-variable-logical-edit-admission"
+          ],
+          "applied_patches": [
+            {
+              "path": "/workspace/naming-work/sol-inline-variable/v2/repair.patch",
+              "sha256": "6a8c3f58ecf4d838e90fc084ad28115d317d0a5cc81db9488cb14760157225a4"
+            }
+          ]
+        }
+      },
+      "validation": {
+        "integration10_library_check": {
+          "status": "PASS",
+          "seconds": 97,
+          "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+          "stderr": {
+            "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+            "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+          },
+          "machine_stdout": {
+            "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+            "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+          }
+        },
+        "vscode_types10": {
+          "status": "PASS",
+          "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "jetbrains_current_tests": {
+          "status": "PASS",
+          "seconds": 24,
+          "tasks": 14,
+          "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+          "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+        },
+        "integration12_library_and_test_typecheck": {
+          "status": "FAIL",
+          "root_reported_errors": 1,
+          "cause": "PossibleBodyInvocation construction lacks the new selected-case field; narrow causal repair being prepared.",
+          "ordinary_acceptance": false
+        },
+        "latest_regression_ELF": "No fresh regression ELF since e739519/664. Historical retained Core664: 519 PASS and 145 failures including one timeout; new35: 29 PASS/6 FAIL; focused6: 2 PASS/4 FAIL. Original budgets and guards remain unchanged.",
+        "required_current_gates": "Fresh ordinary library/test artifacts and retained controls, full1024 plus new controls, extra18, Native34, original C providers, actual Node/browser hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted."
+      },
+      "remaining_LSP_unintegrated": [
+        {
+          "id": "lsp-server-xc-diagnostic-input",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-xc-document-context",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-ai-create-clean-report",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-tmsh-context-routing",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-iapps-variable-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-irules-variable-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-apl-static-name-presentation",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-zed-tmsh-static-name-presentation",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-completion-event-clause-template",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-workspace-edit-command-wire",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-editor-event-skeleton-construction",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-write-rule-back-currency",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-semantic-embedded-bigip-body-owner",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-datagroup-source-diagnostic-context",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-review-source-diagnostic-context",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-find-legacy-action-admission",
+          "classification": "source_diagnostic_boundary_scope_review",
+          "reason": "Generic source/diagnostic boundary is distinct from dedicated product semantics; preserve this row until scope is explicitly resolved."
+        },
+        {
+          "id": "lsp-ai-event-new-scaffold",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-event-command-query-context",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ai-diagram-source-purpose",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-generated-editor-event-catalogue",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-vscode-textmate-static-name-role-residue",
+          "classification": "generic_unintegrated",
+          "reason": "Generator source is reviewed; actual generation/output verification is still required before counting this purpose."
+        },
+        {
+          "id": "lsp-jetbrains-textmate-static-name-role-residue",
+          "classification": "generic_unintegrated",
+          "reason": "Generator source is reviewed; actual generation/output verification is still required before counting this purpose."
+        },
+        {
+          "id": "lsp-vscode-apl-static-name-projection",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-vscode-bigip-static-name-projection",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-bigip-basename-uri-consumer",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-datagroup-command-and-name-source-construction",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-browser-rule-scratch-source-and-byte-currency",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-browser-xc-document-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-rule-scratch-source-byte-and-lifetime",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-browser-bigip-cursor-byte-boundary",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-xc-document-full-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-node-irule-skeleton-source-inference",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-ilx-navigation-sibling-input-transport",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-ilx-per-document-source-and-candidate-ingress",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-hover-configured-valid-event-guidance",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-semantic-irules-original-input-overlay",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-code-actions-bigip-rename-command-routing",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-method-dispatch-entry-report-fallback",
+          "classification": "generic_unintegrated",
+          "reason": "Cross-document facet is preparatory only; full method-dispatch fallback remains unadopted."
+        },
+        {
+          "id": "lsp-server-irules-metadata-commands",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp-server-bigip-linked-object-report",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        },
+        {
+          "id": "lsp.validation.00.00.fn0",
+          "classification": "deferred_bigip_related",
+          "reason": "Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh or associated editor/provider work is deferred under the user scope exclusion."
+        }
+      ],
+      "remaining_classification_counts": {
+        "deferred_bigip_related": 35,
+        "source_diagnostic_boundary_scope_review": 3,
+        "generic_unintegrated": 3
+      },
+      "scope": "Generic LSP and necessary shared owners. Runtime/VM and dedicated BIG-IP-related work deferred; uncovered BIG-IP Tcl8.4 remains a working assumption, not measured Native evidence. Original325 denominator retained.",
+      "next_report_utc": "2026-10-17T12:09:49Z",
+      "green_PR": false,
+      "merge_or_issue_closure": false
     }
   }
 }

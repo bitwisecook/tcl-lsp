@@ -375,6 +375,13 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // Registry source operand geometry is built-in metadata for the static Tk
+    // lifecycle consumer; SpecTcl packs cannot declare or prove this layout.
+    Gap {
+        key: "teardown_argument_layout",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // `substitution_resolver` and `pattern_arg_resolver` left this bucket with
     // the option-effect descriptor: `subst`'s switch families and `lsearch`'s
     // match styles are option rows declaring their effects, the first field is

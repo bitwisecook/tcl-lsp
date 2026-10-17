@@ -2543,3 +2543,71 @@ Existing source-action eligibility and evaluation guards remain independent.
 ### Package standalone source-survey consumer
 
 `naming.package.standalone-original-source-survey` transports genuine original Logical control/query/registration owners through the existing package reachability Walker. The declared standalone survey's target is hypothetical; selected source advertisements, guard relation, argv completion, actual Native provision and complete census stay independent. Entered body provenance and syntax-only catalogue lineage are distinct. Unknown source phases retain incomplete coverage; callback coordinate correspondence never donates source identity. See [package-target-source-survey](../analysis/name-resolution-proofs/package-target-source-survey.md). Runtime compatibility and full purpose admission require separate actual checks; this source candidate supplies no completion/count claim.
+
+### Static TextMate variable display
+
+The existing naming owner supplies both the unbraced identifier fragment and
+the braced-variable reference fragment to the actual TextMate generator. The
+braced fragment retains the historical first-literal-closer projection and
+includes empty names. It is exact for FirstClose source grammar; Tcl 9 nested
+names and escaped closers remain a display approximation. VS Code and
+JetBrains receive the same generated fragment. Static colouring supplies no
+selected input, variable lookup, cell, command handler or edit permission.
+
+The Tcl spec pack also owns the ordered static definition/member/class/regex
+display recipe. Registry source-navigation reborrows every row through actual
+parameter/name/body roles, definition-member callable slots and class-reference
+kinds, or declared Regex pattern language and option descriptors. Missing role
+prerequisites refuse the complete recipe. Historical regex option order remains
+an authored presentation policy; additional real option rows append, while the
+separate option terminator keeps its own scope. Syntax formal-parameter and
+name owners supply the shallow display fragments. The actual TextMate generator
+uses these owners for both editor targets while preserving their existing
+repository layouts and capture scopes. VS Code retains its richer parameter and
+class display; JetBrains retains its existing callable-name-only definitions.
+Nested formal/default list shapes, current profile selection and member context
+remain outside this static approximation and require semantic tokens.
+
+
+### Orphan refresh: diagnostic query dependencies
+
+An orphan buffer contributes no workspace declarations but still consumes analysis inputs. A command-signature refresh may omit it only with a current dependency receipt from the actual configured diagnostic producers. The initial bounded receipt distinguishes NoRead from Broad: NoRead means those diagnostic producers made no workspace command-header query, never that unknown source arguments contain no executable script or that runtime command dependencies are absent. Logical settlement, project callbacks and whole-command rosters remain Broad until a genuine finite source-slot query result is retained. Source/package changes always wake every orphan. Raw source mentions may add positive wakes, never prove a negative dependency.
+
+The receipt retains the actual source/input/Registry and URI/revision/version, and joins the existing analyser-input gate/epoch, scheduler generation and class-factory owner at the final no-await decision. Missing, stale, broad or busy owners wake conservatively. Public report names, raw source substrings and an unconfigured constructor cannot issue or retag this receipt. A separate explicit default producer setup in a fixture is not a live resource-configuration receipt. No Native lookup, provider, body completeness, source-load, availability or editable identity follows.
+
+
+### Inline-procedure literal source containers
+
+Inlining literal formal values uses the shared configured source-word component owner at each actual original scalar reference, not a punctuation or Unicode-whitespace blacklist. The intended inert source value and complete receiver word must agree under its retained full configuration, while every other literal/substitution component remains unchanged. Expansion, array-index children, foreign channels and inert source text supply no scalar replacement.
+
+An actual selected Expr argument requires the retained complete expression owner in addition to word geometry. Numeric replacement preserves the original expression token topology, including quoted live scalar operands and atomic parentheses for signed multi-token numerals; adjacent token fusion and unsupported grammar decline. Quoted Tcl arguments whose expression input is transformed before parsing remain unsupported. Native value-to-source protocol and all independent binding, effect, frame and relocation guards remain authoritative. Lexical correspondence alone grants no value observation, evaluation erasure or edit permission. Historical local plain-word probes are test-only and cannot issue production construction authority.
+
+
+### Logical inline-variable conditional source-authoring intent
+
+`LogicalVariableInliningRecipe` is an independent source-authoring recipe, in
+the same explicit conditional purpose as `LogicalVariableExtractionRecipe`.
+It retains the exact current Document image, full resolved input and Registry,
+selected original Set/Written argv, original RHS and complete receiver word,
+and the actual same source definition/single read in its source scope. The
+original report span and genuine replacement component remain distinct; only
+the actual component supplies replacement geometry.
+
+The bounded recipe refuses intervening source statements, earlier dynamic
+receiver operands, incomplete command inventories, unknown selected schemas,
+and authored reflection/trace/scope-alias/dynamic-evaluation operations. The
+actual proposed receiver call is parsed under the retained full configuration
+and explicit NestedScript purpose, requiring one complete invocation, unchanged
+argv cardinality and unchanged other words; the full postimage is also checked.
+Nested receiver paths without an admitted ancestry correspondence remain
+unavailable in this source-authoring route. Native inline admission is unchanged.
+
+The recipe retains concrete unresolved observer-horizon, moved-RHS, erased-store
+and target-read obligations. Its conditional source-action sink does not resolve
+those runtime obligations, claim completed value/store, prove executable erasure
+or movement equivalence, or issue a Native Normal/frame/cell permission. The
+user-invoked Logical authored proposal is explicitly conditional, rather than an
+optimisation-equivalence assertion. Current source/input/selected-word and
+definition/read correspondence are rechecked when emitting it. Original fixtures,
+assertions, selectors and budgets are preserved; added fixed controls are not
+executed by source review.

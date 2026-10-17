@@ -114,10 +114,10 @@ pub(crate) use source_scoped_body::OriginalSourceDefinitionMemberBodyCorresponde
 /// Sealed readonly original argv and Registry source-role structure.
 pub mod source_structure;
 pub use source_scoped_body::{
-    OriginalDeclaredSourceScriptBody, OriginalSourceDefinitionMemberDisposition,
-    OriginalSourceDefinitionMemberReference, OriginalSourceDefinitionMemberRegion,
-    OriginalSourceDefinitionMemberScriptBody, OriginalSourceScopedBody, OriginalSourceScriptBody,
-    OriginalSourceScriptPurpose,
+    OriginalDeclaredSourceScriptBody, OriginalLogicalScopedEnvironment,
+    OriginalSourceDefinitionMemberDisposition, OriginalSourceDefinitionMemberReference,
+    OriginalSourceDefinitionMemberRegion, OriginalSourceDefinitionMemberScriptBody,
+    OriginalSourceScopedBody, OriginalSourceScriptBody, OriginalSourceScriptPurpose,
 };
 pub(crate) use source_scoped_body::{
     OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,
@@ -283,6 +283,17 @@ pub(crate) fn with_source_argument_words<T>(
     ))
 }
 
+/// Case-clause layout selected from one actual registry invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthoredSourceCaseBodySelection {
+    /// The actual selected command descriptor has no case-list grammar.
+    NotCase,
+    /// A case-list descriptor was selected, but its authored layout is unknown.
+    Unavailable,
+    /// Layout projected by the actual selected descriptor and original argv.
+    Selected(tcl_registry::case_bodies::CaseBodyOperands),
+}
+
 /// Registry facts and arguments selected from one retained source-state proof.
 /// Consumers use this projection together so role indices cannot drift from
 /// alias composition or the original evaluation sequence.
@@ -303,6 +314,8 @@ pub struct ResolvedStatementInvocation {
     pub evaluated_arguments: Vec<Option<String>>,
     /// Frozen argv shape, including bounded array roots with unknown indices.
     pub evaluated_words: Vec<EffectiveInvocationWord>,
+    /// Case-list layout retained by the same actual registry selection.
+    pub authored_case_body_selection: Option<AuthoredSourceCaseBodySelection>,
 }
 
 /// Structured semantics of one exact source invocation for analysis.
@@ -1034,16 +1047,16 @@ fn resolve_original_source_layout(
             .iter()
             .map(EffectiveInvocationWord::as_registry_word)
             .collect();
-        let RegistryInvocationResolution::Resolved(facts) =
-            resolve_registry_words_in_realm_with_metadata_context(
+        let (resolution, authored_case_body_selection) =
+            resolve_registry_words_in_realm_with_metadata_context_and_case(
                 registry,
                 context,
                 &words,
                 Some(dialect),
                 advice.realm(),
             )
-            .ok()?
-        else {
+            .ok()?;
+        let RegistryInvocationResolution::Resolved(facts) = resolution else {
             return None;
         };
         let evaluated_words = values.get(1..)?.to_vec();
@@ -1060,6 +1073,7 @@ fn resolve_original_source_layout(
                 .collect(),
             evaluated_words,
             effective,
+            authored_case_body_selection: Some(authored_case_body_selection),
         };
         if unanimous
             .as_ref()
@@ -1148,9 +1162,9 @@ pub fn resolved_tokens_invocation_with_metadata_context(
     if tokens.synthetic.is_some() {
         return None;
     }
-    let RegistryInvocationResolution::Resolved(facts) =
-        resolve_command_tokens_with_metadata_context(registry, context, tokens).ok()?
-    else {
+    let (resolution, authored_case_body_selection) =
+        resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens).ok()?;
+    let RegistryInvocationResolution::Resolved(facts) = resolution else {
         return None;
     };
     let effective = effective_command_words(tokens)?;
@@ -1176,6 +1190,7 @@ pub fn resolved_tokens_invocation_with_metadata_context(
         evaluated_arguments: frozen_argument_values(tokens, &effective),
         evaluated_words: frozen_argument_words(tokens, &effective),
         effective,
+        authored_case_body_selection: Some(authored_case_body_selection),
     })
 }
 
@@ -1381,6 +1396,7 @@ pub fn admitted_native_compiler_invocation(
             evaluated_words: frozen_argument_words(tokens, &effective),
             effective,
             facts,
+            authored_case_body_selection: None,
         },
         hooks,
         target,
@@ -3915,12 +3931,12 @@ pub(crate) fn resolved_handler_invocation_with_metadata_context(
             .profile()
             .map(tcl_registry::InvocationDialect::of_profile)
     });
-    let RegistryInvocationResolution::Resolved(facts) =
-        resolve_effective_tokens_with_metadata_context(
+    let (resolution, authored_case_body_selection) =
+        resolve_effective_tokens_with_metadata_context_and_case(
             registry, context, tokens, &effective, dialect,
         )
-        .ok()?
-    else {
+        .ok()?;
+    let RegistryInvocationResolution::Resolved(facts) = resolution else {
         return None;
     };
     let invocation = ResolvedStatementInvocation {
@@ -3930,6 +3946,7 @@ pub(crate) fn resolved_handler_invocation_with_metadata_context(
         evaluated_words: frozen_argument_words(tokens, &effective),
         effective,
         facts,
+        authored_case_body_selection: Some(authored_case_body_selection),
     };
     match invocation
         .facts
@@ -6841,6 +6858,7 @@ fn prepared_body_invocation<'a>(
         evaluated_arguments: frozen_argument_values(tokens, &effective),
         evaluated_words: frozen_argument_words(tokens, &effective),
         effective,
+        authored_case_body_selection: None,
     })
 }
 
@@ -7281,6 +7299,7 @@ pub(crate) fn logical_parameter_body_assistance(
             .collect(),
         evaluated_words,
         effective,
+        authored_case_body_selection: None,
     };
     let mut view = unpositioned_body_assistance(
         surface,
@@ -7908,6 +7927,25 @@ pub(crate) fn resolve_registry_words_in_realm_with_metadata_context(
     dialect: Option<tcl_registry::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_registry_words_in_realm_with_metadata_context_and_case(
+        registry, context, facts, dialect, realm,
+    )
+    .map(|(resolution, _)| resolution)
+}
+
+fn resolve_registry_words_in_realm_with_metadata_context_and_case(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    facts: &[InvocationWord<'_>],
+    dialect: Option<tcl_registry::InvocationDialect>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Result<
+    (
+        RegistryInvocationResolution,
+        AuthoredSourceCaseBodySelection,
+    ),
+    RegistryInvocationDecline,
+> {
     if context.is_some_and(|context| !context.matches_registry(registry)) {
         return Err(RegistryInvocationDecline::IncompleteResolution);
     }
@@ -7926,20 +7964,39 @@ pub(crate) fn resolve_registry_words_in_realm_with_metadata_context(
             realm,
         );
     if let Some(resolved) = resolution.resolved() {
-        return Ok(RegistryInvocationResolution::Resolved(Box::new(
-            resolved.facts(),
-        )));
+        let case_selection = if resolved.semantics.options.case_list.is_none() {
+            AuthoredSourceCaseBodySelection::NotCase
+        } else {
+            dialect
+                .and_then(|dialect| {
+                    resolved.authored_source_case_clause_projection(dialect.word_values)
+                })
+                .map_or(
+                    AuthoredSourceCaseBodySelection::Unavailable,
+                    AuthoredSourceCaseBodySelection::Selected,
+                )
+        };
+        return Ok((
+            RegistryInvocationResolution::Resolved(Box::new(resolved.facts())),
+            case_selection,
+        ));
     }
     if context.is_none_or(|context| !context.is_actual())
         && let Some(facts) = registry.native_registration_invocation_facts(invocation)
     {
-        return Ok(RegistryInvocationResolution::Resolved(Box::new(facts)));
+        return Ok((
+            RegistryInvocationResolution::Resolved(Box::new(facts)),
+            AuthoredSourceCaseBodySelection::Unavailable,
+        ));
     }
     let Some(unresolved) = resolution.unresolved() else {
         return Err(RegistryInvocationDecline::IncompleteResolution);
     };
-    Ok(RegistryInvocationResolution::Unresolved(
-        OwnedInvocationResolutionUnresolved::from_registry(unresolved),
+    Ok((
+        RegistryInvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::from_registry(unresolved),
+        ),
+        AuthoredSourceCaseBodySelection::Unavailable,
     ))
 }
 
@@ -7966,6 +8023,21 @@ pub(crate) fn resolve_command_tokens_with_metadata_context(
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens)
+        .map(|(resolution, _)| resolution)
+}
+
+fn resolve_command_tokens_with_metadata_context_and_case(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Result<
+    (
+        RegistryInvocationResolution,
+        AuthoredSourceCaseBodySelection,
+    ),
+    RegistryInvocationDecline,
+> {
     let Some(binding) = &tokens.source_binding else {
         let dialect = context
             .and_then(|context| context.context().environment.point())
@@ -7992,25 +8064,28 @@ pub(crate) fn resolve_command_tokens_with_metadata_context(
             }
             crate::command_binding::object_callbacks::refine_facts(facts, arguments, None);
         }
-        return Ok(resolution);
+        return Ok((resolution, AuthoredSourceCaseBodySelection::Unavailable));
     };
     let Some(target) = binding
         .proved_execution_target()
         .filter(|target| target.registry_backed)
     else {
-        return Ok(RegistryInvocationResolution::Unresolved(
-            OwnedInvocationResolutionUnresolved::UnprovedBinding {
-                spelling: tokens.argv_texts.first().cloned().unwrap_or_default(),
-                may_be_absent: binding.may_be_absent,
-                unknown: binding.unknown,
-            },
+        return Ok((
+            RegistryInvocationResolution::Unresolved(
+                OwnedInvocationResolutionUnresolved::UnprovedBinding {
+                    spelling: tokens.argv_texts.first().cloned().unwrap_or_default(),
+                    may_be_absent: binding.may_be_absent,
+                    unknown: binding.unknown,
+                },
+            ),
+            AuthoredSourceCaseBodySelection::Unavailable,
         ));
     };
     // Selection above also establishes why an effective projection exists.
     let _ = target;
     let effective =
         effective_command_words(tokens).ok_or(RegistryInvocationDecline::IncompleteResolution)?;
-    resolve_effective_tokens_with_metadata_context(
+    resolve_effective_tokens_with_metadata_context_and_case(
         registry,
         context,
         tokens,
@@ -8030,6 +8105,25 @@ fn resolve_effective_tokens_with_metadata_context(
     effective: &EffectiveCommandWords,
     dialect: Option<tcl_registry::InvocationDialect>,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
+    resolve_effective_tokens_with_metadata_context_and_case(
+        registry, context, tokens, effective, dialect,
+    )
+    .map(|(resolution, _)| resolution)
+}
+
+fn resolve_effective_tokens_with_metadata_context_and_case(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+    effective: &EffectiveCommandWords,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Result<
+    (
+        RegistryInvocationResolution,
+        AuthoredSourceCaseBodySelection,
+    ),
+    RegistryInvocationDecline,
+> {
     let frozen = frozen_argument_words(tokens, effective);
     let values: Vec<_> = effective
         .words
@@ -8071,9 +8165,10 @@ fn resolve_effective_tokens_with_metadata_context(
         .as_ref()
         .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
         .unwrap_or_default();
-    let resolution = resolve_registry_words_in_realm_with_metadata_context(
-        registry, context, &facts, dialect, realm,
-    )?;
+    let (resolution, case_selection) =
+        resolve_registry_words_in_realm_with_metadata_context_and_case(
+            registry, context, &facts, dialect, realm,
+        )?;
     let mut resolution = require_native_implementation_lookup(tokens, resolution, dialect);
     if let RegistryInvocationResolution::Resolved(resolved) = &mut resolution {
         let mut arguments = tcl_registry::InvocationArguments::structured(&facts[1..]);
@@ -8086,7 +8181,12 @@ fn resolve_effective_tokens_with_metadata_context(
             tokens.source_binding.as_ref(),
         );
     }
-    Ok(resolution)
+    let case_selection = if matches!(resolution, RegistryInvocationResolution::Resolved(_)) {
+        case_selection
+    } else {
+        AuthoredSourceCaseBodySelection::Unavailable
+    };
+    Ok((resolution, case_selection))
 }
 
 /// Private ensemble implementation proof belongs to the semantic adapter,
@@ -8255,6 +8355,7 @@ pub(crate) fn possible_body_invocation_with_metadata_context(
         evaluated_words: frozen_argument_words(tokens, &effective),
         effective,
         facts,
+        authored_case_body_selection: None,
     };
     let topology = invocation.with_argument_words(|words| {
         invocation

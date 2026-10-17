@@ -213,7 +213,46 @@ impl ExplorerResult {
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     let registry_held = registry_for_dialect(dialect);
-    let registry = &*registry_held;
+    let profile = environment::profile_for_dialect(dialect);
+    run_pipeline_with_inputs(
+        source,
+        dialect,
+        &registry_held,
+        profile,
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        None,
+    )
+}
+
+/// Run the explorer using the exact immutable source-analysis inputs selected
+/// for an open editor document. The caller supplies the retained document
+/// input, so this path does not resolve a registry again from its display
+/// dialect label.
+#[must_use]
+pub fn run_pipeline_with_analysis_input(
+    source: &str,
+    dialect: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> ExplorerResult {
+    let context = input.context_registry();
+    run_pipeline_with_inputs(
+        source,
+        dialect,
+        context.commands(),
+        input.unit_profile(),
+        input.lexer_config(),
+        Some(input),
+    )
+}
+
+fn run_pipeline_with_inputs(
+    source: &str,
+    dialect: &str,
+    registry: &tcl_registry::CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    lexer_config: tcl_lexer::LexerConfig,
+    source_input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> ExplorerResult {
     // Build for the requested dialect so every dialect-sensitive layer is
     // honoured: Tcl 8.4 / iRules disable `{*}` expansion, iRules enable the
     // `}{` brace-separator, and the iRules word operators (`contains`, …) are
@@ -222,7 +261,6 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // Memory-SSA is built so the `dataflow` view can surface alias sets
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
-    let profile = environment::profile_for_dialect(dialect);
     // The document's own `# tcl-lsp: stub` declarations, so the views show the
     // IR the diagnostics path actually built: a stub-declared `script:body`
     // word lowers to a barrier carrying a script, a `var` word to a def. The
@@ -230,17 +268,18 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // surface is out of reach here.
     let declared =
         tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
-    let unit = CompilationUnit::build_with_options(
-        source,
-        tcl_compiler::compilation_unit::UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
-            dialect: Some(profile),
-            external_call_sites: None,
-            declared_commands: Some(&declared),
-        },
-    )
+    let options = tcl_compiler::compilation_unit::UnitBuildOptions {
+        registry,
+        defer_top_level: false,
+        config: lexer_config,
+        dialect: Some(profile),
+        external_call_sites: None,
+        declared_commands: Some(&declared),
+    };
+    let unit = match source_input {
+        Some(input) => CompilationUnit::build_with_analysis_input(source, options, None, input),
+        None => CompilationUnit::build_with_options(source, options),
+    }
     .with_interprocedural(registry, Some(profile))
     .with_retained_memory_ssa(registry)
     // The ordinary compiler path builds world SSA only when interactive
@@ -259,6 +298,37 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supplied_analysis_input_controls_the_document_pipeline() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let result = run_pipeline_with_analysis_input("set value 1", "tcl8.6", &input);
+
+        assert_eq!(result.dialect, "tcl8.6");
+        assert_eq!(result.unit.ir_module.dialect_profile, Some(profile));
+        assert_eq!(result.unit.ir_module.lexer_config, input.lexer_config());
+        assert_eq!(
+            result.unit.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        assert_eq!(
+            result
+                .unit
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .as_ref(),
+            Some(&input)
+        );
+        assert!(result.unit.ir_module.source_entry.native_entry.is_none());
+    }
 
     #[test]
     fn original_document_pipeline_keeps_root_and_later_bom_roles() {

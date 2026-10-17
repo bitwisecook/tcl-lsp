@@ -7209,8 +7209,8 @@ mod tests {
     /// A tcllib-shaped fixture read from the real files rather than a
     /// hand-written imitation.
     ///
-    /// Gated on corpus presence with a loud skip, matching
-    /// `rust/tcl-lsp-db/tests/compiler_check_corpus.rs`.
+    /// The original fixed upstream bytes are required; missing or changed
+    /// corpus setup cannot count as observed callback semantics.
     #[test]
     fn the_real_tcllib_callback_shapes_resolve_to_their_methods() {
         let corpus = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
@@ -7228,14 +7228,14 @@ mod tests {
         // asserted here.
         let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
         {
-            let path = corpus.join(relative);
-            let Ok(src) = std::fs::read_to_string(&path) else {
-                eprintln!(
-                    "skip: {} not present (fetch tcllib 2.0 under tmp/, or set TCLLIB_2_0_DIR)",
-                    path.display()
-                );
-                return;
-            };
+            let original = tcl_test_support::fixed_corpus::FixedCorpusSource::read(
+                &corpus,
+                &tcl_test_support::fixed_corpus::TCLLIB_2_0_CHANNEL_CAT,
+            )
+            .expect("fixed Tcllib 2.0 source setup must be available and unchanged");
+            assert_eq!(original.fixture().relative_path, relative);
+            let src = String::from_utf8(original.bytes().to_vec())
+                .expect("the original Tcllib callback control is UTF-8");
             let analysis = analyse(&src);
             let declaration = src
                 .find(&format!("method {method} "))

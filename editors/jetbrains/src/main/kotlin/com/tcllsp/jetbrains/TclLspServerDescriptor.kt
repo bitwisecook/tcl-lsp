@@ -61,14 +61,14 @@ class TclLspServerDescriptor(project: Project) :
     // client is installed before the server process starts, so the startup
     // reload is never missed.
     override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient =
-        TclLsp4jClient(handler, project)
+        TclLsp4jClient(handler, project, this)
 
     // The pull half, for the case where a reload had already settled before
     // anything was listening — a server restarted under a live IDE, say.
     // Reconciliation is idempotent, so a redundant one costs a comparison.
     override val lspServerListener: LspServerListener = object : LspServerListener {
         override fun serverInitialized(params: InitializeResult) {
-            TclLspPackAssociations.getInstance().pull(project)
+            TclLspPackAssociations.getInstance().pull(project, this@TclLspServerDescriptor, params)
             SpecStudioPanelGenerations.serverInitialized()
         }
     }

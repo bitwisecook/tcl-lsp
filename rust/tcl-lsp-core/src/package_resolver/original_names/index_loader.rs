@@ -141,6 +141,7 @@ impl<'a> IndexLoader<'a> {
     }
 
     /// Traverse only explicit standalone syntax/data; no entered script follows.
+    #[cfg(test)]
     pub(in crate::package_resolver) fn collect_word(
         &self,
         word: &NativeWord,

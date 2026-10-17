@@ -2018,9 +2018,11 @@ fn scoped_env_at(
     source: &str,
     line: u32,
     character: u32,
-    line_index: &tcl_lexer::LineIndex,
+    _line_index: &tcl_lexer::LineIndex,
 ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
-    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let position =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?;
+    let offset = position.offset();
     if !analysis.allows_lexical_declaration_advice() {
         let body = analysis.original_scoped_body_in_source(
             &tcl_lexer::SourceImage::document(source),
@@ -2029,11 +2031,9 @@ fn scoped_env_at(
         )?;
         return Some(body.environment());
     }
-    analysis
-        .scoped_command_regions
-        .iter()
-        .find(|r| r.contains(offset))
-        .map(|r| r.env)
+    let inventory = crate::source_structure::SourceSyntaxCoverage::capture(source, analysis)?;
+    let scoped = inventory.logical_scoped_environment_at(source, analysis, offset)?;
+    scoped.environment(&analysis.resolved_input.as_ref()?.context_registry())
 }
 
 /// Current authored vocabulary at a strict original source position.
@@ -7879,5 +7879,99 @@ mod inherited_registry_roster_completion_tests {
         assert!(context.spec_available(surface_owner));
         assert!(context.resolve_spec(&registry, "coroutine").is_none());
         assert!(registry_method_items(&analysis, &registry, "RosterChild", profile).is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_scoped_environment_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn environment(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: usize,
+    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let position = index.position_at_utf16(u32::try_from(cursor).unwrap(), source);
+        scoped_env_at(
+            analysis,
+            source,
+            position.line,
+            position.character.get(),
+            &index,
+        )
+    }
+
+    #[test]
+    fn logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure() {
+        let source = "# 😀\r\n::report::defstyle st {} {\r\n    to\r\n}\r\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.scoped_command_regions.clear();
+        let cursor = source.find("    to").unwrap() + 6;
+        let selected = environment(source, &analysis, cursor).unwrap();
+        assert!(selected.command("top").is_some());
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let position = index.position_at_utf16(u32::try_from(cursor).unwrap(), source);
+        let items = completions(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            None,
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(items.iter().any(|item| item.label == "top"));
+        assert!(environment(&source.replace("st", "zz"), &analysis, cursor).is_none());
+    }
+
+    #[test]
+    fn logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers() {
+        let source = "interp alias {} style {} ::report::defstyle\nstyle st {} {\n to\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            environment(source, &analysis, source.find(" to").unwrap() + 3)
+                .unwrap()
+                .command("top")
+                .is_some()
+        );
+        for prefix in [
+            "namespace eval ::report {}; proc ::report::defstyle args {}\n",
+            "rename ::report::defstyle {}\n",
+        ] {
+            let source = format!("{prefix}::report::defstyle st {{}} {{\n to\n}}\n");
+            let mut analysis = Analyser::new().analyse(&source, "tcl");
+            analysis
+                .scoped_command_regions
+                .push(tcl_compiler::analyser::types::ScopedBodyRegion {
+                    span: tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    env: &tcl_registry::scoped::REPORT_DEFSTYLE_ENV,
+                });
+            assert!(environment(&source, &analysis, source.find(" to").unwrap() + 3).is_none());
+        }
+    }
+
+    #[test]
+    fn scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body() {
+        for (source, expected) in [
+            ("::report::defstyle st {} {if {1} {\n to\n}}", true),
+            ("::report::defstyle st {} {proc p {} {\n to\n}}", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert_eq!(
+                environment(source, &analysis, source.find(" to").unwrap() + 3).is_some(),
+                expected
+            );
+        }
+        let source = "puts to";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis
+            .scoped_command_regions
+            .push(tcl_compiler::analyser::types::ScopedBodyRegion {
+                span: tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                env: &tcl_registry::scoped::REPORT_DEFSTYLE_ENV,
+            });
+        assert!(environment(source, &analysis, source.len()).is_none());
     }
 }

@@ -550,6 +550,28 @@ impl<'a> Inventory<'a> {
         ) {
             return LogicalCallIdentity::capture(document, Selection::Member(Box::new(member)));
         }
+        // Reborrow the actual member catalogue's full original declaration
+        // vector; source body membership is independent of receiver-frame entry.
+        let member_body = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+            document.source, document.analysis, offset,
+        ).and_then(|words| {
+            match words.source() {
+                tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) =>
+                    advice.original_definition_member_source_body().cloned(),
+                _ => None,
+            }
+        }).or_else(|| {
+            tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(
+                document.source, document.analysis, offset,
+            ).and_then(|candidate| candidate.original_member_source_body().cloned())
+        });
+        if let Some(body) = member_body
+            && let Some(member) = document
+                .analysis
+                .logical_source_member_for_original_body(&body)
+        {
+            return LogicalCallIdentity::capture(document, Selection::Member(Box::new(member)));
+        }
         let request = request?;
         if request.original_document_source_origin().is_some() {
             return LogicalCallIdentity::capture(

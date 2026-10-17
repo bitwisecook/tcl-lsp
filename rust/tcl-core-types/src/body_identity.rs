@@ -93,6 +93,7 @@ impl ProcedureIdIssuer {
     }
 
     /// Retain a fresh body coordinate without name or execution authority.
+    #[must_use]
     pub fn allocate(&self) -> ProcedureId {
         let ordinal = self
             .0

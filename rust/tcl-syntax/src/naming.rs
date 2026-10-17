@@ -321,6 +321,23 @@ pub fn textmate_variable_name_body() -> &'static str {
     r"(?:[:]{2,})?(?:[A-Za-z_][A-Za-z0-9_]*[:]{2,})*[A-Za-z_][A-Za-z0-9_]*"
 }
 
+/// Static display token for an unquoted source definition name. Excluding
+/// delimiters prevents a keyword used as data from consuming a quote/body.
+/// This is a conservative display subset, not Tcl name acceptance or lookup.
+#[must_use]
+pub fn textmate_unquoted_entity_name() -> &'static str {
+    r#"[^\s"{}\[\];$]+"#
+}
+
+/// Static TextMate braced-variable display fragment, including the empty name.
+/// This preserves the historical first-close projection. It is exact for
+/// [`tcl_dialect::BracedVarStyle::FirstClose`]; nested Tcl 9 names and escaped
+/// closers need semantic tokens for exact extents. No lookup or cell follows.
+#[must_use]
+pub fn textmate_braced_variable_reference() -> &'static str {
+    r"\$\{[^}]*\}"
+}
+
 /// Split a (possibly qualified) name on `::`, dropping empty segments — so
 /// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
 /// A run of **two or more** colons is one separator (all consecutive colons are

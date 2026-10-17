@@ -1532,6 +1532,15 @@ pub enum AuthoredSourceOptionBoundary {
     Indeterminate,
 }
 
+/// Possible teardown targets in the already selected Registry source schema.
+/// These ordinals identify effective arguments, not successful effects or
+/// runtime targets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredSourceTeardownArguments {
+    /// Effective post-head ordinals under the selected descriptor's layout.
+    pub arguments: std::ops::Range<usize>,
+}
+
 /// Possible destructive path operands in an authored source schema.
 /// These coordinates describe warning candidates, not accepted handler argv.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4676,6 +4685,29 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         Some(scan)
     }
 
+    /// Teardown target positions from the selected descriptor's declared
+    /// layout. The caller must still join each ordinal to its actual original
+    /// source word; this does not prove that any target was affected.
+    #[must_use]
+    pub fn authored_source_teardown_arguments(&self) -> Option<AuthoredSourceTeardownArguments> {
+        if !self
+            .selected
+            .spec
+            .traits
+            .contains(Traits::FIRE_AND_FORGET_TEARDOWN)
+        {
+            return None;
+        }
+        let layout = self.selected.spec.teardown_argument_layout?;
+        let count = self.words.arguments().exact_argv_len()?;
+        let arguments = match layout {
+            crate::spec::TeardownArgumentLayout::AllEffectivePostHeadArguments => {
+                self.semantics.argument_offset..count
+            }
+        };
+        (arguments.start <= arguments.end).then_some(AuthoredSourceTeardownArguments { arguments })
+    }
+
     /// Possible path data for the selected destructive source descriptor.
     /// Dynamic data retains MAY uncertainty; unknown/ambiguous option widths
     /// refuse. This supplies no filesystem effect, accepted argv or Native fact.
@@ -6126,6 +6158,39 @@ mod tests {
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
     use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery};
+
+    #[test]
+    fn original_teardown_source_layout_uses_selected_effective_argv() {
+        use crate::InvocationWord::{Expanded, Literal};
+        let owner = crate::model::ingress::resolve_environment("tk").default_context_registry();
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            owner.commands(),
+            Some(owner.context()),
+            crate::InvocationWords::structured(
+                Literal("destroy"),
+                &[Literal(".root"), Literal(".root.child")],
+            ),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .expect("selected Tk teardown descriptor");
+        assert_eq!(
+            selected
+                .authored_source_teardown_arguments()
+                .map(|layout| layout.arguments),
+            Some(0..2)
+        );
+
+        let expanded = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            owner.commands(),
+            Some(owner.context()),
+            crate::InvocationWords::structured(Literal("destroy"), &[Expanded]),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .expect("selected expanded Tk teardown descriptor");
+        assert!(expanded.authored_source_teardown_arguments().is_none());
+    }
 
     #[test]
     fn original_destructive_source_paths_keep_dynamic_and_captured_option_boundaries() {

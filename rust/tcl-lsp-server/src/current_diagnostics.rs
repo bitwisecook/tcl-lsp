@@ -30,6 +30,10 @@ pub(super) struct DiagnosticPass {
     revision: u64,
     version: Option<i32>,
     inputs_epoch: u64,
+    source_inputs_epoch: Arc<std::sync::atomic::AtomicU64>,
+    source_inputs_gate: Arc<tokio::sync::RwLock<()>>,
+    source_slots: std::sync::Weak<Mutex<HashMap<Uri, DiagSlot>>>,
+    source_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     slot_generation: Option<u64>,
     class_factory_generation: u64,
     input: Option<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>>,
@@ -53,6 +57,19 @@ pub(super) enum DiagnosticUnavailable {
 pub(super) enum DiagnosticSuppression {
     Disabled,
     Excluded,
+}
+
+/// Caller-held identity for read-only reborrowing of the existing publisher ledger.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DiagnosticPublicationExpectation {
+    uri: Uri,
+    version: i32,
+    source: String,
+    dialect_id: String,
+    revision: String,
+    inputs_epoch: String,
+    result_id: String,
 }
 
 enum DiagnosticPassState {
@@ -338,6 +355,10 @@ impl DiagInputs {
             revision,
             version: job.version,
             inputs_epoch: epoch,
+            source_inputs_epoch: Arc::clone(&self.source_inputs_epoch),
+            source_inputs_gate: Arc::clone(&self.source_inputs_gate),
+            source_slots: Arc::downgrade(&self.diag_slots),
+            source_factory_generation: Arc::clone(&self.class_factory_generation),
             slot_generation,
             class_factory_generation: generation,
             input,
@@ -438,6 +459,53 @@ impl Backend {
         serde_json::to_value(answer)
             .map(Some)
             .map_err(|_| jsonrpc::Error::internal_error())
+    }
+
+    /// Reborrow the authentic publisher ledger without scheduling analysis,
+    /// publishing/reissuing a report, or accepting a direct pull-cache receipt.
+    pub(super) async fn validate_diagnostic_publication_command(
+        &self,
+        arguments: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let [argument] = arguments else {
+            return Err(jsonrpc::Error::invalid_params(
+                "Expected one publication identity",
+            ));
+        };
+        let expected: DiagnosticPublicationExpectation = serde_json::from_value(argument.clone())
+            .map_err(|_| {
+            jsonrpc::Error::invalid_params("Expected a complete publication identity")
+        })?;
+        let source = DiagnosticReportExpectation {
+            uri: expected.uri.clone(),
+            version: Some(expected.version),
+            source: Arc::from(expected.source.as_str()),
+        };
+        let current = self
+            .current_published_diagnostic_reports(&[source], DiagnosticCacheQuery::PublisherOnly)
+            .await?;
+        let valid = current.is_ok_and(|reports| {
+            let [report] = reports.as_slice() else {
+                return false;
+            };
+            report.suppression.is_none()
+                && report.uri == expected.uri
+                && report.version == Some(expected.version)
+                && report.source.as_ref() == expected.source
+                && report.dialect == expected.dialect_id
+                && report.revision.to_string() == expected.revision
+                && report.inputs_epoch.to_string() == expected.inputs_epoch
+                && report.result_id == expected.result_id
+        });
+        if !valid {
+            return Ok(Some(serde_json::json!({"status":"unavailable"})));
+        }
+        Ok(Some(serde_json::json!({
+            "status":"current", "uri":expected.uri, "version":expected.version,
+            "source":expected.source, "dialectId":expected.dialect_id,
+            "revision":expected.revision, "inputsEpoch":expected.inputs_epoch,
+            "resultId":expected.result_id,
+        })))
     }
 
     /// Analyse proposed full source in an isolated project projection. This
@@ -1766,6 +1834,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn publication_validation_reborrows_exact_publisher_without_reissuing() {
+        let backend = crate::tests::test_backend();
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_str("file:///diagnostic-validation-purpose.tcl").unwrap(),
+            version: 1,
+            source: "set x 1".into(),
+        };
+        backend.documents.lock("validation_fixture").await.insert(
+            expected.uri.clone(),
+            DocumentState::with_version(expected.source.clone(), "tcl9.0".into(), 1),
+        );
+        backend
+            .db_set_source(&expected.uri, &expected.source, "tcl9.0".into())
+            .await
+            .unwrap();
+        run_provider(&backend, &expected.uri).await;
+        let mut identity =
+            serde_json::to_value(backend.current_diagnostics(&expected).await.unwrap()).unwrap();
+        assert_eq!(identity["status"], "complete");
+        identity.as_object_mut().unwrap().remove("status");
+        identity.as_object_mut().unwrap().remove("diagnostics");
+        let before = backend.pull_diag_cache.lock().await[&expected.uri]
+            .result_id
+            .clone();
+        let validation = backend
+            .validate_diagnostic_publication_command(&[identity.clone()])
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(validation["status"], "current");
+        assert_eq!(
+            backend.pull_diag_cache.lock().await[&expected.uri].result_id,
+            before
+        );
+        for field in ["resultId", "revision", "inputsEpoch", "dialectId", "source"] {
+            let mut foreign = identity.clone();
+            foreign[field] = serde_json::json!("foreign");
+            let refused = backend
+                .validate_diagnostic_publication_command(&[foreign])
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(refused["status"], "unavailable", "{field}");
+        }
+        backend
+            .diagnostic_publisher
+            .completion
+            .lock()
+            .await
+            .remove(&expected.uri);
+        assert_eq!(
+            backend
+                .validate_diagnostic_publication_command(&[identity])
+                .await
+                .unwrap()
+                .unwrap()["status"],
+            "unavailable"
+        );
+    }
+
+    #[tokio::test]
     async fn current_diagnostics_serializes_dialect_from_the_completed_publisher_pass() {
         let backend = crate::tests::test_backend();
         let expected = DiagnosticSourceExpectation {
@@ -3056,5 +3185,42 @@ mod proposal_endpoint_tests {
         assert_eq!(incomplete["status"], "unavailable", "{incomplete}");
         assert_eq!(incomplete["reason"], "context");
         assert!(incomplete.get("diagnostics").is_none());
+    }
+}
+
+impl OrphanCommandDependencies {
+    pub(super) fn from_pass(
+        uri: &Uri,
+        pass: &Arc<DiagnosticPass>,
+        analysis: &Arc<AnalysisResult>,
+        queries: WorkspaceCommandQueries,
+    ) -> Option<Self> {
+        if pass.path_admission.uri() != uri || !pass.matches_completed_analysis(analysis) {
+            return None;
+        }
+        let _inputs = pass.source_inputs_gate.try_read().ok()?;
+        if pass
+            .source_inputs_epoch
+            .load(std::sync::atomic::Ordering::Acquire)
+            != pass.inputs_epoch
+        {
+            return None;
+        }
+        Some(Self {
+            uri: uri.clone(),
+            source: Arc::clone(&pass.source),
+            dialect: pass.dialect.clone(),
+            revision: pass.revision,
+            version: pass.version,
+            analysis: Arc::clone(analysis),
+            expected_epoch: pass.inputs_epoch,
+            current_epoch: Arc::clone(&pass.source_inputs_epoch),
+            inputs_gate: Arc::clone(&pass.source_inputs_gate),
+            slots: pass.source_slots.clone(),
+            slot_generation: pass.slot_generation,
+            factory_generation: Arc::clone(&pass.source_factory_generation),
+            expected_factory_generation: pass.class_factory_generation,
+            queries,
+        })
     }
 }

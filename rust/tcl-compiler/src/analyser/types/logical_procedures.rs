@@ -181,6 +181,24 @@ impl LogicalSourceProcedureDeclaration {
         Some(self.body.scope().scope_body().original_container())
     }
 
+    /// Exact original ParamList operand selected by this retained header's
+    /// own Registry vector. No formal activation or native grammar is issued.
+    #[must_use]
+    pub fn original_parameter_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.matches_source(&self.image, &self.input)
+            .then_some(())?;
+        let words = self.body.scope().scope_body().source_words();
+        let mut roles = words
+            .roles()?
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::ParamList);
+        let &(argument, _) = roles.next()?;
+        if roles.next().is_some() {
+            return None;
+        }
+        words.original_argument_word(argument)
+    }
+
     /// Descriptive formals of this exact original Logical source header. No
     /// Native ParamList grammar, effective binding or frame is issued.
     #[must_use]

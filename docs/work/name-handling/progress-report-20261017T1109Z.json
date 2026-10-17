@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-17T11:10:05.991272+00:00",
+  "report_cadence_minutes": 30,
+  "source_head": "0597b94c5 plus reviewed integrations07/08 workingtree",
+  "pushed_base": "origin/work=0597b94c5",
+  "original_LSP": {
+    "required": 325,
+    "integrated": 271,
+    "semantic_integrated": 153,
+    "validation_integrated": 116,
+    "documentation_integrated": 2,
+    "without_integration": 54,
+    "verified_complete": 0
+  },
+  "change_since_previous_report": {
+    "integrated_LSP": 13,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 405,
+    "full_scope_pending": 348,
+    "partial": 57,
+    "without_integration": 1753
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 475,
+    "without_integration": 1754,
+    "verified_complete": 0
+  },
+  "validation": "Integration06 five-library+alltests typecheckPASS444s15deadcodewarnings. Reviewed cleanup nowintegrated. Integration07 checkFAIL8Tkmodulepath/cascade errors; genuinequalifiedpathrepair independentlyreviewed. SuccessorcheckFAIL2Explorer &String comparisons; referencesrepaired. Freshtypecheckpending latestintegrations08. ActualJetBrainsSDK2025.3 baselinecompileFAILoldlistenerAPI; narrowlistenerrepair make test-jetbrainsPASS14tasks62s; rerunowed latestJBhostchanges. FrozenpriorCore e739 retained664519PASS145FAILincluding1timeout,new35 29PASS6FAIL,focused6 2PASS4FAIL; completeinputs/providers/ELFpostflightPASS. No ordinaryfive-library/full1024acceptance.",
+  "scope": "GenericLSP and necessarysharedowners. Runtime/VM and dedicatedBIGIP/iRules/ILX deferred; uncoveredBIGIP Tcl8.4 assumptiononly. Original325includesdeferredBIGIP. Chat/repositoryreportsonly.",
+  "outside_main": "Library/W123 V3,currentcrossdocmember,Native/Logicalsourcecaller,selectedcaseNative,inlinevariable/literalconstructor,VSdiagnostic/screenshot,chatcontext pendingreview/admission. TextMate sourceintegrated butgeneratedoutputs/twoauditunits notcounteduntilactualgeneration.",
+  "next_actions": "Finishsourceadmission, generatethroughactualowner, typecheck/clippy, freeze freshordinaryartifacts and replayfocus+retainedcontrols, fixactualfailures, completeowner/proof/generated/editor/repositorygates.",
+  "next_report_utc": "2026-10-17T11:39:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

@@ -477,6 +477,110 @@ fn original_extraction_plan(
 }
 
 /// Build the extraction, or the reason it cannot be built.
+/// Original selected command/body/case descriptors for a conditional source
+/// extraction recipe. These are source operands and topology, not a moved
+/// execution frame, current cell or procedure-call equivalence permission.
+struct LogicalExtractionSourceSelection {
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    invocations: BTreeMap<(u32, u32), Vec<SourceExtractionCommand>>,
+    bodies: Vec<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    block: tcl_lexer::Span,
+}
+
+struct SourceExtractionCommand {
+    command: SegmentedCommand,
+    words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+}
+
+impl LogicalExtractionSourceSelection {
+    fn capture(
+        source: &str,
+        analysis: &AnalysisResult,
+        selected: &[&SegmentedCommand],
+        walk: &super::FrameWalk<'_>,
+    ) -> Option<Self> {
+        let input = analysis.resolved_input.as_ref()?;
+        if !input.has_logical_source_name_context() {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(source);
+        let context = input.context_registry();
+        let mut invocations = BTreeMap::<_, Vec<_>>::new();
+        let mut bodies = Vec::new();
+        for root in selected {
+            let mut nested = Vec::new();
+            walk.nested_same_frame_commands(source, root, &mut nested);
+            if !walk.complete() {
+                return None;
+            }
+            for command in std::iter::once(*root).chain(&nested) {
+                let words = walk.source_words(source, command)?;
+                let selected_bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+                if selected_bodies.iter().any(|body| {
+                    !body.matches_source(&image, input.lexer_config())
+                        || !body.matches_context(&context)
+                }) {
+                    return None;
+                }
+                bodies.extend(selected_bodies);
+                invocations
+                    .entry((command.span.start(), command.span.end()))
+                    .or_default()
+                    .push(SourceExtractionCommand {
+                        command: command.clone(),
+                        words,
+                    });
+            }
+        }
+        let start = walk.command_span_offsets(source, selected.first()?)?.0;
+        let end = walk.command_span_offsets(source, selected.last()?)?.1;
+        Some(Self {
+            image,
+            input: input.clone(),
+            invocations,
+            bodies,
+            block: tcl_lexer::Span::new(start, end),
+        })
+    }
+
+    fn words_for(
+        &self,
+        command: &SegmentedCommand,
+    ) -> Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        let mut candidates = self
+            .invocations
+            .get(&(command.span.start(), command.span.end()))?
+            .iter()
+            .filter(|retained| retained.command.all_tokens == command.all_tokens);
+        let first = &candidates.next()?.words;
+        candidates
+            .all(|other| other.words == *first)
+            .then_some(first)
+    }
+
+    fn block_span(&self, source: &str, analysis: &AnalysisResult) -> Option<tcl_lexer::Span> {
+        let input = analysis.resolved_input.as_ref()?;
+        let config = input.lexer_config();
+        if input != &self.input
+            || self.image.bytes() != source.as_bytes()
+            || !analysis.matches_original_source_image(&self.image, config)
+            || self
+                .invocations
+                .values()
+                .flatten()
+                .any(|retained| !retained.words.matches_source(&self.image, config))
+            || self.bodies.iter().any(|body| {
+                !body.matches_source(&self.image, config)
+                    || !body.matches_context(&input.context_registry())
+            })
+        {
+            return None;
+        }
+        Some(self.block)
+    }
+}
+
 fn plan_extraction(
     source: &str,
     selected: &[&SegmentedCommand],
@@ -494,7 +598,25 @@ fn plan_extraction(
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
     reject_enclosing_definition_body(source, scope, &walk)?;
     reject_frame_sensitive_selection(source, selected, &walk)?;
-    let roles = classify_variables(source, selected, &walk)?;
+    let source_selection =
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
+            Some(
+                LogicalExtractionSourceSelection::capture(source, analysis, selected, &walk)
+                    .ok_or_else(|| {
+                        "the selected original body/case descriptors are unavailable".to_owned()
+                    })?,
+            )
+        } else {
+            None
+        };
+
+    let roles = if let Some(selection) = source_selection.as_ref() {
+        classify_selected_variables(source, selected, &walk, Some(selection))?
+    } else {
+        classify_variables(source, selected, &walk)?
+    };
 
     // The selection's own byte range, snapped to the commands it covers.
     let unavailable_extent = || "the original selected command extent is unavailable".to_owned();
@@ -506,6 +628,12 @@ fn plan_extraction(
         .command_span_offsets(source, selected[selected.len() - 1])
         .ok_or_else(unavailable_extent)?
         .1;
+    if let Some(selection) = source_selection.as_ref()
+        && selection.block_span(source, analysis)
+            != Some(tcl_lexer::Span::new(block_start, block_end))
+    {
+        return Err("the selected original source descriptors changed".to_owned());
+    }
     let block = source
         .get(block_start as usize..block_end as usize)
         .ok_or_else(|| "the selected range is unreadable".to_string())?;
@@ -741,6 +869,15 @@ fn classify_variables(
     selected: &[&SegmentedCommand],
     walk: &super::FrameWalk<'_>,
 ) -> Result<VariableRoles, String> {
+    classify_selected_variables(source, selected, walk, None)
+}
+
+fn classify_selected_variables(
+    source: &str,
+    selected: &[&SegmentedCommand],
+    walk: &super::FrameWalk<'_>,
+    retained: Option<&LogicalExtractionSourceSelection>,
+) -> Result<VariableRoles, String> {
     let mut roles = VariableRoles {
         read: BTreeMap::new(),
         written: BTreeMap::new(),
@@ -766,28 +903,122 @@ fn classify_variables(
                     .and_modify(|first| *first = (*first).min(reference.span.start()))
                     .or_insert(reference.span.start());
             }
-            classify_command(source, inner, walk, &mut roles)?;
+            if let Some(retained) = retained {
+                let words = retained.words_for(inner).ok_or_else(|| {
+                    "the selected original command descriptor is unavailable".to_owned()
+                })?;
+                classify_command_words(source, inner, walk, words, &mut roles)?;
+            } else {
+                classify_command(source, inner, walk, &mut roles)?;
+            }
         }
     }
     Ok(roles)
 }
 
-/// Fold one command's registry-declared variable roles into `roles`.
-///
-/// A write becomes visible only once the command has evaluated its own
-/// arguments, so the offset recorded for it is the command's end — which is
-/// what makes the `$y` of `set y [expr {$y + 1}]` an input.  A loop binding is
-/// visible from its body instead: the words before that body, the list a
-/// `foreach` iterates among them, still read the caller's variable.
-fn classify_command(
+/// Complete represented source spellings for one command, using the same
+/// original component/role owner as extraction. These are authored names, not
+/// occupied runtime cells. Unknown layouts cannot certify a fresh spelling.
+pub(super) fn logical_source_variable_spellings(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+    walk: &super::FrameWalk<'_>,
+) -> Option<BTreeSet<String>> {
+    let words = walk.source_words(source, command)?;
+    let selected_roles = words.roles()?;
+    if selected_roles
+        .iter()
+        .any(|(_, role)| matches!(role, ArgRole::StaticVarList | ArgRole::LambdaLiteral))
+    {
+        return None;
+    }
+    let mut roles = VariableRoles {
+        read: BTreeMap::new(),
+        written: BTreeMap::new(),
+    };
+    for reference in command_variable_references(source, command, walk).ok()? {
+        roles.read.insert(reference.name, reference.span.start());
+    }
+    classify_command(source, command, walk, &mut roles).ok()?;
+    let mut names = roles
+        .read
+        .into_keys()
+        .chain(roles.written.into_keys())
+        .collect::<BTreeSet<_>>();
+    for &(parameter, role) in selected_roles {
+        if role != ArgRole::ParamList {
+            continue;
+        }
+        let parameter_word = words.original_argument_word(parameter)?;
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config?;
+        let input = analysis.resolved_input.as_ref()?;
+        let names_at = selected_roles
+            .iter()
+            .filter(|(_, role)| *role == ArgRole::Name)
+            .filter_map(|(argument, _)| words.original_argument_word(*argument))
+            .collect::<Vec<_>>();
+        let bodies_at = selected_roles
+            .iter()
+            .filter(|(_, role)| *role == ArgRole::Body)
+            .filter_map(|(argument, _)| words.original_argument_word(*argument))
+            .collect::<Vec<_>>();
+        let mut represented = false;
+        for declaration in analysis.checked_logical_source_procedure_declarations(&image, config)? {
+            if declaration.original_definition_site()?.offset != command.argv.first()?.span.start()
+                || declaration.original_parameter_word() != Some(parameter_word)
+                || !declaration
+                    .original_name_word()
+                    .is_some_and(|name| names_at.contains(&name))
+                || !declaration
+                    .original_body_word(&image, input)
+                    .is_some_and(|body| bodies_at.contains(&body))
+            {
+                continue;
+            }
+            names.extend(
+                declaration
+                    .original_source_formals()?
+                    .iter()
+                    .map(|parameter| parameter.name.clone()),
+            );
+            represented = true;
+        }
+        for name in names_at {
+            if let Some(member) =
+                analysis.logical_source_member_at(&image, config, name.span().start())
+                && member.original_name_word() == Some(name)
+                && member.original_parameter_word() == Some(parameter_word)
+                && member
+                    .original_body_word()
+                    .is_some_and(|body| bodies_at.contains(&body))
+            {
+                names.extend(
+                    member
+                        .original_source_formals()?
+                        .into_iter()
+                        .map(|parameter| parameter.name),
+                );
+                represented = true;
+            }
+        }
+        if !represented {
+            return None;
+        }
+    }
+    Some(names)
+}
+
+fn classify_command_words(
     source: &str,
     command: &SegmentedCommand,
     walk: &super::FrameWalk<'_>,
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     roles: &mut VariableRoles,
 ) -> Result<(), String> {
     let head = command.name();
     let unavailable = || format!("the original variable roles of '{head}' are unavailable");
-    let words = walk.source_words(source, command).ok_or_else(unavailable)?;
     let selected_roles = words.roles().ok_or_else(unavailable)?;
     let (command_start, command_end) = walk
         .command_span_offsets(source, command)
@@ -835,6 +1066,25 @@ fn classify_command(
         }
     }
     Ok(())
+}
+
+/// Fold one command's registry-declared variable roles into `roles`.
+///
+/// A write becomes visible only once the command has evaluated its own
+/// arguments, so the offset recorded for it is the command's end — which is
+/// what makes the `$y` of `set y [expr {$y + 1}]` an input.  A loop binding is
+/// visible from its body instead: the words before that body, the list a
+/// `foreach` iterates among them, still read the caller's variable.
+fn classify_command(
+    source: &str,
+    command: &SegmentedCommand,
+    walk: &super::FrameWalk<'_>,
+    roles: &mut VariableRoles,
+) -> Result<(), String> {
+    let head = command.name();
+    let unavailable = || format!("the original variable roles of '{head}' are unavailable");
+    let words = walk.source_words(source, command).ok_or_else(unavailable)?;
+    classify_command_words(source, command, walk, &words, roles)
 }
 
 /// Record `name` as written, keeping the earliest offset at which its new
@@ -2268,5 +2518,81 @@ puts done";
         assert!(
             extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod exact_logical_paramlist_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn outer_paramlist_cannot_borrow_a_nested_static_header() {
+        let source = "proc outer $parameters {proc nested {} {}; puts literal}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        assert!(
+            logical_source_variable_spellings(source, &analysis, &commands[0], &walk).is_none()
+        );
+        let source = "proc outer {value} {puts literal}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let names =
+            logical_source_variable_spellings(source, &analysis, &commands[0], &walk).unwrap();
+        assert!(names.contains("value"));
+    }
+
+    #[test]
+    fn member_formals_keep_the_selected_original_paramlist_word() {
+        let source = "oo::class create C {method m {value} {puts literal}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = tcl_lexer::SourceImage::document(source);
+        let member = analysis
+            .logical_source_member_at(
+                &image,
+                analysis.body_lexer_config.unwrap(),
+                u32::try_from(source.find("m {value}").unwrap()).unwrap(),
+            )
+            .unwrap();
+        let parameter = member.original_parameter_word().unwrap();
+        assert_eq!(parameter.bytes(), b"{value}");
+        assert_eq!(member.original_source_formals().unwrap()[0].name, "value");
+    }
+}
+
+#[cfg(test)]
+mod logical_extraction_selected_source_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn selected_case_bodies_and_command_roles_keep_the_actual_source_owners() {
+        let source = "switch $n {1 {set x 1} default {set x 2}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let selection =
+            LogicalExtractionSourceSelection::capture(source, &analysis, &[&commands[0]], &walk)
+                .unwrap();
+        assert_eq!(selection.bodies.len(), 2);
+        assert!(
+            selection
+                .bodies
+                .iter()
+                .all(|body| body.matches_source(&selection.image, selection.input.lexer_config()))
+        );
+        let roles =
+            classify_selected_variables(source, &[&commands[0]], &walk, Some(&selection)).unwrap();
+        assert!(roles.written.contains_key("x"));
+        assert!(
+            selection
+                .block_span(&format!("{source} "), &analysis)
+                .is_none()
+        );
+        let mut foreign = commands[0].clone();
+        foreign.all_tokens.clear();
+        assert!(selection.words_for(&foreign).is_none());
     }
 }

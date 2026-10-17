@@ -51,6 +51,10 @@ pub(crate) struct OriginalLogicalVariableScope {
 }
 
 impl OriginalLogicalVariableScope {
+    pub(crate) fn shares_original_allocation(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.original, &other.original)
+    }
+
     pub(crate) fn lambda_formal(
         input: &ResolvedAnalysisInput,
         scope: Arc<OriginalDeclaredLogicalBodyContext>,

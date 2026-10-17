@@ -148,19 +148,15 @@ pub use source_catalogue_advice::{
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
 pub use source_transition_advice::OriginalConditionalLambdaFormattingBody;
 pub use source_transition_advice::{
-    LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
-    OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
-};
-pub use source_transition_advice::{
-    OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
-    OriginalLogicalCommandCandidates, OriginalLogicalMathFunctionOccurrence,
-    OriginalLogicalNameReference, OriginalLogicalProcedureBody, OriginalLogicalProcedureCall,
-    OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
-    OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
-    OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
-    OriginalSourceCallbackRegistration, OriginalSourceClassCandidate,
-    OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding, OriginalSourceClassInstance,
-    OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+    LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
+    OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
+    OriginalLogicalMathFunctionOccurrence, OriginalLogicalNameReference,
+    OriginalLogicalProcedureBody, OriginalLogicalProcedureCall, OriginalLogicalSourceNameInput,
+    OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
+    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
+    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
     OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
@@ -171,6 +167,13 @@ pub use source_transition_advice::{
     OriginalSourceProducedCommandPrefix, OriginalSourceRegisteredHandleBinding,
     OriginalSourceRegisteredInstance, OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
     SourceCommandTransitionObligation,
+};
+pub use source_transition_advice::{
+    LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+    OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
+};
+pub use source_transition_advice::{
+    OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,
 };
 pub(crate) use source_transition_advice::{
     OriginalNativeSourceBodyChildren, OriginalSourceCataloguePurpose,

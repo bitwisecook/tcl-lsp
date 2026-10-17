@@ -63,30 +63,30 @@
 //!
 //! Modelled:
 //!
-//! * any command the registry marks [`Traits::TERMINATES_BLOCK`] (`return`,
+//! * any command the registry marks [`tcl_registry::Traits::TERMINATES_BLOCK`] (`return`,
 //!   `error`, `throw`, `exit`) ends the script — `tclPkgUnknown` sources the
 //!   index inside a `catch`, so a raise stops registration just as a `return`
 //!   does;
 //! * `if` / `elseif` / `else` chains, **symbolically**: each clause's guard
 //!   becomes a [`Condition`], the clause structure comes from the registry's
-//!   own `if` grammar ([`ArgRole::Expr`] / [`ArgRole::Body`]), and a branch
+//!   own `if` grammar ([`tcl_registry::arg_role::ArgRole::Expr`] / [`tcl_registry::arg_role::ArgRole::Body`]), and a branch
 //!   that terminates gates everything after the chain under the negated guard.
 //!   That last step is what makes the `if {GUARD} {return}` index head work,
-//!   and it is why only `if` may go through [`ScriptWalker::walk_if`]: `while` / `for` /
+//!   and it is why only first-match clauses may go through the original-source chain walker: `while` / `for` /
 //!   `foreach` have `Expr` and `Body` arguments too, so reading one as a clause
 //!   chain would treat `for {set i 0} {$i < $n} {incr i} {…}` as "if `$i < $n`
 //!   then `incr i`, else `…`" and gate the loop body behind a *negated* guard —
 //!   a false [`Condition::Impossible`] for anything declared in it.  The
 //!   load-bearing distinction is not "loops are not modelled" but the clause
-//!   grammar's [`ClauseSelection`]: `if`'s chain selects the first clause
+//!   grammar's [`tcl_registry::ClauseSelection`]: `if`'s chain selects the first clause
 //!   whose condition holds, while a loop's grammar runs every clause it has
 //!   (a pack command whose roles come from a resolver is still offered to the
 //!   chain walk, as before).
 //! * conditions that are a constant boolean (`1`, `0`, `true`, `no`, …) or a
 //!   `package vsatisfies [package provide Tcl] REQ …` test, optionally negated
 //!   with `!`.
-//! * every **other** body-taking command's script regions ([`ArgRole::Body`]
-//!   and `apply`'s [`ArgRole::LambdaLiteral`]) — visited, but under
+//! * every **other** body-taking command's script regions ([`tcl_registry::arg_role::ArgRole::Body`]
+//!   and `apply`'s [`tcl_registry::arg_role::ArgRole::LambdaLiteral`]) — visited, but under
 //!   [`Condition::Undecidable`], since this scan models neither whether nor how
 //!   often such a body runs.  Visiting them is not optional: Tcl 9 declares its
 //!   own core packages from inside `apply {{dir} { … foreach … }} $dir`.
@@ -113,11 +113,16 @@
 //! and the caller decides what to do with `Conditional`.
 
 use tcl_dialect::{TclVersion, Ternary};
-use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, Token, TokenType};
-use tcl_registry::{ClauseSelection, CommandRegistry, Traits, arg_role::ArgRole};
+#[cfg(test)]
+use tcl_lexer::TokenType;
+use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, Token};
+use tcl_registry::CommandRegistry;
+#[cfg(test)]
 use tcl_syntax::naming::{canonical_written_command, unroot_rooted_key};
 
-use super::{walk_command_words_with_config, word_raw};
+use super::walk_command_words_with_config;
+#[cfg(test)]
+use super::word_raw;
 
 mod original;
 
@@ -448,7 +453,6 @@ pub(super) fn scan_with_analysis(
 struct OriginalScript {
     image: SourceImage,
     span: Span,
-    config: LexerConfig,
 }
 
 impl OriginalScript {
@@ -481,323 +485,10 @@ impl OriginalScript {
         }
         Some(command.words.clone())
     }
-
-    fn child(&self, word: &NativeWord, body: &str, registry: &CommandRegistry) -> Option<Self> {
-        let policy = registry.profile().and_then(|profile| {
-            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
-        })?;
-        let key =
-            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                word,
-                tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
-                policy,
-            )?;
-        let span = word.content_span().ok()?;
-        if key.bytes() != body.as_bytes()
-            || self.image.bytes().get(span.as_range())? != body.as_bytes()
-        {
-            return None;
-        }
-        Some(Self {
-            image: self.image.clone(),
-            span,
-            config: self.config,
-        })
-    }
-}
-
-struct ScriptWalker<'r, 'v> {
-    registry: &'r CommandRegistry,
-    config: LexerConfig,
-    visit: &'v mut dyn FnMut(SelectedSurveyRegistration<'_>),
-}
-
-impl ScriptWalker<'_, '_> {
-    /// Walk one script level in order.
-    ///
-    /// Returns the conditions under which control reaches the *end* of the script,
-    /// or `None` when it never does (an unconditional terminator).
-    fn walk_script(
-        &mut self,
-        text: &str,
-        reached: &Conditions,
-        depth: u32,
-        original: Option<&OriginalScript>,
-    ) -> Option<Conditions> {
-        let registry = self.registry;
-        let config = self.config;
-        if MAX_GUARD_NESTING_DEPTH.exceeded(depth) {
-            return Some(reached.with(Condition::Undecidable));
-        }
-        let commands = walk_command_words_with_config(text, config);
-        let registration_plan = u32::try_from(text.len()).ok().and_then(|end| {
-            tcl_lexer::native_script_words_in(
-                SourceImage::document(text),
-                Span::new(0, end),
-                config,
-            )
-            .ok()
-        });
-        let plan = original.and_then(|original| {
-            tcl_lexer::native_script_words_in(original.image.clone(), original.span, config).ok()
-        });
-        let mut reached = reached.clone();
-        for words in &commands {
-            if words.is_empty() {
-                continue;
-            }
-            let original_words = original
-                .zip(plan.as_ref())
-                .and_then(|(original, plan)| original.words(words, plan));
-            if let Some(registration) = registration_plan.as_ref().and_then(|plan| {
-                super::registration::select_in_plan(text, words, registry, config, plan)
-            }) {
-                (self.visit)(SelectedSurveyRegistration {
-                    reached: Reached {
-                        text,
-                        words,
-                        conditions: reached.clone(),
-                        original_words,
-                    },
-                    registration,
-                });
-                continue;
-            }
-            let written_head = canonical_written_command(word_raw(text, &words[0]));
-            let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
-            let Some(spec) = registry.get(head) else {
-                continue;
-            };
-            if spec.traits.contains(Traits::TERMINATES_BLOCK) {
-                return None;
-            }
-            let first_match_chain = spec
-                .clause_grammar
-                .is_some_and(|grammar| grammar.selection == ClauseSelection::FirstMatch);
-            if spec.traits.contains(Traits::HAS_BOOLEAN_COND)
-                && (first_match_chain || spec.arg_role_resolver.is_some())
-            {
-                match self.walk_if(text, words, head, &reached, depth, original) {
-                    AfterIf::Stops => return None,
-                    AfterIf::Continues(after) => {
-                        reached = after;
-                        continue;
-                    }
-                    AfterIf::NotAChain => {}
-                }
-            }
-            // Any *other* control-flow command (a loop, `switch`, `catch`, `try`)
-            // may or may not run its body, and this scan does not model how many
-            // times or under what condition.  If a body could terminate the
-            // script, everything below becomes undecidable rather than being
-            // claimed unconditional.  A body that cannot terminate — and the
-            // bodies of non-control-flow commands such as `proc`, whose `return`
-            // belongs to the procedure, not to this script — changes nothing.
-            if spec.traits.contains(Traits::CONTROL_FLOW)
-                && command_body_may_terminate(text, words, head, registry, depth, config)
-            {
-                reached = reached.with(Condition::Undecidable);
-            }
-            // Declarations *inside* that body still have to be found.  Every
-            // body-taking command's script regions are visited under
-            // [`Condition::Undecidable`]: this scan cannot say whether — or how
-            // many times — the body runs, and "conditional" is the safe direction
-            // (a conditional registration counts as loadable downstream, so a
-            // package whose commands really are there draws no false W123).
-            //
-            // Not looking at all was the defect: Tcl 9 ships its own core-package
-            // index as `apply {{dir} { … foreach … { package ifneeded … } }} $dir`
-            // (`library/pkgIndex.tcl` in the zipfs `tcl_library`), so a tcl9.0
-            // workspace saw http / msgcat / tcltest / platform / cookiejar declare
-            // nothing whatsoever.
-            for (body, body_index) in body_scripts(text, words, head, registry, config) {
-                let child = original
-                    .zip(original_words.as_ref())
-                    .and_then(|(original, words)| {
-                        original.child(words.get(body_index + 1)?, &body, registry)
-                    });
-                self.walk_script(
-                    &body,
-                    &reached.with(Condition::Undecidable),
-                    depth + 1,
-                    child.as_ref(),
-                );
-            }
-        }
-        Some(reached)
-    }
-
-    /// Walk an `if` chain: visit the declarations in every branch, and report what
-    /// happens to control flow after it.
-    fn walk_if(
-        &mut self,
-        text: &str,
-        words: &[Vec<Token>],
-        head: &str,
-        reached: &Conditions,
-        depth: u32,
-        original: Option<&OriginalScript>,
-    ) -> AfterIf {
-        let registry = self.registry;
-        let config = self.config;
-        let args: Vec<&str> = words[1..].iter().map(|w| word_raw(text, w)).collect();
-        let Some(clauses) = clause_chain(head, &args, registry) else {
-            return AfterIf::NotAChain;
-        };
-
-        // Conditions accumulated from every earlier clause having tested false —
-        // what must hold for this clause to be *considered* at all.
-        let mut earlier_false = Conditions::default();
-        // One entry per branch that stops control continuing past the chain,
-        // carrying the single condition that selects it where there is one.
-        let mut terminating: Vec<Option<Condition>> = Vec::new();
-        let mut has_else = false;
-        let mut definitely_taken_terminates = false;
-        let mut unavailable_body = false;
-
-        for clause in &clauses {
-            let branch_conditions = match clause.expr {
-                // The `else` branch runs exactly when every earlier test failed.
-                None => {
-                    has_else = true;
-                    earlier_false.clone()
-                }
-                Some(expr_index) => {
-                    let guard = guard_expr(text, &words[1..][expr_index], config);
-                    let mut conditions = earlier_false.clone();
-                    if let Some(condition) = guard.condition(true) {
-                        conditions = conditions.with(condition);
-                    }
-                    if let Some(condition) = guard.condition(false) {
-                        earlier_false = earlier_false.with(condition);
-                    }
-                    conditions
-                }
-            };
-            let Some(body_text) = script_of(text, &words[1..][clause.body], config) else {
-                unavailable_body = true;
-                continue;
-            };
-            let mut branch_reached = reached.clone();
-            for condition in &branch_conditions.0 {
-                branch_reached = branch_reached.with(condition.clone());
-            }
-            let child = original.and_then(|original| {
-                let plan = tcl_lexer::native_script_words_in(
-                    original.image.clone(),
-                    original.span,
-                    config,
-                )
-                .ok()?;
-                let native = original.words(words, &plan)?;
-                original.child(native.get(clause.body + 1)?, &body_text, registry)
-            });
-            if self
-                .walk_script(&body_text, &branch_reached, depth + 1, child.as_ref())
-                .is_none()
-            {
-                if branch_conditions.is_unconditional() {
-                    definitely_taken_terminates = true;
-                }
-                terminating.push(match branch_conditions.0.as_slice() {
-                    [only] => Some(only.clone()),
-                    _ => None,
-                });
-            } else if body_may_terminate(&body_text, registry, depth + 1, config) {
-                terminating.push(Some(Condition::Undecidable));
-            }
-        }
-
-        if definitely_taken_terminates
-            || (!unavailable_body && has_else && terminating.len() == clauses.len())
-        {
-            return AfterIf::Stops;
-        }
-        if unavailable_body {
-            return AfterIf::Continues(reached.with(Condition::Undecidable));
-        }
-        AfterIf::Continues(match terminating.as_slice() {
-            // Nothing in the chain stops control continuing.
-            [] => reached.clone(),
-            // Exactly one branch terminates, under one negatable condition: what
-            // follows is guarded by that condition's negation.  This is the shape
-            // every real `if {GUARD} {return}` index-file head takes.
-            [Some(condition)] => match condition.negated() {
-                Some(negated) => reached.with(negated),
-                None => reached.clone(),
-            },
-            _ => reached.with(Condition::Undecidable),
-        })
-    }
-}
-
-/// The script text of every body-role region of one command.
-///
-/// Both script-bearing argument roles, taken from the registry so no command
-/// name appears here:
-///
-/// * [`ArgRole::Body`] — the argument *is* the script (`foreach`'s body,
-///   `namespace eval`'s block, `catch`'s script, `eval`'s argument).
-/// * [`ArgRole::LambdaLiteral`] — the argument is `apply`'s
-///   `{params} {body} ?ns?` **list**, one word containing the script one level
-///   down.  Split with the shared
-///   [`tcl_compiler::lambda_literal`] splitter rather than re-deriving the
-///   shape; the decoded variant is the one documented for consumers that need
-///   the script text and report no spans back into it, so a bare or quoted
-///   body element's escapes collapse exactly as `apply` collapses them.
-///
-/// An `if` chain never reaches here — [`ScriptWalker::walk_if`] models its clauses
-/// symbolically and the caller continues past it.
-fn body_scripts(
-    text: &str,
-    words: &[Vec<Token>],
-    head: &str,
-    registry: &CommandRegistry,
-    config: LexerConfig,
-) -> Vec<(String, usize)> {
-    let args: Vec<&str> = words[1..].iter().map(|w| word_raw(text, w)).collect();
-    let mut out: Vec<(String, usize)> = registry
-        .arg_indices_for_role(head, &args, ArgRole::Body)
-        .into_iter()
-        .filter_map(|i| Some((script_of(text, words[1..].get(i)?, config)?, i)))
-        .collect();
-    for index in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
-        // A statically-splittable lambda is a single braced word; a `$var` /
-        // `[cmd]` lambda has nothing to walk and is skipped.
-        let Some([token]) = words[1..].get(index).map(Vec::as_slice) else {
-            continue;
-        };
-        if let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal_decoded(text, *token)
-            .and_then(|elements| elements.body)
-        {
-            out.push((body.into_owned(), index));
-        }
-    }
-    out
-}
-
-/// Whether any [`ArgRole::Body`] argument of this command contains a
-/// terminator.
-fn command_body_may_terminate(
-    text: &str,
-    words: &[Vec<Token>],
-    head: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-    config: LexerConfig,
-) -> bool {
-    let args: Vec<&str> = words[1..].iter().map(|w| word_raw(text, w)).collect();
-    registry
-        .arg_indices_for_role(head, &args, ArgRole::Body)
-        .into_iter()
-        .filter_map(|i| words[1..].get(i))
-        .any(|word| {
-            script_of(text, word, config)
-                .is_none_or(|body| body_may_terminate(&body, registry, depth + 1, config))
-        })
 }
 
 /// Authenticate a lexical word against the complete configured source plan.
+#[cfg(test)]
 fn original_data_word(text: &str, word: &[Token], config: LexerConfig) -> Option<NativeWord> {
     let length = u32::try_from(text.len()).ok()?;
     let plan = tcl_lexer::native_script_words_in_with_purpose(
@@ -820,6 +511,7 @@ fn original_data_word(text: &str, word: &[Token], config: LexerConfig) -> Option
 }
 
 /// Decode a static Body or Expr operand once, before reading its script data.
+#[cfg(test)]
 fn script_of(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
     let original = original_data_word(text, word, config)?;
     String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
@@ -829,6 +521,7 @@ fn script_of(text: &str, word: &[Token], config: LexerConfig) -> Option<String> 
 }
 
 /// A whole command substitution contributes its original script, not its result.
+#[cfg(test)]
 fn command_source(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
     let original = original_data_word(text, word, config)?;
     if original.group().expand || original.group().kind != tcl_lexer::WordKind::Bare {
@@ -860,80 +553,6 @@ enum AfterIf {
     Continues(Conditions),
 }
 
-/// Whether `script` contains a terminator anywhere, however deeply guarded.
-///
-/// Used only to decide that a branch *might* stop the script, so an
-/// undecidable guard is recorded rather than none at all.
-fn body_may_terminate(
-    script: &str,
-    registry: &CommandRegistry,
-    depth: u32,
-    config: LexerConfig,
-) -> bool {
-    if MAX_GUARD_NESTING_DEPTH.exceeded(depth) {
-        return false;
-    }
-    walk_command_words_with_config(script, config)
-        .iter()
-        .any(|words| {
-            words.first().is_some_and(|first| {
-                let written_head = canonical_written_command(word_raw(script, first));
-                let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
-                registry
-                    .get(head)
-                    .is_some_and(|spec| spec.traits.contains(Traits::TERMINATES_BLOCK))
-            }) || words.iter().any(|word| {
-                let Some(original) = original_data_word(script, word, config) else {
-                    return true;
-                };
-                original.executable_parts().all_parts().any(|part| {
-                    let tcl_lexer::ExecutablePart::Command { body } = part.part else {
-                        return false;
-                    };
-                    std::str::from_utf8(&original.image().bytes()[body.as_range()])
-                        .ok()
-                        .is_none_or(|body| body_may_terminate(body, registry, depth + 1, config))
-                }) || (matches!(
-                    original.group().kind,
-                    tcl_lexer::WordKind::Braced | tcl_lexer::WordKind::Quoted
-                ) && script_of(script, word, config)
-                    .is_some_and(|inner| body_may_terminate(&inner, registry, depth + 1, config)))
-            })
-        })
-}
-
-/// One clause of an `if` chain: an optional condition word and its body word,
-/// as argument indices (0 = the word after the command name).
-struct Clause {
-    expr: Option<usize>,
-    body: usize,
-}
-
-/// Pair an `if` invocation's argument words into clauses, using the registry's
-/// own grammar for the command rather than re-deriving it here.
-///
-/// Returns `None` when the shape is not a clause chain (no bodies, or a
-/// trailing condition with no body — a malformed `if` the interpreter would
-/// reject anyway).
-fn clause_chain(head: &str, args: &[&str], registry: &CommandRegistry) -> Option<Vec<Clause>> {
-    let exprs = registry.arg_indices_for_role(head, args, ArgRole::Expr);
-    let bodies = registry.arg_indices_for_role(head, args, ArgRole::Body);
-    if bodies.is_empty() {
-        return None;
-    }
-    let mut clauses = Vec::with_capacity(bodies.len());
-    for &body in &bodies {
-        // The clause's condition is the last `Expr` word before the body that
-        // no earlier clause has claimed.
-        let expr = exprs
-            .iter()
-            .copied()
-            .rfind(|&e| e < body && !clauses.iter().any(|c: &Clause| c.expr == Some(e)));
-        clauses.push(Clause { expr, body });
-    }
-    Some(clauses)
-}
-
 /// A guard expression this scan understands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Guard {
@@ -942,6 +561,7 @@ enum Guard {
     Constant(bool),
     /// `package vsatisfies [package provide Tcl] REQ …`, `negated` when
     /// written under a leading `!`.
+    #[cfg(test)]
     TclSatisfies {
         requirements: Vec<String>,
         negated: bool,
@@ -960,6 +580,7 @@ impl Guard {
                 expect: expect != condition.receipt.negated(),
             })),
             Self::Constant(value) => (*value != expect).then_some(Condition::Impossible),
+            #[cfg(test)]
             Self::TclSatisfies {
                 requirements,
                 negated,
@@ -972,57 +593,23 @@ impl Guard {
     }
 }
 
-/// Read a guard word (`if`'s condition) into a [`Guard`].
-///
-/// A braced or quoted condition — the universal spelling — is read from its
-/// inner text; a bare condition is read as written.
-fn guard_expr(text: &str, word: &[Token], config: LexerConfig) -> Guard {
-    if let Some(inner) = command_source(text, word, config) {
-        return parse_vsatisfies(&inner, config);
+/// Constant source-guard interpretation only. Target-release queries are
+/// issued independently by the retained OriginalPackageIndexTargetGuard owner.
+fn constant_guard(expr: &str, _config: LexerConfig) -> Guard {
+    let mut expr = expr.trim();
+    let mut negated = false;
+    while let Some(rest) = expr.strip_prefix('!') {
+        negated = !negated;
+        expr = rest.trim();
     }
-    script_of(text, word, config).map_or(Guard::Unknown, |value| parse_guard(value.trim(), config))
-}
-
-/// Parse a condition's source text.
-fn parse_guard(expr: &str, config: LexerConfig) -> Guard {
-    parse_guard_mode(expr, config, true)
-}
-fn constant_guard(expr: &str, config: LexerConfig) -> Guard {
-    parse_guard_mode(expr, config, false)
-}
-fn parse_guard_mode(expr: &str, config: LexerConfig, source_query_compatibility: bool) -> Guard {
-    let expr = expr.trim();
-    if let Some(rest) = expr.strip_prefix('!') {
-        return match parse_guard_mode(rest, config, source_query_compatibility) {
-            Guard::Constant(value) => Guard::Constant(!value),
-            Guard::TclSatisfies {
-                requirements,
-                negated,
-            } => Guard::TclSatisfies {
-                requirements,
-                negated: !negated,
-            },
-            Guard::SourceTarget(_) | Guard::Unknown => Guard::Unknown,
-        };
-    }
-    // A whole-expression `[...]` substitution: unwrap and read the command.
-    if source_query_compatibility && let Some(inner) = bracketed_body(expr, config) {
-        return parse_vsatisfies(&inner, config);
-    }
-    // The same acceptor `if` itself uses (`Tcl_GetBooleanFromObj`'s string
-    // path), so `1`, `true`, `yes`, `on`, `2`, and `0x0` read exactly as the
-    // interpreter reads them.
-    // Unanimous across releases: this guard decides *reachability*, so claiming
-    // a constant that only holds on some releases would prune a branch that is
-    // live on the others. A spelling the releases read differently falls to
-    // `Unknown`, which is the abstaining direction here.
     match tcl_syntax::boolean::truthiness_in_every_release(expr) {
-        Some(value) => Guard::Constant(value),
+        Some(value) => Guard::Constant(value != negated),
         None => Guard::Unknown,
     }
 }
 
 /// The inner text of `expr` when it is exactly one `[...]` substitution.
+#[cfg(test)]
 fn bracketed_body(expr: &str, config: LexerConfig) -> Option<String> {
     let commands = walk_command_words_with_config(expr, config);
     let [words] = commands.as_slice() else {
@@ -1044,6 +631,7 @@ fn bracketed_body(expr: &str, config: LexerConfig) -> Option<String> {
 /// The subject must be a `[package provide Tcl]` or `[package require Tcl]`
 /// substitution: a `vsatisfies` over some *other* package says nothing about
 /// the Tcl release, and guessing there would be worse than abstaining.
+#[cfg(test)]
 fn parse_vsatisfies(script: &str, config: LexerConfig) -> Guard {
     let commands = walk_command_words_with_config(script, config);
     let [words] = commands.as_slice() else {
@@ -1108,6 +696,7 @@ fn parse_vsatisfies(script: &str, config: LexerConfig) -> Guard {
 
 /// Whether `word` is `[package provide Tcl]` / `[package require Tcl]` — the
 /// running interpreter's own version.
+#[cfg(test)]
 fn is_tcl_version_subject(script: &str, word: &[Token], config: LexerConfig) -> bool {
     if word.len() != 1 || word[0].kind != TokenType::Cmd {
         return false;
@@ -1132,6 +721,7 @@ fn is_tcl_version_subject(script: &str, word: &[Token], config: LexerConfig) -> 
 
 /// Whether `word` has the shape of a version requirement (`8.5`, `9-`,
 /// `8.5-9.0`) rather than a substitution or an option flag.
+#[cfg(test)]
 fn is_requirement_word(word: &str) -> bool {
     !word.is_empty()
         && !word.starts_with('$')

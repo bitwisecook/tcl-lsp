@@ -163,7 +163,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
                 }
             }
         }, this)
-        FileDocumentManager.getInstance().addFileDocumentManagerListener(object : FileDocumentManagerListener {
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(FileDocumentManagerListener.TOPIC, object : FileDocumentManagerListener {
             override fun beforeDocumentSaving(document: com.intellij.openapi.editor.Document) {
                 val file = FileDocumentManager.getInstance().getFile(document) ?: return
                 if (file.toNioPath() != paths.getValue("dsl") || disposed) return
@@ -175,7 +175,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
                     publishCurrentDslAfterSave(document, document.text, revision, attempt)
                 }
             }
-        }, this)
+        })
         SpecStudioPanelGenerations.register(this)
         val generation = studioSourceGeneration.get()
         ApplicationManager.getApplication().executeOnPooledThread {

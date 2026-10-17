@@ -1604,6 +1604,17 @@ pub fn reset_relation_check_stats() {
 /// quarantined, budget-blown or hostless pack hook answers.
 pub type ConstraintsHook = fn(&OptionFacts<'_>) -> Vec<ConstraintReport>;
 
+/// How a selected Registry command exposes source operands to teardown
+/// consumers. This is an argument-layout declaration only; it proves no
+/// teardown ran, succeeded, or changed host/runtime state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TeardownArgumentLayout {
+    /// Every effective post-head argument is a possible teardown target.
+    /// Unknown argv cardinality or source-word ownership still refuses at the
+    /// selected invocation/source owner.
+    AllEffectivePostHeadArguments,
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -2551,6 +2562,12 @@ pub struct CommandSpec {
     /// (unknown command).  `None` = no argument names a new command.
     pub defines_command_at: Option<u8>,
 
+    /// Effective source argv layout of a declared fire-and-forget teardown.
+    /// Consumers use the selected invocation's argument owner to project
+    /// these ordinals back to original words. `None` means this descriptor
+    /// supplies no teardown target layout.
+    pub teardown_argument_layout: Option<TeardownArgumentLayout>,
+
     /// Additional validity gate keyed on lexical/dispatch context rather
     /// than argument shape — see [`ContextGate`]. `None` = no
     /// context-sensitive restriction (the common case).
@@ -3064,6 +3081,7 @@ impl CommandSpec {
         remote_method: None,
         creates_instance_at: None,
         defines_command_at: None,
+        teardown_argument_layout: None,
         context_gate: None,
         implementation_namespace: None,
         oo_context_facts: &[],

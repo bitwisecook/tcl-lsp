@@ -1,0 +1,145 @@
+{
+  "utc": "2026-10-17T11:44:24.975389+00:00",
+  "scheduled_report_utc": "2026-10-17T11:39:49Z",
+  "count_freeze": "Integrations09/10 only; subsequently admitted integrations11/12 appear separately in current_snapshot.",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "source_head": "0597b94c5907470df67b0dd293bf35e2a89152c2 plus reviewed integrations09/10 working tree",
+  "pushed_base": "origin/work=0597b94c5",
+  "original_LSP": {
+    "required": 325,
+    "integrated": 281,
+    "semantic_integrated": 158,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 44,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 415,
+    "full_scope_pending": 353,
+    "partial": 62,
+    "without_integration": 1743
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 485,
+    "without_integration": 1744,
+    "verified_complete": 0
+  },
+  "change_since_previous_report": {
+    "integrated_LSP": 10,
+    "semantic": 5,
+    "validation": 5,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "09": {
+      "path": "/workspace/naming-work/integration-09/composition.json",
+      "sha256": "67a982911974feae7371d206eb2f3e27824a302baa650721b630c37a57f105f6",
+      "composed_patch_sha256": "3f5edb61f9b1976d35348052085e66c4aca5a58c6d0a2881f9e011ab27483548",
+      "new_baseline_unit_ids": [
+        "lsp-inline-proc-literal-substitution-constructor",
+        "lsp.validation.03.05.fn0",
+        "lsp.validation.03.05.fn1",
+        "lsp.validation.03.05.fn2",
+        "lsp.validation.03.05.fn3",
+        "lsp.validation.02.00.fn0"
+      ],
+      "applied_patches": [
+        {
+          "path": "/workspace/naming-work/integration-09/crossdoc-rebased.patch",
+          "sha256": "4ea3254a3aa5dcdaf342dc69b85f8dc96f04864cc5b89a53e92420323f5997df"
+        },
+        {
+          "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v2/candidate.patch",
+          "sha256": "1375cb7450c753da8bf0aaec0dd89dd1d7735dbd57a73c325afbce7f90efaff1"
+        },
+        {
+          "path": "/workspace/naming-work/../naming-validation/agent-work/vscode-current-diagnostic-consumers-v4/candidate.patch",
+          "sha256": "b665c1870441b8e3caa689ce3c02e217b50e144b8cd3bc7250d9076646a967ed"
+        },
+        {
+          "path": "/workspace/naming-work/sol-inline-literal/v1/repair.patch",
+          "sha256": "cefef825eb45ea402ca34f6441b1e84993879e48c537f4994f4c765aca51602d"
+        }
+      ]
+    },
+    "10": {
+      "path": "/workspace/naming-work/integration-10/composition.json",
+      "sha256": "e9d063e0b41daa02edebfa74888a0bae9c9dde74e3a743ff79af42f2175f7eb8",
+      "composed_patch_sha256": "cf288740da6c1f093dd6b6510590cb03f2013cad81943938f3fd5f25afa00fa2",
+      "new_baseline_unit_ids": [
+        "lsp-server-legacy-library-candidates",
+        "lsp-server-legacy-package-root-transport",
+        "lsp-server-logical-w123-report-name-refinement",
+        "lsp-editor-context-availability"
+      ],
+      "applied_patches": [
+        {
+          "path": "/workspace/naming-work/sol-libcheck09-repair-v1/repair.patch",
+          "sha256": "0c8882861265707a115078d0d4946062fdb397051f3cecf9577deb40c723e063"
+        },
+        {
+          "path": "/workspace/naming-work/sol-composition/legacy-server-v3-rebased/change.patch",
+          "sha256": "a483896f4067c4f01567c03ad40cad132dfb487141a0961637c05b188e235603"
+        },
+        {
+          "path": "/workspace/naming-work/sol-call-wire-purpose/v1/change.patch",
+          "sha256": "3ce2f74c362c882119307c153f507882a7237810d26a0d417b1efff4c1ff39df"
+        },
+        {
+          "path": "/workspace/naming-work/sol-chat-context/v4/change.patch",
+          "sha256": "458ca2d818e582fc8b220ff36159c501bdaa8527f51d37df20ea0f44a08a06cc"
+        }
+      ]
+    }
+  },
+  "cross_document_facet_correction": "Integration09 public ClassObject source/navigation facet is preparatory. It is not a full method-dispatch fallback adoption and adds zero units; the earlier shorthand describing an already-counted partial update was incorrect.",
+  "validation_recorded_at_capture": {
+    "integration10_library_check": {
+      "status": "PASS",
+      "seconds": 97,
+      "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+      "stderr": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+        "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+      },
+      "machine_stdout": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+        "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+      }
+    },
+    "vscode_types10": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jetbrains_current_tests": {
+      "status": "PASS",
+      "seconds": 24,
+      "tasks": 14,
+      "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+      "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+    },
+    "integration12_library_and_test_typecheck": {
+      "status": "FAIL",
+      "root_reported_errors": 1,
+      "cause": "PossibleBodyInvocation construction lacks the new selected-case field; narrow causal repair being prepared.",
+      "ordinary_acceptance": false
+    },
+    "latest_regression_ELF": "No fresh regression ELF since e739519/664. Historical retained Core664: 519 PASS and 145 failures including one timeout; new35: 29 PASS/6 FAIL; focused6: 2 PASS/4 FAIL. Original budgets and guards remain unchanged.",
+    "required_current_gates": "Fresh ordinary library/test artifacts and retained controls, full1024 plus new controls, extra18, Native34, original C providers, actual Node/browser hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted."
+  },
+  "scope": "Generic LSP and necessary shared owners. Runtime/VM and dedicated BIG-IP-related work deferred; uncovered BIG-IP Tcl8.4 remains a working assumption, not measured Native evidence. Original325 denominator retained.",
+  "next_report_utc": "2026-10-17T12:09:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

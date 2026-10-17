@@ -190,6 +190,13 @@ impl RefactorEdit {
 /// The outcome of a refactoring transform — a titled set of edits plus
 /// the LSP code-action kind.
 ///
+/// Explicit Logical source-authoring recipes are conditional authored source
+/// proposals. Their enabled edits retain current source intent, original
+/// correspondence and purpose-specific guards, not an unconditional runtime
+/// equivalence, completed store/value, observer or reached-frame certificate.
+/// These unresolved obligations remain with the source-authoring purpose; the
+/// separate Native and execution-preserving rewrite admission APIs are unchanged.
+///
 /// `data_group` carries the rendered tmsh definition for the
 /// extract-to-datagroup transform and is `None` for every other
 /// transform.
@@ -207,11 +214,15 @@ pub struct Refactoring {
     pub data_group: Option<DataGroupDefinition>,
     /// Why this refactoring cannot be applied here, when it cannot.
     ///
-    /// A transform that finds its subject but *cannot preserve behaviour* says
-    /// so rather than vanishing: the reason is surfaced as the code action's
-    /// LSP `disabled.reason`, so the editor greys the entry out and explains
-    /// itself.  Silently offering nothing leaves a user unable to tell "this
-    /// refactoring does not apply here" from "this refactoring is broken".
+    /// An execution-preserving transform that finds its subject but *cannot
+    /// preserve behaviour* says so rather than vanishing: the reason is surfaced
+    /// as the code action's LSP `disabled.reason`, so the editor greys the entry
+    /// out and explains itself. Explicit Logical source-authoring recipes instead
+    /// retain conditional source intent and its unresolved runtime obligations,
+    /// as described on [`Refactoring`]; they do not turn that intent into an
+    /// execution-equivalence certificate. A failed source recipe emits no edits.
+    /// Silently offering nothing leaves a user unable to tell "this refactoring
+    /// does not apply here" from "this refactoring is broken".
     pub disabled: Option<String>,
 }
 
@@ -613,29 +624,27 @@ impl<'a> FrameWalk<'a> {
             }
         };
         if body_kind_matches {
-            let flow = selected.with_argument_words(|arguments| {
-                tcl_registry::case_bodies::script_body_flow_in_registry(
-                    self.nesting,
-                    &selected.facts,
-                    arguments.arguments(),
-                )
-            });
-            if let tcl_registry::script_body_flow::ScriptBodyFlow::CaseBodies(cases) = flow {
-                if cases.selection_unknown {
-                    return None;
-                }
-                for body in cases.bodies {
-                    let span = body_span(body.argument, body.list_element)?;
-                    regions.push((span.start() as usize, span.end() as usize));
-                }
-            } else {
-                for &(index, role) in &selected.facts.arg_roles {
-                    if role != ArgRole::Body {
-                        continue;
+            use tcl_compiler::registry_invocation::AuthoredSourceCaseBodySelection;
+            match selected.authored_case_body_selection.as_ref()? {
+                AuthoredSourceCaseBodySelection::Selected(cases) => {
+                    if cases.selection_unknown {
+                        return None;
                     }
-                    let span =
-                        body_span(selected.facts.argument_offset + usize::from(index), None)?;
-                    regions.push((span.start() as usize, span.end() as usize));
+                    for body in &cases.bodies {
+                        let span = body_span(body.argument, body.list_element)?;
+                        regions.push((span.start() as usize, span.end() as usize));
+                    }
+                }
+                AuthoredSourceCaseBodySelection::Unavailable => return None,
+                AuthoredSourceCaseBodySelection::NotCase => {
+                    for &(index, role) in &selected.facts.arg_roles {
+                        if role != ArgRole::Body {
+                            continue;
+                        }
+                        let span =
+                            body_span(selected.facts.argument_offset + usize::from(index), None)?;
+                        regions.push((span.start() as usize, span.end() as usize));
+                    }
                 }
             }
         }
@@ -1377,6 +1386,41 @@ mod tests {
 #[cfg(test)]
 mod original_frame_walk_tests {
     use super::*;
+    #[test]
+    fn native_frame_walk_case_bodies_follow_selected_option_availability() {
+        let source = "switch -regexp -matchvar captures -- subject {a {set x 1} default {set y 2}}";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original switch command")
+        };
+        let regions = walk.original_regions(source, command, false).unwrap();
+        for body in ["{set x 1}", "{set y 2}"] {
+            let start = source.find(body).unwrap();
+            assert!(regions.iter().any(|&(region_start, region_end)| {
+                region_start == start && &source[region_start..region_end] == body
+            }));
+        }
+
+        let unavailable = "switch -matchvar subject {a {set x 1} default {set y 2}}";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(unavailable, "tcl8.4")
+            .clone();
+        let walk = FrameWalk::new(unavailable, &analysis).unwrap();
+        let commands = walk.segment_document(unavailable);
+        let [command] = commands.as_slice() else {
+            panic!("one original switch command")
+        };
+        // This is an unavailable option in the retained Tcl 8.4 catalogue.
+        // The case owner cannot select a valid option/body layout, so the
+        // walker must refuse instead of treating newer option metadata as a
+        // Native body-entry fact.
+        assert!(walk.original_regions(unavailable, command, false).is_none());
+    }
+
     #[test]
     fn original_variable_components_keep_index_children_and_current_document_owner() {
         let source = "puts \"literal=\\$ignored ${$literal} $array($key)\"";

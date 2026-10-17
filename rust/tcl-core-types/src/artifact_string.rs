@@ -66,11 +66,13 @@ impl ArtifactCString {
     }
 
     /// The exact admitted bytes, excluding the terminator.
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
 
     /// The exact admitted bytes and their final terminator.
+    #[must_use]
     pub fn as_bytes_with_nul(&self) -> &[u8] {
         self.0.as_bytes_with_nul()
     }
@@ -92,6 +94,7 @@ impl Default for ArtifactStringTable {
 
 impl ArtifactStringTable {
     /// Create the conventional empty entry at offset zero.
+    #[must_use]
     pub fn new() -> Self {
         Self { bytes: vec![0] }
     }
@@ -122,6 +125,7 @@ impl ArtifactStringTable {
     }
 
     /// The complete serialized table, including all terminators.
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }

@@ -1,0 +1,22 @@
+{
+  "status": "REVIEWED_SOURCE_ADMISSIONS_PENDING_ORDINARY_VALIDATION",
+  "base_commit": "0597b94c5907470df67b0dd293bf35e2a89152c2",
+  "integrations": "07 through12 plus actual SDK/path/borrow/Clippy/test-only causal repairs",
+  "lsp_integrated": 284,
+  "verified_complete": 0,
+  "validation": {
+    "library_check10": "PASS97s compiler/core/server libs;1test-only helperwarning subsequentlycfgtest",
+    "vscode_types10": "PASS",
+    "jetbrains_current_tests": "PASS24s14tasks",
+    "broader_typecheck12": "FAIL1 misplaced case field; independently reviewed one-line repair admitted; retry still running",
+    "ordinary_regressions": "No fresh ELF execution since e739; see prior compact capture02.",
+    "PR": "Not green; no PR/merge/issue closure"
+  },
+  "limits": "Source-review records only; exact current source is retained by git. No duplicated source trees, compiler artifacts, providers or toolchains.",
+  "archive": {
+    "name": "source-receipts.tar.zst",
+    "bytes": 147642,
+    "sha256": "fa396a24e135e4e1f8ba952bcda8ae0d6b5ba37dc787d62e30bed1b4b84abfe6",
+    "members": 24
+  }
+}

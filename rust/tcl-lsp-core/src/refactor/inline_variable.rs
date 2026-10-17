@@ -31,6 +31,11 @@ use crate::code_actions::ActionKind;
 /// Inline the variable defined by the `set` command at byte offset
 /// `cursor`.
 ///
+/// The explicit Logical route is a conditional source-authoring proposal with
+/// retained original syntax/history and unresolved runtime observer, frame and
+/// erasure/motion obligations; it is not a runtime-equivalence certificate.
+/// The Native route retains its independent completed store/read proof.
+///
 /// Only inlines when the cursor is on a `set var value` command and the
 /// variable has exactly one reference after the definition; returns
 /// `None` otherwise.
@@ -123,13 +128,282 @@ pub fn inline_variable(
         new_text,
     };
 
-    Some(Refactoring {
+    let action = Refactoring {
         title: format!("Inline variable '${var_name}'"),
         edits: vec![delete, replace],
         kind: ActionKind::RefactorInline,
         data_group: None,
         disabled: None,
-    })
+    };
+    if analysis.allows_lexical_declaration_advice() {
+        return LogicalVariableInliningRecipe::capture(
+            source,
+            analysis,
+            &cmd,
+            &var_name,
+            (ref_span, value_word, &ctx.word),
+            action,
+        )?
+        .into_source_action(source, analysis);
+    }
+    Some(action)
+}
+
+/// Conditional source-authoring intent, independently of a completed store or
+/// physical value motion. Like LogicalVariableExtractionRecipe, this owner
+/// offers an explicitly authored source operation, not runtime equivalence.
+/// Unresolved observer/runtime/frame obligations are retained by purpose; no
+/// Native Normal, source-cell erasure or completed RHS value is manufactured.
+struct LogicalVariableInliningRecipe {
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    setter: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    rhs: tcl_lexer::NativeWord,
+    receiver: tcl_lexer::NativeWord,
+    name: String,
+    declaration: Span,
+    reference: Span,
+    replacement: Span,
+    postimage: tcl_lexer::SourceImage,
+    action: Refactoring,
+    obligations: InlineSourceObligations,
+}
+
+/// These remain unresolved by an authored source proposal. The recipe is not
+/// accepted by Native optimisation, physical store/read or Normal APIs.
+struct InlineSourceObligations {
+    observer_horizon: tcl_lexer::SourceImage,
+    moved_rhs: tcl_lexer::NativeWord,
+    erased_statement: Span,
+    substituted_read: Span,
+}
+
+impl LogicalVariableInliningRecipe {
+    fn capture(
+        source: &str,
+        analysis: &AnalysisResult,
+        command: &SegmentedCommand,
+        name: &str,
+        substitution: (Span, &tcl_lexer::NativeWord, &tcl_lexer::NativeWord),
+        action: Refactoring,
+    ) -> Option<Self> {
+        let (reference, rhs, receiver) = substitution;
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let input = analysis.resolved_input.as_ref()?;
+        if !input.has_logical_source_name_context() {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(source);
+        let walk = super::FrameWalk::new(source, analysis)?;
+        let setter = walk.source_words(source, command)?;
+        let actual_read = reference_context(source, reference.start(), name, analysis, &walk)?;
+        if &actual_read.word != receiver {
+            return None;
+        }
+        let replacement = actual_read.reference;
+        let (selected_name, value_index) = logical_set_operands(source, analysis, command)?;
+        if selected_name != name
+            || setter.origins().iter().enumerate().any(|(index, origin)| {
+                !matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+            })
+            || walk.native_words(source, command)?.get(value_index)? != rhs
+            || rhs.image() != &image
+            || receiver.image() != &image
+            || rhs.config() != current.config()
+            || receiver.config() != current.config()
+            || replacement.start() < receiver.word_span().start()
+            || replacement.end() > receiver.word_span().end()
+            || rhs.group().expand
+            || receiver.group().expand
+        {
+            return None;
+        }
+        let declaration = setter.original_argument_word(0)?.tokens().first()?.span;
+        let definition = analysis
+            .logical_variable_scope_advice(&image, current.config(), declaration.start())?
+            .variable_definition(name)?;
+        let read_definition = analysis
+            .logical_variable_scope_advice(&image, current.config(), reference.start())?
+            .variable_definition(name)?;
+        if definition.definition_span != declaration
+            || definition.references.as_slice() != [reference]
+            || !std::ptr::eq(definition, read_definition)
+            || reference.start() < walk.command_span_offsets(source, command)?.1
+        {
+            return None;
+        }
+        // The authored recipe does not move RHS evaluation across another
+        // source statement or earlier dynamic operand in the receiver call.
+        // The actual original region/word owners supply both inventories.
+        let read_command = super::find_original_command_at(source, reference.start(), analysis)?;
+        let (read_start, _) = walk.command_span_offsets(source, &read_command)?;
+        let (_, setter_end) = walk.command_span_offsets(source, command)?;
+        if read_start < setter_end {
+            return None;
+        }
+        let between = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            Span::new(setter_end, read_start),
+            current.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        if between.fatal_tail.is_some() || !between.commands.is_empty() {
+            return None;
+        }
+        let read_words = walk.native_words(source, &read_command)?;
+        let receiver_index = read_words.iter().position(|word| word == receiver)?;
+        if read_words.iter().take(receiver_index).any(|word| {
+            word.group().expand
+                || tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none()
+        }) {
+            return None;
+        }
+        // A source-history gate, not a proof that no runtime observer exists:
+        // require complete selected command inventory and refuse authored
+        // reflection, trace, scope-alias and dynamic-evaluation operations.
+        let mut history_supported = true;
+        let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+            source,
+            analysis,
+            &mut |command, _, _| {
+                let observers = tcl_registry::Traits::INTROSPECTS_BY_NAME
+                    | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
+                    | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE
+                    | tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                    | tcl_registry::Traits::DYNAMIC_EVAL_BODY;
+                if walk
+                    .source_traits(source, command)
+                    .is_none_or(|traits| traits.intersects(observers))
+                {
+                    history_supported = false;
+                }
+                false
+            },
+        );
+        if !history_supported
+            || !walk.complete()
+            || coverage != crate::executable_regions::PotentialSourceVisit::Complete
+        {
+            return None;
+        }
+        // Validate the exact proposed receiver invocation in its original
+        // nested grammar. A complete document alone would not parse script
+        // text inside a braced procedure body. Preserve the whole argv topology
+        // and every unedited original word; offsets here are presentation only.
+        let (_, read_end) = walk.command_span_offsets(source, &read_command)?;
+        let replace = action
+            .edits
+            .iter()
+            .find(|edit| edit.start == replacement.start() && edit.end == replacement.end())?;
+        let mut proposed_call = source
+            .get(usize::try_from(read_start).ok()?..usize::try_from(read_end).ok()?)?
+            .to_owned();
+        let local_start = usize::try_from(replacement.start().checked_sub(read_start)?).ok()?;
+        let local_end = usize::try_from(replacement.end().checked_sub(read_start)?).ok()?;
+        proposed_call.replace_range(local_start..local_end, &replace.new_text);
+        let call_image = tcl_lexer::SourceImage::document(&proposed_call);
+        let call_plan = tcl_lexer::native_script_words_in_with_purpose(
+            call_image,
+            Span::new(0, u32::try_from(proposed_call.len()).ok()?),
+            current.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [proposed_command] = call_plan.commands.as_slice() else {
+            return None;
+        };
+        if call_plan.fatal_tail.is_some()
+            || proposed_command.words.len() != read_words.len()
+            || proposed_command.words[receiver_index].group().expand
+        {
+            return None;
+        }
+        for (index, (original, proposed)) in
+            read_words.iter().zip(&proposed_command.words).enumerate()
+        {
+            if index != receiver_index && original.try_text().ok()? != proposed.try_text().ok()? {
+                return None;
+            }
+        }
+        // This is the complete actual proposed source, not an evaluated value.
+        // Shared lexer/group/word ownership validates all enclosing grammar,
+        // including delimiters around the replacement and removed statement.
+        let proposed = action.apply(source);
+        let postimage = tcl_lexer::SourceImage::document(&proposed);
+        let post = tcl_lexer::native_script_words_in(
+            postimage.clone(),
+            Span::new(0, u32::try_from(proposed.len()).ok()?),
+            current.config(),
+        )
+        .ok()?;
+        if post.fatal_tail.is_some() || action.edits.len() != 2 {
+            return None;
+        }
+        Some(Self {
+            image,
+            input: input.clone(),
+            setter,
+            rhs: rhs.clone(),
+            receiver: receiver.clone(),
+            name: name.to_owned(),
+            declaration,
+            reference,
+            replacement,
+            postimage,
+            action,
+            obligations: InlineSourceObligations {
+                observer_horizon: tcl_lexer::SourceImage::document(source),
+                moved_rhs: rhs.clone(),
+                erased_statement: {
+                    let (start, end) = walk.command_span_offsets(source, command)?;
+                    Span::new(start, end)
+                },
+                substituted_read: replacement,
+            },
+        })
+    }
+
+    fn into_source_action(self, source: &str, analysis: &AnalysisResult) -> Option<Refactoring> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if self.image.bytes() != source.as_bytes()
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+            || !self.setter.matches_source(&self.image, current.config())
+            || self.rhs.image() != &self.image
+            || self.receiver.image() != &self.image
+            || self.rhs.config() != current.config()
+            || self.receiver.config() != current.config()
+            || self.postimage.bytes() != self.action.apply(source).as_bytes()
+        {
+            return None;
+        }
+        let definition = analysis
+            .logical_variable_scope_advice(&self.image, current.config(), self.declaration.start())?
+            .variable_definition(&self.name)?;
+        let read = analysis
+            .logical_variable_scope_advice(&self.image, current.config(), self.reference.start())?
+            .variable_definition(&self.name)?;
+        if !std::ptr::eq(definition, read)
+            || definition.definition_span != self.declaration
+            || definition.references.as_slice() != [self.reference]
+        {
+            return None;
+        }
+        let unresolved = &self.obligations;
+        if unresolved.observer_horizon != self.image
+            || unresolved.moved_rhs != self.rhs
+            || unresolved.substituted_read != self.replacement
+            || !self.action.edits.iter().any(|edit| {
+                edit.new_text.is_empty()
+                    && edit.start <= unresolved.erased_statement.start()
+                    && edit.end >= unresolved.erased_statement.end()
+            })
+        {
+            return None;
+        }
+        // Consumption is ONLY by this conditional source-authoring sink.
+        Some(self.action)
+    }
 }
 
 /// Logical source edits use selected Set structure, independently of a
@@ -957,5 +1231,44 @@ mod original_interpolation_source_tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod logical_inline_source_intent_tests {
+    use super::*;
+
+    fn authored(source: &str) -> Option<Refactoring> {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        inline_variable(
+            source,
+            0,
+            &analysis,
+            analysis.resolved_registry()?,
+            &LineIndex::new(source),
+        )
+    }
+
+    #[test]
+    fn conditional_intent_retains_original_rhs_and_complete_postimage() {
+        let source = "set held ${other}\nputs ${held}";
+        assert_eq!(authored(source).unwrap().apply(source), "puts ${other}");
+        let source = "set held VALUE\nputs pre-${held}-post";
+        assert_eq!(
+            authored(source).unwrap().apply(source),
+            "puts pre-VALUE-post"
+        );
+    }
+
+    #[test]
+    fn source_intent_refuses_future_reflection_and_unknown_history() {
+        assert!(authored("set held VALUE\nputs $held\ninfo locals").is_none());
+        assert!(authored("set held VALUE\nputs $held\nunknown_observer").is_none());
+    }
+
+    #[test]
+    fn source_intent_does_not_cross_statements_or_earlier_dynamic_operands() {
+        assert!(authored("set held ${other}\nset other CHANGED\nputs $held").is_none());
+        assert!(authored("set held ${other}\nputs [set other CHANGED] $held").is_none());
     }
 }

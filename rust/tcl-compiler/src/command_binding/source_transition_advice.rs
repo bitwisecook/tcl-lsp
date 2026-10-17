@@ -25,8 +25,8 @@ mod logical_navigation;
 pub use logical_math::OriginalLogicalMathFunctionOccurrence;
 mod logical_word_geometry;
 pub use logical_navigation::{
-    OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
-    OriginalLogicalCommandCandidates,
+    LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
+    OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
 };
 mod native_baseline;
 mod produced_prefix;
@@ -90,6 +90,8 @@ pub use source_procedure_publications::{
 };
 
 pub use logical_body::OriginalLogicalProcedureBody;
+pub use native_declared_body::OriginalNativeProcedureBodyCommand;
+pub use source_procedure::OriginalSourceProcedureCall;
 
 use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -669,10 +671,20 @@ impl OriginalSourceCommandTransitionAdvice {
     ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
         self.procedure_body.as_deref()
     }
-    pub(crate) fn original_definition_member_source_body(
+    /// Exact retained callable member-body lineage for readonly source callers.
+    /// This does not establish an entered receiver, namespace or lookup frame.
+    #[must_use]
+    pub fn original_definition_member_source_body(
         &self,
     ) -> Option<&crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody> {
-        self.member_catalogue_body.as_deref()
+        let catalogue = match self.catalogue_body.as_ref() {
+            Some(OriginalSourceCatalogueBody::Member(body)) => Some(body.as_ref()),
+            _ => None,
+        };
+        match (self.member_catalogue_body.as_deref(), catalogue) {
+            (Some(direct), Some(catalogue)) => (direct == catalogue).then_some(direct),
+            (direct, catalogue) => direct.or(catalogue),
+        }
     }
 
     pub(crate) fn original_catalogue_source_body(&self) -> Option<&OriginalSourceCatalogueBody> {
@@ -770,6 +782,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     >,
     configured_classes: BTreeMap<u32, Option<OriginalSourceConfiguredClassReference>>,
     procedure_publications: Option<OriginalSourceProcedurePublications>,
+    native_procedure_calls: BTreeMap<u32, Option<OriginalSourceProcedureCall>>,
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
@@ -811,6 +824,19 @@ pub(crate) enum OriginalSourceTransitionAdviceLookup<'a> {
     Unrepresented,
 }
 impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn native_procedure_calls(
+        &self,
+    ) -> impl Iterator<Item = &OriginalSourceProcedureCall> {
+        self.native_procedure_calls
+            .values()
+            .filter_map(Option::as_ref)
+    }
+    pub(crate) fn native_procedure_call_at(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceProcedureCall> {
+        self.native_procedure_calls.get(&offset)?.as_ref()
+    }
     pub(crate) fn lookup(&self, offset: u32) -> OriginalSourceTransitionAdviceLookup<'_> {
         if let Some(advice) = self.advice.get(&offset) {
             OriginalSourceTransitionAdviceLookup::Advice(advice)
@@ -1206,6 +1232,9 @@ impl OriginalSourceTransitionAdviceTape {
     fn extend_inventory(&mut self, other: Self) {
         for (offset, phase) in other.decoded_lambda_phases {
             source_class::merge_receipt(&mut self.decoded_lambda_phases, offset, phase);
+        }
+        for (offset, call) in other.native_procedure_calls {
+            source_class::merge_receipt(&mut self.native_procedure_calls, offset, call);
         }
         for (offset, call) in other.logical_procedure_calls {
             source_class::merge_receipt(&mut self.logical_procedure_calls, offset, call);

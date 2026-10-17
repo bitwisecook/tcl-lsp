@@ -39,7 +39,7 @@
 //! ## What is and isn't generated
 //!
 //! The three command-name regex alternations and the shared lexical regex
-//! bodies (numbers, backslash escapes, and unbraced variable names) are
+//! bodies (numbers, backslash escapes, and variable names) are
 //! generated. Number / escape behaviour is projected from the modern grammar
 //! that [`tcl_dialect::NumberSyntax::of_profile`] /
 //! [`tcl_dialect::EscapeSyntax::of_profile`] designate for a grammar without a
@@ -49,10 +49,16 @@
 //! fallback grammars remain one cross-editor projection instead of three
 //! hand-rolled lexical parsers.
 //!
-//! Comments, strings, operators, punctuation, the `proc`/`method`
-//! name-capture rule, and the `regexp`/`regsub` pattern highlighting remain
-//! static template text: those rules match by *position* or *node shape*, not
-//! by a shared lexical owner. Each target
+//! The braced-variable projection preserves the historical first-close display
+//! rule, including empty names; Tcl 9 nested/escaped-close extents remain
+//! approximate until semantic tokens arrive.
+//!
+//! Definition/member/class/regex rosters and historical alternative order
+//! come from the Registry's descriptor-checked source-display recipe. Name
+//! tokens and shallow parameter-list shapes come from Syntax owners. Target
+//! capture scopes and repository layouts remain presentation templates; these
+//! static rules do not select a handler or prove a member context. Comments,
+//! strings, operators and punctuation remain target template text. Each target
 //! file is edited by locating the `"match"` (JSON) / `match:` (YAML) value
 //! that immediately follows each scope name and replacing only that value —
 //! not a full-file reserialisation — so unrelated formatting (e.g. the
@@ -122,6 +128,8 @@
 //! Run `cargo xtask gen-tmlanguage-keywords` to (re)write the files;
 //! `--check` verifies the committed files match, exiting non-zero on drift.
 
+mod source_json;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
@@ -131,7 +139,7 @@ use anyhow::{Context, Result, bail};
 use tcl_dialect::{EscapeSyntax, NumberSyntax};
 use tcl_registry::CommandRegistry;
 use tcl_registry::traits::{Traits, clause_keywords_without_command_spec};
-use tcl_syntax::naming::textmate_variable_name_body;
+use tcl_syntax::naming::{textmate_braced_variable_reference, textmate_variable_name_body};
 
 use crate::util::{self, repo_root};
 
@@ -185,6 +193,7 @@ struct Buckets {
     control: BTreeSet<String>,
     other: BTreeSet<String>,
     builtin: BTreeSet<String>,
+    source_display: Option<tcl_registry::source_navigation::StaticTclSourceDisplay>,
 }
 
 /// Lexical patterns shared by the three TextMate-family formats. All strings
@@ -192,6 +201,7 @@ struct Buckets {
 /// them while the YAML renderer keeps them literal in a single-quoted scalar.
 struct LexicalRegexes {
     variable: String,
+    braced_variable: String,
     hex: String,
     octal: String,
     binary: String,
@@ -283,6 +293,7 @@ fn lexical_regexes() -> LexicalRegexes {
     );
 
     LexicalRegexes {
+        braced_variable: textmate_braced_variable_reference().to_owned(),
         variable: format!(r"\${}(?:\([^)]*\))?", textmate_variable_name_body()),
         hex,
         octal,
@@ -342,6 +353,7 @@ fn classify(reg: &CommandRegistry) -> Buckets {
     );
     b.other
         .extend(STATIC_OTHER_WORDS.iter().map(|s| (*s).to_owned()));
+    b.source_display = tcl_registry::source_navigation::static_tcl_source_display(reg);
     b
 }
 
@@ -417,11 +429,139 @@ fn splice_json_match(
     ))
 }
 
+/// Replace exactly the parser-retained string at this target schema path.
+fn splice_source_rule(
+    text: &str,
+    repository: &str,
+    pattern: usize,
+    key: &str,
+    replacement: &str,
+) -> Result<String> {
+    use source_json::PathPart::{Index, Key};
+    source_json::replace_string(
+        text,
+        &[
+            Key("repository"),
+            Key(repository),
+            Key("patterns"),
+            Index(pattern),
+            Key(key),
+        ],
+        replacement,
+    )
+}
+
+fn static_source_roles(original: &str, b: &Buckets) -> Result<String> {
+    let display = b
+        .source_display
+        .as_ref()
+        .context("Registry source-display recipe unavailable")?;
+    let words = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| regex::escape(name))
+            .collect::<Vec<_>>()
+            .join("|")
+    };
+    let name = tcl_syntax::naming::textmate_unquoted_entity_name();
+    let named = words(&display.named_callables);
+    let prefix = r"(?<=^|\s|;|\[)";
+    let named_match = format!(r"{prefix}({named})\s+({name})");
+    let json: serde_json::Value = serde_json::from_str(original)?;
+    let rich_definitions = json["repository"].get("parameter-list").is_some();
+    let mut text = original.to_owned();
+    if rich_definitions {
+        text = splice_source_rule(
+            &text,
+            "definitions",
+            0,
+            "begin",
+            &format!(r"{named_match}\s*(\{{)"),
+        )?;
+        text = splice_source_rule(
+            &text,
+            "definitions",
+            1,
+            "begin",
+            &format!(r"{prefix}({})\s*(\{{)", words(&display.constructors)),
+        )?;
+        let classes = display
+            .classes
+            .iter()
+            .map(|(command, subcommand)| {
+                subcommand.map_or_else(
+                    || regex::escape(command),
+                    |sub| format!(r"{}\s+{}", regex::escape(command), regex::escape(sub)),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("|");
+        text = splice_source_rule(
+            &text,
+            "definitions",
+            2,
+            "match",
+            &format!(r"{prefix}({classes})\s+({name})"),
+        )?;
+        text = splice_source_rule(
+            &text,
+            "definitions",
+            3,
+            "match",
+            &format!(r"{prefix}({})\s+({name})", words(&display.class_references)),
+        )?;
+        text = splice_source_rule(&text, "definitions", 4, "match", &named_match)?;
+        let parameters = tcl_syntax::formal_params::static_formal_parameter_display();
+        text = splice_source_rule(&text, "parameter-list", 0, "match", parameters.defaulted)?;
+        text = splice_source_rule(&text, "parameter-list", 1, "match", parameters.plain)?;
+    } else {
+        text = splice_source_rule(&text, "definitions", 0, "match", &named_match)?;
+    }
+    for (index, closer) in [(0, r"\{"), (1, r#"""#)] {
+        let begin = format!(
+            r"{prefix}({})\s+((?:-[a-z]+\s+)*(?:--\s+)?)({closer})",
+            words(&display.regex_commands)
+        );
+        text = splice_source_rule(&text, "regexp-command", index, "begin", &begin)?;
+    }
+    let options = display
+        .regex_options
+        .iter()
+        .map(|option| {
+            option
+                .strip_prefix('-')
+                .map(regex::escape)
+                .context("source option lacks prefix")
+        })
+        .collect::<Result<Vec<_>>>()?
+        .join("|");
+    let option_regex = format!(r"-(?:{options})\b");
+    use source_json::PathPart::{Index, Key};
+    for index in 0..2 {
+        text = source_json::replace_string(
+            &text,
+            &[
+                Key("repository"),
+                Key("regexp-command"),
+                Key("patterns"),
+                Index(index),
+                Key("beginCaptures"),
+                Key("2"),
+                Key("patterns"),
+                Index(0),
+                Key("match"),
+            ],
+            &option_regex,
+        )?;
+    }
+    Ok(text)
+}
+
 /// Patch the two (byte-for-byte identical in this section) `.tmLanguage.json`
 /// grammars: VS Code's and the `JetBrains` copy. The `keyword` repository
 /// entry is immediately followed by `operator`, which bounds the block.
 fn render_tmlanguage_json(original: &str, b: &Buckets) -> Result<String> {
-    let mut text = original.to_owned();
+    let mut text = static_source_roles(original, b)?;
     for (anchor, words) in [
         ("\"keyword.control.tcl\"", &b.control),
         ("\"keyword.other.tcl\"", &b.other),
@@ -432,6 +572,7 @@ fn render_tmlanguage_json(original: &str, b: &Buckets) -> Result<String> {
         text = splice_json_match(&text, &block, offset, anchor, &boundary_regex(words))?;
     }
     let lexical = lexical_regexes();
+    text = splice_source_rule(&text, "variable", 0, "match", &lexical.braced_variable)?;
     for (start, end, anchor, regex) in [
         (
             "\"variable\": {",
@@ -630,6 +771,40 @@ mod tests {
                 "{source}"
             );
         }
+    }
+
+    #[test]
+    fn braced_variable_display_matches_original_first_close_geometry() {
+        let lexical = lexical_regexes();
+        let pattern = regex::Regex::new(&lexical.braced_variable).unwrap();
+        for source in [
+            "${}",
+            "${space name}",
+            "${café}",
+            "${a{b}tail}",
+            r"${a\}tail}",
+        ] {
+            let (_, rest) = tcl_syntax::naming::split_braced_var_ref(
+                source,
+                tcl_dialect::BracedVarStyle::FirstClose,
+            )
+            .expect("original lexer owns a closed reference");
+            assert_eq!(
+                pattern.find(source).unwrap().end(),
+                source.len() - rest.len()
+            );
+        }
+        for source in ["$ordinary", "${unterminated", "${"] {
+            assert!(pattern.find(source).is_none());
+        }
+        let nested = "${a{b}tail}";
+        let (_, modern_rest) = tcl_syntax::naming::split_braced_var_ref(
+            nested,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        )
+        .unwrap();
+        assert!(modern_rest.is_empty());
+        assert!(pattern.find(nested).unwrap().end() < nested.len());
     }
 
     #[test]

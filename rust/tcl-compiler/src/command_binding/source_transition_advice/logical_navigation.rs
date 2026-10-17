@@ -454,6 +454,17 @@ impl OriginalLogicalAbsoluteCommandCandidate {
         &self.original
     }
 
+    /// Actual retained callable member source body, independent of a frame.
+    #[must_use]
+    pub fn original_member_source_body(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody> {
+        match &self.body {
+            super::OriginalSourceCatalogueBody::Member(body) => Some(body),
+            _ => None,
+        }
+    }
+
     /// The root-independent coordinate of this authentic absolute source head.
     #[must_use]
     pub const fn coordinates(&self) -> &[ByteCommandSlot; 1] {
@@ -1740,5 +1751,50 @@ mod tests {
             )
             .unwrap()
         );
+    }
+}
+
+/// Exact literal selector following an external class-header source intention.
+/// This is a conditional class-object source recipe, never an evaluated receiver
+/// or a method-dispatch entry. The indexed provider must retain its own class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalExternalClassMemberSelector {
+    call: OriginalLogicalCommandCandidates,
+    name: tcl_core_types::NameBytes,
+}
+
+impl OriginalLogicalCommandCandidates {
+    /// A genuine complete selector word at the cursor, separate from command
+    /// head geometry. Occupied/deleted source heads cannot regain a class card.
+    #[must_use]
+    pub fn external_class_member_selector_at(
+        &self,
+        cursor: u32,
+    ) -> Option<LogicalExternalClassMemberSelector> {
+        (!self.external_header_coordinates()?.is_empty()).then_some(())?;
+        let word = self.original_words().get(1)?;
+        (!word.group().expand && word.span().start() <= cursor && cursor < word.span().end())
+            .then_some(())?;
+        let name = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+        (!name.is_empty() && !name.contains(&0)).then_some(LogicalExternalClassMemberSelector {
+            call: self.clone(),
+            name: name.into(),
+        })
+    }
+}
+
+impl LogicalExternalClassMemberSelector {
+    /// Original complete selector naming data, not a report or runtime method.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        self.name.as_bytes()
+    }
+
+    /// Actual retained complete source-call allocation and full input.
+    #[must_use]
+    pub fn matches_call(&self, call: &OriginalLogicalCommandCandidates) -> bool {
+        std::sync::Arc::ptr_eq(&self.call.original, &call.original)
+            && self.call.input == call.input
+            && self.call.scope == call.scope
     }
 }

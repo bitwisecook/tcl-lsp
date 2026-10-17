@@ -1973,6 +1973,57 @@ pub fn source_logical_name_references(
     realm.original_logical_name_reference_inventory(input)
 }
 
+/// Positive original procedure-body commands with their genuine source callers.
+/// Missing or unsupported bodies do not establish complete command coverage.
+#[must_use]
+pub fn source_native_procedure_body_commands(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalNativeProcedureBodyCommand>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_native_procedure_body_commands(input)
+}
+
+/// Positive conditional source calls retained by the original Native source walk.
+/// Missing sites and unresolved body coverage cannot prove negative call closure.
+#[must_use]
+pub fn source_original_procedure_calls(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalSourceProcedureCall>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    analysis
+        .retained_command_realm()?
+        .original_source_procedure_calls(input)
+}
+
+/// Conditional Native-authored procedure source relation at the actual call horizon.
+/// Runtime lookup, body entry and transformation authority remain independent.
+#[must_use]
+pub fn source_original_procedure_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceProcedureCall> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.original_source_procedure_call_at(input, offset)
+}
+
 /// Conditional original procedure header at this exact source call horizon.
 /// Alias prefixes and actual definition transitions stay held; missing original
 /// owners remain unavailable, never a report-name or Native target fallback.

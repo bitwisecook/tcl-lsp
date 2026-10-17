@@ -216,6 +216,11 @@ export async function activate(context: ExtensionContext) {
           command: "tcl-lsp.currentDiagnostics",
           arguments: [params],
         }),
+      validatePublication: (publication) =>
+        activeClient.sendRequest("workspace/executeCommand", {
+          command: "tcl-lsp.validateDiagnosticPublication",
+          arguments: [publication],
+        }),
       requestProposal: (params) =>
         activeClient.sendRequest("workspace/executeCommand", {
           command: "tcl-lsp.proposalDiagnostics",

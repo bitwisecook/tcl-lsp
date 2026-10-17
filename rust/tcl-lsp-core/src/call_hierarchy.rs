@@ -821,6 +821,75 @@ pub fn unresolved_outgoing_calls(
     )
 }
 
+fn unresolved_source_procedure_calls(
+    source: &str,
+    item: &CallHierarchyItem,
+    analysis: &AnalysisResult,
+) -> Vec<UnresolvedOutgoingCall> {
+    let Some(identity) = &item.identity else {
+        return Vec::new();
+    };
+    if !identity.is_current(identity.uri(), source, analysis) {
+        return Vec::new();
+    }
+    let Some(declaration) = identity.procedure_metadata(analysis) else {
+        return Vec::new();
+    };
+    let index = LineIndex::new_lsp(source);
+    let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
+        std::collections::BTreeMap::new();
+    for command in
+        tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(
+            source, analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
+        if !command
+            .caller_declaration(analysis)
+            .is_some_and(|caller| std::ptr::eq(caller, declaration))
+        {
+            continue;
+        }
+        let Some(head) = command.original_words().first() else {
+            continue;
+        };
+        if tcl_compiler::registry_invocation::source_structure::source_original_procedure_call_at(
+            source,
+            analysis,
+            head.span().start(),
+        )
+        .is_some()
+        {
+            continue;
+        }
+        let Some(name) = command
+            .static_head()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+        else {
+            continue;
+        };
+        let range = span_to_range(source, &index, head.span());
+        let call = by_head
+            .entry(name.clone())
+            .or_insert_with(|| UnresolvedOutgoingCall {
+                name,
+                resolved_qualified_name: None,
+                logical_occurrences: Vec::new(),
+                from_ranges: Vec::new(),
+            });
+        call.logical_occurrences
+            .push(LogicalOutgoingCallOccurrence {
+                candidates: None,
+                range,
+            });
+        if !call.from_ranges.contains(&range) {
+            call.from_ranges.push(range);
+        }
+    }
+    by_head.into_values().collect()
+}
+
 /// [`unresolved_outgoing_calls`] with the caller's whole-program export view attached — the
 /// entry point a host with a workspace index should call.
 ///
@@ -841,7 +910,7 @@ pub fn unresolved_outgoing_calls_in_program(
     }
 
     if !analysis.allows_lexical_declaration_advice() {
-        return Vec::new();
+        return unresolved_source_procedure_calls(source, item, analysis);
     }
 
     let Some(target) = LogicalCallTarget::capture(source, analysis, item) else {
@@ -1719,6 +1788,49 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn native_unresolved_source_heads_keep_actual_body_and_ignore_report_mutation() {
+        let source = "proc owner {} {remote V; remote W; set data {inert COMMAND}}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let item = prepare(source, 0, 5, &analysis)
+            .pop()
+            .expect("original owner header");
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        let calls = unresolved_outgoing_calls(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            &item,
+            &analysis,
+        );
+        let remote = calls.iter().find(|call| call.name == "remote").unwrap();
+        assert_eq!(remote.from_ranges.len(), 2);
+        assert!(calls.iter().all(|call| call.name != "inert"));
+        assert!(remote.resolved_qualified_name.is_none());
+        assert!(
+            remote
+                .logical_occurrences
+                .iter()
+                .all(|call| call.candidates.is_none())
+        );
+        let independent = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let borrowed = tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(source, &analysis).unwrap();
+        assert!(
+            borrowed
+                .iter()
+                .all(|command| command.caller_declaration(&independent).is_none())
+        );
+        assert!(
+            unresolved_outgoing_calls(
+                &source.replace("COMMAND", "CHANGED"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                &item,
+                &analysis
+            )
+            .is_empty()
+        );
     }
 
     #[test]

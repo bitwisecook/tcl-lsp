@@ -100,11 +100,8 @@ impl LogicalSourceClassDeclaration {
 
     /// Immutable original image and complete retained input correspondence.
     /// This supplies no current class, installed member or execution grant.
-    pub(crate) fn matches_source(
-        &self,
-        image: &SourceImage,
-        input: &ResolvedAnalysisInput,
-    ) -> bool {
+    #[must_use]
+    pub fn matches_source(&self, image: &SourceImage, input: &ResolvedAnalysisInput) -> bool {
         input.has_logical_source_name_context() && self.image == *image && self.input == *input
     }
 
@@ -202,6 +199,48 @@ impl LogicalSourceClassDeclaration {
 }
 
 impl LogicalSourceMemberDeclaration {
+    /// Registry-selected class-object method declaration visibility in this
+    /// source body. It supplies no runtime receiver, dispatch or completion.
+    #[must_use]
+    pub fn class_object_source_visibility(
+        &self,
+    ) -> Option<tcl_registry::definer::DeclaredMemberVisibility> {
+        use tcl_registry::definer::{
+            CallableRole, DeclaredMemberVisibility, MemberEffect, MemberReceiver, MemberVisibility,
+        };
+        (self.side == MemberSide::ClassObject).then_some(())?;
+        let ledger = &self.class.class.original_members;
+        let row = ledger.logical_declaration_row(
+            self.side,
+            &self.method,
+            &self.class.input,
+            &self.class.image,
+        )?;
+        (row.receiver == MemberReceiver::TypeObject
+            && matches!(
+                row.effect,
+                MemberEffect::Callable {
+                    role: CallableRole::Method,
+                    ..
+                }
+            ))
+        .then_some(())?;
+        let name =
+            tcl_syntax::word_rules::original_static_word_unicode_value(self.original_name_word()?)?;
+        Some(
+            match ledger.logical_visibility_for_side(
+                &name,
+                self.side,
+                &self.class.input,
+                &self.class.image,
+            ) {
+                Some(MemberVisibility::Exported) => DeclaredMemberVisibility::Public,
+                Some(MemberVisibility::Unexported) => DeclaredMemberVisibility::Unexported,
+                None => row.visibility,
+            },
+        )
+    }
+
     /// Exact retained class snapshot; the completed owner authenticates it.
     #[must_use]
     pub const fn class(&self) -> &LogicalSourceClassDeclaration {
@@ -227,6 +266,46 @@ impl LogicalSourceMemberDeclaration {
             &self.class.image,
         )
     }
+    /// Exact selected ParamList word from this member's own original vector.
+    #[must_use]
+    pub fn original_parameter_word(&self) -> Option<&tcl_lexer::NativeWord> {
+        self.class.class.original_members.logical_parameter_operand(
+            self.side,
+            &self.method,
+            &self.class.input,
+            &self.class.image,
+        )
+    }
+
+    /// Descriptive formals checked against that exact original ParamList by
+    /// the shared unanimous Logical formal owner, never native binding data.
+    #[must_use]
+    pub fn original_source_formals(
+        &self,
+    ) -> Option<Vec<tcl_syntax::formal_params::FormalParameter>> {
+        use crate::signature_scan::formal_count::{
+            SourceFormalCountOrigin, SourceFormalCountProjection,
+        };
+        if self.method.params_computed {
+            return None;
+        }
+        let word = self.original_parameter_word()?;
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+        let text = std::str::from_utf8(&value).ok()?;
+        let parameters = self
+            .method
+            .params
+            .iter()
+            .map(|parameter| tcl_syntax::formal_params::FormalParameter {
+                name: parameter.name.clone(),
+                default: parameter.default_value.clone(),
+            })
+            .collect::<Vec<_>>();
+        (SourceFormalCountProjection::from_logical_formals(text, &parameters).origin()
+            == SourceFormalCountOrigin::LogicalSource)
+            .then_some(parameters)
+    }
+
     /// Exact original body operand from the retained Registry member vector.
     /// This supplies source syntax, never an entered receiver or method frame.
     #[must_use]
@@ -734,6 +813,53 @@ impl AnalysisResult {
         classes.next().is_none().then_some(class)
     }
 
+    /// Join genuine callable body lineage to the retained complete member vector.
+    /// This source caller purpose does not issue an entered receiver or dispatch.
+    #[must_use]
+    pub fn logical_source_member_for_original_body(
+        &self,
+        body: &crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody,
+    ) -> Option<LogicalSourceMemberDeclaration> {
+        let input = self.resolved_input.as_ref()?;
+        let realm = self.retained_command_realm()?;
+        let origin = realm.source_bindings_ref().source_origin()?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            parent,
+        ) = body.original_parent_body().source_words().source()
+        else {
+            return None;
+        };
+        Arc::ptr_eq(origin, &parent.site().source).then_some(())?;
+        let image = body.original_container().image();
+        if !body.matches_source(image, input.lexer_config())
+            || !body.matches_context(input.borrowed_context_registry())
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let mut selected = None;
+        for class in self.checked_logical_source_class_declarations()? {
+            let owner = self.logical_source_class_declaration(class)?;
+            for (side, methods) in [
+                (MemberSide::Instance, &class.methods),
+                (MemberSide::ClassObject, &class.class_methods),
+            ] {
+                for method in methods.values() {
+                    if class
+                        .original_members
+                        .logical_member_body_corresponds(side, method, input, image, body)
+                    {
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = owner.member(side, method);
+                    }
+                }
+            }
+        }
+        selected
+    }
+
     /// Current typed Logical declaration selected by an actual naming or
     /// class-reference operand. Display labels supply no selection authority.
     #[must_use]
@@ -866,6 +992,61 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn original_member_catalogue_joins_source_caller_without_receiver_entry() {
+        let source = "oo::class create C {method m {} {::helper}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("::helper").unwrap()).unwrap();
+        let candidate = crate::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(
+            source, &analysis, offset,
+        ).expect("genuine member-body absolute source candidate");
+        let body = candidate
+            .original_member_source_body()
+            .expect("retained member lineage");
+        let caller = analysis
+            .logical_source_member_for_original_body(body)
+            .expect("actual completed member full-vector correspondence");
+        assert_eq!(caller.metadata().name, "m");
+        assert_eq!(caller.original_body_word(), Some(body.original_container()));
+        assert!(analysis.original_completed_command_world().is_none());
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("m")
+            .unwrap()
+            .params
+            .clear();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("m")
+            .unwrap()
+            .name
+            .push_str("changed");
+        assert!(
+            changed
+                .logical_source_member_for_original_body(body)
+                .is_none()
+        );
+        let independent = Analyser::new().analyse(source, "tcl");
+        assert!(
+            independent
+                .logical_source_member_for_original_body(body)
+                .is_none()
+        );
+        let foreign = Analyser::new().analyse(&source.replace("::helper", "::other!"), "tcl");
+        assert!(
+            foreign
+                .logical_source_member_for_original_body(body)
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_class_body_word_comes_from_the_actual_definition_script_factory() {
@@ -1288,5 +1469,45 @@ mod logical_relation_navigation_debt_tests {
             Some(LogicalSourceClassRelationTarget::External(_))
         ));
         assert!(analysis.logical_source_direct_classes(child).is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_class_object_source_visibility_tests {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn direct_class_object_method_source_visibility_uses_the_retained_member_row() {
+        let source = "oo::class create C {self method ping {} {return ok}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let owner = analysis.logical_source_class_declaration(class).unwrap();
+        let member = owner
+            .member(MemberSide::ClassObject, &class.class_methods["ping"])
+            .unwrap();
+        assert_eq!(
+            member.class_object_source_visibility(),
+            Some(tcl_registry::definer::DeclaredMemberVisibility::Public)
+        );
+        let unexported = "oo::class create C {self method ping {} {return ok}; self unexport ping}";
+        let analysis = Analyser::new().analyse(unexported, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let owner = analysis.logical_source_class_declaration(class).unwrap();
+        let member = owner
+            .member(MemberSide::ClassObject, &class.class_methods["ping"])
+            .unwrap();
+        assert_eq!(
+            member.class_object_source_visibility(),
+            Some(tcl_registry::definer::DeclaredMemberVisibility::Unexported)
+        );
+        let instance = "oo::class create C {method ping {} {return ok}}";
+        let analysis = Analyser::new().analyse(instance, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let owner = analysis.logical_source_class_declaration(class).unwrap();
+        let member = owner
+            .member(MemberSide::Instance, &class.methods["ping"])
+            .unwrap();
+        assert!(member.class_object_source_visibility().is_none());
     }
 }

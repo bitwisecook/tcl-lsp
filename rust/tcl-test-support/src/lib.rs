@@ -36,6 +36,7 @@ pub mod binary_values;
 pub mod encoding_names;
 pub mod ensemble_map_prefix;
 pub mod expressions;
+pub mod fixed_corpus;
 pub mod fixed_sources;
 mod jim;
 pub mod jim_strings;

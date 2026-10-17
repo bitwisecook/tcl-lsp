@@ -30,6 +30,24 @@ class PackAssociationReconcilerTest {
     }
 
     @Test
+    fun extensionCanonicalizationUsesAsciiCaseAndRejectsNonDomainRows() {
+        val payload = JsonParser.parseString(
+            """[{"extension": "ÄBC"}, {"extension": "A.B"}, {"extension": "A B"}]""",
+        )
+
+        assertEquals(mapOf("Äbc" to tcl), PackAssociationReconciler.claimsFrom(payload))
+    }
+
+    @Test
+    fun extensionWhitespaceMatchesTheServerUnicodeDomain() {
+        val payload = JsonParser.parseString(
+            """[{"extension": "A\u0085B"}, {"extension": "A\u001cB"}]""",
+        )
+
+        assertEquals(mapOf("a\u001cb" to tcl), PackAssociationReconciler.claimsFrom(payload))
+    }
+
+    @Test
     fun aBareArrayAndAnAbsentPayloadAreBothAccepted() {
         val rows = JsonParser.parseString("""[{"extension": "foo", "language_id": "tcl"}]""")
         assertEquals(mapOf("foo" to tcl), PackAssociationReconciler.claimsFrom(rows))

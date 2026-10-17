@@ -436,5 +436,38 @@
     }
   ],
   "latest_source_hash_refresh_utc": "2026-10-15T17:16:02.441786+00:00",
-  "latest_source_hash_refresh_head": "786964a59de2475dc88bfcbc99c7a822f81c246f"
+  "latest_source_hash_refresh_head": "786964a59de2475dc88bfcbc99c7a822f81c246f",
+  "current_catalogue_snapshot": {
+    "utc": "2026-10-17T11:44:24.975389+00:00",
+    "path": "docs/work/name-handling/repository-consumer-audit-final.json",
+    "original_LSP": {
+      "required": 325,
+      "integrated": 284,
+      "semantic_integrated": 161,
+      "validation_integrated": 121,
+      "documentation_integrated": 2,
+      "without_integration": 41,
+      "verified_complete": 0
+    },
+    "baseline": {
+      "required": 2158,
+      "integrated": 418,
+      "full_scope_pending": 355,
+      "partial": 63,
+      "without_integration": 1740
+    },
+    "annex": {
+      "required": 71,
+      "integrated": 70,
+      "blocked": 1,
+      "verified_complete": 0
+    },
+    "effective": {
+      "required": 2229,
+      "integrated": 488,
+      "without_integration": 1741,
+      "verified_complete": 0
+    },
+    "note": "Separate current finite catalogue; original bounded27-function ledger remains historical and unchanged."
+  }
 }

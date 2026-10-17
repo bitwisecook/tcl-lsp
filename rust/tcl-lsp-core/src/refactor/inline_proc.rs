@@ -140,9 +140,17 @@ pub fn inline_proc_in_program(
         head_off,
         &analysis.namespace_overrides,
     );
-    let proc_def = crate::definition::resolve_called_proc(
-        analysis, source, &namespace, head, head_off, resolution,
-    )?;
+    let proc_def = if analysis.allows_retained_logical_declaration_advice() {
+        tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+            source, analysis, head_off,
+        )?
+        .declaration(analysis)?
+        .metadata()
+    } else {
+        crate::definition::resolve_called_proc(
+            analysis, source, &namespace, head, head_off, resolution,
+        )?
+    };
     let title = format!("Inline proc '{}'", proc_def.name);
     let walk = super::FrameWalk::new(source, analysis)?;
     let (call_start, call_end) = walk.command_span_offsets(source, &call)?;
@@ -183,7 +191,7 @@ fn plan_inline(
         .resolved_profile()
         .ok_or_else(|| "the original dialect is unavailable".to_owned())?;
     let numbers: NumberSyntax = profile.grammar.numbers;
-    if proc_def.params_computed {
+    if !analysis.allows_retained_logical_declaration_advice() && proc_def.params_computed {
         return Err(
             "the proc's parameter list is computed at run time, so its formals are unknown"
                 .to_string(),
@@ -209,7 +217,7 @@ fn plan_inline(
     reject_frame_sensitive_body(source, &body, &nested, &walk)?;
     reject_body_variable_writes(source, &body, &nested, &walk)?;
     let references = body_variable_references(source, &body, &nested, &walk)?;
-    reject_args_reference(&references, proc_def)?;
+    reject_args_reference(&references, proc_def, analysis)?;
     substitute_bindings(
         source,
         &body,
@@ -433,7 +441,13 @@ fn original_inline_body(
         let bytes = bindings.get(&name).ok_or_else(unavailable)?;
         let text =
             tcl_syntax::backslash::native_literal_source_text(bytes, image.channel(), protocol)
-                .filter(|text| is_plain_word(text))
+                .filter(|text| {
+                    tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                        text,
+                        text,
+                        walk.config.nested(),
+                    )
+                })
                 .ok_or_else(|| {
                     "a bound native value cannot be written as an inert literal in the body"
                         .to_owned()
@@ -447,6 +461,18 @@ fn original_inline_body(
                 "a nonnumeric bound value cannot replace an expression variable".to_owned(),
             );
         }
+        let text = literal_substitution_container(
+            source,
+            analysis,
+            walk,
+            body,
+            nested,
+            tcl_lexer::Span::new(start, end),
+            &text,
+        )
+        .ok_or_else(|| {
+            "a bound value cannot preserve its actual source substitution container".to_owned()
+        })?;
         let start = start.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
         let end = end.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
         body.text.get(start..end).ok_or_else(unavailable)?;
@@ -550,76 +576,93 @@ struct Binding {
     evaluation_is_observable: bool,
 }
 
-/// Bind the call's arguments to the proc's formals, applying C Tcl's rules:
-/// positional parameters in order, declared defaults for the ones the call
-/// omits, and the variadic `args` tail collecting whatever is left.
-///
-/// Errors on an argument count C Tcl would reject (`wrong # args`): inlining
-/// must not turn a call that raises into one that quietly works.
+/// Bind only the actual current Logical source call and the agreed original
+/// formal topology. These readonly operands feed the existing source recipe;
+/// no activation, runtime equivalence or editing authority follows from them.
 fn bind_arguments(
     source: &str,
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     walk: &super::FrameWalk<'_>,
 ) -> Result<Vec<Binding>, String> {
-    let words = walk
-        .native_words(source, call)
-        .ok_or_else(|| "the call's current original argument words are unavailable".to_owned())?;
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    let unavailable = || {
+        "the call's original formal bindings are unavailable or would raise `wrong # args`"
+            .to_owned()
+    };
+    let words = walk.native_words(source, call).ok_or_else(unavailable)?;
     if words.iter().any(|word| word.group().expand) {
         return Err("expanded arguments have no fixed original binding topology".to_owned());
     }
-    let params = &proc_def.params;
-    let has_args_tail = params.last().is_some_and(|param| param.name == "args");
-    let fixed = if has_args_tail {
-        params.len() - 1
-    } else {
-        params.len()
-    };
-    let required = params
+    let original =
+        tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(
+            source,
+            walk.analysis,
+            call,
+        )
+        .ok_or_else(unavailable)?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let header = original.declaration();
+    if !original.matches_source(&image, walk.config)
+        || !original.matches_registry(walk.nesting)
+        || original.original_words() != words
+        || header.metadata().name_span != proc_def.name_span
+        || header.metadata().body_span != proc_def.body_span
+    {
+        return Err(unavailable());
+    }
+    if original
+        .arguments()
         .iter()
-        .take(fixed)
-        .filter(|param| !param.has_default)
-        .count();
-    let supplied = words.len().saturating_sub(1);
-    if supplied < required {
-        return Err(format!(
-            "the call passes {supplied} argument(s) but '{}' requires {required} — \
-             C Tcl would raise `wrong # args`",
-            proc_def.name
-        ));
+        .any(|value| value.literal_bytes().is_none())
+    {
+        return Err(
+            "an argument is substituted at run time and cannot lose its evaluation".to_owned(),
+        );
     }
-    if !has_args_tail && supplied > fixed {
-        return Err(format!(
-            "the call passes {supplied} argument(s) but '{}' accepts at most {fixed} — \
-             C Tcl would raise `wrong # args`",
-            proc_def.name
-        ));
-    }
+    let parameters = header.original_source_formals().ok_or_else(unavailable)?;
     let mut bindings = Vec::new();
-    for (index, param) in params.iter().take(fixed).enumerate() {
-        // No written argument means the declared default binds.  Only a
-        // parameter that *has* one can reach here — the required count was
-        // checked above — so an absent default is an unreachable empty value.
-        let (value, evaluation_is_observable) = match words.get(index + 1) {
-            Some(word) => argument_value(word)?,
-            None => (param.default_value.clone().unwrap_or_default(), false),
+    for row in original.bindings() {
+        let (parameter, value) = match *row {
+            FormalByteArgumentBinding::Value {
+                parameter,
+                argument,
+            } => {
+                let value = original
+                    .arguments()
+                    .get(argument)
+                    .and_then(|value| value.literal_bytes())
+                    .and_then(|value| std::str::from_utf8(value).ok())
+                    .ok_or_else(|| {
+                        "the argument's original static value is unavailable".to_owned()
+                    })?;
+                (parameter, value.to_owned())
+            }
+            FormalByteArgumentBinding::Default { parameter } => (
+                parameter,
+                parameters
+                    .get(parameter)
+                    .and_then(|parameter| parameter.default.clone())
+                    .ok_or_else(unavailable)?,
+            ),
+            FormalByteArgumentBinding::Rest { .. } => continue,
+            FormalByteArgumentBinding::CallerLink { .. } => {
+                return Err(
+                    "a caller-link formal selects a different frame after inlining".to_owned(),
+                );
+            }
         };
         bindings.push(Binding {
-            name: param.name.clone(),
+            name: parameters
+                .get(parameter)
+                .ok_or_else(unavailable)?
+                .name
+                .clone(),
             value,
-            evaluation_is_observable,
+            evaluation_is_observable: false,
         });
     }
     Ok(bindings)
-}
-
-/// Static argument value from its current complete original word.
-/// Live substitutions remain unavailable to this source-only inline plan.
-fn argument_value(word: &tcl_lexer::NativeWord) -> Result<(String, bool), String> {
-    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)
-        .and_then(|value| String::from_utf8(value).ok())
-        .ok_or_else(|| "the argument's original static value is unavailable".to_owned())?;
-    Ok((value, false))
 }
 
 /// Refuse a body whose command is frame-sensitive.
@@ -748,8 +791,15 @@ fn body_variable_references(
 fn reject_args_reference(
     references: &[super::VariableReference],
     proc_def: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
 ) -> Result<(), String> {
-    if proc_def.params.last().is_none_or(|p| p.name != "args") {
+    let source_parameters = analysis.logical_source_procedure_declaration(proc_def)
+        .and_then(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::original_source_formals)
+        .ok_or_else(|| "the original rest-formal source is unavailable".to_owned())?;
+    if source_parameters
+        .last()
+        .is_none_or(|parameter| parameter.name != "args")
+    {
         return Ok(());
     }
     if references.iter().any(|reference| reference.name == "args") {
@@ -808,7 +858,11 @@ fn substitute_bindings(
                 occurrences.len()
             ));
         }
-        if !is_plain_word(&binding.value) {
+        if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+            &binding.value,
+            &binding.value,
+            walk.config.nested(),
+        ) {
             return Err(format!(
                 "'{}' is bound to `{}`, which is not a plain word — writing it \
                  into the body would change how the surrounding word is parsed",
@@ -847,7 +901,19 @@ fn substitute_bindings(
                     binding.name, binding.value
                 ));
             }
-            replacements.push((start, end, binding.value.clone()));
+            let fragment = literal_substitution_container(
+                source,
+                walk.analysis,
+                walk,
+                body,
+                nested,
+                reference.span,
+                &binding.value,
+            )
+            .ok_or_else(|| {
+                "a plain word cannot preserve its actual source substitution container".to_owned()
+            })?;
+            replacements.push((start, end, fragment));
         }
     }
     let mut out = body.text.clone();
@@ -856,6 +922,88 @@ fn substitute_bindings(
         out.replace_range(start..end, &value);
     }
     Ok(out)
+}
+
+/// Literal construction under the actual receiver's selected Tcl/Expr source
+/// grammar. A successful correspondence grants no binding or relocation fact.
+fn literal_substitution_container(
+    source: &str,
+    analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
+    body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    reference: tcl_lexer::Span,
+    value: &str,
+) -> Option<String> {
+    let mut admitted = Vec::new();
+    for command in std::iter::once(&body.command).chain(nested) {
+        let Some(words) = walk.native_words(source, command) else {
+            return None;
+        };
+        let Some(schema) = walk.source_words(source, command) else {
+            return None;
+        };
+        if schema.roles().is_none() {
+            return None;
+        }
+        let roles = schema.written_argument_roles();
+        for (ordinal, word) in words.iter().enumerate() {
+            if word.span().start() > reference.start() || reference.end() > word.span().end() {
+                continue;
+            }
+            let expression = ordinal
+                .checked_sub(1)
+                .is_some_and(|argument| roles.contains(&(argument, ArgRole::Expr)));
+            let matches = if expression {
+                let Some(profile) = analysis.resolved_profile() else {
+                    return None;
+                };
+                // Quoted Tcl arguments may transform expression source before
+                // expr sees it. No decoded value is invented for that language.
+                if word.group().kind == tcl_lexer::WordKind::Quoted {
+                    continue;
+                }
+                let Ok(content) = word.content_span() else {
+                    continue;
+                };
+                let Some(text) = word
+                    .image()
+                    .try_text()
+                    .ok()
+                    .and_then(|text| text.get(content.as_range()))
+                else {
+                    continue;
+                };
+                let Some(from) = reference.start().checked_sub(content.start()) else {
+                    continue;
+                };
+                let Some(to) = reference.end().checked_sub(content.start()) else {
+                    continue;
+                };
+                if to > content.end() - content.start() {
+                    continue;
+                }
+                let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+                context.lexer_grammar = word.config().grammar_over(profile.grammar);
+                tcl_syntax::expr::OriginalSourceExpression::capture(text, &context, word.config())
+                    .and_then(|expression| {
+                        expression.scalar_numeric_literal_substitution(
+                            tcl_lexer::Span::new(from, to),
+                            value,
+                        )
+                    })
+            } else {
+                tcl_syntax::word_rules::lexical_source_scalar_literal_substitution(
+                    word, reference, value,
+                )
+                .then(|| value.to_owned())
+            };
+            if let Some(fragment) = matches {
+                admitted.push(fragment);
+            }
+        }
+    }
+    (admitted.len() == 1).then(|| admitted.pop().unwrap())
 }
 
 /// The byte ranges of `command`'s expression-role arguments, within the body
@@ -917,6 +1065,7 @@ fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize,
 /// `$ [ ] { } " \ ; #` (substitution, grouping, quoting, command separation,
 /// and comment introduction).  An empty value is excluded too — it needs
 /// quoting to survive as a word at all.
+#[cfg(test)]
 fn is_plain_word(value: &str) -> bool {
     !value.is_empty()
         && value.chars().all(|c| {
@@ -1630,5 +1779,120 @@ mod original_inline_body_purpose_tests {
         );
         assert!(single_command_body(source, procedure, &analysis, config.nested()).is_err());
         assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+    }
+}
+
+#[cfg(test)]
+mod source_binding_transport_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_inline_uses_actual_source_call_header_after_reporting_maps_are_removed() {
+        let source = "proc p {x} {expr {$x + 1}}\np 2";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.all_procs.clear();
+        analysis.command_invocations.clear();
+        let action = inline_proc(
+            source,
+            u32::try_from(source.rfind("p 2").unwrap()).unwrap(),
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+        )
+        .unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).ends_with("expr {2 + 1}"));
+        assert!(
+            inline_proc(
+                &format!("{source} "),
+                u32::try_from(source.rfind("p 2").unwrap()).unwrap(),
+                &analysis,
+                analysis.resolved_registry().unwrap()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_formals_defaults_and_actual_argv_do_not_use_report_parameter_fields() {
+        let source = "proc p {x {y 3} args} {expr {$x + $y}}\np 2";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let call = commands.last().unwrap();
+        let mut report = analysis.all_procs["::p"].clone();
+        report.params.clear();
+        report.params_computed = true;
+        let bindings = bind_arguments(source, call, &report, &walk).unwrap();
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|binding| (binding.name.as_str(), binding.value.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("x", "2"), ("y", "3")]
+        );
+        assert!(
+            bindings
+                .iter()
+                .all(|binding| !binding.evaluation_is_observable)
+        );
+        assert!(bind_arguments(&format!("{source} "), call, &report, &walk).is_err());
+        report.name_span = tcl_lexer::Span::new(0, 1);
+        assert!(bind_arguments(source, call, &report, &walk).is_err());
+    }
+
+    #[test]
+    fn logical_binding_keeps_dynamic_values_and_disagreed_formal_grammar_unavailable() {
+        for source in [
+            "proc p {x} {puts $x}; p $value",
+            "proc p {args x} {puts $x}; p 1 2",
+            "proc p {x args} {puts $x}; p 2 [observable]",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            assert!(
+                bind_arguments(
+                    source,
+                    commands.last().unwrap(),
+                    &analysis.all_procs["::p"],
+                    &walk
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod retained_literal_container_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    #[test]
+    fn logical_inline_uses_shared_actual_word_and_expression_constructors() {
+        for (source, call, suffix) in [
+            (
+                "proc p {x} {puts pre-${x}-post}\np VALUE",
+                "p VALUE",
+                "puts pre-VALUE-post",
+            ),
+            ("proc p {x} {expr {$x + 1}}\np 7", "p 7", "expr {7 + 1}"),
+            (
+                "proc p {x} {expr {{${x}} eq \"$x\"}}\np 7",
+                "p 7",
+                "expr {{${x}} eq \"7\"}",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let action = inline_proc(
+                source,
+                u32::try_from(source.rfind(call).unwrap()).unwrap(),
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+            )
+            .unwrap();
+            assert!(action.disabled.is_none(), "{:?}", action.disabled);
+            assert!(action.apply(source).ends_with(suffix));
+        }
     }
 }
