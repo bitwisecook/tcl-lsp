@@ -1,0 +1,128 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-17T19:56:31.323311+00:00",
+  "scheduled_report_utc": "2026-10-17T19:55:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "resumed": {
+    "at_utc": "2026-10-17T19:23Z",
+    "head": "2a3928bc60b481250b90481d888bdf6cb9edeeb7",
+    "authority": "User resumed: finish and verify LSP consumers first, then remaining compiler dependencies; VM/runtime paused; dedicated BIG-IP deferred."
+  },
+  "checkpoint09_verification": {
+    "archive_sha256": "48dddad17e0e08fb85d3ecec1c97e1fa1a2e9c803a085fb808b1917982b76b83",
+    "bytes": 1060094,
+    "members_index_sha256": "183f51b0cdd422988185d0701ed9c6eeed73cd133565c3181c4fd6afa0a53f63",
+    "indexed_members_verified": 1041,
+    "hash_mismatches": 0,
+    "missing": 0,
+    "unindexed_besides_index": 0,
+    "extraction": "scratchpad, no absolute or parent paths, regular files only",
+    "pending_patches_admitted": 0
+  },
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "build36": {
+      "status": "PASS",
+      "head": "2a3928bc6",
+      "targets": "six library test ELFs: tcl-lsp-core/db/server, tcl-registry, tcl-spectcl, tcl-spec-studio",
+      "seconds": 357,
+      "warnings": 0,
+      "artifacts_sha256": "c6cafdb1279e5fa6d31253dd28687d56eebd9b8c65db7bf6559ee9b7dec59ec7",
+      "source_files_guarded": 114247,
+      "providers": 6,
+      "pre_post_source_provider_identical": true,
+      "note": "Full checkout guards 114247 tracked files; the paused environment guarded 52881. Pre-build snapshot taken after cargo started on a clean tree.",
+      "scope": "No compiler libtest, integration, real server process or editor host."
+    },
+    "capture36": {
+      "status": "RUNNING",
+      "plan": "original850 (DB11, Core664, Server175) + additive230 + extra5 = 1085; unchanged replay-selection.py aaa26943..., 180 s/30 s budgets",
+      "db": {
+        "complete": 11,
+        "passed": 7,
+        "failed": 4,
+        "identical_to_35r2": true
+      },
+      "core_partial": {
+        "complete": 263,
+        "of": 664,
+        "passed": 213,
+        "failed": 50,
+        "timeouts": 1,
+        "verdict_changes_vs_35r2": 0
+      }
+    },
+    "enospc_incident": {
+      "at_utc": "2026-10-17T19:41:27Z",
+      "cause": "reviewer git worktree add on shared disk; rolled back by git",
+      "effect": "Coincided with the post-build source snapshot write, which completed and compared byte-exact. Test ELFs were linked about 19:36 and hash-verified before execution; first test began 19:41:58 after space recovered. No result is accepted on that basis alone; recorded explicitly."
+    }
+  },
+  "integration36_review": {
+    "receipt": "docs/work/name-handling/handoff/reviews/integration-36-luna/REVIEW.json",
+    "verdict": "HOLD as composed",
+    "db042_structural_factory_v2": "ADMIT at source level; no independent peer existed before this review; build/tests owed",
+    "roster_test_setup_v1": "ADMIT at source level with conditions: whole Core binary parallel run plus run-first ordering; manifest cycle comment and project-layout.md edge text owed",
+    "hazard_syntax_purpose_v1": "HOLD: patch is a no-op at HEAD; its claimed cause is false; real drop likely in nested non-member collect_region path",
+    "source_census_v1_v2": "HOLD: flips passing original test-096 (Partial) red; V2 control likely does not exercise V2",
+    "composition_metadata": "declared base f1e36d8d6 is wrong (before-hashes match 2a3928bc6); composed doc/diff hashes unpinned; absolute /workspace patch paths"
+  },
+  "new_user_decision_needed": {
+    "locked_contradiction": "Original readonly_member_reports_keep_source_spans_out_of_edit_inventories (test-096, passing) requires Partial for an oo::class with method ping/body {my ping; my ping}; original code_lens tests 056/058 (failing) require exact counts (Complete) for the same shape. Same class of conflict as Compiler221. Assertions unchanged; no waiver."
+  },
+  "agents": {
+    "sol_callhier": "running: call_hierarchy/code_lens roots",
+    "luna_workspace": "running: workspace_index/document_links/package/timeout",
+    "sol_nextto_db": "running: nextto256/DB memo/server/definition",
+    "luna_i36": "complete (receipt above)"
+  },
+  "pending": [
+    "finish capture36 with post guards",
+    "admit only reviewed fixes, rebuild, recapture",
+    "Compiler221 and test-096 vs code_lens contradictions need user decisions"
+  ],
+  "next_report_utc": "2026-10-17T20:25:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

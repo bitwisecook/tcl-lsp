@@ -1,0 +1,112 @@
+{
+  "reviewer": "Luna-2 (independent source review, static only)",
+  "subject": "cp09/pending/integration-36 (UNADMITTED)",
+  "repo_head": "2a3928bc60b481250b90481d888bdf6cb9edeeb7",
+  "execution": "none: no cargo, no build, no tests. rustfmt (stdin, edition 2024) and git apply only, on HEAD blobs extracted to scratch.",
+  "composition_verdict": "HOLD",
+  "composition_reason": "Two of the five applications must not be admitted: hazard-syntax-purpose-v1 is a semantic no-op whose new control reproduces the existing failure, and census V1->V2 flips an original passing assertion (Partial -> Complete). A reduced composition containing only db042-structural-factory-v2 and root-core-roster-test-setup-v1 is source-clear subject to the listed conditions.",
+  "hash_checks": {
+    "archive_sha256": {"expected": "48dddad17e0e08fb85d3ecec1c97e1fa1a2e9c803a085fb808b1917982b76b83", "actual": "48dddad17e0e08fb85d3ecec1c97e1fa1a2e9c803a085fb808b1917982b76b83", "result": "PASS"},
+    "members_index_sha256": {"expected": "183f51b0cdd422988185d0701ed9c6eeed73cd133565c3181c4fd6afa0a53f63", "actual": "183f51b0cdd422988185d0701ed9c6eeed73cd133565c3181c4fd6afa0a53f63", "result": "PASS"},
+    "archive_members_vs_scratch_copies": "PASS 20/20 (integration-36 x4, five packets' patch/manifest/evidence x11, pending-peers x5); every hash also equals its members.json row",
+    "packet_patch_and_manifest_pins_in_packets_json": "PASS 10/10",
+    "before_sha256_vs_HEAD_2a3928bc6": "PASS 8/8 (all composition.json before hashes equal HEAD blobs and the working tree)",
+    "before_sha256_vs_declared_base_f1e36d8d6": "FAIL 2/8: name-handling.md (f1e36=3dbddbc4..., pinned ade452f5...) and logical_members.rs (f1e36=299e6b76..., pinned 1e29292e...). db042 does not apply at f1e36. The composition 'base' field is mislabelled; the real base is 2a3928bc6.",
+    "per_packet_after_sha256": {
+      "db042 name-handling.md (alone)": "caa78806... PASS",
+      "db042 state.rs": "ec6f39cd... PASS",
+      "db042 logical_members.rs": "689a7c8b... PASS",
+      "hazard member_metadata.rs": "d6697d9b... PASS",
+      "census-v1 original_declaration.rs": "f4119ffd... PASS",
+      "census-v1 name-handling.md (alone)": "de621276... PASS",
+      "census-v2 original_declaration.rs (on V1 after)": "6eb79b94... PASS",
+      "roster Cargo.lock": "7b533416... PASS",
+      "roster tcl-lsp-core/Cargo.toml": "3dd6e078... PASS",
+      "roster completion.rs": "36dc1805... PASS"
+    },
+    "composed_name_handling_md": "2b376972e7e88412252acf27bd1bf3301d5761e6f8501c803246d94aead0162b (HEAD + db042 section + V1 section appended at EOF; not pinned anywhere in composition.json)",
+    "composed_diff_sha256": "0802ceb0dc9c1cc8d10937fe046e629611f2b3a1a346107dfef2173978a02330 (8 files, +367/-119)",
+    "piece_patch": "c36009b7...; byte-identical to the completion.rs hunk of root-core-roster-test-setup-v1; git apply --check on HEAD PASS"
+  },
+  "application": {
+    "sequence": "db042 -> hazard -> census-v1 -> census-v2 -> roster",
+    "result": "PASS with one documented manual step: census-v1's name-handling.md hunk conflicts with db042's EOF addition (same before-image, same anchor). Applying V1's Rust part, then appending V1's doc section after db042's, reproduces every pinned per-file after-hash. V2 applies only on V1's after-image, as declared.",
+    "rustfmt_edition2024": "PASS: all five Rust files are fixed points before and after"
+  },
+  "old_test_preservation": {
+    "old_test_attributes_in_touched_rust_files": 398,
+    "byte_exact": 397,
+    "changed": ["rust/tcl-lsp-core/src/completion.rs::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster (single inserted line 7849, tcl_spectcl::core_surfaces::ensure(); every value and assertion unchanged)"],
+    "note": "composed-source-review.json says 401/400. My count of #[test] attributes is 398/397. The single exception is the same, so the difference is only in the count."
+  },
+  "global_rules": {
+    "assertion_selector_fixture_timeout_changes": "none in text",
+    "behavioural_flip_of_original_assertion": "YES: census V1/V2 makes original_declaration.rs:1721 (test readonly_member_reports_keep_source_spans_out_of_edit_inventories, PASS in capture 35r2 test-096) fail. See census findings.",
+    "new_allow_attributes": "none",
+    "hardcoded_command_names_in_consumers": "none; the census uses Traits::TCLOO_SELF_DISPATCH, and the hazard code uses OriginalSourceScriptPurpose",
+    "source_to_native_identity_grant": "none found",
+    "missing_to_empty_completeness": "V1 alone promotes Complete over existing external positives (declared and closed by V2). With V2 there is a residual risk: a zero-count Complete relies on source_queries capturing every non-self positive, such as callbacks and prefix builders. No control covers that."
+  },
+  "packets": [
+    {
+      "packet": "sol-composition/db042-structural-factory-v2",
+      "verdict": "ADMIT (source); execution owed",
+      "findings": [
+        {"severity": "info", "where": "rust/tcl-compiler/src/analyser/types/logical_members.rs:366-431", "text": "The split is behaviour-preserving for the full path. retain_logical_class_body_sources now runs the factory pass and then a body pass. A class that does not match still clears all four facets: the factory pass clears coordinate, name and relations, and the body closure's '?' yields None for body. The match is computed twice, which is cheap."},
+        {"severity": "info", "where": "rust/tcl-compiler/src/analyser/state.rs:2304-2310", "text": "self.registry is profile_registry() = analysis_context().commands(), the same store that produce_object_handle_facts receives in the full path, so registry provenance is consistent. The disjoint field borrow (self.registry vs self.result) compiles."},
+        {"severity": "info", "where": "rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:72-80", "text": "The fix targets the cause correctly. OriginalProjectProcedureRoles::capture requires source_candidate_coordinate() for every class header, and the structure-only path never set it. This is consistent with DB 35r2 test-001 (project_proc_var_index_for_inputs empty) and with the existing HEAD control logical_members.rs:1653."},
+        {"severity": "low", "where": "docs/design/contracts/name-handling.md:3752-3754", "text": "The new section says the facets 'do not depend on emitting diagnostics or building a compilation unit'. In full (non-structural) analysis they are still produced only inside produce_object_handle_facts, which runs after the CU build under catch_unwind and the early-return gates of emit_cfg_ssa_diagnostics. Either reword the section or document that the full path keeps its CU dependency. The paragraph is also one unwrapped line, unlike the surrounding ~80-column text."},
+        {"severity": "low", "where": "rust/tcl-compiler/src/analyser/types/logical_members.rs:1724-1756", "text": "The control is weak. It never shows that the full path still issues a body, for example by asserting full_owner.original_body_word(...).is_some(). The 'different' image assertion is vacuous because image inequality alone returns None."},
+        {"severity": "info", "where": "-", "text": "Intended blast radius: every structure-only consumer of source_candidate_coordinate, name_word and relations now receives values, for example workspace_index.rs:4625. Compiler libtest, DB and Server selectors must be re-run. There is no independent pending-peer for this packet, only the author's evidence.json."}
+      ]
+    },
+    {
+      "packet": "sol-core-member-hazard-syntax-purpose-v1",
+      "verdict": "HOLD",
+      "findings": [
+        {"severity": "blocking", "where": "rust/tcl-compiler/src/registry_invocation/source_structure.rs:824-829", "text": "The patch is a semantic no-op. At HEAD, OriginalRegistryWords::source_script_bodies(context) is already exactly source_script_bodies_for(context, OriginalSourceScriptPurpose::Syntax) (unchanged since 4c717119b). The manifest's cause, that the consumer 'incorrectly iterates default Potential body projection', is false, and the independent peer repeats the same false premise. The edits at member_metadata.rs:141 and :231 cannot change behaviour, so they cannot fix 35r2 Core test-010 (missing Span 80..81)."},
+        {"severity": "blocking", "where": "rust/tcl-lsp-core/src/references/member_metadata.rs:460-484", "text": "The new control expects the 'export m' span inside 'if {1} {...}' nested directly in a class body. Test-010's missing span 80 is exactly that shape: the third 'export m', inside 'if {1} {export m}'. The control will most likely fail for the same unfixed reason, which would add a new red test."},
+        {"severity": "info", "where": "rust/tcl-lsp-core/src/references/member_metadata.rs:226-240; rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:611", "text": "The likely real drop site is the nested non-member branch of collect_region. When body.definition_parent_for(&context, Some(parent)) returns None for the 'if' body, or source_registry_words_in_definition_body_at (source_structure.rs:1496) yields no words, the body is discarded. Diagnose there."}
+      ]
+    },
+    {
+      "packet": "sol-core-member-source-census-v1",
+      "verdict": "HOLD (must never be admitted alone; V2 is mandatory)",
+      "findings": [
+        {"severity": "blocking", "where": "rust/tcl-lsp-core/src/original_declaration.rs:1124-1131 (V1 form)", "text": "Without V2, V1 promotes Complete and extends occurrences over existing reference_spans positives that the census never accounted for. These are external receiver queries, which is a missing-to-complete promotion. The author and the peer both state this."},
+        {"severity": "low", "where": "rust/tcl-lsp-core/src/original_declaration.rs:1138-1145", "text": "The Partial property branch was hand-compacted ('identity.uri(), source, analysis,' on one line, ').as_ref() == Some(identity)).then_some(...)'). rustfmt leaves it in place because it gives up on the enclosing expression, so it passes fmt but is not idiomatic. Restore the standard layout."},
+        {"severity": "low", "where": "rust/tcl-lsp-core/src/original_declaration.rs:1122-1127", "text": "Silent narrowing: property identities with object_owner.is_some() lose the census path, which the old property branch allowed, and now always report Partial. This is conservative but undocumented."},
+        {"severity": "low", "where": "docs/design/contracts/name-handling.md:3756-3773", "text": "The contract text contains process narrative ('actual replay is required', 'this bounded prerequisite', 'fixture remains explicitly unresolved'). AGENTS.md requires that to be removed before a PR."},
+        {"severity": "info", "where": "rust/tcl-lsp-core/src/original_declaration.rs:2296-2306", "text": "The '{source}; mystery' assertion is vacuous for the census. It returns None only through identity currency, because the source differs. The third block, 'my target; mystery', does exercise the unknown-head barrier."}
+      ]
+    },
+    {
+      "packet": "sol-core-member-source-census-v2 (applied as V1->V2)",
+      "verdict": "HOLD",
+      "findings": [
+        {"severity": "blocking", "where": "rust/tcl-lsp-core/src/original_declaration.rs:1705-1721 (original test readonly_member_reports_keep_source_spans_out_of_edit_inventories, 35r2 test-096 PASS)", "text": "In tcl8.6 this original test asserts coverage == Partial for 'oo::class create C {method ping {} {}; method body {} {my ping; my ping}}'. It also asserts reference_spans is empty, so V2's all(contains) gate is satisfied vacuously. V1's own new control (line 2282) asserts CompleteSourceOccurrenceCensus for the structurally identical 'oo::class create C {method target {} {}; method owner {} {my target}}' in tcl8.6. Both cannot hold. If the census works as designed, original line 1721 flips to red, which is an assertion regression by behaviour. If it does not, the new control is red."},
+        {"severity": "blocking", "where": "rust/tcl-lsp-core/src/code_lens.rs:590-613, 643-661 (35r2 test-056/058 FAIL)", "text": "The code-lens originals require exact counts ('2 references', '0 references') for the same tcl8.6 shape. That needs Complete, which is the opposite of test-096's Partial. This is a locked same-input contradiction between original assertions, like Compiler221. It needs an explicit user decision. The census must not resolve it silently by flipping test-096."},
+        {"severity": "medium", "where": "rust/tcl-lsp-core/src/original_declaration.rs:2341-2357", "text": "V2's new control is probably non-discriminating. 'C create c' and 'c target' have heads with no selected Registry source schema, so source_registry_words(...)? already aborts the census before either V2 veto or the all(contains) gate runs. The control would pass on HEAD, on V1 alone and on V2. Add a fixture in which a registry-selected head carries an object receiver or query and the self census alone would otherwise be complete."},
+        {"severity": "low", "where": "rust/tcl-lsp-core/src/original_declaration.rs:1007-1019", "text": "The vetoes return None for the whole census from inside the non-self branch. This is fail-closed and fine. Static typing checks out: class_at_command_head and method_at_command take &SegmentedCommand; OriginalMethodQuery::span() returns Span, compared with argv[1].span."},
+        {"severity": "info", "where": "-", "text": "No compile risk found. SourceSyntaxCoverage::{capture, applicability, commands} exist and are exported at lib.rs:109. definition_member_at returns Result<Option<_>>. OriginalDeclarationIdentity implements PartialEq. command_span() is Option for method rows and Span for property rows, and the code handles both. No dead code results, because visit_checked_analysis_executable_commands is still used in receiver_identity.rs:655."}
+      ]
+    },
+    {
+      "packet": "root-core-roster-test-setup-v1 (and piece.patch)",
+      "verdict": "ADMIT (source) with conditions",
+      "findings": [
+        {"severity": "info", "where": "rust/tcl-lsp-core/src/completion.rs:7849", "text": "The adapter is genuine. tcl_spectcl::core_surfaces::ensure() is the same public initializer the server's initialize handler calls (tcl-lsp-server/src/lib.rs:30086). It is inserted before the unchanged CommandRegistry::build_default() and fixture, and every value and assertion is byte-identical. The compiled-in Jim roster omits coroutine, so the original assertion at :7875 can now hold for the real reason."},
+        {"severity": "low", "where": "rust/tcl-lsp-core/Cargo.toml:62", "text": "This creates a dev-dependency cycle, because tcl-spectcl depends on tcl-lsp-core (tcl-spectcl/Cargo.toml:41). Cargo permits it, and tcl-registry and tcl-compiler already do the same, each with a 'A dev-dependency cycle ... which Cargo permits' rationale comment. This entry has no comment; add one. project-layout.md:83 says the tcl-spectcl edge 'introduces no cycle', so consider a sentence there too. No #[no_mangle] or links key exists in tcl-lsp-core, so the duplicate crate copy in the test binary causes no symbol clash. The Cargo.lock entry is correctly placed and sorted."},
+        {"severity": "medium", "where": "rust/tcl-lsp-core/src/completion.rs:7849", "text": "ensure() seeds process-global state: the tcl_dialect inherited-surface store and the tcl_registry core-surface specs. Under ordinary multi-threaded 'cargo test -p tcl-lsp-core', every other test in the binary, including about 30 Jim-dialect loops, sees the Jim roster or not depending on scheduling. The selector-per-process capture harness cannot detect this. I found no specific dependent assertion: sampled Jim loops use only rostered commands. Condition: run the full Core test binary in default parallel mode, and once with this test forced first, before claiming no regression."}
+      ]
+    }
+  ],
+  "metadata_findings": [
+    "composition.json 'base' = f1e36d8d6 is wrong. All before hashes match HEAD 2a3928bc6, and db042 fails to apply at f1e36.",
+    "composition.json 'applied[].patch' uses /workspace/naming-work/... absolute paths. The archive paths are pending/... (re-root on replay, as the README notes).",
+    "Composed after-hashes are not pinned. Pin the composed name-handling.md (2b376972...) and the composed diff (0802ceb0...).",
+    "composed-source-review.json counts 401/400 old tests. A static #[test] count gives 398/397 with the same single exception.",
+    "pending-peers has no independent review for db042-structural-factory-v2 or root-core-roster-test-setup-v1. Only the author's evidence and manifest exist."
+  ],
+  "environment_incident": "My 'git worktree add' (a full checkout of HEAD) hit ENOSPC on / at about 19:41:27 UTC 2026-10-17. git rolled the worktree back automatically. Afterwards / has 8.8G free, the main repo is clean, and no worktree metadata remains. If the frozen-source capture was writing during that window, treat any of its results around 19:41 UTC as suspect (AGENTS.md ENOSPC rule) and check its logs. All patch checks were then done on HEAD blobs extracted to scratchpad/agents/luna-i36/mini, which are byte-identical to HEAD."
+}

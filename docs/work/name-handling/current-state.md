@@ -1,6 +1,8 @@
 # Current LSP naming migration state
 
-**USER_PAUSED, 17 October 2026 at17:45 UTC.** All implementation agents and test processes stopped at the user's request. The source freeze ended after successful post-stop consistency checks. No new source was admitted after35. No report deadline is active.
+**RESUMED, 17 October 2026 at 19:23 UTC** from `2a3928bc6`. Checkpoint09 verified: archive SHA and size, member index hash and all 1,041 member hashes match; no pending patch admitted. Build36 (same six library test targets) passed with zero warnings and identical pre/post source (114,247 files) and provider snapshots. The full 1,085 direct-LSP capture is running on that frozen source; see the latest `progress-report-*.json`. Integration36 independent review: HOLD as composed (db042 and roster setup source-clear; hazard and census held) — receipt `handoff/reviews/integration-36-luna/`. A second locked original-test contradiction (test-096 Partial vs code_lens 056/058 Complete) needs a user decision. Reports every 30 minutes.
+
+Paused state (17:45 UTC) retained below for the record: all implementation agents and test processes had stopped at the user's request; no new source was admitted after35.
 
 Finish and verify LSP itself first, including direct Studio/DB consumers and required compiler/lexer/registry prerequisites. Only then complete and verify the remaining compiler dependencies. VM/runtime migrations remain paused; dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics are deferred. Unknown BIG-IP is assumed Tcl8.4 without evidence credit. Reports stay in chat and repository; the external naming guide is unchanged.
 
