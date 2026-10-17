@@ -1,0 +1,30 @@
+{
+  "path": "raw-results-and-logs.tar.zst",
+  "sha256": "974e3e9d38530f5c6f0d3c7d7583dafdbb55e156fc178b77af770f0e0632b197",
+  "bytes": 36518,
+  "verified_members": 22,
+  "members": {
+    "tcl_lexer/result.json": "3fc57e8c739b81a54c9626df06c59f6c6f4bc53ede2b9ce46eabfe0fa79a11a6",
+    "tcl_lexer/tcl_lexer.list": "b937c91ba1db346ea8564c9b1bb9b422f6c149316f3824004b1a720d78fc68c6",
+    "tcl_lexer/test-001.log": "cf69e47ed0e05e6dd99c6cf20eea234001fc7ce2f8caebdd2119a0e2a4f46e3d",
+    "tcl_lexer/test-002.log": "d8e39a6e8913d8d1cd99b3ce8d9146b19ec92e3f0802ee0ba39a6d414fffcfac",
+    "tcl_lexer/test-003.log": "9918df675441678e8d69e7398158e05760b42b1c08e469bb630c35a7a48a7d0e",
+    "tcl_lexer/test-004.log": "940ff3f3cb97b4c92d87cd2168baea0c4fd2802908039a0d077d4c1acd638154",
+    "tcl_lexer/test-005.log": "7973c68802c62895bea0b2a4c1cc4e6b26c58a071e1bb70ebdc0a164725b73ed",
+    "tcl_lexer/test-006.log": "452cbbf7222a6ae6bef558fd26369846021b5de83fa17844b502b7d624baa396",
+    "tcl_lexer-selection.json": "d804f7966c81b6290e53195a5c717b88543117c6e935049476e1b6650a3d1c7d",
+    "tcl_spectcl/result.json": "80f696458215b6550ddc3d08fa35969dd2bcaec05405e2408df684f2144cff62",
+    "tcl_spectcl/tcl_spectcl.list": "835f48c5d04b875a592c199dcd29ce6e9d4b47d05a5f3b93856a20b597690193",
+    "tcl_spectcl/test-001.log": "115837fc099ce322bf2b68abb2a0fcb1d6726e1be02d99beef35798bfe92f072",
+    "tcl_spectcl/test-002.log": "0f63c32feb5d2279d064f5f14085143e80f26bc4844784d5eb0601e829bd39ad",
+    "tcl_spectcl-selection.json": "544d8b662f61d649250c3478b663071b2da4d6363e9c7d8c39e3823a00830627",
+    "tcl_syntax/result.json": "c0e1a063795408b1d66a97bcd94e43e9907492e1e3c606be1f9cdaa77d87fc71",
+    "tcl_syntax/tcl_syntax.list": "e76ab88eb7c52c14c5843f637f52407c455f11caaa66b91d7e01676ffe7409b5",
+    "tcl_syntax/test-001.log": "19f68ca7ee815730e3f26345c618d343a5d1c7972062fb8695d78db23256dee1",
+    "tcl_syntax-selection.json": "e04d5db0d4edbc304b604365f322035db40687304cb42656c25eb242a0287e40",
+    "xtask/result.json": "b7f9d03cad57d72286491936c77152d3442a040ea8b0c4d6e7a529a3aa511e92",
+    "xtask/test-001.log": "21d60ef1416b4b25a32bf2b1f3aff01d9f4c827444ad16c071a10b5dc4581486",
+    "xtask/xtask.list": "ee357c55f844980274de7c68b4bc0f53e14acadcc15d8ae745f31404e4eae9e4",
+    "xtask-selection.json": "0404db8075c38d7beb9f53248fc4ec6eefa54c00b8d12ddc8e1f2d13f63d7ea8"
+  }
+}

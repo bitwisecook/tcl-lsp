@@ -1,0 +1,16 @@
+{
+  "count": 39019,
+  "drift": 0,
+  "parent_source_binding_sha256": "9796bc9d447ad9db4b85da10e97e1423ed4ee62a44e96cce2c2d898ab85a7956",
+  "indexes": {
+    "input-before.json": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/input-before.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    },
+    "input-after.json": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/input-after.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    }
+  },
+  "scope": "Full identical indexes retained outside Git; one immutable parent snapshot and exact source diff/admission remain the basis."
+}

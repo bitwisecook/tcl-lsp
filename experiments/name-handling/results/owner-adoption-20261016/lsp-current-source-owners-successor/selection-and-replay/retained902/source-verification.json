@@ -1,0 +1,40 @@
+{
+  "status": "STATIC_SOURCE_DATA_CHECKS_PASS_NO_LAUNCHER_EXECUTION",
+  "pinned_files": {
+    "package_manifest": true,
+    "generator": true,
+    "source_tools": true,
+    "selection": true,
+    "original726": true,
+    "provider_setup": true,
+    "source_admission": true,
+    "historical_inputs": true,
+    "parent_inputs": true,
+    "parent_receipt": true,
+    "parent_source_diff": true,
+    "parent_artifacts": true,
+    "parent_build_scanner": true
+  },
+  "native_providers": {
+    "tclsh9.0": true,
+    "tclsh8.6": true
+  },
+  "python_ast": true,
+  "subprocess_call_sites": [
+    "run",
+    "check_output"
+  ],
+  "full_current_source_hashes_checked": 39019,
+  "reviewed_afterimages": 59,
+  "old726_full_rows_and_guards_unchanged": true,
+  "selected": 902,
+  "counts": {
+    "tcl_compiler": 151,
+    "tcl_registry": 10,
+    "tcl_lsp_core": 609,
+    "tcl_lsp_db": 6,
+    "tcl_lsp_server": 126
+  },
+  "runtime_membership_recomputation": "Source-inspected exact canonical argv; not executed by author. Runtime pre/post must establish current git path union.",
+  "execution": "No import/launcher/binder/Git/canonical runner/list/test/Cargo/build/main mutation."
+}

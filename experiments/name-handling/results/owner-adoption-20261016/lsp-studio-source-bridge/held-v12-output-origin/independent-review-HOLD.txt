@@ -1,0 +1,18 @@
+TARGETED WHOLE-PURPOSE FOLLOWUP HOLD — Studio551 V12 output origin
+Reviewer /root/sol_compiler; Root explicitly requested inspection after source-transport clearance.
+Patch 5233e74b8982522399b032e7814df6faf69b5501371acb3b1a1daac5ba3a26ad remains immutable. Earlier V12 source-roundtrip clearance is retained historically; this followup demonstrates an additional output-origin transport hole in the claimed whole purpose.
+
+Concrete source-reachable sequence:
+1. Studio has rendered export A with multiple selectable files; global packExport retains those actual A results.
+2. A genuine host IDE edit supplies a different valid already-formatted DSL B. V12 acceptEdit updates dslSourceRevision to B's actual host revision and updates texts.dsl before calling actual spec.onChange.
+3. Studio spec.onChange routes to setPackSource(B): its state.pack.source and writeDsl(B) change, but packExport is not invalidated. scheduleExport merely installs a120ms timer (SETTLE_MS). Because B is already formatted, writeDsl's setDslText finds unchanged texts.dsl; no page DSL write is pending.
+4. Before that timer, the user selects another still-visible A export (existing row onclick or keyboard moveExportSelection). showExportFile reads listedExportFiles -> packExport A, then calls setRustText(file.source) / setStubText(file.source), whose API carries text only.
+5. Native bridge publish uses the current dslSourceRevision B for basedOnDslRevision, so old A bytes are newly tagged as B output. They can differ from the currently shown output, bypassing unchanged-text suppression. Both hosts accept exact current revision/no-pending matches; these checks establish B currency, not that A output originated from B.
+
+This is not an assumed async wasm computation: renderExport is synchronous when called, but the actual existing debounced timer leaves the old export selection live. Moreover renderExport failure returns without clearing packExport, leaving old A selections available after the window. If a page DSL write is pending instead, deferredOutputs can similarly flush old selected text under its next acknowledged revision.
+
+Source anchors: studio.ts setPackSource~688/writeDsl~3380; scheduleExport~1344/renderExport~1349; old packExport/listedExportFiles~1363; showExportFile~1488..1509; editorHost.ts output setter signatures~78/80; frozen V12 nativeEditorHost publish/publishDeferredOutputs and returned output setters. Actual full source hashes recorded adjacent.
+
+Required boundary: retain the actual source image/generation used by the successful pack export and carry that original basis through output selection and the EditorHost/native bridge; only reborrow the matching actual acknowledged host source revision. Missing/old export basis must not acquire current revision by observation time. This is output origin/source transport, not semantic correctness of wasm generation or Registry/Native execution authority. Do not fabricate epochs from rendered output, disable all output authoring, or clear valid host/source receipt checks.
+
+No tests, builds, browser/IDE execution, traces, main/Git/Cargo edits, efficacy/count claims. Root and author notified. The original V12 review receipt stays frozen; this followup qualifies its source-roundtrip-only assessment.

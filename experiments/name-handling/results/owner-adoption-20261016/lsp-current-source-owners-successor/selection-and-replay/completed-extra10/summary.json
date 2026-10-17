@@ -1,0 +1,37 @@
+{
+  "selected": 10,
+  "passed": 9,
+  "failed": 1,
+  "timed_out": 0,
+  "errors": [],
+  "all39019_inputs_and_nine_ELFs_postflight_match": true,
+  "targets": {
+    "tcl_lexer": {
+      "selected": 6,
+      "passed": 6,
+      "failed": 0,
+      "timed_out": 0
+    },
+    "tcl_syntax": {
+      "selected": 1,
+      "passed": 1,
+      "failed": 0,
+      "timed_out": 0
+    },
+    "tcl_spectcl": {
+      "selected": 2,
+      "passed": 1,
+      "failed": 1,
+      "timed_out": 0
+    },
+    "xtask": {
+      "selected": 1,
+      "passed": 1,
+      "failed": 0,
+      "timed_out": 0
+    }
+  },
+  "retained_original_extra5": "All five retained Lexer/Syntax/xtask controls PASS; five new controls split4PASS/1FAIL.",
+  "failure": "New SpecTcl helper/evaluated-parent notice control stops before expected notice: native command name protocol unavailable. Raw unchanged failure retained; no trace/Native guard weakening; source diagnosis pending.",
+  "ordinary_acceptance": false
+}

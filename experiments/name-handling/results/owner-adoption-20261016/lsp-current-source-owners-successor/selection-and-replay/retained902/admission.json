@@ -1,0 +1,71 @@
+{
+  "status": "FINAL_BOUND_902_REPLAY_ADMISSION",
+  "selected": 902,
+  "original_prefix": 726,
+  "destination": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3",
+  "files": {
+    "package_manifest": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/manifest-v10.json",
+      "sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37"
+    },
+    "generator": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generate_selection.py",
+      "sha256": "3a45cdf3f385ed41285d77a8f8b53d44ae8291e9dccd6971086b19fd8fa144fa"
+    },
+    "source_tools": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/source_tools.py",
+      "sha256": "f3cdd5205b70b11f1854a426bfcbd470c0db04ac443116874d3fe7187ce41498"
+    },
+    "selection": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/selection.json",
+      "sha256": "42ab2ebdbfac891bf7e7e0fb90a2403e58e3cca75cb3c59a6de2974dfee846a3"
+    },
+    "original726": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-frozen/selection.json",
+      "sha256": "237d6e60703bdafb3836a3f1bf8009e578a6da3b9aca367061d0098cde379a80"
+    },
+    "provider_setup": {
+      "path": "/tmp/lsp-cumulative-source-owners-selection-v5/provider-corrected-setup.json",
+      "sha256": "cf57d1f2af60b425a4f7c1cb644af1682118ff8173186d43a8f554068a483396"
+    },
+    "source_admission": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-integration/after-compile-api-repair3.json",
+      "sha256": "9287fbbe88f7d000284fc5ca61112774839dee5b42e8d42bd3463464fbfbf4b7"
+    },
+    "historical_inputs": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/input-before.json",
+      "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+    },
+    "parent_inputs": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    },
+    "parent_receipt": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source-binding.json",
+      "sha256": "9796bc9d447ad9db4b85da10e97e1423ed4ee62a44e96cce2c2d898ab85a7956"
+    },
+    "parent_source_diff": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source.diff",
+      "sha256": "1c21246e4fd0dc21ca09c98cc18b4b411e83c42ea2002fe4dbd145967ac4d1ab"
+    },
+    "parent_artifacts": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/artifacts.json",
+      "sha256": "283c84eb3e02cbef652465d9dc62303c37426a65d1f03cbeb8d7612f5d58fe81"
+    },
+    "parent_build_scanner": {
+      "path": "/tmp/naming-build-next-lsp-owner-union-repair3.py",
+      "sha256": "a992287e9f1f584a1875b38f4811971fd1d15f38ef5f25c3cecc9009bef07f70"
+    }
+  },
+  "native_provider_bindings": {
+    "tclsh9.0": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+      "sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    "tclsh8.6": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+      "sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    }
+  },
+  "scope": "Source-only prepared launcher admission for exact Root successful ordinary five-library binding; replay/listing unexecuted. Separate10 controls excluded. Root owns execution/admission."
+}

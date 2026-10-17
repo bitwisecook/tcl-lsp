@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-16T23:59:38.498858+00:00",
+  "status": "PARTIAL_REPLAY_RUNNING_NO_COMPLETION_OR_POSTFLIGHT_CLAIM",
+  "completed": 381,
+  "selected": 902,
+  "passed": 332,
+  "failed_without_timeout": 47,
+  "timed_out": 2,
+  "errors": [],
+  "all_prior726_rows_still_selected": true,
+  "observed_retained_gain": "Original128 sibling-procedure definition FAIL\u2192PASS",
+  "extra10": "Actual strict4target replay started; no final result claimed here.",
+  "source_integration": {
+    "lsp": 177,
+    "lsp_required": 325,
+    "effective": 367,
+    "effective_required": 2217,
+    "verified": 0
+  }
+}

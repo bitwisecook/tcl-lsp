@@ -1,0 +1,45 @@
+{
+  "status": "PREPARED_EXTRA10_REPLAY_LAUNCHER_V4_AWAITING_INDEPENDENT_SOURCE_REVIEW_AND_ROOT_EXECUTION",
+  "package": "retained726-extra10-replay-v4",
+  "supersedes": [
+    "V1 changing draft; initial bytes 013cfa6fa042c983f54593115178c695bfb44577be10071f46a6502ce69876b were superseded before peer review",
+    "V2 source-reviewed but held by root for continue-on-group-failure and durable-postflight-receipt behavior",
+    "V3 admission pinned the V2 launcher path with a V3 digest; the source logic was otherwise held clear. V4 corrects the path binding only."
+  ],
+  "launcher": {
+    "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/launch.py",
+    "sha256": "aa1429b961140aa78f8c0eb945345fb06062e14415b0b29579f9853d077f5fad"
+  },
+  "admission": {
+    "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/admission.json",
+    "sha256": "e4dd5576073b22505899ef3629b4bf02bd5eae8a3aba93ea71041235c55c0849"
+  },
+  "readme": {
+    "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/README.md",
+    "sha256": "e7851dd10ede6f1e520a15b8f0720d197db595ebe786d580554afc0f5fc35c84"
+  },
+  "source_review": {
+    "v11_binder_clear_receipt": "/tmp/retained726-v11-binder-v3-independent-review/independent-db-owner-review-CLEAR.txt",
+    "sha256": "a6267caf7be4681695859d55cbefad0401824e4f047d15a725b69d59ea320076"
+  },
+  "source_contract": {
+    "standard_parent": "V10 exact 902 vector and 726 retained prefix",
+    "extra_targets": {
+      "tcl_lexer": 6,
+      "tcl_syntax": 1,
+      "tcl_spectcl": 2,
+      "xtask": 1
+    },
+    "invocations": 4,
+    "test_timeout_seconds": 180,
+    "listing_timeout_seconds": 30,
+    "artifacts": "Actual combined three-library manifest for each library subset; actual xtask binary manifest for xtask."
+  },
+  "validation": {
+    "Python_AST_parse": "PASS",
+    "launcher_execution": "NOT RUN",
+    "listing": "NOT RUN",
+    "tests": "NOT RUN",
+    "builds": "NOT RUN"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "status": "SOURCE_ONLY_BOUND_LAUNCHER_AWAITING_INDEPENDENT_PEER_AND_ROOT_EXECUTION",
+  "script": {
+    "path": "/tmp/naming-replay-retained902-v2/launch.py",
+    "sha256": "e97a3de156438ab87ea437c10315b9531638d40a32e3e50d6b36cabfb5f81494"
+  },
+  "admission": {
+    "path": "/tmp/naming-replay-retained902-v2/admission.json",
+    "sha256": "de50bdefbc1acb828853dc9da5bc2a972b0504099276c13b80a266c696214153"
+  },
+  "adapted_template": {
+    "path": "/tmp/naming-replay-retained902-template-v1/launch.py",
+    "sha256": "164333b6de93fa03f74877c9c43bf9d8281c2d0b3e50cfe46cd81a0296a5b0d3"
+  },
+  "canonical_runner_sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+  "source_membership": "Exact historical39002 + explicit59 reviewed paths + current git ls-files canonical Root repair3 scope; sorted union exactly39019; dictionary equality before and after. No --others or changed scope.",
+  "budgets": {
+    "tests": 180,
+    "listing": 30
+  },
+  "original_prefix": 726,
+  "selected": 902,
+  "execution": "No launcher/import/binder/canonical/Git/list/test/build/Cargo/main execution by author. Only Python AST/static data reads."
+}

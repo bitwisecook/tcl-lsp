@@ -1,0 +1,23 @@
+from pathlib import Path
+import json,hashlib,subprocess,os,datetime,time,re,sys
+r=Path('/workspace/tcl-lsp');b=Path('/workspace/naming-validation/lsp-current-source-owners-successor-repair3');assert len(sys.argv)==2 and sys.argv[1]in {'libs','xtask'};kind=sys.argv[1];binding=json.loads((b/'source-binding.json').read_text());assert binding['status']=='PASS_FIVE_LIBRARY_BUILD'and not binding['input_drift_count'];assert os.environ.get('CARGO_PROFILE_TEST_DEBUG')=='0'and os.environ.get('CARGO_BUILD_JOBS')=='1';before=json.loads((b/'input-before.json').read_text());assert binding['ordinary'] is True and binding['instrumentation'] is False;assert len(before)==binding['input_before_count']==39019;assert len({v['path']for v in before})==len(before);parent_binding_sha=hashlib.sha256((b/'source-binding.json').read_bytes()).hexdigest();parent_index_sha=hashlib.sha256((b/'input-before.json').read_bytes()).hexdigest();union_path=Path(binding['approved_union_manifest']);assert hashlib.sha256(union_path.read_bytes()).hexdigest()==binding['approved_union_manifest_sha256'];union=json.loads(union_path.read_text())
+def sha(p):
+ with p.open('rb')as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def snapshot():
+ paths=sorted(set([v['path']for v in json.loads(Path('/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/input-before.json').read_text())]+[v['path']for v in union['files']]+[p for p in subprocess.check_output(['git','ls-files','-z','--','rust','runtime','scripts','specs','Cargo.toml','Cargo.lock','.cargo/config.toml'],cwd=r,text=True).split('\0')if p]));return [{'path':p,'sha256':sha(r/p)}for p in paths]
+assert snapshot()==before;out=b/('extra-'+kind);out.mkdir(exist_ok=False);(out/'input-before.json').write_text(json.dumps(before,separators=(',',':'))+'\n')
+if kind=='libs':
+ packages=['tcl-lexer','tcl-syntax','tcl-spectcl'];cmd=['cargo','test','--offline','--locked']+sum((['-p',p]for p in packages),[])+['--lib','--no-run'];expected={'tcl_lexer','tcl_syntax','tcl_spectcl'};source='src/lib.rs'
+else:packages=['xtask'];cmd=['cargo','test','--offline','--locked','-p','xtask','--bin','xtask','--no-run'];expected={'xtask'};source='src/main.rs'
+d={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=r,text=True).strip(),'command':cmd,'ordinary':True,'instrumentation':False,'single_job':True,'test_debug':0,'input_count':len(before),'status':'running','parent_binding_sha256':parent_binding_sha,'parent_input_index_sha256':parent_index_sha,'scope':'Actual distinct extra test artifacts only; Lexer/Syntax/SpecTcl library units or real xtask binary unit. No tests executed, no Runtime/VM/BIGIP suite. Exact originalfullsource snapshot required.'};(out/'source-binding.json').write_text(json.dumps(d,indent=2)+'\n');start=time.monotonic()
+with(out/'build.log').open('w')as log:
+ p=subprocess.Popen(cmd,cwd=r,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+ for line in p.stdout:log.write(line);log.flush();print(line,end='',flush=True)
+ code=p.wait()
+after=snapshot();(out/'input-after.json').write_text(json.dumps(after,separators=(',',':'))+'\n');pre={v['path']:v['sha256']for v in before};post={v['path']:v['sha256']for v in after};drift=sorted(p for p in pre.keys()|post.keys()if pre.get(p)!=post.get(p));d.update(status='PASS_EXTRA_ARTIFACT_BUILD'if code==0 and not drift else'FAIL',exit_code=code,seconds=round(time.monotonic()-start,3),input_drift=drift,input_drift_count=len(drift),completed_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
+if code==0 and not drift:
+ matches=re.findall(r'Executable unittests '+re.escape(source)+r' \(target/debug/deps/([^-)]+)-([a-f0-9]+)\)',(out/'build.log').read_text());assert len(matches)==len(expected)and{n for n,h in matches}==expected,matches;dest=out/'frozen-binaries';dest.mkdir();artifacts={}
+ for n,h in matches:
+  original=r/'target/debug/deps'/(n+'-'+h);frozen=dest/original.name;digest=sha(original);size=original.stat().st_size;assert not frozen.exists();original.rename(frozen);assert sha(frozen)==digest and frozen.stat().st_size==size;artifacts[n]={'path':str(frozen),'sha256':digest,'bytes':size,'original_cargo_artifact':str(original),'actual_target_kind':'lib'if kind=='libs'else'bin','storage':'Relocated exact originalartifact afterCargoexit; hash/sizeverified'}
+ (out/'artifacts.json').write_text(json.dumps(artifacts,indent=2)+'\n');d['all_artifact_hashes_verified_after_relocation']=True
+(out/'source-binding.json').write_text(json.dumps(d,indent=2)+'\n');print(json.dumps(d),flush=True);raise SystemExit(code if code else (1 if drift else 0))

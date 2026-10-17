@@ -1,0 +1,9 @@
+{
+  "archive": "v10-selection-source-package.tar.zst",
+  "sha256": "e2e3be21e3b595a06c8d73401e7d2999be70f6f0012b716a7444a8ef5d37eede",
+  "bytes": 666950,
+  "verified_members": 40,
+  "logical_bytes": 30389856,
+  "manifest_sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37",
+  "scope": "Exact final V10 source/selection files compressed once, including original726 plan and final902 plan. No full39019 input index or ELF payload included; actual immutable external paths and hashes retained in build/replay receipts. Both original generated candidates retained as sealed manifest members. Extract outside repository only; never overwrite current implementation."
+}

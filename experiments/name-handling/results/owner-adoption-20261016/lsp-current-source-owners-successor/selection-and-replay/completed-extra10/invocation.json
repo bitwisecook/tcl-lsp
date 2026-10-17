@@ -1,0 +1,380 @@
+{
+  "status": "EXTRA10_REPLAY_OR_POSTFLIGHT_FAILED",
+  "list_only": false,
+  "selected": 10,
+  "exact_target_counts": {
+    "tcl_lexer": 6,
+    "tcl_syntax": 1,
+    "tcl_spectcl": 2,
+    "xtask": 1
+  },
+  "all902_standard_prefix_and_guard_contract_retained": true,
+  "canonical_inventory_preflight": {
+    "count": 39019,
+    "parent_inputs_sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7",
+    "membership_and_bytes_equal": true,
+    "scanner_argv": [
+      "git",
+      "ls-files",
+      "-z",
+      "--",
+      "rust",
+      "runtime",
+      "scripts",
+      "specs",
+      "Cargo.toml",
+      "Cargo.lock",
+      ".cargo/config.toml"
+    ]
+  },
+  "utc": "2026-10-16T23:59:48.352945+00:00",
+  "admission": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/admission.json",
+  "admission_sha256": "e4dd5576073b22505899ef3629b4bf02bd5eae8a3aba93ea71041235c55c0849",
+  "v10_manifest_sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37",
+  "v11_manifest_sha256": "f0c37fbd3434c4a89998b07d1afd376017ca6729528d37beb34e87d79db3847c",
+  "standard_binding": {
+    "status": "BOUND_ACTUAL_ROOT_SUCCESSFUL_ORDINARY_BUILD",
+    "destination": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3",
+    "approved_union_manifest_sha256": "9287fbbe88f7d000284fc5ca61112774839dee5b42e8d42bd3463464fbfbf4b7",
+    "binary_bindings": {
+      "tcl_compiler": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/frozen-binaries/tcl_compiler-30b36f5fc9611193",
+        "sha256": "2844e07c3318d0a76e9f81b3872bbab16cf7f346d34812c772d4c3384f200e20",
+        "bytes": 251184208,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_compiler-30b36f5fc9611193",
+        "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+      },
+      "tcl_lsp_core": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/frozen-binaries/tcl_lsp_core-894b7574946ed478",
+        "sha256": "c375c7390ab729d5634a9ad78e40e9949a301965bc6b0506da35654c1f11f831",
+        "bytes": 200958952,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_core-894b7574946ed478",
+        "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+      },
+      "tcl_lsp_db": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/frozen-binaries/tcl_lsp_db-4adc210b216c0747",
+        "sha256": "e276d20f10330eef059584409cc9fa49359219e7904d0b72adee183154e3c571",
+        "bytes": 214553360,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_db-4adc210b216c0747",
+        "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+      },
+      "tcl_lsp_server": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/frozen-binaries/tcl_lsp_server-0d3d6c6a75aed312",
+        "sha256": "4fa2d2e2afc39beac53abe51c028fd78fe5871f42c46f6b8d2ff1147db451667",
+        "bytes": 337838784,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lsp_server-0d3d6c6a75aed312",
+        "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+      },
+      "tcl_registry": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/frozen-binaries/tcl_registry-24ca9a1c83ae5946",
+        "sha256": "8128d45e6b7bb35aa412094ab523837fe526b32e758c772c678b438b33ffda57",
+        "bytes": 61901248,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_registry-24ca9a1c83ae5946",
+        "storage": "Exact owned ELF relocated after Cargo completion; before/after SHA256 match."
+      }
+    },
+    "full_input_count": 39019,
+    "all_current_inputs_and_selected_routes_match": true,
+    "receipts": {
+      "source_binding": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source-binding.json",
+        "sha256": "9796bc9d447ad9db4b85da10e97e1423ed4ee62a44e96cce2c2d898ab85a7956"
+      },
+      "inputs": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+        "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+      },
+      "artifacts": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/artifacts.json",
+        "sha256": "283c84eb3e02cbef652465d9dc62303c37426a65d1f03cbeb8d7612f5d58fe81"
+      },
+      "source_diff": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source.diff",
+        "sha256": "1c21246e4fd0dc21ca09c98cc18b4b411e83c42ea2002fe4dbd145967ac4d1ab"
+      }
+    }
+  },
+  "extra_artifacts": {
+    "tcl_lexer": {
+      "manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "artifacts": {
+        "tcl_lexer": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+          "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+          "bytes": 5324952,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_spectcl": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+          "sha256": "e7006761e58dc2cc331f1b30a4135a771452cb448003aed090d6ce495c605e0a",
+          "bytes": 181355768,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_syntax": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+          "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+          "bytes": 12470864,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        }
+      }
+    },
+    "tcl_syntax": {
+      "manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "artifacts": {
+        "tcl_lexer": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+          "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+          "bytes": 5324952,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_spectcl": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+          "sha256": "e7006761e58dc2cc331f1b30a4135a771452cb448003aed090d6ce495c605e0a",
+          "bytes": 181355768,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_syntax": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+          "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+          "bytes": 12470864,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        }
+      }
+    },
+    "tcl_spectcl": {
+      "manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "artifacts": {
+        "tcl_lexer": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+          "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+          "bytes": 5324952,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_spectcl": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+          "sha256": "e7006761e58dc2cc331f1b30a4135a771452cb448003aed090d6ce495c605e0a",
+          "bytes": 181355768,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        },
+        "tcl_syntax": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+          "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+          "bytes": 12470864,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+          "actual_target_kind": "lib",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        }
+      }
+    },
+    "xtask": {
+      "manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/artifacts.json",
+      "manifest_sha256": "0b41e2525f5374ef2ca9f5e81c3bd6cd00c2d2f28603bf8b2d591bbcbd6b5faa",
+      "artifacts": {
+        "xtask": {
+          "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/frozen-binaries/xtask-1aaf2017ca651392",
+          "sha256": "5bebe7bef8a6babd4cde4910a17ee146b86272f2c850e9023dc896c6775eca38",
+          "bytes": 244533880,
+          "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/xtask-1aaf2017ca651392",
+          "actual_target_kind": "bin",
+          "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+        }
+      }
+    }
+  },
+  "invocations": [
+    {
+      "target": "tcl_lexer",
+      "selected": 6,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_lexer-selection.json",
+        "--manifest-sha256",
+        "d804f7966c81b6290e53195a5c717b88543117c6e935049476e1b6650a3d1c7d",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_lexer",
+        "--group",
+        "tcl_lexer"
+      ],
+      "wrapper_exit_code": 0,
+      "error": null,
+      "manifest_sha256": "d804f7966c81b6290e53195a5c717b88543117c6e935049476e1b6650a3d1c7d",
+      "artifact_manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "artifact_manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+        "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+        "bytes": 5324952,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    {
+      "target": "tcl_syntax",
+      "selected": 1,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_syntax-selection.json",
+        "--manifest-sha256",
+        "e04d5db0d4edbc304b604365f322035db40687304cb42656c25eb242a0287e40",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_syntax",
+        "--group",
+        "tcl_syntax"
+      ],
+      "wrapper_exit_code": 0,
+      "error": null,
+      "manifest_sha256": "e04d5db0d4edbc304b604365f322035db40687304cb42656c25eb242a0287e40",
+      "artifact_manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "artifact_manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+        "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+        "bytes": 12470864,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    {
+      "target": "tcl_spectcl",
+      "selected": 2,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_spectcl-selection.json",
+        "--manifest-sha256",
+        "544d8b662f61d649250c3478b663071b2da4d6363e9c7d8c39e3823a00830627",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_spectcl",
+        "--group",
+        "tcl_spectcl"
+      ],
+      "wrapper_exit_code": 1,
+      "error": null,
+      "manifest_sha256": "544d8b662f61d649250c3478b663071b2da4d6363e9c7d8c39e3823a00830627",
+      "artifact_manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/artifacts.json",
+      "artifact_manifest_sha256": "866cfd48d2d302f0fa6caf913e128cf47292a0e0ab50197546bdee1b81cd21eb",
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+        "sha256": "e7006761e58dc2cc331f1b30a4135a771452cb448003aed090d6ce495c605e0a",
+        "bytes": 181355768,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    {
+      "target": "xtask",
+      "selected": 1,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/xtask-selection.json",
+        "--manifest-sha256",
+        "0404db8075c38d7beb9f53248fc4ec6eefa54c00b8d12ddc8e1f2d13f63d7ea8",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/xtask",
+        "--group",
+        "xtask"
+      ],
+      "wrapper_exit_code": 0,
+      "error": null,
+      "manifest_sha256": "0404db8075c38d7beb9f53248fc4ec6eefa54c00b8d12ddc8e1f2d13f63d7ea8",
+      "artifact_manifest_path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/artifacts.json",
+      "artifact_manifest_sha256": "0b41e2525f5374ef2ca9f5e81c3bd6cd00c2d2f28603bf8b2d591bbcbd6b5faa",
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-xtask/frozen-binaries/xtask-1aaf2017ca651392",
+        "sha256": "5bebe7bef8a6babd4cde4910a17ee146b86272f2c850e9023dc896c6775eca38",
+        "bytes": 244533880,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/xtask-1aaf2017ca651392",
+        "actual_target_kind": "bin",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    }
+  ],
+  "postflight": {
+    "all39019_source_inputs_and_five_standard_plus_four_extra_ELFs_match": true,
+    "canonical_inventory": {
+      "count": 39019,
+      "parent_inputs_sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7",
+      "membership_and_bytes_equal": true,
+      "scanner_argv": [
+        "git",
+        "ls-files",
+        "-z",
+        "--",
+        "rust",
+        "runtime",
+        "scripts",
+        "specs",
+        "Cargo.toml",
+        "Cargo.lock",
+        ".cargo/config.toml"
+      ]
+    }
+  },
+  "canonical_runner_sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3",
+  "provider_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "native_provider_bindings": {
+    "tclsh9.0": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+      "sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    "tclsh8.6": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+      "sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    }
+  },
+  "jim_binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "scope": "Four canonical per-target invocations for exactly 10 separately built extra selectors. Not the standard902 invocation and not ordinary acceptance.",
+  "wrapper_exit_code": 1
+}
