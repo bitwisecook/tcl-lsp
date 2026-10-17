@@ -1,0 +1,10 @@
+{
+  "xtask": {
+    "path": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/extra-xtask/frozen-binaries/xtask-1aaf2017ca651392",
+    "sha256": "4ab97229eb3db2275daf9350b171d265dc479ed08c0ad028074e7bde01870d58",
+    "bytes": 245843584,
+    "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/xtask-1aaf2017ca651392",
+    "actual_target_kind": "bin",
+    "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "scheduled_utc": "2026-10-17T03:37:00Z",
+  "last_utc": "2026-10-17T03:37:26.299210+00:00",
+  "repository_written_utc": "2026-10-17T03:37:26.299210+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T04:07:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 212,
+  "lsp_required": 325,
+  "lsp_by_kind_integrated": {
+    "semantic": 107,
+    "validation": 103,
+    "documentation": 2
+  },
+  "lsp_without_integration": 113,
+  "gains_since_previous_report": {
+    "LSP": 0,
+    "effective": 0,
+    "reason": "Full current source frozen for source-bound actual capture; all next migrations remain outside main and uncounted."
+  },
+  "baseline_integrated": 345,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 317,
+  "baseline_partial": 28,
+  "baseline_without_integration": 1813,
+  "annex_integrated": 61,
+  "annex_required": 62,
+  "effective_integrated_at_report": 406,
+  "effective_required": 2220,
+  "effective_without_integration": 1814,
+  "verified": 0,
+  "actual_five_library_build": {
+    "status": "PASS",
+    "seconds": 323.055,
+    "source_inputs_before_and_after": 39058,
+    "drift": 0,
+    "admitted_paths": 151,
+    "actual_ELFs": 5,
+    "relocation_hashes_and_forbidden_instrumentation_checks": true,
+    "completed_utc": "2026-10-17T03:26:02.085600+00:00",
+    "receipt": "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/source-binding.json"
+  },
+  "actual_failed_predecessors": [
+    {
+      "seconds": 104.987,
+      "cause": "Generic recursive closure monomorphisation",
+      "source_inputs": 39058,
+      "drift": 0
+    },
+    {
+      "seconds": 196.031,
+      "cause": "Eight test adapter/import type errors",
+      "source_inputs": 39058,
+      "drift": 0
+    }
+  ],
+  "actual_editor": {
+    "status": "PASS",
+    "inputs": 443,
+    "drift": 0,
+    "scope": "BothTypeScriptprojects/configured scopedPrettier/worker/Node+browserbundles. OriginalunchangedStudioNode124PASS retained, notrerun. ActualIDEhostspending."
+  },
+  "actual_focused2": {
+    "utc": "2026-10-17T03:29:03.351751+00:00",
+    "status": "FOCUSED2_COMPLETED_FULL994_SOURCE_PROVIDER_FIVE_ELF_PREFLIGHTS_MATCH",
+    "selected": 2,
+    "mandatory_full994_still_owed": true,
+    "bound_manifest_sha256": "22606273ee96fc95fa63685980fd2dc495c5cc8e8cdcfec6a6f824a923e136c0",
+    "before": {
+      "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+      "selected": 994,
+      "preflight": {
+        "count": 39058,
+        "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+        "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+        "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+        "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+      }
+    },
+    "argv": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+      "--manifest",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/selection.json",
+      "--manifest-sha256",
+      "222f77ae531a9fecbcd56b4b513a8484bcdc9a23d63b5f33910248b81fab6bcf",
+      "--artifacts",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/artifacts.json",
+      "--root",
+      "/workspace/tcl-lsp",
+      "--out",
+      "/workspace/naming-validation/lsp-configured-consumer-source-successor-repair2/focused-owner2/results"
+    ],
+    "ordinary_acceptance": false,
+    "canonical_exit_code": 0,
+    "after": {
+      "status": "STRICT994_BINDING_PREFLIGHT_ONLY_PASS",
+      "selected": 994,
+      "preflight": {
+        "count": 39058,
+        "source_inputs_sha256": "d2122f2ad6aaa313b4cf0eea2e8b00e90d3eb7535b98ec5b6d4122ea248bdf63",
+        "five_artifacts_sha256": "44765c0b35aceaf468784b90a01937e90dd0733019514b6ed39a721be04018ca",
+        "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+        "current_source_route_evidence_sha256": "739ddf8f7be1e1d98a2b8ab90dd86d29052d7f6b05164e43b6a405eb95e7d774"
+      }
+    },
+    "completed_utc": "2026-10-17T03:29:29.275119+00:00",
+    "counts": {
+      "PASS": 2
+    },
+    "harness_errors": []
+  },
+  "actual_standard994": {
+    "selected": 994,
+    "completed_at_report": 183,
+    "partial_counts": {
+      "PASS": 156,
+      "FAIL": 26,
+      "TIMEOUT": 1
+    },
+    "harness_errors_so_far": [],
+    "invocation_status": "PREFLIGHT_PASS_CURRENT_SOURCE994",
+    "final_postflight_established": false,
+    "ordinary_acceptance": false,
+    "scope": "Exactretained962prefix+32reviewedcontrols. Original180s tests/30slistings/allproviderandNativeguards unchanged. Partialcapture cannot establish finalretainedoutcomecomparison or fullsource/provider/ELFpostflight."
+  },
+  "extra_artifact_builds": {
+    "libs": {
+      "status": "PASS_EXTRA_ARTIFACT_BUILD",
+      "exit_code": 0,
+      "seconds": 201.675,
+      "input_count": 39058,
+      "input_drift_count": 0,
+      "utc": "2026-10-17T03:30:06.852045+00:00",
+      "completed_utc": "2026-10-17T03:33:28.529256+00:00"
+    },
+    "xtask": {
+      "status": "PASS_EXTRA_ARTIFACT_BUILD",
+      "exit_code": 0,
+      "seconds": 213.169,
+      "input_count": 39058,
+      "input_drift_count": 0,
+      "utc": "2026-10-17T03:33:44.772217+00:00",
+      "completed_utc": "2026-10-17T03:37:17.943702+00:00"
+    }
+  },
+  "current_extra18": "Fresh sourceV3 peerCLEAR; all nine actual artifacts now successfully built withzero39058source/fiveELFdrift. Strictextra18binder/launcher awaiting independentpeer thenRootactualbinding/execution; previousextra18=16PASS2FAIL remainsolder source only.",
+  "actual_full_proof_gate": {
+    "exit_code": 1,
+    "seconds": 317.636,
+    "structural_errors": 2094,
+    "source_inputs": 39058,
+    "captured_checker_inputs": 73450,
+    "drift": 0,
+    "completed_utc": "2026-10-17T03:19:53.230578+00:00",
+    "scope": "Originalfullchecker, no structure-only/write-inventory. Zero pendingcandidates/unlinkedtests doesnotwaive2094structuralerrors."
+  },
+  "queued_outside_main_uncounted": "Source-cleared minifier570(partial), Node667V2+format, Definition638, targets674(partial), renamecensus655(partial), TkRegistryowner480+Core643+editor644, two nativeproviderpathvalidationpurposes andfourmultifolderreportvalidationpurposes. Formatter634 and browser662 held for finalsubset/cached-owner bugs; repairs pending. Sharedvalidation03.00threepurposes and packconfig09.00 genuine publicationowner inprogress. No helper/API/test count inflation.",
+  "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr notallgreen. ChangednativeE2Ebuild/execution stillowed. ActualIDE/browser/JetBrainshostspending; SDK extractionENOSPC prior. NoPR/merge/#2286closure.",
+  "historical_source_freeze_exception": "Prior962result keeps transientextension/matrixedit incident/restoration andordinaryacceptancefalse. Currentrepair2 sourcefreeze startsafter reviewedRootintegration and remains intact sofar; final994/extra18postflightstillowed.",
+  "latest_push": "c18b1a3a75b25a15e3941e605ee4f7444e3619b3",
+  "scope": "AllLSP and necessaryCompiler/DB/Registryowners. Runtime/VM and BIGIPrelated migrations/suites deferred, including584 partitionrename. UncoveredBIGIPTcl8.4 workingassumptiononly, notNative/measured evidence."
+}

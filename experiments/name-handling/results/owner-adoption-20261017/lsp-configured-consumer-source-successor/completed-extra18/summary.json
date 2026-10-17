@@ -1,0 +1,38 @@
+{
+  "selected": 18,
+  "counts": {
+    "PASS": 17,
+    "FAIL": 1
+  },
+  "by_target": {
+    "tcl_lexer": {
+      "PASS": 6
+    },
+    "tcl_syntax": {
+      "PASS": 3
+    },
+    "tcl_spectcl": {
+      "PASS": 5,
+      "FAIL": 1
+    },
+    "xtask": {
+      "PASS": 3
+    }
+  },
+  "harness_errors": [],
+  "actual_wrapper_exit_code": 1,
+  "completed_utc": "2026-10-17T03:49:44.925392+00:00",
+  "all39058_inputs_nine_ELFs_providers_postflight_match": true,
+  "retained_extra18_status_changes": [
+    {
+      "target": "tcl_spectcl",
+      "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "prior_PASS_regressions": [],
+  "ordinary_acceptance": false,
+  "limits": "One original SpecTcl Native command-name protocol refusal remains; all original assertions and guards preserved. Standard994 separately running; global/host gates pending.",
+  "launch_preparation_error": "Initial Root invocation supplied a mistyped binding SHA and was refused before capture; corrected exact independently peered SHA launched successfully. No selections or outputs from rejected invocation."
+}

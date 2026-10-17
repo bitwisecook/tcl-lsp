@@ -1,0 +1,127 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+warning: multiple methods are never used
+    --> runtime/rust/src/frame.rs:1079:19
+     |
+ 744 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1079 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1107 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1112 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1274 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1399 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1481 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1537 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `remove_dictionary_element` is never used
+   --> runtime/rust/src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `new_binding` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:293:19
+    |
+219 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+293 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: methods `attested_identities`, `install_alias`, `install_alias_with_original`, and `define_proc_storage` are never used
+    --> runtime/rust/src/interp.rs:3397:8
+     |
+1914 | impl Interp {
+     | ----------- methods in this implementation
+...
+3397 |     fn attested_identities(
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+3935 |     pub(crate) fn install_alias(
+     |                   ^^^^^^^^^^^^^
+...
+3947 |     pub(crate) fn install_alias_with_original(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4706 |     pub(crate) fn define_proc_storage(
+     |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> runtime/rust/src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> runtime/rust/src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `original_jim_command_enumeration_keys` is never used
+   --> runtime/rust/src/namespace.rs:670:19
+    |
+547 | impl Namespaces {
+    | --------------- method in this implementation
+...
+670 |     pub(crate) fn original_jim_command_enumeration_keys(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> runtime/rust/src/vars.rs:3290:19
+     |
+3289 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3290 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 8 warnings
+   Compiling xtask v0.1.0 (/workspace/tcl-lsp/rust/xtask)
+    Finished `test` profile [unoptimized] target(s) in 3m 29s
+  Executable unittests src/main.rs (target/debug/deps/xtask-1aaf2017ca651392)
