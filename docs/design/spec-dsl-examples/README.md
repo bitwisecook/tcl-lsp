@@ -1422,6 +1422,7 @@ schema order. "excluded" rows carry the reason.
 | `excluded_events` | `excluded_events {EVENT …}` |  |
 | `unsafe_command` | `unsafe_command ?yes\|no?` |  |
 | `closed_value_args` | `arg N -closed` |  |
+| `arg_values_accept_prefix` | `arg_values_accept_prefix ?yes\|no?` |  |
 | `event_requires` | `event_requires NAME\|{ … }` | block of the eight plain-data fields |
 | `event_requirement_forms` | `event_requirement_form {word …} ?-only-in {E …}? ?{ … }?` | trailing block is a nested `event_requires` |
 | `data_collection` | `data_collection -native ID` | reference-only: the collect/release descriptor is paired with protocol machinery outside the registry |

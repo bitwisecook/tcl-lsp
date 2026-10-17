@@ -67,3 +67,5 @@ SourceStructure retains real original body/member containers and selected author
 Source vocabulary and checked editor correspondence only; no handler, entered frame, closed effects, Native naming or execution grant. Named source controls are linked, not executed by this index update.
 
 All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.
+
+This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.

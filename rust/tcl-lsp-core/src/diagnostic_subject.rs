@@ -529,6 +529,21 @@ struct CallbackTargetDescription {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 enum SubjectDescription {
+    UserSourceArity {
+        #[serde(rename = "logicalSource")]
+        logical_source: bool,
+        #[serde(rename = "declaredMinimum")]
+        declared_minimum: u16,
+        #[serde(rename = "declaredMaximum")]
+        declared_maximum: u16,
+        #[serde(rename = "capturedArgumentCount")]
+        captured_argument_count: usize,
+        obligations: Vec<RegisteredInstanceObligationDescription>,
+        #[serde(rename = "sourceChannel")]
+        source_channel: String,
+        start: u32,
+        end: u32,
+    },
     CallbackSourceArity {
         purpose: CallbackPurposeDescription,
         bytes: Vec<u8>,
@@ -999,6 +1014,31 @@ impl DiagnosticSubjectData {
     #[must_use]
     pub fn from_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
         let subject = match diagnostic.subject()? {
+            DiagnosticSubject::UserSourceArity(original) => {
+                if !matches!(
+                    diagnostic.code,
+                    tcl_core_types::DiagCode::E002 | tcl_core_types::DiagCode::E003
+                ) {
+                    return None;
+                }
+                let words = original.original_words();
+                let first = words.first()?;
+                let arity = original.declared_arity();
+                SubjectDescription::UserSourceArity {
+                    logical_source: original.is_logical_source(),
+                    declared_minimum: arity.min,
+                    declared_maximum: arity.max,
+                    captured_argument_count: original.captured_argument_count(),
+                    obligations: original.obligations().iter().map(Into::into).collect(),
+                    source_channel: match first.image().channel() {
+                        tcl_lexer::SourceChannel::Document => "document",
+                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                    }
+                    .to_owned(),
+                    start: first.span().start(),
+                    end: words.last()?.span().end(),
+                }
+            }
             DiagnosticSubject::CallbackSourceArity(original) => {
                 if original.issue().code() != diagnostic.code {
                     return None;
@@ -1180,7 +1220,8 @@ impl DiagnosticSubjectData {
         let supported_subject = matches!(
             (&data.subject, data.code.as_str()),
             (
-                SubjectDescription::ObjectSourceArity { .. },
+                SubjectDescription::ObjectSourceArity { .. }
+                    | SubjectDescription::UserSourceArity { .. },
                 "E002" | "E003"
             ) | (
                 SubjectDescription::CommandAvailability {
@@ -1237,6 +1278,7 @@ impl DiagnosticSubjectData {
             }
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
             | SubjectDescription::DeclaredSource { .. }
@@ -1253,6 +1295,7 @@ impl DiagnosticSubjectData {
             SubjectDescription::UnresolvedCommand { reporting_name, .. } => Some(reporting_name),
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
             | SubjectDescription::DeclaredSource { .. }
@@ -1271,6 +1314,7 @@ impl DiagnosticSubjectData {
             }
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
             | SubjectDescription::DeclaredSource { .. }
@@ -2294,5 +2338,36 @@ mod tests {
             diagnostic.message = "unrelated presentation names".to_owned();
             assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
         }
+    }
+}
+
+#[cfg(test)]
+mod conditional_user_signature_transport_controls {
+    #[test]
+    fn source_recipe_reporting_preserves_obligations_and_cannot_recreate_issuer() {
+        let source =
+            "proc target {a b c} {}; interp alias {} selected {} target first second; selected";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let diagnostic = analysis
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.user_source_arity().is_some())
+            .unwrap();
+        let value = super::diagnostic_subject_data(diagnostic).unwrap();
+        assert_eq!(value["subject"]["kind"], "userSourceArity");
+        assert_eq!(value["subject"]["declaredMinimum"], 3);
+        assert_eq!(value["subject"]["capturedArgumentCount"], 2);
+        assert!(
+            !value["subject"]["obligations"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let decoded = super::DiagnosticSubjectData::from_value(&value, "E002").unwrap();
+        assert_eq!(decoded.to_value().unwrap(), value);
+        assert!(super::DiagnosticSubjectData::from_value(&value, "W001").is_none());
+        let mut presentation = diagnostic.clone();
+        presentation.message = "different display label".to_owned();
+        assert_eq!(super::diagnostic_subject_data(&presentation), Some(value));
     }
 }

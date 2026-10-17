@@ -128,7 +128,7 @@ mod taint_join {
     use super::*;
 
     fn lat(colour: TaintColour) -> TaintLattice {
-        TaintLattice { colours: colour }
+        TaintLattice::from_colours(colour)
     }
     const UNTAINTED: TaintColour = TaintColour::empty();
     const TAINTED: TaintColour = TaintColour::TAINTED;
@@ -232,7 +232,7 @@ mod lattice_join_new_colours {
     use super::*;
 
     fn lat(colour: TaintColour) -> TaintLattice {
-        TaintLattice { colours: colour }
+        TaintLattice::from_colours(colour)
     }
     const TAINTED: TaintColour = TaintColour::TAINTED;
     fn join(a: TaintColour, b: TaintColour) -> TaintLattice {

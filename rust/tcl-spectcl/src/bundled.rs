@@ -253,7 +253,7 @@ pub fn load_discovered_in(
     files: &[PackFile],
     trust: WorkspaceTrust,
 ) -> PackSet {
-    load_selected_sources_in(store, files, None, trust).0
+    load_selected_sources_in(store, files, None, trust, None).0
 }
 
 /// Load discovered ordinary packs with exact caller-retained Studio source
@@ -270,7 +270,7 @@ pub fn load_discovered_with_studio_sources_in(
     studio: &[(PathBuf, String)],
     trust: WorkspaceTrust,
 ) -> PackSet {
-    load_selected_sources_in(store, files, Some(studio), trust).0
+    load_selected_sources_in(store, files, Some(studio), trust, None).0
 }
 
 /// Load the same discovered inputs while retaining their actual read images.
@@ -282,7 +282,35 @@ pub fn load_discovered_with_studio_sources_and_inputs_in(
     studio: &[(PathBuf, String)],
     trust: WorkspaceTrust,
 ) -> (PackSet, crate::pack::LoadedSourceInputs) {
-    load_selected_sources_in(store, files, Some(studio), trust)
+    load_selected_sources_in(store, files, Some(studio), trust, None)
+}
+
+/// Load the exact discovered selection and retain its manifest dependencies in
+/// the existing provider/source publication receipt. Invalid manifest selection
+/// is reported and cannot issue complete input correspondence.
+#[must_use]
+pub fn load_discovered_configuration_with_studio_sources_and_inputs_in(
+    store: std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>,
+    discovery: &crate::discovery::ConfiguredDiscovery,
+    studio: &[(PathBuf, String)],
+    trust: WorkspaceTrust,
+) -> (PackSet, crate::pack::LoadedSourceInputs) {
+    let (mut packs, mut inputs) = load_selected_sources_in(
+        store.as_ref(),
+        &discovery.files,
+        Some(studio),
+        trust,
+        Some(std::sync::Arc::clone(&store)),
+    );
+    inputs.retain_manifest_selection(store.as_ref(), &discovery.manifest_selection);
+    for (path, issue) in &discovery.manifest_selection.issues {
+        packs.notices.push(crate::pack::PackNotice::whole_file(
+            path,
+            issue.clone(),
+            crate::pack::Severity::Warning,
+        ));
+    }
+    (packs, inputs)
 }
 
 fn load_selected_sources_in(
@@ -290,6 +318,7 @@ fn load_selected_sources_in(
     files: &[PackFile],
     studio: Option<&[(PathBuf, String)]>,
     trust: WorkspaceTrust,
+    owned_store: Option<std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>>,
 ) -> (PackSet, crate::pack::LoadedSourceInputs) {
     let ordinary: Vec<_> = files
         .iter()
@@ -335,9 +364,6 @@ fn load_selected_sources_in(
                 .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
         );
     }
-    inputs.unretained_nested_inputs |= sources
-        .iter()
-        .any(|(_, source)| crate::loader::uses_include(source));
     let packs = if studio.is_some() {
         crate::pack::load_sources_unpublished_with_inputs(
             sources,
@@ -345,6 +371,7 @@ fn load_selected_sources_in(
             trust,
             Some(store),
             &mut inputs,
+            owned_store,
         )
     } else {
         crate::pack::load_sources(sources, notices, trust, Some(store))

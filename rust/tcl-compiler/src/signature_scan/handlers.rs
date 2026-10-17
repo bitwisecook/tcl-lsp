@@ -221,13 +221,36 @@ pub(super) fn handle_proc_with_words(
         return;
     };
     let body_text = texts[body_at].clone();
+    let original_factory_body = if let (Some(parameters), Some(body)) = (
+        ctx.original_name_word(argv[params_at].span),
+        ctx.original_name_word(argv[body_at].span),
+    ) && parameters.config() == ctx.config
+        && body.config() == ctx.config
+        && ctx
+            .original_image
+            .as_ref()
+            .is_some_and(|image| parameters.image() == image && body.image() == image)
+        && parameters.group().kind == tcl_lexer::WordKind::Braced
+        && !parameters.group().expand
+        && body.group().kind == tcl_lexer::WordKind::Braced
+        && !body.group().expand
+    {
+        Some(super::ctx::OriginalFactoryBodySource {
+            words,
+            parameters: parameters.clone(),
+            body: body.clone(),
+        })
+    } else {
+        None
+    };
     ctx.proc_bodies.push(ProcBodyInfo {
-        qname: qualified,
+        qname: qualified.clone(),
         params: param_names,
         body_text: body_text.clone(),
         ns_prefix: body_ns.clone(),
         namespace_scope: Some(body_scope.clone()),
         source_name,
+        original_factory_body,
     });
     // Walk the proc body for factory-wrapper candidate calls.
     // Only braced bodies can be statically scanned; substituted
@@ -327,6 +350,7 @@ pub(super) fn handle_opt_proc(
         ns_prefix: body_ns.clone(),
         namespace_scope: Some(body_scope.clone()),
         source_name,
+        original_factory_body: None,
     });
     if argv[3].kind == TokenType::Str {
         super::walker::scan_factory_candidates_in_context(&body_text, argv[3], &body_scope, ctx);

@@ -416,6 +416,21 @@ impl SourceUriPath {
 /// SourceStore>` and clones it into blocking tasks) and must report a missing
 /// path as [`io::ErrorKind::NotFound`] rather than panicking.
 pub trait SourceStore: std::fmt::Debug + Send + Sync {
+    /// Retain this actual provider for an owned, on-demand source resolver.
+    /// The default is unavailable; a borrowed foreign provider never delegates
+    /// reads to the host filesystem. This grants no source currentness.
+    fn retained_source_reader(&self) -> Option<Arc<dyn SourceStore>> {
+        None
+    }
+
+    /// Optional canonical spelling issued by this actual source provider.
+    /// Foreign/virtual stores retain their supplied Path unless they implement
+    /// this namespace operation themselves. This is not a URI inverse, file
+    /// currency proof, selected-file census or authority over another store.
+    fn canonical_source_path(&self, _path: &Path) -> Option<PathBuf> {
+        None
+    }
+
     /// Select the actual document URI path for this provider. The default is
     /// explicitly unavailable; missing capability is never file absence.
     ///
@@ -640,6 +655,14 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
 pub struct NativeStore;
 
 impl SourceStore for NativeStore {
+    fn retained_source_reader(&self) -> Option<Arc<dyn SourceStore>> {
+        Some(Arc::new(*self))
+    }
+
+    fn canonical_source_path(&self, path: &Path) -> Option<PathBuf> {
+        std::fs::canonicalize(path).ok()
+    }
+
     fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
         WorkspaceSourceInventoryProvider::Filesystem
     }

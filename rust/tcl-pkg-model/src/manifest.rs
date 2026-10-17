@@ -246,6 +246,63 @@ pub fn load_manifest_text(source: &str, path: Option<&str>) -> Result<ManifestAs
     parse_manifest_source(source, path).map(|(ast, _)| ast)
 }
 
+/// Complete original manifest `spec`-selection census under the same literal
+/// source parser and directive grammar. Other manifest fields are not validated
+/// for this independent discovery purpose; this grants no full manifest validity.
+pub struct OriginalManifestSpecSelection<'source> {
+    source: &'source str,
+    directive: Option<SpecDirective>,
+}
+
+impl OriginalManifestSpecSelection<'_> {
+    /// Complete original source whose directive inventory was examined.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        self.source
+    }
+
+    /// The actual selected `spec` directive, or a complete source-level absence.
+    #[must_use]
+    pub fn directive(&self) -> Option<&SpecDirective> {
+        self.directive.as_ref()
+    }
+}
+
+/// Read only the original manifest's explicit source-selection declaration.
+/// Every original command must be completely represented and use a known
+/// directive; malformed/duplicate `spec` refuses. Unrelated package/version
+/// validation supplies no authority and remains the full loader's obligation.
+///
+/// # Errors
+/// Returns the existing manifest source/directive error on unavailable syntax,
+/// unknown directives or invalid `spec` layout.
+pub fn original_manifest_spec_selection<'source>(
+    source: &'source str,
+    path: Option<&str>,
+) -> Result<OriginalManifestSpecSelection<'source>, TclPkgError> {
+    let commands = parse_script(source).map_err(|message| manifest_err(&message, path))?;
+    let mut ast = empty_manifest_ast(path);
+    for command in commands {
+        let Some(name) = command.words.first() else {
+            continue;
+        };
+        if !DIRECTIVES.contains(&name.as_str()) {
+            return Err(manifest_err(
+                &format!("command not permitted in safe mode: {name}"),
+                path,
+            ));
+        }
+        if name == "spec" {
+            dispatch(&mut ast, name, &command.words[1..])
+                .map_err(|message| manifest_err(&message, path))?;
+        }
+    }
+    Ok(OriginalManifestSpecSelection {
+        source,
+        directive: ast.spec,
+    })
+}
+
 /// Original dependency declarations under the same grammar and full manifest
 /// validation as [`load_manifest_text`], without evaluating Tcl substitutions.
 pub fn original_manifest_requirements<'source>(
@@ -1404,5 +1461,27 @@ description {*}$value
             err.to_string()
                 .contains("expansion prefix `{*}` is not permitted")
         );
+    }
+}
+
+#[cfg(test)]
+mod original_manifest_selection_tests {
+    use super::*;
+
+    #[test]
+    fn complete_selection_census_is_separate_from_full_manifest_validation() {
+        let legacy = "package require x\n";
+        assert!(load_manifest_text(legacy, None).is_err());
+        let selection = original_manifest_spec_selection(legacy, None).unwrap();
+        assert_eq!(selection.source(), legacy);
+        assert!(selection.directive().is_none());
+        let selected = "package require x\nspec {packs {chosen.tclspec}}\n";
+        let selection = original_manifest_spec_selection(selected, None).unwrap();
+        assert!(selection.directive().is_some());
+        assert!(original_manifest_spec_selection("spec {packs", None).is_err());
+        assert!(
+            original_manifest_spec_selection("spec {packs {a}}; spec {packs {b}}", None).is_err()
+        );
+        assert!(original_manifest_spec_selection("eval {spec {packs {hidden}}}", None).is_err());
     }
 }

@@ -67,7 +67,7 @@ use crate::tcl_expr_eval::{
 };
 use tcl_registry::value_transfer::ExactValue;
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::original_statement_rewrite_span;
 use super::helpers::tokens::extract_body_text;
 use super::{Optimisation, PassContext};
 
@@ -278,11 +278,12 @@ fn visit_while(
     ) && !val.is_truthy()
         && decide(ctx, condition, facts.env) == Some(false)
         && !result_observed
+        && let Some(rewrite_span) = original_statement_rewrite_span(ctx, *span)
     {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead while loop (condition is always false)",
-            full_rewrite_span(ctx.source, *span),
+            rewrite_span,
             "",
         ));
     }
@@ -320,12 +321,13 @@ fn visit_for(
     ) && !val.is_truthy()
         && decide(ctx, condition, facts.env) == Some(false)
         && !result_observed
+        && let Some(rewrite_span) = original_statement_rewrite_span(ctx, *span)
     {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate dead for loop (condition is always false)",
-                full_rewrite_span(ctx.source, *span),
+                rewrite_span,
                 "",
             ));
         } else {
@@ -336,7 +338,7 @@ fn visit_for(
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate dead for loop (condition is always false); keep init",
-                full_rewrite_span(ctx.source, *span),
+                rewrite_span,
                 replacement,
             ));
         }
@@ -387,6 +389,9 @@ fn try_eliminate_if(
         return;
     };
     let stmt_span = *stmt_span;
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, stmt_span) else {
+        return;
+    };
     let else_body = else_body.as_ref();
     let else_span = *else_span;
     for clause in clauses {
@@ -414,7 +419,7 @@ fn try_eliminate_if(
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate constant if (condition is always true)",
-                full_rewrite_span(ctx.source, stmt_span),
+                rewrite_span,
                 replacement,
             ));
             return;
@@ -429,14 +434,14 @@ fn try_eliminate_if(
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate constant if (all conditions false); keep else",
-            full_rewrite_span(ctx.source, stmt_span),
+            rewrite_span,
             replacement,
         ));
     } else if !result_observed {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead if (all conditions are always false)",
-            full_rewrite_span(ctx.source, stmt_span),
+            rewrite_span,
             "",
         ));
     }
@@ -597,10 +602,13 @@ fn try_eliminate_switch(
             replacement
         }
     };
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, *span) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O112,
         describe(subject, &decided, arms),
-        full_rewrite_span(ctx.source, *span),
+        rewrite_span,
         replacement,
     ));
 }

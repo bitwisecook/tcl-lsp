@@ -172,6 +172,7 @@ fn source_id(pack: &MergedPack) -> String {
 #[must_use]
 pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
     let mut sources = Vec::with_capacity(packs.packs.len());
+    let mut submitted = Vec::with_capacity(packs.packs.len());
     let mut rejected = Vec::new();
     for pack in &packs.packs {
         let tier = PackEnvironmentTier::of(pack.tier, pack.trust);
@@ -187,17 +188,25 @@ pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
         if definitions.is_empty() && extensions.is_empty() {
             continue;
         }
-        sources.push(EnvironmentSource {
+        let source = EnvironmentSource {
             id: source_id(pack),
             definitions,
             extensions,
-        });
+        };
+        submitted.push((pack, source.clone()));
+        sources.push(source);
     }
     let by_source: std::collections::HashMap<&str, &str> = packs
         .packs
         .iter()
         .map(|pack| (source_id_key(pack), pack.name.as_str()))
         .collect();
+    let outcome = tcl_registry::model::sync_environment_sources(sources);
+    // Keep the successful model-issued payloads before consuming reporting data.
+    // A rejected source name is never evidence of another source's acceptance.
+    let accepted = outcome
+        .accepted_sources()
+        .map(<[EnvironmentSource]>::to_vec);
     let SyncOutcome {
         generation,
         changed,
@@ -205,7 +214,8 @@ pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
         extended,
         retired,
         rejected: refused,
-    } = tcl_registry::model::sync_environment_sources(sources);
+        ..
+    } = outcome;
     for refusal in refused {
         rejected.push(PackRejection {
             pack: by_source
@@ -214,7 +224,18 @@ pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
             error: refusal.error,
         });
     }
-    let (dialects, dynamic_cores, dialects_refused) = register_pack_dialects(packs);
+    let accepted_packs = accepted.as_ref().map(|accepted| {
+        submitted
+            .iter()
+            .filter_map(|(pack, source)| accepted.contains(source).then_some(*pack))
+            .collect::<Vec<_>>()
+    });
+    // Failed-base fallback preserves the prior dynamic publication; a genuine
+    // successful empty receipt instead runs the normal retirement path.
+    let (dialects, dynamic_cores, dialects_refused) = accepted_packs.as_deref().map_or_else(
+        || (0, 0, Vec::new()),
+        |accepted| register_pack_dialects(packs, accepted),
+    );
     PackSetRegistration {
         generation,
         changed,
@@ -236,7 +257,10 @@ pub fn register_pack_set(packs: &PackSet) -> PackSetRegistration {
 /// same call because a binding without its family is not a fact — the
 /// model refuses it, and reporting that once here is clearer than
 /// discovering it at resolve time.
-fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejection>) {
+fn register_pack_dialects(
+    packs: &PackSet,
+    accepted_sources: &[&MergedPack],
+) -> (usize, usize, Vec<DialectRejection>) {
     let mut families = Vec::new();
     let mut cores = Vec::new();
     let mut refused = Vec::new();
@@ -251,10 +275,16 @@ fn register_pack_dialects(packs: &PackSet) -> (usize, usize, Vec<DialectRejectio
                 }),
             }
         }
-        for environment in &pack.environments {
-            if let Some(core) = crate::dialect_conversion::to_dynamic_core(environment, &pack.name)
-            {
-                cores.push(core);
+        if accepted_sources
+            .iter()
+            .any(|accepted| std::ptr::eq(*accepted, pack))
+        {
+            for environment in &pack.environments {
+                if let Some(core) =
+                    crate::dialect_conversion::to_dynamic_core(environment, &pack.name)
+                {
+                    cores.push(core);
+                }
             }
         }
     }

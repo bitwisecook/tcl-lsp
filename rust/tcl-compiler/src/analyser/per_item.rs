@@ -1718,6 +1718,7 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
                     super::DiagnosticSubject::RegistrySource(_)
                         | super::DiagnosticSubject::CallbackSourceArity(_)
                         | super::DiagnosticSubject::ObjectSourceArity(_)
+                        | super::DiagnosticSubject::UserSourceArity(_)
                         | super::DiagnosticSubject::CommandAvailability(_)
                         | super::DiagnosticSubject::RegisteredInstanceSource(_)
                         | super::DiagnosticSubject::UnresolvedCommand(_)
@@ -2214,7 +2215,6 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
     }
     for cand in &mut frag.pending_user_call_arity {
         fix(&mut cand.cmd_name);
-        fix(&mut cand.ns);
     }
 
     for (_, _, creation_ns, _) in &mut frag.instances {
@@ -2256,7 +2256,6 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     }
     for cand in &mut frag.pending_user_call_arity {
         cand.call_off += d;
-        cand.full_span = shift(cand.full_span, d);
     }
     assert!(frag.pending_ctor_arity.is_empty());
     // The whole-source owner reconstructs retained lexical calls before grafting.

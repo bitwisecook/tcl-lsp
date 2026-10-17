@@ -1816,6 +1816,29 @@ impl DefinerFamily {
     }
 }
 
+/// Authored finite source presentation hints for an instance-name operand.
+/// These values select only source construction candidates, never an entered
+/// constructor, object identity or Native execution guarantee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BareWordConstructionSourceHint {
+    /// Complete literal source values recognised by this authored recipe.
+    pub values: &'static [&'static str],
+    /// Non-empty source-value prefixes recognised by this authored recipe.
+    pub prefixes: &'static [&'static str],
+}
+
+impl BareWordConstructionSourceHint {
+    /// Project this exact authored recipe, without identifying a class family.
+    #[must_use]
+    pub fn recognises(self, word: &str) -> bool {
+        self.values.contains(&word)
+            || self
+                .prefixes
+                .iter()
+                .any(|prefix| !prefix.is_empty() && word.starts_with(*prefix))
+    }
+}
+
 /// The grammar of a definer command's definition body: its recognised member
 /// sub-keywords plus the variables implicitly in scope inside every member
 /// body.
@@ -1916,6 +1939,8 @@ pub struct DefinitionBodyGrammar {
     /// embed snit naming conventions. `None` for families without the
     /// shorthand.
     pub bare_word_construction_hint: Option<fn(&str) -> bool>,
+    /// Actual authored source hint, retained separately from legacy callbacks.
+    pub bare_word_construction_source_hint: Option<BareWordConstructionSourceHint>,
 
     /// Whether a class body can install methods whose names are not
     /// statically enumerable from its member declarations.  snit's wildcard
@@ -4224,6 +4249,7 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // `unknown method "x"`).
     bare_word_construction: false,
     bare_word_construction_hint: None,
+    bare_word_construction_source_hint: None,
     dynamic_method_dispatch: false,
     manufacturers: TCLOO_MANUFACTURERS,
     // `object.n`: an unrecognised method name is dispatched to `unknown`.
@@ -4517,6 +4543,10 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
     bare_word_construction_hint: Some(snit_bare_word_construction_hint),
+    bare_word_construction_source_hint: Some(BareWordConstructionSourceHint {
+        values: &["%AUTO%"],
+        prefixes: &["."],
+    }),
     dynamic_method_dispatch: true,
     manufacturers: SNIT_MANUFACTURERS,
     // snit dispatches an unrecognised *method* through `delegate method *`
@@ -4553,6 +4583,10 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
     bare_word_construction_hint: Some(snit_bare_word_construction_hint),
+    bare_word_construction_source_hint: Some(BareWordConstructionSourceHint {
+        values: &["%AUTO%"],
+        prefixes: &["."],
+    }),
     dynamic_method_dispatch: true,
     manufacturers: SNIT_MANUFACTURERS,
     // snit dispatches an unrecognised *method* through `delegate method *`
@@ -4668,6 +4702,7 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit-specific bare-word shorthand.
     bare_word_construction: false,
     bare_word_construction_hint: None,
+    bare_word_construction_source_hint: None,
     dynamic_method_dispatch: false,
     // Reached through `creates_instance_at` (see above), not a named
     // manufacturer method on the class command.
@@ -5046,6 +5081,7 @@ const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGramma
         member_body_commands: &[],
         bare_word_construction: false,
         bare_word_construction_hint: None,
+        bare_word_construction_source_hint: None,
         dynamic_method_dispatch: false,
         manufacturers: &[],
         unknown_dispatch_method: None,
@@ -5253,6 +5289,7 @@ const fn sslictcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGramm
         member_body_commands: &[],
         bare_word_construction: false,
         bare_word_construction_hint: None,
+        bare_word_construction_source_hint: None,
         dynamic_method_dispatch: false,
         manufacturers: &[],
         unknown_dispatch_method: None,

@@ -232,6 +232,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         excluded_events: _,
         unsafe_command: _,
         closed_value_args: _,
+        arg_values_accept_prefix: _,
         event_requires: _,
         event_requirement_forms: _,
         event_emits: _, event_emission_forms: _,
@@ -421,6 +422,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("excluded_events", Surface::Key("excluded_events")),
     f("unsafe_command", Surface::Key("unsafe_command")),
     f("closed_value_args", Surface::Key("closed_value_args")),
+    f(
+        "arg_values_accept_prefix",
+        Surface::Key("arg_values_accept_prefix"),
+    ),
     f("event_requires", Surface::Key("event_requires")),
     f(
         "event_requirement_forms",
@@ -1258,6 +1263,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         member_body_commands: _,
         bare_word_construction: _,
         bare_word_construction_hint: _,
+        bare_word_construction_source_hint: _,
         dynamic_method_dispatch: _,
         manufacturers: _,
         unknown_dispatch_method: _,
@@ -1297,6 +1303,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f(
         "bare_word_construction_hint",
         Surface::Key("bare_word_construction_hint"),
+    ),
+    f(
+        "bare_word_construction_source_hint",
+        Surface::Key("bare_word_construction_source_hint"),
     ),
     f(
         "dynamic_method_dispatch",

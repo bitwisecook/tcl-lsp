@@ -441,7 +441,7 @@ pub(crate) fn oo_define_layout_roles(
         grammar
             .source_member_script_layout_arguments(selector.as_bytes(), args.slice_from(2))?
             .into_iter()
-            .map(|body| (u8::try_from(body.argument() + 2).ok()?, ArgRole::Body))
+            .map(|body| Some((u8::try_from(body.argument() + 2).ok()?, ArgRole::Body)))
             .collect::<Option<Vec<_>>>()?,
     )
 }

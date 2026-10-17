@@ -1695,3 +1695,50 @@ mod tests {
         assert_eq!(render_expr(&node), r#"$uri contains "admin""#);
     }
 }
+
+impl ExprNode {
+    /// Inclusive lexical extent retained by the expression AST.
+    /// Recovery/compiled leaves have no original geometry; the existing
+    /// 256-node source-walk bound refuses deeper shapes. This is geometry
+    /// only, not an original-source or evaluation receipt.
+    #[must_use]
+    pub fn lexical_source_extent(&self) -> Option<(u32, u32)> {
+        fn extent(node: &ExprNode, depth: u32) -> Option<(u32, u32)> {
+            // Native-stack safety net: walks the `ExprNode` tree, one
+            // native frame per level. Past the cap, report an unknowable extent
+            // (`None`) — the same conservative answer this function already returns
+            // for a `Raw` child, so callers fall back to a coarser span rather than
+            // crashing.
+            if depth > 256 {
+                return None;
+            }
+            match node {
+                ExprNode::Literal { start, end, .. }
+                | ExprNode::String { start, end, .. }
+                | ExprNode::Var { start, end, .. }
+                | ExprNode::Command { start, end, .. }
+                | ExprNode::Call { start, end, .. } => Some((*start, *end)),
+                ExprNode::Binary { left, right, .. } => {
+                    let (ls, _) = extent(left, depth + 1)?;
+                    let (_, re) = extent(right, depth + 1)?;
+                    Some((ls, re))
+                }
+                ExprNode::Unary { operand, .. } => extent(operand, depth + 1),
+                ExprNode::Ternary {
+                    condition,
+                    false_branch,
+                    ..
+                } => {
+                    let (cs, _) = extent(condition, depth + 1)?;
+                    let (_, fe) = extent(false_branch, depth + 1)?;
+                    Some((cs, fe))
+                }
+                // `CompiledWord` carries no source span either: it is a *word* the IR
+                // reduced to its value, not a slice of the expression text this
+                // extent indexes into.
+                ExprNode::Raw { .. } | ExprNode::CompiledWord { .. } => None,
+            }
+        }
+        extent(self, 0)
+    }
+}

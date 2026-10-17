@@ -141,6 +141,28 @@ impl Default for RuntimeEngine {
 }
 
 impl Engine for RuntimeEngine {
+    fn host_metadata_list_reader(&self) -> Option<tcl_engine_api::HostMetadataListReader> {
+        let profile = self.interp.dialect_profile();
+        if profile.is_fallback() {
+            return None;
+        }
+        let syntax = profile.grammar.list_parse;
+        let escapes = self.interp.lexer_config().escapes;
+        Some(Rc::new(move |source| {
+            tcl_syntax::list::split_list_with_syntax(source, syntax, escapes)
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .map_err(|error| EngineError::Script {
+                    message: format!("invalid host metadata list: {error}"),
+                    code: None,
+                })
+        }))
+    }
+
     type Handle = RuntimeHandle;
 
     fn name(&self) -> &'static str {

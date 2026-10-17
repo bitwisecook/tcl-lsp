@@ -64,10 +64,10 @@ use tcl_dialect::model::{DynamicCore, DynamicFamily, DynamicFamilyId, DynamicRel
 
 use crate::loader::{PackDialect, PackEnvironment, PackEnvironmentTier};
 
-/// The namespaced id a pack's dialect converts under: `PACK/DIALECT`.
+/// The pack and actual declared dialect components, retained without inverse parsing.
 #[must_use]
 pub fn family_id(pack: &str, dialect: &str) -> DynamicFamilyId {
-    DynamicFamilyId::new(&format!("{pack}/{dialect}"))
+    DynamicFamilyId::from_components(pack, dialect)
 }
 
 /// Why one `dialect` block did not convert.

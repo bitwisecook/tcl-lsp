@@ -227,10 +227,10 @@ impl Analyser {
         if let Some(best) = suggestions.first() {
             use std::fmt::Write as _;
             let _ = write!(message, "; did you mean '{best}'?");
-            if let Some(fix_span) = site.method_span {
+            if let Some((fix_span, new_text)) = self.w308_configured_method_proposal(site, best) {
                 fixes.push(super::types::CodeFix {
                     span: fix_span,
-                    new_text: (*best).to_string(),
+                    new_text,
                     description: format!("Replace with '{best}'"),
                     // W308: an edit-distance guess at the intended method.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
@@ -239,6 +239,41 @@ impl Analyser {
         }
         crate::analyser::types::Diagnostic::new(DiagCode::W308, span, message, Severity::Warning)
             .with_fixes(fixes)
+    }
+
+    /// Deliberately proposed method text is data, not an original method key.
+    /// Its sole receiver is the genuine second written word of this same
+    /// original dispatch. Whole source/configuration and parent argv rejoin
+    /// before the configured constructor can supply an edit.
+    fn w308_configured_method_proposal(
+        &self,
+        site: W308DiagnosticSite,
+        proposed: &str,
+    ) -> Option<(tcl_lexer::Span, String)> {
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let (word, offset) = self
+            .head_identities
+            .original_written_word_at_span_in_source(
+                &image,
+                site.method_span?,
+                self.file_lexer_config(),
+            )?;
+        let (_, parent) = self
+            .head_identities
+            .invocation_at_source("", offset)
+            .original_recorded_command()?;
+        let [head, method, ..] = parent.words() else {
+            return None;
+        };
+        if method.source().span != word.span()
+            || word.group().expand
+            || !(head.source().span.start() <= site.cmd_span.start()
+                && site.cmd_span.end() <= head.source().span.end())
+        {
+            return None;
+        }
+        let source = tcl_syntax::word_rules::lexical_unicode_source_word(proposed, word.config())?;
+        Some((word.span(), source))
     }
 
     /// **E001** (`TclOO` form) — `$obj` invoked with no method word at all.
@@ -339,8 +374,8 @@ impl Analyser {
     }
 
     /// Whether the dispatch site at `off` runs inside a **child
-    /// interpreter's** evaluation body (the analyser's synthetic `@interp@…`
-    /// scope domain).  The object classes the E001
+    /// interpreter's** actual isolated source body or an unavailable subject.
+    /// The scope producer retains that relation independently of report names.  The object classes the E001
     /// gates vouch for live in the *main* interpreter's command table; a
     /// child interpreter has its own, in which the class command does not
     /// exist at all (`interp create sub; interp eval sub {[Dog new]}` fails
@@ -348,8 +383,10 @@ impl Analyser {
     /// unresolved-command machinery owns), so the `TclOO` zero-word E001
     /// abstains there rather than assert main-interp object semantics.
     fn site_in_child_interp(&self, off: u32) -> bool {
-        crate::analyser::scope::command_resolution_namespace_at(&self.result.global_scope, off)
-            .contains("@interp@")
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        self.result
+            .source_interpreter_scope_relation(&image, self.file_lexer_config(), off)
+            != Some(crate::analyser::scope::SourceInterpreterScopeRelation::OriginalRoot)
     }
 
     /// The source-owned allocation and current dispatch receipt. Aggregate
@@ -3275,5 +3312,51 @@ mod original_ensemble_head_tests {
         assert!(analyser.original_namespaced_ensemble(&shifted).is_none());
         analyser.source.push(' ');
         assert!(analyser.original_namespaced_ensemble(&site).is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_method_proposal_controls {
+    use super::*;
+
+    #[test]
+    fn actual_method_word_and_parent_argv_own_configured_proposal() {
+        let source = "oo::class create Dog {method bark {} {return {}}}\n[Dog new] {bakr}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let method = source.rfind("bakr").unwrap() as u32;
+        let head = source.rfind("[Dog new]").unwrap() as u32;
+        let site = W308DiagnosticSite {
+            reach: tcl_registry::definer::MethodReach::ObjectCommand,
+            method_span: Some(tcl_lexer::Span::new(method, method + 4)),
+            cmd_span: tcl_lexer::Span::new(head, head + 9),
+        };
+        let (span, proposal) = analyser
+            .w308_configured_method_proposal(site, "$name [not_a_call]")
+            .unwrap();
+        assert_eq!(source.get(span.as_range()), Some("{bakr}"));
+        assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+            &proposal,
+            "$name [not_a_call]",
+            analyser.file_lexer_config()
+        ));
+        let foreign_parent = W308DiagnosticSite {
+            cmd_span: tcl_lexer::Span::new(0, 9),
+            ..site
+        };
+        assert!(
+            analyser
+                .w308_configured_method_proposal(foreign_parent, "bark")
+                .is_none()
+        );
+        let source = "oo::class create Dog {method bark {} {return {}}}\n[Dog new] bakr";
+        let result = Analyser::new().analyse_per_item(source, "tcl");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W308)
+            .unwrap();
+        assert_eq!(diagnostic.fixes[0].new_text, "bark");
+        assert_eq!(diagnostic.fixes[0].span, diagnostic.span);
     }
 }

@@ -1,0 +1,326 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 470,
+    "full_scope_pending": 405,
+    "partial": 65,
+    "without_integration": 1688
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 540,
+    "without_integration": 1689,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "utc": "2026-10-17T13:09:54.352938+00:00",
+  "scheduled_report_utc": "2026-10-17T13:09:49Z",
+  "count_freeze": "Root confirmed actual source admissions through integration21: baseline470/effective540, originalLSP290. Causal type repairs add zero units; pending outside-Main candidates excluded.",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "semantic_LSP": 0,
+    "validation_LSP": 0,
+    "documentation_LSP": 0,
+    "additional_cross_area_baseline": 27,
+    "total_baseline_delta": 27,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "18": {
+      "path": "/workspace/naming-work/integration-18/composition.json",
+      "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87",
+      "new_baseline_unit_ids": [
+        "db.unit.registry.namespace.which-original-option-layout",
+        "db.unit.registry.spectcl.object-class-original-body-position",
+        "db.unit.registry.tcloo-definition-source-body-layout",
+        "compiler.source.configured-original-variable-geometry:169"
+      ],
+      "original_LSP_delta": 0,
+      "oo_objdefine_separate_unit_count": 0
+    },
+    "19": {
+      "path": "/workspace/naming-work/integration-19/composition.json",
+      "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e",
+      "new_baseline_unit_ids": [
+        "compiler.source.configured-original-variable-geometry:590",
+        "audit:eglot-elpa-native-path-value",
+        "db.unit.studio.wasm.dsl-byte-geometry",
+        "db.unit.studio.wasm.dsl-vocabulary-context",
+        "db.unit.studio.web.completion-edit-geometry",
+        "db.unit.studio.web.release-tag-provider-correspondence",
+        "db.unit.studio.web.history-dialect-correspondence",
+        "db.unit.studio.web.explorer-byte-range",
+        "db.unit.studio.web.sample-call-source-constructor",
+        "db.unit.studio.web.export-file-publication-identity",
+        "db.unit.studio.web.issue-source-byte-publication"
+      ],
+      "original_LSP_delta": 0,
+      "helper_count": 0
+    },
+    "20": {
+      "path": "/workspace/naming-work/integration-20/composition.json",
+      "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a",
+      "new_baseline_unit_ids": [
+        "audit:helix-toml-extension-source",
+        "audit:emacs-literal-extension-source",
+        "audit:neovim-lua-extension-key",
+        "audit:bundled-environment-complete-seeds",
+        "audit:jetbrains-strict-marker-owner",
+        "compiler.source.original-rewrite-word-extent:206",
+        "compiler.source.original-rewrite-word-extent:2846",
+        "compiler.source.configured-original-variable-geometry:341",
+        "compiler.primitive.qualified-name-predicate-adoption:1776"
+      ],
+      "partial_unit_ids": [
+        "compiler.source.configured-original-variable-geometry:341"
+      ],
+      "original_LSP_delta": 0,
+      "helper_count": 0
+    },
+    "21": {
+      "path": "/workspace/naming-work/integration-21/composition.json",
+      "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef",
+      "new_baseline_unit_ids": [
+        "db.unit.registry.checked-environment-observation",
+        "db.unit.registry.profile-promotion-generation-join",
+        "db.unit.spectcl.pack.path-cache-identity"
+      ],
+      "original_LSP_delta": 0,
+      "configured_read_and_SSA_facets": "Author confirmed count0: necessary dependency facets of retained-terminator-and-index-read-consumers, original-read-purpose-consumers, ssa-literal-name-projections in outstanding-consumer-audit.json. No exact finiteCompiler341 consumer row; original341 source-motion read footprint,1736 executable inventory and82 physical mutation/query remain open."
+    }
+  },
+  "validation_recorded_at_capture": {
+    "integration10_library_check": {
+      "status": "PASS",
+      "seconds": 97,
+      "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+      "stderr": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+        "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+      },
+      "machine_stdout": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+        "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+      }
+    },
+    "vscode_types10": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jetbrains_current_tests": {
+      "status": "PASS",
+      "seconds": 24,
+      "tasks": 14,
+      "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+      "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+    },
+    "integration12_library_and_test_typecheck": {
+      "status": "FAIL_THEN_CAUSAL_REPAIRS_ADMITTED",
+      "cause": "Initial one case-field construction repaired; retry exposed seven old test API errors now repaired through genuine source-query fixture adapters. No ordinary acceptance.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration12-typecheck-repaired.jsonl",
+        "sha256": "48b6a926239ef5ae79c532758650bc14254ca2054005e95601207158a8f2867e"
+      }
+    },
+    "latest_regression_ELF": "No newer ordinary regression artifacts/capture than historical e739 Core664: 519 PASS/145 failures including one timeout; new35 29 PASS/6 FAIL; focused6 2 PASS/4 FAIL. Typechecks, source admissions and generated retries do not update those outcomes.",
+    "required_current_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
+    "integration14_library_and_test_typecheck": {
+      "status": "FAIL",
+      "errors": 2,
+      "cause": "Two new test Debug trait bounds; narrow Root derive(Debug) repair admitted. Seven prior old API errors no longer block compilation; fresh actual typecheck owed.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration14-typecheck.jsonl",
+        "sha256": "39d2db294bdf9f65afe1a394c1bb0b3a90bc4e794d0528e26ade815d87a38cf1"
+      },
+      "ordinary_acceptance": false
+    },
+    "vscode_types14": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration14-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "textmate_generation": {
+      "status": "PASS",
+      "root_session": 5350,
+      "seconds": 323,
+      "exit_code": 0,
+      "completed_log": {
+        "path": "/workspace/naming-work/logs/textmate-generation-repaired.log",
+        "sha256": "ea24274a8d5bd0b4e610eb1b41d6cb66ac4ba4cd025a884b3f6fed2e8d7e7e4f"
+      },
+      "output_review": "Root inspected exact six changes: two Registry-command regex option rosters plus Syntax braced empty ${} star in each existing JSON format; no whole-file reserialization.",
+      "source_adoption": [
+        {
+          "path": "/workspace/naming-work/sol-textmate-source-roles-v2/manifest.json",
+          "sha256": "b63f7d2da173935610f8fb9b08a96ef0537d614be9c1b08b73bb36542575e3e5"
+        },
+        {
+          "path": "/workspace/naming-work/sol-textmate-source-roles-v2/change.patch",
+          "sha256": "8ed068b416e20c4a114aa69afd262c1fd6396ce1a40f0c13e1b855f3e70b2284"
+        },
+        {
+          "path": "/workspace/naming-work/sol-textmate-registry-causal-v2/manifest.json",
+          "sha256": "4ba2ba36c3684b4316461a458d8db061ccde75d548418a64e70e70266621b385"
+        }
+      ],
+      "unit_status": "Both units integrated pending broader validation; no verified completion."
+    },
+    "proof_preflight": {
+      "status": "FAIL",
+      "structural_errors": 69745,
+      "missing_occurrences": 67641,
+      "missing_paths": 9270,
+      "existing_evidence_hash_drift": 1104,
+      "actual_census_digest_drift": 952,
+      "binding_or_documentation_errors": 48,
+      "log": {
+        "path": "/workspace/naming-work/logs/current-proof-preflight.log",
+        "sha256": "0f834f1c6812026435902684df0ef4366ad5bd9fdec77fb7eca86bc4f22af396"
+      },
+      "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
+    },
+    "proof_source_restoration": {
+      "status": "9270 actual hash-verified local Git bytes installed without overwrites; Root reported",
+      "receipt": {
+        "path": "/workspace/naming-work/proof-restore-installed.json",
+        "sha256": "d2091d744d3e0bb8d6e45116ea23c9e412c055a9443c1395e7aff0c0362bba4e"
+      },
+      "limits": "Does not clear prior evidence hash/census/binding drift or substitute for fresh proof preflight."
+    },
+    "current_clippy": {
+      "status": "FAIL",
+      "root_session": 35353,
+      "exit_code": 101,
+      "reported_cause": "E0624 method hover constructor private; Root causal repair admitted using existing public fields. About1890 warnings before stop, including deferred code. No new ordinary regression ELF acceptance.",
+      "postflight": "Root reports source input52866 exact PASS [] and same six provider pins."
+    },
+    "integration16": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-16/composition.json",
+        "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+      },
+      "new_unit_ids": [
+        "audit:editor-complete-bundled-input",
+        "audit:editor-validate-before-publication",
+        "audit:editor-zed-complete-config-inventory",
+        "audit:editor-kotlin-extension-source",
+        "audit:editor-python-extension-source",
+        "audit:editor-zed-toml-extension-source",
+        "audit:editor-xml-extension-list-source",
+        "compiler.source.original-word-selected-config:2622",
+        "compiler.source.expression-selected-config:72",
+        "compiler.source.expression-selected-config:231",
+        "compiler.source.analyser-retained-braced-variable-axis:1492",
+        "compiler.source.analyser-selected-builtin-inventory-cache:3024",
+        "compiler.source.package-header-insertion-geometry:1653",
+        "compiler.source.logical-unicode-insertion:211",
+        "compiler.source.logical-unicode-insertion:113"
+      ],
+      "helper_proof_metadata_count": 0,
+      "limits": "Compiler family closure remains open; provider adoption does not clear held Luna generator consumer V1/V2/V3."
+    },
+    "integration17": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-17/composition.json",
+        "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+      },
+      "unit_ids": [
+        "db.unit.registry.dialects.literal-extension-glob-rendering",
+        "compiler.source.original-formal-topology:125",
+        "audit:eglot-recording-session-context"
+      ],
+      "format": "pending per Root; integration16 format PASS",
+      "array": "ArrayV1 excluded pending actual cursor V2 peer/completechain.",
+      "limits": "No fresh Cargo/test/generator acceptance. Existing Eglot native ELPA path unit not changed or counted."
+    },
+    "integration18": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-18/composition.json",
+        "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+      },
+      "format": "Root session82164 running at report update",
+      "execution": "No fresh Cargo/test artifacts.",
+      "formal_report_boundary": "12:39 report froze only already-reconciled admissions through17, conservatively excludes18 although source admission occurred12:39:40."
+    },
+    "emacs_recorder_source_load": {
+      "status": "PASS_ROOT_REPORTED",
+      "environment": "Actual Emacs30.2 built and installed outside Main. Absolute-command V2 recorder reader/load passed; initial relative-path driver failure separately retained.",
+      "limits": "Reader/load success, no full Eglot recording runtime or allhost acceptance."
+    },
+    "integration19": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-19/composition.json",
+        "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+      },
+      "format": "Root session65377 running at update",
+      "limits": "No fresh Cargo/test ELF; exact old units only, no helper/header count."
+    },
+    "integration20": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-20/composition.json",
+        "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+      },
+      "format": "Root session86174 running at update",
+      "limits": "Actual10 ordinary libraryELF build planned, not complete. GeneratorV5 source-cleared and admitted; actual output/drift gates owed."
+    },
+    "fresh_proof_after_restore": {
+      "status": "RUNNING_NOT_ACCEPTED",
+      "root_session": 17658,
+      "basis": "Through integration19 after real source restoration and proof metadata repairs.",
+      "limits": "Root reported99%CPU after6minutes; no PASS inferred."
+    },
+    "integration21": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-21/composition.json",
+        "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+      },
+      "format": "Targeted7file check PASS; fullworkspace20format PASS before21",
+      "freeze": "Root freezes source for fresh ordinary10crate ELF build; no Cargo execution or artifact success inferred.",
+      "limits": "TaintV1\u2013V4 held outsideMain; lambda/statement/remainingDB packets outsideMain. Configured-read+SSA are confirmed aggregate dependency facets, zero extra unit counts and no341 closure."
+    },
+    "checkpoint21_current": {
+      "status": "BUILD_RUNNING_NOT_ACCEPTED",
+      "root_build_session": 17036,
+      "baseline_commit": "669c8e227",
+      "original_build21": "FAIL two E0277 oo_define closure errors; same-value/guard Some repair admitted by Root",
+      "Studio_TS21r1": "PASS after reviewed two-hunk wire-unchanged causal repair; original three failures retained",
+      "VSCode_TS21": "PASS",
+      "ordinary_regression_capture": "No new ordinary regression capture inferred from running build",
+      "proof17658": "RUNNING source preflight, not acceptance",
+      "source_freeze": "Integration21 plus Root causal repairs; tracking docs only may change"
+    }
+  },
+  "remaining_classification_counts": {
+    "deferred_bigip_related": 35,
+    "generic_unintegrated": 0,
+    "source_diagnostic_boundary_scope_review": 0
+  },
+  "pending": "All 35 original LSP NONE are dedicated BIGIP deferred. Generic Compiler source/SSA/formal/body/taint/optimiser and DB/Registry/Syntax dependencies outside325 remain open. Source-only candidate/review is not admission or execution; real-host/Native34/original1024/proof/generated checks remain owed.",
+  "next_report_utc": "2026-10-17T13:39:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

@@ -1173,4 +1173,53 @@ speclib mylib 1 {
             );
         }
     }
+
+    #[test]
+    fn structurally_valid_same_width_cached_word_corruption_keeps_actual_source() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = CacheDir::new("samewidth-source");
+        let expected = shape(&crate::loader::evaluate_pack(SOURCE));
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
+        forget_snapshots();
+        let entry = cache.entries().pop().expect("actual cache entry");
+        let mut bytes = std::fs::read(&entry).unwrap();
+        let offset = bytes
+            .windows(4)
+            .position(|part| part == b"2..3")
+            .expect("actual numeric metadata word");
+        bytes[offset..offset + 4].copy_from_slice(b"2..9");
+        std::fs::write(&entry, bytes).unwrap();
+        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
+        assert_eq!(
+            shape(&loaded),
+            expected,
+            "same input key cannot authenticate a changed payload word"
+        );
+    }
+
+    #[test]
+    fn cached_empty_roster_or_wordless_row_cannot_donate_complete_source_absence() {
+        let source = "command actual {arity 1}";
+        let key = memo_key(source, 1, FileBom::Content);
+        for rows in [
+            Vec::new(),
+            vec![Stmt {
+                words: Vec::new(),
+                line: 1,
+            }],
+        ] {
+            let mut memo = Memo::default();
+            memo.entries.insert(key, rows);
+            memo.order.push(key);
+            let (actual, retained) = with_memo(memo, || {
+                crate::loader::statements(source, 1, FileBom::Content)
+            });
+            assert_eq!(actual.len(), 1);
+            assert_eq!(actual[0].word_text(1), "actual");
+            assert_eq!(retained.entries[&key][0].word_text(1), "actual");
+            assert!(retained.parsed_something_new);
+        }
+    }
 }

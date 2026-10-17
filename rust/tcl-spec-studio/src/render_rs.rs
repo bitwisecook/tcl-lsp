@@ -306,6 +306,25 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
     } else {
         "None"
     };
+    let source_hint = match grammar.get("bare_word_construction_source_hint") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(hint) => {
+            let values = hint.get("values")?.as_array()?;
+            let prefixes = hint.get("prefixes")?.as_array()?;
+            if !values.iter().all(Value::is_string)
+                || !prefixes
+                    .iter()
+                    .all(|value| value.as_str().is_some_and(|prefix| !prefix.is_empty()))
+            {
+                return None;
+            }
+            format!(
+                "Some(crate::definer::BareWordConstructionSourceHint {{ values: {}, prefixes: {} }})",
+                str_slice(values),
+                str_slice(prefixes)
+            )
+        }
+    };
     let family = grammar.get("family").and_then(Value::as_str)?;
     Some(format!(
         "Some(&crate::definer::DefinitionBodyGrammar {{\n\
@@ -320,6 +339,7 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
          {inner}member_body_commands: {body_commands},\n\
          {inner}bare_word_construction: {bare},\n\
          {inner}bare_word_construction_hint: {hint},\n\
+         {inner}bare_word_construction_source_hint: {source_hint},\n\
          {inner}dynamic_method_dispatch: {dynamic},\n\
          {inner}manufacturers: {manufacturers},\n\
          {inner}unknown_dispatch_method: {unknown},\n\
@@ -2802,5 +2822,30 @@ mod tests {
             out.contains("var_elements_effect: Some(VarElementsEffect::SetsDictValue),"),
             "the field is an Option, so the expression carries its own Some:\n{out}"
         );
+    }
+}
+
+#[cfg(test)]
+mod authored_construction_hint_render_controls {
+    use super::*;
+
+    #[test]
+    fn actual_shipped_descriptor_survives_studio_projection_and_rust_source_rendering() {
+        let value = crate::draft::definition_body_block(&tcl_registry::definer::SNIT_GRAMMAR);
+        assert_eq!(
+            value["bare_word_construction_source_hint"]["values"],
+            serde_json::json!(["%AUTO%"])
+        );
+        assert_eq!(
+            value["bare_word_construction_source_hint"]["prefixes"],
+            serde_json::json!(["."])
+        );
+        let rendered = definition_body_expr(&value, "").unwrap();
+        assert!(rendered.contains("bare_word_construction_source_hint: Some(crate::definer::BareWordConstructionSourceHint"));
+        assert!(rendered.contains("values: &[\"%AUTO%\"]"));
+        assert!(rendered.contains("prefixes: &[\".\"]"));
+        let mut wrong = value;
+        wrong["bare_word_construction_source_hint"]["prefixes"] = serde_json::json!([""]);
+        assert!(definition_body_expr(&wrong, "").is_none());
     }
 }

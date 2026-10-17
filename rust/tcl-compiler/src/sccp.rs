@@ -1492,6 +1492,22 @@ impl SweepContext<'_> {
         );
         self.driver.set_throwing(false);
         changed |= run.changed;
+        if self
+            .ssa
+            .value_clobbers
+            .get(&bn)
+            .is_some_and(|markers| markers.contains_key(&usize::MAX))
+        {
+            changed |= clobber_at_unseen_call(
+                &mut state.values,
+                (
+                    usize::MAX,
+                    self.ssa.value_clobbers.get(&bn),
+                    run.exit.completes,
+                ),
+                (self.driver, None),
+            );
+        }
         if let Some(at) = &at {
             at.before_terminator(self.driver);
         }

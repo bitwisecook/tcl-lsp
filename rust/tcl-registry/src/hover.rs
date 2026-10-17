@@ -112,6 +112,11 @@ pub enum ScriptTiming {
     ReferenceOnly,
 }
 
+impl ScriptTiming {
+    /// Complete authored timing catalogue in its historical presentation order.
+    pub const ALL: &'static [Self] = &[Self::SameInvocation, Self::Deferred, Self::ReferenceOnly];
+}
+
 /// A value substituted into a stored callback immediately before Tcl evaluates
 /// it, whose bytes originate outside the program.
 ///

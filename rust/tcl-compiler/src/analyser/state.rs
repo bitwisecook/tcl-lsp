@@ -999,7 +999,8 @@ pub struct Analyser {
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// Same-file user-call arity candidates — see
     /// [`super::types::PendingUserCallArity`]. Queued for *every* call
-    /// (not just ones with a registry signature) and resolved in the
+    /// (not just ones with a registry signature). Only display and position
+    /// are queued; actual original call/header/argv are reborrowed in the
     /// same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_arity_diagnostics`]).
     pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,

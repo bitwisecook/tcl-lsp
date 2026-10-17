@@ -38,7 +38,7 @@ use tcl_core_types::DiagCode;
 use crate::compilation_unit::CompilationUnit;
 use crate::taint::is_irules_dialect;
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::original_statement_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the unused-procs pass.
@@ -118,7 +118,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(ir_proc) = ir_module.procedures.get(qname) else {
             continue;
         };
-        let span = full_rewrite_span(ctx.source, ir_proc.span);
+        let Some(span) = original_statement_rewrite_span(ctx, ir_proc.span) else {
+            continue;
+        };
         let range = span.as_range();
         if range.end > ctx.source.len() || range.start >= ctx.source.len() {
             continue;

@@ -2115,6 +2115,7 @@ function insertSampleCall(): void {
       throw new Error("the original pack source is not currently loaded");
     }
     const rendered = unwrap<{
+      error?: string;
       source: string;
       call_source: string;
       sample_source: string;
@@ -3501,7 +3502,10 @@ function bindRouting(): void {
         ? null
         : (() => {
             const retained = state.history[visit];
-            return retained && retained.dialect === route.dialect && visitIsCurrent(retained)
+            return retained &&
+              (route === null ||
+                (route.view === "command" && retained.dialect === route.dialect)) &&
+              visitIsCurrent(retained)
               ? retained.name
               : null;
           })()) ?? null,

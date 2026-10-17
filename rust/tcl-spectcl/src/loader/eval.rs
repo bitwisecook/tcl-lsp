@@ -355,7 +355,7 @@ const ROW_WORDS: &[&str] = &[
     "is_unescape",
     "loop_list_header",
     "creates_scope_alias",
-    "arg_values_accept_prefix",
+    "arg_values_accept_prefix", // Shared with command scope; both use the same flag reader.
     "cfg_rewrite_name",
     "min_abbrev",
     "max_leading_option_words",
@@ -613,9 +613,7 @@ impl VerbatimIndex {
         let at = entries.iter().position(|body| body.stmt_line == line)?;
         let unambiguous = entries.iter().filter(|body| body.stmt_line == line).count() == 1;
         if !unambiguous {
-            for body in entries.iter_mut().filter(|body| body.stmt_line == line) {
-                body.original = None;
-            }
+            return None;
         }
         Some(entries.remove(at))
     }
@@ -630,10 +628,9 @@ impl VerbatimIndex {
         let mut matching = entries
             .iter()
             .filter(|stmt| stmt.word_text(0) == word && stmt.words.len() == args.len() + 1);
-        let mut selected = matching.next()?.clone();
-        // Keep the established evaluated-reader choice. Source geometry is a
-        // separate purpose: ambiguity or changed actual arguments cannot donate
-        // an original source word to a notice.
+        let selected = matching.next()?.clone();
+        // Evaluated values cannot borrow a merely equal-width source row.
+        // Unavailable/ambiguous correspondence keeps the genuine capture.
         if matching.next().is_some()
             || !selected
                 .words
@@ -642,9 +639,7 @@ impl VerbatimIndex {
                 .zip(args)
                 .all(|(word, value)| word.text == *value)
         {
-            for word in &mut selected.words {
-                word.original_source = None;
-            }
+            return None;
         }
         Some(selected)
     }
@@ -757,6 +752,8 @@ struct State {
     /// available` / `default dialects`), the set `available?` answers
     /// against. `None` = nothing declared = everything.
     declared_surface: Option<&'static [SpecSurface]>,
+    /// Explicit unrepresented support cannot become an unstated query default.
+    declared_surface_unavailable: bool,
     /// The file's declarative skeleton, verbatim, for line-exact body
     /// evaluation. Its second layer builds only if a body reaches the
     /// interpreter.
@@ -916,7 +913,8 @@ fn track_declared_support(state: &mut State, args: &[String], line: u32) {
         }
         Some("available") => {
             let availability = available::from_texts(&args[1..], line, &mut scratch);
-            if let Some(set) = availability.surface {
+            state.declared_surface_unavailable |= availability.is_unavailable();
+            if let Some(set) = availability.surface() {
                 state.declared_surface = Some(set);
             }
         }
@@ -1020,26 +1018,37 @@ fn stage_speclib(
                 .speclib
                 .take_if(|candidate| candidate.stmt_line == line)
         };
-        let block = match verbatim {
-            Some(vb) => BodyText {
-                original: vb.original_for_capture("speclib", args, &body),
-                text: vb.text,
-                base: vb.body_line,
-                verbatim: true,
-            },
-            None => BodyText {
-                original: None,
-                text: body,
-                base: line,
-                verbatim: false,
-            },
-        };
+        let block = BodyText::captured(verbatim, "speclib", args, body, line);
         state.borrow_mut().base_lines.push(block.base);
         let outcome = run_body(drive, state, &block);
         state.borrow_mut().base_lines.pop();
         outcome?;
     }
     Ok(())
+}
+
+/// The evaluated registration vocabulary's exact `NAME ?-override? BODY`
+/// layout. These are already evaluated Unicode values, not original words or
+/// a reusable source recipe. Unknown layouts cannot donate body geometry.
+struct EvaluatedCommandBody<'a> {
+    text: &'a str,
+    overrides: bool,
+}
+
+impl<'a> EvaluatedCommandBody<'a> {
+    fn select(arguments: &'a [String]) -> Option<Self> {
+        match arguments {
+            [_, body] => Some(Self {
+                text: body,
+                overrides: false,
+            }),
+            [_, flag, body] if flag == "-override" => Some(Self {
+                text: body,
+                overrides: true,
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// The `command` handler: head capture plus body evaluation in a fresh
@@ -1056,10 +1065,33 @@ fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
         }
         let name = args.first().cloned().unwrap_or_default();
         let overrides = args.iter().any(|arg| arg == "-override");
-        // The body is the first braced word after the name; evaluation
-        // loses per-word braced-ness, so the captured equivalent is the
-        // first blockish argument.
-        let body = args.iter().skip(1).find(|arg| blockish(arg)).cloned();
+        let candidate = state.borrow_mut().verbatim.take("command", &name, line);
+        // The actual original brace operand supplies its selected body value,
+        // including a one-word body. Evaluated fallback retains its old layout.
+        let source_body = candidate.as_ref().and_then(|candidate| {
+            let original = candidate.original.as_ref()?;
+            let value = original.captured_text();
+            candidate
+                .original_for_capture("command", args, value)
+                .map(|_| value.to_owned())
+        });
+        let evaluated = EvaluatedCommandBody::select(args);
+        // Only the typed evaluated option slot can set this flag. Keep the
+        // established authentic-original compatibility branch independent.
+        let overrides = if source_body.is_some() {
+            overrides
+        } else {
+            evaluated
+                .as_ref()
+                .is_some_and(|selected| selected.overrides)
+        };
+        let body = source_body.or_else(|| evaluated.map(|selected| selected.text.to_owned()));
+        if body.is_none() && args.len() > 1 {
+            state.borrow_mut().eval_notices.push(eval_notice(
+                "command", line, VocabularyClass::Presentation,
+                "evaluated command declaration requires NAME ?-override? BODY; no body selected from an unsupported argument layout".to_owned(),
+            ));
+        }
         let Some(body) = body else {
             state
                 .borrow_mut()
@@ -1072,23 +1104,7 @@ fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
                 }));
             return Ok(None);
         };
-        let body = {
-            let mut st = state.borrow_mut();
-            match st.verbatim.take("command", &name, line) {
-                Some(vb) => BodyText {
-                    original: vb.original_for_capture("command", args, &body),
-                    text: vb.text,
-                    base: vb.body_line,
-                    verbatim: true,
-                },
-                None => BodyText {
-                    original: None,
-                    text: body,
-                    base: line,
-                    verbatim: false,
-                },
-            }
-        };
+        let body = BodyText::captured(candidate, "command", args, body, line);
         stage_command(
             interpreted(ctx, fast_path),
             &state,
@@ -1109,6 +1125,33 @@ struct BodyText {
     base: u32,
     verbatim: bool,
     original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+}
+
+impl BodyText {
+    fn captured(
+        candidate: Option<VerbatimBody>,
+        head: &str,
+        args: &[String],
+        value: String,
+        line: u32,
+    ) -> Self {
+        if let Some(candidate) = candidate {
+            if let Some(original) = candidate.original_for_capture(head, args, &value) {
+                return Self {
+                    original: Some(original),
+                    text: candidate.text,
+                    base: candidate.body_line,
+                    verbatim: true,
+                };
+            }
+        }
+        Self {
+            original: None,
+            text: value,
+            base: line,
+            verbatim: false,
+        }
+    }
 }
 
 /// Evaluate one `command` body in a fresh command scope and stage the
@@ -1165,23 +1208,8 @@ fn subcommand_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandle
         let Some(body) = args.get(1).cloned() else {
             return Ok(None);
         };
-        let body = {
-            let mut st = state.borrow_mut();
-            match st.verbatim.take("subcommand", &name, line) {
-                Some(vb) => BodyText {
-                    original: vb.original_for_capture("subcommand", args, &body),
-                    text: vb.text,
-                    base: vb.body_line,
-                    verbatim: true,
-                },
-                None => BodyText {
-                    original: None,
-                    text: body,
-                    base: line,
-                    verbatim: false,
-                },
-            }
-        };
+        let candidate = state.borrow_mut().verbatim.take("subcommand", &name, line);
+        let body = BodyText::captured(candidate, "subcommand", args, body, line);
         stage_subcommand(interpreted(ctx, fast_path), &state, name, line, &body)?;
         Ok(None)
     })
@@ -1246,23 +1274,8 @@ fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool
                 }));
             return Ok(None);
         };
-        let body = {
-            let mut st = state.borrow_mut();
-            match st.verbatim.take(word, &name, line) {
-                Some(verbatim) => BodyText {
-                    original: verbatim.original_for_capture(word, args, &args[body_at]),
-                    text: verbatim.text,
-                    base: verbatim.body_line,
-                    verbatim: true,
-                },
-                None => BodyText {
-                    original: None,
-                    text: args[body_at].clone(),
-                    base: line,
-                    verbatim: false,
-                },
-            }
-        };
+        let candidate = state.borrow_mut().verbatim.take(word, &name, line);
+        let body = BodyText::captured(candidate, word, args, args[body_at].clone(), line);
         stage_block(interpreted(ctx, fast_path), &state, word, head, line, &body)?;
         Ok(None)
     })
@@ -1701,9 +1714,12 @@ fn available_handler(state: &Rc<RefCell<State>>) -> WordHandler {
         let line = st.absolute_line(ctx.line());
         let mut scratch = Log::default();
         let requirement = available::from_texts(args, line, &mut scratch);
+        if requirement.is_unavailable() || st.declared_surface_unavailable {
+            return Err("availability query has an explicit unavailable provider/window; no boolean answer or unrestricted default is inferred".to_owned());
+        }
         // An unstated surface on either side names no provider to disagree
         // with, so the guard holds.
-        let answer = match (requirement.surface, st.declared_surface) {
+        let answer = match (requirement.surface(), st.declared_surface) {
             (Some(required), Some(declared)) => surfaces_overlap(required, declared),
             _ => true,
         };
@@ -1762,10 +1778,11 @@ pub fn evaluate_pack_with(source: &str, options: &EvalOptions) -> Pack {
     evaluate_pack_in(source, options, None)
 }
 
-/// [`evaluate_pack_with`] with an [`super::IncludeContext`] resolving
-/// literal pack-scope `include` rows. A computed include (an
-/// interpreter-path invocation inside a scope, or a substituted name) stays
-/// refused under the determinism contract.
+/// [`evaluate_pack_with`] with an [`super::IncludeContext`] resolving actual
+/// checked pack-scope include invocations, including helper/computed calls on
+/// the interpreter path. Resolution stays lazy and uses the same include-name,
+/// content-cycle, depth and determinism guards. An include in a DSL command or
+/// subcommand scope remains an ordinary unknown-property row.
 #[must_use]
 pub fn evaluate_pack_in(
     source: &str,
@@ -2432,6 +2449,102 @@ mod original_notice_body_capture_tests {
                 "a changed/helper parent cannot donate original source geometry: {:?}",
                 pack.notices
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod evaluated_source_correspondence_controls {
+    use super::*;
+
+    #[test]
+    fn equal_width_changed_and_ambiguous_rows_keep_actual_evaluated_values() {
+        let mut source = VerbatimIndex::of("speclib demo 1 {command demo {arity 1}}\n");
+        assert!(source.row("arity", &["9".into()], 1).is_none());
+        let captured = capture_stmt("arity", &["9".into()], 1);
+        assert_eq!(captured.word_text(1), "9");
+        let mut duplicate = VerbatimIndex::of("speclib demo 1 {command demo {arity 1; arity 2}}\n");
+        assert!(duplicate.row("arity", &["1".into()], 1).is_none());
+        let actual = source.row("arity", &["1".into()], 1).unwrap();
+        assert_eq!(actual.word_text(1), "1");
+        assert!(actual.arg(1).unwrap().original_source.is_some());
+    }
+
+    #[test]
+    fn one_word_original_body_is_available_but_changed_capture_cannot_reuse_it() {
+        let mut source = VerbatimIndex::of("speclib demo 1 {command demo {pure}}\n");
+        let body = source.take("command", "demo", 1).unwrap();
+        let args = vec!["demo".to_owned(), "pure".to_owned()];
+        assert!(
+            body.original_for_capture("command", &args, "pure")
+                .is_some()
+        );
+        let selected = BodyText::captured(Some(body), "command", &args, "pure".into(), 1);
+        assert!(selected.verbatim);
+        assert_eq!(selected.text, "pure");
+        let mut source = VerbatimIndex::of("speclib demo 1 {command demo {pure}}\n");
+        let body = source.take("command", "demo", 1).unwrap();
+        let changed = vec!["demo".to_owned(), "arity 9".to_owned()];
+        let selected = BodyText::captured(Some(body), "command", &changed, "arity 9".into(), 7);
+        assert!(!selected.verbatim);
+        assert!(selected.original.is_none());
+        assert_eq!(selected.text, "arity 9");
+        assert_eq!(selected.base, 7);
+    }
+}
+
+#[cfg(test)]
+mod evaluated_command_layout_controls {
+    use super::*;
+
+    #[test]
+    fn genuine_templated_single_word_body_keeps_the_authored_registration() {
+        for source in [
+            "speclib demo 1.1 {set body pure; command one $body}",
+            "speclib demo 1.1 {proc define {name body} {command $name $body}; define one pure}",
+        ] {
+            let pack = evaluate_pack(source);
+            let spec = pack
+                .command("one")
+                .expect("actual evaluated body is not identified by whitespace");
+            assert_eq!(spec.spec.traits, Some(tcl_registry::traits::Traits::PURE));
+        }
+    }
+
+    #[test]
+    fn evaluated_layout_retains_value_phase_and_refuses_extra_or_unknown_flags() {
+        let values = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<_>>()
+        };
+        for words in [
+            vec!["one", "pure"],
+            vec!["one", "-override", "pure"],
+            vec!["one", ""],
+            vec!["one", "-override"],
+        ] {
+            let args = values(&words);
+            assert_eq!(
+                EvaluatedCommandBody::select(&args).unwrap().text,
+                words[words.len() - 1]
+            );
+        }
+        let data = values(&["one", "-override"]);
+        let data = EvaluatedCommandBody::select(&data).unwrap();
+        assert_eq!(data.text, "-override");
+        assert!(!data.overrides, "body data cannot select an option role");
+        let flagged = values(&["one", "-override", "pure"]);
+        let flagged = EvaluatedCommandBody::select(&flagged).unwrap();
+        assert_eq!(flagged.text, "pure");
+        assert!(flagged.overrides);
+        for words in [
+            vec!["one"],
+            vec!["one", "-other", "pure"],
+            vec!["one", "-override", "pure", "arity 9"],
+        ] {
+            assert!(EvaluatedCommandBody::select(&values(&words)).is_none());
         }
     }
 }

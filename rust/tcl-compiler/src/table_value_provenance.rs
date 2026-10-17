@@ -329,12 +329,12 @@ impl<'a> Query<'a> {
                     if unit.abs_span(statement.statement.span()).start() != offset {
                         continue;
                     }
-                    let before = points.context_before(block, index)?;
-                    let after = points.after_statement(block, index);
-                    let writes = crate::place_bridge::def_places_with_continuation(
+                    points.context_before(block, index)?;
+                    let writes = crate::place_bridge::def_places_at(
                         &statement.statement,
-                        before,
-                        after,
+                        block,
+                        index,
+                        points,
                         self.registry,
                     );
                     if writes.iter().any(|write| {

@@ -1,0 +1,727 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 470,
+    "full_scope_pending": 405,
+    "partial": 65,
+    "without_integration": 1688
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 540,
+    "without_integration": 1689,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "utc": "2026-10-17T14:09:54.893040+00:00",
+  "scheduled_report_utc": "2026-10-17T14:09:49Z",
+  "count_freeze": "Root confirmed actual admitted source counts at this report; pending outside-Main candidates, prepared integration22 and causal type repairs add no units.",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "integration10_library_check": {
+      "status": "PASS",
+      "seconds": 97,
+      "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+      "stderr": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+        "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+      },
+      "machine_stdout": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+        "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+      }
+    },
+    "vscode_types10": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jetbrains_current_tests": {
+      "status": "PASS",
+      "seconds": 24,
+      "tasks": 14,
+      "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+      "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+    },
+    "integration12_library_and_test_typecheck": {
+      "status": "FAIL_THEN_CAUSAL_REPAIRS_ADMITTED",
+      "cause": "Initial one case-field construction repaired; retry exposed seven old test API errors now repaired through genuine source-query fixture adapters. No ordinary acceptance.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration12-typecheck-repaired.jsonl",
+        "sha256": "48b6a926239ef5ae79c532758650bc14254ca2054005e95601207158a8f2867e"
+      }
+    },
+    "latest_regression_ELF": "Fresh actual ordinary21 nine library+xtask binary test artifacts built; full retained1024 actual execution underway with failures/timeouts. Live counts are point-in-time only, not regression-green. Historical e739 captures remain unchanged.",
+    "required_current_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
+    "integration14_library_and_test_typecheck": {
+      "status": "FAIL",
+      "errors": 2,
+      "cause": "Two new test Debug trait bounds; narrow Root derive(Debug) repair admitted. Seven prior old API errors no longer block compilation; fresh actual typecheck owed.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration14-typecheck.jsonl",
+        "sha256": "39d2db294bdf9f65afe1a394c1bb0b3a90bc4e794d0528e26ade815d87a38cf1"
+      },
+      "ordinary_acceptance": false
+    },
+    "vscode_types14": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration14-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "textmate_generation": {
+      "status": "PASS",
+      "root_session": 5350,
+      "seconds": 323,
+      "exit_code": 0,
+      "completed_log": {
+        "path": "/workspace/naming-work/logs/textmate-generation-repaired.log",
+        "sha256": "ea24274a8d5bd0b4e610eb1b41d6cb66ac4ba4cd025a884b3f6fed2e8d7e7e4f"
+      },
+      "output_review": "Root inspected exact six changes: two Registry-command regex option rosters plus Syntax braced empty ${} star in each existing JSON format; no whole-file reserialization.",
+      "source_adoption": [
+        {
+          "path": "/workspace/naming-work/sol-textmate-source-roles-v2/manifest.json",
+          "sha256": "b63f7d2da173935610f8fb9b08a96ef0537d614be9c1b08b73bb36542575e3e5"
+        },
+        {
+          "path": "/workspace/naming-work/sol-textmate-source-roles-v2/change.patch",
+          "sha256": "8ed068b416e20c4a114aa69afd262c1fd6396ce1a40f0c13e1b855f3e70b2284"
+        },
+        {
+          "path": "/workspace/naming-work/sol-textmate-registry-causal-v2/manifest.json",
+          "sha256": "4ba2ba36c3684b4316461a458d8db061ccde75d548418a64e70e70266621b385"
+        }
+      ],
+      "unit_status": "Both units integrated pending broader validation; no verified completion."
+    },
+    "proof_preflight": {
+      "status": "FAIL",
+      "structural_errors": 69745,
+      "missing_occurrences": 67641,
+      "missing_paths": 9270,
+      "existing_evidence_hash_drift": 1104,
+      "actual_census_digest_drift": 952,
+      "binding_or_documentation_errors": 48,
+      "log": {
+        "path": "/workspace/naming-work/logs/current-proof-preflight.log",
+        "sha256": "0f834f1c6812026435902684df0ef4366ad5bd9fdec77fb7eca86bc4f22af396"
+      },
+      "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
+    },
+    "proof_source_restoration": {
+      "status": "9270 actual hash-verified local Git bytes installed without overwrites; Root reported",
+      "receipt": {
+        "path": "/workspace/naming-work/proof-restore-installed.json",
+        "sha256": "d2091d744d3e0bb8d6e45116ea23c9e412c055a9443c1395e7aff0c0362bba4e"
+      },
+      "limits": "Does not clear prior evidence hash/census/binding drift or substitute for fresh proof preflight."
+    },
+    "current_clippy": {
+      "status": "FAIL",
+      "root_session": 35353,
+      "exit_code": 101,
+      "reported_cause": "E0624 method hover constructor private; Root causal repair admitted using existing public fields. About1890 warnings before stop, including deferred code. No new ordinary regression ELF acceptance.",
+      "postflight": "Root reports source input52866 exact PASS [] and same six provider pins."
+    },
+    "integration16": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-16/composition.json",
+        "sha256": "5bbf1c7e6fdb505a5d5a627d04f8450b2c2222512e5c90e24fc114cc6056f079"
+      },
+      "new_unit_ids": [
+        "audit:editor-complete-bundled-input",
+        "audit:editor-validate-before-publication",
+        "audit:editor-zed-complete-config-inventory",
+        "audit:editor-kotlin-extension-source",
+        "audit:editor-python-extension-source",
+        "audit:editor-zed-toml-extension-source",
+        "audit:editor-xml-extension-list-source",
+        "compiler.source.original-word-selected-config:2622",
+        "compiler.source.expression-selected-config:72",
+        "compiler.source.expression-selected-config:231",
+        "compiler.source.analyser-retained-braced-variable-axis:1492",
+        "compiler.source.analyser-selected-builtin-inventory-cache:3024",
+        "compiler.source.package-header-insertion-geometry:1653",
+        "compiler.source.logical-unicode-insertion:211",
+        "compiler.source.logical-unicode-insertion:113"
+      ],
+      "helper_proof_metadata_count": 0,
+      "limits": "Compiler family closure remains open; provider adoption does not clear held Luna generator consumer V1/V2/V3."
+    },
+    "integration17": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-17/composition.json",
+        "sha256": "cbd15914ae80919d3c1cdcfd054ea53d4c5bb5caf2aa7e641d5cb756d649b657"
+      },
+      "unit_ids": [
+        "db.unit.registry.dialects.literal-extension-glob-rendering",
+        "compiler.source.original-formal-topology:125",
+        "audit:eglot-recording-session-context"
+      ],
+      "format": "pending per Root; integration16 format PASS",
+      "array": "ArrayV1 excluded pending actual cursor V2 peer/completechain.",
+      "limits": "No fresh Cargo/test/generator acceptance. Existing Eglot native ELPA path unit not changed or counted."
+    },
+    "integration18": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-18/composition.json",
+        "sha256": "13700e0f517f2b027216f87380caecf3d63c492f1571ebfff1a1fb55b4ca3b87"
+      },
+      "format": "Root session82164 running at report update",
+      "execution": "No fresh Cargo/test artifacts.",
+      "formal_report_boundary": "12:39 report froze only already-reconciled admissions through17, conservatively excludes18 although source admission occurred12:39:40."
+    },
+    "emacs_recorder_source_load": {
+      "status": "PASS_ROOT_REPORTED",
+      "environment": "Actual Emacs30.2 built and installed outside Main. Absolute-command V2 recorder reader/load passed; initial relative-path driver failure separately retained.",
+      "limits": "Reader/load success, no full Eglot recording runtime or allhost acceptance."
+    },
+    "integration19": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-19/composition.json",
+        "sha256": "209249da50c1995fdfdd70b3a59983c38e7088b9b8d435f7222b22c68eaca23e"
+      },
+      "format": "Root session65377 running at update",
+      "limits": "No fresh Cargo/test ELF; exact old units only, no helper/header count."
+    },
+    "integration20": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-20/composition.json",
+        "sha256": "6e866e819cbbbbec9eab2ed0f77952e5025ef688adc1180c5689c87e60b1822a"
+      },
+      "format": "Root session86174 running at update",
+      "limits": "Actual10 ordinary libraryELF build planned, not complete. GeneratorV5 source-cleared and admitted; actual output/drift gates owed."
+    },
+    "fresh_proof_after_restore": {
+      "status": "FAIL_NOT_ACCEPTED",
+      "root_session": 17658,
+      "exit_code": 2,
+      "structural_errors": 2093,
+      "candidate": 7072,
+      "corpus": 32025,
+      "questions": 2611,
+      "pending": 0,
+      "unlinked_tests": 0,
+      "breakdown": {
+        "existing_evidence_hash_drift": 1106,
+        "BIGIP_census_digest_drift": 952,
+        "new_docs_provider_not_tested_answer_omissions": 35
+      },
+      "log": "/workspace/naming-work/logs/proof-after-restore19.log",
+      "log_bytes": 295515,
+      "bounds": "Source preflight crossed integration19 to21 changes; no frozen ordinary acceptance or semantic claim. Exact unexecuted wording and actual owner links require separate reviewed repairs; no blind hash refresh."
+    },
+    "integration21": {
+      "status": "SOURCE_ADMITTED_PENDING_FRESH_GATES",
+      "admission": {
+        "path": "/workspace/naming-work/integration-21/composition.json",
+        "sha256": "ecefec4f705a7902410bd9ce6a8a78bd607e24e63ccb962ce34ec46f249574ef"
+      },
+      "format": "Targeted7file check PASS; fullworkspace20format PASS before21",
+      "freeze": "Root source freeze for nine actual ordinary library test targets; explicit binary-only xtask test-target build separately owed. No overall build/artifact success inferred.",
+      "limits": "TaintV1\u2013V4 held outsideMain; lambda/statement/remainingDB packets outsideMain. Configured-read+SSA are confirmed aggregate dependency facets, zero extra unit counts and no341 closure."
+    },
+    "checkpoint21_current": {
+      "status": "NINE_LIB_BUILD_PASS_SEMANTIC_TESTS_NOT_EXECUTED",
+      "root_build_session": 17036,
+      "baseline_commit": "669c8e227",
+      "original_build21": "FAIL two E0277 oo_define closure errors; same-value/guard Some repair admitted by Root",
+      "Studio_TS21r1": "PASS after reviewed two-hunk wire-unchanged causal repair; original three failures retained",
+      "VSCode_TS21": "PASS",
+      "ordinary_regression_capture": "No ordinary semantic test execution; original1024 plus deduplicated314 prepared, unchanged separate selections.",
+      "proof17658": "FAIL exit2,2093 structural errors; source preflight across19\u219221, not acceptance",
+      "source_freeze": "Integration21 plus Root causal repairs; tracking docs only may change"
+    },
+    "ordinary21r1": {
+      "status": "FAIL_RETRY_REQUIRED_NOT_ACCEPTED",
+      "root_session": 17036,
+      "exit_code": 101,
+      "cause": "Single E0308 in new Syntax substitution control1124: for_profile(profile) requires Option. Root narrow Some repair; retry pending.",
+      "emitted_artifacts": "Compiler/Core/DB/Registry/Server fresh test ELFs emitted, but overall build failed; no semantic test execution/capture inferred.",
+      "limits": "Root reports no ENOSPC; counts unchanged. Full original/host/proof/generated gates remain owed."
+    },
+    "ordinary_target_selection": {
+      "actual_library_test_targets_requested": 9,
+      "xtask": "Explicit xtask-only build interrupted130 to avoid alternate feature graph. Root now building --lib --bins with same all10 package roots: nine library targets Fresh, fresh server executable and xtask binary test target still owed.",
+      "limits": "No all10 test-ELF claim. Original1024 selectors unchanged; separate additive314 source selection prepared by Root, unexecuted."
+    },
+    "ordinary21r2": {
+      "status": "PASS_NINE_LIBRARY_TEST_TARGET_BUILD_ONLY",
+      "exit_code": 0,
+      "elapsed": "15m11s",
+      "source_pre_post": {
+        "count": 52870,
+        "sha256": "4500511a16b34762b88b9136906117e1091a30f4c9b02ab440b624fc484cf150",
+        "match": true
+      },
+      "providers_pre_post": {
+        "count": 6,
+        "reported_exact_match": true,
+        "receipt_sha256_prefix_only": "77691d"
+      },
+      "Jim_upstream_recheck": "Root at13:35 actual HEAD/master still5bac7c99",
+      "tests": "Subsequent same-root build succeeded nine library+xtask binary test targets; original1024 now executing with failures/timeouts. See live snapshot; additive314 remains separate.",
+      "followup_build": "Same all10 package roots --lib --bins build completed. Genuine non-test server/integration Native artifacts independently owed; test harness is not process-server evidence.",
+      "pending_outsideMain": "Prepared integration22 currently31packets57paths; combined48Rust AST0/fmt PASS, not admitted; zero unit counts."
+    },
+    "ordinary_followup_build": {
+      "status": "PASS_BUILD_ORIGINAL1024_CAPTURE_RUNNING",
+      "actual_ordinary_test_targets": {
+        "library": 9,
+        "binary_xtask": 1
+      },
+      "source_provider_pre_post": "Root reports same exact source/provider postflight pins as successful library build.",
+      "original1024": "Running with actual failures; latest point-in-time counts/failed selectors under ordinary1024_live_snapshot. No regression-green claim.",
+      "additive314": "Separate prepared selection follows original1024; no run inferred.",
+      "fresh_process_server": "Native34 requires genuine kind=bin/profile.test=false server executable plus both integration test targets. --bins test-harness success alone does not issue process-server identity. Root binds actual Cargo artifact messages separately.",
+      "scope": "No integration22 source admission or counter change; zero verified completion."
+    },
+    "ordinary1024_live_snapshot": {
+      "status": "RUNNING_NOT_REGRESSION_GREEN",
+      "observed_utc": "2026-10-17T14:09:54.437929+00:00",
+      "source": "/workspace/naming-work/integration-21/original1024/result.json",
+      "observed_snapshot_sha256": "49adbc589431b46c1c62d4de2604a476826fb171c257ece8d167e95756d0eaa1",
+      "capture_still_running": true,
+      "completed": 576,
+      "passed": 497,
+      "failed": 79,
+      "timed_out": 2,
+      "errors": [],
+      "failed_selectors": [
+        {
+          "target": "tcl_compiler",
+          "selector": "analyser::variable_alias_templates::tests::logical_alias_templates_keep_actual_procedure_and_namespace_source_frames",
+          "log": "test-020.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "analyser::variable_source_declarations::tests::logical_alias_target_definitions_use_original_symbols_and_actual_frame_selection",
+          "log": "test-021.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::authored_controls::tests::authored_scalar_bodies_retain_real_source_definitions_without_native_admission",
+          "log": "test-028.log"
+        },
+        {
+          "target": "tcl_lsp_db",
+          "selector": "project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable",
+          "log": "test-042.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::authored_source_bodies::tests::conditional_authored_declaration_geometry_keeps_original_world_and_closed_refusals",
+          "log": "test-045.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "diagnostic_report::tests::standalone_optimiser_keeps_the_supplied_leading_bom_policy_for_directives",
+          "log": "test-049.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "diagnostic_report::tests::optimise_under_policy_skips_a_rewrite_a_directive_silences",
+          "log": "test-050.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "diagnostic_report::tests::a_noqa_reaches_every_line_of_the_command_it_precedes",
+          "log": "test-051.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "diagnostic_report::tests::optimise_under_policy_never_applies_half_a_group",
+          "log": "test-052.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans",
+          "log": "test-053.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+          "log": "test-055.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+          "log": "test-056.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+          "log": "test-124.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "references::tests::document_highlights_var_records_write_at_definition",
+          "log": "test-139.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_method_calls_within_class_body",
+          "log": "test-142.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch",
+          "log": "test-143.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_reports_zero_for_uncalled_method",
+          "log": "test-144.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_property_my_dispatch_within_class_body",
+          "log": "test-145.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_multiple_external_obj_method_calls",
+          "log": "test-147.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_obj_method_from_create_instance",
+          "log": "test-148.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_inherited_method_on_subclass_instance",
+          "log": "test-149.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch",
+          "log": "test-150.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_namespaced_class_method",
+          "log": "test-151.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_obj_method_call_inside_proc_body",
+          "log": "test-152.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_unknown_instance_method_is_not_counted",
+          "log": "test-153.log"
+        },
+        {
+          "target": "tcl_lsp_server",
+          "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+          "log": "test-166.log"
+        },
+        {
+          "target": "tcl_lsp_server",
+          "selector": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+          "log": "test-167.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+          "log": "test-184.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_declarations_retain_original_body_and_conditional_scope",
+          "log": "test-221.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations",
+          "log": "test-227.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::method_lens_counts_a_method_return_captured_dispatch_site",
+          "log": "test-251.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_counts_external_obj_method_call_issue_864",
+          "log": "test-252.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_lens::tests::lens_does_not_count_dict_get_as_method_ref",
+          "log": "test-253.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+          "log": "test-271.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::a_chained_computed_source_path_resolves_775",
+          "log": "test-283.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_links::tests::double_dash_terminator_skipped",
+          "log": "test-287.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster",
+          "log": "test-315.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper",
+          "log": "test-329.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar",
+          "log": "test-331.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "package_resolver::reachability::tests::the_body_descent_leaves_top_level_declarations_alone",
+          "log": "test-335.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "package_resolver::original_names::tests::original_package_keys_keep_opaque_names_and_nested_source_owners",
+          "log": "test-336.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::source_structure::original_logical_operand_prefix_tests::logical_operand_prefix_retains_only_static_earlier_written_words",
+          "log": "test-339.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "definition::exact_source_position_advice_tests::source_scope_visibility_requires_original_body_correspondence_before_document_walk",
+          "log": "test-345.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis",
+          "log": "test-348.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "minify::original_formal_name_geometry_tests::compact_original_formal_fields_preserve_wrappers_and_unicode_defaults",
+          "log": "test-351.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions",
+          "log": "test-356.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input",
+          "log": "test-357.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct",
+          "log": "test-358.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+          "log": "test-370.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+          "log": "test-373.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+          "log": "test-375.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+          "log": "test-384.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+          "log": "test-393.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "definition::logical_variable_scope_owner_tests::original_autoload_requests_keep_original_heads_current_input_and_caller_scope",
+          "log": "test-401.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks",
+          "log": "test-403.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it",
+          "log": "test-404.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input",
+          "log": "test-405.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling",
+          "log": "test-406.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key",
+          "log": "test-410.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear",
+          "log": "test-411.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "definition::tests::nextto_picks_occurrence_at_cursor_not_first_on_line",
+          "log": "test-415.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_symbols::original::tests::original_outline_preserves_opaque_declarations_and_canonical_moved_members_without_ui_maps",
+          "log": "test-429.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys",
+          "log": "test-431.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "minify::tests::apply_lambda_multi_word_param_list_keeps_its_braces",
+          "log": "test-433.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "minify::tests::compact_renames_param_name_not_other_defaults",
+          "log": "test-434.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "minify::tests::compact_renames_proc_local_vars_and_params",
+          "log": "test-435.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "analyser::types::logical_members::logical_navigation_receipt_tests::logical_member_and_relation_views_keep_the_actual_source_owners",
+          "log": "test-461.log"
+        },
+        {
+          "target": "tcl_compiler",
+          "selector": "analyser::types::logical_members::logical_navigation_receipt_tests::logical_relations_do_not_recover_unknown_parent_state_or_changed_metadata",
+          "log": "test-462.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data",
+          "log": "test-463.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "implementation::logical_source_selection_tests::logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration",
+          "log": "test-464.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names",
+          "log": "test-466.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::a_cross_file_import_conflict_is_decided_by_the_source_order",
+          "log": "test-563.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::a_forget_written_after_the_source_revokes_the_sourced_import",
+          "log": "test-564.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::an_export_sourced_after_the_import_is_not_retroactive",
+          "log": "test-566.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::body_only_replacement_re_settles_only_the_changed_document",
+          "log": "test-570.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::export_replacement_re_settles_wildcard_import_callers",
+          "log": "test-571.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::resolution_input_replacement_re_settles_cross_document_callers",
+          "log": "test-572.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::tests::settled_target_index_is_cached_until_its_inputs_change",
+          "log": "test-573.log"
+        },
+        {
+          "target": "tcl_lsp_core",
+          "selector": "workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes",
+          "log": "test-574.log"
+        }
+      ],
+      "limits": "Point-in-time read of live original1024 capture, not final acceptance. Test budget180s/list30s and original fixtures/assertions/selectors/source/provider/C5 guards unchanged. Separate additive314 follows; Native34/real hosts independently owed. Zero verified."
+    }
+  },
+  "remaining_classification_counts": {
+    "deferred_bigip_related": 35,
+    "generic_unintegrated": 0,
+    "source_diagnostic_boundary_scope_review": 0
+  },
+  "pending": "35 original LSP NONE are dedicated BIGIP deferred. Generic cross-area dependency and real source/provider/host/generator/proof/regression gates remain open; source review is not execution/acceptance. Exactly nine ordinary library test targets plus separately required xtask binary test target, not ten library ELFs. Original1024 and separate additive selectors retained.",
+  "next_report_utc": "2026-10-17T14:39:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

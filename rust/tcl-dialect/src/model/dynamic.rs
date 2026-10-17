@@ -71,28 +71,91 @@ use std::sync::{Arc, Mutex, OnceLock};
 use crate::LexerGrammar;
 use crate::model::{BuildProfileId, Family, Provenance};
 
-/// The namespaced, stable id of a pack-declared family
-/// (`spicegentcl/ngspice`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct DynamicFamilyId(Arc<str>);
+/// The stable symbolic id of a pack-declared family. Production component
+/// construction retains the actual pack and declared dialect independently
+/// from its collision-free transport spelling; neither grants Native identity.
+#[derive(Debug, Clone)]
+pub struct DynamicFamilyId {
+    canonical: Arc<str>,
+    components: Option<(Arc<str>, Arc<str>)>,
+    legacy_bare: Arc<str>,
+}
 
 impl DynamicFamilyId {
-    /// An id from its canonical spelling.
+    /// Legacy canonical symbolic spelling. Its historical bare-suffix recipe
+    /// is retained for compatibility, not used to reconstruct authored parts.
     #[must_use]
     pub fn new(id: &str) -> Self {
-        Self(Arc::from(id))
+        Self {
+            canonical: Arc::from(id),
+            components: None,
+            legacy_bare: Arc::from(id.rsplit('/').next().unwrap_or(id)),
+        }
     }
 
-    /// The canonical spelling.
+    /// Actual separate pack and declared dialect components from the producer.
+    /// Escaping percent and slash makes the transport spelling injective while
+    /// preserving the ordinary historical PACK/DIALECT presentation.
+    #[must_use]
+    pub fn from_components(pack: &str, dialect: &str) -> Self {
+        let encode = |part: &str| part.replace('%', "%25").replace('/', "%2F");
+        Self {
+            canonical: Arc::from(format!("{}/{}", encode(pack), encode(dialect))),
+            components: Some((Arc::from(pack), Arc::from(dialect))),
+            legacy_bare: Arc::from(""),
+        }
+    }
+
+    /// Canonical symbolic transport spelling, never parsed to obtain parts.
     #[must_use]
     pub fn as_str(&self) -> &str {
-        &self.0
+        &self.canonical
+    }
+
+    /// Actual producer components, unavailable for legacy canonical inputs.
+    #[must_use]
+    pub fn components(&self) -> Option<(&str, &str)> {
+        self.components
+            .as_ref()
+            .map(|(pack, dialect)| (pack.as_ref(), dialect.as_ref()))
+    }
+
+    /// Actual declared source name, or the explicit legacy canonical suffix.
+    /// This selects only registered symbolic family data, never a handler.
+    #[must_use]
+    pub fn declared_name(&self) -> &str {
+        self.components
+            .as_ref()
+            .map_or(self.legacy_bare.as_ref(), |(_, dialect)| dialect.as_ref())
     }
 }
 
+// Equality and keys remain the canonical symbolic namespace, so existing
+// canonical callers can still refer to a production family's transport id.
+impl PartialEq for DynamicFamilyId {
+    fn eq(&self, other: &Self) -> bool {
+        self.canonical == other.canonical
+    }
+}
+impl Eq for DynamicFamilyId {}
+impl std::hash::Hash for DynamicFamilyId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.canonical, state);
+    }
+}
+impl PartialOrd for DynamicFamilyId {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for DynamicFamilyId {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.canonical.cmp(&other.canonical)
+    }
+}
 impl std::fmt::Display for DynamicFamilyId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.canonical)
     }
 }
 
@@ -386,7 +449,7 @@ pub fn resolve_dynamic_family(name: &str) -> Option<Arc<DynamicFamily>> {
     let mut bare = state
         .families
         .iter()
-        .filter(|family| family.id.as_str().rsplit('/').next() == Some(name));
+        .filter(|family| family.id.declared_name() == name);
     let first = bare.next()?;
     if bare.next().is_some() {
         // Ambiguous across packs: the namespaced id is the only honest
@@ -506,6 +569,31 @@ mod tests {
                 .rejected
                 .iter()
                 .any(|error| matches!(error, DynamicFamilyError::UnknownFamily { .. }))
+        );
+        let _ = register_dynamic_families(Vec::new(), Vec::new());
+    }
+    #[test]
+    fn actual_components_do_not_collide_or_donate_a_rendered_bare_suffix() {
+        let _writing = WRITING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut left = family("unused-left", Provenance::User);
+        left.id = DynamicFamilyId::from_components("a/b", "c");
+        let mut right = family("unused-right", Provenance::User);
+        right.id = DynamicFamilyId::from_components("a", "b/c");
+        assert_ne!(left.id, right.id);
+        assert_ne!(left.id.as_str(), right.id.as_str());
+        assert_eq!(left.id.components(), Some(("a/b", "c")));
+        assert_eq!(right.id.components(), Some(("a", "b/c")));
+        assert_ne!(DynamicFamilyId::from_components("a%2Fb", "c"), left.id);
+        let outcome = register_dynamic_families(vec![left.clone(), right.clone()], Vec::new());
+        assert_eq!(outcome.families, 2);
+        assert!(outcome.rejected.is_empty());
+        assert_eq!(resolve_dynamic_family("c").unwrap().id, left.id);
+        assert_eq!(resolve_dynamic_family("b/c").unwrap().id, right.id);
+        assert_eq!(
+            resolve_dynamic_family(right.id.as_str()).unwrap().id,
+            right.id
         );
         let _ = register_dynamic_families(Vec::new(), Vec::new());
     }

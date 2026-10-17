@@ -83,3 +83,5 @@ Stable proof ID: `naming.consumer.selected-catalogue-completion-provider`.
 A same-name provider selected by ambient Registry lookup can replace the descriptor selected by actual completion availability.
 
 Existing Question, Conclusion and Scope above are the exact indexed fields. All seven provider rows are not-tested; named controls are linked, not executed by this update.
+
+This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.

@@ -2023,6 +2023,28 @@ impl Default for TclVmEngine {
 }
 
 impl Engine for TclVmEngine {
+    fn host_metadata_list_reader(&self) -> Option<tcl_engine_api::HostMetadataListReader> {
+        let profile = self.vm.dialect_profile();
+        if profile.is_fallback() {
+            return None;
+        }
+        let syntax = profile.grammar.list_parse;
+        let escapes = self.vm.escape_syntax();
+        Some(Rc::new(move |source| {
+            tcl_syntax::list::split_list_with_syntax(source, syntax, escapes)
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .map_err(|error| EngineError::Script {
+                    message: format!("invalid host metadata list: {error}"),
+                    code: None,
+                })
+        }))
+    }
+
     type Handle = VmHandle;
 
     fn name(&self) -> &'static str {
@@ -3831,3 +3853,18 @@ mod c84_wide_transport_tests;
 #[cfg(test)]
 #[path = "original_projection_tests.rs"]
 mod original_projection_tests;
+
+#[cfg(test)]
+mod metadata_reader_unknown_profile_controls {
+    use super::*;
+
+    #[test]
+    fn metadata_string_reader_does_not_turn_unknown_source_profile_into_tcl9() {
+        let mut engine = TclVmEngine::new();
+        assert!(engine.host_metadata_list_reader().is_some());
+        engine
+            .vm
+            .set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert!(engine.host_metadata_list_reader().is_none());
+    }
+}

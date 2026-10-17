@@ -409,6 +409,8 @@ pub fn load_under(files: &[PackFile], trust: WorkspaceTrust) -> PackSet {
 #[derive(Default)]
 pub struct LoadedSourceInputs {
     sources: Vec<LoadedSourceInput>,
+    selection_sources: Vec<LoadedSourceInput>,
+    selection_unavailable: bool,
     pub(crate) unretained_nested_inputs: bool,
 }
 
@@ -425,6 +427,25 @@ pub(crate) struct LoadedSourceRead {
 }
 
 impl LoadedSourceInputs {
+    pub(crate) fn retain_manifest_selection(
+        &mut self,
+        store: &dyn tcl_lsp_core::vfs::SourceStore,
+        selection: &crate::discovery::ManifestSelectionInputs,
+    ) {
+        self.selection_unavailable |= !selection.issues.is_empty();
+        for (path, source) in &selection.sources {
+            let origin = store.source_path_origin(path).ok().filter(|origin| {
+                origin.path().as_os_str() == path.as_os_str()
+                    && store.validate_source_path_origin(origin).is_ok()
+            });
+            self.selection_sources.push(LoadedSourceInput {
+                path: path.clone(),
+                source: source.clone(),
+                origin,
+            });
+        }
+    }
+
     /// Paths of all actual ordinary images read for the merged installed set.
     /// This is retained loader selection, not a new discovery inventory.
     #[must_use]
@@ -442,10 +463,10 @@ impl LoadedSourceInputs {
         &'a self,
         paths: &[std::path::PathBuf],
     ) -> Option<Vec<(&'a tcl_lsp_core::vfs::SourcePathOrigin, &'a [u8])>> {
-        if self.unretained_nested_inputs {
+        if self.unretained_nested_inputs || self.selection_unavailable {
             return None;
         }
-        paths
+        let mut selected: Vec<_> = paths
             .iter()
             .map(|path| {
                 let mut sources = self.sources.iter().filter(|input| &input.path == path);
@@ -455,7 +476,13 @@ impl LoadedSourceInputs {
                 }
                 Some((input.origin.as_ref()?, input.source.as_bytes()))
             })
-            .collect()
+            .collect::<Option<_>>()?;
+        // The same source-publication receipt reborrows the actual manifest
+        // images which selected this set, even when those are not pack files.
+        for input in &self.selection_sources {
+            selected.push((input.origin.as_ref()?, input.source.as_bytes()));
+        }
+        Some(selected)
     }
 }
 
@@ -557,7 +584,7 @@ pub(crate) fn load_sources_unpublished(
     trust: WorkspaceTrust,
     store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
 ) -> PackSet {
-    load_sources_unpublished_inner(sources, notices, trust, store, None)
+    load_sources_unpublished_inner(sources, notices, trust, store, None, None)
 }
 
 pub(crate) fn load_sources_unpublished_with_inputs(
@@ -566,8 +593,9 @@ pub(crate) fn load_sources_unpublished_with_inputs(
     trust: WorkspaceTrust,
     store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
     inputs: &mut LoadedSourceInputs,
+    owned_store: Option<std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>>,
 ) -> PackSet {
-    load_sources_unpublished_inner(sources, notices, trust, store, Some(inputs))
+    load_sources_unpublished_inner(sources, notices, trust, store, Some(inputs), owned_store)
 }
 
 fn load_sources_unpublished_inner(
@@ -576,6 +604,7 @@ fn load_sources_unpublished_inner(
     trust: WorkspaceTrust,
     store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
     mut inputs: Option<&mut LoadedSourceInputs>,
+    owned_store: Option<std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>>,
 ) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
@@ -591,23 +620,78 @@ fn load_sources_unpublished_inner(
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
     let mut load_errors = Vec::new();
     for (file, source) in sources {
-        // A pack carrying `include` rows loads through a file-system
-        // include context scoped to its own directory, and bypasses both
-        // cache tiers — the key hashes only this file's bytes and so cannot
-        // see an included file change under it.
         let file_trust = file.tier.trust_under(trust);
-        let pack = if crate::loader::uses_include(&source) {
-            if let Some(inputs) = inputs.as_deref_mut() {
-                inputs.unretained_nested_inputs = true;
-            }
-            crate::cache::evaluate_pack_including(
+        // The resolver is lazy: helper/computed include invocations receive
+        // the same actual provider even when no direct source row names it.
+        let pack = {
+            let reader = owned_store
+                .clone()
+                .or_else(|| store.and_then(|store| store.retained_source_reader()));
+            let observations = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let context = match reader {
+                Some(reader) => crate::loader::IncludeContext::for_source_store(
+                    &file.path,
+                    reader,
+                    std::rc::Rc::clone(&observations),
+                ),
+                None => {
+                    let observations = std::rc::Rc::clone(&observations);
+                    let including_file = file.path.clone();
+                    crate::loader::IncludeContext::new(move |name| {
+                        let path = tcl_compiler::parsing::spectcl_source::include_file_path(
+                            &including_file,
+                            name,
+                        )
+                        .unwrap_or_else(|| including_file.clone());
+                        let error = "include requires an owned source-provider reader".to_owned();
+                        observations
+                            .borrow_mut()
+                            .push(crate::loader::IncludeSourceObservation {
+                                path,
+                                origin: None,
+                                image: Err(error.clone()),
+                            });
+                        Err(error)
+                    })
+                }
+            };
+            let pack = crate::cache::evaluate_pack_including(
                 &source,
                 file.tier,
                 file_trust,
-                &std::rc::Rc::new(crate::loader::IncludeContext::for_file(&file.path)),
-            )
-        } else {
-            crate::cache::evaluate_pack_cached(&source, file.tier, file_trust)
+                &std::rc::Rc::new(context),
+            );
+            for observation in observations.borrow_mut().drain(..) {
+                // The same images that were evaluated feed both content key
+                // and provider publication; no second read or cached roster.
+                read_any = true;
+                let path = observation.path.as_os_str().as_encoded_bytes();
+                provisioned.update(&(path.len() as u64).to_le_bytes());
+                provisioned.update(path);
+                match observation.image {
+                    Ok(source) => {
+                        provisioned.update(&[1]);
+                        provisioned.update(&(source.len() as u64).to_le_bytes());
+                        provisioned.update(source.as_bytes());
+                        if let Some(inputs) = inputs.as_deref_mut() {
+                            inputs.selection_sources.push(LoadedSourceInput {
+                                path: observation.path,
+                                source,
+                                origin: observation.origin,
+                            });
+                        }
+                    }
+                    Err(error) => {
+                        provisioned.update(&[0]);
+                        provisioned.update(&(error.len() as u64).to_le_bytes());
+                        provisioned.update(error.as_bytes());
+                        if let Some(inputs) = inputs.as_deref_mut() {
+                            inputs.unretained_nested_inputs = true;
+                        }
+                    }
+                }
+            }
+            pack
         };
         if let Some(error) = &pack.load_error {
             load_errors.push((file.path.clone(), error.clone()));
@@ -1590,6 +1674,207 @@ mod opaque_path_cache_key_tests {
         assert_eq!(
             set_key(&[(left.clone(), source.clone())], WorkspaceTrust::Trusted),
             set_key(&[(left, source)], WorkspaceTrust::Trusted)
+        );
+    }
+}
+
+#[cfg(test)]
+mod actual_include_input_controls {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_lsp_core::vfs::{MemoryStore, SourceStore};
+
+    #[test]
+    fn included_provider_image_changes_set_key_and_is_retained_for_publication() {
+        let store = Arc::new(MemoryStore::new());
+        let file = PackFile {
+            path: "/actual/root.tclspec".into(),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        };
+        store.upsert(
+            file.path.clone(),
+            b"speclib demo 2.0 {include child}".to_vec(),
+        );
+        store.upsert("/actual/child", b"command first {arity 1}".to_vec());
+        let load = || {
+            let mut read = read_sources_with_inputs(store.as_ref(), std::slice::from_ref(&file));
+            let reader: Arc<dyn SourceStore> = store.clone();
+            let set = load_sources_unpublished_with_inputs(
+                read.sources,
+                read.notices,
+                WorkspaceTrust::Trusted,
+                Some(store.as_ref()),
+                &mut read.inputs,
+                Some(reader),
+            );
+            (set, read.inputs)
+        };
+        let (first, first_inputs) = load();
+        assert!(
+            first
+                .packs
+                .iter()
+                .any(|pack| pack.command("first").is_some())
+        );
+        let paths = first_inputs.retained_paths();
+        let selected = first_inputs.selected(&paths).unwrap();
+        assert!(selected.iter().any(|(origin, image)| origin.path()
+            == std::path::Path::new("/actual/child")
+            && *image == b"command first {arity 1}"));
+        store.upsert("/actual/child", b"command second {arity 2}".to_vec());
+        let (second, second_inputs) = load();
+        assert_ne!(first.key, second.key);
+        assert!(
+            second
+                .packs
+                .iter()
+                .any(|pack| pack.command("second").is_some())
+        );
+        let second_paths = second_inputs.retained_paths();
+        let selected = second_inputs.selected(&second_paths).unwrap();
+        assert!(
+            selected
+                .iter()
+                .any(|(_, image)| *image == b"command second {arity 2}")
+        );
+        assert!(
+            !selected
+                .iter()
+                .any(|(_, image)| *image == b"command first {arity 1}")
+        );
+    }
+
+    #[test]
+    fn borrowed_foreign_provider_cannot_resolve_an_include_through_host_filesystem() {
+        let store = MemoryStore::new();
+        let file = PackFile {
+            path: "/foreign/root.tclspec".into(),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        };
+        store.upsert(
+            file.path.clone(),
+            b"speclib demo 2.0 {include child}".to_vec(),
+        );
+        store.upsert("/foreign/child", b"command foreign {arity 1}".to_vec());
+        let mut read = read_sources_with_inputs(&store, std::slice::from_ref(&file));
+        let loaded = load_sources_unpublished_with_inputs(
+            read.sources,
+            read.notices,
+            WorkspaceTrust::Trusted,
+            Some(&store),
+            &mut read.inputs,
+            None,
+        );
+        assert!(
+            !loaded
+                .packs
+                .iter()
+                .any(|pack| pack.command("foreign").is_some())
+        );
+        assert!(
+            loaded
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("owned source-provider reader"))
+        );
+        assert!(
+            read.inputs
+                .selected(&read.inputs.retained_paths())
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod lazy_actual_include_ingress_controls {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_lsp_core::vfs::{MemoryStore, SourceStore};
+
+    #[test]
+    fn helper_and_computed_include_invocations_retain_actual_dependency_images() {
+        let store = Arc::new(MemoryStore::new());
+        let file = PackFile {
+            path: "/actual/root.tclspec".into(),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        };
+        store.upsert("/actual/child", b"command actual {arity 1}".to_vec());
+        for source in [
+            "speclib demo 2.0 {proc add {} {include child}; add}",
+            "speclib demo 2.0 {set word include; set file child; $word $file}",
+        ] {
+            assert!(!crate::loader::uses_include(source));
+            store.upsert(file.path.clone(), source.as_bytes().to_vec());
+            let mut read = read_sources_with_inputs(store.as_ref(), std::slice::from_ref(&file));
+            let reader: Arc<dyn SourceStore> = store.clone();
+            let loaded = load_sources_unpublished_with_inputs(
+                read.sources,
+                read.notices,
+                WorkspaceTrust::Trusted,
+                Some(store.as_ref()),
+                &mut read.inputs,
+                Some(reader),
+            );
+            assert!(
+                loaded
+                    .packs
+                    .iter()
+                    .any(|pack| pack.command("actual").is_some()),
+                "{source}: {:?}",
+                loaded.notices
+            );
+            let paths = read.inputs.retained_paths();
+            let selected = read.inputs.selected(&paths).unwrap();
+            assert!(selected.iter().any(|(origin, image)| origin.path()
+                == std::path::Path::new("/actual/child")
+                && *image == b"command actual {arity 1}"));
+        }
+    }
+
+    #[test]
+    fn unavailable_borrowed_resolver_does_not_poison_a_clean_unrelated_pack() {
+        let store = MemoryStore::new();
+        let file = PackFile {
+            path: "/foreign/clean.tclspec".into(),
+            tier: Tier::Workspace,
+            origin: crate::discovery::Origin::Setting,
+            dependency_tier: None,
+        };
+        store.upsert(
+            file.path.clone(),
+            b"speclib clean 2.0 {command unrelated {arity 1}}".to_vec(),
+        );
+        let mut read = read_sources_with_inputs(&store, std::slice::from_ref(&file));
+        let loaded = load_sources_unpublished_with_inputs(
+            read.sources,
+            read.notices,
+            WorkspaceTrust::Trusted,
+            Some(&store),
+            &mut read.inputs,
+            None,
+        );
+        assert!(
+            loaded
+                .packs
+                .iter()
+                .any(|pack| pack.command("unrelated").is_some())
+        );
+        assert!(
+            !loaded
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("owned source-provider reader"))
+        );
+        assert!(
+            read.inputs
+                .selected(&read.inputs.retained_paths())
+                .is_some()
         );
     }
 }

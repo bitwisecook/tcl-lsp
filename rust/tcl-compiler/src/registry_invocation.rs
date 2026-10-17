@@ -127,8 +127,8 @@ mod source_taint;
 pub use source_taint::HostedSourceTaintContext;
 pub(crate) use source_taint::{
     NativeSourceTaintInvocation, OriginalSourceTaintReadOperands, hosted_source_taint_invocation,
-    native_source_taint_invocation, original_hosted_source_registry_metadata,
-    original_source_taint_read_operands,
+    native_source_taint_invocation, original_expression_taint_read_operands,
+    original_hosted_source_registry_metadata, original_source_taint_read_operands,
 };
 mod vendor_advice;
 mod vendor_source_barriers;
@@ -6178,6 +6178,9 @@ pub(crate) struct InvocationBodyAssistance {
     /// unavailable, and no definite role or execution projection uses this.
     receiver_trait_invocation: Option<ReceiverTraitInvocation>,
     logical_trait_invocation: Option<LogicalTraitInvocation>,
+    /// Conditional source-only roles from one retained original Logical
+    /// lambda body. Kept separate from ordinary invocation advice.
+    logical_lambda_roles: Option<ConditionalLogicalLambdaRoles>,
     body_parameter_source: Option<BodyParameterSourceInvocation>,
     pub declared_roles: Vec<(usize, tcl_registry::ArgRole)>,
     pub unknown_residual: bool,
@@ -6235,6 +6238,20 @@ struct LogicalTraitInvocation {
     invocation: ResolvedStatementInvocation,
 }
 
+struct ConditionalLogicalLambdaRoles {
+    lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
+    scope: std::sync::Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: source_structure::OriginalRegistryWords,
+    invocation: ResolvedStatementInvocation,
+    shape: RegistryInvocationShape,
+}
+
+pub(crate) struct LogicalLambdaSourceOwner {
+    pub(crate) lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
+    pub(crate) scope: std::sync::Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>,
+}
+
 struct BodyParameterSourceInvocation {
     entry: crate::command_binding::OriginalBodyParameterSourceScope,
     words: Vec<tcl_lexer::NativeWord>,
@@ -6278,6 +6295,95 @@ struct ConditionalBodyInvocation {
 }
 
 impl InvocationBodyAssistance {
+    /// Conditional roles from the authentic enclosing Logical lambda source.
+    /// This projection never populates ordinary parameter advice.
+    pub(crate) fn conditional_logical_lambda_roles(
+        &self,
+    ) -> Option<Vec<(usize, tcl_registry::ArgRole)>> {
+        let owned = self.logical_lambda_roles.as_ref()?;
+        let source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            owned.words.source()
+        else {
+            return None;
+        };
+        (owned
+            .lambda
+            .matches_source(owned.lambda.lambda().image(), &owned.input)
+            && owned.scope.matches_input(&owned.input)
+            && advice.logical_source_input() == Some(&owned.input)
+            && owned.invocation.effective == owned.shape.effective)
+            .then(|| owned.shape.written_argument_roles())
+    }
+
+    pub(crate) fn conditional_logical_lambda_shape(&self) -> Option<&RegistryInvocationShape> {
+        let owned = self.logical_lambda_roles.as_ref()?;
+        let source_structure::OriginalRegistrySource::SourceTransitions(advice) =
+            owned.words.source()
+        else {
+            return None;
+        };
+        (owned
+            .lambda
+            .matches_source(owned.lambda.lambda().image(), &owned.input)
+            && owned.scope.matches_input(&owned.input)
+            && advice.logical_source_input() == Some(&owned.input)
+            && owned.invocation.effective == owned.shape.effective)
+            .then_some(&owned.shape)
+    }
+
+    /// Retain the selected nested lambda under the same source owner and
+    /// ancestry as the current logical body.
+    pub(crate) fn logical_trait_caller_lambda_owner(
+        &self,
+        argument: usize,
+    ) -> Option<LogicalLambdaSourceOwner> {
+        let (input, words, parent_scope) = if let Some(owned) = &self.logical_trait_invocation {
+            (
+                &owned.input,
+                &owned.words,
+                std::sync::Arc::clone(owned.body.scope()),
+            )
+        } else {
+            let owned = self.logical_lambda_roles.as_ref()?;
+            (
+                &owned.input,
+                &owned.words,
+                std::sync::Arc::clone(&owned.scope),
+            )
+        };
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = words.source()
+        else {
+            return None;
+        };
+        let policy = crate::command_binding::source_input_dialect(input).authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let lambda =
+            std::sync::Arc::new(crate::command_binding::OriginalLogicalLambdaBody::capture(
+                input,
+                words.clone(),
+                advice.original_words(),
+                purpose,
+            )?);
+        let selected_word = words.original_argument_word(argument)?;
+        if lambda.lambda() != selected_word {
+            return None;
+        }
+        let scope = std::sync::Arc::new(
+            crate::command_binding::OriginalDeclaredLogicalBodyContext::capture_lambda(
+                lambda.clone(),
+                input,
+                Some(parent_scope),
+            )?,
+        );
+        lambda.frame_source(input)?;
+        Some(LogicalLambdaSourceOwner { lambda, scope })
+    }
+
     fn retain_caller_template_source(&mut self, tokens: &CommandTokens) {
         self.caller_template_source = self.caller_name_template_invocation().map(|invocation| {
             Box::new(CallerTemplateSource {
@@ -6480,17 +6586,42 @@ impl InvocationBodyAssistance {
         &self,
         argument: usize,
     ) -> Option<OriginalSourceScriptBody> {
-        let owned = self.logical_trait_invocation.as_ref()?;
-        let word = owned.words.original_argument_word(argument)?;
-        let context = owned.input.borrowed_context_registry();
-        let mut bodies = owned
-            .words
+        let (words, input) = if let Some(owned) = &self.logical_trait_invocation {
+            (&owned.words, &owned.input)
+        } else {
+            let owned = self.logical_lambda_roles.as_ref()?;
+            (&owned.words, &owned.input)
+        };
+        let word = words.original_argument_word(argument)?;
+        let context = input.borrowed_context_registry();
+        let mut bodies = words
             .source_script_bodies(context)
             .into_iter()
             .filter(|body| body.original_container() == word);
         let body = bodies.next()?;
         (bodies.next().is_none() && body.inherits_immediate_caller_source_context(context))
             .then_some(body)
+    }
+
+    /// Exact source lambda body selected by this same Logical invocation.
+    /// This retains only authored list geometry; it does not establish an
+    /// entered lambda frame or parameter binding.
+    pub(crate) fn logical_trait_caller_lambda(
+        &self,
+        argument: usize,
+    ) -> Option<OriginalSourceScriptBody> {
+        let (words, input) = if let Some(owned) = &self.logical_trait_invocation {
+            (&owned.words, &owned.input)
+        } else {
+            let owned = self.logical_lambda_roles.as_ref()?;
+            (&owned.words, &owned.input)
+        };
+        let word = words.original_argument_word(argument)?;
+        let context = input.borrowed_context_registry();
+        let body = words.original_lambda_body_geometry(context)?;
+        (body.original_container() == word
+            && body.matches_source(word.image(), input.lexer_config()))
+        .then_some(body)
     }
 
     /// Symbolic local-copy and alias traits use the declaration's original
@@ -6666,6 +6797,7 @@ fn body_assistance_with_entry<'a>(
         conditional_invocation: None,
         receiver_trait_invocation: None,
         logical_trait_invocation: None,
+        logical_lambda_roles: None,
         body_parameter_source: None,
         declared_roles: Vec::new(),
         unknown_residual: prepared.as_ref().is_none_or(|view| view.unknown_residual),
@@ -7334,8 +7466,115 @@ pub(crate) fn logical_parameter_body_assistance(
         words,
         invocation,
     });
+    view.logical_lambda_roles = None;
     // Other execution, Native conditional-entry and definite fields retain
     // their independent meaning; only this authenticated source template is added.
+    Some(view)
+}
+
+/// Source-only argument roles for one actual command inside a selected
+/// Logical lambda. The separate role facet never enters ordinary invocation
+/// advice or establishes lambda entry.
+// naming.compiler.logical-lambda-parameter-trait-source-roles
+// docs/design/analysis/name-resolution-proofs/logical-lambda-parameter-trait-source-roles.md
+pub(crate) fn logical_lambda_parameter_body_assistance(
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    realm: &crate::realm::CommandBindingRealm,
+    owner: &LogicalLambdaSourceOwner,
+    selected_child_body: Option<&OriginalSourceScriptBody>,
+    source: &str,
+    command: &crate::segmenter::SegmentedCommand,
+    base: u32,
+) -> Option<Box<InvocationBodyAssistance>> {
+    let input = realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()?;
+    let image = realm.original_source_image()?;
+    let context = input.borrowed_context_registry();
+    let lambda = &owner.lambda;
+    let scope = &owner.scope;
+    let body = lambda.body();
+    let source_scope = selected_child_body.unwrap_or(body);
+    let segment = command.clone().shifted_by(base);
+    if !realm.matches_resolved_analysis_input(input)
+        || !lambda.matches_source(image, input)
+        || !scope.matches_input(input)
+        || !scope.lambda_source().is_some_and(|owner| owner == lambda)
+        || !source_scope.matches_original_content(source, base, input.lexer_config())
+        || !source_scope.matches_source(image, input.lexer_config())
+        || !source_scope.matches_context(&context)
+        || source_scope.content_span().start() < body.content_span().start()
+        || source_scope.content_span().end() > body.content_span().end()
+        || segment.span.start() < source_scope.content_span().start()
+        || segment.span.end() > source_scope.content_span().end()
+        || context.commands().snapshot().semantic_key()
+            != surface.commands().snapshot().semantic_key()
+    {
+        return None;
+    }
+    let full_source = image.try_text().ok()?;
+    let words =
+        source_structure::logical_source_registry_words(full_source, realm, input, &segment)?;
+    let (facts, roles) = words.with_source_schema(&context, |schema| {
+        (
+            schema.facts().clone(),
+            schema.authored_logical_source_argument_roles(),
+        )
+    })?;
+    let (roles, complete) = roles;
+    if !complete
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+        || words
+            .origins()
+            .iter()
+            .enumerate()
+            .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
+    {
+        return None;
+    }
+    let mut tokens = CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        input.lexer_config(),
+        &segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let effective = compose_original_effective_words(&tokens, words.command(), &[])?;
+    let evaluated_words = words.arguments().to_vec();
+    let invocation = ResolvedStatementInvocation {
+        dialect: words.dialect(),
+        facts: Box::new(facts),
+        arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+        evaluated_arguments: evaluated_words
+            .iter()
+            .map(|word| {
+                word.literal_bytes()
+                    .and_then(|value| String::from_utf8(value.to_vec()).ok())
+            })
+            .collect(),
+        evaluated_words,
+        effective,
+        authored_case_body_selection: None,
+    };
+    let mut shape =
+        RegistryInvocationShape::from_facts(&invocation.facts, invocation.effective.clone());
+    shape.roles = roles;
+    shape.roles_complete = true;
+    let mut view = unpositioned_body_assistance(
+        surface,
+        realm.source_bindings_ref(),
+        source,
+        input.lexer_config(),
+        command,
+        Some(context),
+    )?;
+    view.logical_lambda_roles = Some(ConditionalLogicalLambdaRoles {
+        lambda: std::sync::Arc::clone(lambda),
+        scope: std::sync::Arc::clone(scope),
+        input: input.clone(),
+        words,
+        invocation,
+        shape,
+    });
     Some(view)
 }
 
@@ -7376,6 +7615,7 @@ pub(crate) fn unpositioned_body_assistance(
             conditional_invocation: None,
             receiver_trait_invocation: None,
             logical_trait_invocation: None,
+            logical_lambda_roles: None,
             body_parameter_source: None,
             unknown_residual: true,
             may_be_absent: true,

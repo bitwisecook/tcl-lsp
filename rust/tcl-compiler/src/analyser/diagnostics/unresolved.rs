@@ -27,7 +27,7 @@ use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
-use tcl_registry::model::{BindingKnowledge, BindingTarget};
+use crate::command_binding::SourceCommandSlotPresence;
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -168,21 +168,19 @@ impl Analyser {
         KnownNameTiers { candidates }
     }
 
-    /// Diagnostic-only presence. Qualified names, implementation effects and
-    /// lookup order come from the exact retained execution or future entry.
+    /// Diagnostic-only presence from the retained positioned lookup. Presence
+    /// suppresses an absence advisory without allocating a public target.
     #[must_use]
-    pub(crate) fn command_binding_knowledge(
+    fn command_diagnostic_slot_presence(
         &self,
-        _oracle: &CommandExistenceOracle,
         name: &str,
         range: tcl_lexer::Span,
         lookup: crate::signature_scan::types::SignatureCommandLookup,
         is_mathfunc_call: bool,
-        _resolution_candidates: &[String],
-    ) -> BindingKnowledge {
+    ) -> SourceCommandSlotPresence {
         use crate::command_binding::SourceCommandSlotPresence as Presence;
         if name.starts_with('$') || name.starts_with('[') {
-            return BindingKnowledge::Unknown;
+            return Presence::Unknown;
         }
         // Explicit assistance declarations can suppress this advisory without
         // establishing a callable implementation or donating a registry key.
@@ -194,12 +192,12 @@ impl Analyser {
                 .any(|stub| stub.name == name)
             || self.is_scoped_command_resolved(name, range)
         {
-            return BindingKnowledge::Unknown;
+            return Presence::Unknown;
         }
         let Some(offset) = lookup.offset(range) else {
-            return BindingKnowledge::Unknown;
+            return Presence::Unknown;
         };
-        let presence = if is_mathfunc_call {
+        if is_mathfunc_call {
             self.registry
                 .as_deref()
                 .map_or(Presence::Unknown, |registry| {
@@ -219,11 +217,6 @@ impl Analyser {
                     ..
                 } => Presence::Unknown,
             }
-        };
-        match presence {
-            Presence::Present => BindingKnowledge::Must(BindingTarget::document(name)),
-            Presence::Absent => BindingKnowledge::Absent,
-            Presence::MayPresent | Presence::Unknown => BindingKnowledge::Unknown,
         }
     }
 
@@ -259,7 +252,7 @@ impl Analyser {
         // (matches the snapshot/restore round-trip contract).
         let invocations = std::mem::take(&mut self.result.command_invocations);
         #[cfg(debug_assertions)]
-        self.trace_unresolved_math_invocations(oracle, &invocations);
+        self.trace_unresolved_math_invocations(&invocations);
         for inv in &invocations {
             let name = &inv.name;
             // An existence probe (`namespace which -command NAME`, exact
@@ -270,14 +263,12 @@ impl Analyser {
                 continue;
             }
             // Only diagnostic-purpose selected-slot absence feeds W123.
-            if self.command_binding_knowledge(
-                oracle,
+            if self.command_diagnostic_slot_presence(
                 name,
                 inv.range,
                 inv.lookup,
                 inv.is_mathfunc_call,
-                &inv.resolution_candidates,
-            ) != BindingKnowledge::Absent
+            ) != SourceCommandSlotPresence::Absent
             {
                 continue;
             }
@@ -353,7 +344,6 @@ impl Analyser {
     #[cfg(debug_assertions)]
     fn trace_unresolved_math_invocations(
         &self,
-        oracle: &CommandExistenceOracle,
         invocations: &[crate::signature_scan::types::SignatureCommandInvocation],
     ) {
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MATH_SUBJECT").is_some() {
@@ -363,13 +353,11 @@ impl Analyser {
                     invocation.name,
                     invocation.range,
                     invocation.is_mathfunc_call,
-                    self.command_binding_knowledge(
-                        oracle,
+                    self.command_diagnostic_slot_presence(
                         &invocation.name,
                         invocation.range,
                         invocation.lookup,
-                        invocation.is_mathfunc_call,
-                        &invocation.resolution_candidates
+                        invocation.is_mathfunc_call
                     )
                 );
             }
@@ -1148,6 +1136,36 @@ mod original_parent_subject_tests {
                     .unresolved_source_subject(invocation, &registry)
                     .is_none()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_presence_controls {
+    use super::*;
+
+    #[test]
+    fn actual_presence_suppresses_absence_without_a_target_allocation() {
+        let source = "proc local {} {}; local; absent";
+        let mut analyser = Analyser::new();
+        analyser.analyse(source, "tcl8.6");
+        for (name, expected) in [
+            ("local", SourceCommandSlotPresence::Present),
+            ("absent", SourceCommandSlotPresence::Absent),
+        ] {
+            let invocation = analyser
+                .result
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.name == name)
+                .unwrap();
+            let actual: SourceCommandSlotPresence = analyser.command_diagnostic_slot_presence(
+                &invocation.name,
+                invocation.range,
+                invocation.lookup,
+                false,
+            );
+            assert_eq!(actual, expected);
         }
     }
 }

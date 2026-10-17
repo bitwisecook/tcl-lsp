@@ -62,7 +62,11 @@ enum OriginalAuthoredDeclarationSourceObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OriginalAuthoredProcedureSourceGeometry {
     header: crate::ir::CommandTokens,
-    body: DeclaredProcedureBody,
+    declaration: super::source_transition_advice::OriginalConditionalProcedureDeclaration,
+    namespace: super::SourceNamespaceKey,
+    name: String,
+    parameters_text: String,
+    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     body_word: tcl_lexer::NativeWord,
     config: tcl_lexer::LexerConfig,
     snapshot: Arc<SourceLookupSnapshot>,
@@ -74,19 +78,19 @@ impl OriginalAuthoredProcedureSourceGeometry {
         &self.body_word
     }
     pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
-        &self.body.namespace
+        &self.namespace
     }
     pub(crate) fn name(&self) -> Option<&str> {
-        self.body.logical_name.as_deref()
+        Some(self.name.as_str())
     }
     pub(crate) fn parameters_text(&self) -> Option<&str> {
-        self.body.logical_parameters_text.as_deref()
+        Some(self.parameters_text.as_str())
     }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
-        &self.body.parameters
+        &self.parameters
     }
     pub(crate) fn reporting_label(&self) -> Option<String> {
-        self.body.command_label()
+        Some(self.declaration.label.clone())
     }
     pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
         self.config
@@ -103,6 +107,51 @@ impl OriginalAuthoredProcedureSourceGeometry {
 }
 
 impl super::SourceInvocationBinding {
+    /// Eligibility of a present owner remains separate from conditional syntax.
+    fn original_authored_declaration_point_eligibility(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<()> {
+        // A present reached metadata owner remains terminal even though its
+        // withdrawn physical layout does not issue this source-only receipt.
+        if let Some(point) = &self.lookup_state {
+            let baseline = &point.state.baseline;
+            if !baseline.metadata_context.is_standalone()
+                || baseline.native_entry.is_some()
+                || baseline.logical_source_input.is_some()
+                || baseline.vendor_source_input.is_some()
+                || baseline.hosted_execution_context.is_some()
+                || baseline.unknown_entry
+                || point
+                    .state
+                    .current_source_origin
+                    .as_ref()
+                    .is_none_or(|source| {
+                        self.invocation_site()
+                            .is_none_or(|site| !Arc::ptr_eq(source, &site.source))
+                    })
+            {
+                return None;
+            }
+            let retained = self.retained_registry_for_tokens(tokens)?;
+            if retained.snapshot().semantic_key() != registry.snapshot().semantic_key() {
+                return None;
+            }
+            self.original_invocation_metadata_at_point(tokens, registry)
+                .ok()?;
+            // A complete ordinary layout keeps its existing closed route.
+            // Missing layout is not itself positive source authority.
+            if self
+                .original_authored_source_layout(tokens, registry)
+                .is_some_and(|layout| !layout.has_unclosed_source_coverage())
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
+
     pub(crate) fn original_authored_procedure_source_geometry(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -115,15 +164,7 @@ impl super::SourceInvocationBinding {
         {
             return None;
         }
-        // A present reached owner remains terminal, including invalid metadata.
-        // Its absence does not turn the declaration into an entered invocation.
-        let point = if self.lookup_state.is_some() {
-            let advice = self.original_authored_source_layout(tokens, registry)?;
-            advice.has_unclosed_source_coverage().then_some(())?;
-            Some(advice)
-        } else {
-            None
-        };
+        self.original_authored_declaration_point_eligibility(tokens, registry)?;
         let site = self.invocation_site()?;
         let config = self.original_lexer_config_for_tokens(tokens)?;
         let owner = self.original_analysis_owner.as_ref()?;
@@ -150,25 +191,33 @@ impl super::SourceInvocationBinding {
             {
                 return None;
             }
-            let advice = super::original_site_operand_layout_advice(
-                site,
-                tokens,
-                &row.snapshot,
-                &row.namespace,
-                config,
-            )?;
-            if point.as_ref().is_some_and(|point| {
-                point.targets() != advice.targets() || point.namespace() != advice.namespace()
-            }) {
+            let declaration =
+                super::source_transition_advice::original_conditional_procedure_declaration(
+                    site, tokens, row, owner, registry,
+                )?;
+            if config.list_parse != tcl_dialect::ListParse::Strict {
                 return None;
             }
-            // Reuse the genuine original declaration recipe. An unavailable
-            // recipe never falls back to a source-text reconstruction.
-            let body = standalone_procedure_body_recipe(site, tokens, row, registry, &advice)?;
-            let body_word = body.authored_original_body_word.as_ref()?.clone();
+            let name =
+                tcl_syntax::word_rules::original_static_word_unicode_value(&declaration.name)?;
+            let name = std::str::from_utf8(&name).ok()?.to_owned();
+            let parameters_text = tcl_syntax::word_rules::original_static_word_unicode_value(
+                &declaration.parameters,
+            )?;
+            let parameters_text = std::str::from_utf8(&parameters_text).ok()?.to_owned();
+            let parameters =
+                super::logical_definition::static_formals(&parameters_text, config.list_parse)?;
+            let namespace = super::SourceNamespaceKey::authored(
+                tcl_syntax::naming::checked_namespace_path_key(&declaration.namespace)?,
+            );
+            let body_word = declaration.body.original_container().clone();
             let geometry = OriginalAuthoredProcedureSourceGeometry {
                 header: tokens.clone(),
-                body,
+                declaration,
+                namespace,
+                name,
+                parameters_text,
+                parameters,
                 body_word,
                 config,
                 snapshot: Arc::clone(&row.snapshot),
@@ -4782,5 +4831,153 @@ mod original_argument_declaration_tests {
                 "axis {axis}"
             );
         }
+    }
+
+    #[test]
+    fn conditional_header_receipt_keeps_withdrawn_layout_and_original_mutation_debt() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "rename $old decl\nproc kept {arg} {list $arg}";
+        let module = crate::lowering::lower_to_ir(source, registry);
+        assert!(
+            module
+                .original_authored_declaration_body_units
+                .values()
+                .any(|card| card.name() == "kept")
+        );
+        let header = module
+            .top_level
+            .retained_source_tokens_for_statement(module.top_level.statements.last().unwrap())
+            .expect("actual retained declaration vector");
+        let binding = header.source_binding.as_ref().unwrap();
+        let geometry = binding
+            .original_authored_procedure_source_geometry(header, registry)
+            .expect("transition-selected declaration geometry");
+        assert!(geometry.has_unclosed_source_coverage());
+        assert!(
+            !geometry
+                .declaration
+                .advice
+                .uncertain_operations()
+                .is_empty()
+        );
+        assert!(
+            geometry
+                .snapshot
+                .state
+                .source_variables
+                .execution_name_policy
+                .is_none()
+        );
+        assert_eq!(
+            geometry.snapshot.state.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        let row = original_declaration_layouts(
+            binding.declaration_layout_observations.as_deref().unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        assert!(declared_body(binding.invocation_site().unwrap(), header, row, registry).is_none());
+        assert_eq!(
+            geometry
+                .declaration
+                .advice
+                .original_words()
+                .first()
+                .unwrap()
+                .image(),
+            &module.source
+        );
+        assert_eq!(geometry.body_word().image(), &module.source);
+    }
+
+    #[test]
+    fn conditional_header_receipt_does_not_resurrect_known_shadow_or_deleted_descriptor() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for source in [
+            "proc proc args {}; rename $old decl; proc kept {} {list retained}",
+            "rename proc {}; rename $old decl; proc kept {} {list retained}",
+        ] {
+            let module = crate::lowering::lower_to_ir(source, registry);
+            assert!(
+                !module
+                    .original_authored_declaration_body_units
+                    .values()
+                    .any(|card| card.name() == "kept"),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_header_geometry_cannot_borrow_a_foreign_present_point() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "rename $old decl\nproc kept {} {list retained}";
+        let module = crate::lowering::lower_to_ir(source, registry);
+        let header = module
+            .top_level
+            .retained_source_tokens_for_statement(module.top_level.statements.last().unwrap())
+            .unwrap();
+        assert!(
+            header
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(header, registry)
+                .is_some()
+        );
+        let foreign =
+            SourceCommandBindings::analyse(source, module.native_lexer_config(), registry);
+        let offset = header
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap()
+            .offset;
+        let site = CommandAllocationSite {
+            source: Arc::clone(foreign.source_origin().unwrap()),
+            offset,
+        };
+        let row = original_declaration_layouts(foreign.declaration_layouts.get(&site).unwrap())
+            .unwrap()
+            .next()
+            .unwrap();
+        let mut altered = header.clone();
+        altered.source_binding.as_mut().unwrap().lookup_state = Some(Arc::clone(&row.snapshot));
+        assert!(
+            altered
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&altered, registry)
+                .is_none()
+        );
+        let row = original_declaration_layouts(
+            header
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_layout_observations
+                .as_deref()
+                .unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let mut unavailable_entry = row.snapshot.state.clone();
+        Arc::make_mut(&mut unavailable_entry.baseline).unknown_entry = true;
+        altered.source_binding.as_mut().unwrap().lookup_state = Some(Arc::new(
+            SourceLookupSnapshot::in_realm(unavailable_entry, row.snapshot.realm),
+        ));
+        assert!(
+            altered
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_procedure_source_geometry(&altered, registry)
+                .is_none()
+        );
     }
 }

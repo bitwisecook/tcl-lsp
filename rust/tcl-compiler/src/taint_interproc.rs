@@ -132,7 +132,7 @@ impl TaintBasis {
             TaintBasis::PathJoined => t | TaintColour::PATH_JOINED,
             TaintBasis::Channel => t | TaintColour::CHANNEL,
         };
-        TaintLattice { colours: colour }
+        TaintLattice::from_colours(colour)
     }
 }
 
@@ -848,7 +848,7 @@ fn resolve_call_flows(
                     continue;
                 }
                 let effective = call.effective_arguments();
-                let arguments = effective.words.iter().skip(1).enumerate().map(|(argument, word)| {
+                let arguments = effective.words.iter().skip(1).enumerate().map(|(argument, _word)| {
                         match effective.origins.get(argument + 1) {
                             Some(crate::registry_invocation::InvocationWordOrigin::Written(index)) => {
                                 let Some(original) = invocation.words().get(*index) else { return TaintLattice::tainted(); };
@@ -861,7 +861,7 @@ fn resolve_call_flows(
                                     word_offset: Some(original.source().span.start()),
                                     ..ctx.at(position)
                                 };
-                                word_taint(&word.legacy_text(), uses, taints, argument_context)
+                                word_taint(&original.legacy_text(), uses, taints, argument_context)
                             }
                             Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(index)) => {
                                 match effective.binding_prefix.get(*index) {
@@ -1840,7 +1840,7 @@ mod tests {
         for (basis, colour) in expected {
             assert_eq!(
                 basis.lattice(),
-                TaintLattice { colours: colour },
+                TaintLattice::from_colours(colour),
                 "{basis:?} mapped to an unexpected lattice"
             );
         }

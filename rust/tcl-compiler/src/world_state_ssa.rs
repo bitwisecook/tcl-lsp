@@ -1242,8 +1242,11 @@ impl<'a> Planner<'a> {
                 )))
             }
             ExecutableInstruction::EvaluateWord {
-                word, completion, ..
-            } if word_evaluation_runs_commands(word) => {
+                value,
+                word,
+                completion,
+                ..
+            } if original_word_evaluation_runs_commands(self.function, *value, word) => {
                 // A word containing a command substitution (or an
                 // opaque fragment that may hide one) runs arbitrary
                 // commands during argv evaluation.  Without this
@@ -1793,6 +1796,21 @@ fn conservative_region_intents() -> Vec<(WorldStateIntentKind, WorldRegion)> {
     ]
 }
 
+// Actual executable-value membership selects retained source geometry. Only
+// explicit carrierless standalone models use the compatibility word shape.
+fn original_word_evaluation_runs_commands(
+    function: &ExecutableFunction,
+    value: crate::executable_ir::ExecutableValueId,
+    word: &crate::ir::WordExpr,
+) -> bool {
+    function
+        .original_word_command_effects(value, word)
+        .map_or_else(
+            || word_evaluation_runs_commands(word),
+            |source| source.unwrap_or(true),
+        )
+}
+
 /// Whether evaluating one source word may execute nested commands.
 ///
 /// Variable substitutions are deliberately excluded: a variable read can
@@ -2046,6 +2064,83 @@ mod tests {
             &module.top_level,
         )
         .expect("fixture source builds valid executable IR")
+    }
+
+    #[test]
+    fn original_word_effects_include_variable_index_commands_but_not_scalar_or_data() {
+        for (source, expected) in [
+            ("list $array([rename old new])", true),
+            ("list prefix$array([rename old new])", true),
+            ("list $array($index)", false),
+            ("list $scalar", false),
+            ("list {$array([rename old new])}", false),
+        ] {
+            let function = compiled_function(source, 401);
+            let (block_index, instruction_index, value, word) =
+                function
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(block_index, block)| {
+                        block.instructions.iter().enumerate().filter_map(
+                            move |(index, instruction)| {
+                                if let ExecutableInstruction::EvaluateWord { value, word, .. } =
+                                    instruction
+                                {
+                                    (word.source().span.start() > 0).then_some((
+                                        block_index,
+                                        index,
+                                        *value,
+                                        word,
+                                    ))
+                                } else {
+                                    None
+                                }
+                            },
+                        )
+                    })
+                    .next()
+                    .expect("actual original operand evaluation");
+            assert_eq!(
+                function.original_word_command_effects(value, word),
+                Some(Some(expected)),
+                "{source}"
+            );
+            let planner = Planner::new(&function).unwrap();
+            let input = planner
+                .instruction_plan_inputs(block_index, instruction_index, 0)
+                .unwrap();
+            assert_eq!(input.is_some(), expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn changed_evaluated_word_cannot_reuse_original_source_effect_absence() {
+        let function = compiled_function("list $scalar", 402);
+        let (value, original) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| {
+                if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                    (word.source().span.start() > 0).then_some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(
+            function.original_word_command_effects(value, original),
+            Some(Some(false))
+        );
+        let changed = crate::ir::WordExpr::Variable {
+            spelling: "$different".to_owned(),
+            source: original.source().clone(),
+        };
+        assert_eq!(
+            function.original_word_command_effects(value, &changed),
+            Some(None)
+        );
     }
 
     fn invoke_block_indices(function: &ExecutableFunction) -> Vec<usize> {
@@ -2545,5 +2640,41 @@ mod tests {
                 .iter()
                 .all(|intent| intent.commit == StateTransitionCommit::OnOkOnly)
         );
+    }
+
+    #[test]
+    fn production_missing_word_value_never_borrows_carrierless_compatibility() {
+        let function = compiled_function("list $array([rename old new])", 403);
+        let (actual, word) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find_map(|instruction| {
+                if let ExecutableInstruction::EvaluateWord { value, word, .. } = instruction {
+                    (word.source().span.start() > 0).then_some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(
+            function.original_word_command_effects(actual, word),
+            Some(Some(true))
+        );
+        let missing = crate::executable_ir::ExecutableValueId::new(function.id, usize::MAX);
+        assert_eq!(
+            function.original_word_command_effects(missing, word),
+            Some(None)
+        );
+        assert!(original_word_evaluation_runs_commands(
+            &function, missing, word
+        ));
+        // The explicit existing constructor is the only carrierless domain.
+        let manual = ExecutableFunction::new(function.id, function.entry, function.blocks.clone());
+        assert_eq!(manual.original_word_command_effects(actual, word), None);
+        assert!(!word_evaluation_runs_commands(word));
+        assert!(!original_word_evaluation_runs_commands(
+            &manual, actual, word
+        ));
     }
 }

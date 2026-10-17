@@ -6831,3 +6831,108 @@ mod logical_alias_occurrence_tests {
         assert!(!analysis.original_variable_rename_is_complete(read.symbol()));
     }
 }
+
+/// Source-scope relation to this analysis unit's original interpreter subject.
+/// This is a readonly diagnostic boundary, not physical interpreter identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceInterpreterScopeRelation {
+    /// Every retained enclosing scope stays in the analysis root's subject.
+    OriginalRoot,
+    /// An actual isolated child-interpreter body occurs in its ancestry.
+    IsolatedBody,
+}
+
+impl super::types::AnalysisResult {
+    /// Reborrow the actual source scope ancestry under its complete input.
+    /// Names never encode interpreter identity here. Missing/foreign source,
+    /// input or domain correspondence stays unavailable. An isolated body is
+    /// a suppression boundary only, not proof that a child exists or executes.
+    #[must_use]
+    pub fn source_interpreter_scope_relation(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<SourceInterpreterScopeRelation> {
+        let input = self.resolved_input.as_ref()?;
+        if input.lexer_config() != config
+            || self.body_lexer_config != Some(config)
+            || !self.matches_original_source_image(image, config)
+            || usize::try_from(offset).ok()? >= image.bytes().len()
+            || !self
+                .retained_command_realm()?
+                .matches_resolved_analysis_input(input)
+        {
+            return None;
+        }
+        // Isolation is a source-body boundary even where ordinary scope
+        // reporting is flattened. Inspect every actual containing body rather
+        // than allowing a narrower sibling to hide an isolated parent.
+        let mut pending = vec![&self.global_scope];
+        while let Some(scope) = pending.pop() {
+            pending.extend(&scope.children);
+            if !std::ptr::eq(scope, &self.global_scope)
+                && !scope
+                    .body_span
+                    .is_some_and(|span| span.start() <= offset && offset < span.end())
+            {
+                continue;
+            }
+            if scope.isolated_interpreter_source_body {
+                return Some(SourceInterpreterScopeRelation::IsolatedBody);
+            }
+            match (
+                &self.global_scope.original_interpreter_source_domain,
+                &scope.original_interpreter_source_domain,
+            ) {
+                (None, None) => {}
+                (Some(root), Some(current)) if std::sync::Arc::ptr_eq(root, current) => {}
+                _ => return None,
+            }
+        }
+        Some(SourceInterpreterScopeRelation::OriginalRoot)
+    }
+}
+
+#[cfg(test)]
+mod original_interpreter_scope_relation_controls {
+    use super::*;
+
+    #[test]
+    fn actual_source_body_subject_is_not_a_namespace_display_marker() {
+        for (source, needle, expected) in [
+            (
+                "namespace eval @interp@user {set value 1}",
+                "set value",
+                SourceInterpreterScopeRelation::OriginalRoot,
+            ),
+            (
+                "interp create sub; interp eval sub {set value 1}",
+                "set value",
+                SourceInterpreterScopeRelation::IsolatedBody,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert_eq!(
+                analysis.source_interpreter_scope_relation(&image, config, offset),
+                Some(expected)
+            );
+            let foreign = tcl_lexer::SourceImage::document(&format!("{source} changed"));
+            assert!(
+                analysis
+                    .source_interpreter_scope_relation(&foreign, config, offset)
+                    .is_none()
+            );
+            let mut changed = config;
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                analysis
+                    .source_interpreter_scope_relation(&image, changed, offset)
+                    .is_none()
+            );
+        }
+    }
+}

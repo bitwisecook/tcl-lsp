@@ -752,6 +752,83 @@ struct OriginalSourceArityPrefix {
     debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
 }
 
+type ConditionalProcedureDeclarationSelection = (
+    Arc<source_procedure::OriginalSourceProcedureBody>,
+    tcl_registry::AuthoredSourceProcedureArguments,
+);
+
+type ConditionalProcedureDeclarationSelections =
+    BTreeMap<u32, Option<ConditionalProcedureDeclarationSelection>>;
+
+/// Derived source selections only; the existing analysis allocation remains
+/// the owner. Weak baseline identity avoids retaining a baseline/owner cycle.
+#[derive(Debug, Clone)]
+pub(super) struct OriginalConditionalProcedureDeclarationMemo {
+    baseline: std::sync::Weak<super::BindingBaseline>,
+    registry: tcl_registry::RegistrySemanticKey,
+    selections: Arc<ConditionalProcedureDeclarationSelections>,
+}
+
+fn conditional_procedure_declaration_selections(
+    owner: &Arc<super::OriginalSourceAnalysisOwner>,
+    seed: &OriginalSourceTransitionSeed,
+    context: &ContextRegistry,
+) -> Option<Arc<ConditionalProcedureDeclarationSelections>> {
+    if !Arc::ptr_eq(&owner.source, &seed.origin)
+        || owner.config != seed.config
+        || !owner.metadata.is_standalone()
+        || owner.metadata != seed.baseline.metadata_context
+        || seed.baseline.native_entry.is_some()
+        || seed.baseline.logical_source_input.is_some()
+        || seed.baseline.vendor_source_input.is_some()
+        || seed.baseline.hosted_execution_context.is_some()
+        || seed.baseline.unknown_entry
+        || !seed.matches_registry(context.commands())
+    {
+        return None;
+    }
+    let baseline = Arc::downgrade(&seed.baseline);
+    let registry = context.commands().snapshot().semantic_key();
+    let matches = |memo: &OriginalConditionalProcedureDeclarationMemo| {
+        std::sync::Weak::ptr_eq(&memo.baseline, &baseline) && memo.registry == registry
+    };
+    if let Some(memo) = owner
+        .conditional_procedure_declarations
+        .get()
+        .filter(|memo| matches(memo))
+    {
+        return Some(Arc::clone(&memo.selections));
+    }
+    // The source interpreter runs outside OnceLock publication. It can neither
+    // observe a partly built product nor hold a cache lock during recursion.
+    let mut tape = seed.prepare_for(context, OriginalSourceCataloguePurpose::CompletePrefix)?;
+    let mut selected = std::mem::take(&mut tape.conditional_procedure_declarations);
+    for (offset, declaration) in &mut selected {
+        if tape.blocks_registry_source(*offset) {
+            *declaration = None;
+        }
+    }
+    let selections = Arc::new(selected);
+    if owner.conditional_procedure_declarations.get().is_none() {
+        let _ = owner.conditional_procedure_declarations.set(
+            OriginalConditionalProcedureDeclarationMemo {
+                baseline: baseline.clone(),
+                registry: registry.clone(),
+                selections: Arc::clone(&selections),
+            },
+        );
+    }
+    // Another actual baseline must compute its own product. A same-key racing
+    // publication may reuse only the genuinely identical owner's selection map.
+    Some(
+        owner
+            .conditional_procedure_declarations
+            .get()
+            .filter(|memo| matches(memo))
+            .map_or(selections, |memo| Arc::clone(&memo.selections)),
+    )
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
     arity_prefixes: BTreeMap<u32, Option<OriginalSourceArityPrefix>>,
@@ -783,6 +860,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     configured_classes: BTreeMap<u32, Option<OriginalSourceConfiguredClassReference>>,
     procedure_publications: Option<OriginalSourceProcedurePublications>,
     native_procedure_calls: BTreeMap<u32, Option<OriginalSourceProcedureCall>>,
+    conditional_procedure_declarations: ConditionalProcedureDeclarationSelections,
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
@@ -1230,6 +1308,13 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, declaration) in other.conditional_procedure_declarations {
+            source_class::merge_receipt(
+                &mut self.conditional_procedure_declarations,
+                offset,
+                declaration,
+            );
+        }
         for (offset, phase) in other.decoded_lambda_phases {
             source_class::merge_receipt(&mut self.decoded_lambda_phases, offset, phase);
         }
@@ -2747,6 +2832,13 @@ impl AdviceInvocationContext<'_> {
         };
         self.retain_arity_debt(graph, selected, &schema)?;
         let procedure = self.source_procedure_declaration(graph, selected, &schema);
+        if let Some(shape) = schema.authored_source_procedure_arguments() {
+            source_class::merge_receipt(
+                &mut tape.conditional_procedure_declarations,
+                invocation.words.first()?.span().start(),
+                procedure.clone().map(|procedure| (procedure, shape)),
+            );
+        }
         self.retain_source_inventory(
             tape,
             selected,
@@ -3131,6 +3223,114 @@ impl OriginalSourceTransitionSeed {
         advice_context.retain_final_class_display_publications(&mut tape, &graph);
         Some(tape)
     }
+}
+
+/// Original declaration source selected by the existing transition interpreter.
+/// This receipt supplies no current command target, publication or entered frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalConditionalProcedureDeclaration {
+    pub(super) advice: Arc<OriginalSourceCommandTransitionAdvice>,
+    pub(super) body: Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+    pub(super) name: NativeWord,
+    pub(super) parameters: NativeWord,
+    pub(super) namespace: ByteNamespacePath,
+    pub(super) label: String,
+}
+
+/// Reborrow an immutable original source observation, never its withdrawn
+/// execution policy or frame. The ordinary layout/table admission is unchanged.
+pub(super) fn original_conditional_procedure_declaration(
+    site: &super::CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &super::declaration_layout::DeclarationLayoutObservation,
+    owner: &Arc<super::OriginalSourceAnalysisOwner>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<OriginalConditionalProcedureDeclaration> {
+    let baseline = &row.snapshot.state.baseline;
+    if !Arc::ptr_eq(&owner.source, &site.source)
+        || owner.config != row.config
+        || !owner.metadata.is_standalone()
+        || !baseline.metadata_context.is_standalone()
+        || baseline.native_entry.is_some()
+        || baseline.logical_source_input.is_some()
+        || baseline.vendor_source_input.is_some()
+        || baseline.hosted_execution_context.is_some()
+        || baseline.unknown_entry
+        || row.words.as_ref() != tokens.words()
+        || row.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+        || !row.entry.owns_source(&site.source, site.offset)
+        || !matches!(&row.namespace, super::SourceNamespaceKey::Authored(namespace) if namespace == "::")
+        || baseline.registry_owner.as_ref()?.semantic_key() != registry.snapshot().semantic_key()
+    {
+        return None;
+    }
+    // This bounded producer owns the original root script, not a reconstructed
+    // child activation or the current (possibly Unknown) execution frame.
+    let super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+        source,
+        namespace,
+        ..
+    } = row.entry.as_ref()
+    else {
+        return None;
+    };
+    if !Arc::ptr_eq(&source.origin, &site.source)
+        || source.base() != 0
+        || source.text.bytes() != site.source.source_image().bytes()
+        || namespace != &row.namespace
+    {
+        return None;
+    }
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, row.config)?;
+    let seed = OriginalSourceTransitionSeed {
+        origin: Arc::clone(&site.source),
+        config: row.config,
+        baseline: Arc::clone(baseline),
+        logical_input: None,
+    };
+    let context = seed.source_context(registry)?;
+    let selections = conditional_procedure_declaration_selections(owner, &seed, &context)?;
+    let (declaration, shape) = selections.get(&site.offset)?.as_ref()?;
+    let advice = &declaration.declaration;
+    if advice.site() != site
+        || advice.original_words() != original.native_words()
+        || original
+            .native_words()
+            .iter()
+            .any(|word| word.group().expand)
+        || !advice.matches_source(site.source.source_image(), row.config)
+        || !advice.matches_context(&context)
+        || advice.uncertain_operations().is_empty()
+        || !declaration
+            .body
+            .matches_source(site.source.source_image(), row.config)
+        || !declaration.body.matches_context(&context)
+    {
+        return None;
+    }
+    let parameter = advice.arguments.get(shape.parameters)?;
+    let name = advice.arguments.get(shape.name)?;
+    let body = advice.arguments.get(shape.body)?;
+    if [name, parameter, body].iter().any(|word| {
+        !matches!(
+            word.origin,
+            crate::registry_invocation::InvocationWordOrigin::Written(_)
+        )
+    }) || Some(&name.original) != declaration.name.original_word()
+        || &body.original != declaration.body.original_container()
+    {
+        return None;
+    }
+    Some(OriginalConditionalProcedureDeclaration {
+        advice: Arc::clone(advice),
+        body: Arc::clone(&declaration.body),
+        name: declaration.name.original_word()?.clone(),
+        parameters: parameter.original.clone(),
+        namespace: declaration.declaration_slot.namespace.clone(),
+        label: tcl_syntax::naming::authored_source_command_spelling(&declaration.declaration_slot)?,
+    })
 }
 
 #[cfg(test)]
@@ -3908,5 +4108,66 @@ mod tests {
             &tcl_lexer::SourceImage::document(&foreign_source),
             input.lexer_config()
         ));
+    }
+
+    #[test]
+    fn conditional_declaration_memo_reuses_only_actual_owner_and_baseline() {
+        use super::*;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar);
+        let source = "rename $old decl\nproc kept {arg} {list $arg}";
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        let owner = bindings.original_analysis_owner().unwrap();
+        let seed = bindings.original_source_transition_seed().unwrap();
+        let context = seed.source_context(registry).unwrap();
+        let first = conditional_procedure_declaration_selections(owner, &seed, &context).unwrap();
+        let second = conditional_procedure_declaration_selections(owner, &seed, &context).unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        let offset = u32::try_from(source.find("proc kept").unwrap()).unwrap();
+        assert!(first.get(&offset).unwrap().is_some());
+        let different_baseline = OriginalSourceTransitionSeed {
+            baseline: Arc::new((*seed.baseline).clone()),
+            ..seed.clone()
+        };
+        let separate =
+            conditional_procedure_declaration_selections(owner, &different_baseline, &context)
+                .unwrap();
+        assert!(!Arc::ptr_eq(&first, &separate));
+        assert_eq!(first, separate);
+        assert!(Arc::ptr_eq(
+            &first,
+            &conditional_procedure_declaration_selections(owner, &seed, &context).unwrap()
+        ));
+    }
+
+    #[test]
+    fn conditional_declaration_memo_cannot_donate_to_foreign_source_or_unavailable_metadata() {
+        use super::*;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar);
+        let source = "rename $old decl\nproc kept {} {list retained}";
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        let owner = bindings.original_analysis_owner().unwrap();
+        let seed = bindings.original_source_transition_seed().unwrap();
+        let context = seed.source_context(registry).unwrap();
+        assert!(conditional_procedure_declaration_selections(owner, &seed, &context).is_some());
+        let foreign =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        assert!(
+            conditional_procedure_declaration_selections(
+                owner,
+                &foreign.original_source_transition_seed().unwrap(),
+                &context
+            )
+            .is_none()
+        );
+        let mut unavailable = seed.clone();
+        Arc::make_mut(&mut unavailable.baseline).metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert!(
+            conditional_procedure_declaration_selections(owner, &unavailable, &context).is_none()
+        );
     }
 }

@@ -312,6 +312,12 @@ struct InjectedMember {
 /// contributes on top of the written body.
 ///
 /// See [`Analyser::manufacturer_layout`].
+struct SelectedObjdefineBodyLayout {
+    grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
+    body_argument: Option<usize>,
+    definer_disabled: bool,
+}
+
 struct ManufacturerLayout {
     /// Argument index of the new class's name.
     name_arg: usize,
@@ -2251,6 +2257,15 @@ impl Analyser {
             executed_source: self.head_identities.executed_script_for_word(body_span),
             original_logical_body: original_logical_body.as_ref(),
         };
+        let original_body_offset = self.result.retained_command_realm().and_then(|realm| {
+            let config = self.file_lexer_config();
+            let image = realm
+                .original_source_image()
+                .filter(|image| image.bytes() == self.source.as_bytes())?;
+            let (word, _) =
+                realm.original_written_word_at_span_in_source(image, body_span, config)?;
+            word.content_span().ok().map(|span| span.start())
+        });
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
             eprintln!(
@@ -2281,7 +2296,14 @@ impl Analyser {
             super::param_traits::caller_frame_literal_targets(body_text, env);
         let shallow = super::param_traits::infer_param_traits(&param_names, body_text, env);
         let traits = if self.deep_param_traits {
-            let deep = super::param_traits::infer_param_traits_deep(&param_names, body_text, env);
+            let deep = super::param_traits::infer_param_traits_deep_in_document(
+                &param_names,
+                body_text,
+                env,
+                &self.source,
+                &self.result,
+                original_body_offset,
+            );
             super::param_traits::merge_traits(shallow, deep)
         } else {
             shallow
@@ -3320,6 +3342,27 @@ impl Analyser {
             };
             elements
         };
+        // When a source-selected lambda receipt is present, the token-derived
+        // list projection must name that exact original body in the current
+        // input. A cooked or shifted value cannot borrow this source owner.
+        if let Some(original) = original.as_ref() {
+            let (Some((parameter_token, _)), Some((body_token, _))) =
+                (elements.first(), elements.get(1))
+            else {
+                return true;
+            };
+            if original
+                .for_lambda_tokens(
+                    &self.source,
+                    &self.resolved_analysis_input(),
+                    *parameter_token,
+                    *body_token,
+                )
+                .is_none()
+            {
+                return true;
+            }
+        }
         // A lambda needs at least a parameter list and a body.
         if elements.len() < 2 {
             return true;
@@ -5312,7 +5355,11 @@ impl Analyser {
                         );
                     }
                     Hook::OoObjdefine => {
-                        self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path);
+                        if let Some(cmd_tok) = seg.argv.first().copied() {
+                            self.handle_oo_objdefine_at(
+                                cmd_tok, args, arg_tokens, arg_single, scope_path,
+                            );
+                        }
                     }
                     // Unreachable for a spec carrying the trait —
                     // `installer_hook_is_redispatched` pins that every one
@@ -6284,12 +6331,109 @@ impl Analyser {
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
+    pub fn handle_oo_objdefine_at(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.is_empty() {
+            return false;
+        }
+        let Some(words) = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            cmd_tok.span.start(),
+        ) else {
+            return true;
+        };
+        let context = self.analysis_context().context();
+        let Some((grammar, definer_disabled)) = words
+            .with_source_schema(&context, |schema| {
+                let grammar = schema.authored_source_definition_body_grammar()?;
+                let command = schema.authored_source_descriptors().command;
+                Some((grammar, !context.context().spec_available(command)))
+            })
+            .flatten()
+        else {
+            return true;
+        };
+        let body_argument = if args
+            .get(1)
+            .is_some_and(|subcommand| grammar.is_member(subcommand))
+        {
+            None
+        } else {
+            let body_arguments: Vec<_> = words
+                .written_argument_roles()
+                .into_iter()
+                .filter_map(|(argument, role)| {
+                    (role == tcl_registry::ArgRole::Body).then_some(argument)
+                })
+                .collect();
+            let [body_argument] = body_arguments.as_slice() else {
+                return true;
+            };
+            let Some(source_body) = words.original_argument_word(*body_argument) else {
+                return true;
+            };
+            let Some(body_token) = arg_tokens.get(*body_argument) else {
+                return true;
+            };
+            if !words.matches_source(source_body.image(), source_body.config())
+                || !source_body
+                    .tokens()
+                    .iter()
+                    .any(|token| token.span == body_token.span)
+            {
+                return true;
+            }
+            Some(*body_argument)
+        };
+        self.handle_oo_objdefine_with_layout(
+            args,
+            arg_tokens,
+            arg_single,
+            scope_path,
+            SelectedObjdefineBodyLayout {
+                grammar: Some(grammar),
+                body_argument,
+                definer_disabled,
+            },
+        )
+    }
+
+    #[cfg(test)]
     pub fn handle_oo_objdefine(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
         scope_path: &[usize],
+    ) -> bool {
+        let grammar = self.definition_grammar("oo::objdefine");
+        self.handle_oo_objdefine_with_layout(
+            args,
+            arg_tokens,
+            arg_single,
+            scope_path,
+            SelectedObjdefineBodyLayout {
+                grammar,
+                body_argument: Some(1),
+                definer_disabled: false,
+            },
+        )
+    }
+
+    fn handle_oo_objdefine_with_layout(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        layout: SelectedObjdefineBodyLayout,
     ) -> bool {
         if args.is_empty() {
             return false;
@@ -6366,7 +6510,7 @@ impl Analyser {
                 .absorb(owner.original_members(), true);
         }
 
-        self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class);
+        self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class, layout);
 
         // **W315** candidates. `oo::objdefine` aborts the same
         // way a class definition does (`oo::objdefine $o { deletemethod m }`
@@ -6457,15 +6601,18 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
         object_class: &mut super::types::ClassDef,
+        layout: SelectedObjdefineBodyLayout,
     ) {
-        const CMD_NAME: &str = "oo::objdefine";
-        let inline_form = self
-            .definition_grammar(CMD_NAME)
-            .is_some_and(|grammar| grammar.is_member(&args[1]));
+        let Some(grammar) = layout.grammar else {
+            return;
+        };
+        let inline_form = args
+            .get(1)
+            .is_some_and(|subcommand| grammar.is_member(subcommand));
         if inline_form {
             let inline_args: Vec<String> = args[1..].to_vec();
             let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            if let Some(grammar) = self.definition_grammar(CMD_NAME) {
+            {
                 if let Some(member) = inline_args
                     .first()
                     .and_then(|subcmd| grammar.member(subcmd))
@@ -6474,7 +6621,7 @@ impl Analyser {
                         member,
                         &inline_args[1..],
                         &inline_tokens[1..],
-                        false,
+                        layout.definer_disabled,
                     );
                 }
                 super::oo::parse_oo_define_inline_in(
@@ -6493,16 +6640,19 @@ impl Analyser {
                     scope_path,
                 );
             }
-        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
-            let grammar = self.definition_grammar(CMD_NAME);
-            let definer_disabled = self.command_dialect_disabled(CMD_NAME);
+        } else if let (Some(body), Some(body_tok)) = (
+            layout.body_argument.and_then(|argument| args.get(argument)),
+            layout
+                .body_argument
+                .and_then(|argument| arg_tokens.get(argument).copied()),
+        ) {
             self.parse_oo_definition_body(
-                &args[1],
+                body,
                 body_tok,
                 object_class,
                 scope_path,
-                grammar,
-                definer_disabled,
+                Some(grammar),
+                layout.definer_disabled,
             );
         }
     }
@@ -19238,6 +19388,24 @@ mod tests {
             deep_body_traits.contains(&crate::analyser::ProcArgTrait::Eval),
             "deep pass should surface nested Eval, got {deep_body_traits:?}",
         );
+    }
+
+    #[test]
+    fn deep_lambda_traits_follow_selected_original_words_and_document_offsets() {
+        for prefix in ["", "# λ shifts the original byte offsets\n", "\u{feff}"] {
+            let source = format!("{prefix}proc f {{body}} {{apply {{x {{eval $x}}}} $body}}");
+            let mut analyser = crate::analyser::Analyser::new();
+            analyser.deep_param_traits = true;
+            let result = analyser.analyse(&source, "tcl9.0");
+            let traits = result
+                .all_procs
+                .get("::f")
+                .and_then(|procedure| procedure.param_traits.get("body"));
+            assert!(
+                traits.is_some_and(|traits| traits.contains(&crate::analyser::ProcArgTrait::Eval)),
+                "selected original lambda source should carry Eval through its actual argument; prefix={prefix:?}, got {traits:?}",
+            );
+        }
     }
 
     #[test]

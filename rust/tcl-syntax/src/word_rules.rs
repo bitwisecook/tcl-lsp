@@ -1678,3 +1678,278 @@ mod scalar_literal_construction_tests {
         ));
     }
 }
+
+/// An original braced scalar followed by a proposed substituted array index.
+/// The original receiver and the proposed array receiver remain distinct;
+/// this supplies source geometry, not a variable cell, read or edit grant.
+#[derive(Debug, Clone)]
+pub struct BracedVariableArraySource {
+    original: tcl_lexer::NativeWord,
+    span: tcl_lexer::Span,
+    scalar: String,
+    root: String,
+    index: String,
+    adjacent: bool,
+}
+
+impl BracedVariableArraySource {
+    /// Genuine complete original word, retaining its image/channel/configuration.
+    #[must_use]
+    pub fn original_word(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+    /// Exact original scalar-and-suffix region proposed for replacement.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+    /// Original literal scalar name; this is not the proposed array root.
+    #[must_use]
+    pub fn scalar_name(&self) -> &str {
+        &self.scalar
+    }
+    /// Literal root of the deliberately proposed array receiver.
+    #[must_use]
+    pub fn array_root(&self) -> &str {
+        &self.root
+    }
+    /// Original bytes intended as the proposed substituted index source.
+    #[must_use]
+    pub fn index_source(&self) -> &str {
+        &self.index
+    }
+    /// Whether the original index suffix lies outside the braced scalar.
+    #[must_use]
+    pub const fn has_adjacent_index(&self) -> bool {
+        self.adjacent
+    }
+}
+
+/// Read braced-scalar array-intent shapes from genuine executable components.
+/// Shared variable/index scanners own all delimiters and substitutions. An
+/// unavailable or malformed proposed index supplies no shape; the proposed
+/// receiver never retroactively identifies the original scalar variable.
+#[must_use]
+pub fn braced_variable_array_sources(
+    word: &tcl_lexer::NativeWord,
+) -> Vec<BracedVariableArraySource> {
+    let source = word.image().bytes();
+    let config = word.config();
+    word.executable_parts()
+        .all_parts()
+        .filter_map(|part| {
+            let tcl_lexer::ExecutablePart::Variable { index: None, .. } = part.part else {
+                return None;
+            };
+            let start = usize::try_from(part.span.start()).ok()?;
+            if source.get(start..start.checked_add(2)?)? != b"${" {
+                return None;
+            }
+            let original = tcl_lexer::scan_var_ref(source, start, config).ok()??;
+            (original.index.is_none() && original.next == part.span.end() as usize).then_some(())?;
+            let scalar = std::str::from_utf8(original.name).ok()?;
+            let (root, index, end, adjacent) = if let Some((root, index)) =
+                crate::naming::split_element_ref_bytes(original.name)
+            {
+                let root = std::str::from_utf8(root).ok()?;
+                let index = std::str::from_utf8(index).ok()?;
+                let extent = tcl_lexer::Span::new(0, u32::try_from(index.len()).ok()?);
+                let parts = tcl_lexer::ExecutablePartArena::decompose(
+                    tcl_lexer::SourceImage::document(index),
+                    extent,
+                    tcl_lexer::word_parts::SubstFlags::default(),
+                    config,
+                )
+                .ok()?;
+                let mut dynamic = false;
+                for component in parts.all_parts() {
+                    match component.part {
+                        tcl_lexer::ExecutablePart::ParseError(_) => return None,
+                        tcl_lexer::ExecutablePart::Variable { .. }
+                        | tcl_lexer::ExecutablePart::Command { .. }
+                        | tcl_lexer::ExecutablePart::Expression { .. } => dynamic = true,
+                        tcl_lexer::ExecutablePart::Text(_) => {}
+                    }
+                }
+                dynamic.then_some(())?;
+                (root.to_owned(), index.to_owned(), original.next, false)
+            } else {
+                let suffix = source.get(original.next..word.span().end() as usize)?;
+                (suffix.first() == Some(&b'(')).then_some(())?;
+                // This is intentionally a NEW array-reference proposal. The fixed
+                // root only asks the existing index scanner for the original suffix.
+                let mut proposal = b"$a".to_vec();
+                proposal.extend_from_slice(suffix);
+                let proposed = tcl_lexer::scan_var_ref(&proposal, 0, config).ok()??;
+                let index = std::str::from_utf8(proposed.index?).ok()?.to_owned();
+                let consumed = proposed.next.checked_sub(2)?;
+                (
+                    scalar.to_owned(),
+                    index,
+                    original.next.checked_add(consumed)?,
+                    true,
+                )
+            };
+            ((!root.is_empty() || adjacent) && end <= word.span().end() as usize).then_some(())?;
+            Some(BracedVariableArraySource {
+                original: word.clone(),
+                span: tcl_lexer::Span::new(part.span.start(), u32::try_from(end).ok()?),
+                scalar: scalar.to_owned(),
+                root,
+                index,
+                adjacent,
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod braced_array_source_controls {
+    use super::*;
+
+    fn word(source: &str) -> tcl_lexer::NativeWord {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let mut plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        plan.commands.remove(0).words.remove(1)
+    }
+
+    #[test]
+    fn original_scalar_and_proposed_array_keep_distinct_configured_geometry() {
+        for (source, root, index, adjacent) in [
+            ("puts ${arr}(a\\)b)", "arr", "a\\)b", true),
+            ("puts ${arr($index)}", "arr", "$index", false),
+            ("puts \"before ${arr}(x) after\"", "arr", "x", true),
+        ] {
+            let word = word(source);
+            let proposals = braced_variable_array_sources(&word);
+            let [proposal] = proposals.as_slice() else {
+                panic!("{source}")
+            };
+            assert_eq!(proposal.original_word(), &word);
+            assert_eq!(proposal.array_root(), root);
+            assert_eq!(proposal.index_source(), index);
+            assert_eq!(proposal.has_adjacent_index(), adjacent);
+            assert_eq!(
+                source.get(proposal.span().as_range()),
+                Some(if adjacent {
+                    if index == "x" {
+                        "${arr}(x)"
+                    } else {
+                        "${arr}(a\\)b)"
+                    }
+                } else {
+                    "${arr($index)}"
+                })
+            );
+        }
+        assert!(braced_variable_array_sources(&word("puts {${arr}($index)}")).is_empty());
+        assert!(braced_variable_array_sources(&word("puts ${arr(fixed)}")).is_empty());
+    }
+}
+
+/// A deliberately changed source word after removing one literal leading space
+/// from an original quoted operand. Only one static word or a single original
+/// scalar/array reference is supported. The configured component owner checks
+/// the new standalone word; this supplies no value, list or edit equivalence.
+#[must_use]
+pub fn quoted_leading_space_source_word(original: &tcl_lexer::NativeWord) -> Option<String> {
+    if original.group().kind != tcl_lexer::WordKind::Quoted || original.group().expand {
+        return None;
+    }
+    let content = original.content_span().ok()?;
+    let raw = original.image().bytes().get(content.as_range())?;
+    let suffix = std::str::from_utf8(raw.strip_prefix(b" ")?).ok()?;
+    if suffix.is_empty() {
+        return None;
+    }
+    let components = source_word_components(original)?;
+    let proposal = match components.as_slice() {
+        [SourceWordComponent::Text(value)] => {
+            let value = std::str::from_utf8(value.strip_prefix(b" ")?).ok()?;
+            if value.is_empty() {
+                return None;
+            }
+            lexical_unicode_source_word(value, original.config())?
+        }
+        [
+            SourceWordComponent::Text(space),
+            SourceWordComponent::Scalar(_) | SourceWordComponent::Array(_),
+        ] if space == b" " => suffix.to_owned(),
+        _ => return None,
+    };
+    // The receiver is an operand, not a new command head. Static data is
+    // deliberately encoded; only the resulting configured word is parsed.
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        tcl_lexer::SourceImage::document(&proposal),
+        tcl_lexer::Span::new(0, u32::try_from(proposal.len()).ok()?),
+        original.config(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    let mut expected = components;
+    let Some(SourceWordComponent::Text(first)) = expected.first_mut() else {
+        return None;
+    };
+    first.remove(0);
+    if first.is_empty() {
+        expected.remove(0);
+    }
+    (plan.fatal_tail.is_none() && source_word_components(word)? == expected).then_some(proposal)
+}
+
+#[cfg(test)]
+mod configured_append_piece_controls {
+    use super::*;
+
+    #[test]
+    fn actual_quoted_component_keeps_variable_phase_and_refuses_composite_payloads() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let comment_piece = "\" #item\"";
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(comment_piece),
+            tcl_lexer::Span::new(0, u32::try_from(comment_piece.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let proposed = quoted_leading_space_source_word(&plan.commands[0].words[0]).unwrap();
+        assert!(lexical_unicode_source_word_matches(
+            &proposed, "#item", config
+        ));
+        for (source, expected) in [
+            ("\" $item\"", Some("$item")),
+            ("\" item\"", Some("item")),
+            ("\" $arr(k)\"", Some("$arr(k)")),
+            ("\" $a $b\"", None),
+            ("\" [list $a]\"", None),
+            ("\"  $a\"", None),
+        ] {
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[0];
+            assert_eq!(
+                quoted_leading_space_source_word(word).as_deref(),
+                expected,
+                "{source}"
+            );
+        }
+    }
+}

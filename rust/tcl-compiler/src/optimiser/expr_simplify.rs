@@ -138,7 +138,7 @@ fn walk_statement(
         Statement::AssignExpr {
             span, name, expr, ..
         } => {
-            try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
+            try_rewrite_assign_expr(ctx, script, stmt, *span, name, expr, numeric);
         }
         // `return [expr {…}]` gets the same partial simplification as
         // `set v [expr {…}]`: `return [expr {$r ** 2}]` can become
@@ -160,7 +160,7 @@ fn walk_statement(
             expr: Some(expr),
             ..
         } => {
-            try_rewrite_return_expr(ctx, *span, expr, numeric);
+            try_rewrite_return_expr(ctx, script, stmt, *span, expr, numeric);
         }
         Statement::If {
             clauses, else_body, ..
@@ -327,6 +327,127 @@ fn original_expression_candidate_tokens(
     Some(originals)
 }
 
+/// The original outer command and its uniquely selected expression word.
+/// This only constructs source after independent semantic rewrite approval.
+pub(super) struct OriginalExpressionStatementSource {
+    source: String,
+    span: Span,
+    substitution: Span,
+    expression_word: Span,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl OriginalExpressionStatementSource {
+    fn capture(
+        ctx: &PassContext<'_>,
+        script: &Script,
+        statement: &Statement,
+        expression: &ExprNode,
+    ) -> Option<Self> {
+        let tokens = script.retained_source_tokens_for_statement(statement)?;
+        Self::capture_with_tokens(ctx, statement, tokens, expression)
+    }
+
+    pub(super) fn capture_with_tokens(
+        ctx: &PassContext<'_>,
+        statement: &Statement,
+        outer: &crate::ir::CommandTokens,
+        expression: &ExprNode,
+    ) -> Option<Self> {
+        let registry = ctx.registry?;
+        let module = ctx.ir_module?;
+        let config = ctx.lexer_config();
+        if module.source.try_text().ok()? != ctx.source {
+            return None;
+        }
+        let span = super::helpers::spans::original_statement_rewrite_span(ctx, statement.span())?;
+        let binding = outer.source_binding.as_ref()?;
+        let site = binding.invocation_site()?;
+        if site.offset != span.start() || site.source.source_image() != &module.source {
+            return None;
+        }
+        let original = site
+            .source
+            .original_lexical_command(outer.words(), site.offset, config)?;
+        let mut selected = None;
+        for tokens in original_expression_candidate_tokens(outer, module, registry, config)? {
+            let Some(context) =
+                crate::registry_invocation::original_literal_expression_context_advice(
+                    registry, &tokens,
+                )
+            else {
+                continue;
+            };
+            let child_binding = tokens.source_binding.as_ref()?;
+            let child_site = child_binding.invocation_site()?;
+            let child = child_site.source.original_lexical_command(
+                tokens.words(),
+                child_site.offset,
+                config,
+            )?;
+            let word = child.native_words().get(context.written)?;
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            let value = std::str::from_utf8(&value).ok()?;
+            let checked = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
+                value,
+                &context.parser,
+                config,
+            )?;
+            if !checked.matches_tree(expression) {
+                continue;
+            }
+            for operand in original.native_words() {
+                let Some(substitution) = crate::registry_invocation::source_structure::original_single_source_command_substitution(operand) else {
+                    continue;
+                };
+                if substitution.command().words.as_slice() != child.native_words() {
+                    continue;
+                }
+                let found = (operand.span(), word.span());
+                if selected.replace(found).is_some() {
+                    return None;
+                }
+            }
+        }
+        let (substitution, expression_word) = selected?;
+        if substitution.start() < span.start()
+            || substitution.end() > span.end()
+            || expression_word.start() < substitution.start()
+            || expression_word.end() > substitution.end()
+        {
+            return None;
+        }
+        Some(Self {
+            source: ctx
+                .source
+                .get(span.start() as usize..span.end() as usize)?
+                .to_owned(),
+            span,
+            substitution,
+            expression_word,
+            config,
+        })
+    }
+
+    fn replace_word(&self, span: Span, value: &str) -> Option<String> {
+        let word = tcl_syntax::word_rules::lexical_unicode_source_word(value, self.config)?;
+        let start = usize::try_from(span.start().checked_sub(self.span.start())?).ok()?;
+        let end = usize::try_from(span.end().checked_sub(self.span.start())?).ok()?;
+        let mut source = self.source.clone();
+        source.get(start..end)?;
+        source.replace_range(start..end, &word);
+        Some(source)
+    }
+
+    pub(super) fn folded(&self, value: &str) -> Option<String> {
+        self.replace_word(self.substitution, value)
+    }
+
+    pub(super) fn simplified(&self, expression: &str) -> Option<String> {
+        self.replace_word(self.expression_word, expression)
+    }
+}
+
 /// Fold `set name [expr {…}]` via the standard chain:
 ///
 /// 1. Full constant fold (`expr {2 + 3}` → `5`) → O101
@@ -339,15 +460,21 @@ fn original_expression_candidate_tokens(
 /// expression contains a command substitution (side-effect risk).
 fn try_rewrite_assign_expr(
     ctx: &mut PassContext<'_>,
+    script: &Script,
+    statement: &Statement,
     span: Span,
-    name: &str,
+    _name: &str,
     expr: &ExprNode,
     numeric: NumericCtx<'_>,
 ) {
     use super::helpers::expr_simplify::{
         expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
     };
-    use super::helpers::spans::full_rewrite_span;
+    use super::helpers::spans::original_statement_rewrite_span;
+
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
 
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
@@ -364,6 +491,8 @@ fn try_rewrite_assign_expr(
     if !ctx.command_mutations.trusts("expr") {
         return;
     }
+
+    let source = OriginalExpressionStatementSource::capture(ctx, script, statement, expr);
 
     // 1. Full constant fold. Only when no math-function call in the
     // expression is shadowed by a user-defined `::tcl::mathfunc::<name>`
@@ -384,12 +513,14 @@ fn try_rewrite_assign_expr(
                 || folded.contains([
                     ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
                 ]);
-            if !needs_quoting {
+            if !needs_quoting
+                && let Some(replacement) = source.as_ref().and_then(|source| source.folded(&folded))
+            {
                 ctx.report(Optimisation::new(
                     DiagCode::O101,
                     "Fold constant expression",
-                    full_rewrite_span(ctx.source, span),
-                    format!("set {name} {folded}"),
+                    rewrite_span,
+                    replacement,
                 ));
                 return;
             }
@@ -412,12 +543,15 @@ fn try_rewrite_assign_expr(
         && ctx
             .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
             .is_ok()
+        && let Some(replacement) = source
+            .as_ref()
+            .and_then(|source| source.simplified(&simplified))
     {
         ctx.report(Optimisation::new(
             DiagCode::O110,
             "Simplify expression (instcombine)",
-            full_rewrite_span(ctx.source, span),
-            collapse_assign_expr_wrapper(name, &simplified),
+            rewrite_span,
+            replacement,
         ));
         return;
     }
@@ -433,12 +567,15 @@ fn try_rewrite_assign_expr(
         && ctx
             .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
             .is_ok()
+        && let Some(replacement) = source
+            .as_ref()
+            .and_then(|source| source.simplified(&reduced))
     {
         ctx.report(Optimisation::new(
             DiagCode::O113,
             "Strength-reduce expression",
-            full_rewrite_span(ctx.source, span),
-            collapse_assign_expr_wrapper(name, &reduced),
+            rewrite_span,
+            replacement,
         ));
     }
 }
@@ -462,6 +599,8 @@ fn try_rewrite_assign_expr(
 /// report the same fold twice.
 fn try_rewrite_return_expr(
     ctx: &mut PassContext<'_>,
+    script: &Script,
+    statement: &Statement,
     span: Span,
     expr: &ExprNode,
     numeric: NumericCtx<'_>,
@@ -469,7 +608,11 @@ fn try_rewrite_return_expr(
     use super::helpers::expr_simplify::{
         expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
     };
-    use super::helpers::spans::full_rewrite_span;
+    use super::helpers::spans::original_statement_rewrite_span;
+
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
 
     if matches!(expr, ExprNode::Raw { .. })
         || expr_has_command_subst(expr)
@@ -478,18 +621,22 @@ fn try_rewrite_return_expr(
         return;
     }
 
+    let source = OriginalExpressionStatementSource::capture(ctx, script, statement, expr);
     let rendered = crate::expr_ast::render_expr(expr);
     let (simplified, inst_changed) = instcombine_expr_typed(&rendered, false, numeric, ctx.dialect);
     if inst_changed
         && ctx
             .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
             .is_ok()
+        && let Some(replacement) = source
+            .as_ref()
+            .and_then(|source| source.simplified(&simplified))
     {
         ctx.report(Optimisation::new(
             DiagCode::O110,
             "Simplify expression (instcombine)",
-            full_rewrite_span(ctx.source, span),
-            collapse_return_expr_wrapper(&simplified),
+            rewrite_span,
+            replacement,
         ));
         return;
     }
@@ -504,12 +651,15 @@ fn try_rewrite_return_expr(
         && ctx
             .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
             .is_ok()
+        && let Some(replacement) = source
+            .as_ref()
+            .and_then(|source| source.simplified(&reduced))
     {
         ctx.report(Optimisation::new(
             DiagCode::O113,
             "Strength-reduce expression",
-            full_rewrite_span(ctx.source, span),
-            collapse_return_expr_wrapper(&reduced),
+            rewrite_span,
+            replacement,
         ));
     }
 }
@@ -570,11 +720,13 @@ fn report_unproved_identity_candidate(
 }
 
 /// Keep the native result operation after proving a partial expression rewrite.
+#[cfg(test)]
 fn collapse_return_expr_wrapper(simplified: &str) -> String {
     format!("return [expr {{{simplified}}}]")
 }
 
 /// Keep the native result operation after proving a partial expression rewrite.
+#[cfg(test)]
 fn collapse_assign_expr_wrapper(name: &str, simplified: &str) -> String {
     format!("set {name} [expr {{{simplified}}}]")
 }
@@ -654,6 +806,147 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     use crate::interprocedural::InterproceduralAnalysis;
+
+    #[test]
+    fn original_expression_token_reborrow_keeps_actual_statement_correspondence() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let source = "set first [expr {1 + 2}]; ::set {$literal target} [::expr {2 + 3}]";
+        let module = source_candidate_module(source, &input);
+        let statement = module.top_level.statements.last().unwrap();
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let advice = expression_candidate_advice(&module, registry, config).unwrap();
+        assert_eq!(advice.len(), 1);
+        let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+        ctx.registry = Some(registry);
+        ctx.ir_module = Some(&module);
+        let actual = OriginalExpressionStatementSource::capture_with_tokens(
+            &ctx,
+            statement,
+            tokens,
+            &advice[0].expression,
+        )
+        .unwrap();
+        assert_eq!(
+            actual.folded("5").as_deref(),
+            Some("::set {$literal target} 5")
+        );
+        let first = module.top_level.statements.first().unwrap();
+        let foreign = module
+            .top_level
+            .retained_source_tokens_for_statement(first)
+            .unwrap();
+        assert!(
+            OriginalExpressionStatementSource::capture_with_tokens(
+                &ctx,
+                statement,
+                foreign,
+                &advice[0].expression,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_expression_replacement_preserves_written_heads_and_literal_targets() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, folded, simplified) in [
+            ("set x [expr {2 + 3}]", "set x 5", "set x [expr {3 + 2}]"),
+            (
+                "::set {$literal name} [::expr {2 + 3}]",
+                "::set {$literal name} 5",
+                "::set {$literal name} [::expr {3 + 2}]",
+            ),
+            (
+                "return [::expr {2 + 3}]",
+                "return 5",
+                "return [::expr {3 + 2}]",
+            ),
+        ] {
+            let module = source_candidate_module(source, &input);
+            let statement = module.top_level.statements.last().unwrap();
+            let advice = expression_candidate_advice(&module, registry, config).unwrap();
+            assert_eq!(advice.len(), 1);
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            let retained = OriginalExpressionStatementSource::capture(
+                &ctx,
+                &module.top_level,
+                statement,
+                &advice[0].expression,
+            )
+            .unwrap();
+            assert_eq!(retained.folded("5").as_deref(), Some(folded));
+            assert_eq!(retained.simplified("3 + 2").as_deref(), Some(simplified));
+            ctx.source = "set foreign 0";
+            assert!(
+                OriginalExpressionStatementSource::capture(
+                    &ctx,
+                    &module.top_level,
+                    statement,
+                    &advice[0].expression,
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_expression_replacement_does_not_borrow_concatenated_child_words() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let source = "set x [expr {2 + 3}][expr {4 + 5}]";
+        let module = source_candidate_module(source, &input);
+        let statement = module.top_level.statements.last().unwrap();
+        let advice = expression_candidate_advice(&module, registry, config).unwrap();
+        assert_eq!(advice.len(), 2);
+        let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+        ctx.registry = Some(registry);
+        ctx.ir_module = Some(&module);
+        for candidate in advice {
+            assert!(
+                OriginalExpressionStatementSource::capture(
+                    &ctx,
+                    &module.top_level,
+                    statement,
+                    &candidate.expression,
+                )
+                .is_none()
+            );
+        }
+    }
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()

@@ -729,6 +729,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         member_body_commands,
         bare_word_construction,
         bare_word_construction_hint,
+        bare_word_construction_source_hint,
         dynamic_method_dispatch,
         manufacturers,
         unknown_dispatch_method,
@@ -750,6 +751,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         ),
         "bare_word_construction": bare_word_construction,
         "bare_word_construction_hint": bare_word_construction_hint.is_some(),
+        "bare_word_construction_source_hint": bare_word_construction_source_hint.map(|hint| json!({ "values": str_list(hint.values), "prefixes": str_list(hint.prefixes) })),
         "dynamic_method_dispatch": dynamic_method_dispatch,
         "manufacturers": Value::Array(manufacturers.iter().map(manufacturer_method).collect()),
         "unknown_dispatch_method": unknown_dispatch_method,
@@ -2443,6 +2445,10 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "closed_value_args".into(),
         index_list(spec.closed_value_args),
+    );
+    d.insert(
+        "arg_values_accept_prefix".into(),
+        json!(spec.arg_values_accept_prefix),
     );
     command_irules_events(d, spec, lost);
     d.insert("options".into(), option_rows(spec.options, lost));

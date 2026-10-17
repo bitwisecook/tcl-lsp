@@ -2724,6 +2724,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     flag(out, ctx, draft, "warn_missing_import");
     flag(out, ctx, draft, "is_namespace_exported");
     flag(out, ctx, draft, "unsafe_command");
+    flag(out, ctx, draft, "arg_values_accept_prefix");
     text_list(out, ctx, draft, "excluded_events");
     set_word(out, ctx, draft, "safe_on_uninit");
     expr_row(out, ctx, draft, "deprecation_fix", deprecation_fix_row);
@@ -3430,7 +3431,28 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         body.row(&row, "-binds-handle");
     }
     if value["bare_word_construction"].as_bool() == Some(true) {
-        body.line("bare_word_construction");
+        let mut row = vec!["bare_word_construction".to_owned()];
+        if let Some(hint) = value
+            .get("bare_word_construction_source_hint")
+            .filter(|hint| !hint.is_null())
+        {
+            for (key, flag) in [("values", "-hint-values"), ("prefixes", "-hint-prefixes")] {
+                row.push(flag.to_owned());
+                let values = as_array(&hint[key]);
+                let rendered: Option<Vec<_>> = values
+                    .iter()
+                    .map(|value| value.as_str().and_then(word))
+                    .collect();
+                match rendered {
+                    Some(values) => row.push(format!("{{{}}}", values.join(" "))),
+                    None => {
+                        lost = true;
+                        row.push("{}".to_owned());
+                    }
+                }
+            }
+        }
+        body.row(&row, "");
     }
     if value["dynamic_method_dispatch"].as_bool() == Some(true) {
         body.line("dynamic_method_dispatch");
@@ -5962,5 +5984,44 @@ mod tests {
             invalid.command("probe::indices").unwrap().spec.subcommands[0].source_index_bounds,
             None
         );
+    }
+
+    #[test]
+    fn command_closed_value_prefix_policy_round_trips_both_studio_renderers() {
+        use tcl_registry::hover::ArgValue;
+        static VALUES: &[(u8, &[ArgValue])] = &[(
+            0,
+            &[ArgValue {
+                value: "script",
+                ..ArgValue::DEFAULT
+            }],
+        )];
+        for accepts_prefix in [false, true] {
+            let spec = tcl_registry::CommandSpec {
+                name: "prefix_probe",
+                arg_values: VALUES,
+                closed_value_args: &[0],
+                arg_values_accept_prefix: accepts_prefix,
+                ..tcl_registry::CommandSpec::DEFAULT
+            };
+            let before = draft::from_command_spec(&spec);
+            assert_eq!(
+                before["arg_values_accept_prefix"],
+                serde_json::json!(accepts_prefix)
+            );
+            let rust_source = crate::render_rs::render(&before);
+            if accepts_prefix {
+                assert!(rust_source.contains("arg_values_accept_prefix: true"));
+            }
+            let text = render_pack(std::slice::from_ref(&before), "prefix_probe_pack");
+            let loaded = crate::spectcl::evaluate_pack(&text);
+            assert!(loaded.notices.is_empty(), "{:?}\n{text}", loaded.notices);
+            let command = loaded.command("prefix_probe").unwrap();
+            assert_eq!(command.spec.arg_values_accept_prefix, accepts_prefix);
+            assert_eq!(
+                draft::from_command_spec(command.spec)["arg_values_accept_prefix"],
+                before["arg_values_accept_prefix"]
+            );
+        }
     }
 }

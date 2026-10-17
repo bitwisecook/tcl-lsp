@@ -519,6 +519,39 @@ impl std::hash::Hash for SourceOriginalVariableFrame {
 }
 
 impl SourceOriginalVariableFrame {
+    // Conditional authored procedure layout only; no entered frame or cell.
+    pub(crate) fn from_authored_scalar_source(
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Self> {
+        let binding = tokens.source_binding.as_ref()?;
+        let scope = binding.original_authored_scalar_body_scope(tokens, registry)?;
+        scope.original_words(tokens, registry)?;
+        scope.scalar_name_policy()?;
+        let advice = binding.original_authored_declaration_scalar_layout(tokens, registry)?;
+        if advice.has_unclosed_source_coverage()
+            || scope.has_unclosed_declaration_source_coverage()
+            || advice.namespace() != scope.namespace()
+        {
+            return None;
+        }
+        let body = scope.scalar_frame_body();
+        let span = body.content_span().ok()?;
+        let origin = &binding.invocation_site()?.source;
+        (origin.source_image() == body.image()).then_some(())?;
+        let text = body.image().try_text().ok()?.get(span.as_range())?;
+        Some(Self {
+            source: super::ExecutedScriptSource::contiguous_image(
+                Arc::clone(origin),
+                tcl_lexer::SourceImage::document(text),
+                span.start(),
+            )?,
+            frame: advice.frame().clone(),
+            config: scope.config(),
+            logical_lambda: None,
+        })
+    }
+
     /// Conditional lexical lambda layout from its held call and source fields.
     /// This does not issue an entered frame, installed local or Native recipe.
     pub(crate) fn from_logical_lambda_source(

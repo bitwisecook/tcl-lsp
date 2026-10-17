@@ -495,8 +495,9 @@ struct CommentLineWalker<'a> {
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
     identities: crate::realm::CommandBindingRealm,
-    source_context:
-        Option<crate::registry_invocation::source_structure::OriginalSourceRegistryContext>,
+    source_context: Option<
+        std::sync::Arc<crate::registry_invocation::source_structure::OriginalSourceRegistryContext>,
+    >,
     analysis: Option<&'a super::AnalysisResult>,
     availability: Option<SurfaceQuery<'a>>,
     visited: HashSet<(u32, u32)>,
@@ -512,7 +513,7 @@ impl<'a> CommentLineWalker<'a> {
             let generation = crate::environment_ingress::context_for_profile(profile);
             let context = std::sync::Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
             let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
-            crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(whole, input)
+            std::sync::Arc::new(crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(whole, input))
         });
         let identities = source_context.as_ref().map_or_else(
             || crate::realm::document_realm_bindings_with_config(whole, config, registry),
@@ -943,6 +944,40 @@ impl<'a> CommentLineWalker<'a> {
         base_offset: u32,
         depth: u32,
     ) {
+        if let Some(source) = self.source_context.clone() {
+            let command = command.clone().shifted_by(base_offset);
+            let Some(words) = source.words(&command) else {
+                return;
+            };
+            if !words.matches_source(source.source_image(), self.config) {
+                return;
+            }
+            for &(ordinal, role) in words.roles().unwrap_or_default() {
+                if role != ArgRole::LambdaLiteral {
+                    continue;
+                }
+                let Some(word) = words
+                    .operands()
+                    .get(ordinal)
+                    .and_then(Option::as_ref)
+                    .and_then(|operand| operand.word())
+                else {
+                    continue;
+                };
+                if word.image() != source.source_image() || word.config() != self.config {
+                    continue;
+                }
+                let Some(body) = crate::lambda_literal::split_original_lambda_literal(word)
+                    .and_then(|lambda| lambda.braced_body())
+                else {
+                    continue;
+                };
+                if let Some(lambda) = self.whole.get(body.as_range()) {
+                    self.visit(lambda, body.start(), depth.saturating_add(1), None);
+                }
+            }
+            return;
+        }
         for index in roles
             .iter()
             .filter_map(|&(index, role)| (role == ArgRole::LambdaLiteral).then_some(index))

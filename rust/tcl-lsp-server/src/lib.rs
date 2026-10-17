@@ -27151,9 +27151,9 @@ impl Backend {
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
             let (loaded, loader_inputs) =
-                tcl_spectcl::bundled::load_discovered_with_studio_sources_and_inputs_in(
-                    pack_store.as_ref(),
-                    &discovery.files,
+                tcl_spectcl::bundled::load_discovered_configuration_with_studio_sources_and_inputs_in(
+                    Arc::clone(&pack_store),
+                    &discovery,
                     &studio,
                     options.workspace_trust,
                 );

@@ -90,8 +90,22 @@ fn provide_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
 }
 
 fn require_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
-    let exact = arguments.literal_at(1) == Some("-exact");
-    let package_index = if exact { 2 } else { 1 };
+    let Some((relative_package, exact)) = package_require_layout(arguments.slice_from(1)) else {
+        let mut transitions = StateTransitions::default();
+        if let Some(word) = arguments.get(1) {
+            transitions.push(StateTransition::Widen(
+                crate::state_transition::StateTransitionWidening {
+                    domains: PACKAGE_DOMAINS.to_vec(),
+                    subject: TransitionSubject::Unknown {
+                        argument_index: 1,
+                        word_kind: word.kind(),
+                    },
+                },
+            ));
+        }
+        return transitions;
+    };
+    let package_index = relative_package + 1;
     if arguments.len() <= package_index
         || (exact && arguments.len() != package_index + 2)
         || arguments
@@ -105,10 +119,17 @@ fn require_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     }
     if let Some(release) = arguments.dialect().and_then(|dialect| dialect.tcl_version) {
         for index in package_index + 1..arguments.len() {
-            if let Some(requirement) = arguments.literal_at(index)
-                && ((exact && !tcl_dialect::validate_version_for(requirement, release))
+            let word = arguments.get(index);
+            let requirement = word.and_then(|word| {
+                word.literal()
+                    .map(str::as_bytes)
+                    .or_else(|| word.native_bytes())
+            });
+            if let Some(requirement) = requirement
+                && ((exact && !tcl_dialect::validate_version_bytes_for(requirement, release))
                     || (!exact
-                        && tcl_dialect::validate_requirement_for(requirement, release).is_err()))
+                        && tcl_dialect::validate_requirement_bytes_for(requirement, release)
+                            .is_err()))
             {
                 return StateTransitions::default();
             }
@@ -203,19 +224,55 @@ const EXACT_OPTION: &[OptionSpec] = &[OptionSpec {
     effect: None,
 }];
 
-/// `require ?-exact? package ?requirement ...?`'s layout after the
-/// subcommand word: the package name follows the option run, and every word
-/// after it is one requirement.
-fn package_require_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let start = leading_option_word_count_with(EXACT_OPTION, args, PrefixMatching::Strict);
-    (start..args.len())
-        .filter_map(|index| {
-            let role = if index == start {
-                ArgRole::Name
-            } else {
-                ArgRole::Value
-            };
-            u8::try_from(index).ok().map(|index| (index, role))
+/// One optional exact flag, not a repeatable option run. This is the selected
+/// package descriptor's source layout, shared by roles and transitions. Byte
+/// values stay bytes; NUL-dependent C-string extent is unavailable here.
+fn package_require_layout(args: InvocationArguments<'_>) -> Option<(usize, bool)> {
+    let count = args.exact_argv_len()?;
+    let first = args.get(0)?;
+    let exact = match first {
+        crate::InvocationWord::Literal(value) => {
+            if value.contains('\0') {
+                return None;
+            }
+            EXACT_OPTION[0].matches(value)
+        }
+        crate::InvocationWord::KnownBytes(value) => {
+            if value.contains(&0) {
+                return None;
+            }
+            value == EXACT_OPTION[0].name.as_bytes()
+                || EXACT_OPTION[0]
+                    .aliases
+                    .iter()
+                    .any(|alias| value == alias.as_bytes())
+        }
+        word if word.proves_non_option() => false,
+        _ => return None,
+    };
+    let package = usize::from(exact);
+    (count > package).then_some((package, exact))
+}
+
+fn package_require_arg_roles(
+    args: InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let (package, exact) = package_require_layout(args)?;
+    if exact && count != package + 2 {
+        return None;
+    }
+    (package..count)
+        .map(|index| {
+            Some((
+                u8::try_from(index).ok()?,
+                if index == package {
+                    ArgRole::Name
+                } else {
+                    ArgRole::Value
+                },
+            ))
         })
         .collect()
 }
@@ -441,8 +498,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         prefix_matching: PrefixMatching::Strict,
         options: EXACT_OPTION,
-        // The name follows the option run; each later word is a requirement.
-        arg_role_resolver: Some(package_require_arg_roles),
+        // At most one exact flag precedes the name; later words are requirements.
+        arg_role_layout_resolver: Some(package_require_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Value],
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageRequire),
         // Evaluates another unit's `ifneeded` script in this interpreter,
@@ -911,5 +968,79 @@ mod tests {
             .expect("package is in the Tcl 8.5 registry");
         assert_eq!(modern.form.map(|form| form.name), Some("tcl8.5+"));
         assert!(modern.arity().accepts(3));
+    }
+}
+
+#[cfg(test)]
+mod single_package_option_layout_tests {
+    use super::*;
+
+    #[test]
+    fn repeated_exact_is_the_package_name_after_one_flag() {
+        assert_eq!(
+            package_require_layout(InvocationArguments::literals(&["-exact", "-exact", "1.0"])),
+            Some((1, true))
+        );
+        assert_eq!(
+            package_require_layout(InvocationArguments::literals(&["-e", "1.0"])),
+            Some((0, false))
+        );
+        let words = [
+            crate::InvocationWord::KnownBytes(b"-exact"),
+            crate::InvocationWord::KnownBytes(b"-exact"),
+            crate::InvocationWord::KnownBytes(b"1.0"),
+        ];
+        assert_eq!(
+            package_require_layout(InvocationArguments::structured(&words)),
+            Some((1, true))
+        );
+        let transitions = require_transitions(InvocationArguments::structured(&[
+            crate::InvocationWord::Literal("require"),
+            words[0],
+            words[1],
+            words[2],
+        ]));
+        assert!(transitions.facts().iter().any(|fact| matches!(&fact.transition,
+            StateTransition::Package(PackageTransition::Require { package: TransitionSubject::LocatedNativeBytes { value, argument_index: 2 }, exact: true, .. }) if value == b"-exact")));
+    }
+
+    #[test]
+    fn byte_requirements_keep_the_original_release_distinction() {
+        let words = [
+            crate::InvocationWord::Literal("require"),
+            crate::InvocationWord::KnownBytes(b"p"),
+            crate::InvocationWord::KnownBytes(b"1"),
+            crate::InvocationWord::KnownBytes(b"2"),
+        ];
+        for release in tcl_dialect::TclVersion::ALL {
+            let transitions = require_transitions(
+                InvocationArguments::structured(&words)
+                    .with_dialect(crate::InvocationDialect::for_version(release)),
+            );
+            let loads = transitions.facts().iter().any(|fact| {
+                matches!(
+                    fact.transition,
+                    StateTransition::Package(PackageTransition::Require { .. })
+                )
+            });
+            assert_eq!(loads, release >= tcl_dialect::TclVersion::V8_5);
+        }
+    }
+
+    #[test]
+    fn unknown_option_extent_never_becomes_a_positional_name() {
+        for word in [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Expanded,
+            crate::InvocationWord::KnownBytes(b"-exact\0suffix"),
+        ] {
+            assert_eq!(
+                package_require_layout(InvocationArguments::structured(&[
+                    word,
+                    crate::InvocationWord::Literal("name")
+                ])),
+                None
+            );
+        }
     }
 }

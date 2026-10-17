@@ -107,6 +107,41 @@ pub fn programs_of(
     content_hash: &str,
     commands: &[PackCommand],
 ) -> PackPrograms {
+    programs_with_sources(pack, dsl_version, content_hash, commands).0
+}
+
+/// Actual declaration allocation held separately from source display names.
+#[derive(Debug, Clone, Copy)]
+struct HookDeclarationAllocation(&'static CommandSpec);
+impl PartialEq for HookDeclarationAllocation {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.0, other.0)
+    }
+}
+impl Eq for HookDeclarationAllocation {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalHookPlanDeclaration {
+    declaration: HookDeclarationAllocation,
+    file: PathBuf,
+    pack: String,
+    dsl_version: String,
+    provenance: Provenance,
+    hooks: Vec<HookDecl>,
+}
+
+struct OriginalHookProgramSource {
+    declaration: HookDeclarationAllocation,
+    file: PathBuf,
+}
+
+fn programs_with_sources(
+    pack: &str,
+    dsl_version: &str,
+    content_hash: &str,
+    commands: &[PackCommand],
+) -> (PackPrograms, Vec<OriginalHookProgramSource>) {
+    let mut sources = Vec::new();
     let mut programs = PackPrograms::new(pack);
     dsl_version.clone_into(&mut programs.dsl_version);
     content_hash.clone_into(&mut programs.content_hash);
@@ -119,6 +154,10 @@ pub fn programs_of(
         else {
             continue;
         };
+        sources.push(OriginalHookProgramSource {
+            declaration: HookDeclarationAllocation(command.spec),
+            file: command.file.clone(),
+        });
         programs.programs.push(HookProgram {
             command: command.spec.name.to_owned(),
             owner: owner_of(&hook.owner),
@@ -133,7 +172,7 @@ pub fn programs_of(
             release_pinned: hook.family == HookFamily::Evaluate,
         });
     }
-    programs
+    (programs, sources)
 }
 
 // Execution gated on trust
@@ -211,14 +250,24 @@ fn owner_of(owner: &DeclOwner) -> HookOwner {
 
 /// One pack set's hook bodies with the process-wide slot each is bound to.
 ///
-/// Built once per [`PackSet::key`] and shared: the same content installed into
-/// three dialect profiles, or reinstalled after a no-op reload, gets the same
-/// slots, so the 64-per-family budget is spent on distinct pack *content*
-/// rather than on how often it is asked for.
+/// Memoised for the actual source content and immutable declaration allocation
+/// roster. Fresh same-content declarations reissue their own source bindings;
+/// the typed stable source tuple keeps slots across edits and no-op reloads.
 #[derive(Debug, Clone, Default)]
 pub struct HookPlan {
     packs: Vec<PackPrograms>,
     dormant: Vec<DormantHook>,
+    bindings: Vec<OriginalHookBinding>,
+}
+
+#[derive(Debug, Clone)]
+struct OriginalHookBinding {
+    declaration: HookDeclarationAllocation,
+    file: PathBuf,
+    pack: String,
+    owner: HookOwner,
+    family: HookFamily,
+    slot: HookSlot,
 }
 
 impl HookPlan {
@@ -245,18 +294,20 @@ impl HookPlan {
         self.packs.iter().all(|pack| pack.programs.is_empty())
     }
 
-    /// Every slot bound for `command`, as `(pack, owner, family, slot)`.
-    fn bindings_for<'a>(&'a self, command: &'a str) -> impl Iterator<Item = Binding<'a>> + 'a {
-        self.packs.iter().flat_map(move |pack| {
-            pack.programs.iter().filter_map(move |program| {
-                (program.command == command)
-                    .then(|| {
-                        program
-                            .slot
-                            .map(|slot| (pack.pack.as_str(), &program.owner, program.family, slot))
-                    })
-                    .flatten()
-            })
+    /// Slots issued for this actual selected original declaration allocation.
+    fn bindings_for<'a>(
+        &'a self,
+        command: &'a PackCommand,
+    ) -> impl Iterator<Item = Binding<'a>> + 'a {
+        self.bindings.iter().filter_map(move |binding| {
+            (binding.declaration == HookDeclarationAllocation(command.spec)
+                && binding.file == command.file)
+                .then_some((
+                    binding.pack.as_str(),
+                    &binding.owner,
+                    binding.family,
+                    binding.slot,
+                ))
         })
     }
 }
@@ -266,7 +317,8 @@ type Binding<'a> = (&'a str, &'a HookOwner, HookFamily, HookSlot);
 /// The slot assignment for `packs`, allocated once per content key.
 #[must_use]
 pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
-    static PLANS: LazyLock<Mutex<HashMap<u64, Arc<HookPlan>>>> =
+    type PlanEntry = (Vec<OriginalHookPlanDeclaration>, Arc<HookPlan>);
+    static PLANS: LazyLock<Mutex<HashMap<u64, PlanEntry>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
     static EMPTY: LazyLock<Arc<HookPlan>> = LazyLock::new(|| Arc::new(HookPlan::default()));
 
@@ -277,7 +329,25 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
         Ok(plans) => plans,
         Err(poisoned) => poisoned.into_inner(),
     };
-    if let Some(plan) = plans.get(&packs.key) {
+    let source_roster: Vec<_> = packs
+        .packs
+        .iter()
+        .flat_map(|pack| {
+            pack.commands
+                .iter()
+                .map(move |command| OriginalHookPlanDeclaration {
+                    declaration: HookDeclarationAllocation(command.spec),
+                    file: command.file.clone(),
+                    pack: pack.name.clone(),
+                    dsl_version: pack.dsl_version.clone(),
+                    provenance: pack.provenance(),
+                    hooks: command.hooks.clone(),
+                })
+        })
+        .collect();
+    if let Some((original, plan)) = plans.get(&packs.key)
+        && original == &source_roster
+    {
         return Arc::clone(plan);
     }
     let hash = format!("{:016x}", packs.key);
@@ -293,33 +363,51 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
                 .extend(dormant_hooks(&pack.name, &pack.commands, provenance));
             continue;
         }
-        let mut programs = programs_of(&pack.name, &pack.dsl_version, &hash, &pack.commands);
-        // A family with no slots left installs no hook at all: the command
-        // keeps its declarative facts, which is the documented degradation and
-        // is cheaper than an abstaining call per query.
-        programs.programs.retain_mut(|program| {
-            // Keyed on the hook's identity — pack, command, owner, family —
-            // not on the pack's content, so re-editing a pack rebinds the
-            // slots it already holds instead of spending fresh ones out of the
-            // 64 a family has. See `pack_hooks::allocate_stable`.
-            let identity = format!(
-                "{}\u{0}{}\u{0}{}",
-                pack.name,
-                program.command,
-                program.owner.subcommand().unwrap_or("")
-            );
-            match pack_hooks::allocate_stable(program.family, &identity, &program.inputs) {
-                Some(slot) => {
-                    program.slot = Some(slot);
-                    true
-                }
-                None => false,
-            }
-        });
+        let (mut programs, sources) =
+            programs_with_sources(&pack.name, &pack.dsl_version, &hash, &pack.commands);
+        programs.programs = programs
+            .programs
+            .into_iter()
+            .zip(sources)
+            .filter_map(|(mut program, source)| {
+                let owner = match &program.owner {
+                    HookOwner::Command => pack_hooks::HookSourceOwner::Command,
+                    HookOwner::Subcommand(name) => {
+                        pack_hooks::HookSourceOwner::Subcommand(name.clone())
+                    }
+                    HookOwner::Option { subcommand, option } => {
+                        pack_hooks::HookSourceOwner::Option {
+                            subcommand: subcommand.clone(),
+                            option: option.clone(),
+                        }
+                    }
+                };
+                let identity = pack_hooks::HookSourceIdentity {
+                    pack: pack.name.clone(),
+                    provenance,
+                    file: source.file.clone(),
+                    command: program.command.clone(),
+                    owner,
+                };
+                let slot = pack_hooks::allocate_stable(program.family, &identity, &program.inputs)?;
+                program.slot = Some(slot);
+                built.bindings.push(OriginalHookBinding {
+                    declaration: source.declaration,
+                    file: source.file,
+                    pack: pack.name.clone(),
+                    owner: program.owner.clone(),
+                    family: program.family,
+                    slot,
+                });
+                Some(program)
+            })
+            .collect();
         built.packs.push(programs);
     }
     let plan = Arc::new(built);
-    plans.insert(packs.key, Arc::clone(&plan));
+    // Only the current memo entry for this existing content bucket is held.
+    // Replacing it cannot invalidate independently retained live Arc plans.
+    plans.insert(packs.key, (source_roster, Arc::clone(&plan)));
     plan
 }
 
@@ -335,7 +423,7 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
 #[must_use]
 pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpec {
     let spec = command.spec;
-    let bindings: Vec<Binding<'_>> = plan.bindings_for(spec.name).collect();
+    let bindings: Vec<Binding<'_>> = plan.bindings_for(command).collect();
     if bindings.is_empty() {
         return spec;
     }
@@ -685,5 +773,202 @@ speclib hooked 1 {
         assert!(plan.is_empty());
         let command = packs.packs[0].command("plain::thing").expect("declared");
         assert!(std::ptr::eq(specialise(command, &plan), command.spec));
+    }
+
+    #[test]
+    fn actual_worker_cached_answer_rejoins_reload_and_retirement_before_dispatch() {
+        let _cache = cache_guard();
+        let first = pack_set("current-plan-cache", SOURCE);
+        let first_plan = plan_for(&first);
+        let slot = first_plan.packs()[0].programs[0].slot.unwrap();
+        let fold = pack_hooks::const_fold_fn(slot).unwrap();
+        publish(&first);
+        let (ready_send, ready_receive) = std::sync::mpsc::channel();
+        let (advance_send, advance_receive) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            pack_hooks::clear_host();
+            // No caller-side generation query or manual host synchronization.
+            assert!(pack_hooks::slot_available(slot));
+            assert_eq!(fold(&["abc"]), Some("3".to_owned()));
+            assert_eq!(fold(&["abc"]), Some("3".to_owned()));
+            ready_send.send(()).unwrap();
+            advance_receive
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .unwrap();
+            assert_eq!(fold(&["abc"]), Some("99".to_owned()));
+            assert_eq!(fold(&["abc"]), Some("99".to_owned()));
+            ready_send.send(()).unwrap();
+            advance_receive
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .unwrap();
+            assert_eq!(fold(&["abc"]), None);
+            assert!(!pack_hooks::slot_available(slot));
+            pack_hooks::clear_host();
+        });
+        ready_receive
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap();
+        let changed = SOURCE.replace("fold [string length [lindex $words 0]]", "fold 99");
+        let second = pack_set("current-plan-cache", &changed);
+        let second_plan = plan_for(&second);
+        assert_eq!(second_plan.packs()[0].programs[0].slot, Some(slot));
+        publish(&second);
+        advance_send.send(()).unwrap();
+        ready_receive
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap();
+        publish(&PackSet::default());
+        advance_send.send(()).unwrap();
+        worker.join().expect("actual worker finished");
+    }
+
+    #[test]
+    fn actual_distinct_option_fields_have_distinct_stable_slots() {
+        let _cache = cache_guard();
+        let packs = pack_set(
+            "option-owner-fields",
+            "speclib options 1 {command shared {option -first -arity-hook {words ctx} {consume 1}; option -second -arity-hook {words ctx} {consume 2}}}",
+        );
+        let plan = plan_for(&packs);
+        let programs = &plan.packs()[0].programs;
+        assert_eq!(programs.len(), 2);
+        assert!(
+            matches!(&programs[0].owner, HookOwner::Option { option, .. } if option == "-first")
+        );
+        assert!(
+            matches!(&programs[1].owner, HookOwner::Option { option, .. } if option == "-second")
+        );
+        assert_ne!(
+            programs[0].slot, programs[1].slot,
+            "actual option components cannot share a host slot"
+        );
+    }
+
+    #[test]
+    fn same_display_command_from_distinct_actual_declarations_keeps_its_own_binding() {
+        let _cache = cache_guard();
+        let first = pack_set(
+            "first-source-owner",
+            "speclib first 1 {command shared {const_fold -inputs {words} {words ctx} {fold 1}}}",
+        );
+        let second = pack_set(
+            "second-source-owner",
+            "speclib second 1 {command shared {const_fold -inputs {words} {words ctx} {fold 2}}}",
+        );
+        let files = first
+            .files()
+            .into_iter()
+            .chain(second.files())
+            .map(|path| PackFile {
+                tier: Tier::Workspace,
+                path,
+                origin: Origin::DotDir,
+                dependency_tier: None,
+            })
+            .collect::<Vec<_>>();
+        let packs = crate::pack::load(&files);
+        let plan = plan_for(&packs);
+        assert_eq!(plan.packs().len(), 2);
+        let one = packs
+            .packs
+            .iter()
+            .find(|pack| pack.name == "first")
+            .unwrap()
+            .command("shared")
+            .unwrap();
+        let two = packs
+            .packs
+            .iter()
+            .find(|pack| pack.name == "second")
+            .unwrap()
+            .command("shared")
+            .unwrap();
+        let first_fn = specialise(one, &plan).const_fold.unwrap();
+        let second_fn = specialise(two, &plan).const_fold.unwrap();
+        assert!(!std::ptr::fn_addr_eq(first_fn, second_fn));
+        let first_slot = plan
+            .packs()
+            .iter()
+            .find(|pack| pack.pack == "first")
+            .unwrap()
+            .programs[0]
+            .slot
+            .unwrap();
+        let second_slot = plan
+            .packs()
+            .iter()
+            .find(|pack| pack.pack == "second")
+            .unwrap()
+            .programs[0]
+            .slot
+            .unwrap();
+        assert!(std::ptr::fn_addr_eq(
+            first_fn,
+            pack_hooks::const_fold_fn(first_slot).unwrap()
+        ));
+        assert!(std::ptr::fn_addr_eq(
+            second_fn,
+            pack_hooks::const_fold_fn(second_slot).unwrap()
+        ));
+    }
+
+    #[test]
+    fn freshly_reissued_same_content_declaration_retains_live_binding_and_stable_slot() {
+        let _cache = cache_guard();
+        let first = pack_set("reissued-owner", SOURCE);
+        let first_plan = plan_for(&first);
+        crate::cache::forget_snapshots();
+        let second = pack_set("reissued-owner", SOURCE);
+        assert_eq!(first.key, second.key);
+        let one = first.packs[0].command("hooked::strlen").unwrap();
+        let two = second.packs[0].command("hooked::strlen").unwrap();
+        assert!(
+            !std::ptr::eq(one.spec, two.spec),
+            "actual fresh loader allocation"
+        );
+        let second_plan = plan_for(&second);
+        assert_eq!(
+            first_plan.packs()[0].programs[0].slot,
+            second_plan.packs()[0].programs[0].slot
+        );
+        assert!(
+            !std::ptr::eq(specialise(two, &second_plan), two.spec),
+            "same source content must not lose its newly selected declaration binding"
+        );
+    }
+
+    #[test]
+    fn same_key_fresh_declarations_do_not_retain_historical_unheld_plans() {
+        let _cache = cache_guard();
+        let first = pack_set("bounded-owner-reissue", SOURCE);
+        let live = plan_for(&first);
+        let mut previous: Option<std::sync::Weak<HookPlan>> = None;
+        for _ in 0..4 {
+            crate::cache::forget_snapshots();
+            let reissued = pack_set("bounded-owner-reissue", SOURCE);
+            assert_eq!(reissued.key, first.key);
+            let current = plan_for(&reissued);
+            if let Some(previous) = previous.take() {
+                assert!(
+                    previous.upgrade().is_none(),
+                    "replaced unheld same-key plan must not remain retained by memo history"
+                );
+            }
+            let declaration = reissued.packs[0].command("hooked::strlen").unwrap();
+            assert!(!std::ptr::eq(
+                specialise(declaration, &current),
+                declaration.spec
+            ));
+            previous = Some(Arc::downgrade(&current));
+        }
+        assert!(
+            previous.unwrap().upgrade().is_some(),
+            "only current memo plan remains held"
+        );
+        let original = first.packs[0].command("hooked::strlen").unwrap();
+        assert!(
+            !std::ptr::eq(specialise(original, &live), original.spec),
+            "external live Arc keeps its own genuine original declaration binding"
+        );
     }
 }

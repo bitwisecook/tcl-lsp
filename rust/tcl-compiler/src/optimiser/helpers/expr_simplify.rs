@@ -623,8 +623,9 @@ pub struct SubstitutionResult {
 /// new text plus book-keeping.
 ///
 /// Numeric literals (parseable as integer or float) are
-/// substituted verbatim; anything else is wrapped in `"…"` with
-/// backslashes and quotes escaped.
+/// substituted verbatim; other values use the shared configured literal
+/// quoted-content owner, including inert substitution and brace-container
+/// spelling. Actual expression/source transformation authority is separate.
 #[must_use]
 pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     expr: &str,
@@ -679,8 +680,26 @@ pub fn substitute_expr_constants_in_context<S: std::hash::BuildHasher>(
                 if is_numeric_literal(value) {
                     pieces.push(value.clone());
                 } else {
-                    let escaped = value.replace('\\', r"\\").replace('"', "\\\"");
-                    pieces.push(format!("\"{escaped}\""));
+                    let Some(fragment) =
+                        tcl_syntax::backslash::literal_quoted_source_fragment_in_braced_script(
+                            value, config,
+                        )
+                    else {
+                        pieces.push(tok.text.clone());
+                        cursor = end_excl;
+                        continue;
+                    };
+                    let literal = format!("\"{fragment}\"");
+                    if tcl_syntax::expr::OriginalSourceExpression::capture(
+                        &literal, context, config,
+                    )
+                    .is_none()
+                    {
+                        pieces.push(tok.text.clone());
+                        cursor = end_excl;
+                        continue;
+                    }
+                    pieces.push(literal);
                 }
                 changed = true;
                 substituted.insert(name.to_owned());
@@ -941,7 +960,7 @@ fn reassociate_node(node: &ExprNode, types: &OperandTypes) -> Option<ExprNode> {
     // Every regrouped term is a variable proven integer.
     let exact = |terms: &[ExprNode]| {
         terms.iter().all(|term| {
-            matches!(term, ExprNode::Var { name, .. } if types.integer.contains(name.as_str()))
+            matches!(term, ExprNode::Var { text, .. } if types.integer.contains(text.as_str()))
         })
     };
     let ExprNode::Binary { op, left, right } = node else {
@@ -2801,5 +2820,50 @@ mod tests {
         assert_eq!(strip_ws("$x < 0"), "$x<0");
         assert_eq!(strip_ws("  a  b\tc\n"), "abc");
         assert_eq!(strip_ws("nospace"), "nospace");
+    }
+
+    #[test]
+    fn mathematical_string_projection_keeps_literal_substitutions_and_braces_inert() {
+        let value = "$literal [danger] {unterminated";
+        let constants = consts(&[("s", value)]);
+        let result = substitute_expr_constants("$s", &constants, None);
+        assert!(result.changed);
+        assert!(result.substituted.contains("s"));
+        assert!(result.text.contains("\\$literal"));
+        assert!(result.text.contains("\\[danger\\]"));
+        assert!(result.text.contains("\\{unterminated"));
+        let context = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
+        let original = tcl_syntax::expr::OriginalSourceExpression::capture(
+            &result.text,
+            &context,
+            tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar),
+        )
+        .unwrap();
+        assert_eq!(original.source(), result.text);
+        let substitutions =
+            tcl_syntax::expr::checked_source_expression_substitutions(&result.text, &context)
+                .unwrap();
+        assert!(substitutions.variables.is_empty());
+        assert!(substitutions.commands.is_empty());
+    }
+
+    #[test]
+    fn reassociation_uses_the_actual_original_reference_type_key() {
+        let reference = "${a}";
+        let keys = [reference.to_owned()].into_iter().collect::<HashSet<_>>();
+        let types = OperandTypes {
+            numeric: keys.clone(),
+            integer: keys,
+            ..OperandTypes::default()
+        };
+        let source = "${a} + 1 + 2";
+        let (rewritten, changed) = instcombine_expr_typed(source, false, Some(&types), None);
+        assert!(changed);
+        assert_eq!(rewritten.trim(), "${a} + 3");
+        let (other, changed) = instcombine_expr_typed("$a + 1 + 2", false, Some(&types), None);
+        assert!(!changed);
+        assert_eq!(other, "$a + 1 + 2");
     }
 }

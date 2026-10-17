@@ -82,6 +82,112 @@ pub(crate) fn original_source_taint_read_operands(
     })
 }
 
+/// Read operands for one command nested in a retained conditional expression.
+/// This is a distinct source phase from argv-child lifting: it requires the
+/// original expression evaluation owner and exact command node in that tree.
+pub(crate) fn original_expression_taint_read_operands(
+    registry: &CommandRegistry,
+    context: super::InvocationMetadataContext<'_>,
+    parent_tokens: &crate::ir::CommandTokens,
+    nested: &crate::ir::CommandTokens,
+    evaluation: &crate::command_binding::SourceConditionalExpressionEvaluation,
+    spelling: &str,
+    span: tcl_lexer::Span,
+) -> Option<OriginalSourceTaintReadOperands> {
+    if !evaluation.semantic_lookup_closed()
+        || !context.matches_registry(registry)
+        || span.end().checked_sub(span.start())? as usize != spelling.len()
+    {
+        return None;
+    }
+    let input = context.source_analysis_input()?;
+    let source = evaluation.source();
+    let relative_start = span.start().checked_sub(source.base())?;
+    let relative_end = span.end().checked_sub(source.base())?;
+    if !expression_contains_command(evaluation.tree(), relative_start, relative_end, spelling) {
+        return None;
+    }
+    let image = source.origin.source_image();
+    if image
+        .bytes()
+        .get(span.start() as usize..span.end() as usize)
+        != Some(spelling.as_bytes())
+    {
+        return None;
+    }
+    let parent = parent_tokens.source_binding.as_ref()?;
+    let parent_site = parent.invocation_site()?;
+    parent.original_argument_metadata_for_input(parent_tokens, input, registry)?;
+    if !std::sync::Arc::ptr_eq(&parent_site.source, &source.origin)
+        || parent.conditional_expression_evaluation(registry, parent_tokens)? != *evaluation
+    {
+        return None;
+    }
+    let binding = nested.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    if !std::sync::Arc::ptr_eq(&site.source, &source.origin)
+        || site.offset < span.start()
+        || site.offset >= span.end()
+        || binding.invocation_realm()
+            != Some(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
+    {
+        return None;
+    }
+    let config = parent.original_argument_lexer_config(parent_tokens)?;
+    let nested_config = config.nested();
+    let original = super::original_native_compiler_words(
+        image,
+        nested.words(),
+        nested.argv.first()?.start(),
+        nested_config,
+    )?;
+    Some(OriginalSourceTaintReadOperands {
+        words: nested.words().to_vec(),
+        original,
+        config: nested_config,
+    })
+}
+
+fn expression_contains_command(
+    node: &crate::expr_ast::ExprNode,
+    start: u32,
+    end: u32,
+    spelling: &str,
+) -> bool {
+    use crate::expr_ast::ExprNode;
+    match node {
+        ExprNode::Command {
+            text,
+            start: node_start,
+            end: node_end,
+        } => text == spelling && *node_start == start && *node_end == end,
+        ExprNode::Binary { left, right, .. } => {
+            expression_contains_command(left, start, end, spelling)
+                || expression_contains_command(right, start, end, spelling)
+        }
+        ExprNode::Unary { operand, .. } => {
+            expression_contains_command(operand, start, end, spelling)
+        }
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            expression_contains_command(condition, start, end, spelling)
+                || expression_contains_command(true_branch, start, end, spelling)
+                || expression_contains_command(false_branch, start, end, spelling)
+        }
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|arg| expression_contains_command(arg, start, end, spelling)),
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. } => false,
+    }
+}
+
 /// Actual lowering source/context for conditional hosted advice.
 /// No constructor accepts a profile label or reconstructed native name.
 #[derive(Debug, Clone)]

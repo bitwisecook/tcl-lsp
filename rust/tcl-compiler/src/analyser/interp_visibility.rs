@@ -516,6 +516,33 @@ impl OriginalInterpreterLambdaBody {
         Some(formals)
     }
 
+    /// Require both token-derived list elements to retain the exact selected
+    /// original parameter and body fields under this complete input.
+    pub(super) fn for_lambda_tokens(
+        &self,
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        parameter_token: Token,
+        body_token: Token,
+    ) -> Option<(
+        SignatureNamespaceScope,
+        Option<Arc<OriginalInterpreterSourceDomain>>,
+    )> {
+        let selected = self.for_body_token(source, input, body_token)?;
+        let parameter_span =
+            crate::lambda_literal::split_original_lambda_literal(&self.lambda)?.params;
+        if parameter_token
+            .span
+            .start()
+            .checked_add(u32::from(parameter_token.content_offset))
+            != Some(parameter_span.start())
+            || parameter_token.span.end() != parameter_span.end()
+        {
+            return None;
+        }
+        Some(selected)
+    }
+
     pub(super) fn logical_namespace_field_for_body_token(
         &self,
         source: &str,
@@ -2244,6 +2271,38 @@ mod tests {
                 "{source}"
             );
         }
+    }
+
+    #[test]
+    fn lambda_handler_requires_the_selected_parameter_and_body_fields() {
+        let source = "apply {{arg} {return $arg}} value";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let input = analyser.resolved_analysis_input();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let receipt = analyser
+            .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
+            .unwrap();
+        let elements = analyser
+            .parse_apply_lambda_elements(command.args(), command.arg_tokens())
+            .unwrap();
+        assert!(
+            receipt
+                .for_lambda_tokens(source, &input, elements[0].0, elements[1].0)
+                .is_some()
+        );
+        let mut foreign_parameter = elements[0].0;
+        foreign_parameter.span = Span::new(0, 1);
+        assert!(
+            receipt
+                .for_lambda_tokens(source, &input, foreign_parameter, elements[1].0)
+                .is_none()
+        );
     }
 
     #[test]

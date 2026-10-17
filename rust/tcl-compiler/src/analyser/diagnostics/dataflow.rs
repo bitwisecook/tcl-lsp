@@ -2500,7 +2500,7 @@ is renamed or deleted in this file."
             phi_block,
             killed,
             may_defs,
-        } = build_phi_undef_index(&fu.ssa, considered, registry, &ctx.supp.call_steps);
+        } = build_phi_undef_index(fu, considered, registry, &ctx.supp.call_steps);
         let phi_idx = PhiUndefIndex {
             phi_def: &phi_def,
             phi_block: &phi_block,

@@ -84,6 +84,25 @@ pub fn statement_mutation_places(
     context: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    statement_mutation_places_with_metadata_context(
+        statement,
+        context,
+        registry,
+        Some(
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+        ),
+    )
+}
+
+fn statement_mutation_places_with_metadata_context(
+    statement: &Statement,
+    context: &ResolveContext,
+    registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+) -> Vec<Place> {
     if statement.has_opaque_native_accesses() {
         return vec![place::unknown_top()];
     }
@@ -97,6 +116,9 @@ pub fn statement_mutation_places(
             .chain(effects.clobbers)
             .collect();
     }
+    if metadata.is_none() {
+        return vec![place::unknown_top()];
+    }
     let Some(tokens) = statement.tokens() else {
         return def_places(statement, context, registry);
     };
@@ -109,14 +131,15 @@ pub fn statement_mutation_places(
     ) {
         return def_places(statement, context, registry);
     }
-    let semantic_context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
-        .map_or_else(
-            || vec![place::unknown_top()],
-            |invocation| invocation.mutation_places(context, registry),
-        )
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        metadata.flatten(),
+        tokens,
+    )
+    .map_or_else(
+        || vec![place::unknown_top()],
+        |invocation| invocation.mutation_places(context, registry),
+    )
 }
 
 /// Bound stores and destructions at their authored operand-selection phase.
@@ -128,6 +151,27 @@ pub fn statement_mutation_places_with_continuation(
     after: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    statement_mutation_places_with_continuation_with_metadata_context(
+        statement,
+        before,
+        after,
+        registry,
+        Some(
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+        ),
+    )
+}
+
+fn statement_mutation_places_with_continuation_with_metadata_context(
+    statement: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+) -> Vec<Place> {
     if let Some(effects) =
         crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
     {
@@ -138,14 +182,21 @@ pub fn statement_mutation_places_with_continuation(
             .chain(effects.clobbers)
             .collect();
     }
-    let context = match variable_operand_binding_phase(statement, registry) {
+    if metadata.is_none() {
+        return vec![place::unknown_top()];
+    }
+    let context = match variable_operand_binding_phase_with_metadata_context(
+        statement,
+        registry,
+        metadata.flatten(),
+    ) {
         tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
         tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => after,
         tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => {
             return vec![place::unknown_top()];
         }
     };
-    statement_mutation_places(statement, context, registry)
+    statement_mutation_places_with_metadata_context(statement, context, registry, metadata)
 }
 
 /// Physical destruction targets on a successful handler continuation.
@@ -157,48 +208,75 @@ pub fn statement_destruction_places_with_continuation(
     after: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    statement_destruction_places_with_continuation_with_metadata_context(
+        statement,
+        before,
+        after,
+        registry,
+        Some(
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+        ),
+    )
+}
+
+fn statement_destruction_places_with_continuation_with_metadata_context(
+    statement: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+) -> Vec<Place> {
     if let Some(effects) =
         crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
     {
         return effects.destructions;
     }
-    let mut targets =
-        crate::variable_bindings::namespace_destruction_places(statement, before, registry);
+    if metadata.is_none() {
+        return Vec::new();
+    }
+    let mut targets = crate::variable_bindings::namespace_destruction_places_with_metadata_context(
+        statement, before, registry, metadata,
+    );
     let Some(tokens) = statement.tokens() else {
         return targets;
     };
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    if crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
-        .is_some_and(|invocation| {
-            invocation
-                .variable_traits()
-                .contains(Traits::DESTROYS_VARIABLE)
-        })
-    {
-        targets.extend(statement_mutation_places_with_continuation(
-            statement, before, after, registry,
-        ));
+    if crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        metadata.flatten(),
+        tokens,
+    )
+    .is_some_and(|invocation| {
+        invocation
+            .variable_traits()
+            .contains(Traits::DESTROYS_VARIABLE)
+    }) {
+        targets.extend(
+            statement_mutation_places_with_continuation_with_metadata_context(
+                statement, before, after, registry, metadata,
+            ),
+        );
     }
     targets
 }
 
-fn variable_operand_binding_phase(
+fn variable_operand_binding_phase_with_metadata_context(
     statement: &Statement,
     registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> tcl_registry::native_compilation::VariableOperandBindingPhase {
     use tcl_registry::native_compilation::VariableOperandBindingPhase;
     let Some(tokens) = statement.tokens() else {
         return VariableOperandBindingPhase::AfterArguments;
     };
-    let semantic_context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
-        .map_or(VariableOperandBindingPhase::AfterArguments, |invocation| {
-            invocation.variable_binding_phase()
-        })
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, metadata, tokens,
+    )
+    .map_or(VariableOperandBindingPhase::AfterArguments, |invocation| {
+        invocation.variable_binding_phase()
+    })
 }
 
 /// SSA contents transitions caused by destruction, separate from value stores.
@@ -210,19 +288,33 @@ pub(crate) fn ssa_destruction_keys(
     before: &ResolveContext,
     after: &ResolveContext,
     registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
 ) -> Vec<(crate::var_resolve::VariableCellKey, bool)> {
-    let actual: Vec<_> =
-        statement_destruction_places_with_continuation(statement, before, after, registry)
-            .iter()
-            .filter_map(crate::var_resolve::canonical_binding_value_key)
-            .map(|key| (key, false))
-            .collect();
+    let actual: Vec<_> = statement_destruction_places_with_continuation_with_metadata_context(
+        statement, before, after, registry, metadata,
+    )
+    .iter()
+    .filter_map(crate::var_resolve::canonical_binding_value_key)
+    .map(|key| (key, false))
+    .collect();
     if !actual.is_empty() || statement.has_opaque_native_accesses() {
         return actual;
     }
     let Some(tokens) = statement.tokens() else {
         return actual;
     };
+    if !metadata.is_some_and(|metadata| {
+        metadata.is_none_or(|metadata| {
+            metadata.is_standalone()
+                || tokens.source_binding.as_ref().is_some_and(|binding| {
+                    binding
+                        .original_source_advice_purpose(tokens, metadata, registry)
+                        .is_some()
+                })
+        })
+    }) {
+        return actual;
+    }
     let Some(advice) = tokens
         .source_binding
         .as_ref()
@@ -255,6 +347,24 @@ pub(crate) fn ssa_destruction_keys(
         .flatten()
         .map(|key| (key, true))
         .collect()
+}
+
+/// Physical destruction targets at an actual retained CFG point and its complete input.
+#[must_use]
+pub(crate) fn statement_destruction_places_at(
+    statement: &Statement,
+    block: crate::cfg::BlockId,
+    index: usize,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    statement_destruction_places_with_continuation_with_metadata_context(
+        statement,
+        points.before_statement(block, index),
+        points.after_statement(block, index),
+        registry,
+        points.source_metadata_owner().metadata_context(registry),
+    )
 }
 
 /// The places *stmt* defines a value in (element-granular).
@@ -416,11 +526,35 @@ pub fn def_places_with_continuation(
     after: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    def_places_with_continuation_with_metadata_context(
+        stmt,
+        before,
+        after,
+        registry,
+        Some(
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+        ),
+    )
+}
+
+fn def_places_with_continuation_with_metadata_context(
+    stmt: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+) -> Vec<Place> {
     if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, before, registry)
     {
         return effects.writes;
     }
-    if variable_operand_binding_phase(stmt, registry)
+    if metadata.is_none() {
+        return Vec::new();
+    }
+    if variable_operand_binding_phase_with_metadata_context(stmt, registry, metadata.flatten())
         == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
     {
         return def_places(stmt, after, registry);
@@ -463,13 +597,19 @@ pub fn def_places_at(
     registry: &CommandRegistry,
 ) -> Vec<Place> {
     use tcl_registry::native_compilation::VariableOperandBindingPhase;
+    let metadata = points.source_metadata_owner().metadata_context(registry);
     let before = points.before_statement(block, index);
     let after = points.after_statement(block, index);
     if let Some(store) = points.conditional_logical_scalar_store_at(block, index, registry) {
         return store.definition_place(registry).into_iter().collect();
     }
+    if metadata.is_none() {
+        return Vec::new();
+    }
     if before.execution_name_policy.is_none() {
-        return def_places_with_continuation(statement, before, after, registry);
+        return def_places_with_continuation_with_metadata_context(
+            statement, before, after, registry, metadata,
+        );
     }
     if let Some(effects) =
         crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
@@ -483,13 +623,17 @@ pub fn def_places_at(
         return Vec::new();
     };
     if tokens.synthetic.is_some() {
-        return def_places_with_continuation(statement, before, after, registry);
+        return def_places_with_continuation_with_metadata_context(
+            statement, before, after, registry, metadata,
+        );
     }
-    let semantic_context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+
     let Some(invocation) =
-        crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            registry,
+            metadata.flatten(),
+            tokens,
+        )
     else {
         return Vec::new();
     };
@@ -1814,5 +1958,50 @@ mod tests {
         let mut literal = Vec::new();
         command_reads("puts {$value}", &context, &mut literal, &registry);
         assert!(literal.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod retained_mutation_metadata_tests {
+    #[test]
+    fn destruction_reborrows_the_actual_cfg_metadata_owner() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {} {set x OLD; unset x; set x NEW}",
+            registry,
+            false,
+        );
+        let function = unit.function("::p").unwrap();
+        let points = function.ssa.point_contexts.as_ref().unwrap();
+        let (block, index, statement) = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        let selected = super::statement_destruction_places_at(
+                            statement, block, index, points, registry,
+                        );
+                        (!selected.is_empty()).then_some((block, index, statement))
+                    })
+            })
+            .unwrap();
+        assert!(
+            !super::statement_destruction_places_at(statement, block, index, points, registry)
+                .is_empty()
+        );
+        assert!(
+            super::statement_destruction_places_with_continuation_with_metadata_context(
+                statement,
+                points.before_statement(block, index),
+                points.after_statement(block, index),
+                registry,
+                None,
+            )
+            .is_empty()
+        );
     }
 }

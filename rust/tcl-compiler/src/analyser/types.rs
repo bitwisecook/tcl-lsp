@@ -192,6 +192,7 @@ impl Diagnostic {
             super::DiagnosticSubject::RegistrySource(source) => source.required_package_key(),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
             | super::DiagnosticSubject::DeclaredSource(_)
@@ -208,6 +209,7 @@ impl Diagnostic {
             super::DiagnosticSubject::UnresolvedCommand(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
             | super::DiagnosticSubject::DeclaredSource(_)
@@ -225,6 +227,7 @@ impl Diagnostic {
             super::DiagnosticSubject::UnresolvedMathFunction(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
             | super::DiagnosticSubject::DeclaredSource(_)
@@ -245,6 +248,7 @@ impl Diagnostic {
             super::DiagnosticSubject::ConditionalInterpreterVisibility(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
             | super::DiagnosticSubject::DeclaredSource(_)
@@ -289,6 +293,15 @@ impl Diagnostic {
     pub fn object_source_arity(&self) -> Option<&super::ObjectSourceAritySubject> {
         match self.subject()? {
             super::DiagnosticSubject::ObjectSourceArity(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original conditional procedure signature, never an entered call proof.
+    #[must_use]
+    pub fn user_source_arity(&self) -> Option<&super::SourceUserCallAritySubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::UserSourceArity(subject) => Some(subject),
             _ => None,
         }
     }
@@ -348,50 +361,16 @@ pub struct EnsembleSubcommandTarget {
     pub provenance: crate::signature_scan::types::EnsembleSubcommandProvenance,
 }
 
-/// One same-file user-call arity candidate, buffered during the command
-/// walk for post-walk resolution against same-file procs / `TclOO`
-/// forwards / `interp alias` / static `rename` targets — the set the
-/// registry-only [`super::diagnostics::validity`] arity check can't see
-/// (see `Analyser::resolve_indirect_call_target`).  Distinct from
-/// [`super::state::Analyser::pending_arity`] (the registry-command
-/// candidate queue): this one is queued for *every* call, independent of
-/// whether `cmd_name` also resolves to a registry signature, since a
-/// user proc/alias/rename can shadow a builtin name.
+/// A diagnostic request position and reporting label, not a selected target.
+/// Post-walk user arity advice reborrows its genuine original call/header/argv;
+/// these fields cannot supply namespace identity, captured arguments or edits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingUserCallArity {
-    /// Command name as written at the call site — also the diagnostic's
-    /// display name (a same-file call has no subcommand-style split).
+    /// Presentation only, including literal sigil bytes as originally reported.
     pub cmd_name: String,
-    /// Call-site resolution namespace
-    /// (`Analyser::command_resolution_namespace`).
-    pub ns: String,
-    /// `false` inside a proc/method body (definitions there are visible
-    /// regardless of textual order, since bodies only run after the
-    /// whole file has loaded); `true` at top level (order-gated —
-    /// mirrors `pending_arity`'s identical field).
-    pub enforce_order: bool,
-    /// Offset of the command-name token, for the top-level order gate.
+    /// Original command-head request position; the shared source issuer must
+    /// independently authenticate the complete current source/input at this site.
     pub call_off: u32,
-    /// Full diagnostic span (command head through the last argument).
-    pub full_span: Span,
-    /// Lower-bound positional argument count (exact when
-    /// `positional_any_expand` is `false`).
-    pub nargs_min: usize,
-    /// Whether any positional word is `{*}`-expanded — when true,
-    /// `nargs_min` is a lower bound only, so E002 ("too few") can never
-    /// fire (expansion may still supply the missing arguments at run
-    /// time), but E003 ("too many") can still fire when even that lower
-    /// bound already exceeds the max; matches the identical convention
-    /// in the registry-command arity check.
-    pub positional_any_expand: bool,
-    /// Widened source span of each argument word (closer included), so the
-    /// flush — which only then knows the resolved arity's `max` — can
-    /// anchor E003 on the surplus run and target the removal fix.  Empty
-    /// when the call has a `{*}` expansion (the surplus run is ambiguous).
-    pub arg_spans: Vec<Span>,
-    /// Widened end of the command-head word: the removal fix's deletion
-    /// start when every positional argument is surplus (`max == 0`).
-    pub head_end: u32,
 }
 
 /// Queued genuine source factory/call signature, with no runtime receiver.

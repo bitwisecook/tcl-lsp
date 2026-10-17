@@ -481,9 +481,23 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
 /// that follows and keeps the last two, so the element `a\x41b` is `a` and
 /// U+001B there and `aAb` from 8.6.
 pub fn split_list_in(s: &str, escapes: EscapeSyntax) -> Result<Vec<Cow<'_, str>>, ListError> {
+    split_list_with_syntax(s, tcl_dialect::ListParse::Strict, escapes)
+}
+
+/// Split an exact Unicode list value under the actual receiver's selected
+/// list and escape grammars. This is value parsing, not a native list getter
+/// or authority to observe an original object.
+///
+/// # Errors
+/// Returns the selected strict list grammar's actual syntax error.
+pub fn split_list_with_syntax(
+    s: &str,
+    syntax: tcl_dialect::ListParse,
+    escapes: EscapeSyntax,
+) -> Result<Vec<Cow<'_, str>>, ListError> {
     let mut out = Vec::new();
     let mut pos = 0;
-    while let Some(el) = find_element(s, pos)? {
+    while let Some(el) = find_element_with_syntax(s, pos, syntax)? {
         let raw = &s[el.value.clone()];
         out.push(if el.literal {
             Cow::Borrowed(raw)
@@ -1705,6 +1719,46 @@ mod byte_list_tests {
                 .map(AsRef::as_ref)
                 .collect::<Vec<_>>(),
             vec![&b"a"[..], &b"b"[..]]
+        );
+    }
+}
+
+#[cfg(test)]
+mod configured_unicode_metadata_list_controls {
+    use super::*;
+
+    #[test]
+    fn metadata_unicode_lists_keep_grouping_and_selected_escape_release() {
+        let value = "{red green} café {[inert]}";
+        let items =
+            split_list_with_syntax(value, tcl_dialect::ListParse::Strict, EscapeSyntax::Tcl90)
+                .unwrap();
+        assert_eq!(items, ["red green", "café", "[inert]"]);
+        assert!(
+            split_list_with_syntax(
+                "{unclosed",
+                tcl_dialect::ListParse::Strict,
+                EscapeSyntax::Tcl90
+            )
+            .is_err()
+        );
+        assert_eq!(
+            split_list_with_syntax(
+                r"\x4142",
+                tcl_dialect::ListParse::Strict,
+                EscapeSyntax::Tcl84
+            )
+            .unwrap(),
+            ["B"]
+        );
+        assert_eq!(
+            split_list_with_syntax(
+                r"\x4142",
+                tcl_dialect::ListParse::Strict,
+                EscapeSyntax::Tcl90
+            )
+            .unwrap(),
+            ["A42"]
         );
     }
 }

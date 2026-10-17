@@ -74,6 +74,84 @@ pub fn native_variable_word(
             NativeSourceUnavailable::GrammarProtocolMismatch,
         ));
     }
+    original_variable_word_layout(word, version, protocol)
+}
+
+/// An authored compound variable root, independently of an entered variable
+/// operation. The original whole word and index arena stay retained; neither
+/// an index value nor Native compiler preparation is issued.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceCompoundVariableRoot {
+    word: NativeWord,
+    name: Vec<u8>,
+    name_span: Span,
+    index: ExecutablePartArena,
+}
+
+impl OriginalSourceCompoundVariableRoot {
+    /// Actual whole authored word supplying the root boundary.
+    #[must_use]
+    pub const fn original_word(&self) -> &NativeWord {
+        &self.word
+    }
+
+    /// Original index components, without evaluation or an element value.
+    #[must_use]
+    pub const fn index_parts(&self) -> &ExecutablePartArena {
+        &self.index
+    }
+
+    /// Counted name units under the independently selected authored recipe.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    /// Original literal root extent within the complete retained word.
+    #[must_use]
+    pub const fn name_span(&self) -> Span {
+        self.name_span
+    }
+}
+
+/// Project only original authored compound-root geometry. Source parsing keeps
+/// the actual word configuration; the supplied recipe selects name units. An
+/// unversioned source grammar may therefore differ from its authored naming
+/// abstraction. This does not relax `native_variable_word`'s engine/grammar
+/// guard or issue a Native variable operand. Unsupported escape/channel joins
+/// remain unavailable through the shared layout implementation.
+///
+/// # Errors
+/// Returns unavailable original word/decoder geometry from the shared owner.
+pub fn original_source_compound_variable_root(
+    word: &NativeWord,
+    version: TclVersion,
+    protocol: NativeStringProtocol,
+) -> Result<Option<OriginalSourceCompoundVariableRoot>, NativeVariableWordUnavailable> {
+    let NativeVariableWordOperand::CompoundArray {
+        name,
+        name_span,
+        index,
+    } = original_variable_word_layout(word, version, protocol)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(OriginalSourceCompoundVariableRoot {
+        word: word.clone(),
+        name,
+        name_span,
+        index,
+    }))
+}
+
+fn original_variable_word_layout(
+    word: &NativeWord,
+    version: TclVersion,
+    protocol: NativeStringProtocol,
+) -> Result<NativeVariableWordOperand, NativeVariableWordUnavailable> {
+    if word.group().expand {
+        return Err(NativeVariableWordUnavailable::Expanded);
+    }
     if version == TclVersion::V8_4 && word.group().kind == WordKind::Braced {
         return Ok(NativeVariableWordOperand::DynamicWord);
     }
@@ -436,5 +514,41 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod authored_compound_root_tests {
+    use super::*;
+
+    #[test]
+    fn modern_source_root_keeps_authored_c86_and_native_preparation_distinct() {
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_dialect::DialectProfile::find("tcl").unwrap().grammar,
+        );
+        let image = tcl_lexer::SourceImage::document("upvar ::N::array($index) local");
+        let word = tcl_lexer::native_script_words_in(
+            image.clone(),
+            Span::new(0, u32::try_from(image.bytes().len()).unwrap()),
+            config,
+        )
+        .unwrap()
+        .commands
+        .remove(0)
+        .words
+        .remove(1);
+        let protocol = NativeStringProtocol::C(TclVersion::V8_6);
+        let root = original_source_compound_variable_root(&word, TclVersion::V8_6, protocol)
+            .unwrap()
+            .unwrap();
+        assert_eq!(root.name(), b"::N::array");
+        assert_eq!(root.original_word(), &word);
+        assert_eq!(root.index_parts().image(), &image);
+        assert_eq!(
+            native_variable_word(&word, TclVersion::V8_6, protocol),
+            Err(NativeVariableWordUnavailable::Source(
+                NativeSourceUnavailable::GrammarProtocolMismatch
+            ))
+        );
     }
 }

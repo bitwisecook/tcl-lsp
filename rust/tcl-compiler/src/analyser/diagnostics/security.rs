@@ -299,7 +299,7 @@ impl Analyser {
         {
             let spec = descriptors.command;
             let span_at = |i: usize| arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
-            // Top-level closed value args (exact match).
+            // Top-level closed values retain their descriptor-selected matching policy.
             let opt_names: std::collections::HashSet<&str> =
                 spec.options.iter().map(|o| o.name).collect();
             for &idx in spec.closed_value_args {
@@ -309,12 +309,23 @@ impl Analyser {
                 };
                 let values = spec.arg_values_at(idx);
                 let allowed: Vec<&str> = values.iter().map(|av| av.value).collect();
-                if let Some(hit) =
-                    w127_closed_hit(value, span_at(i), &allowed, false, &opt_names, cmd_name)
-                {
+                if let Some(hit) = w127_closed_hit(
+                    value,
+                    span_at(i),
+                    &allowed,
+                    spec.arg_values_accept_prefix,
+                    &opt_names,
+                    cmd_name,
+                ) {
                     hits.push(hit);
                 } else {
-                    self.record_w137_gated_value(value, span_at(i), values, false, cmd_name);
+                    self.record_w137_gated_value(
+                        value,
+                        span_at(i),
+                        values,
+                        spec.arg_values_accept_prefix,
+                        cmd_name,
+                    );
                 }
             }
             // Subcommand-level closed value args: the subcommand word occupies
@@ -376,9 +387,17 @@ impl Analyser {
             if original.written_index(ordinal).is_none() {
                 hit.fixes.clear();
             }
-            for fix in &mut hit.fixes {
+            hit.fixes.retain_mut(|fix| {
+                let Some(new_text) = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    &fix.new_text,
+                    word.config(),
+                ) else {
+                    return false;
+                };
                 fix.span = word.span();
-            }
+                fix.new_text = new_text;
+                true
+            });
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(
                     DiagCode::W127,
@@ -513,9 +532,17 @@ impl Analyser {
             if original.written_index(ordinal).is_none() {
                 hit.fixes.clear();
             }
-            for fix in &mut hit.fixes {
+            hit.fixes.retain_mut(|fix| {
+                let Some(new_text) = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    &fix.new_text,
+                    word.config(),
+                ) else {
+                    return false;
+                };
                 fix.span = word.span();
-            }
+                fix.new_text = new_text;
+                true
+            });
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(
                     DiagCode::W127,
@@ -1134,6 +1161,35 @@ mod original_catch_child_purpose_tests {
                 .diagnostics
                 .iter()
                 .any(|row| row.code == DiagCode::W302)
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_command_value_prefix_controls {
+    use crate::analyser::Analyser;
+    use tcl_core_types::DiagCode;
+
+    #[test]
+    fn qualified_filter_literal_prefix_uses_its_selected_command_descriptor() {
+        for value in ["s", "script"] {
+            let source = format!("::tcl::dict::filter {{a 1}} {value} {{k v}} {{}}");
+            let result = Analyser::new().analyse(&source, "tcl8.6");
+            assert!(
+                !result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == DiagCode::W127),
+                "{source}"
+            );
+        }
+        let result =
+            Analyser::new().analyse("::tcl::dict::filter {a 1} scriptx {k v} {}", "tcl8.6");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W127)
         );
     }
 }

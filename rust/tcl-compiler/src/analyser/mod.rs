@@ -98,6 +98,7 @@ pub use diagnostic_subject::{
     RegisteredInstanceSourceDiagnosticSubject, SourceCallbackArgumentCounts,
     SourceCallbackArityIssue, SourceCallbackAritySubject, SourceCallbackSignatureLookup,
     SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
+    SourceUserCallAritySubject,
 };
 pub use input::ResolvedAnalysisInput;
 pub use interp_visibility::{

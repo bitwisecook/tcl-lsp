@@ -49,15 +49,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `seek $chan 0 e` all succeed identically to the full words, and `chan
 /// seek` accepts the same abbreviations; `seek $chan 0 bogus` raises `bad
 /// origin "bogus": must be start, current, or end`) — like `open`'s
-/// `ACCESS_VALUES` and `close`'s `DIRECTION_VALUES`, a flat per-word
-/// closed set can't express unique-prefix matching, so this is
-/// completion/hover data only; `seek` has no `closed_value_args` entry
-/// for this position. (`chan seek`'s own sibling subcommand spec in
-/// `chan_.rs` keeps `closed_value_args` for this position, but pairs it
-/// with `arg_values_accept_prefix` — the subcommand-level mechanism the
-/// top-level path has no twin for — so the two spellings agree on
-/// abbreviations, and `chan seek` additionally reports a value that is no
-/// prefix at all, which bare `seek` cannot express.)
+/// `ACCESS_VALUES` and `close`'s `DIRECTION_VALUES`, these rows currently
+/// remain completion/hover data only: `seek` leaves this position out of
+/// `closed_value_args`. `chan seek`'s sibling subcommand spec in `chan_.rs`
+/// already pairs closed values with `arg_values_accept_prefix`, so it can
+/// additionally report a value that is no prefix at all. Adding the matching
+/// command-level policy facet does not automatically close this vocabulary.
 const ORIGIN_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "start",

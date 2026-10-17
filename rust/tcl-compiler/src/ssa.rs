@@ -80,10 +80,19 @@ impl<'a> SsaInvocationContext<'a> {
         registry: &'a CommandRegistry,
         metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     ) -> Self {
+        Self::supplied_with_standalone_owner(registry, metadata, false)
+    }
+
+    fn supplied_with_standalone_owner(
+        registry: &'a CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+        standalone_owner: bool,
+    ) -> Self {
         Self {
             registry,
             metadata,
-            standalone: metadata.is_some_and(|context| context.is_standalone()),
+            standalone: metadata.is_some_and(|context| context.is_standalone())
+                || (standalone_owner && metadata.is_none()),
         }
     }
 
@@ -276,9 +285,15 @@ fn bound_defs(
                 .filter_map(crate::var_resolve::canonical_binding_value_key)
                 .collect();
         definitions.extend(
-            crate::place_bridge::ssa_destruction_keys(statement, context, after, registry)
-                .into_iter()
-                .map(|(key, _)| key),
+            crate::place_bridge::ssa_destruction_keys(
+                statement,
+                context,
+                after,
+                registry,
+                points.source_metadata_owner().metadata_context(registry),
+            )
+            .into_iter()
+            .map(|(key, _)| key),
         );
         let mut seen = FxHashSet::default();
         definitions.retain(|key| seen.insert(key.clone()));
@@ -2748,7 +2763,7 @@ impl<'a> SsaSourceView<'a> {
         let config = tokens
             .source_binding
             .as_ref()?
-            .original_lexer_config_for_tokens(tokens)?;
+            .original_argument_lexer_config(tokens)?;
         let span = node.variable_source_span(expr_base?, config)?;
         let mut accesses = tokens
             .variable_accesses
@@ -4121,6 +4136,20 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
     defs_of_in_context(stmt, registry.map(SsaInvocationContext::standalone))
 }
 
+/// Definition projection under the caller's retained complete source input.
+/// Supplied absence never reopens standalone descriptor selection; original
+/// typed structural writes and Normal-transfer checks retain their own purpose.
+pub(crate) fn defs_of_with_metadata_context(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Vec<String> {
+    defs_of_in_context(
+        stmt,
+        Some(SsaInvocationContext::supplied(registry, metadata)),
+    )
+}
+
 fn defs_of_in_context(
     stmt: &Statement,
     selection: Option<SsaInvocationContext<'_>>,
@@ -4280,6 +4309,15 @@ fn defs_of_in_context(
 /// states them as its own definitions, and they are may-definitions too.
 /// Every other statement kind returns nothing.
 pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
+    switch_may_defs_in_context(stmt, SsaInvocationContext::standalone(registry))
+}
+
+/// Named possible arm writes under the same retained selection as SSA itself.
+/// This is not a closed inventory of unknown writes or an executed store.
+fn switch_may_defs_in_context(
+    stmt: &Statement,
+    selection: SsaInvocationContext<'_>,
+) -> Vec<String> {
     if let Statement::Call { defs, .. } = stmt
         && is_effect_marker(stmt)
     {
@@ -4302,9 +4340,9 @@ pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> V
         .filter_map(|arm| arm.body.as_ref())
         .chain(default_body.as_ref())
     {
-        nested_writes(body, registry, &mut written);
+        nested_writes_in_context(body, selection, &mut written);
     }
-    for name in defs_of_with_registry(stmt, Some(registry)) {
+    for name in defs_of_in_context(stmt, Some(selection)) {
         written.remove(&name);
     }
     written.into_iter().collect()
@@ -4317,8 +4355,18 @@ pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> V
 /// quoted read of its prior version, for liveness and the solver's join;
 /// read-before-set reads such a base as the definition it is, never as a
 /// name the statement may leave unset.
-pub(crate) fn refreshed_bases(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
-    bases_refreshed_by(&switch_may_defs(stmt, registry))
+pub(crate) fn refreshed_bases(
+    stmt: &Statement,
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    if function.source_metadata_input().is_none() && function.cfg.metadata_context.is_standalone() {
+        return bases_refreshed_by(&switch_may_defs(stmt, registry));
+    }
+    bases_refreshed_by(&switch_may_defs_in_context(
+        stmt,
+        SsaInvocationContext::supplied(registry, function.invocation_metadata_context(registry)),
+    ))
 }
 
 /// The bases of the elements of `stated` that `stated` does not name itself.
@@ -4340,6 +4388,15 @@ pub(crate) fn nested_writes(
     registry: &CommandRegistry,
     out: &mut BTreeSet<String>,
 ) -> bool {
+    nested_writes_in_context(script, SsaInvocationContext::standalone(registry), out)
+}
+
+fn nested_writes_in_context(
+    script: &crate::ir::Script,
+    selection: SsaInvocationContext<'_>,
+    out: &mut BTreeSet<String>,
+) -> bool {
+    let registry = selection.registry;
     let mut opaque = false;
     let mut pending = vec![(script, 0_u32)];
     while let Some((script, depth)) = pending.pop() {
@@ -4356,16 +4413,27 @@ pub(crate) fn nested_writes(
                 out.extend(defs.iter().cloned());
             }
             if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
-                let names = crate::ir_helpers::original_statement_possible_name_writes(
-                    statement, tokens, registry,
-                );
-                opaque |= names.opaque;
-                out.extend(names.names);
+                let source_purpose = selection.token_metadata(tokens).and_then(|metadata| {
+                    tokens
+                        .source_binding
+                        .as_ref()?
+                        .original_source_advice_purpose(tokens, metadata, registry)
+                });
+                if !selection.standalone && source_purpose.is_none() {
+                    opaque = true;
+                } else {
+                    let names = crate::ir_helpers::original_statement_possible_name_writes(
+                        statement, tokens, registry,
+                    );
+                    opaque |= names.opaque;
+                    out.extend(names.names);
+                }
             } else if statement.is_executable_invocation() && statement.synthetic_marker().is_none()
             {
-                opaque |= !crate::ir_helpers::standalone_typed_statement_writes_are_covered(
-                    script, statement, registry,
-                );
+                opaque |= !selection.standalone
+                    || !crate::ir_helpers::standalone_typed_statement_writes_are_covered(
+                        script, statement, registry,
+                    );
             }
             for body in statement.child_scripts() {
                 pending.push((body, depth + 1));
@@ -4880,6 +4948,28 @@ fn expand_uses(
     out
 }
 
+fn authored_scalar_source_variable(
+    points: &PointResolveContexts,
+    block: BlockId,
+    index: usize,
+    registry: &CommandRegistry,
+) -> Option<(
+    crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    String,
+    bool,
+)> {
+    let tokens = points.source_tokens_at(block, index)?;
+    let site = tokens.source_binding.as_ref()?.invocation_site()?;
+    let offset = tokens.words().first()?.source().span.start();
+    let mut original = tokens.clone();
+    crate::lattice_rebase::rebase_command_tokens(
+        &mut original,
+        i64::from(site.offset) - i64::from(offset),
+    );
+    crate::registry_invocation::original_authored_scalar_invocation(&original, registry)?
+        .scalar_source_variable(registry)
+}
+
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<BlockId>,
@@ -4928,7 +5018,11 @@ fn nonlocal_names_and_defsites(
                 points, *bn, index, context, registry,
             ));
             let direct_defs = bound_defs(stmt, *bn, index, points, selection);
-            let may_defs = bound_names(switch_may_defs(stmt, registry), context, registry);
+            let may_defs = bound_names(
+                switch_may_defs_in_context(stmt, selection),
+                context,
+                registry,
+            );
             let all_defs: Vec<_> = direct_defs.iter().chain(&may_defs).cloned().collect();
             for u in direct_uses
                 .iter()
@@ -4946,6 +5040,17 @@ fn nonlocal_names_and_defsites(
                 defsites.entry(var.clone()).or_default().insert(*bn);
                 defined_here.insert(var);
             }
+            if let Some((symbol, _, definition)) =
+                authored_scalar_source_variable(points, *bn, index, registry)
+            {
+                let identity = SsaVariableIdentity::Source(symbol);
+                if definition {
+                    defsites.entry(identity.clone()).or_default().insert(*bn);
+                    defined_here.insert(identity);
+                } else if !defined_here.contains(&identity) {
+                    nonlocal_names.insert(identity);
+                }
+            }
             if let Some(receipt) =
                 original_source_may_call(func, stmt, selection.metadata, registry)
             {
@@ -4957,6 +5062,14 @@ fn nonlocal_names_and_defsites(
                     defsites.entry(identity.clone()).or_default().insert(*bn);
                     defined_here.insert(identity);
                 }
+            }
+        }
+        if let Some((symbol, _, false)) =
+            authored_scalar_source_variable(points, *bn, usize::MAX, registry)
+        {
+            let identity = SsaVariableIdentity::Source(symbol);
+            if !defined_here.contains(&identity) {
+                nonlocal_names.insert(identity);
             }
         }
         // Terminator reads are element-qualified like statement reads (a
@@ -6638,10 +6751,10 @@ fn linked_option_definition_name(
 /// Selected source option metadata keeps its effective ordinal and genuine
 /// written operand separately. This grants no physical definition or store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct OriginalLinkedOptionWrite {
-    effective_argument: usize,
-    written_argument: usize,
-    scope: tcl_registry::VariableScope,
+pub(crate) struct OriginalLinkedOptionWrite {
+    pub(crate) effective_argument: usize,
+    pub(crate) written_argument: usize,
+    pub(crate) scope: tcl_registry::VariableScope,
 }
 
 fn selected_source_option_writes(
@@ -6669,7 +6782,7 @@ fn selected_source_option_writes(
     )
 }
 
-fn original_command_option_writes(
+pub(crate) fn original_command_option_writes(
     tokens: &CommandTokens,
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
     registry: &CommandRegistry,
@@ -6717,7 +6830,90 @@ fn original_command_option_writes(
     selected
 }
 
-fn original_instance_option_writes(
+/// Selected command options whose current Registry schema specifically
+/// declares both variable writes and tainted external input. Generic SSA
+/// variable-write consumers keep using `original_command_option_writes`.
+pub(crate) fn original_command_taint_option_writes(
+    tokens: &CommandTokens,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalLinkedOptionWrite>> {
+    fn selected(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<Vec<(usize, tcl_registry::VariableScope)>> {
+        if !schema
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::TAINTS_VAR_WRITES)
+        {
+            return Some(Vec::new());
+        }
+        let offset = schema.semantics.argument_offset;
+        let options = schema
+            .semantics
+            .options
+            .prefix_occurrences(schema.words.arguments().slice_from(offset))?;
+        let variable_writes = selected_source_option_writes(schema)?;
+        Some(
+            variable_writes
+                .into_iter()
+                .filter(|(argument, _)| {
+                    argument.checked_sub(offset).is_some_and(|relative| {
+                        options.iter().any(|occurrence| {
+                            occurrence.values.contains(&relative)
+                                && occurrence
+                                    .option
+                                    .is_some_and(tcl_registry::hover::OptionSpec::taints_var_write)
+                        })
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, metadata, registry)?;
+    let advice =
+        crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+            registry,
+            Some(metadata),
+            tokens,
+        )?;
+    advice.unanimous_command_words()?;
+    let mut selected_writes = None;
+    for shape in &advice.candidates {
+        let writes = shape.with_source_schema(registry, metadata, tokens, selected)?;
+        let writes = writes
+            .into_iter()
+            .filter_map(|(effective_argument, scope)| {
+                let crate::registry_invocation::InvocationWordOrigin::Written(written) = shape
+                    .effective
+                    .origins
+                    .get(effective_argument.checked_add(1)?)?
+                else {
+                    return None;
+                };
+                Some(OriginalLinkedOptionWrite {
+                    effective_argument,
+                    written_argument: written.checked_sub(1)?,
+                    scope,
+                })
+            })
+            .collect::<Vec<_>>();
+        if selected_writes
+            .as_ref()
+            .is_some_and(|previous| previous != &writes)
+        {
+            return None;
+        }
+        selected_writes = Some(writes);
+    }
+    selected_writes
+}
+
+pub(crate) fn original_instance_option_writes(
     tokens: &CommandTokens,
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
     registry: &CommandRegistry,
@@ -7207,6 +7403,7 @@ fn retained_source_read_references(
     symbols: &HashMap<(BlockId, usize), HashMap<String, Symbol>>,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    interner: &VarInterner,
 ) -> HashMap<(BlockId, usize, SourceSite, String), SsaReadReference> {
     let mut references = HashMap::new();
     let mut scanner = VarReferenceScanner::with_config(
@@ -7228,6 +7425,7 @@ fn retained_source_read_references(
         let Some(body) = blocks.get(&block) else {
             continue;
         };
+        let authored = authored_scalar_source_variable(points, block, index, registry);
         let mut retain = |spelling: &str, source: &SourceSite| {
             if source.provenance != crate::ir::Provenance::Source {
                 return;
@@ -7255,7 +7453,20 @@ fn retained_source_read_references(
                     (block, index, source.clone(), spelling.to_owned()),
                     SsaReadReference {
                         symbol,
-                        version: None,
+                        version: authored
+                            .as_ref()
+                            .filter(|(held, held_name, definition)| {
+                                !definition
+                                    && held_name == name
+                                    && interner.source_variables.get(&symbol) == Some(held)
+                            })
+                            .and_then(|_| {
+                                if index == usize::MAX {
+                                    body.exit_versions.get(&symbol).copied()
+                                } else {
+                                    body.statements.get(index)?.uses.get(&symbol).copied()
+                                }
+                            }),
                     },
                 );
             }
@@ -7460,12 +7671,16 @@ fn intern_terminator_reads(
 ) {
     for (&id, block) in &func.blocks {
         let mut symbols = HashMap::new();
+        let authored = authored_scalar_source_variable(&walk.points, id, usize::MAX, registry);
         for (source, _) in crate::def_use::terminator_read_vars(block.terminator.as_ref(), config) {
             if let Some(name) =
                 canonical_variable_key(&source, walk.points.before_terminator(id), registry)
             {
                 symbols.insert(source, walk.interner.intern(&name));
-            } else {
+            } else if !authored
+                .as_ref()
+                .is_some_and(|(_, name, definition)| !definition && name == &source)
+            {
                 walk.unknown_source_names.insert(source);
             }
         }
@@ -7486,6 +7701,12 @@ fn intern_terminator_reads(
         for source in ambiguous {
             symbols.remove(&source);
             walk.unknown_source_names.insert(source);
+        }
+        if let Some((symbol, name, false)) = authored {
+            let symbol = walk
+                .interner
+                .intern_identity(&SsaVariableIdentity::Source(symbol));
+            symbols.insert(name.clone(), symbol);
         }
         walk.point_symbols.insert((id, usize::MAX), symbols);
     }
@@ -7557,6 +7778,7 @@ fn assemble_ssa_blocks(
 /// name interner, and the accumulated per-block [`RenameOutputs`].
 struct RenameWalk<'a> {
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    standalone_owner: bool,
     version_counter: HashMap<SsaVariableIdentity, Version>,
     stacks: HashMap<SsaVariableIdentity, Vec<Version>>,
     source_may_calls: HashMap<
@@ -7573,11 +7795,22 @@ struct RenameWalk<'a> {
 }
 
 impl<'a> RenameWalk<'a> {
+    #[cfg(test)]
     fn new(
         func: &cfg::Function,
         config: tcl_lexer::LexerConfig,
         points: PointResolveContexts,
         metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    ) -> Self {
+        Self::new_with_standalone_owner(func, config, points, metadata, false)
+    }
+
+    fn new_with_standalone_owner(
+        func: &cfg::Function,
+        config: tcl_lexer::LexerConfig,
+        points: PointResolveContexts,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+        standalone_owner: bool,
     ) -> Self {
         let mut out = RenameOutputs::default();
         for id in func.blocks.keys() {
@@ -7589,13 +7822,15 @@ impl<'a> RenameWalk<'a> {
         }
         Self {
             metadata,
+            standalone_owner,
             version_counter: HashMap::new(),
             stacks: HashMap::new(),
             source_may_calls: func.source_may_calls.clone(),
             scanner: VarReferenceScanner::with_config(
                 VarScanOptions {
-                    include_var_read_roles: metadata
-                        .is_some_and(|context| context.source_analysis_input().is_none()),
+                    include_var_read_roles: (standalone_owner && metadata.is_none())
+                        || metadata
+                            .is_some_and(|context| context.source_analysis_input().is_none()),
                     recurse_cmd_substitutions: true,
                     include_reads_before_write: false,
                     element_qualified: true,
@@ -7609,6 +7844,17 @@ impl<'a> RenameWalk<'a> {
             point_symbols: HashMap::new(),
             unknown_source_names: HashSet::new(),
         }
+    }
+
+    fn invocation_context<'b>(&self, registry: &'b CommandRegistry) -> SsaInvocationContext<'b>
+    where
+        'a: 'b,
+    {
+        SsaInvocationContext::supplied_with_standalone_owner(
+            registry,
+            self.metadata,
+            self.standalone_owner,
+        )
     }
 
     /// Top version in the same rename engine, independently of identity domain.
@@ -7690,10 +7936,11 @@ impl<'a> RenameWalk<'a> {
         let point_context = self.points.before_statement(point.0, point.1).clone();
         let context = &point_context;
         let mut source_symbols = HashMap::new();
+        let authored = authored_scalar_source_variable(&self.points, point.0, point.1, registry);
         for (name, _) in raw_classified {
             if let Some(bound) = canonical_variable_key(name, context, registry) {
                 source_symbols.insert(name.clone(), self.interner.intern(&bound));
-            } else {
+            } else if !authored.as_ref().is_some_and(|(_, held, _)| held == name) {
                 self.unknown_source_names.insert(name.clone());
             }
         }
@@ -7730,12 +7977,9 @@ impl<'a> RenameWalk<'a> {
                 self.unknown_source_names.insert(name);
             }
         } else if context.execution_name_policy.is_none()
-            && SsaInvocationContext::supplied(registry, self.metadata).standalone
+            && self.invocation_context(registry).standalone
         {
-            for name in defs_of_in_context(
-                stmt,
-                Some(SsaInvocationContext::supplied(registry, self.metadata)),
-            ) {
+            for name in defs_of_in_context(stmt, Some(self.invocation_context(registry))) {
                 let after = self.points.after_statement(point.0, point.1);
                 let bound = definition_source_name(stmt, &name, after, registry);
                 if let Some(bound) = bound {
@@ -7779,12 +8023,9 @@ impl<'a> RenameWalk<'a> {
                     else {
                         continue;
                     };
-                    if !defs_of_in_context(
-                        stmt,
-                        Some(SsaInvocationContext::supplied(registry, self.metadata)),
-                    )
-                    .iter()
-                    .any(|defined| defined == name)
+                    if !defs_of_in_context(stmt, Some(self.invocation_context(registry)))
+                        .iter()
+                        .any(|defined| defined == name)
                     {
                         continue;
                     }
@@ -7905,10 +8146,11 @@ impl<'a> RenameWalk<'a> {
         context: &ResolveContext,
         registry: &CommandRegistry,
     ) -> Vec<(VariableCellKey, UseClass)> {
+        let selection = self.invocation_context(registry);
         let raw_classified = uses_of_classified_with_source(
             stmt,
             &mut self.scanner,
-            SsaInvocationContext::supplied(registry, self.metadata),
+            selection,
             self.points.source_tokens_at(point.0, point.1),
         );
         let captured = source_read_bindings(&self.points, point.0, point.1, registry);
@@ -8006,20 +8248,39 @@ impl<'a> RenameWalk<'a> {
             }
         }
 
+        let authored = authored_scalar_source_variable(&self.points, frame.block, index, registry);
+        if let Some((symbol, name, definition)) = &authored {
+            let identity = SsaVariableIdentity::Source(symbol.clone());
+            let symbol = self.interner.intern_identity(&identity);
+            self.point_symbols
+                .entry((frame.block, index))
+                .or_default()
+                .insert(name.clone(), symbol);
+            if !definition {
+                uses_map.insert(symbol, self.top_identity(&identity));
+            }
+        }
         let direct_defs = bound_defs(
             stmt,
             frame.block,
             index,
             &self.points,
-            SsaInvocationContext::supplied(registry, self.metadata),
+            self.invocation_context(registry),
         );
         let destructions = crate::place_bridge::ssa_destruction_keys(
             stmt,
             context,
             self.points.after_statement(frame.block, index),
             registry,
+            self.points
+                .source_metadata_owner()
+                .metadata_context(registry),
         );
-        let switch_may = bound_names(switch_may_defs(stmt, registry), context, registry);
+        let switch_may = bound_names(
+            switch_may_defs_in_context(stmt, self.invocation_context(registry)),
+            context,
+            registry,
+        );
         let all_defs: Vec<_> = direct_defs.iter().chain(&switch_may).cloned().collect();
         let expanded = expand_defs(&all_defs, elems);
         // A fanned element def is a *may*-write — the dynamic-key /
@@ -8098,6 +8359,14 @@ impl<'a> RenameWalk<'a> {
             {
                 may_defs.insert(sym);
             }
+        }
+
+        if let Some((symbol, _, true)) = authored {
+            let identity = SsaVariableIdentity::Source(symbol);
+            let symbol = self.interner.intern_identity(&identity);
+            let version = self.push_identity(&identity);
+            frame.pushed_vars.push(identity);
+            defs_map.insert(symbol, version);
         }
 
         if self
@@ -8249,9 +8518,33 @@ impl<'a> RenameWalk<'a> {
             }
         }
 
-        // Record exit versions.
-        let xv = self.visible_versions(bn);
-        *self.out.exit_versions.get_mut(&bn).unwrap() = xv;
+        // Preserve the versions visible after statements but before any
+        // terminator-only effects. Terminator reads and block exits refer to
+        // this snapshot; clobbers below affect successor edges only.
+        let exit_versions = self.visible_versions(bn);
+        *self.out.exit_versions.get_mut(&bn).unwrap() = exit_versions;
+
+        // Terminator reads use the versions recorded above; unknown effects
+        // in its nested command substitutions get separate versions for
+        // outgoing edges only.
+        if let Some(names) = clobbers
+            .get(&bn)
+            .and_then(|markers| markers.get(&usize::MAX))
+        {
+            let mut versions = HashMap::new();
+            for name in names {
+                let prior = self.top(name);
+                let fresh = self.push_new(name);
+                frame
+                    .pushed_vars
+                    .push(SsaVariableIdentity::Location(name.clone()));
+                versions.insert(self.interner.intern(name), (prior, fresh));
+            }
+            self.value_clobbers
+                .entry(bn)
+                .or_default()
+                .insert(usize::MAX, versions);
+        }
 
         // Fill in phi incoming edges for successors — the terminator's
         // successors plus any `try` exception-edge handler targets, so
@@ -8497,6 +8790,7 @@ pub(crate) fn build_ssa_with_context_for_entry(
     entry: ResolveContext,
     entry_bindings: Option<&[String]>,
 ) -> SsaFunction {
+    let standalone_owner = func.metadata_context.is_standalone();
     let metadata = func.metadata_context.metadata_context(registry).flatten();
     build_ssa_with_context_for_entry_and_metadata(
         func,
@@ -8505,6 +8799,7 @@ pub(crate) fn build_ssa_with_context_for_entry(
         entry,
         entry_bindings,
         metadata,
+        standalone_owner,
     )
 }
 
@@ -8535,6 +8830,7 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
     entry: ResolveContext,
     entry_bindings: Option<&[String]>,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    standalone_owner: bool,
 ) -> SsaFunction {
     let metadata = supplied_ssa_metadata(registry, config, metadata);
     let initial = build_ssa_inner(
@@ -8544,6 +8840,7 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
         entry.clone(),
         &HashMap::new(),
         metadata,
+        standalone_owner,
     );
     let bound: Option<HashSet<_>> = entry_bindings.map(|bindings| {
         bindings
@@ -8551,7 +8848,24 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
             .filter_map(|name| canonical_variable_key(name, &entry, registry))
             .collect()
     });
-    let live = crate::slot_allocation::unseen_call_live_names(func, &initial, registry);
+    let unavailable_metadata = initial.point_contexts.as_ref().is_some_and(|points| {
+        let owner = points.source_metadata_owner();
+        !owner.is_standalone() && owner.metadata_context(registry).is_none()
+    });
+    let mut live = crate::slot_allocation::unseen_call_live_names(func, &initial, registry);
+    for (block, barriers) in
+        crate::slot_allocation::unavailable_metadata_effect_live_names(func, &initial, registry)
+    {
+        let target = live.entry(block).or_default();
+        for (index, symbols) in barriers {
+            target.entry(index).or_default().extend(symbols);
+        }
+    }
+    for (block, symbols) in crate::slot_allocation::unavailable_metadata_terminator_live_names(
+        func, &initial, registry, config,
+    ) {
+        live.entry(block).or_default().insert(usize::MAX, symbols);
+    }
     let clobbers: RegistryClobberNames = live
         .into_iter()
         .filter_map(|(block, markers)| {
@@ -8571,7 +8885,12 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
                     let mut names: Vec<_> = symbols
                         .into_iter()
                         .filter(|symbol| {
-                            let version = statements[..index]
+                            let preceding = if index == usize::MAX {
+                                statements.as_slice()
+                            } else {
+                                &statements[..index]
+                            };
+                            let version = preceding
                                 .iter()
                                 .rev()
                                 .find_map(|stmt| stmt.defs.get(symbol).copied())
@@ -8580,12 +8899,13 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
                                 })
                                 .unwrap_or(0);
                             preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
-                                && bound.as_ref().is_none_or(|bindings| {
-                                    version != 0
-                                        || initial
-                                            .cell_key(*symbol)
-                                            .is_some_and(|key| bindings.contains(key))
-                                })
+                                && (unavailable_metadata
+                                    || bound.as_ref().is_none_or(|bindings| {
+                                        version != 0
+                                            || initial
+                                                .cell_key(*symbol)
+                                                .is_some_and(|key| bindings.contains(key))
+                                    }))
                         })
                         .filter_map(|symbol| initial.cell_key(symbol).cloned())
                         .collect();
@@ -8599,7 +8919,15 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
     if clobbers.is_empty() {
         initial
     } else {
-        build_ssa_inner(func, registry, config, entry, &clobbers, metadata)
+        build_ssa_inner(
+            func,
+            registry,
+            config,
+            entry,
+            &clobbers,
+            metadata,
+            standalone_owner,
+        )
     }
 }
 
@@ -8610,6 +8938,7 @@ fn build_ssa_inner(
     entry: ResolveContext,
     clobbers: &RegistryClobberNames,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    standalone_owner: bool,
 ) -> SsaFunction {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
@@ -8639,7 +8968,7 @@ fn build_ssa_inner(
     let phi_vars = compute_phi_vars_with_config(
         func,
         &df,
-        SsaInvocationContext::supplied(registry, metadata),
+        SsaInvocationContext::supplied_with_standalone_owner(registry, metadata, standalone_owner),
         &elems,
         config,
         &points,
@@ -8649,7 +8978,8 @@ fn build_ssa_inner(
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
     // name / version, interned to `Symbol` when blocks are assembled).
-    let mut walk = RenameWalk::new(func, config, points, metadata);
+    let mut walk =
+        RenameWalk::new_with_standalone_owner(func, config, points, metadata, standalone_owner);
 
     rename_dominator_tree(
         &mut walk, func, &tree, &phi_vars, registry, &elems, clobbers,
@@ -8672,6 +9002,7 @@ fn build_ssa_inner(
         &walk.point_symbols,
         registry,
         config,
+        &walk.interner,
     );
     let array_refresh = array_root_refresh_metadata(
         func.entry,
@@ -8679,7 +9010,7 @@ fn build_ssa_inner(
         &walk.interner,
         &ssa_blocks,
         &walk.points,
-        SsaInvocationContext::supplied(registry, metadata),
+        SsaInvocationContext::supplied_with_standalone_owner(registry, metadata, standalone_owner),
     );
     let cell_names = walk
         .interner
@@ -11949,6 +12280,39 @@ mod tests {
     }
 
     #[test]
+    fn selected_taint_option_writes_require_taint_specific_registry_facts() {
+        for (source, expected) in [
+            ("entry .e -textvariable value", vec![(2, 2)]),
+            ("scope-owner -global value", vec![]),
+        ] {
+            let (context, unit) = logical_option_metadata_fixture(source);
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .unwrap()
+                .tokens()
+                .unwrap();
+            let writes = original_command_taint_option_writes(tokens, metadata, registry)
+                .expect("complete selected source command schema");
+            assert_eq!(
+                writes
+                    .iter()
+                    .map(|write| (write.effective_argument, write.written_argument))
+                    .collect::<Vec<_>>(),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn selected_instance_option_writes_keep_genuine_factory_and_written_receiver() {
         for (source, expected) in [
             ("entry .e; .e configure -textvariable value", vec![(2, 2)]),
@@ -13446,6 +13810,57 @@ mod tests {
         assert!(!barrier_after_switch(
             "proc p {s} {\n set go 1\n switch -glob -- $s { q* { set go 0 } }\n}\n",
             "::p"
+        ));
+    }
+
+    #[test]
+    fn supplied_switch_may_writes_keep_actual_context_and_unavailable_residual() {
+        let (context, unit) = logical_metadata_fixture("switch -glob $subject {a {set arm ONE}}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let statement = unit
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .find(|statement| matches!(statement, Statement::Switch { .. }))
+            .expect("actual retained opaque switch");
+        assert!(switch_may_defs_in_context(statement, selection).contains(&"arm".to_owned()));
+        let Statement::Switch { arms, .. } = statement else {
+            unreachable!()
+        };
+        let body = arms.iter().find_map(|arm| arm.body.as_ref()).unwrap();
+        let mut names = BTreeSet::new();
+        assert!(!nested_writes_in_context(body, selection, &mut names));
+        assert!(names.contains("arm"));
+        assert!(nested_writes_in_context(
+            body,
+            SsaInvocationContext::supplied(registry, None),
+            &mut BTreeSet::new(),
+        ));
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let foreign_profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            foreign_profile,
+            input.unit_profile(),
+            input.context_registry().clone(),
+            input.lexer_config(),
+        );
+        let foreign_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &foreign,
+            )
+            .expect("same actual Registry and lexer configuration");
+        assert_eq!(foreign.lexer_config(), input.lexer_config());
+        assert_ne!(foreign, *input);
+        assert!(nested_writes_in_context(
+            body,
+            SsaInvocationContext::supplied(registry, Some(foreign_metadata)),
+            &mut BTreeSet::new(),
         ));
     }
 }
@@ -15838,5 +16253,274 @@ mod retained_host_grammar_tests {
                 .any(|symbols| symbols.contains_key("::value"))
         );
         assert_eq!(build_ssa(cfg, registry), explicit);
+    }
+}
+
+#[cfg(test)]
+mod unavailable_metadata_value_effect_tests {
+    use super::*;
+
+    #[test]
+    fn unavailable_write_and_delete_fence_held_values_without_changing_standalone() {
+        let registry = CommandRegistry::build_default();
+        let source = "set x 2\nunset x\nputs $x\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let mut unavailable_cfg = unit.top_level.cfg.clone();
+        unavailable_cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let mut entry = ResolveContext::for_function("::top");
+        entry.define_literal("x", "held-before-unknown-effects", &registry);
+        let bindings = vec!["x".to_owned()];
+        let unavailable = build_ssa_with_context_for_entry(
+            &unavailable_cfg,
+            &registry,
+            tcl_lexer::LexerConfig::default(),
+            entry.clone(),
+            Some(&bindings),
+        );
+        let symbol = unavailable
+            .var_symbol("x")
+            .expect("the held entry binding is represented");
+
+        for expected in ["set x 2", "unset x"] {
+            let point = unavailable_cfg
+                .blocks
+                .iter()
+                .find_map(|(&block, data)| {
+                    data.statements
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, statement)| {
+                            let span = statement.span().as_range();
+                            (source
+                                .get(span)
+                                .is_some_and(|text| text.starts_with(expected)))
+                            .then_some((block, index))
+                        })
+                })
+                .unwrap_or_else(|| panic!("missing source operation {expected}"));
+            let versions = unavailable
+                .value_clobbers
+                .get(&point.0)
+                .and_then(|markers| markers.get(&point.1))
+                .and_then(|versions| versions.get(&symbol))
+                .copied()
+                .unwrap_or_else(|| panic!("held value crosses {expected} without a fresh SSA key"));
+            assert_ne!(
+                versions.0, versions.1,
+                "{expected} must poison the held value"
+            );
+        }
+
+        let set_point = unavailable_cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, data)| {
+                data.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        let span = statement.span().as_range();
+                        source
+                            .get(span)
+                            .is_some_and(|text| text.starts_with("set x 2"))
+                            .then_some((block, index))
+                    })
+            })
+            .unwrap();
+        let after_unavailable_write =
+            SsaSourceView::at_statement(&unavailable, set_point.0, set_point.1 + 1)
+                .reaching_binding("x", &registry)
+                .expect("the following point retains the variable lookup");
+        assert_eq!(
+            after_unavailable_write.version, None,
+            "the stale held literal must not cross the unavailable write"
+        );
+
+        let standalone = build_ssa_with_context_for_entry(
+            &unit.top_level.cfg,
+            &registry,
+            tcl_lexer::LexerConfig::default(),
+            entry,
+            Some(&bindings),
+        );
+        assert!(
+            standalone.value_clobbers.is_empty(),
+            "explicit Standalone keeps its selected catalogue transfer path"
+        );
+    }
+
+    #[test]
+    fn unavailable_branch_command_fences_values_live_after_the_terminator() {
+        let registry = CommandRegistry::build_default();
+        let source = "if {[expr {[eval {set x 1}]}]} {}\nputs $x\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let mut cfg = unit.top_level.cfg.clone();
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let mut entry = ResolveContext::for_function("::top");
+        entry.define_literal("x", "held-before-branch-command", &registry);
+        let ssa = build_ssa_with_context_for_entry(
+            &cfg,
+            &registry,
+            tcl_lexer::LexerConfig::default(),
+            entry,
+            Some(&["x".to_owned()]),
+        );
+        let symbol = ssa.var_symbol("x").expect("held entry cell is represented");
+        let (block, data) = cfg
+            .blocks
+            .iter()
+            .find(|(_, data)| {
+                matches!(
+                    data.terminator.as_ref(),
+                    Some(crate::cfg::Terminator::Branch { .. })
+                )
+            })
+            .expect("the command expression remains the original CFG branch");
+        let (prior, fresh) = ssa
+            .value_clobbers
+            .get(block)
+            .and_then(|markers| markers.get(&usize::MAX))
+            .and_then(|versions| versions.get(&symbol))
+            .copied()
+            .expect("unavailable branch effects fence the outgoing value");
+        assert_ne!(prior, fresh);
+        assert_eq!(
+            ssa.blocks[block].exit_versions.get(&symbol).copied(),
+            Some(prior),
+            "the condition still reads the pre-effect version"
+        );
+        assert!(data.terminator.is_some());
+    }
+
+    #[test]
+    fn unavailable_return_command_fences_values_live_in_exception_handler() {
+        let registry = CommandRegistry::build_default();
+        let source = "try {return [eval {set x 1}]} on error {message options} {puts $x}\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let mut cfg = unit.top_level.cfg.clone();
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let mut entry = ResolveContext::for_function("::top");
+        entry.define_literal("x", "held-before-return-command", &registry);
+        let ssa = build_ssa_with_context_for_entry(
+            &cfg,
+            &registry,
+            tcl_lexer::LexerConfig::default(),
+            entry,
+            Some(&["x".to_owned()]),
+        );
+        let symbol = ssa.var_symbol("x").expect("held entry cell is represented");
+        let (block, _) = cfg
+            .blocks
+            .iter()
+            .find(|(_, data)| {
+                matches!(
+                    data.terminator.as_ref(),
+                    Some(crate::cfg::Terminator::Return { .. })
+                )
+            })
+            .expect("the return command remains an original CFG terminator");
+        assert!(
+            !cfg.block_successors(*block).is_empty(),
+            "the return retains its real exception-handler successor"
+        );
+        let (prior, fresh) = ssa
+            .value_clobbers
+            .get(block)
+            .and_then(|markers| markers.get(&usize::MAX))
+            .and_then(|versions| versions.get(&symbol))
+            .copied()
+            .expect("unavailable return effects fence the handler-visible value");
+        assert_ne!(prior, fresh);
+        assert_eq!(
+            ssa.blocks[block].exit_versions.get(&symbol).copied(),
+            Some(prior),
+            "the return value reads before the handler-edge freshness barrier"
+        );
+    }
+
+    #[test]
+    fn no_profile_standalone_keeps_legacy_registry_variable_roles() {
+        let registry = CommandRegistry::build_default();
+        assert!(registry.profile().is_none());
+        let source = "set x\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let cfg = &unit.top_level.cfg;
+        assert!(cfg.metadata_context.is_standalone());
+        let statement = cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|statement| {
+                matches!(statement, Statement::Call { tokens: Some(tokens), .. }
+                    if tokens.argv_texts.first().is_some_and(|name| name == "set"))
+            })
+            .expect("the standalone CFG retains the original set invocation");
+        let selection = SsaInvocationContext::supplied_with_standalone_owner(
+            &registry,
+            cfg.metadata_context.metadata_context(&registry).flatten(),
+            cfg.metadata_context.is_standalone(),
+        );
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: true,
+                ..VarScanOptions::default()
+            },
+            tcl_lexer::LexerConfig::default(),
+        );
+        assert!(
+            uses_of_classified_in_context(statement, &mut scanner, selection)
+                .iter()
+                .any(|(name, class)| name == "x" && *class == UseClass::Name),
+            "explicit no-profile Standalone keeps registry variable-read roles"
+        );
+
+        let mut unavailable_cfg = cfg.clone();
+        unavailable_cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let unavailable = SsaInvocationContext::supplied_with_standalone_owner(
+            &registry,
+            unavailable_cfg
+                .metadata_context
+                .metadata_context(&registry)
+                .flatten(),
+            unavailable_cfg.metadata_context.is_standalone(),
+        );
+        assert!(!unavailable.standalone);
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: true,
+                ..VarScanOptions::default()
+            },
+            tcl_lexer::LexerConfig::default(),
+        );
+        assert!(
+            uses_of_classified_in_context(statement, &mut scanner, unavailable)
+                .iter()
+                .all(|(name, _)| name != "x"),
+            "unavailable owner cannot acquire Standalone variable-read roles"
+        );
     }
 }

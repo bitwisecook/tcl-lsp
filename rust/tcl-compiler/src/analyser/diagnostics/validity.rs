@@ -40,28 +40,6 @@ use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
 use tcl_dialect::model::SpecSurface;
 
-/// The argument words of one command invocation, scoped to the prefix the
-/// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
-/// slices *after* that prefix (the command name for the simple path; the
-/// command name + subcommand word for the subcommand path), and `cmd_tok`
-/// anchors the diagnostic span.  Bundled to keep [`Analyser::emit_source_signature_arity`]
-/// under the argument limit.
-pub(in crate::analyser) struct ArityWords<'a> {
-    pub(in crate::analyser) args: &'a [String],
-    pub(in crate::analyser) arg_tokens: &'a [tcl_lexer::Token],
-    pub(in crate::analyser) arg_expand: &'a [bool],
-    pub(in crate::analyser) cmd_tok: tcl_lexer::Token,
-}
-
-/// Positional-argument lower bound + whether any positional word is
-/// `{*}`-expanded, starting at `start` (the caller has already classified
-/// / skipped everything before it — leading declared option flags for a
-/// registry command, nothing for a same-file user call). A `{*}`-expanded
-/// word contributes an unknown number of runtime arguments, so once one
-/// is seen the count becomes a lower bound only — matches
-/// [`Analyser::emit_source_signature_arity`]'s original inline formula exactly;
-/// shared here so [`Analyser::queue_user_call_arity_candidate`] doesn't
-/// reimplement it.
 /// The tight E003 anchor: the span covering the run of *surplus*
 /// positional arguments (from the first argument past the command's `max`
 /// up to the last argument), plus where a "remove surplus arguments" fix
@@ -133,18 +111,6 @@ pub(super) fn source_arity_verdict(
         diagnostic.span,
     )?;
     Some(diagnostic.with_subject(subject))
-}
-
-fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
-    let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
-    let start = start.min(args.len());
-    let any_expand = (start..args.len()).any(expanded);
-    let nargs_min = if any_expand {
-        (start..args.len()).filter(|&i| !expanded(i)).count()
-    } else {
-        args.len() - start
-    };
-    (nargs_min, any_expand)
 }
 
 /// One leading option word the call supplied, as the relation checker needs
@@ -314,11 +280,6 @@ pub(in crate::analyser) fn option_relation_diagnostics(
     out
 }
 
-/// Whole-word end from the original source map.
-fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Token) -> u32 {
-    super::super::utils::full_word_span_in(source_map, tok).end()
-}
-
 /// Whether `word` is a literal list value: braced, or free of outer Tcl
 /// substitutions. A braced word is literal even when its eventual elements
 /// contain `$` / `[`. A computed value can be valid or invalid at runtime, so
@@ -360,12 +321,22 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .map(|repaired| {
-                vec![crate::analyser::types::CodeFix::review(
+            .and_then(|repaired| {
+                let original = analyser.retained_value_word(*token)?;
+                (original.span() == span
+                    && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
+                        .as_slice()
+                        == params.as_bytes())
+                .then_some(())?;
+                let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    &repaired,
+                    original.config(),
+                )?;
+                Some(vec![crate::analyser::types::CodeFix::review(
                     span,
-                    tcl_syntax::list::list_element(&repaired),
+                    replacement,
                     "Split the grouped fields into separate parameters",
-                )]
+                )])
             })
             .unwrap_or_default();
         analyser.result.diagnostics.push(
@@ -456,15 +427,25 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .map(|repaired| {
+            .and_then(|repaired| {
+                let original = analyser.retained_value_word(*token)?;
+                (original.span() == span
+                    && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
+                        .as_slice()
+                        == lambda.as_bytes())
+                .then_some(())?;
                 let mut repaired_fields = fields.clone();
                 repaired_fields[0] = repaired.into();
                 let repaired_lambda = tcl_syntax::list::join_list(repaired_fields);
-                vec![crate::analyser::types::CodeFix::review(
+                let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    &repaired_lambda,
+                    original.config(),
+                )?;
+                Some(vec![crate::analyser::types::CodeFix::review(
                     span,
-                    tcl_syntax::list::list_element(&repaired_lambda),
+                    replacement,
                     "Split the grouped fields into separate parameters",
-                )]
+                )])
             })
             .unwrap_or_default();
         analyser.result.diagnostics.push(
@@ -633,19 +614,7 @@ fn dialect_availability_suffix_for_rows(rows: &[SpecSurface]) -> String {
     format!(" (available in: {})", labels.join(", "))
 }
 
-/// Namespace-qualify `cmd_name`'s resolution candidates the Tcl way: current
-/// namespace first, then global. Shared by the builtin-shadowing suppression
-/// check ([`Analyser::flush_arity_diagnostics`]) and the same-file
-/// proc/alias/rename resolution chase
-/// ([`Analyser::resolve_indirect_call_target`]), so both walk the identical
-/// candidate order — and, via [`crate::naming::bareword_resolution_candidates`],
-/// the identical order the optimiser's interprocedural proc resolution uses,
-/// so a fix to the rule can't drift between the two.
-fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
-    crate::naming::bareword_resolution_candidates(ns, cmd_name)
-}
-
-/// [`qualify_candidates`] plus the **implicit `namespace path`** in force at
+/// Reporting candidates plus the **implicit `namespace path`** in force at
 /// `call_off` — today only a `TclOO` member body's `::oo::Helpers`, and that
 /// name comes from the registry
 /// ([`tcl_registry::definer::TCLOO_MEMBER_BODY_NAMESPACE_PATH`], read through
@@ -663,7 +632,8 @@ fn qualify_candidates_with_path(ns: &str, cmd_name: &str, path: &[&str]) -> Vec<
     crate::naming::command_resolution_candidates(ns, path, cmd_name)
 }
 
-/// Deferred user-call and subcommand reporting facts over the merged file.
+/// Deferred builtin/private-advice suppression over the merged file.
+/// Actual user-call signature selection uses its retained original call owner.
 /// Whole-command exclusions use their own typed original publication geometry;
 /// this compatibility projection supplies no Native naming or handler proof.
 ///
@@ -894,13 +864,19 @@ impl Analyser {
         };
         let fixes = issue
             .replacement_value
-            .map_or_else(Vec::new, |replacement| {
-                vec![crate::analyser::types::CodeFix::review(
+            .and_then(|replacement| {
+                original.written_index(issue.argument_index)?;
+                let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    &replacement,
+                    operand.config(),
+                )?;
+                Some(vec![crate::analyser::types::CodeFix::review(
                     span,
-                    tcl_syntax::list::list_element(&replacement),
+                    replacement,
                     format!("Remove invalid member(s) {invalid_description}"),
-                )]
-            });
+                )])
+            })
+            .unwrap_or_default();
         let diagnostic = crate::analyser::types::Diagnostic::new(
             DiagCode::W146,
             span,
@@ -1014,15 +990,20 @@ impl Analyser {
                 );
                 let fixes = suggestions
                     .first()
-                    .map(|best| {
+                    .and_then(|best| {
                         use std::fmt::Write as _;
                         let _ = write!(message, "; did you mean '{best}'?");
-                        vec![super::types::CodeFix {
+                        original.written_index(0)?;
+                        let new_text = tcl_syntax::word_rules::lexical_unicode_source_word(
+                            best,
+                            original.word(0)?.config(),
+                        )?;
+                        Some(vec![super::types::CodeFix {
                             span,
-                            new_text: (*best).to_owned(),
+                            new_text,
                             description: format!("Replace with '{best}'"),
                             safety: crate::irules_checks::FixSafety::RequiresReview,
-                        }]
+                        }])
                     })
                     .unwrap_or_default();
                 (DiagCode::W001, message, fixes)
@@ -1035,11 +1016,18 @@ impl Analyser {
                     .join(", ");
                 let fixes = candidates
                     .into_iter()
-                    .map(|candidate| super::types::CodeFix {
-                        span,
-                        new_text: candidate.to_owned(),
-                        description: format!("Expand to '{command} {candidate}'"),
-                        safety: crate::irules_checks::FixSafety::RequiresReview,
+                    .filter_map(|candidate| {
+                        original.written_index(0)?;
+                        let new_text = tcl_syntax::word_rules::lexical_unicode_source_word(
+                            candidate,
+                            original.word(0)?.config(),
+                        )?;
+                        Some(super::types::CodeFix {
+                            span,
+                            new_text,
+                            description: format!("Expand to '{command} {candidate}'"),
+                            safety: crate::irules_checks::FixSafety::RequiresReview,
+                        })
                     })
                     .collect();
                 (
@@ -1070,12 +1058,12 @@ impl Analyser {
     pub(in crate::analyser) fn emit_arity_diagnostics(
         &mut self,
         cmd_name: &str,
-        words: &ArityWords<'_>,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
         original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        self.queue_user_call_arity_candidate(cmd_name, words, scope_path);
-        self.queue_tcloo_arity_candidates(cmd_name, words, scope_path);
+        self.queue_user_call_arity_candidate(cmd_name, cmd_tok);
+        self.queue_tcloo_arity_candidates(cmd_name, cmd_tok, scope_path);
         let Some(original) = original else {
             return;
         };
@@ -1527,15 +1515,9 @@ impl Analyser {
             self.result.diagnostics.push(diag);
         }
 
-        // Same-file proc / TclOO forward / `interp alias` / static
-        // `rename` arity — resolved now that `all_procs`,
-        // `command_aliases`, and `renamed_commands` are fully populated
-        // (post cross-item merge, same as the drain above). Unlike the
-        // builtin path, there is nothing to *suppress* here: a candidate
-        // either resolves to a definite arity (and is checked) or it
-        // doesn't (and is silently dropped — a class / ensemble / stub /
-        // genuinely unknown name, or a dynamic rename/alias target,
-        // exactly like the registry path's own abstention rules).
+        // Reborrow the original positioned source-call recipe after the walk.
+        // Its declared header and retained alias prefix give conditional source
+        // signature advice; report maps never reconstruct selection or argv.
         let user_pending = std::mem::take(&mut self.pending_user_call_arity);
         for cand in user_pending {
             let bare = core::str::from_utf8(tcl_syntax::naming::written_command_tail(
@@ -1545,20 +1527,42 @@ impl Analyser {
             if facts.stub_names.contains(bare) {
                 continue;
             }
-            let Some(arity) = self.resolve_indirect_call_target(&cand) else {
+            let Some(original) = self.original_user_call_signature(cand.call_off) else {
                 continue;
             };
+            let Some(captured) = u16::try_from(original.captured_argument_count()).ok() else {
+                continue;
+            };
+            let arity = shift_arity(original.declared_arity(), captured);
+            let Some(head) = original.original_words().first() else {
+                continue;
+            };
+            let Some(last) = original.original_words().last() else {
+                continue;
+            };
+            let arguments = &original.original_words()[1..];
+            let positional_any_expand = arguments.iter().any(|word| word.group().expand);
+            let nargs_min = arguments.iter().filter(|word| !word.group().expand).count();
+            let arg_spans = if positional_any_expand {
+                Vec::new()
+            } else {
+                arguments
+                    .iter()
+                    .map(tcl_lexer::NativeWord::span)
+                    .collect::<Vec<_>>()
+            };
+            let full_span = tcl_lexer::Span::new(head.span().start(), last.span().end());
             // The surplus-run anchor: only computable now that the resolved
             // arity's `max` is known. `arg_spans` is empty under `{*}`
             // expansion, so `.get(max)` naturally abstains there.
             let excess = (!arity.is_unlimited())
                 .then(|| {
                     let max = usize::from(arity.max);
-                    let first = cand.arg_spans.get(max)?;
-                    let last = cand.arg_spans.last()?;
-                    let delete_from = match max.checked_sub(1).and_then(|i| cand.arg_spans.get(i)) {
+                    let first = arg_spans.get(max)?;
+                    let last = arg_spans.last()?;
+                    let delete_from = match max.checked_sub(1).and_then(|i| arg_spans.get(i)) {
                         Some(prev) => prev.end(),
-                        None => cand.head_end,
+                        None => head.span().end(),
                     };
                     Some(ExcessArgs {
                         span: tcl_lexer::Span::new(first.start(), last.end()),
@@ -1569,13 +1573,17 @@ impl Analyser {
             if let Some(diag) = arity_verdict(
                 &cand.cmd_name,
                 arity,
-                cand.nargs_min,
-                cand.positional_any_expand,
-                cand.full_span,
+                nargs_min,
+                positional_any_expand,
+                full_span,
                 excess,
                 None,
             ) {
-                self.result.diagnostics.push(diag);
+                self.result.diagnostics.push(diag.with_subject(
+                    crate::analyser::DiagnosticSubject::UserSourceArity(std::sync::Arc::new(
+                        original,
+                    )),
+                ));
             }
         }
     }
@@ -1664,76 +1672,19 @@ impl Analyser {
     fn queue_tcloo_arity_candidates(
         &mut self,
         cmd_name: &str,
-        words: &ArityWords<'_>,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
-        self.queue_next_arity_candidate(cmd_name, words, scope_path);
+        self.queue_ctor_arity_candidate(cmd_name, cmd_tok, scope_path);
+        self.queue_next_arity_candidate(cmd_name, cmd_tok, scope_path);
     }
 
-    /// Queue a same-file user-call arity candidate for every command
-    /// invocation, independent of whether it also resolves to a
-    /// registry signature — [`Self::flush_arity_diagnostics`] resolves
-    /// it post-walk against same-file procs / `TclOO` forwards / `interp
-    /// alias` / static `rename` targets it can't see yet mid-walk
-    /// (forward references, cross-item merging). A call that turns out
-    /// to resolve to nothing with a known arity (a builtin, a class, an
-    /// ensemble, a stub, or simply unresolved) is silently dropped at
-    /// flush time — this queue never invents a diagnostic the resolver
-    /// can't back up.
-    ///
-    /// User procs have no declared option flags, so — unlike
-    /// [`Self::emit_source_signature_arity`] — there is no leading-option skip:
-    /// every word is positional from index 0.
-    fn queue_user_call_arity_candidate(
-        &mut self,
-        cmd_name: &str,
-        words: &ArityWords<'_>,
-        scope_path: &[usize],
-    ) {
-        if cmd_name.is_empty() || cmd_name.contains(['$', '[']) {
-            return; // dynamic command name — nothing to resolve statically
-        }
-        let ArityWords {
-            args,
-            arg_tokens,
-            arg_expand,
-            cmd_tok,
-        } = *words;
-        let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 0);
-        let full_span = match arg_tokens.last() {
-            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
-            None => cmd_tok.span,
-        };
-        // One `SourceMap` for every word of this call: this runs once per
-        // command in the document and the loop below once per argument, so
-        // rebuilding the map per word made span resolution quadratic in
-        // document size (see `utils::full_word_span_in`).
-        let source_map = super::super::state::Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        // Argument-word spans for the flush-time E003 surplus anchor —
-        // omitted under `{*}` expansion, where the surplus run is ambiguous.
-        let arg_spans: Vec<tcl_lexer::Span> = if positional_any_expand {
-            Vec::new()
-        } else {
-            arg_tokens
-                .iter()
-                .map(|t| super::super::utils::full_word_span_in(&source_map, *t))
-                .collect()
-        };
+    /// Record presentation and source position only. Actual call/header/argv
+    /// ownership is reborrowed after the walk, including literal sigil names.
+    fn queue_user_call_arity_candidate(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
         self.pending_user_call_arity.push(PendingUserCallArity {
-            cmd_name: cmd_name.to_string(),
-            ns: self.command_resolution_namespace(scope_path),
-            enforce_order: !self.scope_path_in_proc_body(scope_path),
+            cmd_name: cmd_name.to_owned(),
             call_off: cmd_tok.span.start(),
-            full_span,
-            nargs_min,
-            positional_any_expand,
-            arg_spans,
-            head_end: widen_token_end_in(&source_map, cmd_tok),
         });
     }
 
@@ -1742,13 +1693,13 @@ impl Analyser {
     fn queue_ctor_arity_candidate(
         &mut self,
         cmd_name: &str,
-        words: &ArityWords<'_>,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
         let Some(original) = super::types::OriginalConstructorArityCall::from_source(
             &self.source,
             &self.result,
-            words.cmd_tok.span.start(),
+            cmd_tok.span.start(),
             !self.scope_path_in_proc_body(scope_path),
         ) else {
             return;
@@ -1765,7 +1716,7 @@ impl Analyser {
     fn queue_next_arity_candidate(
         &mut self,
         cmd_name: &str,
-        words: &ArityWords<'_>,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
         let Some(context) = self.current_method_context(scope_path) else {
@@ -1775,7 +1726,7 @@ impl Analyser {
             context,
             &self.result,
             &self.source,
-            &words.cmd_tok,
+            &cmd_tok,
         ) else {
             return;
         };
@@ -1786,209 +1737,11 @@ impl Analyser {
             });
     }
 
-    /// Whether a fact (a proc definition, `rename`, or `interp alias`)
-    /// established at `established_off` is observably in effect by the
-    /// time `cand`'s call executes: unconditionally true inside a
-    /// proc/method body (the whole file loads, running every top-level
-    /// statement, before any body runs), and order-gated by textual
-    /// offset at top level (confirmed against tclsh 9.0.4: a top-level
-    /// call textually before the statement that establishes a proc /
-    /// rename / alias executes first at run time, so the fact isn't in
-    /// effect there yet).
-    fn fact_in_effect(cand: &PendingUserCallArity, established_off: u32) -> bool {
-        !cand.enforce_order || established_off < cand.call_off
-    }
-
-    /// Whether `name`'s most recent recorded deletion supersedes a
-    /// specific fact (a proc definition, a `rename` target, or an
-    /// `interp alias` target) that was itself established at
-    /// `fact_off`.
-    ///
-    /// `deleted_commands` holds only the *last* deletion offset seen for
-    /// `name` during the walk (a later `HashMap` insert overwrites an
-    /// earlier one) — but since the walk visits top-level statements in
-    /// source order, "last inserted" and "highest offset" coincide, so
-    /// that single stored offset is always the most recent deletion.
-    /// Comparing it against `fact_off` (not just against the call site,
-    /// as [`Self::fact_in_effect`] alone would) is what makes a
-    /// re-establishment after a deletion resolve correctly: a name
-    /// deleted at offset 7 and then given a fresh `proc`/`rename`/`interp
-    /// alias` at offset 50 is live again for any call after 50, because
-    /// the deletion (7) predates the fact (50) — only a deletion whose
-    /// offset falls *between* the fact and the call still shadows it
-    /// (confirmed against tclsh 9.0.4: `proc p {} {}`, `rename p {}`,
-    /// `proc p {a b} {}`, `p 1 2` succeeds — the second `proc` overrides
-    /// the deletion).
-    ///
-    /// A deletion recorded *inside* a proc/class/method body is itself
-    /// conditional — it executes only if and when that body is ever
-    /// invoked, which the textual load-order gate can't know — so it
-    /// never supersedes anything (confirmed against tclsh
-    /// 8.6.14 that `proc p {a b} {}`, `proc maybeDelete {} { rename p {}
-    /// }`, `p 1 2 3` still fails "wrong # args" against `p`'s original
-    /// 2-arg signature, since `maybeDelete` is never called and the
-    /// `rename` never runs). Mirrors the equivalent guard
-    /// [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] applies for the same question in the
-    /// W123 pass.
-    fn fact_superseded_by_deletion(
+    fn original_user_call_signature(
         &self,
-        name: &str,
-        fact_off: u32,
-        cand: &PendingUserCallArity,
-    ) -> bool {
-        self.deleted_commands.get(name).is_some_and(|&del_off| {
-            del_off > fact_off
-                && !self.result.offset_is_inside_any_definition_body(del_off)
-                && Self::fact_in_effect(cand, del_off)
-        })
-    }
-
-    /// Chase `cand.cmd_name` (as it resolves at `cand.ns`) through
-    /// same-file proc / static `rename` / `interp alias` indirection to
-    /// a definite [`Arity`], or `None` when nothing with a known arity
-    /// is reached.
-    ///
-    /// Each hop is namespace-qualified via [`qualify_candidates`] — the
-    /// same resolution order as the builtin-shadowing suppression check
-    /// in [`Self::flush_arity_diagnostics`]. A proc target, a `rename`
-    /// target, and an `interp alias` target are all order-gated via
-    /// [`Self::fact_in_effect`] (`proc_offsets` for procs,
-    /// `rename_offsets` / `alias_offsets` for the other two) — a
-    /// candidate whose defining statement hasn't executed yet at a
-    /// top-level call site is not a match. A name `rename`d away
-    /// (`deleted_commands`) is skipped as a proc match only when the
-    /// deletion postdates *that specific fact's* own offset (see
-    /// [`Self::fact_superseded_by_deletion`]) — a fact re-established
-    /// after its deletion is live again (see
-    /// [`crate::analyser::handlers::Analyser::handle_rename`]).
-    /// `interp alias`'s prepended arguments shift the eventual arity
-    /// down (real partial application, confirmed against tclsh 9.0.4);
-    /// chained aliases/renames accumulate the shift transitively.
-    /// Hop-limited for cycles among authored user declarations. Builtin
-    /// targets are handled once by the genuine original call-site source
-    /// schema, including selected count axes and captured selector prefixes.
-    /// The declaration of `qualified` that `cand`'s call actually dispatches
-    /// — the latest one written before it under the top-level order gate,
-    /// the last in the file inside a body.
-    ///
-    /// A qualified name declared twice is two definitions with two parameter
-    /// lists, and `all_procs` only ever keeps the second; asking it alone made
-    /// a call *between* the two unresolvable (the sole surviving definition
-    /// fails the order gate), so a genuine `wrong # args` against the first
-    /// definition went unreported. Oracle (tclsh 8.6.16 and 9.0.4): with
-    /// `proc p {} {…}`, `p a b` between the declarations fails `wrong # args:
-    /// should be "p"` — against the *first* signature, whatever the later one
-    /// says.
-    fn proc_definition_reached_by<'a>(
-        &'a self,
-        qualified: &str,
-        cand: &PendingUserCallArity,
-    ) -> Option<&'a super::super::types::ProcDef> {
-        if !cand.enforce_order {
-            return self.result.all_procs.get(qualified);
-        }
-        self.result
-            .proc_declarations(qualified)
-            .rfind(|def| Self::fact_in_effect(cand, def.name_span.start()))
-    }
-
-    fn resolve_indirect_call_target(&self, cand: &PendingUserCallArity) -> Option<Arity> {
-        const MAX_HOPS: u8 = 8;
-        let mut cur = cand.cmd_name.clone();
-        let mut prepended_total: u16 = 0;
-        // Whether `cur` was just reached via a *rename* hop (as opposed
-        // to being the original call name or an alias hop's target).
-        // `rename OLD NEW` moves the command's identity to `NEW` once
-        // and for all, so chasing `NEW` back to `OLD` to read its
-        // original `all_procs` entry is always valid regardless of
-        // `OLD`'s own deletion — `OLD` being deleted is precisely what
-        // freed it up to serve as this rename's source. An *alias*
-        // target, by contrast, is re-resolved by name every time it's
-        // invoked (confirmed against tclsh 9.0.4: `interp alias {} bar
-        // {} foo` then `rename foo baz` — or `rename foo {}` — makes
-        // `bar` fail too, "invalid command name foo"), so the deletion
-        // check applies there exactly as it does to the original call
-        // name.
-        let mut via_rename_hop = false;
-        for _ in 0..MAX_HOPS {
-            let candidates = qualify_candidates(&cand.ns, &cur);
-            for c in &candidates {
-                let Some(def) = self.proc_definition_reached_by(c, cand) else {
-                    continue;
-                };
-                let proc_off = def.name_span.start();
-                // A deletion recorded for `c` only shadows *this* proc
-                // definition when it postdates `proc_off` — a re-`proc`
-                // after a `rename c {}` supersedes the deletion (see
-                // `fact_superseded_by_deletion`). Skipped entirely while
-                // chasing a rename hop backward: `OLD` being deleted is
-                // precisely what freed it up to serve as this rename's
-                // source, never a reason to reject it.
-                if !via_rename_hop && self.fact_superseded_by_deletion(c, proc_off, cand) {
-                    continue;
-                }
-                let arity = def.arity();
-                return Some(shift_arity(arity, prepended_total));
-            }
-            if let Some(old) = candidates.iter().find_map(|c| {
-                let old = self.renamed_commands.get(c)?;
-                let off = *self.rename_offsets.get(c)?;
-                if !Self::fact_in_effect(cand, off) {
-                    return None;
-                }
-                // The rename that established `c` (the target name) can
-                // itself be superseded by a later deletion of `c` — but
-                // only when `c` wasn't just reached via a rename hop
-                // (`via_rename_hop`): a chain like `rename a b; rename b
-                // c` records `b` as "deleted" by the *second* rename as a
-                // pure side effect of moving it onward, not because the
-                // first rename's `b -> a` mapping stopped holding — that
-                // deletion is exactly what freed `b` up to serve as this
-                // hop's source, same convention as the proc branch above.
-                // An unrelated, later `rename c {}` on the name we have
-                // NOT yet hopped through must still shadow it, though
-                // (`same_file_call_to_renamed_away_name_does_not_false_positive`'s
-                // shape one level up the chain).
-                if !via_rename_hop && self.fact_superseded_by_deletion(c, off, cand) {
-                    return None;
-                }
-                Some(old)
-            }) {
-                cur.clone_from(old);
-                via_rename_hop = true;
-                continue;
-            }
-            if let Some((target, prepended)) = candidates.iter().find_map(|c| {
-                // An alias is re-resolved by name on every call (never
-                // chased back through a rename the way a proc's original
-                // definition is), so its own establishing offset — not a
-                // blanket per-name check — decides whether a later
-                // deletion of `c` shadows it. Exempted when `c` was just
-                // reached via a rename hop, for the same reason as the
-                // rename branch above: `rename a b` then chasing `b` back
-                // to alias `a` must not be defeated by `b`'s own deletion
-                // record (a side effect of that very rename).
-                let alias = self.command_aliases.get(c)?;
-                let off = *self.alias_offsets.get(c)?;
-                if !Self::fact_in_effect(cand, off) {
-                    return None;
-                }
-                if !via_rename_hop && self.fact_superseded_by_deletion(c, off, cand) {
-                    return None;
-                }
-                Some(alias)
-            }) {
-                prepended_total = prepended_total
-                    .saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
-                cur.clone_from(target);
-                via_rename_hop = false;
-                continue;
-            }
-            // No named Registry fallback: the call-site source-schema owner
-            // already covers genuine builtin targets and effective prefixes.
-            return None;
-        }
-        None
+        offset: u32,
+    ) -> Option<crate::analyser::SourceUserCallAritySubject> {
+        crate::analyser::SourceUserCallAritySubject::capture(&self.source, &self.result, offset)
     }
 
     /// **E004.** Shape advice from the genuinely selected clause grammar over
@@ -2199,9 +1952,9 @@ impl Analyser {
                 ),
             )
         };
-        let fixes = word
-            .try_text()
-            .ok()
+        let fixes = original
+            .written_index(argument)
+            .and_then(|_| word.try_text().ok())
             .map(|spelling| {
                 vec![super::types::CodeFix {
                     span: source_extent,
@@ -2672,9 +2425,6 @@ impl Analyser {
             candidates,
         } = scan.boundary
         {
-            let Some(word) = original.word(argument) else {
-                return;
-            };
             let Some(spelling) = original.literal(argument) else {
                 return;
             };
@@ -2693,7 +2443,8 @@ impl Analyser {
                     .iter()
                     .map(|word| (*word).to_owned())
                     .collect::<Vec<_>>(),
-                word.span(),
+                original,
+                argument,
             );
             if let Some(diagnostic) = self.result.diagnostics.get_mut(before) {
                 diagnostic.subject = Some(subject);
@@ -2752,8 +2503,13 @@ impl Analyser {
         sub_name: Option<&str>,
         word: &str,
         candidates: &[String],
-        span: tcl_lexer::Span,
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        argument: usize,
     ) {
+        let Some(operand) = original.word(argument) else {
+            return;
+        };
+        let span = operand.span();
         let sub_suffix = sub_name.map_or(String::new(), |n| format!(" {n}"));
         let listed = candidates
             .iter()
@@ -2762,11 +2518,18 @@ impl Analyser {
             .join(", ");
         let fixes: Vec<super::types::CodeFix> = candidates
             .iter()
-            .map(|candidate| super::types::CodeFix {
-                span,
-                new_text: candidate.clone(),
-                description: format!("Expand to '{candidate}'"),
-                safety: crate::irules_checks::FixSafety::RequiresReview,
+            .filter_map(|candidate| {
+                original.written_index(argument)?;
+                let new_text = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    candidate,
+                    operand.config(),
+                )?;
+                Some(super::types::CodeFix {
+                    span,
+                    new_text,
+                    description: format!("Expand to '{candidate}'"),
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
+                })
             })
             .collect();
         self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
@@ -2939,15 +2702,18 @@ impl Analyser {
                 continue;
             };
             if since > ceiling {
-                self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
-    DiagCode::W002,
-    span,
-    format!(
-                        "'::tcl::mathfunc::{name}' is disabled in the active dialect profile ('{}')",
-                        self.dialect()
-                    ),
-    Severity::Warning,
-));
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W002,
+                        span,
+                        format!(
+                            "'{}' is disabled in the active dialect profile ('{}')",
+                            tcl_registry::mathfunc::qualified_name(&name),
+                            self.dialect()
+                        ),
+                        Severity::Warning,
+                    ));
             }
         }
     }
@@ -3726,6 +3492,109 @@ mod original_expression_assistance_tests {
             stale.config.strict_quoting = !stale.config.strict_quoting;
             analyser.result.resolved_input = Some(stale);
             assert!(analyser.expr_function_calls(expression).is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod configured_proposal_controls {
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_core_types::DiagCode;
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        )
+    }
+
+    #[test]
+    fn actual_formal_and_lambda_repairs_are_complete_configured_words() {
+        for source in ["proc target {{a b c}} {}", "apply {{{a b c}} {return 1}}"] {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            config.strict_quoting = !config.strict_quoting;
+            let actual = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                config,
+            );
+            let result = Analyser::new()
+                .with_resolved_input(actual.clone())
+                .analyse(source, "tcl");
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == DiagCode::E006)
+                .unwrap();
+            let [fix] = diagnostic.fixes.as_slice() else {
+                panic!("original repair: {source}")
+            };
+            let expected = if source.starts_with("proc") {
+                "a b c".to_owned()
+            } else {
+                tcl_syntax::list::join_list(["a b c", "return 1"])
+            };
+            assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                &fix.new_text,
+                &expected,
+                actual.lexer_config(),
+            ));
+            assert_eq!(fix.span, diagnostic.span);
+        }
+    }
+
+    #[test]
+    fn selector_and_option_proposals_keep_written_origin_separate_from_capture() {
+        for (written, captured, code) in [
+            (
+                "string indez abc 0",
+                "interp alias {} selected {} string indez; selected abc 0",
+                DiagCode::W001,
+            ),
+            (
+                "lsort -d {b a}",
+                "interp alias {} selected {} lsort -d; selected {b a}",
+                DiagCode::W145,
+            ),
+        ] {
+            let actual = input();
+            let direct = Analyser::new()
+                .with_resolved_input(actual.clone())
+                .analyse(written, "tcl");
+            let diagnostic = direct
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap();
+            assert!(!diagnostic.fixes.is_empty(), "{written}");
+            for fix in &diagnostic.fixes {
+                let plan = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(&fix.new_text),
+                    tcl_lexer::Span::new(0, u32::try_from(fix.new_text.len()).unwrap()),
+                    actual.lexer_config(),
+                )
+                .unwrap();
+                assert_eq!(plan.commands.len(), 1);
+                assert_eq!(plan.commands[0].words.len(), 1);
+                assert!(plan.fatal_tail.is_none());
+            }
+            let indirect = Analyser::new()
+                .with_resolved_input(actual)
+                .analyse(captured, "tcl");
+            let diagnostic = indirect
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap();
+            assert!(diagnostic.fixes.is_empty(), "{captured}");
         }
     }
 }

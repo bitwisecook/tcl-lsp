@@ -24,6 +24,7 @@ const MAX_COMMANDS: usize = 16_384;
 pub struct OriginalSourceProcedureCall {
     original: Arc<[tcl_lexer::NativeWord]>,
     procedure: Arc<OriginalSourceProcedureBody>,
+    prefix: Vec<SourceAdviceWord>,
     caller: Option<Arc<OriginalSourceScriptBody>>,
     uncertain_operations: Vec<Arc<[tcl_lexer::NativeWord]>>,
     future_body: bool,
@@ -35,6 +36,12 @@ impl OriginalSourceProcedureCall {
     #[must_use]
     pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
         &self.original
+    }
+    /// Original alias-prefix argv slots retained by the same source cell walk.
+    /// These have no written operand at this call and grant no runtime binding.
+    #[must_use]
+    pub fn captured_argument_count(&self) -> usize {
+        self.prefix.len()
     }
     /// Original declaring header joined against the retained analysis allocation.
     #[must_use]
@@ -143,6 +150,10 @@ impl OriginalSourceProcedureCall {
                 .original
                 .iter()
                 .all(|word| word.image() == image && word.config() == config)
+            && self
+                .prefix
+                .iter()
+                .all(|word| word.original.image() == image && word.original.config() == config)
             && self.caller.as_ref().is_none_or(|body| {
                 body.matches_source(image, config) && body.matches_context(context)
             })
@@ -421,12 +432,22 @@ impl AdviceInvocationContext<'_> {
         let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
             return false;
         };
-        let Some(procedure) = graph.original_procedure(head) else {
+        let Some(mut selected) = graph.resolve_source_cell(head) else {
             return false;
         };
+        let AdviceCell::SourceProcedure(procedure) = selected.cell else {
+            return false;
+        };
+        let mut procedure = procedure.as_ref().clone();
+        procedure.lineage.extend(selected.lineage);
+        let procedure = Arc::new(procedure);
+        for (ordinal, word) in selected.prefix.iter_mut().enumerate() {
+            word.origin = crate::registry_invocation::InvocationWordOrigin::BindingPrefix(ordinal);
+        }
         let call = OriginalSourceProcedureCall {
             original: Arc::from(native),
             procedure: Arc::clone(&procedure),
+            prefix: selected.prefix,
             caller: graph.procedure_body.clone(),
             uncertain_operations: graph.uncertain_operations.clone(),
             future_body: graph.future_procedure_source,
@@ -738,5 +759,33 @@ mod tests {
                 .is_some()
         );
         assert!(source_registered_instance_words_at(source, &analysis, outside).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_captured_call_controls {
+    use crate::analyser::Analyser;
+    use crate::registry_invocation::source_structure::source_original_procedure_call_at;
+
+    #[test]
+    fn same_original_native_source_call_retains_actual_alias_prefix_count() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jimtcl"] {
+            let source = "proc target {a b c} {}; interp alias {} one {} target X; interp alias {} two {} one Y; two Z";
+            let analysis = Analyser::new().analyse(source, dialect);
+            let offset = u32::try_from(source.rfind("two Z").unwrap()).unwrap();
+            let call = source_original_procedure_call_at(source, &analysis, offset).unwrap();
+            assert_eq!(call.captured_argument_count(), 2);
+            assert_eq!(call.original_words().len(), 2);
+            assert_eq!(call.original_words()[0].span().start(), offset);
+            assert_eq!(
+                call.declaration(&analysis).unwrap().name_input().bytes(),
+                b"target"
+            );
+            assert!(!call.lineage().is_empty());
+        }
+        let source = "proc target {a b} {}; interp alias {} one {} target X; interp alias {} two {} one; rename one {}; two Z";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind("two Z").unwrap()).unwrap();
+        assert!(source_original_procedure_call_at(source, &analysis, offset).is_none());
     }
 }

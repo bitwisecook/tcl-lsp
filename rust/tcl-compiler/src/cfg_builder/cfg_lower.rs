@@ -2394,8 +2394,16 @@ impl CfgBuilder<'_> {
         if result_var.is_some()
             && let Some(last) = body.statements.last()
         {
-            self.alias_observed_vars
-                .extend(crate::ssa::defs_of_with_registry(last, Some(self.registry)));
+            let observed = if self.command_classes.metadata.is_standalone() {
+                crate::ssa::defs_of_with_registry(last, Some(self.registry))
+            } else {
+                crate::ssa::defs_of_with_metadata_context(
+                    last,
+                    self.registry,
+                    self.command_classes.metadata_context().flatten(),
+                )
+            };
+            self.alias_observed_vars.extend(observed);
         }
         let mut defs = Vec::new();
         if let Some(rv) = result_var {

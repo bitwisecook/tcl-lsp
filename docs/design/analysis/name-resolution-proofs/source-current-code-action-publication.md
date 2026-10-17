@@ -70,3 +70,5 @@ Server publication captures the actual source/input/provider owners and versione
 Ordinary Tcl action currency and transport only. Core edit-subject/equivalence guards remain independent; dedicated BIG-IP adapters and Native execution are not admitted by this record.
 
 All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.
+
+This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.

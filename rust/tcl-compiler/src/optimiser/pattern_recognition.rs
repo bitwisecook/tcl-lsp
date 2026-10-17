@@ -46,7 +46,7 @@ use crate::ir::{Module, Script, Statement};
 use crate::naming::normalise_var_name;
 
 use super::helpers::literals::is_safe_word;
-use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::spans::{original_statement_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
 use tcl_syntax::naming::is_static_variable_source_word;
 
@@ -179,6 +179,13 @@ fn emit_set_pack(
     assessment: super::store_packing::StorePackingAssessment,
 ) {
     let source = ctx.source;
+    let Some(extents) = run
+        .iter()
+        .map(|(index, _, _)| original_statement_rewrite_span(ctx, stmts[*index].span()))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return;
+    };
     let group = ctx.alloc_group();
     let var_words = run
         .iter()
@@ -205,11 +212,10 @@ fn emit_set_pack(
             )
         };
 
-    let last_idx = run.last().unwrap().0;
     let mut pack = Optimisation::new(
         DiagCode::O119,
         pack_msg,
-        full_rewrite_span(source, stmts[last_idx].span()),
+        *extents.last().unwrap(),
         replacement,
     );
     pack.group = Some(group);
@@ -227,8 +233,7 @@ fn emit_set_pack(
     });
     ctx.report(pack);
 
-    for (idx, _, _) in &run[..run.len() - 1] {
-        let full = full_rewrite_span(source, stmts[*idx].span());
+    for ((idx, _, _), full) in run[..run.len() - 1].iter().zip(extents.iter().copied()) {
         let next_start = stmts.get(idx + 1).map(|s| s.span().start() as usize);
         let mut del = Optimisation::new(
             DiagCode::O119,
@@ -257,11 +262,14 @@ fn walk_statement(
             if let Some(proof) = ctx.registry.and_then(|registry| {
                 crate::increment_rewrite::assess_increment_rewrite(script, stmt, registry, module)
             }) {
+                let Some(rewrite_span) = original_statement_rewrite_span(ctx, *span) else {
+                    return;
+                };
                 let replacement = proof.replacement();
                 ctx.report(Optimisation::new(
                     DiagCode::O114,
                     "Use incr instead of set/expr",
-                    full_rewrite_span(ctx.source, *span),
+                    rewrite_span,
                     replacement,
                 ));
             }

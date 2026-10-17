@@ -824621,6 +824621,11 @@
           "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
           "symbol": "finish_code_action_response",
           "purpose": "Retain the existing actual source/API owner for this bounded implementation contract; no execution result is asserted."
+        },
+        {
+          "path": "editors/vscode/src/codeActionSource.ts",
+          "symbol": "provideSourceCodeActions",
+          "purpose": "The actual Node/browser middleware retains the original document, provider response and one-use local receipt before invoking the existing checked snapshot writer. Source currency does not grant edit equivalence or Native execution."
         }
       ],
       "replay": {

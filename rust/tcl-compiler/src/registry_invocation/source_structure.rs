@@ -415,6 +415,9 @@ pub struct OriginalRegistryWords {
     config: tcl_lexer::LexerConfig,
     registry: tcl_registry::RegistrySemanticKey,
     context: Option<tcl_registry::model::ResolvedContext>,
+    /// Parent source proof for a generic child that has no independent root
+    /// command-tape entry. It only revalidates the selected source projection.
+    definition_parent: Option<std::sync::Arc<super::source_scoped_body::OriginalSourceScriptBody>>,
 }
 fn selected_source_package_reference(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
@@ -684,6 +687,14 @@ impl OriginalRegistryWords {
     pub fn context(&self) -> Option<&tcl_registry::model::ResolvedContext> {
         self.context.as_ref()
     }
+    /// Authenticated enclosing definition body when this argv was reborrowed
+    /// from a complete parent source plan.
+    #[must_use]
+    pub fn definition_parent(
+        &self,
+    ) -> Option<&super::source_scoped_body::OriginalSourceScriptBody> {
+        self.definition_parent.as_deref()
+    }
     /// Borrow the same exact argv's Registry-authored source schema under its
     /// actual retained context. The projection is source advice only; fields
     /// describing possible handlers/effects never establish execution here.
@@ -744,6 +755,9 @@ impl OriginalRegistryWords {
             || matches!(&self.source, OriginalRegistrySource::SourceTransitions(advice) if !advice.matches_context(context))
             || matches!(&self.source, OriginalRegistrySource::ProducedPrefix(prefix) if !prefix.matches_source_context(&self.image, self.config, context))
             || matches!(&self.source, OriginalRegistrySource::ConditionalNativeSource(applicability) if !applicability.matches_source_context(&self.image, self.config, context))
+            || self.definition_parent.as_ref().is_some_and(|parent| {
+                !parent.matches_source(&self.image, self.config) || !parent.matches_context(context)
+            })
         {
             return None;
         }
@@ -795,14 +809,11 @@ impl OriginalRegistryWords {
             );
             return Some(project(&selected));
         }
-        let resolution =
-            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-                context.commands(),
-                Some(context.context()),
-                invocation,
-                tcl_dialect::model::InvocationRealm::RuleLoader,
-            );
-        let selected = resolution.resolved()?;
+        let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+            context.commands(),
+            Some(context.context()),
+            invocation,
+        )?;
         Some(project(&selected))
     }
 
@@ -1122,6 +1133,7 @@ pub(crate) fn selected_registry_words_in_original_image(
         config,
         registry: registry.snapshot().semantic_key(),
         context: None,
+        definition_parent: None,
     })
 }
 
@@ -1239,6 +1251,7 @@ fn conditional_native_case_source_words(
         config,
         registry: registry.snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     })
 }
 
@@ -1537,11 +1550,143 @@ pub fn source_registry_words_in_definition_body_at(
     use super::source_scoped_body::OriginalSourceDefinitionMemberDisposition as Disposition;
     match members.script_body_disposition(&context, original) {
         Disposition::Unavailable => None,
-        Disposition::CompleteNonMember => source_registry_words(source, analysis, &segment),
+        Disposition::CompleteNonMember => source_registry_words(source, analysis, &segment)
+            .or_else(|| generic_definition_child_source_words(source, analysis, &segment, parent)),
         Disposition::CompleteMember(_) => {
             source_registry_words_in_definition_body(source, analysis, &segment, parent)
         }
     }
+}
+
+// naming.source.original-generic-definition-child-registry-roles
+// docs/design/analysis/name-resolution-proofs/source-original-generic-definition-child-registry-roles.md
+fn generic_definition_child_source_words(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: &super::source_scoped_body::OriginalSourceScriptBody,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = retained_document_image(source, analysis.retained_command_realm()?, config)?;
+    let context = input.context_registry();
+    if analysis.body_lexer_config != Some(config)
+        || !analysis.matches_original_source_image(&image, config)
+        || !parent.matches_source(&image, config)
+        || !parent.matches_context(&context)
+    {
+        return None;
+    }
+    let head = segment.argv.first()?;
+    let offset = head.span.start();
+    let members = parent.definition_member_region(&context, parent.content_span())?;
+    let originals = members.complete_original_commands()?;
+    let original = members.original_command_words_at(offset)?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    let native = crate::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        offset,
+        config,
+    )?;
+    (native.as_slice() == original && originals.iter().any(|words| words == original))
+        .then_some(())?;
+    let head_bytes = tcl_syntax::word_rules::original_static_word_unicode_value(original.first()?)?;
+    let head_text = std::str::from_utf8(&head_bytes).ok()?;
+    let static_values = original
+        .iter()
+        .skip(1)
+        .map(tcl_syntax::word_rules::original_static_word_unicode_value)
+        .collect::<Vec<_>>();
+    let values = original
+        .iter()
+        .skip(1)
+        .zip(&static_values)
+        .map(|(word, value)| {
+            if word.group().expand {
+                tcl_registry::InvocationWord::Expanded
+            } else if let Some(value) = value {
+                tcl_registry::InvocationWord::KnownBytes(value.as_slice())
+            } else {
+                tcl_registry::InvocationWord::Dynamic
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut invocation = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(head_text),
+        &values,
+    );
+    if let Some(dialect) = parent.source_words().dialect() {
+        invocation = invocation.with_dialect(dialect);
+    }
+    // Registry source roles use the actual retained context's authoring realm;
+    // this source-only facet must not manufacture a RuleLoader/runtime realm.
+    let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+        context.commands(),
+        Some(context.context()),
+        invocation,
+    )?;
+    let (selected_roles, complete) = selected.authored_source_argument_roles();
+    if !complete {
+        return None;
+    }
+    let roles = selected_roles
+        .into_iter()
+        .map(|(position, role)| {
+            selected
+                .semantics
+                .argument_offset
+                .checked_add(usize::from(position))
+                .map(|position| (position, role))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let mut arguments = Vec::with_capacity(original.len().saturating_sub(1));
+    let mut operands = Vec::with_capacity(arguments.capacity());
+    let mut origins = vec![InvocationWordOrigin::Written(0)];
+    for (index, word) in original.iter().enumerate().skip(1) {
+        let value = if word.group().expand {
+            EffectiveInvocationWord::Expanded
+        } else if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+        {
+            EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(value))
+        } else {
+            EffectiveInvocationWord::Dynamic
+        };
+        arguments.push(value);
+        operands.push(Some(OriginalOperandSource {
+            span: word.span(),
+            input: None,
+            word: Some(word.clone()),
+        }));
+        origins.push(InvocationWordOrigin::Written(index));
+    }
+    let head = OriginalOperandSource {
+        span: original.first()?.span(),
+        input: None,
+        word: Some(original.first()?.clone()),
+    };
+    Some(OriginalRegistryWords {
+        command: selected.command().to_owned(),
+        dialect: parent.source_words().dialect(),
+        arguments,
+        operands,
+        origins,
+        head: Some(head),
+        roles: Some(roles),
+        source: OriginalRegistrySource::Selected,
+        captured_values: None,
+        operands_preserve_source_lookup: false,
+        image,
+        config,
+        registry: context.commands().snapshot().semantic_key(),
+        context: Some(context.context().clone()),
+        definition_parent: Some(std::sync::Arc::new(parent.clone())),
+    })
 }
 
 fn source_registry_words_with_definition_parent(
@@ -1832,6 +1977,7 @@ fn original_source_schema_words(
         config,
         registry: context.commands().snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     };
     words.roles = words
         .with_source_schema(context, |schema| {
@@ -2325,6 +2471,31 @@ pub fn source_configured_class_at(
 ) -> Option<crate::command_binding::OriginalSourceConfiguredClassReference> {
     let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
     realm.original_source_configured_class(input, &native)
+}
+
+/// Source roles for the exact configured-class invocation retained by the
+/// transition owner. This keeps alias/move lineage and the selected target
+/// schema attached to the original words; a report label cannot select it.
+#[must_use]
+// naming.source.original-configured-class-transition-roles
+// docs/design/analysis/name-resolution-proofs/source-original-configured-class-transition-roles.md
+pub fn source_configured_class_words_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<OriginalRegistryWords> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let reference = source_configured_class_at(source, analysis, offset)?;
+    let image = retained_document_image(source, analysis.retained_command_realm()?, config)?;
+    if config != input.lexer_config()
+        || !analysis.matches_original_source_image(&image, config)
+        || !reference.matches_source_context(&image, config, &context)
+    {
+        return None;
+    }
+    source_transition_words_from_advice(source, config, &context, reference.consumer().clone())
 }
 
 /// Exact original selected class declaration at its authentic source occurrence.
@@ -2909,6 +3080,7 @@ fn original_case_registry_words(
         config,
         registry: registry.snapshot().semantic_key(),
         context: Some(metadata.context().clone()),
+        definition_parent: None,
     })
 }
 
@@ -3717,6 +3889,7 @@ fn conditional_source_registry_words(
         config,
         registry: registry.snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     })
 }
 
@@ -3896,6 +4069,7 @@ fn source_transition_words_with_segment_in_image(
         config,
         registry: context.commands().snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     })
 }
 
@@ -4095,6 +4269,7 @@ fn produced_prefix_words(
         config,
         registry: context.commands().snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     })
 }
 
@@ -4183,6 +4358,7 @@ pub(crate) fn original_vendor_registry_words(
         config,
         registry: context.commands().snapshot().semantic_key(),
         context: Some(context.context().clone()),
+        definition_parent: None,
     })
 }
 

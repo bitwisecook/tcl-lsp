@@ -118,6 +118,7 @@ pub fn render_folded_literal(value: &Literal) -> Option<String> {
 ///   escaping the caller must handle).
 /// - otherwise → `{value}`.
 #[must_use]
+#[cfg(test)]
 pub fn render_static_string_word(value: &str) -> Option<String> {
     if value.is_empty() {
         return Some("{}".into());
@@ -129,6 +130,18 @@ pub fn render_static_string_word(value: &str) -> Option<String> {
         return None;
     }
     Some(format!("{{{value}}}"))
+}
+
+/// Configured literal source word under the optimiser's existing conservative
+/// construction policy. Braces, backslashes and line breaks remain excluded;
+/// the shared full-word constructor validates the actual supplied grammar.
+/// This provides syntax only, not result/object or rewrite equivalence.
+#[must_use]
+pub fn render_static_string_word_in(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    if value.contains(['{', '}', '\\', '\n', '\r']) {
+        return None;
+    }
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
 }
 
 /// Render a [`ConstValue`] (from the SCCP lattice) as Tcl source
@@ -339,5 +352,24 @@ mod tests {
         assert!(parse_decimal_int("abc").is_none());
         assert!(parse_decimal_int("").is_none());
         assert!(parse_decimal_int("   ").is_none());
+    }
+
+    #[test]
+    fn configured_static_literal_word_uses_shared_source_constructor_with_existing_policy() {
+        let mut config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        config.expand_syntax = false;
+        for value in ["", "hello world", "$literal [data]", "quoted \"value\""] {
+            let spelling = render_static_string_word_in(value, config).unwrap();
+            assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                &spelling, value, config
+            ));
+        }
+        for value in ["a{b", "a}b", "back\\slash", "a\nb", "a\rb"] {
+            assert!(render_static_string_word_in(value, config).is_none());
+        }
+        assert_eq!(
+            render_static_string_word_in("hello world", config).as_deref(),
+            Some("{hello world}")
+        );
     }
 }

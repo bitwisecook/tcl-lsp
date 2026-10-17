@@ -2773,3 +2773,802 @@ hazard filter consumes naming::is_qualified for the existing qualified-name
 predicate purpose (:1776); labels remain conservative supplied source hazards,
 not namespace identities or proof of an empty physical trace table. Original
 metadata/currentness and all Native/equivalence gates remain unchanged.
+
+
+### Retained original optimiser statement rewrite geometry
+
+The original-rewrite-statement-extent owner (:61) reborrows the actual retained
+lowering interpretation at the original statement start, its original recorded
+command and complete word vector, and the last genuine NativeWord under the
+same source image/full grammar/Registry. Exact start, original reported extent
+bounds and parent command site are joined before returning the whole written
+command. This supplies source geometry, not dispatch, erasure, equivalence,
+result, observer or storage authority.
+
+The expression assignment/return adapters (:391:assign/:391:return),
+propagation assignment/substitution adapters (:997:forward/:997:substitute),
+and elimination unreachable/dead-store/ADCE adapters (:826:unreachable,
+:826:dead-store, :826:adce) consume that extent independently of their original
+semantic gates. Unavailable geometry withholds the source proposal and cannot
+mark a dead-store edit as removed. Actual proposed source construction and
+physical optimizer equivalence are independent unresolved purposes. Other
+remaining callers of the compatibility statement scanner are not closed by
+this partial adoption; old scanner assertions remain intact. Added original
+CompilationUnit controls are source-only and unexecuted.
+
+
+### Remaining statement-extent consumer adoption
+
+The same original-rewrite-statement-extent owner (:61) is consumed by the
+existing tail-call, unused-procedure, structure-elimination, pattern-recognition,
+chain-fold, code-sinking and optimiser-manager source adapters. The manager
+passes its actual held module/Registry/source/config directly to that same
+kernel. No parser, declaration lookup, source event, physical erasure or
+Native equivalence proof is recreated. Grouped chain, pack and sink proposals
+first authenticate every extent, then publish the existing whole group;
+missing one extent cannot leave a partial deletion/replacement group.
+Unchanged independent scope/result/effect/observer/storage/authorisation gates
+still determine whether a source rewrite is permissible. Structured child
+traversal continues when an unavailable enclosing extent blocks only its own
+proposal. The old delimiter scanner is retained solely for its unchanged
+historical test probes once the complete adoption chain is applied. This
+geometry adoption does not discharge the unused-procedure declaration/erasure,
+source-motion read/effects, reference-census, target construction or Native
+equivalence audit purposes. No execution result is claimed.
+
+
+### Statement extent preserves the selected original vector
+
+The original statement-extent owner reborrows its last NativeWord from the
+same retained binding's complete recorded command and SourceOrigin lexical
+projection. It does not query all words globally by span after selecting the
+command. An inner single-word command may have exactly the content span of
+its enclosing braced or command-substitution word; these are distinct genuine
+parent sites, not conflicting evidence about the selected command. Full image,
+configuration, Registry, original argv, site and extent bounds remain required.
+This corrects geometry availability only and grants no positive execution,
+equivalence or erasure authority. Fixed nested-procedure and bracket-child
+controls are unexecuted; all predecessor assertions remain unchanged.
+
+
+### Configured optimiser scalar source spelling
+
+The existing configured-scalar-word-construction purpose (:121) now uses
+lexical_unicode_source_word under the actual ChainSourceContext full lexer
+configuration. Its narrower value policy still refuses braces, backslashes
+and CR/LF; the policy is not a Tcl name-validity grammar. Existing chain
+target spelling also delegates to the same complete source-word constructor
+instead of assembling a quoted fragment locally. This is Unicode source data
+construction only; actual selected setter, target/read/store, observer, result
+allocation and source edit/equivalence gates remain independent. Native chain
+results remain hint-only where their existing erasure/equivalence owner is
+missing. General propagation output (:3146), expression literal/container
+construction (:682), scalar assignment/return target selection and parent
+postimage proof are not closed by this narrow spelling adopter. Old default
+constructor controls remain unchanged test-only compatibility probes. Added
+configured data/policy controls are unexecuted.
+
+
+### Expression literal source projection
+
+The existing expression-literal-construction purpose (:682) delegates its
+non-numeric mathematical projection to the shared quoted-content codec. Its
+explicit braced-script-safe facet uses the same character codec, retains
+selected escape decoding, verifies the complete quoted source word and its
+complete braced lexical container, and escapes substitution/brace syntax as
+literal data. The existing original expression parser then admits the entire
+constructed literal under the supplied ExprParseContext. Unknown construction
+or expression grammar leaves that reference unsubstituted. Old quoted-fragment
+and native source-word callers retain their original codec mode and bytes.
+
+This new facet is one explicit lexical constructor purpose on the existing
+codec, not an independent parser or a Native operand proof. Complete actual
+parent postimage/caller source configuration and Native result, conversion,
+observer and equivalence obligations are not discharged. The existing
+for_execution adapter still requires its genuine NativeOperandProofs and does
+not obtain them from a successful mathematical/source projection. Existing
+empty-proof production paths remain unable to erase those reads. No Source
+Authoring substitute for semantic optimiser equivalence is introduced.
+Fixed substitution/brace-container controls remain unexecuted.
+
+
+### Original expression type-reference keys
+
+The expression-type-reference-key purpose (:944) consumes the same retained
+ExprNode::Var.text key that record_operand_types inserts from actual represented
+reads. Reassociation does not strip the reference sigil or substitute Var.name
+for that original read key. A mathematical integer type fact for one source
+reference spelling cannot be borrowed by a different spelling without its
+actual represented-read fact. This repairs the candidate type join only; all
+existing numeric/result/Native equivalence gates remain independent. Old
+positive and negative controls remain unchanged, with one additional original
+braced-reference correspondence control unexecuted.
+
+
+### Original namespace import control value purpose
+
+`db.unit.registry.namespace.import-force-value-purpose` keeps two genuinely
+independent operands. `InvocationWord::Literal` supplies an exact authored Tcl
+Unicode value; its actual invocation dialect selects `authored_name_policy`,
+and `NamePolicyProtocol::namespace_import_source_control` retains that policy
+and the whole source value in `AuthoredNamespaceImportControl`. The source
+control is the complete `-force` value. U+0000 stays part of that source value;
+UTF-8 source text is never presented as native resident object bytes.
+
+`InvocationWord::KnownBytes` instead borrows the actual resident byte operand
+through `NativeNameProtocol::namespace_import_forces`, whose selected native
+import purpose owns the C-string extent. Thus source `-force` followed by
+U+0000 and more source text does not select the source control, while actual
+resident bytes beginning `-force` followed by a C byte terminator can select
+the native control. These distinct phase inputs do not assert the same native
+storage. Jim's helper supplies no modelled C-style `-force` control and both
+facets refuse that unsupported purpose; the broader namespace-pattern owner
+cannot donate it.
+
+The Registry transition consumer uses these actual selected owners before
+choosing the first pattern ordinal. Missing source policy remains unknown,
+including profileless legacy calls formerly accepted by local string equality;
+that compatibility risk is explicit and does not justify a default engine.
+This source control grants no entered namespace import, installed binding,
+Native object, Normal, observer or replacement-equivalence permission. Existing
+execution and currentness guards stay independent. Two fixed source/native
+extent and ordinal controls are source-visible but unexecuted; Root must run
+the actual owner-resolution gate and scoped/regression tests before acceptance.
+
+
+### Optimizer original expression source construction
+
+The assignment and return expression simplifiers construct a replacement from
+the actual retained original statement, preserving its command head, target
+spelling, captured prefix and unrelated bytes. The existing original expression
+candidate selector authenticates the module, input, Registry, selected
+ExpressionArguments operation and original written operand. A complete checked
+source-expression receipt compares its unchanged tree with the lowered tree.
+The expression command must be the sole command of an actual whole original
+command-substitution word in that statement. Full folding replaces that whole
+word; partial simplification replaces only the selected expression argument.
+Both replacements use the existing configured literal source-word constructor.
+
+These are source extent and construction purposes within existing optimizer
+adopters, not a new source-authoring permission for semantic optimization. The
+existing evaluation, Normal, conversion, read, effect, sharing and Native
+equivalence guards remain independent and unchanged. A source receipt cannot
+make an unproved rewrite executable. The five retained diagnostic optimizer
+Native-equivalence failures remain outside this construction change. Other
+propagation constructors, parent postimage correspondence, observer/effect
+carriers and erasure eligibility require their own actual owner reconciliation.
+
+The fixed qualified-head, literal-target, return, foreign-source and
+concatenated-substitution controls are source-defined and unexecuted here.
+
+
+### Configured optimizer propagation literal words
+
+Every existing propagation literal-word constructor now receives the complete
+configuration held by its actual pass, selected module input or current
+argument issuer. The shared Syntax lexical Unicode source-word owner checks
+the complete word and its exact decoded value. A failed constructor returns no
+replacement, and is never interpreted as an empty literal or successful fold.
+The previous local safe-word/list-quoter choice no longer decides target Tcl
+syntax. Existing source spans, evaluation, folding, read/effect/observer and
+Native equivalence gates remain independent.
+
+This closes only the configured literal projection of the existing propagation
+construction adopter. Original outer command/target preservation, complete
+parent postimage correspondence and physical erasure/equivalence are separate
+obligations; this change grants no source-authoring exemption for a semantic
+optimizer. The fixed configured Unicode/metacharacter control is unexecuted.
+
+
+### Provider-owned pack discovery and evaluated source ingress
+
+The existing `db.unit.spectcl.discovery.store-path-currentness` purpose asks
+its actual `SourceStore::canonical_source_path` owner for provider-owned path
+spelling. NativeStore delegates its own filesystem; an unavailable foreign
+provider retains its original typed path, never a coincident host path. This
+is namespace spelling, not existence, file identity, source census or freshness.
+
+For `db.unit.spectcl.discovery.manifest-inventory-completeness`, the existing
+manifest parser exposes `OriginalManifestSpecSelection`: a complete original
+source inventory of known directives, with actual `spec` syntax checked by the
+same directive dispatcher. Independent package/version semantic validation is
+not a source-selection premise. The original `package require x` discovery
+fixture can therefore establish no `spec` without becoming a valid full
+manifest. Full manifest loading remains unchanged. Unknown/malformed source,
+unreadable paths, changed observations and malformed/duplicate `spec` do not
+permit implicit discovery; nested unknown manifests cannot borrow a parent's
+implicit scan. Actual observed manifest images join the existing loader source
+publication receipt. Directory census caps/omissions remain separate limits.
+
+The existing evaluated-row/body ingress purposes retain actual phases. A
+same-line equal-width source row whose full literal argv does not equal the
+capture cannot donate source values. Ambiguous rows/bodies retain genuine
+evaluated fallback values. Existing original-body owner reborrows the complete
+literal argv and captured body value before using source bytes/physical lines;
+its parent-source checks remain independent. The genuine original braced body
+operand supports one-word bodies without a whitespace inverse. Unknown
+substituted body layouts retain the existing evaluated heuristic and are not
+claimed complete. No reader choice creates notice/edit source authority.
+
+### Actual pack include inputs and construction source hints
+
+`db.unit.spectcl.pack.include-cache-dependencies` carries the actual Backend
+Arc SourceStore into the existing IncludeContext resolver. Only actual checked
+include operands cause on-demand reads. The same raw images and typed origins
+feed the existing PackSet content key and LoadedSourceInputs publication
+receipt, before existing BOM removal/evaluation. Failure, unavailable origins
+or changed images cannot supply complete publication. Borrowed APIs obtain an
+owned reader only through `SourceStore::retained_source_reader`; NativeStore
+retains its own reader, while unknown/foreign borrowed providers have no host
+filesystem fallback. No eager sibling scan or file-path receipt becomes IO
+permission. Existing include-name, cycle, depth, trust, interpreter and external
+package/extension guards stay independent. The key remains build/platform-local
+content hashing, not collision-free file identity.
+
+`db.unit.spectcl.loader.bare-construction-hint` retains the actual authored
+`-hint-values` and `-hint-prefixes` as the existing DefinitionBodyGrammar's finite
+`BareWordConstructionSourceHint`. The central Registry candidate projection
+uses that recipe; arbitrary bare flags do not acquire Snit's fixed predicate.
+Only the exact explicitly authored historical Snit descriptor retains its
+legacy compatibility callback, preserving the original callable port controls.
+Other values/prefixes stay source candidates, without a Native constructor or
+object identity. Unknown/duplicate/malformed option lists and empty prefixes
+supply no hint. Existing Studio draft, Rust/SpecTcl rendering and exhaustive
+field coverage retain the descriptor; unrepresentable renderings retain the
+existing loss/refusal discipline. All original fixture/assertion bytes remain;
+new fixed controls are unexecuted. Root must run owner-resolution, real compiler
+and regression/provider gates before any acceptance or verified-completion claim.
+
+
+### Propagation reborrows original expression source construction
+
+The existing propagation AssignExpr adapter passes its retained StatementSource
+vector to the same original expression source constructor used by expression
+simplification. The constructor rechecks the actual statement start, source
+image, complete module/input/Registry and original full command vector before
+borrowing its uniquely selected expression operand. It preserves the actual
+outer command and target, and splices only that complete operand. The shared
+source constructor handles Unicode literal spelling under the retained grammar.
+No raw set/expr name is emitted by this adapter.
+
+This transport grants no successful read, store, completion, folding, motion or
+Native equivalence. All existing substitution/evaluation/equivalence guards stay
+unchanged. The original-expression V1 Option-returning source capture also now
+uses the actual SourceImage try_text Result through .ok(), preserving its
+existing refusal. The fixed same-document foreign-vector control is unexecuted.
+
+
+### Diagnostic slot presence is not target knowledge
+
+The unresolved-command diagnostic consumer retains the positioned owner's
+SourceCommandSlotPresence directly. Present suppresses an absence advisory;
+it does not construct BindingTarget from a report spelling. Only actual Absent
+continues to feed W123, while MayPresent and Unknown keep their distinct
+presence meanings and suppress that diagnostic. Assistance declarations retain
+their existing advisory suppression without issuing callable identity. The
+underlying reached/conditional source lookup, deferred context and original
+source-currentness owners remain unchanged.
+
+
+### Configured diagnostic proposal words
+
+Original selected diagnostic advice and editable source operands are distinct.
+W146 literal replacement, W001/W145 selector spelling and W145 option spelling
+proposals require their actual call-local written ordinal before replacing the
+whole retained NativeWord. Candidate and allowed values are encoded through
+Syntax's complete configured Unicode literal-word constructor under that
+word's original configuration. W127 positional and option value suggestions
+use the same constructor after their genuine written-origin gate. Unknown
+construction omits the proposal without withdrawing the diagnostic advice.
+
+Formal-list repairs reborrow the existing retained whole word and compare its
+actual configured literal value before encoding the repaired ordinary list or
+Lambda list as one outer source word. Inner Lambda list serialization remains
+a list-value operation. Captures, changed words and missing original geometry
+do not acquire an edit from a token extent. W304 similarly requires its selected
+option boundary to be an actual written operand before inserting a terminator.
+Math-function availability labels use Registry's qualified display renderer;
+they do not supply a command or function identity. RequiresReview remains user
+intent uncertainty, independently of source spelling, original selection and
+all Native, frame, observer and equivalence obligations.
+
+
+### Braced scalar versus proposed array source
+
+W216 reborrows complete original written words from the retained realm before
+projecting braced variable components. Syntax's BracedVariableArraySource keeps
+that original word/image/channel/configuration, original scalar name, and the
+deliberately different proposed array root/index separately. Existing shared
+variable scanning owns `${}` and array delimiters, escapes and substitutions;
+the diagnostic does not parse raw remaining document parentheses or infer an
+original array cell from the proposed receiver. A same-word adjacent suffix is
+parsed as new intended index source under the same configuration. Known inert
+word data supplies no variable occurrence. Original selected variable-name
+roles retain the indirect-array suppression.
+
+Direct replacement requires a complete configured reference with exact root
+and index source correspondence. The old bare-word preference only chooses
+spelling after that proof; otherwise shared quoted-fragment construction
+retains the explicit stock `::set` review premise. Neither proposed spelling
+or RequiresReview grants original variable identity, completed substitution,
+Normal, source-action authorisation or runtime equivalence.
+
+
+### Selected nested expression diagnostic source
+
+W114 retains its actual outer expression role and original written word, then
+uses OriginalSourceExpression's complete configured command regions or that
+word's executable components for a pre-substituted operand. The existing
+expression lexer/term owner and variable/word executable components retain
+complete substitution envelopes and script interiors, including commands in
+quoted operands and indices, while inert braced data and scripts nested inside
+a returned command remain separate. These coordinates supply source topology,
+not a Native prepared expression, executed command or value.
+
+Each child script independently reborrows its original positioned source
+invocation and selected ExpressionArguments descriptor. A nominal `expr` word
+is not its selector; renamed original expression commands keep their selected
+source metadata and a known user shadow cannot inherit it. Unwrap proposals
+require exactly one actual written braced inner operand with the same original
+image and retain the outer braced-only and string-comparison exclusions. The
+existing review-only numeric representation caveat remains; no Native handler
+completion, Normal, result, frame or equivalence is inferred. Unsupported or
+missing original child selection omits advice rather than reconstructing it
+from a report name. The historical raw finder remains solely for its existing
+lexical unit-test purpose and cannot select production diagnostics.
+
+
+### Captured arguments of original procedure source calls
+
+OriginalSourceProcedureCall retains the same original source cell selector's
+captured alias prefix and move/alias lineage together with its selected
+original procedure body/header. Its captured_argument_count is a readonly
+source argv projection: captured slots have no written operand at the current
+call. The existing shared alias walk owns cycle detection and namespace lookup;
+no diagnostic report QName or alias map reconstructs this count. Prefix words
+keep their actual original image/configuration and participate in the source
+context correspondence. Logical source procedure calls retain their separate
+existing issuer, and cannot become Native calls through this projection.
+
+This source-call receipt remains conditional. Earlier uncertainty, operand
+effects, actual installed target, procedure entry, formal binding, frames and
+Normal completion keep their independent obligations. Declaration joins still
+require the exact original analysis allocation and retained complete input.
+A source signature consumer may compare declared count metadata to the actual
+source argv; neither count nor lineage supplies execution or edit permission.
+
+
+### Selected hook metadata list receivers
+
+`db.unit.hooks.emitted-list-ingress` distinguishes actual typed `Value::List`
+metadata from Unicode string-valued list payloads. Typed members retain their
+existing direct path, including per-member Unicode refusal. String payloads
+require the immutable `Engine::host_metadata_list_reader` captured from the
+actual engine receiver after its real release pin and before hook compilation.
+The default engine capability is unavailable. HookHost installs that same
+reader in its emitter verbs; it does not reconstruct the receiver from a
+profile label or choose a default C9 grammar. Missing capability refuses only
+an actual string-valued metadata-list use; unrelated verbs and typed lists
+remain available.
+
+Both existing engine adapters expose a tiny object-free grammar observation:
+the actual selected receiver's list grammar and escape syntax. An unknown
+fallback source profile supplies no reader. Syntax's
+`list::split_list_with_syntax` reuses its existing complete element locator and
+Unicode escape decoder under those exact axes. Grouped multiword members,
+Unicode and inert metacharacters remain data; whitespace is not a list parser.
+Strict malformed lists fail rather than donate a prefix. A deliberately selected
+Jim lenient list grammar keeps its own behavior. The snapshot is a pure metadata
+value reader, not a Native list object/getter or a claim about a later mutable
+engine. HookHost retains it only inside the pinned engine lifecycle; engines
+cannot change release under compiled hooks.
+
+`-members`, `-allowed` and appended-arity metadata all use that owner. Existing
+source/Native argument views, registration, engine scopes, command/state naming,
+store confinement, budgets and provider guards are unchanged. The Runtime
+adapter addition reads its existing selected rules only and migrates no Runtime
+or VM naming state. Original cross-engine fixtures/assertions remain byteexact;
+new actual-emitter/grouping/escape and unknown-profile controls are unexecuted.
+Root must run real build, cross-engine tests and owner-resolution before any
+provider or execution acceptance. The independent enum-label ingress purpose
+is not closed by a list reader.
+
+
+### Authored metadata enum labels
+
+Registry metadata_catalogue owns the existing Debug-derived variant spelling
+used for authored enum labels. The original SpecTcl catalogue presentation
+facade delegates to it, and loader field selection requests exact comparison.
+Hook role labels explicitly retain ASCII-insensitive comparison; hook timing
+labels remain exact and use ScriptTiming's complete authored ordered catalogue.
+No whitespace, prefix, Unicode fold, command lookup, Native spelling or value
+conversion is introduced. Unknown labels keep the original refusal/log policy.
+This source-only adoption does not prove engine/provider execution.
+
+
+### Evaluated registration command body layout
+
+The existing pack evaluator distinguishes the genuine original braced body
+receipt from already-evaluated registration values. Where no matching original
+body exists, the authored `command NAME ?-override? BODY` grammar selects its
+body by exact complete argv layout, including empty and single-word values.
+The private EvaluatedCommandBody card borrows only those actual values and
+grants no original span, line remapping, source word, static fast-path recipe
+or Native authority. Unsupported extra/unknown-option layouts report and do
+not choose an arbitrary whitespace-containing argument as a body. Authentic
+original-source capture remains first and retains its existing correspondence
+guards; this does not change the static reader's legacy malformed-source
+compatibility. Sandbox capabilities/budgets and actual evaluated replay stay
+independent. Original tests and two new controls are source-only until executed.
+
+The evaluated layout retains its explicit override-option role alongside the body;
+body data equal to `-override` does not set the flag. Authentic-original legacy
+layout compatibility remains a separate branch, not donated by evaluated data.
+
+
+### Original return result source construction
+
+The existing propagation O100/O101 and object-frame O129 return adapters now
+replace only the simple lowered Return's retained result WordExpr. The actual
+Return lowerer obtains that value_word by cloning its selected invocation's
+word, not from a diagnostic name or result string. The constructor authenticates
+the same module/input/Registry and exact original invocation vector, reborrows
+the corresponding whole NativeWord and complete statement extent, and preserves
+the original head and unrelated bytes. The existing configured Unicode source
+word constructor renders only the replacement literal value. Foreign source,
+missing/ambiguous result-word correspondence or unavailable construction refuses.
+
+This is source construction within the existing selected-return adopter. It
+grants no Return handler, normal argument completion, read erasure, result
+allocation or effect/equivalence permission; all existing fold/evaluation and
+Native obligations remain unchanged. The separate O115 nested-expression
+source-fragment path remains outside this literal-word adapter. Fixed original
+qualified-head/whole-substitution/foreign-source controls are unexecuted here.
+
+
+### Code-sinking expression read configuration
+
+The existing code-sinking RHS-read guard now transports the complete retained
+PassContext LexerConfig to the shared ExprNode.vars_with_config projection,
+instead of rebuilding a LexerGrammar from the nominal dialect profile. This
+preserves non-profile lexical overrides when an existing Raw fallback is
+re-lexed. The existing typed AST projection owns parsing and variable topology;
+this adapter adds no local variable scanner or command resolver.
+
+This is another use-site of the already-accounted configured source-geometry
+owner, not a separate semantic motion or absence proof. The existing motion,
+clobber and command-substitution guards remain unchanged. Other by-name/text
+reference scans, uncertain read coverage and nested command effect selection
+in code sinking remain independent open obligations; this configured adapter
+does not certify their negative answers. Its fixed override control is unexecuted.
+
+
+### Positive original condition source reads veto code motion
+
+The code-sinking decision guard additionally consumes positive original source
+read witnesses. The actual Script-owned decision vector is joined to the same
+module/input/Registry and full LexerConfig, then the existing original lifted
+substitution owner supplies child vectors and expression phases. Each child's
+same-source NativeWord executable arena supplies variable components, including
+array-index children. Literal VarRead roles and read-before-write names come
+from that same selected original child. Matching these source MAY names can
+only veto a sink; it cannot identify a physical cell or enable a transformation.
+
+No witness is not absence. An unavailable/incomplete inventory, unrelated name,
+inert literal or foreign source supplies no positive witness. All existing
+motion guards remain. In particular the old detached condition effect guard
+is retained, and its negative result is not newly certified by this adapter.
+A genuine complete original condition read/cell/observer effect footprint is
+still required before that legacy path can be removed or the original-motion
+consumer declared migrated. No Native/equivalence or source-authoring permission
+is added. The nested ordinary-read/by-name/inert/foreign controls are unexecuted.
+
+
+### Optimizer controls retain their real source issuers
+
+The code-sinking fixture driver and two propagation mutation-aware drivers now
+hold their actual Registry and CompilationUnit Module in PassContext, as the
+production manager does. The existing interpolation close-rule control retains
+two separately lowered original Modules: one under its exact supplied override,
+and one under the original pre-override configuration. Resetting the selected
+configuration never retags the earlier Module. Each source/config owns its own
+original word geometry.
+
+Original test sources, expected positive/negative assertions and selectors are
+unchanged; no source-owner guard is bypassed. Only fixture setup changes. Any
+remaining actual original producer refusal remains a regression to diagnose,
+not an altered expected answer or evidence of Native equivalence. These
+controls were not executed here.
+
+
+### Condition substitution opacity remains motion-blocking
+
+The code-sinking guard now retains the existing embedded-substitution owner's
+opaque residual alongside its projected read/write residuals. An unsupported
+original Raw condition can contain no recovered command rows while still
+being explicitly opaque. Empty projected lists do not erase that uncertainty.
+This is an additive conservative veto, not a new effect, cell, observer or
+Native equivalence proof. All selected positive paths and all old assertions
+remain unchanged. The detached condition-effect owner still requires the
+separate authentic source/effect transport described above; this residual fix
+does not close that dependency. Its fixed actual-lowering control is unexecuted.
+
+
+### Actual Jim optimizer negative fixtures
+
+The existing chain-advice and raise-proof Jim fixtures obtain their interned
+profile, context Registry and complete grammar from the same resolved Jim
+DocumentEnvironment. Jim deliberately has no DialectProfile catalogue row, so
+a catalogue find/unwrap cannot issue these fixtures. The existing environment
+owner projects its actual point into the compatibility profile. The same actual
+software VM owner and captured weak entry remain alive for the full fixture.
+No new profile, command token, Native recipe or physical result is fabricated.
+
+Original test sources, selectors and every negative Native/Logical assertion
+remain unchanged. These are setup repairs for the existing selected-Jim
+validation purpose, not new semantic adopter/helper counts or runtime results.
+No fixture was executed here.
+
+
+### Optimizer final-role negative subjects
+
+The two existing set-read negative controls select the original set store from
+the actual fixture CompilationUnit's procedure body, then reborrow its complete
+original statement span under the same source/config/Registry. Their diagnostic
+filter checks whether an O109/O126 proposal covers that source subject instead
+of searching the human diagnostic message for x. Both original fixture inputs
+and every original assertion remain unchanged. This repairs test subject
+selection only, grants no source edit or semantic permission, and was not
+executed here.
+
+
+### Manifest provider case correspondence
+
+Existing discovery keeps its historical ASCII-insensitive manifest/lockfile
+admission while retaining the actual matched provider path. Distinct matching
+paths are unavailable, never last-entry-selected. An incomplete directory
+listing is also unavailable. The existing source selection path reports the
+missing represented original manifest and withholds that subtree; dependency
+tier selection cannot walk past an unavailable local provider to promote an
+outer root and instead retains only Transitive. A unique differently-cased
+provider remains legitimate; repeating the identical actual path is harmless.
+This is source-store provider correspondence, not platform case folding or
+physical filesystem alias identity. No Native/currentness authority follows.
+
+
+### Serialized pack source-row correspondence
+
+The existing source-keyed cache and loader statements owner retain the full
+actual source comparison before attaching local source provenance. A filename
+or source-request digest does not authenticate serialized row values. When
+complete row/word/text/line/braced correspondence disagrees, the loader now
+returns its actual freshly segmented source vector and replaces that memo entry
+through existing memo_put; it does not return changed metadata with its spans
+merely removed. Empty/wordless cached vectors cannot vacuously supply complete
+source absence: actual segmentation rechecks them. Corresponding nonempty
+original-owned rows retain the existing fast path, and genuine empty source
+still yields empty. Disposable cache format, atomic IO and failure policy are
+unchanged; no cryptographic, Native, physical absence or execution proof follows.
+
+
+### Explicit authored availability restrictions
+
+Existing Availability retains an explicit unavailable provider/window outcome
+separately from omitted restrictions and valid package-only requirements. The
+actual source-surface projection cannot inherit an unrestricted default on that
+outcome: command/default/option/subcommand/form/effect consumers all use the
+same projection, and the existing Semantic incomplete-metadata gate withholds
+strong command publication for invalid authored restrictions. A default keeps
+an explicitly empty source projection, rather than granting an omitted surface.
+This is source metadata admission, never physical provider/command absence.
+
+The actual pack evaluator also retains unrepresented declared support. Its
+available? query refuses unknown explicit requirements or unknown declared
+support instead of manufacturing either boolean answer; the actual sandbox
+transaction/error and cacheability policies remain independent. All valid
+core/package restrictions keep their old projection. The historical known
+f5-bigip off-Tcl-axis rejection remains presentation-only/ignored, preserving
+its original explicit positive control under the dedicated-semantics deferral;
+it is not treated as a newly supported generic provider. Existing per-package
+window reporting/bounded projection is unchanged, not claimed complete.
+
+
+### Conditional original user-call signature diagnostics
+
+The user-call diagnostic queue retains only the displayed name and request
+position. At emission, the existing original Native-source or explicit Logical
+call issuer supplies the selected source declaration, complete written argv and
+retained alias prefix. Report procedure/alias/rename maps cannot reconstruct a
+call or its formal counts. Captured arguments shift the genuine declared arity;
+only actual written operands supply diagnostic and surplus-edit extents.
+
+`SourceUserCallAritySubject` retains that conditional source recipe, exact input
+and source ownership, declaration count and unresolved applicability obligations.
+It always retains unavailable actual lookup and independent body applicability;
+it grants no Native invocation, physical formal binding or normal completion.
+The existing diagnostic fragment cache requires whole-source context for this
+subject. Core serialises a separate reporting projection with the obligations;
+decoding that projection does not recreate an original call or edit authority.
+
+This adopts the resolution, captured-alias and arity facets of user-call row699.
+Other private/ensemble/stub suppression policies remain independent. Actual old
+regression and positive controls remain Root validation obligations.
+
+
+### Conditional authored declaration geometry after an unknown prefix
+
+The original declaration row retains the real source-analysis allocation,
+root-script source/image, complete original argv and lexical configuration,
+immutable baseline metadata/Registry and pre-command source observation.
+When an unknown prefix withdraws the ordinary lookup policy or frame, the
+existing source-transition interpreter may retain its already selected
+procedure declaration as conditional source syntax. Its private declaration
+inventory is issued at the existing descriptor-selected procedure producer,
+including exact original name/ParamList/Body words and all uncertain original
+operations. Known shadow/delete barriers, conflicting receipts, absent rows,
+foreign Registry/config/source, invalid present metadata and unsupported
+body/formal geometry refuse. A complete-prefix source plan permits only its
+actual original complete declarations, never an invented tail or closed census.
+
+The conditional card consumes that receipt without a SourceCommandTarget,
+DeclaredProcedureBody, replacement execution policy, installed command or
+entered frame. It retains prefix, lookup and observer obligations. The normal
+layout/table and standalone procedure recipe guards are unchanged; a complete
+ordinary layout keeps its existing route. This is the existing authored
+procedure-source geometry purpose, not definite scalar SSA, Native naming,
+Normal, execution, physical cell, equivalence or edit authority. Actual tests
+remain an independent gate; source/static review alone does not demonstrate
+regression repair.
+
+
+The conditional declaration selection memo belongs to the same immutable
+OriginalSourceAnalysisOwner. It reuses only the actual baseline Arc allocation
+and exact Registry semantic key; source/configuration/metadata remain independently
+checked before access. A different baseline computes its own source product,
+never borrowing a same-valued cached selection. Interpretation completes before
+OnceLock publication, with no cache lock held through recursion. Only the
+conditional declaration selection map is retained; the baseline key is weak,
+so the memo introduces no strong baseline/analysis-owner cycle. Owner equality
+and hashing continue to use allocation identity and ignore derived contents.
+
+
+A present point must still satisfy the original Standalone/no-Native/no-Logical/
+no-vendor/no-hosted/no-unknown-entry eligibility boundary and belong to the exact
+original source allocation before conditional geometry is queried. A valid but
+incompatible metadata answer is not an absent owner. Withdrawal of execution
+policy/frame alone is not repaired and supplies no ordinary lookup authority.
+
+
+### Original W110 expression operator geometry
+
+W110 reborrows the actual complete retained braced operand, unchanged source
+image/content and full word configuration. The existing source-only expression
+owner must parse that entire body and match the actual expression tree before
+its operator tokens can supply edits. The shared AST owns bounded inclusive
+operand extents; the retained expression owner selects a unique binary subtree
+and its canonical configured Operator token, never a substring in a leaf gap.
+The existing fixed-string comparison proof, braced-only substitution boundary,
+256-depth refusal and edit safety remain independent and unchanged. Recovery,
+compiled leaves, foreign subtree, source mismatch or missing geometry refuse.
+This adopts only row1045; no expression evaluation or Native grant follows.
+
+
+### Actual hook receiver before metadata answer cache admission
+
+Registry dispatch synchronizes the existing actual thread-host installer before
+reading cache mode/key or returning an earlier answer. The selected actual Rc
+receiver is retained for invocation. Existing published-plan installer checks,
+host generation, cache invalidation and direct-host precedence remain the owner
+of that observation. A registered installer is a genuine lazy-host capability:
+first dispatch and slot_available do not mistake no prior constructed worker
+host for missing capability. With neither installed host nor installer they
+retain the old abstention; retirement clears the old worker host/cache before
+any hit can return. No VM naming/state, Native handler guarantee, physical
+provider absence or lock against a later external publication is inferred.
+The existing separate HookPlan selected-declaration/option-slot identity facets
+are not closed by this current-receiver phase correction.
+### Original hook source field and selected declaration ownership
+
+Hook slot allocation retains the complete authored tuple in HookSourceIdentity:
+pack component, actual provenance channel, opaque declaring PathBuf, command
+component and typed Command/Subcommand/Option field (including the option).
+The family remains the separate allocator axis. No rendered NUL-delimited name
+or inverse string split identifies these fields. Body edits reuse the same
+actual source tuple slot; unrelated field/provider tuples do not share it.
+
+The loader's same body iteration retains an immutable original CommandSpec
+allocation and actual declaring file beside every produced program. HookPlan
+binds only a selected PackCommand with that same allocation and file; display
+command names cannot borrow another pack/declaration's program. Its memo uses
+the existing content hash only as a bucket, then compares actual declaration
+allocations and the full retained provider/DSL/hook-declaration roster. Fresh
+same-content declarations therefore get their own source binding plan while
+keeping stable source slots, rather than losing legitimate no-op reload hooks.
+Program transport remains unchanged; arbitrary public HookPrograms do not
+create original declaration cards. Existing installation precedence, trust,
+slot exhaustion, confinement, generation and actual host guards remain.
+These source metadata relations grant no Native lookup, handler execution or
+physical provider identity; actual current-plan cache admission is a separate
+reviewed facet. Three new controls remain unexecuted until Root runs them.
+
+The memo retains at most one original roster/plan entry per existing content
+hash bucket. A differing actual allocation/program roster replaces that entry
+after exact comparison; independently retained live Arc plans remain valid.
+Repeated fresh same-content allocations do not retain historical unused plans.
+
+
+### Accepted environment source to dynamic-core publication
+
+`SyncOutcome::accepted_sources` retains the actual complete source payloads
+selected by successful assembly/triage, including unchanged publications. The
+failed-base fallback has no receipt; successful empty publication is distinct.
+Pack registration retains the actual submitted source-to-MergedPack association
+and converts core bindings only for positive exact accepted payloads from that
+invocation. Refusal labels remain reporting only; no rejected-name complement
+is treated as acceptance. Independent dialect declarations keep their original
+path. This is declaration publication correspondence, not installed packages,
+physical handler execution or current Native identity.
+
+
+### Dynamic family component source identity
+
+Pack conversion supplies actual separate pack/dialect components to the existing
+DynamicFamilyId owner. Percent/slash encoding makes canonical transport spelling
+collision-free; source components are retained directly and never recovered
+from that spelling. Bare family resolution uses the actual declared component,
+while canonical lookup/equality preserve the symbolic API. The legacy canonical
+constructor retains its explicit historical suffix recipe separately; it cannot
+issue producer component metadata. This does not change selected grammar,
+release, provenance, Native naming or execution authority.
+
+
+### Configured W104 list-append proposal
+
+The original selected Append invocation and its complete written receiver and
+value words remain the source owners. Static target/data words use the shared
+configured Unicode literal constructor. A single original scalar/array component
+after one literal quoted leading space instead retains its substitution phase
+through the shared component owner; command substitutions, composite payloads,
+composite substitution separators, expansion and malformed geometry refuse the proposal.
+Static data retains every byte after the one removed literal space and is
+encoded as a single operand; a leading `#` is data, not a command-head comment.
+
+The deliberately authored stock `lappend` destination is separately captured
+as a complete proposed-source interpretation under the same full input and
+Registry, and must select its genuine list-append descriptor/receiver layout.
+That new image is never retagged as original source. Its stock lookup remains
+an explicit review premise: the current original scope may shadow, alias or
+rebind that destination, and list conversion/effects/equivalence remain unknown.
+The fix retains `RequiresReview`; this is no actual lookup or automatic-edit
+grant. Only row630's proposal boundary is adopted, not all schema callers.
+
+
+### Configured W308 method proposal receiver
+
+W308's candidate display inventory remains independent advice. Its replacement
+now reborrows the genuine complete method word from the actual source ledger,
+rejoins its same original parent and second written argv ordinal, and requires
+the recorded dispatch head to lie in that parent's complete head word. The
+shared full-config Unicode literal constructor renders the deliberately new
+method value, and the edit spans the complete original word, including quote or
+brace wrappers. Missing original geometry, foreign parent or expansion supplies
+no edit while preserving the diagnostic. No candidate becomes a method key,
+selected implementation or dispatch grant. The fix remains `RequiresReview`.
+This adopts only row185; the independent class/member inventory and method
+return-summary rows remain separate obligations.
+
+
+### Original source interpreter scope relation
+
+Object-dispatch diagnostics no longer search a reported namespace string for
+`@interp@`. The existing Scope owner reborrows the exact current source image,
+full resolved input/realm and parser configuration, and inspects actual
+containing body scopes. Its producer-owned isolated-interpreter body boundary
+and retained domain allocation determine a readonly relation to this analysis
+unit's root subject. All containing scopes are inspected so flattened ordinary
+report scopes cannot hide an isolated parent. Missing or foreign correspondence
+stays unavailable; the diagnostic consumer abstains for unavailable and isolated
+relations. A real ordinary namespace containing the marker has no special role.
+This is a source diagnostic compartment only, with no physical interpreter,
+child existence, entered body, command availability or Native grant. Row350
+changes; independent class/member/source receiver proof remains required.

@@ -3230,7 +3230,7 @@ impl SourceVariableEvaluationOwner {
         }
     }
 
-    fn is_expression_evaluation_of(&self, site: &CommandAllocationSite) -> bool {
+    pub(crate) fn is_expression_evaluation_of(&self, site: &CommandAllocationSite) -> bool {
         match self {
             Self::NativeExpression { invocation, parent } => {
                 invocation == site
@@ -3581,6 +3581,8 @@ pub(crate) struct OriginalSourceAnalysisOwner {
     source_operand_layouts: std::sync::OnceLock<
         std::sync::Weak<declaration_preview::OriginalDeclarationSourceOperandCache>,
     >,
+    conditional_procedure_declarations:
+        std::sync::OnceLock<source_transition_advice::OriginalConditionalProcedureDeclarationMemo>,
 }
 impl PartialEq for OriginalSourceAnalysisOwner {
     fn eq(&self, other: &Self) -> bool {
@@ -6965,6 +6967,7 @@ impl SourceCommandBindings {
                 config,
                 registered_instance_sources: std::sync::OnceLock::new(),
                 source_operand_layouts: std::sync::OnceLock::new(),
+                conditional_procedure_declarations: std::sync::OnceLock::new(),
             })
         });
         let namespace_key = frame

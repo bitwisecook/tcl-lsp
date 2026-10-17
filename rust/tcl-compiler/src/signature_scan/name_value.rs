@@ -449,11 +449,24 @@ impl SignatureSourceNameValue {
         if rules != WordValueRules::from_config(&word.config()) {
             return None;
         }
-        let NativeVariableWordOperand::CompoundArray {
-            name, name_span, ..
-        } = native_variable_word(word, version, policy.string_protocol()).ok()?
-        else {
-            return None;
+        let (name, name_span) = if policy.authority()
+            == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        {
+            let root = tcl_syntax::native_variable_words::original_source_compound_variable_root(
+                word,
+                version,
+                policy.string_protocol(),
+            )
+            .ok()??;
+            (root.name().to_vec(), root.name_span())
+        } else {
+            let NativeVariableWordOperand::CompoundArray {
+                name, name_span, ..
+            } = native_variable_word(word, version, policy.string_protocol()).ok()?
+            else {
+                return None;
+            };
+            (name, name_span)
         };
         Some(Self {
             origin: SourceNameValueOrigin::VariableOperandRoot {

@@ -921,14 +921,37 @@ fn native_original_escape_unit(
 /// spelling operation grants no native unit, name, lookup or execution proof.
 #[must_use]
 pub fn literal_quoted_source_fragment(text: &str, escapes: EscapeSyntax) -> Option<String> {
-    let fragment = quote_literal_source_content(text);
+    let fragment = quote_literal_source_content(text, false);
     (decode_in(&fragment, escapes).as_ref() == text).then_some(fragment)
 }
 
-fn quote_literal_source_content(text: &str) -> String {
+/// Literal quoted-word content that also remains inert inside a braced
+/// script container. The existing character codec is shared; both the Unicode
+/// value and complete braced source container are checked under actual grammar.
+/// This grants source spelling only, not expression evaluation or edit rights.
+#[must_use]
+pub fn literal_quoted_source_fragment_in_braced_script(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let fragment = quote_literal_source_content(text, true);
+    (decode_in(&fragment, config.escapes).as_ref() == text).then_some(())?;
+    let word = format!("\"{fragment}\"");
+    crate::word_rules::lexical_unicode_source_word_matches(&word, text, config).then_some(())?;
+    let container = format!("{{{word}}}");
+    crate::word_rules::lexical_unicode_source_word_matches(&container, &word, config)
+        .then_some(())?;
+    Some(fragment)
+}
+
+fn quote_literal_source_content(text: &str, protect_braces: bool) -> String {
     let mut result = String::new();
     for character in text.chars() {
         match character {
+            '{' | '}' if protect_braces => {
+                result.push('\\');
+                result.push(character);
+            }
             '\\' | '"' | '$' | '[' | ']' => {
                 result.push('\\');
                 result.push(character);
@@ -1096,7 +1119,7 @@ pub fn native_literal_source_word(
     protocol: crate::native_string::NativeStringProtocol,
 ) -> Option<String> {
     fn quote(text: &str) -> String {
-        format!("\"{}\"", quote_literal_source_content(text))
+        format!("\"{}\"", quote_literal_source_content(text, false))
     }
     let exact = |word: &str| {
         native_source_string_bytes_channel_in(
@@ -1923,6 +1946,29 @@ mod original_literal_extent_tests {
                 native_source_literal_extent(source, NativeValue, protocol, 1..2),
                 Some(1..2)
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod braced_script_quoted_content_tests {
+    #[test]
+    fn literal_content_uses_shared_codec_without_opening_parent_or_substitutions() {
+        let value = "$literal [command] {unterminated \"quote\"";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            let fragment =
+                super::literal_quoted_source_fragment_in_braced_script(value, config).unwrap();
+            assert!(fragment.contains("\\$"));
+            assert!(fragment.contains("\\["));
+            assert!(fragment.contains("\\{"));
+            assert_eq!(super::decode_in(&fragment, config.escapes).as_ref(), value);
+            let word = format!("\"{fragment}\"");
+            assert!(crate::word_rules::lexical_unicode_source_word_matches(
+                &format!("{{{word}}}"),
+                &word,
+                config
+            ));
         }
     }
 }

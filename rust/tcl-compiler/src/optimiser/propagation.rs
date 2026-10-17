@@ -71,7 +71,7 @@ use tcl_registry::CommandRegistry;
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{
-    full_rewrite_span, line_delete_span, original_quoted_word_rewrite_span,
+    line_delete_span, original_quoted_word_rewrite_span, original_statement_rewrite_span,
 };
 use super::{Optimisation, PassContext};
 use tcl_syntax::naming::whole_scalar_variable_reference_name;
@@ -918,7 +918,7 @@ fn forward_candidate(
     }
 
     build_forward_edits(
-        ctx.source,
+        ctx,
         def_stmt,
         def_name,
         var_span,
@@ -954,13 +954,14 @@ fn has_non_endpoint_wildcard_aliasing(
 /// forwarding candidate, or `None` when the def span is degenerate or
 /// would collide with an earlier pass's rewrite.
 fn build_forward_edits(
-    source: &str,
+    ctx: &PassContext<'_>,
     def_stmt: &Statement,
     def_name: &str,
     var_span: tcl_lexer::Span,
     rewritten: &[(u32, u32)],
     base_offset: i64,
 ) -> Option<(Optimisation, Optimisation)> {
+    let source = ctx.source;
     // `def_stmt` / `var_span` come from the unit's `cfg`, so they are relative
     // to `base_offset`; absolutise before slicing `source` / comparing against
     // the (absolute) already-rewritten ranges.
@@ -994,7 +995,7 @@ fn build_forward_edits(
     // replayed text and the deletion extent need the whole written statement,
     // or the closer is copied without its opener and dropped from its own
     // line.
-    let def_span = full_rewrite_span(source, def_span);
+    let def_span = original_statement_rewrite_span(ctx, def_span)?;
     let stmt_text = &source[def_span.start() as usize..def_span.end() as usize];
     let inline = Optimisation::new(
         DiagCode::O127,
@@ -1344,9 +1345,8 @@ fn walk_oo_statement(
             visit_oo_frame_folds(ctx, cu, t, frame, constants);
         }
         // `return [self class]` is the single most common shape of all, and a
-        // `Return` carries no `CommandTokens` — only the whole statement span
-        // and the raw value text. Rewrite the statement the way the sibling
-        // `return`-terminator folds (O101 / O115) already do.
+        // Retain its actual Script-owned vector and result word when replacing
+        // the value; the original head and unrelated argv stay untouched.
         Statement::Return {
             span,
             value: Some(raw),
@@ -1355,6 +1355,7 @@ fn walk_oo_statement(
         } => try_oo_frame_return_fold(
             ctx,
             cu,
+            stmt,
             *span,
             raw,
             frame,
@@ -1563,7 +1564,9 @@ fn visit_oo_frame_folds(
             Some(&frame.defining_class),
             metadata,
         ) {
-            rewrites.push((call.span, render_propagation_word(&value)));
+            if let Some(word) = render_propagation_word(&value, ctx.lexer_config()) {
+                rewrites.push((call.span, word));
+            }
         }
     }
     for (span, folded) in rewrites {
@@ -1578,13 +1581,13 @@ fn visit_oo_frame_folds(
 
 /// `return [self class]` → `return ::TheClass`.
 ///
-/// The whole statement is the rewrite target (a `Return` keeps no per-word
-/// tokens), so the replacement re-spells the `return` keyword — the same shape
-/// [`try_fold_return_terminator`]'s O101 / O115 rewrites emit.
+/// The original whole statement is the rewrite target. Its retained result
+/// word selects the replacement site, preserving the actual written head.
 fn try_oo_frame_return_fold(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
-    span: tcl_lexer::Span,
+    statement: &Statement,
+    _span: tcl_lexer::Span,
     raw: &str,
     frame: &OoFrame,
     _constants: &std::collections::HashMap<String, String>,
@@ -1622,12 +1625,16 @@ fn try_oo_frame_return_fold(
     ) else {
         return;
     };
-    let folded = render_propagation_word(&value);
+    let Some((rewrite_span, replacement)) =
+        original_return_value_replacement(ctx, statement, tokens, &value)
+    else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O129,
         "Fold constant builtin command substitution",
-        span,
-        format!("return {folded}"),
+        rewrite_span,
+        replacement,
     ));
 }
 
@@ -1854,6 +1861,7 @@ fn walk_statement(
         } => {
             try_substitute_assign_expr(
                 ctx,
+                source,
                 *span,
                 name,
                 expr,
@@ -2202,6 +2210,56 @@ fn try_fold_static_proc_call(
     ctx.report(opt);
 }
 
+/// Replace only the retained original result word of a simple lowered return.
+/// This constructs source; the caller must independently approve the fold.
+fn original_return_value_replacement(
+    ctx: &PassContext<'_>,
+    statement: &Statement,
+    tokens: &CommandTokens,
+    value: &str,
+) -> Option<(tcl_lexer::Span, String)> {
+    let Statement::Return {
+        value_word: Some(value_word),
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    let module = ctx.ir_module?;
+    let registry = ctx.registry?;
+    let config = ctx.lexer_config();
+    let span = original_statement_rewrite_span(ctx, statement.span())?;
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let site = binding.invocation_site()?;
+    if site.offset != span.start() || site.source.source_image() != &module.source {
+        return None;
+    }
+    let command = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let mut matches = tokens
+        .words()
+        .iter()
+        .enumerate()
+        .filter(|(_, word)| *word == value_word);
+    let (written, _) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let word = command.native_words().get(written)?;
+    let start = usize::try_from(word.span().start().checked_sub(span.start())?).ok()?;
+    let end = usize::try_from(word.span().end().checked_sub(span.start())?).ok()?;
+    let replacement = render_propagation_word(value, config)?;
+    let mut source = ctx
+        .source
+        .get(span.start() as usize..span.end() as usize)?
+        .to_owned();
+    source.get(start..end)?;
+    source.replace_range(start..end, &replacement);
+    Some((span, source))
+}
+
 /// Fold an original return operand using its retained word kind and constants.
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
@@ -2271,12 +2329,15 @@ fn try_fold_return_terminator(
             && let Some(folded) =
                 crate::tcl_expr_eval::format_tcl_value_with_policy(&value, ctx.fold_policy())
             && !folded.contains(['$', '['])
+            && let Some((rewrite_span, replacement)) = tokens.and_then(|tokens| {
+                original_return_value_replacement(ctx, statement, tokens, &folded)
+            })
         {
             ctx.report(Optimisation::new(
                 DiagCode::O101,
                 "Fold constant expression",
-                span,
-                format!("return {}", render_propagation_word(&folded)),
+                rewrite_span,
+                replacement,
             ));
             return;
         }
@@ -2298,12 +2359,16 @@ fn try_fold_return_terminator(
     };
     // Render the constant as a single self-contained word
     // rather than bailing on metacharacters (`return {Hello World}`).
-    let word = render_propagation_word(resolved);
+    let Some((rewrite_span, replacement)) = tokens
+        .and_then(|tokens| original_return_value_replacement(ctx, statement, tokens, resolved))
+    else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Fold return of constant variable",
-        span,
-        format!("return {word}"),
+        rewrite_span,
+        replacement,
     ));
 }
 
@@ -2314,17 +2379,22 @@ fn try_fold_return_terminator(
 /// branch-condition pass uses. Emits an O100 rewrite targeting
 /// the whole ``set`` statement with the substituted expression
 /// re-wrapped in ``[expr { … }]``. The rewrite span is extended
-/// via ``full_rewrite_span`` so nested substitutions don't leave
-/// orphan delimiters.
+/// through the original retained command vector so nested substitutions do not
+/// leave orphan delimiters. The actual written target and head are retained.
 fn try_substitute_assign_expr(
     ctx: &mut PassContext<'_>,
+    source: StatementSource<'_>,
     span: tcl_lexer::Span,
-    name: &str,
+    _name: &str,
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
     _procedures: &crate::ir::ProcedureInventory,
 ) {
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
+
     use super::helpers::expr_simplify::{
         expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants_for_execution,
     };
@@ -2342,6 +2412,14 @@ fn try_substitute_assign_expr(
     if !ctx.command_mutations.trusts("expr") {
         return;
     }
+    let original = source.tokens.and_then(|tokens| {
+        super::expr_simplify::OriginalExpressionStatementSource::capture_with_tokens(
+            ctx,
+            source.statement,
+            tokens,
+            expr,
+        )
+    });
     let expr_text = crate::expr_ast::render_expr(expr);
     let result = substitute_expr_constants_for_execution(
         &expr_text,
@@ -2373,12 +2451,14 @@ fn try_substitute_assign_expr(
             || folded.contains([
                 ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
             ]);
-        if !needs_quoting {
+        if !needs_quoting
+            && let Some(replacement) = original.as_ref().and_then(|source| source.folded(&folded))
+        {
             ctx.report(Optimisation::new(
                 DiagCode::O100,
                 "Propagate constant and fold",
-                full_rewrite_span(ctx.source, span),
-                format!("set {name} {folded}"),
+                rewrite_span,
+                replacement,
             ));
             return;
         }
@@ -2398,11 +2478,17 @@ fn try_substitute_assign_expr(
     {
         return;
     }
+    let Some(replacement) = original
+        .as_ref()
+        .and_then(|source| source.simplified(&final_text))
+    else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Propagate constant into expr argument",
-        full_rewrite_span(ctx.source, span),
-        format!("set {name} [expr {{{final_text}}}]"),
+        rewrite_span,
+        replacement,
     ));
 }
 
@@ -2478,7 +2564,7 @@ fn try_o101_expr_arg_fold(
         .collect();
     let value = context.eval_expression_at(&expression.expression, &env, call.span)?;
     crate::tcl_expr_eval::format_tcl_value_with_policy(&value, context.fold_policy())
-        .map(|value| render_propagation_word(&value))
+        .and_then(|value| render_propagation_word(&value, input.lexer_config()))
 }
 
 fn visit_call_cmd_subst_folds(
@@ -2546,7 +2632,9 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        if let Some(value) = fold_retained_builtin(registry, call, &calls, None, metadata) {
+        if let Some(value) = fold_retained_builtin(registry, call, &calls, None, metadata)
+            && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
+        {
             let code = call
                 .tokens
                 .as_ref()
@@ -2566,7 +2654,7 @@ fn visit_call_cmd_subst_folds(
                 code,
                 "Fold constant builtin command substitution",
                 call.span,
-                render_propagation_word(&value),
+                word,
             ));
             continue;
         }
@@ -2648,13 +2736,19 @@ fn try_o103_proc_fold(
     if summary.pure
         && let Some(scoped) = scoped
     {
-        return Some((qname, render_propagation_word(scoped.result.text())));
+        return Some((
+            qname,
+            render_propagation_word(scoped.result.text(), ctx.lexer_config())?,
+        ));
     }
     if summary.pure
         && binding.original_invocation_completes_normally(tokens)
         && let Some(result) = binding.original_normal_result(tokens)
     {
-        return Some((qname, render_propagation_word(result.text())));
+        return Some((
+            qname,
+            render_propagation_word(result.text(), ctx.lexer_config())?,
+        ));
     }
     let args: Vec<_> = original
         .iter()
@@ -2679,7 +2773,7 @@ fn try_o103_proc_fold(
     {
         // Argument-sensitive: re-run SCCP on the pure callee with the call's
         // constant arguments bound and fold the constant return.
-        render_propagation_word(value.as_str().ok()?)
+        render_propagation_word(value.as_str().ok()?, ctx.lexer_config())?
     } else {
         return None;
     };
@@ -2698,7 +2792,7 @@ fn render_proc_constant_return(
         )?,
         ConstantReturn::Bool(true) => "1".to_owned(),
         ConstantReturn::Bool(false) => "0".to_owned(),
-        ConstantReturn::Str(value) => render_propagation_word(value),
+        ConstantReturn::Str(value) => render_propagation_word(value, ctx.lexer_config())?,
     })
 }
 /// Whether a procedure's argument-independent constant return answers a
@@ -2927,7 +3021,9 @@ fn visit_simple_var_word(
     };
     // Re-render a metacharacter-bearing constant as a
     // single self-contained word instead of bailing.
-    let word = render_propagation_word(value);
+    let Some(word) = render_propagation_word(value, config) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Propagate constant into command argument",
@@ -3131,26 +3227,11 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     is_safe_word(value)
 }
 
-/// Render a constant `value` as a single,
-/// self-contained Tcl word for O100 propagation into a command-argument
-/// or `return` value position.
-///
-/// A safe bare word (integer or `[A-Za-z0-9_./:+-]`-only identifier) is
-/// emitted verbatim. Anything
-/// else (whitespace, `$` / `[` / `;` / quotes, unbalanced braces, a
-/// trailing backslash, …) is re-rendered through the canonical
-/// `TclConvertElement`-style quoter [`crate::codegen::helpers::tcl_list_element`]
-/// (bare / brace-quoted / backslash-escaped, verified against Tcl's
-/// `list`), so `set msg {Hello World}; return $msg` collapses to
-/// `return {Hello World}` instead of bailing. The quoter never fails —
-/// it always yields a word that re-evaluates to the literal `value` —
-/// so this is total.
-fn render_propagation_word(value: &str) -> String {
-    if is_value_safe_bare_word(value) {
-        value.to_owned()
-    } else {
-        crate::codegen::helpers::tcl_list_element(value)
-    }
+/// Construct one literal source word under the caller's complete configuration.
+/// The shared Syntax owner verifies its decoded value and complete word shape;
+/// failure supplies no replacement. Evaluation and erasure proofs stay separate.
+fn render_propagation_word(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
 }
 
 /// The SCCP-proved constant for one exact SSA value, rendered as source text.
@@ -3241,6 +3322,56 @@ mod tests {
 
     use crate::interprocedural::InterproceduralAnalysis;
 
+    #[test]
+    fn return_literal_replacement_keeps_original_head_and_result_word_owner() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, expected) in [
+            ("::return $result", "::return {Hello World}"),
+            ("return [::expr {2 + 3}]", "return {Hello World}"),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            assert!(matches!(
+                statement,
+                Statement::Return {
+                    value_word: Some(_),
+                    ..
+                }
+            ));
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            let (span, replacement) =
+                original_return_value_replacement(&ctx, statement, tokens, "Hello World").unwrap();
+            assert_eq!(
+                span,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap())
+            );
+            assert_eq!(replacement, expected);
+            ctx.source = "return foreign";
+            assert!(
+                original_return_value_replacement(&ctx, statement, tokens, "Hello World").is_none()
+            );
+        }
+    }
+
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
     }
@@ -3294,6 +3425,30 @@ mod tests {
         ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn propagation_literal_words_retain_selected_grammar_and_exact_unicode_value() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            config.strict_quoting = !config.strict_quoting;
+            for value in [
+                "",
+                "42",
+                "has space",
+                "$literal [data]",
+                "brace}tail",
+                "λ",
+                "line\nnext",
+                "trailing\\",
+            ] {
+                let word = render_propagation_word(value, config).unwrap();
+                assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                    &word, value, config
+                ));
+            }
+        }
     }
 
     #[test]
@@ -3629,10 +3784,29 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let mut context =
             PassContext::with_dialect(source, InterproceduralAnalysis::default(), Some(profile));
+        let original_config = context.lexer_config();
         context.source_lexer_config = Some(tcl_lexer::LexerConfig {
             braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
             ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
         });
+        let registry_context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = registry_context.commands();
+        let module_for = |config| {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&registry_context),
+                config,
+            );
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input);
+            lowerer.lower(source);
+            lowerer.finish_module(source)
+        };
+        let selected_module = module_for(context.lexer_config());
+        context.registry = Some(registry);
+        context.ir_module = Some(&selected_module);
         let constants = std::collections::HashMap::from([
             ("a{b}c".into(), "NESTED".into()),
             ("a{b".into(), "FIRST".into()),
@@ -3648,6 +3822,8 @@ mod tests {
         assert_eq!(context.optimisations.len(), 1);
         assert_eq!(context.optimisations[0].replacement, "\"v=NESTED\"");
         context.source_lexer_config = None;
+        let original_module = module_for(original_config);
+        context.ir_module = Some(&original_module);
         context.optimisations.clear();
         let config = context.lexer_config();
         visit_string_interpolation(
@@ -4074,6 +4250,7 @@ mod tests {
         ctx.registry = Some(&reg);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -4974,6 +5151,7 @@ mod tests {
         ctx.registry = Some(&registry);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }

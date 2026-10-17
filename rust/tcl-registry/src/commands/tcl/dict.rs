@@ -104,14 +104,38 @@ fn dict_last_arg_body(args: &[&str]) -> Vec<(u8, ArgRole)> {
     roles
 }
 
-/// Dynamic resolver: body only when filter type is "script".
-fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 3 && args[1] == "script" {
-        u8::try_from(args.len() - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
-    } else {
-        Vec::new()
+/// Source roles from this descriptor's selected closed filter-mode table.
+/// Script mode has a fixed binder/body pair; malformed widths never turn the
+/// last arbitrary operand into a body. This is not a reached-body proof.
+fn dict_filter_arg_roles(
+    args: crate::InvocationArguments<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = args.exact_argv_len()?;
+    let mode = args.get(1)?;
+    let bytes = mode
+        .literal()
+        .map(str::as_bytes)
+        .or_else(|| mode.native_bytes())?;
+    if bytes.contains(&0) {
+        return None;
+    }
+    let table = crate::abbrev::KeywordTable::new(
+        FILTER_TYPE_VALUES.iter().map(|value| value.value),
+        FILTER_TYPE_PREFIX_MATCHING,
+    );
+    match table.resolve_bytes(bytes).unique()? {
+        "script" => (count == 4).then(|| vec![(2, ArgRole::LoopVarList), (3, ArgRole::Body)]),
+        _ => {
+            let release = args.dialect().and_then(|dialect| dialect.tcl_version);
+            let valid = match release {
+                Some(tcl_dialect::TclVersion::V8_4) => false,
+                Some(tcl_dialect::TclVersion::V8_5) => count == 3,
+                Some(_) => count >= 2,
+                None => count == 3,
+            };
+            valid.then(Vec::new)
+        }
     }
 }
 
@@ -129,6 +153,8 @@ fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// nuance can't be expressed as an `ArgValue.min_tcl` (the *value* `key` is
 /// legal in every dict-supporting release; only what may follow it changed),
 /// so it lives in prose in each entry's `detail` instead.
+const FILTER_TYPE_PREFIX_MATCHING: PrefixMatching = PrefixMatching::Enabled;
+
 const FILTER_TYPE_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "key",
@@ -255,8 +281,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Filter a dictionary.",
         synopsis: "dict filter dictionaryValue filterType ...",
-        arg_role_resolver: Some(dict_filter_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::Body],
+        arg_role_layout_resolver: Some(dict_filter_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::LoopVarList, ArgRole::Body],
         return_type: Some(TclType::Dict),
         arg_types: &[(
             0,
@@ -272,7 +298,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[1],
         // `Tcl_GetIndexFromObj` accepts any unique prefix (see
         // `FILTER_TYPE_VALUES`'s doc comment).
-        arg_values_accept_prefix: true,
+        arg_values_accept_prefix: FILTER_TYPE_PREFIX_MATCHING.accepts_prefixes(),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -1048,12 +1074,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             Some(CommandSpec {
                 name: qualified,
                 runtime_backing: RuntimeBacking::shipped(qualified),
-                traits: sub.traits
-                    | if sub.pure {
-                        Traits::PURE
-                    } else {
-                        Traits::empty()
-                    },
+                traits: sub.semantic_traits(),
                 surface: sub.surface.or(parent_surface),
                 arity: sub.arity,
                 native_compilation: sub.native_compilation.map(|mut spec| {
@@ -1082,6 +1103,8 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 // would not mark `d` written and `::tcl::dict::for {k v} $d
                 // {…}` would neither bind its loop vars nor analyse its body.
                 arg_roles: sub.arg_roles,
+                clause_grammar: sub.clause_grammar,
+                repeated_args: sub.repeated_args,
                 arg_role_resolver: sub.arg_role_resolver,
                 arg_role_count_resolver: sub.arg_role_count_resolver,
                 arg_role_layout_resolver: sub.arg_role_layout_resolver,
@@ -1099,6 +1122,13 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 // dictionary operand found by its role in either layout.
                 semantics: sub.semantics,
                 options: sub.options,
+                prefix_matching: sub.prefix_matching,
+                option_prefix_words: sub.option_prefix_words,
+                reserved_trailing_words: sub.reserved_trailing_words,
+                arg_values: sub.arg_values,
+                closed_value_args: sub.closed_value_args,
+                arg_values_accept_prefix: sub.arg_values_accept_prefix,
+                versioned_arg_values: sub.versioned_arg_values,
                 hover: Some(HoverSnippet::brief(
                     summary,
                     synopsis,
@@ -1270,5 +1300,59 @@ mod tests {
                 s.name,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_dictionary_layout_tests {
+    use super::*;
+
+    #[test]
+    fn filter_script_prefix_uses_fixed_binder_body_geometry() {
+        let registry = crate::CommandRegistry::build_default();
+        for selector in ["s", "sc", "script"] {
+            let selected = registry
+                .resolve_invocation("dict", &["filter", "value", selector, "k v", "body"], None)
+                .unwrap();
+            let (roles, complete) = selected.authored_source_argument_roles();
+            assert!(complete);
+            assert!(roles.contains(&(2, ArgRole::LoopVarList)));
+            assert!(roles.contains(&(3, ArgRole::Body)));
+        }
+        for words in [
+            &["filter", "d", "script", "body"][..],
+            &["filter", "d", "script", "k v", "body", "extra"][..],
+        ] {
+            let selected = registry.resolve_invocation("dict", words, None).unwrap();
+            assert!(!selected.authored_source_argument_roles().1);
+        }
+    }
+
+    #[test]
+    fn qualified_projection_keeps_authentic_source_facets() {
+        let specs = qualified_specs();
+        for (bare, qualified) in QUALIFIED_NAMES {
+            let sub = SUBCOMMANDS.iter().find(|sub| sub.name == *bare).unwrap();
+            let worker = specs.iter().find(|spec| spec.name == *qualified).unwrap();
+            assert_eq!(worker.traits, sub.semantic_traits());
+            assert_eq!(worker.repeated_args, sub.repeated_args);
+            assert!(match (worker.clause_grammar, sub.clause_grammar) {
+                (Some(a), Some(b)) => std::ptr::eq(a, b),
+                (None, None) => true,
+                _ => false,
+            });
+            assert_eq!(
+                worker.arg_values_accept_prefix,
+                sub.arg_values_accept_prefix
+            );
+        }
+        let update = specs
+            .iter()
+            .find(|spec| spec.name == "::tcl::dict::update")
+            .unwrap();
+        assert!(update.traits.contains(Traits::CREATES_SCOPE_ALIAS));
+        assert!(!update.repeated_args.is_empty());
+        assert!(update.repeated_args[0].conditional_binding);
+        assert!(update.repeated_args[0].exclude_trailing == 1);
     }
 }

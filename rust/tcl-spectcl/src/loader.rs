@@ -570,20 +570,22 @@ pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt
     if let Some(mut hit) = crate::cache::memo_get(source, base_line, bom) {
         let config = source_config(bom);
         let count = hit.len();
-        let owned = hit.iter().enumerate().all(|(row, stmt)| {
-            stmt.words.iter().enumerate().all(|(ordinal, word)| {
-                word.original_source.is_none()
-                    && word.local_source.as_ref().is_some_and(|original| {
-                        original.matches_fragment(source, config, count, row, ordinal)
-                            && original.captured_text() == word.text
-                            && original.is_braced() == word.braced
-                            && original
-                                .local_line()
-                                .and_then(|line| base_line.checked_add(line))
-                                == Some(word.line)
+        let owned = !hit.is_empty()
+            && hit.iter().enumerate().all(|(row, stmt)| {
+                !stmt.words.is_empty()
+                    && stmt.words.iter().enumerate().all(|(ordinal, word)| {
+                        word.original_source.is_none()
+                            && word.local_source.as_ref().is_some_and(|original| {
+                                original.matches_fragment(source, config, count, row, ordinal)
+                                    && original.captured_text() == word.text
+                                    && original.is_braced() == word.braced
+                                    && original
+                                        .local_line()
+                                        .and_then(|line| base_line.checked_add(line))
+                                        == Some(word.line)
+                            })
                     })
-            })
-        });
+            });
         if !owned {
             // Disk rows retain values only. Reborrow their entire actual CST
             // vector under this exact source/config; never trust stored spans.
@@ -596,6 +598,12 @@ pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt
                             a.text == b.text && a.braced == b.braced && a.line == b.line
                         })
                 });
+            if !agrees {
+                // The input digest names the request, not the serialized row
+                // payload. Return and retain the actual current source parse.
+                crate::cache::memo_put(source, base_line, bom, &parsed);
+                return parsed;
+            }
             for (row, stmt) in hit.iter_mut().enumerate() {
                 for (ordinal, word) in stmt.words.iter_mut().enumerate() {
                     word.original_source = None;
@@ -1977,6 +1985,13 @@ impl std::fmt::Debug for IncludeContext {
     }
 }
 
+/// One actual include resolver observation, before BOM removal/evaluation.
+pub(crate) struct IncludeSourceObservation {
+    pub(crate) path: std::path::PathBuf,
+    pub(crate) origin: Option<tcl_lsp_core::vfs::SourcePathOrigin>,
+    pub(crate) image: Result<String, String>,
+}
+
 impl IncludeContext {
     /// A context over an arbitrary resolver — the seam tests and the
     /// studio use.
@@ -1999,6 +2014,31 @@ impl IncludeContext {
                 return Err("the including pack has no parent directory".to_owned());
             };
             std::fs::read_to_string(path).map_err(|e| e.to_string())
+        })
+    }
+
+    pub(crate) fn for_source_store(
+        path: &std::path::Path,
+        store: std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>,
+        observations: std::rc::Rc<std::cell::RefCell<Vec<IncludeSourceObservation>>>,
+    ) -> Self {
+        let including_file = path.to_path_buf();
+        Self::new(move |name| {
+            let path = include_file_path(&including_file, name)
+                .ok_or_else(|| "the including pack has no parent directory".to_owned())?;
+            let origin = store.source_path_origin(&path).ok().filter(|origin| {
+                origin.path().as_os_str() == path.as_os_str()
+                    && store.validate_source_path_origin(origin).is_ok()
+            });
+            let image = store
+                .read_to_string(&path)
+                .map_err(|error| format!("{error:?}"));
+            observations.borrow_mut().push(IncludeSourceObservation {
+                path,
+                origin,
+                image: image.clone(),
+            });
+            image
         })
     }
 
@@ -2181,8 +2221,8 @@ impl PackTables {
             "available" => {
                 log.v20(stmt.line, "available");
                 let availability = available::from_statement(stmt, 2, log);
-                if availability.surface.is_some() {
-                    self.defaults.surface = availability.surface;
+                if availability.surface().is_some() {
+                    self.defaults.surface = availability.surface();
                 }
                 if let Some(package) = availability.required_package {
                     self.defaults.required_package = Some(package);
@@ -2610,8 +2650,8 @@ fn apply_availability(
             ),
         );
     }
-    if availability.surface.is_some() {
-        *target = availability.surface;
+    if availability.surface().is_some() {
+        *target = availability.surface();
     }
 }
 
@@ -2677,9 +2717,11 @@ fn parse_taint(text: &str, line: u32, log: &mut Log) -> tcl_registry::taint::Tai
 
 /// Resolve a fieldless enum value by its Rust variant spelling.
 fn by_name<T: Copy + fmt::Debug>(all: &[T], name: &str) -> Option<T> {
-    all.iter()
-        .copied()
-        .find(|value| catalogue::variant_name(value) == name)
+    tcl_registry::metadata_catalogue::metadata_variant_by_name(
+        all,
+        name,
+        tcl_registry::metadata_catalogue::MetadataSpellingComparison::Exact,
+    )
 }
 
 /// [`by_name`], reporting an unknown spelling rather than silently dropping.
@@ -4116,7 +4158,7 @@ fn option_effect_family_row(stmt: &Stmt, log: &mut Log) -> Option<OptionEffectFa
                 let text = next_text(&words, &mut i);
                 surface =
                     available::from_texts(&["tcl".to_owned(), format!("{text}-")], stmt.line, log)
-                        .surface;
+                        .surface();
             }
             _ => log.unknown_flag("option_effect_family", stmt.line, &rejected_flag_word),
         }
@@ -5061,6 +5103,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
         member_body_commands: &[],
         bare_word_construction: false,
         bare_word_construction_hint: None,
+        bare_word_construction_source_hint: None,
         dynamic_method_dispatch: false,
         manufacturers: &[],
         unknown_dispatch_method: None,
@@ -5109,10 +5152,13 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
             "member_body_command" => body_commands.push(member_body_command_row(stmt, log)),
             "bare_word_construction" => {
                 grammar.bare_word_construction = true;
-                // The one function pointer in the grammar is, read as data, an
-                // exact-word set plus a prefix set. A family whose hint is not
-                // that shape keeps `-native`.
-                grammar.bare_word_construction_hint = Some(snit_shaped_hint);
+                grammar.bare_word_construction_source_hint = construction_source_hint(stmt, log);
+                // Preserve the historical callable projection only for the
+                // actual exact Snit descriptor, not an arbitrary bare flag.
+                grammar.bare_word_construction_hint = grammar
+                    .bare_word_construction_source_hint
+                    .filter(|hint| hint.values == ["%AUTO%"] && hint.prefixes == ["."])
+                    .map(|_| snit_shaped_hint as fn(&str) -> bool);
             }
             "dynamic_method_dispatch" => grammar.dynamic_method_dispatch = true,
             "manufacturer" => manufacturers.push(manufacturer_row(stmt, log)),
@@ -5247,10 +5293,72 @@ fn attach_member_options(members: &mut [MemberSpec], rows: Vec<MemberOptionRow>,
     }
 }
 
-/// Placeholder for a declared `bare_word_construction` hint until the hint's
-/// own word / prefix sets are threaded through the grammar type.
+/// Parse the actual finite hint options of this selected source declaration.
+fn construction_source_hint(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> Option<tcl_registry::definer::BareWordConstructionSourceHint> {
+    let mut values = None;
+    let mut prefixes = None;
+    let mut args = stmt.tail().iter();
+    while let Some(option) = args.next() {
+        let Some(value) = args.next() else {
+            log.say(
+                stmt.line,
+                "bare_word_construction: hint option requires its list value",
+            );
+            return None;
+        };
+        let target = match option.text.as_str() {
+            "-hint-values" if values.is_none() => &mut values,
+            "-hint-prefixes" if prefixes.is_none() => &mut prefixes,
+            _ => {
+                log.say(
+                    stmt.line,
+                    "bare_word_construction: unknown or repeated hint option",
+                );
+                return None;
+            }
+        };
+        let Ok(items) = tcl_syntax::list::split_list(&value.text) else {
+            log.say(
+                stmt.line,
+                "bare_word_construction: hint requires a complete literal list",
+            );
+            return None;
+        };
+        *target = Some(
+            items
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect::<Vec<_>>(),
+        );
+    }
+    if values.is_none() && prefixes.is_none() {
+        return None;
+    }
+    let values = values.unwrap_or_default();
+    let prefixes = prefixes.unwrap_or_default();
+    if prefixes.iter().any(String::is_empty) {
+        log.say(
+            stmt.line,
+            "bare_word_construction: an empty source prefix is unavailable",
+        );
+        return None;
+    }
+    Some(tcl_registry::definer::BareWordConstructionSourceHint {
+        values: leak_strs(&values),
+        prefixes: leak_strs(&prefixes),
+    })
+}
+
+/// Compatibility callable for the exact authored Snit descriptor only.
 fn snit_shaped_hint(word: &str) -> bool {
-    word == "%AUTO%" || word.starts_with('.')
+    tcl_registry::definer::BareWordConstructionSourceHint {
+        values: &["%AUTO%"],
+        prefixes: &["."],
+    }
+    .recognises(word)
 }
 
 /// The `(index, role)` pairs of a member row's `-roles` list.
@@ -6574,8 +6682,8 @@ fn apply_command_stmt(
         "available" => {
             log.v20(stmt.line, "available");
             let availability = available::from_statement(stmt, 1, log);
-            if availability.surface.is_some() {
-                spec.surface = availability.surface;
+            if availability.surface().is_some() {
+                spec.surface = availability.surface();
             }
             match (availability.required_package, spec.required_package) {
                 (Some(named), None) => spec.required_package = Some(named),
@@ -6708,6 +6816,7 @@ fn apply_command_stmt(
 
         // Shape.
         "arg" => acc.args.apply(stmt, tables, log),
+        "arg_values_accept_prefix" => spec.arg_values_accept_prefix = parse_flag(stmt.tail()),
         "repeat" => {
             if let Some(layout) = repeat_row(stmt, log) {
                 acc.repeats.push(layout);
@@ -12929,5 +13038,62 @@ mod tests {
         assert_eq!(body.leading_bom, LeadingBom::Content);
         assert_eq!(body, NestedScript.config(whole));
         assert_eq!(pack_source_lexer_config(WholeInput), whole);
+    }
+}
+
+#[cfg(test)]
+mod authored_construction_hint_controls {
+    use super::*;
+
+    #[test]
+    fn actual_authored_sets_select_custom_hints_and_preserve_exact_snittype_recipe() {
+        let mut log = Log::default();
+        let rows = statements(
+            "bare_word_construction -hint-values {spawn café} -hint-prefixes {obj-}",
+            1,
+            FileBom::Content,
+        );
+        let grammar = definition_body_block(&rows, &mut log);
+        let hint = grammar.bare_word_construction_source_hint.unwrap();
+        assert!(hint.recognises("spawn"));
+        assert!(hint.recognises("café"));
+        assert!(hint.recognises("obj-child"));
+        assert!(!hint.recognises("%AUTO%"));
+        assert!(!hint.recognises(".widget"));
+        assert!(grammar.bare_word_construction_hint.is_none());
+        let rows = statements(
+            "bare_word_construction -hint-values {%AUTO%} -hint-prefixes {.}",
+            1,
+            FileBom::Content,
+        );
+        let grammar = definition_body_block(&rows, &mut log);
+        let callback = grammar.bare_word_construction_hint.unwrap();
+        assert!(callback("%AUTO%"));
+        assert!(callback(".widget"));
+        assert!(!callback("spawn"));
+        assert!(log.notices.is_empty());
+    }
+
+    #[test]
+    fn bare_flags_and_unavailable_option_layouts_do_not_invent_snittype_hints() {
+        for source in [
+            "bare_word_construction",
+            "bare_word_construction -hint-values",
+            "bare_word_construction -foreign {x}",
+            "bare_word_construction -hint-values {x} -hint-values {y}",
+            "bare_word_construction -hint-prefixes {{}}",
+        ] {
+            let mut log = Log::default();
+            let grammar = definition_body_block(&statements(source, 1, FileBom::Content), &mut log);
+            assert!(grammar.bare_word_construction);
+            assert!(
+                grammar.bare_word_construction_source_hint.is_none(),
+                "{source}"
+            );
+            assert!(grammar.bare_word_construction_hint.is_none(), "{source}");
+            if source != "bare_word_construction" {
+                assert!(!log.notices.is_empty(), "{source}");
+            }
+        }
     }
 }

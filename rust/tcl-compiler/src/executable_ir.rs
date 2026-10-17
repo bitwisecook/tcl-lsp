@@ -832,6 +832,22 @@ impl ExecutableBlock {
     }
 }
 
+// Immutable original argv geometry shared by the actual evaluation values.
+// This owner supplies source effects only, never a handler or entered cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExecutableArgvSource {
+    tokens: crate::ir::CommandTokens,
+    words: Vec<tcl_lexer::NativeWord>,
+    metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExecutableWordSource {
+    owner: std::sync::Arc<OriginalExecutableArgvSource>,
+    ordinal: usize,
+    evaluated: WordExpr,
+}
+
 /// One executable semantic function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFunction {
@@ -844,6 +860,11 @@ pub struct ExecutableFunction {
     pub entry: ExecutableBlockId,
     /// Basic blocks in deterministic ID order.
     pub blocks: Vec<ExecutableBlock>,
+    // Outer None belongs only to the explicit carrierless constructor. A
+    // source-built function owns Some(map), even when it has no word stages;
+    // missing entries and present None both mean unavailable source geometry.
+    original_word_sources:
+        Option<BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>>,
 }
 
 impl ExecutableFunction {
@@ -859,7 +880,46 @@ impl ExecutableFunction {
             entry,
             blocks,
             native_compilation_admission: None,
+            original_word_sources: None,
         }
+    }
+
+    /// Original word evaluation geometry under the retained source owner.
+    /// Outer None is explicit carrierless compatibility; inner None is a
+    /// missing/changed source owner and cannot establish effect absence.
+    pub(crate) fn original_word_command_effects(
+        &self,
+        value: ExecutableValueId,
+        word: &WordExpr,
+    ) -> Option<Option<bool>> {
+        let retained = self.original_word_sources.as_ref()?.get(&value);
+        Some((|| {
+            let retained = retained?.as_ref()?;
+            (retained.evaluated == *word).then_some(())?;
+            let owner = &retained.owner;
+            if matches!(
+                owner.metadata,
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ) {
+                return None;
+            }
+            let original = owner.words.get(retained.ordinal)?;
+            let written = owner.tokens.words().get(retained.ordinal)?;
+            let evaluated = if let WordExpr::Expand { word, .. } = written {
+                word.as_ref()
+            } else {
+                written
+            };
+            (evaluated == word).then_some(())?;
+            Some(original.executable_parts().all_parts().any(|part| {
+                matches!(
+                    part.part,
+                    tcl_lexer::ExecutablePart::Command { .. }
+                        | tcl_lexer::ExecutablePart::Expression { .. }
+                        | tcl_lexer::ExecutablePart::ParseError(_)
+                )
+            }))
+        })())
     }
 
     /// Validate the bounded executable-IR invariants.
@@ -2323,6 +2383,9 @@ fn build_executable_ir_with_metadata_context(
         } => return Err(SourceCompatibilityDecline::EmptyScript),
     }
     let mut executable = ExecutableFunction::new(function, entry, builder.blocks);
+    // This is unconditional at production function assembly, including when
+    // the builder emitted only non-word operations and the map is empty.
+    executable.original_word_sources = Some(builder.original_word_sources);
     executable.native_compilation_admission =
         crate::native_compilation_admission::retained_script_admission(script);
     debug_assert!(
@@ -2435,6 +2498,7 @@ fn statement_evaluated_region(
 struct FunctionBuilder {
     allocator: IdAllocator,
     blocks: Vec<ExecutableBlock>,
+    original_word_sources: BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>,
 }
 
 impl FunctionBuilder {
@@ -2442,6 +2506,61 @@ impl FunctionBuilder {
         Self {
             allocator: IdAllocator::new(function),
             blocks: Vec::new(),
+            original_word_sources: BTreeMap::new(),
+        }
+    }
+
+    fn retain_original_word_sources(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        tokens: &crate::ir::CommandTokens,
+        stages: &[Stage],
+    ) {
+        let owner = (|| {
+            let binding = tokens.source_binding.as_ref()?;
+            if let Some(context) = context {
+                context.matches_registry(registry).then_some(())?;
+                if let Some(input) = context.source_analysis_input() {
+                    binding.original_argument_metadata_for_input(tokens, input, registry)?;
+                }
+            }
+            let config = binding.original_argument_lexer_config(tokens)?;
+            let image = binding.original_argument_source_image(tokens)?;
+            let words = crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                tokens.argv.first()?.start(),
+                config,
+            )?;
+            Some(std::sync::Arc::new(OriginalExecutableArgvSource {
+                tokens: tokens.clone(),
+                words,
+                metadata: context.map_or(
+                    crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+                    InvocationMetadataContext::retain,
+                ),
+            }))
+        })();
+        // Each original argv word emits exactly one Evaluate stage; an
+        // expanded word's separate Expand stage has no source evaluation.
+        for (ordinal, (value, word)) in stages
+            .iter()
+            .filter_map(|stage| {
+                if let Stage::Evaluate { value, word, .. } = stage {
+                    Some((*value, word))
+                } else {
+                    None
+                }
+            })
+            .enumerate()
+        {
+            let retained = owner.as_ref().map(|owner| OriginalExecutableWordSource {
+                owner: std::sync::Arc::clone(owner),
+                ordinal,
+                evaluated: word.clone(),
+            });
+            self.original_word_sources.insert(value, retained);
         }
     }
 
@@ -2683,6 +2802,7 @@ impl FunctionBuilder {
             resolve_invocation_facts(registry, context, source_call.tokens, statement_index)?;
         let mut stages = Vec::new();
         let entries = plan_argv_entries(&words, node, &mut self.allocator, &mut stages);
+        self.retain_original_word_sources(registry, context, source_call.tokens, &stages);
         let argv = self.allocator.argv();
         stages.push(Stage::BuildArgv {
             argv,
@@ -2885,6 +3005,7 @@ impl FunctionBuilder {
             resolve_invocation_facts(registry, site.context, call.tokens, statement_index)?;
         let mut stages = Vec::new();
         let entries = plan_argv_entries(&words, site.node, &mut self.allocator, &mut stages);
+        self.retain_original_word_sources(registry, site.context, call.tokens, &stages);
         let argv = self.allocator.argv();
         stages.push(Stage::BuildArgv {
             argv,

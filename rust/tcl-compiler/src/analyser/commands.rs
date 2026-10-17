@@ -1886,7 +1886,9 @@ impl Analyser {
                 );
                 false
             }
-            Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path),
+            Hook::OoObjdefine => {
+                self.handle_oo_objdefine_at(cmd_tok, args, arg_tokens, arg_single, scope_path)
+            }
             Hook::PackageRequire => {
                 self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
                 false
@@ -2261,17 +2263,7 @@ impl Analyser {
         site: &DispatchSite<'_>,
         original: Option<&super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        self.emit_arity_diagnostics(
-            site.cmd_name,
-            &super::diagnostics::ArityWords {
-                args: site.args,
-                arg_tokens: site.arg_tokens,
-                arg_expand: site.arg_expand_in.get(1..).unwrap_or(&[]),
-                cmd_tok: site.cmd_tok,
-            },
-            site.scope_path,
-            original,
-        );
+        self.emit_arity_diagnostics(site.cmd_name, site.cmd_tok, site.scope_path, original);
         if original.is_none()
             && let Some(declared) = self.original_declared_diagnostic_invocation(site)
         {
@@ -2719,7 +2711,7 @@ impl Analyser {
                 self.emit_w003_dialect_invalid_expr_operator(content);
             }
             self.emit_expr_function_dialect_diagnostics(*token);
-            self.emit_w114_redundant_nested_expr(word);
+            self.emit_w114_original_nested_expr(&original, argument);
         }
     }
 

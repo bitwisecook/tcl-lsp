@@ -976,6 +976,39 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
     })
 }
 
+/// Authored source field a hook occupies, preserving its complete layout.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HookSourceOwner {
+    /// A command-level hook field.
+    Command,
+    /// A selected subcommand field.
+    Subcommand(String),
+    /// A selected option field, independently of its enclosing subcommand.
+    Option {
+        /// Actual enclosing subcommand, if present.
+        subcommand: Option<String>,
+        /// Actual option component, never omitted from slot identity.
+        option: String,
+    },
+}
+
+/// Stable authored hook source tuple, not a rendered compound name or receipt.
+/// Re-editing its body preserves its slot; selected declaration membership is
+/// retained separately by the actual loader plan.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HookSourceIdentity {
+    /// Original declaring pack component.
+    pub pack: String,
+    /// Actual provider trust/provenance channel.
+    pub provenance: tcl_dialect::model::Provenance,
+    /// Actual declaring source path, retaining opaque OS units.
+    pub file: std::path::PathBuf,
+    /// Original declaring command component.
+    pub command: String,
+    /// Complete actual source field owner.
+    pub owner: HookSourceOwner,
+}
+
 /// The slot for the hook `identity` names, minting one only the first time
 /// that identity is seen and **rebinding** it on every later load.
 ///
@@ -998,13 +1031,13 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
 /// the stale ones were stale regardless.
 pub fn allocate_stable(
     family: HookFamily,
-    identity: &str,
+    identity: &HookSourceIdentity,
     inputs: &HookInputs,
 ) -> Option<HookSlot> {
-    static BY_IDENTITY: LazyLock<Mutex<HashMap<(HookFamily, String), HookSlot>>> =
+    static BY_IDENTITY: LazyLock<Mutex<HashMap<(HookFamily, HookSourceIdentity), HookSlot>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
 
-    let key = (family, identity.to_owned());
+    let key = (family, identity.clone());
     let mut table = match BY_IDENTITY.lock() {
         Ok(table) => table,
         Err(poisoned) => poisoned.into_inner(),
@@ -1285,7 +1318,7 @@ pub fn has_host() -> bool {
 /// inputs, so an answer that rests on it must not be kept as a verdict.
 #[must_use]
 pub fn slot_available(slot: HookSlot) -> bool {
-    if !ANY_HOST.load(Ordering::Relaxed) {
+    if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         return false;
     }
     ensure_host().is_some_and(|host| host.is_available(slot))
@@ -1522,13 +1555,19 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
 /// pure memo, so losing it costs a re-run and never an answer.
 const MAX_CACHE_ENTRIES: usize = 8192;
 
-/// Invoke a pack hook: the cache first when the slot's declared inputs allow
-/// it, then this thread's host, then the family's silence.
+/// Invoke a pack hook after synchronizing its actual published plan receiver.
+/// The current receiver's cache is used only when declared inputs permit it;
+/// unavailable hosts retain the family's silence.
 #[must_use]
 pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
-    if !ANY_HOST.load(Ordering::Relaxed) {
+    if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         return HookAnswer::Abstain;
     }
+    // Synchronize the actual installed receiver/plan before deriving cache
+    // mode or admitting a prior answer. Installation clears stale TLS entries.
+    let Some(host) = ensure_host() else {
+        return HookAnswer::Abstain;
+    };
     let mode = cache_mode(slot);
     let key = (mode != CacheMode::None)
         .then(|| shape_key(slot, call, mode))
@@ -1549,9 +1588,6 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     {
         return hit;
     }
-    let Some(host) = ensure_host() else {
-        return HookAnswer::Abstain;
-    };
     let answer = host.invoke(slot, call);
     if let Some(key) = key {
         SHAPE_CACHE.with(|cache| {

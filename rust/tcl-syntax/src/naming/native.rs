@@ -71,7 +71,54 @@ pub struct NamePolicyProtocol {
     recipe: NativeNameProtocol,
     authority: NamePolicyAuthority,
 }
+/// Selected import-control meaning of one complete authored Unicode value.
+/// This source-value facet is not resident native bytes or execution authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredNamespaceImportControl<'source> {
+    policy: NamePolicyProtocol,
+    source_value: &'source str,
+    forces: bool,
+}
+impl<'source> AuthoredNamespaceImportControl<'source> {
+    /// Actual selected pure naming policy of this source operation.
+    #[must_use]
+    pub const fn policy(self) -> NamePolicyProtocol {
+        self.policy
+    }
+    /// Whole source value; no native resident encoding is fabricated.
+    #[must_use]
+    pub const fn source_value(self) -> &'source str {
+        self.source_value
+    }
+    /// Whether this source operand selects the supported leading control.
+    #[must_use]
+    pub const fn forces(self) -> bool {
+        self.forces
+    }
+}
+
 impl NamePolicyProtocol {
+    /// Select the leading import control of a complete authored Unicode value.
+    /// Source values retain their complete extent; native resident operands must
+    /// use `NativeNameProtocol::namespace_import_forces` independently. In
+    /// particular U+0000 is not reinterpreted as a resident C byte terminator.
+    ///
+    /// # Errors
+    /// Jim's helper has no modelled C-style leading `-force` control.
+    pub fn namespace_import_source_control(
+        self,
+        source_value: &str,
+    ) -> Result<AuthoredNamespaceImportControl<'_>, NameProjectionUnavailable> {
+        if self.recipe.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(AuthoredNamespaceImportControl {
+            policy: self,
+            source_value,
+            forces: source_value == "-force",
+        })
+    }
+
     /// Select an actual audited engine/build point, without vendor compatibility.
     #[must_use]
     pub fn for_native_point(point: DialectPoint) -> Option<Self> {
@@ -5849,4 +5896,38 @@ fn namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control() {
         NativeNameProtocol::Jim084.namespace_import_forces(b"-force"),
         Err(NameProjectionUnavailable::PurposeNotModelled)
     );
+}
+
+#[cfg(test)]
+mod authored_namespace_import_phase_controls {
+    use super::*;
+
+    #[test]
+    fn source_values_and_resident_byte_controls_retain_their_actual_extents() {
+        let policy = NamePolicyProtocol::authored_tcl(TclVersion::V8_6);
+        let source = policy.namespace_import_source_control("-force").unwrap();
+        assert!(source.forces());
+        assert_eq!(source.policy(), policy);
+        assert_eq!(source.source_value(), "-force");
+        for value in ["-force\0tail", "-forceé", "-for", "", "::name"] {
+            let source = policy.namespace_import_source_control(value).unwrap();
+            assert_eq!(source.source_value(), value);
+            assert!(!source.forces(), "{value:?}");
+        }
+        assert!(
+            NativeNameProtocol::C(TclVersion::V8_6)
+                .namespace_import_forces(b"-force\0tail")
+                .unwrap()
+        );
+        assert!(
+            NamePolicyProtocol::authored_jim084()
+                .namespace_import_source_control("-force")
+                .is_err()
+        );
+        assert!(
+            NativeNameProtocol::Jim084
+                .namespace_import_forces(b"-force")
+                .is_err()
+        );
+    }
 }

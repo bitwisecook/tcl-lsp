@@ -110,12 +110,23 @@ impl MemberReferenceScan<'_> {
         let mut pending = VecDeque::new();
         let mut complete = true;
         let mut selected_root = false;
-        for command in &structure.commands {
+        for command in &structure.root_commands {
             let Some(head) = command.argv.first() else {
                 continue;
             };
-            let Some(words) =
-                source_structure::source_registry_words(self.source, self.analysis, command)
+            let Some(words) = command
+                .argv
+                .first()
+                .and_then(|head| {
+                    source_structure::source_configured_class_words_at(
+                        self.source,
+                        self.analysis,
+                        head.span.start(),
+                    )
+                })
+                .or_else(|| {
+                    source_structure::source_registry_words(self.source, self.analysis, command)
+                })
             else {
                 complete = false;
                 continue;

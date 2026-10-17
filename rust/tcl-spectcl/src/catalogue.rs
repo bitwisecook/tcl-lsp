@@ -884,7 +884,7 @@ const TAINT_BITS: &[(&str, TaintColour)] = &[
 /// no parallel name table, only the catalogues above (which exist for the
 /// picker).
 pub fn variant_name<T: std::fmt::Debug>(value: &T) -> String {
-    format!("{value:?}")
+    tcl_registry::metadata_catalogue::metadata_variant_name(value)
 }
 
 /// [`variant_name`] prefixed with its enum's type path, for a field the studio

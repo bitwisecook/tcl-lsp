@@ -94,6 +94,18 @@ pub(super) struct ProcBodyInfo {
     pub(super) ns_prefix: String,
     pub(super) namespace_scope: Option<SignatureNamespaceScope>,
     pub(super) source_name: Option<SignatureSourceCommand>,
+    /// Exact original selected definer fields for this declaration only.
+    pub(super) original_factory_body: Option<OriginalFactoryBodySource>,
+}
+
+/// Exact selected definer fields retained for the source factory consumer.
+/// This record carries authored source geometry only; it does not prove that
+/// a factory call executes or that a procedure is installed.
+#[derive(Debug, Clone)]
+pub(super) struct OriginalFactoryBodySource {
+    pub(super) words: tcl_registry::ProcedureWords,
+    pub(super) parameters: tcl_lexer::NativeWord,
+    pub(super) body: tcl_lexer::NativeWord,
 }
 
 /// Mutable scan context threaded through the walker.
@@ -400,7 +412,10 @@ impl ScanCtx<'_> {
         }
     }
 
-    fn original_name_word(&self, span: tcl_lexer::Span) -> Option<&tcl_lexer::NativeWord> {
+    pub(super) fn original_name_word(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<&tcl_lexer::NativeWord> {
         let mut selected = self.original_words.iter().filter(|word| {
             word.span() == span
                 || word

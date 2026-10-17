@@ -1042,6 +1042,7 @@ impl<'a> ModuleProcedures<'a> {
                                 self.registry,
                                 self.ir,
                             ),
+                            cfg.metadata_context.is_standalone(),
                         )
                     },
                     |unit| unit.ssa.clone(),
@@ -1635,6 +1636,7 @@ impl<'a> ModuleProcedures<'a> {
                 inputs.registry,
                 inputs.ir,
             ),
+            cfg.metadata_context.is_standalone(),
         );
         let owned: HashSet<String> = links.iter().map(|(_, local)| local.clone()).collect();
         let runs = [Existence::Bound(BindingKind::Either), Existence::Unbound]
@@ -2054,6 +2056,7 @@ fn value_roles(
             inputs.registry,
             inputs.ir,
         ),
+        cfg.metadata_context.is_standalone(),
     );
     declared
         .params

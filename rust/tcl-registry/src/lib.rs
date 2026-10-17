@@ -103,6 +103,7 @@ pub mod list_object_methods;
 pub mod literal_validation;
 pub mod logical_core_simulation;
 pub mod mathfunc;
+pub mod metadata_catalogue;
 pub mod model;
 pub mod native_alias_registration;
 pub mod native_argument_role_hook;

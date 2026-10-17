@@ -1051,6 +1051,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Argument indices whose declared values are an exhaustive legal set (W127).",
     ),
     f(
+        "arg_values_accept_prefix",
+        "Values accept a prefix",
+        OPTS,
+        FieldKind::Bool,
+        "Whether a closed value is accepted as a unique prefix rather than an exact match.",
+    ),
+    f(
         "event_requires",
         "Event requirements",
         ADVANCED,

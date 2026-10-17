@@ -2559,9 +2559,34 @@ pub fn namespace_destruction_places(
     state: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
-    let context = registry.profile().map(SemanticContext::for_profile);
+    namespace_destruction_places_with_metadata_context(
+        statement,
+        state,
+        registry,
+        Some(
+            registry
+                .profile()
+                .map(SemanticContext::for_profile)
+                .map(crate::registry_invocation::InvocationMetadataContext::from),
+        ),
+    )
+}
+
+/// Namespace destruction under the caller's complete retained source input.
+#[must_use]
+pub(crate) fn namespace_destruction_places_with_metadata_context(
+    statement: &Statement,
+    state: &ResolveContext,
+    registry: &CommandRegistry,
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+) -> Vec<Place> {
+    let Some(metadata) = metadata else {
+        return Vec::new();
+    };
     let Some(invocation) =
-        crate::registry_invocation::resolved_statement_invocation(registry, context, statement)
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            registry, metadata, statement,
+        )
     else {
         return Vec::new();
     };

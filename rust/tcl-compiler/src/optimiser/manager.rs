@@ -39,7 +39,7 @@ use crate::compilation_unit::CompilationUnit;
 
 use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
-use super::helpers::spans::{full_rewrite_span, line_delete_span};
+use super::helpers::spans::{line_delete_span, original_statement_rewrite_span_in};
 use super::helpers::var_refs::{bareword_occurrences, count_var_refs};
 use super::{Optimisation, PassContext, PassId, run_passes};
 
@@ -719,7 +719,13 @@ fn couple_const_dead_store_chain(
     // Widen past the inner-end convention before taking the line: a quoted
     // value word leaves its closer outside the statement span, and a deletion
     // that stops short of it strands the closer on a line of its own.
-    let written = full_rewrite_span(source, fu.abs_span(def_stmt.source_edit_span()?));
+    let written = original_statement_rewrite_span_in(
+        source,
+        module,
+        registry,
+        module.lexer_config,
+        fu.abs_span(def_stmt.source_edit_span()?),
+    )?;
     let del_span = line_delete_span(source, written);
     Some(Optimisation::new(
         DiagCode::O109,

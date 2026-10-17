@@ -83,3 +83,11 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The exact Rust selector is linked coverage only. Existing native source snippets support the compound variable-word boundary, not this consumer result or whole-word/SET/slot/index/Normal authority. No native or Rust execution receipt is attached.
+
+## Authored source grammar and naming abstraction
+
+`original_source_compound_variable_root` in the existing Syntax variable-word owner projects `OriginalSourceCompoundVariableRoot` from the actual complete `NativeWord`. It retains the original word, configuration, source channel, root extent and unevaluated index arena. The private variable-word layout implementation is shared with `native_variable_word`; no parser or root-boundary copy is introduced.
+
+An unversioned `tcl` document intentionally uses modern source grammar and the authored C8.6 naming abstraction. Those independent axes must not be required to equal a physical engine recipe before readonly alias-root assistance can retain `::N::array` from `::N::array($index)`. The compiler uses this source projection only for `AuthoredSimulation` name policy. Native-authority callers still use `native_variable_word`, including its unchanged grammar/string-protocol mismatch refusal. Unsupported decoder/escape joins remain unavailable. The source projection establishes no Native compiler operand, evaluated index, selected element, entered alias, successful store, completed execution or edit permission.
+
+This extends the existing original-array-operand-root purpose for the two retained Logical alias-template/target-declaration controls. It adds no helper count and makes no efficacy claim before actual execution.

@@ -719,6 +719,12 @@ outside the set is then a diagnostic, not just a missing completion. Only \
 close a position when the real command genuinely accepts nothing else.",
     ),
     (
+        "arg_values_accept_prefix",
+        "Whether this command's closed argument values accept unique prefixes \
+rather than requiring exact spellings. This is the command-level twin of \
+the subcommand value policy; it is independent of option/subcommand prefix matching.",
+    ),
+    (
         "event_requires",
         "iRules only: what the surrounding event context must provide for \
 this command to work — transport layer, profile, connection side. Feeds \

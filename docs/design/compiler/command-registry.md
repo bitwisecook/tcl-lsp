@@ -2080,3 +2080,50 @@ participate. Bare operator imports and method-only global names retain their
 declaration exclusions. Package rows retain `required_package` / `tcllib_package`
 metadata independently of loading. These answers supply no installed command
 table, Native binding, namespace identity or source import/export permission.
+
+
+### Selected package and dictionary source layouts
+
+`db.unit.registry.package.require-original-option-layout` shares the package
+require descriptor's one optional exact flag between structured source roles
+and package transitions. A repeated flag-shaped word is the package operand
+after the first flag, not another consumed option. Known byte operands remain
+bytes; expansion, unresolved leading values and unavailable NUL-sensitive
+extent do not acquire a positional identity. Unknown transition layout widens
+the existing package-state domain. Original release-specific version and
+requirement validation remains independent of operand selection.
+
+`db.unit.registry.dictionary.filter-selected-source-body` uses the actual
+closed filter-mode table and its shared prefix policy. Script mode requires
+the complete fixed dictionary/mode/binder/body shape; source body position is
+not guessed from the last arbitrary argument. Unsupported shapes retain
+unavailable source roles. These metadata grant neither reached iteration nor
+Native dict availability (in particular, Tcl8.4 does not install dict).
+
+`db.unit.registry.dictionary.qualified-source-facets` projects standalone
+worker source metadata from its actual selected SubCommand descriptor,
+including clause grammar, repeated conditional binders, scope-alias semantic
+traits and option/selector facts. Public-ensemble versus worker native compiler
+geometry remains independent and unchanged. No label equality supplies
+physical worker registration, currentness or callability.
+
+
+### Command-level closed-value prefix policy
+
+`CommandSpec::arg_values_accept_prefix` is the default-false command-level
+counterpart of the existing selected SubCommand value-vocabulary policy.
+Qualified dictionary command projections carry the actual selected subcommand
+flag alongside its values and closed ordinals, including `dict filter`'s
+filter-type abbreviations. W127 and its existing W137 value-lifecycle query
+read the actual top descriptor flag instead of a hardcoded exact policy.
+Other command descriptors retain their exact/default or open-value behavior;
+this does not automatically close any previously open vocabulary. Option and
+subcommand prefix selection remain independent.
+
+The existing SpecTcl flag reader handles both scopes; Studio command schema,
+draft, Rust rendering, SpecTcl rendering and exhaustive coverage transport the
+same boolean. No new matcher/parser, enumerated prefix alias list, name-local
+exception, runtime lookup or successful handler/Native/equivalence grant is
+introduced. This repairs the concrete invalid CommandSpec field projection in
+the pending dictionary layout packet; source checks alone do not establish
+compilation, round-trip or diagnostic efficacy.

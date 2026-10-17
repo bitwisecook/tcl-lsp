@@ -58,6 +58,7 @@ use tcl_lexer::Span;
 /// unchanged. Safe against EOF / oversized spans — returns the
 /// input span untouched rather than panicking.
 #[must_use]
+#[cfg(test)]
 pub fn full_rewrite_span(source: &str, span: Span) -> Span {
     let bytes = source.as_bytes();
     let start = span.start() as usize;
@@ -113,7 +114,7 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
 /// the start of its indentation, and forward over its trailing newline — so
 /// removing the statement removes its line rather than leaving a blank one.
 ///
-/// Pair it with [`full_rewrite_span`] when the span came from an IR statement:
+/// Pair it with [`original_statement_rewrite_span`] for an original IR statement:
 /// this only reaches past the line's edges, and a last word that is quoted,
 /// braced, or bracketed leaves its closer inside the line but outside the
 /// span.
@@ -279,6 +280,63 @@ pub fn original_quoted_word_rewrite_span(
         return None;
     }
     (chars.as_str() == inside).then_some(span)
+}
+
+/// Whole original command extent from the actual lowering source interpreter.
+/// The supplied IR extent selects geometry only; every rewrite permission and
+/// semantic/effect/current-value obligation remains with the caller.
+#[must_use]
+pub fn original_statement_rewrite_span(
+    ctx: &crate::optimiser::PassContext<'_>,
+    span: Span,
+) -> Option<Span> {
+    original_statement_rewrite_span_in(
+        ctx.source,
+        ctx.ir_module?,
+        ctx.registry?,
+        ctx.lexer_config(),
+        span,
+    )
+}
+
+/// Same original statement owner for consumers already holding the genuine
+/// module/Registry/source input directly. This grants geometry only.
+#[must_use]
+pub fn original_statement_rewrite_span_in(
+    source: &str,
+    module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    span: Span,
+) -> Option<Span> {
+    if module.source.try_text().ok()? != source || module.lexer_config != config {
+        return None;
+    }
+    let bindings = module
+        .retained_source_bindings
+        .as_ref()?
+        .positioned_for_module(module, registry)?;
+    let binding = bindings.invocation_at_source("", span.start());
+    let (command, tokens) = binding.original_recorded_command()?;
+    if command.span.start() != span.start() {
+        return None;
+    }
+    let site = binding.invocation_site()?;
+    if site.offset != span.start() || site.source.source_image() != &module.source {
+        return None;
+    }
+    // Reborrow this exact command vector. A global span query could also
+    // match an enclosing braced/command word's content and lose an authentic
+    // single-word child because the two genuine parent sites differ.
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let word = original.native_words().last()?;
+    if span.end() < original.native_words().first()?.span().end() || span.end() > word.span().end()
+    {
+        return None;
+    }
+    Some(Span::new(span.start(), word.span().end()))
 }
 
 #[cfg(test)]
@@ -539,5 +597,79 @@ mod tests {
         assert!(
             super::original_quoted_word_rewrite_span(&ctx, span, "a[format %s b]$value").is_none()
         );
+    }
+
+    #[test]
+    fn original_statement_extent_reborrows_actual_complete_command_and_refuses_foreign_source() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for source in [
+            "set value [format %s {[literal]}]",
+            "return [format %s {]}]",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+            let mut ctx = crate::optimiser::PassContext::new(
+                source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+            );
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&unit.ir_module);
+            let span = unit.ir_module.top_level.statements[0].span();
+            assert_eq!(
+                super::original_statement_rewrite_span(&ctx, span),
+                Some(Span::new(0, u32::try_from(source.len()).unwrap()))
+            );
+            assert!(
+                super::original_statement_rewrite_span(&ctx, Span::new(1, span.end())).is_none()
+            );
+            ctx.source = "set value FOREIGN";
+            assert!(super::original_statement_rewrite_span(&ctx, span).is_none());
+            ctx.source = source;
+            let mut config = ctx.lexer_config();
+            config.strict_quoting = !config.strict_quoting;
+            ctx.source_lexer_config = Some(config);
+            assert!(super::original_statement_rewrite_span(&ctx, span).is_none());
+        }
+    }
+
+    #[test]
+    fn original_statement_extent_keeps_single_word_nested_command_vector() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, child) in [("proc f {} {f}", 11_u32), ("puts [f]", 6_u32)] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+            let mut ctx = crate::optimiser::PassContext::new(
+                source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+            );
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&unit.ir_module);
+            let span = Span::new(child, child + 1);
+            assert_eq!(
+                super::original_statement_rewrite_span(&ctx, span),
+                Some(span)
+            );
+            assert_eq!(&source[span.as_range()], "f");
+            assert!(
+                super::original_statement_rewrite_span(&ctx, Span::new(child, child + 2)).is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_statement_extent_accepts_clipped_ir_end_within_same_complete_vector() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "set value [format %s {[literal]}]";
+        let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+        let mut ctx = crate::optimiser::PassContext::new(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+        );
+        ctx.registry = Some(registry);
+        ctx.ir_module = Some(&unit.ir_module);
+        let end = u32::try_from(source.len()).unwrap();
+        assert_eq!(
+            super::original_statement_rewrite_span(&ctx, Span::new(0, end - 2)),
+            Some(Span::new(0, end))
+        );
+        assert!(super::original_statement_rewrite_span(&ctx, Span::new(0, end + 1)).is_none());
     }
 }

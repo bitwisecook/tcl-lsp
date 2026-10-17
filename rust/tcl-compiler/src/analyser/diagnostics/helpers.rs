@@ -856,12 +856,13 @@ pub(super) struct UndefIndexMaps {
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
 /// restricted to `considered` (executable) blocks.
 pub(super) fn build_phi_undef_index(
-    ssa: &crate::ssa::SsaFunction,
+    function: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     registry: &tcl_registry::CommandRegistry,
     steps: &CallStepMap,
 ) -> UndefIndexMaps {
     use tcl_registry::value_transfer::{BindingKind, Existence};
+    let ssa = &function.ssa;
     let mut phi_def: PhiDefMap = FxHashMap::default();
     let mut phi_block: PhiBlockMap = FxHashMap::default();
     let mut killed = FxHashSet::default();
@@ -879,7 +880,8 @@ pub(super) fn build_phi_undef_index(
         }
         for statement in &sblock.statements {
             if crate::ssa::has_arm_may_defs(&statement.statement) {
-                let refreshed = crate::ssa::refreshed_bases(&statement.statement, registry);
+                let refreshed =
+                    crate::ssa::refreshed_bases(&statement.statement, function, registry);
                 for symbol in &statement.may_defs {
                     if refreshed.iter().any(|base| base == ssa.var_name(*symbol)) {
                         continue;
@@ -1719,7 +1721,7 @@ pub(super) fn build_undef_suppression(
         phi_block,
         killed,
         may_defs,
-    } = build_phi_undef_index(&fu.ssa, considered, registry, &call_steps);
+    } = build_phi_undef_index(fu, considered, registry, &call_steps);
     let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
@@ -2834,7 +2836,7 @@ mod exact_cell_diagnostic_tests {
         let considered = function.ssa.blocks.keys().copied().collect();
         let module = crate::interprocedural::ModuleProcedures::of_unit(&cu, registry);
         let steps = super::call_steps(function, &considered, Some(&module), registry);
-        let killed = build_phi_undef_index(&function.ssa, &considered, registry, &steps).killed;
+        let killed = build_phi_undef_index(function, &considered, registry, &steps).killed;
         let original =
             original_read_occurrence_at_span(function, occurrence_span(source, "$original"))
                 .expect("original read value");
@@ -2939,7 +2941,7 @@ mod exact_cell_diagnostic_tests {
         let considered = function.ssa.blocks.keys().copied().collect();
         let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, registry);
         let steps = super::call_steps(function, &considered, Some(&module), registry);
-        let killed = build_phi_undef_index(&function.ssa, &considered, registry, &steps).killed;
+        let killed = build_phi_undef_index(function, &considered, registry, &steps).killed;
         assert_eq!(first.0, later.0, "the alias selects the same actual cell");
         assert_ne!(first.1, later.1, "destruction has its own contents version");
         assert!(

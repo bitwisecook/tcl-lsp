@@ -151,3 +151,5 @@ TransformRequest and TransformWorkerSource retain the actual source and configur
 Source/input/response currency only. Transformation safety, Normal, runtime equivalence, frame/effect closure and Native admission stay with independent owners; provider observations and execution are not claimed here.
 
 All seven provider answers in the index are not-tested. Test linkage is not test execution. Original narrative above is retained; current owner linkage does not add a runtime observation.
+
+This is a source/API implementation contract. Index linkage supplies no provider observation, runtime execution or passed test result.

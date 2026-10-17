@@ -43,7 +43,7 @@ use tcl_core_types::DiagCode;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Procedure, Script, Statement};
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::original_statement_rewrite_span;
 use super::{Optimisation, PassContext};
 
 mod inventory;
@@ -319,7 +319,7 @@ fn emit_loop_conversion(
 /// Record the tail site for a bare self-call, `f $args`, and report its
 /// O121 rewrite.
 ///
-/// The rewrite prefixes the call as written: `full_rewrite_span` only
+/// The rewrite prefixes the call as written: `original_statement_rewrite_span` only
 /// extends the statement span through trailing closers, so its text is the
 /// call verbatim, with braces, quotes, `{*}` markers and spacing intact.
 /// The IR's `args` hold each word's *value* with its delimiters stripped,
@@ -333,7 +333,9 @@ fn collect_bare_call_site(
     sites: &mut Vec<TailSite>,
     emit_o121: bool,
 ) {
-    let rewrite_span = full_rewrite_span(ctx.source, span);
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
     let call_text = ctx.source.get(rewrite_span.as_range());
     if emit_o121 {
         let Some(text) = call_text else {
@@ -376,7 +378,9 @@ fn collect_return_subst_site(
     let Some(call) = inventory.call_at(call_span) else {
         return;
     };
-    let rewrite_span = full_rewrite_span(ctx.source, span);
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
     if emit_o121 && call.tailcall_command_preserved && call.retains_formal_roots {
         let replacement = format!("tailcall {call_text}");
         ctx.report(Optimisation::new(

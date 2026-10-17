@@ -72,7 +72,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::original_statement_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Actual source input for the substitution effect gate. Interprocedural
@@ -820,10 +820,13 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             if encloses_live_code(_statement.span(), &live) {
                 continue;
             }
+            let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+                continue;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O107,
                 "Eliminate unreachable dead code",
-                full_rewrite_span(ctx.source, span),
+                rewrite_span,
                 "",
             ));
         }
@@ -1339,6 +1342,9 @@ fn emit_dse_entries(
     entries.sort_by_key(|e| e.span.start());
     let mut removed: HashSet<(crate::var_resolve::VariableCellKey, u32)> = HashSet::new();
     for e in entries {
+        let Some(rewrite_span) = original_statement_rewrite_span(ctx, e.span) else {
+            continue;
+        };
         // Record O109 dead stores (not O126 unused vars) so tools can show
         // them from where Rust determines them. `run` collects these into
         // `ctx.dead_stores`.
@@ -1356,12 +1362,7 @@ fn emit_dse_entries(
                 version: e.key.1,
             });
         }
-        ctx.report(Optimisation::new(
-            e.code,
-            e.msg,
-            full_rewrite_span(ctx.source, e.span),
-            "",
-        ));
+        ctx.report(Optimisation::new(e.code, e.msg, rewrite_span, ""));
         removed.insert(e.key);
     }
     removed
@@ -1620,10 +1621,13 @@ fn emit_adce_reports(
     }
     new_reports.sort_by_key(|s| s.start());
     for span in new_reports {
+        let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+            continue;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O108,
             "Eliminate transitively dead code",
-            full_rewrite_span(ctx.source, span),
+            rewrite_span,
             "",
         ));
     }
@@ -2535,18 +2539,36 @@ mod tests {
         );
     }
 
+    fn original_fixture_set_store_span(source: &str) -> tcl_lexer::Span {
+        let registry = registry();
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        let procedure = unit.ir_module.procedures.values().next().unwrap();
+        let statement = procedure.body.statements.first().unwrap();
+        assert!(matches!(statement, Statement::AssignConst { name, .. } if name == "x"));
+        let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&registry);
+        ctx.ir_module = Some(&unit.ir_module);
+        let span = original_statement_rewrite_span(&ctx, statement.span()).unwrap();
+        assert_eq!(source.get(span.as_range()), Some("set x 1"));
+        span
+    }
+
     #[test]
     fn collect_textual_var_references_detects_set_one_arg_read() {
         // ``[set varname]`` (1-arg form) is a variable read; without
         // it, DCE saw 0 reads on ``varname`` and incorrectly deleted
         // the write.
-        let opts = run_pass("proc ::f {} { set x 1; set y [set x]; return $y }");
+        let source = "proc ::f {} { set x 1; set y [set x]; return $y }";
+        let subject = original_fixture_set_store_span(source);
+        let opts = run_pass(source);
         // ``x`` is read via ``[set x]`` so neither O109 nor O126
         // should fire on the ``set x 1`` line.
         let bad: Vec<_> = opts
             .iter()
             .filter(|o| {
-                (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
+                (o.code == DiagCode::O109 || o.code == DiagCode::O126)
+                    && o.span.start() <= subject.start()
+                    && o.span.end() >= subject.end()
             })
             .collect();
         assert_eq!(
@@ -2576,11 +2598,15 @@ mod tests {
     #[test]
     fn collect_textual_var_references_detects_qualified_set_read() {
         // ``[::set varname]`` form should also count.
-        let opts = run_pass("proc ::f {} { set x 1; set y [::set x]; return $y }");
+        let source = "proc ::f {} { set x 1; set y [::set x]; return $y }";
+        let subject = original_fixture_set_store_span(source);
+        let opts = run_pass(source);
         let bad: Vec<_> = opts
             .iter()
             .filter(|o| {
-                (o.code == DiagCode::O109 || o.code == DiagCode::O126) && o.message.contains('x')
+                (o.code == DiagCode::O109 || o.code == DiagCode::O126)
+                    && o.span.start() <= subject.start()
+                    && o.span.end() >= subject.end()
             })
             .collect();
         assert_eq!(
@@ -2885,9 +2911,9 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
         let source = "set value VALUE; set copy $value";
         // Actual software Vm entry; no external Jim/provider execution.
-        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
-        let context =
-            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
         let registry = context.commands();
         let (_owner, captured) =
             crate::environment_ingress::captured_native_entry_with_owner(profile);
@@ -2903,7 +2929,7 @@ mod tests {
             crate::compilation_unit::UnitBuildOptions {
                 registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                config: tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
                 dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: None,

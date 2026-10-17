@@ -1755,10 +1755,11 @@ pub(super) fn source_script_bodies_for_coverage(
     context: &ContextRegistry,
     purpose: OriginalSourceScriptPurpose,
 ) -> Option<Vec<OriginalSourceScriptBody>> {
-    if matches!(
+    if (matches!(
         words.source(),
         super::source_structure::OriginalRegistrySource::DefinitionMember(_)
-    ) && purpose != OriginalSourceScriptPurpose::Syntax
+    ) || words.definition_parent().is_some())
+        && purpose != OriginalSourceScriptPurpose::Syntax
     {
         return None;
     }
@@ -1938,10 +1939,11 @@ pub(super) fn source_script_bodies_for(
     context: &ContextRegistry,
     purpose: OriginalSourceScriptPurpose,
 ) -> Vec<OriginalSourceScriptBody> {
-    if matches!(
+    if (matches!(
         words.source(),
         super::source_structure::OriginalRegistrySource::DefinitionMember(_)
-    ) && purpose != OriginalSourceScriptPurpose::Syntax
+    ) || words.definition_parent().is_some())
+        && purpose != OriginalSourceScriptPurpose::Syntax
     {
         return Vec::new();
     }

@@ -38,6 +38,10 @@ struct BodyGeometry {
 /// Each region is original source geometry, with independently selected source
 /// applicability. None of these spans grants execution, a frame or an edit.
 pub(crate) struct SourceStructure {
+    /// Commands segmented in the actual document root. Descendant scripts
+    /// are separately retained below and must not be reinterpreted as new
+    /// document-level definition issuers.
+    pub(crate) root_commands: Vec<SegmentedCommand>,
     pub(crate) commands: Vec<SegmentedCommand>,
     pub(crate) bodies: Vec<Span>,
     pub(crate) scripts: Vec<(Span, u32)>,
@@ -1090,6 +1094,7 @@ impl SourceStructure {
             }
         }
         let mut structure = Self {
+            root_commands: Vec::new(),
             commands: Vec::new(),
             bodies: Vec::new(),
             scripts: Vec::new(),
@@ -1193,6 +1198,9 @@ impl SourceStructure {
         self.scripts.push((region, depth));
         let commands =
             segment_commands_with_offset_and_config(script, region.start(), config.at_depth(depth));
+        if depth == 0 {
+            self.root_commands.extend(commands.iter().cloned());
+        }
         let original_plan =
             tcl_lexer::native_script_words_in(capture.image.clone(), region, config);
         if let Some(census) = &mut self.package_census {

@@ -915,16 +915,11 @@ fn observed_store_keys(
     let Some(points) = &ssa.point_contexts else {
         return HashSet::new();
     };
-    crate::place_bridge::def_places_with_continuation(
-        statement,
-        points.before_statement(block, index),
-        points.after_statement(block, index),
-        registry,
-    )
-    .into_iter()
-    .filter(|place| place.observed)
-    .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
-    .collect()
+    crate::place_bridge::def_places_at(statement, block, index, points, registry)
+        .into_iter()
+        .filter(|place| place.observed)
+        .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
+        .collect()
 }
 
 fn statement_math_context<'a>(

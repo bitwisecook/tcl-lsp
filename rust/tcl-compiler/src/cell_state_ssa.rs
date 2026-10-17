@@ -183,11 +183,11 @@ fn collect_statement_accesses(
     let before = points.before_statement(block, index);
     let after = points.after_statement(block, index);
     let definitions: Vec<_> =
-        crate::place_bridge::def_places_with_continuation(statement, before, after, registry)
+        crate::place_bridge::def_places_at(statement, block, index, points, registry)
             .into_iter()
             .collect();
-    let destructive = crate::place_bridge::statement_destruction_places_with_continuation(
-        statement, before, after, registry,
+    let destructive = crate::place_bridge::statement_destruction_places_at(
+        statement, block, index, points, registry,
     )
     .into_iter()
     .filter(|location| !definitions.contains(location));

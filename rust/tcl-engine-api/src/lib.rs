@@ -1158,6 +1158,11 @@ fn display_bytes(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8]) -> std::
     Ok(())
 }
 
+/// Immutable, object-free Unicode metadata-list reader captured from an
+/// actual engine receiver's selected list/escape grammar. It grants no native
+/// list object, getter, execution or currentness authority.
+pub type HostMetadataListReader = Rc<dyn Fn(&str) -> Result<Vec<String>, EngineError>>;
+
 /// An execution engine that can host Tcl on behalf of a Rust embedder.
 ///
 /// Single-threaded by construction (`Rc`, `&mut self`): an engine owns
@@ -1165,6 +1170,14 @@ fn display_bytes(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8]) -> std::
 /// serves several threads owns one engine per thread, which is also what
 /// per-pack isolation wants.
 pub trait Engine {
+    /// Capture the actual receiver grammar for Unicode list-valued host
+    /// metadata. Unknown engines refuse; the host never substitutes a default
+    /// release. Hosts retain this reader only within that pinned engine's
+    /// lifecycle. Already typed list values need no reader.
+    fn host_metadata_list_reader(&self) -> Option<HostMetadataListReader> {
+        None
+    }
+
     /// Open an owned native publication capability for the current scope.
     /// Engines without authentic scope/incarnation support explicitly refuse.
     fn command_publication_service(

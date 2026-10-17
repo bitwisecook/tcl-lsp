@@ -265,6 +265,52 @@ impl AuthoredSourceOwner {
 }
 
 impl AuthoredSourceInvocation {
+    // Exact scalar source identity under the held authored procedure body.
+    // The boolean distinguishes a source definition from a source read.
+    pub(crate) fn scalar_source_variable(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<(
+        crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+        String,
+        bool,
+    )> {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        let AuthoredSourceOwner::Body(scope, tokens) = &self.owner else {
+            return None;
+        };
+        let frame =
+            crate::command_binding::SourceOriginalVariableFrame::from_authored_scalar_source(
+                tokens, registry,
+            )?;
+        let policy = scope.scalar_name_policy()?;
+        let word = self.owner.original_argument_word(0)?;
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&word.config());
+        let definition = self.hook == tcl_registry::hooks::LoweringHookId::Set;
+        let input = if definition {
+            SignatureSourceNameInput::OriginalWord(
+                SignatureSourceNameKey::from_original_logical_source_word(&word, rules, policy)?,
+            )
+        } else {
+            // A literal return has no source variable read.
+            self.owner.argument_literal(0).is_none().then_some(())?;
+            let arena = word.executable_parts();
+            let root = crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_logical_source_executable(
+                arena, word.image(), word.config(), word.span(), rules, policy,
+            )?;
+            (!root.is_separate_array_root()).then_some(())?;
+            SignatureSourceNameInput::OriginalVariableRoot(root)
+        };
+        let name = String::from_utf8(input.bytes().to_vec()).ok()?;
+        let symbol =
+            crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol::from_original_local_input(
+                &input,
+                frame,
+                tcl_core_types::NameBytes::from(input.bytes()),
+            );
+        Some((symbol, name, definition))
+    }
+
     pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
         match &self.owner {
             AuthoredSourceOwner::Header(owner) => owner.descriptor_key(),
@@ -434,6 +480,40 @@ mod tests {
                 super::super::admitted_native_compiler_invocation(registry, None, tokens).is_none()
             );
         }
+    }
+
+    #[test]
+    fn authored_scalar_ssa_keeps_source_frames_separate_from_cells_and_each_other() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc first {} {set value ONE; return $value}\nproc second {} {set value TWO; return $value}\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        );
+        let definitions = source
+            .match_indices("set value")
+            .map(|(offset, _)| {
+                crate::ssa::original_analysis_definition_at_unit(
+                    &unit,
+                    tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9),
+                    &registry,
+                )
+                .expect("retained authored scalar definition")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(definitions.len(), 2);
+        let identities = definitions
+            .iter()
+            .map(|definition| {
+                let ssa = &definition.function().ssa;
+                assert!(ssa.cell_key(definition.symbol()).is_none());
+                ssa.source_variable_symbol(definition.symbol())
+                    .expect("source identity")
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(identities[0], identities[1]);
     }
 
     #[test]

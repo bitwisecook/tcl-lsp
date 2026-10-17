@@ -1908,6 +1908,7 @@ impl FunctionUnit {
             entry,
             Some(params),
             metadata,
+            cfg.metadata_context.is_standalone(),
         );
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase(1);

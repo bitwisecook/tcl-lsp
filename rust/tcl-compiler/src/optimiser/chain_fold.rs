@@ -79,8 +79,8 @@ use crate::ir::{CommandTokens, Script, Statement};
 use crate::registry_invocation::InvocationMetadataContext;
 use crate::var_observability::analyse_var_observability_with_metadata_context;
 
-use super::helpers::literals::render_static_string_word;
-use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::literals::render_static_string_word_in;
+use super::helpers::spans::{original_statement_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
 
 /// Run the chain-fold pass over the whole compilation unit.
@@ -634,10 +634,7 @@ fn try_fold_chain_at(
     {
         return None;
     }
-    let var_word = render_static_string_word(&var).or_else(|| {
-        tcl_syntax::backslash::literal_quoted_source_fragment(&var, semantics.config.escapes)
-            .map(|fragment| format!("\"{fragment}\""))
-    })?;
+    let var_word = tcl_syntax::word_rules::lexical_unicode_source_word(&var, semantics.config)?;
 
     let (code, fold_msg, dead_msg, rendered) = if let Some(els) = &elements {
         (
@@ -651,15 +648,18 @@ fn try_fold_chain_at(
             DiagCode::O104,
             "Fold write-only string build chain",
             "Remove dead intermediate string write",
-            render_static_string_word(&chain_value)?,
+            render_static_string_word_in(&chain_value, semantics.config)?,
         )
     };
 
     let source = ctx.source;
+    let extents = writes
+        .iter()
+        .map(|index| original_statement_rewrite_span(ctx, stmts[*index].span()))
+        .collect::<Option<Vec<_>>>()?;
     let group = ctx.alloc_group();
 
-    let last = *writes.last().unwrap();
-    let last_span = full_rewrite_span(source, stmts[last].span());
+    let last_span = *extents.last()?;
     let mut fold = Optimisation::new(
         code,
         fold_msg,
@@ -672,8 +672,10 @@ fn try_fold_chain_at(
     fold.group = Some(group);
     ctx.report(fold);
 
-    for &w in &writes[..writes.len() - 1] {
-        let full = full_rewrite_span(source, stmts[w].span());
+    for (&w, full) in writes[..writes.len() - 1]
+        .iter()
+        .zip(extents.iter().copied())
+    {
         let next_start = stmts.get(w + 1).map(|s| s.span().start() as usize);
         let del_span = statement_delete_rewrite_range(source, full, next_start);
         let mut del = Optimisation::new(code, dead_msg, del_span, "");
@@ -1338,9 +1340,9 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
         let source = "set s {}; append s FIRST; append s SECOND";
         // Actual software Vm entry; no external Jim/provider execution.
-        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
-        let context =
-            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
         let registry = context.commands();
         let (_owner, captured) =
             crate::environment_ingress::captured_native_entry_with_owner(profile);
@@ -1356,7 +1358,7 @@ mod tests {
             crate::compilation_unit::UnitBuildOptions {
                 registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                config: tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
                 dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: None,

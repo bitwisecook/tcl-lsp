@@ -354,11 +354,78 @@ pub(crate) fn unseen_call_live_names(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
-    if !ssa.blocks.values().any(|block| {
-        block
-            .statements
+    live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
+        crate::ssa::is_unseen_call_marker(&stmt.statement)
+    })
+}
+
+/// Values live across operations whose complete metadata owner is unavailable.
+/// These are analysis-only freshness barriers: they widen Value SSA, do not
+/// describe a Native write or supply a variable cell from source text. Explicit
+/// Standalone (`Some(None)`) remains on its existing catalogue path.
+/// Values live through a branch terminator whose nested command effects cannot
+/// be reborrowed from the CFG's unavailable metadata owner. The terminator's
+/// own condition reads precede this barrier, so only successor live-out names
+/// are refreshed. The existing dynamic-name owner decides whether the source
+/// expression can have effects; this facet only carries the SSA freshness.
+pub(crate) fn unavailable_metadata_terminator_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> HashMap<BlockId, HashSet<Symbol>> {
+    let unavailable = ssa.point_contexts.as_ref().is_some_and(|points| {
+        let owner = points.source_metadata_owner();
+        !owner.is_standalone() && owner.metadata_context(registry).is_none()
+    });
+    if !unavailable {
+        return HashMap::new();
+    }
+    let inputs = scalar_block_liveness(cfg, ssa, registry);
+    let live_out = scalar_live_out(cfg, &inputs);
+    cfg.blocks
+        .iter()
+        .filter_map(|(&block, data)| {
+            let terminator = data.terminator.as_ref()?;
+            if crate::dynamic_names::terminator_barrier_for_cfg(terminator, cfg, registry, config)
+                .is_clear()
+            {
+                return None;
+            }
+            let live = live_out.get(&block)?;
+            (!live.is_empty()).then(|| (block, live.clone()))
+        })
+        .collect()
+}
+
+pub(crate) fn unavailable_metadata_effect_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    let unavailable = ssa.point_contexts.as_ref().is_some_and(|points| {
+        let owner = points.source_metadata_owner();
+        !owner.is_standalone() && owner.metadata_context(registry).is_none()
+    });
+    if !unavailable {
+        return HashMap::new();
+    }
+    live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
+        stmt.statement.is_executable_invocation()
+    })
+}
+
+fn live_names_at_effects(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    mut is_effect: impl FnMut(BlockId, usize, &crate::ssa::SsaStatement) -> bool,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    if !ssa.blocks.iter().any(|(&block, data)| {
+        data.statements
             .iter()
-            .any(|stmt| crate::ssa::is_unseen_call_marker(&stmt.statement))
+            .enumerate()
+            .any(|(index, statement)| is_effect(block, index, statement))
     }) {
         return HashMap::new();
     }
@@ -372,7 +439,7 @@ pub(crate) fn unseen_call_live_names(
         }
         let mut barriers = HashMap::new();
         for (index, stmt) in sblock.statements.iter().enumerate().rev() {
-            if crate::ssa::is_unseen_call_marker(&stmt.statement) {
+            if is_effect(*id, index, stmt) {
                 barriers.insert(index, live.clone());
             }
             for var in stmt.defs.keys() {

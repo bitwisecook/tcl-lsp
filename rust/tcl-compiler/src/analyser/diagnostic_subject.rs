@@ -184,6 +184,8 @@ pub enum ObjectSourceAritySubject {
 /// Typed semantic subject supplied by the genuine diagnostic emitter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticSubject {
+    /// Conditional original user procedure signature and its source premises.
+    UserSourceArity(Arc<SourceUserCallAritySubject>),
     /// Original callback prefix plus current readonly source-signature advice.
     CallbackSourceArity(Arc<SourceCallbackAritySubject>),
     /// Source declaration-owned object signature, without dispatch authority.
@@ -327,5 +329,190 @@ mod tests {
             .unwrap();
         assert!(diagnostic.unresolved_command().is_none());
         assert!(diagnostic.required_package_key().is_none());
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalUserCallOwner {
+    NativeSource(crate::command_binding::OriginalSourceProcedureCall),
+    Logical(crate::command_binding::OriginalLogicalProcedureCall),
+}
+
+/// An original conditional user procedure signature and its actual source argv.
+/// Earlier uncertainty, lookup and body entry stay explicit; no Native call,
+/// physical formal binding, completed result or source edit grant follows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceUserCallAritySubject {
+    original: OriginalUserCallOwner,
+    arity: tcl_registry::Arity,
+    obligations: Vec<crate::command_binding::SourceCommandTransitionObligation>,
+}
+
+impl SourceUserCallAritySubject {
+    pub(crate) fn capture(
+        source: &str,
+        analysis: &super::AnalysisResult,
+        offset: u32,
+    ) -> Option<Self> {
+        use crate::command_binding::SourceCommandTransitionObligation as Obligation;
+        use crate::registry_invocation::source_structure::{
+            source_logical_procedure_call_at, source_original_procedure_call_at,
+        };
+        let input = analysis.resolved_input.as_ref()?;
+        let (original, arity, mut obligations, uncertain) =
+            if input.has_logical_source_name_context() {
+                let call = source_logical_procedure_call_at(source, analysis, offset)?;
+                let arity = call
+                    .declaration(analysis)?
+                    .formal_count_projection()?
+                    .arity();
+                let uncertain = call.has_unresolved_applicability();
+                (
+                    OriginalUserCallOwner::Logical(call),
+                    arity,
+                    vec![Obligation::ExplicitLogicalSourceApplicability],
+                    uncertain,
+                )
+            } else {
+                let call = source_original_procedure_call_at(source, analysis, offset)?;
+                let arity = call.declaration(analysis)?.metadata().arity();
+                let mut obligations = call.declaration_advice().obligations().to_vec();
+                if call.is_future_body() {
+                    obligations.push(Obligation::FutureOriginalProcedureSourceApplicability);
+                }
+                let uncertain =
+                    !call.uncertain_operations().is_empty() || call.has_lookup_operand_effects();
+                (
+                    OriginalUserCallOwner::NativeSource(call),
+                    arity,
+                    obligations,
+                    uncertain,
+                )
+            };
+        obligations.push(Obligation::UnavailableActualLookup);
+        obligations.push(Obligation::OriginalProcedureBodyApplicability);
+        if uncertain {
+            obligations.push(Obligation::UnknownEarlierMutation);
+        }
+        Some(Self {
+            original,
+            arity,
+            obligations,
+        })
+    }
+    /// Complete actual written vector; captured slots cannot borrow its extents.
+    #[must_use]
+    pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+        match &self.original {
+            OriginalUserCallOwner::NativeSource(call) => call.original_words(),
+            OriginalUserCallOwner::Logical(call) => call.original_words(),
+        }
+    }
+    /// Genuine declared formal count, before original alias-prefix binding.
+    #[must_use]
+    pub const fn declared_arity(&self) -> tcl_registry::Arity {
+        self.arity
+    }
+    /// Retained effective captured argv count, not current written operands.
+    #[must_use]
+    pub fn captured_argument_count(&self) -> usize {
+        match &self.original {
+            OriginalUserCallOwner::NativeSource(call) => call.captured_argument_count(),
+            OriginalUserCallOwner::Logical(call) => call.captured_argument_count(),
+        }
+    }
+    /// Source applicability remains independent of a runtime invocation.
+    #[must_use]
+    pub fn obligations(&self) -> &[crate::command_binding::SourceCommandTransitionObligation] {
+        &self.obligations
+    }
+    /// Explicit Logical source model, independently of Native source recipes.
+    #[must_use]
+    pub const fn is_logical_source(&self) -> bool {
+        matches!(self.original, OriginalUserCallOwner::Logical(_))
+    }
+    /// Rejoin the same original call/allocation/header at its unchanged horizon.
+    #[must_use]
+    pub fn matches_source(&self, source: &str, analysis: &super::AnalysisResult) -> bool {
+        self.original_words()
+            .first()
+            .and_then(|word| Self::capture(source, analysis, word.span().start()))
+            .as_ref()
+            == Some(self)
+    }
+}
+
+#[cfg(test)]
+mod user_source_call_controls {
+    use super::*;
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+
+    #[test]
+    fn conditional_user_signature_keeps_real_alias_prefix_and_written_extents() {
+        for logical in [false, true] {
+            let source =
+                "proc target {a b c} {}; interp alias {} selected {} target first second; selected";
+            let profile = if logical {
+                tcl_dialect::DialectProfile::plain_tcl()
+            } else {
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap()
+            };
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            );
+            let result = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl");
+            let subject = result
+                .diagnostics
+                .iter()
+                .find_map(|diagnostic| diagnostic.user_source_arity())
+                .unwrap();
+            assert_eq!(subject.is_logical_source(), logical);
+            assert_eq!(subject.captured_argument_count(), 2);
+            assert_eq!(subject.declared_arity().min, 3);
+            assert_eq!(subject.original_words().len(), 1);
+            assert!(subject.matches_source(source, &result));
+            assert!(!subject.matches_source(&format!("{source} changed"), &result));
+            assert!(subject.obligations().contains(
+                &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
+            ));
+            let complete = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(&format!("{source} third"), "tcl");
+            assert!(
+                !complete
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.user_source_arity().is_some())
+            );
+        }
+    }
+
+    #[test]
+    fn literal_sigil_head_uses_original_word_and_deleted_target_cannot_reissue() {
+        let source = "proc {$literal} {a b} {}; {$literal} one";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let subject = result
+            .diagnostics
+            .iter()
+            .find_map(|diagnostic| diagnostic.user_source_arity())
+            .unwrap();
+        assert_eq!(subject.original_words().len(), 2);
+        assert!(subject.matches_source(source, &result));
+        let deleted = "proc target {a b} {}; rename target {}; target one";
+        let result = Analyser::new().analyse(deleted, "tcl8.6");
+        assert!(
+            SourceUserCallAritySubject::capture(
+                deleted,
+                &result,
+                deleted.rfind("target").unwrap() as u32
+            )
+            .is_none()
+        );
     }
 }

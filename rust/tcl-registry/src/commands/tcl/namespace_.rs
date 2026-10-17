@@ -840,19 +840,15 @@ fn namespace_forget_state_transitions(arguments: InvocationArguments<'_>) -> Sta
 fn namespace_import_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
     let force = match arguments.argv_at(1) {
-        InvocationArgument::Word(InvocationWord::Literal(word)) => Some(word == "-force"),
+        InvocationArgument::Word(InvocationWord::Literal(word)) => arguments
+            .dialect()
+            .and_then(crate::InvocationDialect::authored_name_policy)
+            .and_then(|policy| policy.namespace_import_source_control(word).ok())
+            .map(tcl_syntax::naming::AuthoredNamespaceImportControl::forces),
         InvocationArgument::Word(InvocationWord::KnownBytes(bytes)) => arguments
             .dialect()
             .and_then(crate::InvocationDialect::native_name_protocol)
-            .and_then(|protocol| {
-                protocol
-                    .namespace_pattern_input(
-                        bytes,
-                        tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
-                    )
-                    .ok()
-                    .map(|input| input.selected() == b"-force")
-            }),
+            .and_then(|protocol| protocol.namespace_import_forces(bytes).ok()),
         InvocationArgument::Missing => Some(false),
         InvocationArgument::Word(_) | InvocationArgument::Indeterminate => None,
     };
@@ -2197,5 +2193,50 @@ mod tests {
                 .is_none()
         );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());
+    }
+}
+
+#[cfg(test)]
+mod import_value_purpose_controls {
+    use super::*;
+
+    #[test]
+    fn original_source_and_native_operands_select_control_and_pattern_ordinal_by_actual_purpose() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let project = |words: &[InvocationWord<'_>], configured| {
+            let arguments = InvocationArguments::structured(words).with_profile(configured);
+            let transitions = namespace_import_state_transitions(arguments);
+            transitions
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    StateTransition::Namespace(NamespaceTransition::Import {
+                        force,
+                        patterns,
+                        ..
+                    }) => Some((*force, patterns.len())),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let source = [
+            InvocationWord::Literal("import"),
+            InvocationWord::Literal("-force"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&source, Some(profile)), (Some(true), 1));
+        assert_eq!(project(&source, None), (None, 2));
+        let source = [
+            InvocationWord::Literal("import"),
+            InvocationWord::Literal("-force\0tail"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&source, Some(profile)), (Some(false), 2));
+        let native = [
+            InvocationWord::Literal("import"),
+            InvocationWord::KnownBytes(b"-force\0tail"),
+            InvocationWord::Literal("::m::*"),
+        ];
+        assert_eq!(project(&native, Some(profile)), (Some(true), 1));
     }
 }

@@ -2065,6 +2065,12 @@ pub struct CommandSpec {
     /// (W127).  Flattened to the command level alongside `arg_values`.
     pub closed_value_args: &'static [u8],
 
+    /// Whether literals in [`Self::closed_value_args`] use the same unique-
+    /// prefix keyword policy as [`SubCommand::arg_values_accept_prefix`].
+    /// Default `false` keeps exact matching. This is source value-vocabulary
+    /// metadata, not runtime lookup, successful argument evaluation or Normal.
+    pub arg_values_accept_prefix: bool,
+
     /// Layer-based iRules event requirements (transport / profiles /
     /// `also_in` / side / init-only / flow / capability) used by the
     /// IRULE1001 event-validity check. `None` = no requirement.
@@ -3013,6 +3019,7 @@ impl CommandSpec {
         excluded_events: &[],
         unsafe_command: false,
         closed_value_args: &[],
+        arg_values_accept_prefix: false,
         event_requires: None,
         event_requirement_forms: &[],
         event_emits: None,
@@ -4458,7 +4465,7 @@ pub struct SubCommand {
     /// prefix* of an allowed value rather than an exact match — C Tcl's
     /// abbreviation rule for `string is <class>` (`boo` → `boolean`). W127
     /// then fires only for a value that is not a prefix of any allowed value
-    /// (`booleanx`). Default `false` (exact match, as the top-level path uses).
+    /// (`booleanx`). Default `false` (exact match, as on the command-level default).
     pub arg_values_accept_prefix: bool,
 
     /// Implicit-args count for proc-call arity relaxation.  See
@@ -5782,5 +5789,25 @@ mod tests {
         };
         assert_eq!(names(Some("1.0")), vec!["classic"]);
         assert_eq!(names(Some("2.0")), vec!["classic", "modern"]);
+    }
+}
+
+#[cfg(test)]
+mod command_closed_value_prefix_controls {
+    use super::*;
+
+    #[test]
+    fn qualified_dictionary_filter_retains_original_value_prefix_policy() {
+        let registry = crate::CommandRegistry::build_default();
+        let filter = registry.get("::tcl::dict::filter").unwrap();
+        assert!(filter.arg_values_accept_prefix);
+        assert_eq!(filter.closed_value_args, &[1]);
+        assert!(
+            filter
+                .arg_values_at(1)
+                .iter()
+                .any(|value| value.value == "script")
+        );
+        assert!(!CommandSpec::DEFAULT.arg_values_accept_prefix);
     }
 }

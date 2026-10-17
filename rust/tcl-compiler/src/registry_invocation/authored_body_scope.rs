@@ -210,6 +210,20 @@ impl OriginalAuthoredSourceBodyScope {
     pub(crate) fn namespace(&self) -> &SourceNamespaceKey {
         &self.namespace
     }
+    // Same-frame plain children retain the original procedure body owner.
+    pub(crate) fn scalar_frame_body(&self) -> &NativeWord {
+        self.parent
+            .as_deref()
+            .map_or(&self.body, Self::scalar_frame_body)
+    }
+
+    pub(crate) fn scalar_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        let policy = self.entry.options().execution_name_policy()?;
+        self.retains_authored_source_name_policy(policy)
+            .then_some(())?;
+        policy.native_recipe()
+    }
+
     pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
         self.body.config()
     }

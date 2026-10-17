@@ -39,7 +39,7 @@ use std::collections::HashSet;
 
 #[cfg(test)]
 use super::ctx::FactoryCandidate;
-use super::ctx::ScanCtx;
+use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::types::SignatureProc;
 use crate::segmenter::segment_commands_with_offset_and_config;
 
@@ -122,7 +122,13 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
     let factories = ctx
         .proc_bodies
         .iter()
-        .filter(|info| is_factory_body(&info.body_text, &info.params, ctx.config))
+        .filter(|info| {
+            if ctx.original_bindings.is_some() {
+                is_selected_factory_body(info, ctx)
+            } else {
+                is_factory_body(&info.body_text, &info.params, ctx.config)
+            }
+        })
         .cloned()
         .collect::<Vec<_>>();
     let candidates = ctx.candidates.clone();
@@ -191,9 +197,178 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
     }
 }
 
+/// Recognise a wrapper only through the selected definer and procedure
+/// layouts retained for this complete source. The compatibility recogniser
+/// above remains for callers which intentionally have no source binding.
+fn is_selected_factory_body(info: &ProcBodyInfo, ctx: &ScanCtx<'_>) -> bool {
+    let Some(owner) = info.original_factory_body.as_ref() else {
+        return false;
+    };
+    let Some(image) = ctx.original_image.as_ref() else {
+        return false;
+    };
+    if owner.parameters.image() != image
+        || owner.body.image() != image
+        || owner.parameters.config() != ctx.config
+        || owner.body.config() != ctx.config
+        || owner.words.params == owner.words.body
+        || owner.words.name == owner.words.params
+        || owner.words.name == owner.words.body
+        || owner.words.statics == Some(owner.words.params)
+        || owner.words.statics == Some(owner.words.body)
+        || owner.body.group().kind != tcl_lexer::WordKind::Braced
+        || owner.body.group().expand
+    {
+        return false;
+    }
+    let Some(body_span) = owner.body.content_span().ok() else {
+        return false;
+    };
+    let Ok(document) = image.try_text() else {
+        return false;
+    };
+    let Some(body) = document.get(body_span.as_range()) else {
+        return false;
+    };
+    // `body_text` is the selected definer's decoded display. This equality
+    // admits only an exact source slice; a cooked value has no source map here.
+    if body.as_bytes() != info.body_text.as_bytes() {
+        return false;
+    }
+    let Some(parameter_variables) = selected_factory_parameter_variables(owner, info, ctx.rules)
+    else {
+        return false;
+    };
+    for command in
+        segment_commands_with_offset_and_config(body, body_span.start(), ctx.config.nested())
+    {
+        if command.is_partial || command.argv.len() != 4 {
+            continue;
+        }
+        let Some(original) = ctx.original_command_words(&command) else {
+            continue;
+        };
+        if original.len() != 4
+            || !original
+                .iter()
+                .all(|word| word.image() == image && word.config() == ctx.config)
+        {
+            continue;
+        }
+        let Some(_selection) = ctx
+            .with_selected_schema(&command, |schema| {
+                use tcl_registry::native_procedure::NativeProcedureDefinitionSelection;
+                let descriptor = schema.semantics.procedure_definition?;
+                match descriptor.select(schema.words.arguments()) {
+                    NativeProcedureDefinitionSelection::Valid(definition)
+                        if definition.name_at == 0
+                            && definition.parameters_at == 1
+                            && definition.statics_at.is_none()
+                            && definition.body_at == 2 =>
+                    {
+                        Some(definition)
+                    }
+                    _ => None,
+                }
+            })
+            .flatten()
+        else {
+            continue;
+        };
+        if [1usize, 2, 3].into_iter().all(|index| {
+            selected_factory_parameter_reference(&original[index], &parameter_variables, ctx)
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
+fn selected_factory_parameter_variables(
+    owner: &super::ctx::OriginalFactoryBodySource,
+    info: &ProcBodyInfo,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<HashSet<Vec<u8>>> {
+    let parameter_bytes =
+        tcl_syntax::word_rules::original_static_word_unicode_value(&owner.parameters)?;
+    let parameter_text = std::str::from_utf8(&parameter_bytes).ok()?;
+    let parameter_names: Vec<_> =
+        crate::signature_scan::params::parse_param_list(parameter_text, rules)
+            .into_iter()
+            .map(|parameter| parameter.name)
+            .collect();
+    if parameter_names != info.params || parameter_names.len() < 3 {
+        return None;
+    }
+    Some(
+        parameter_names
+            .iter()
+            .map(|name| name.as_bytes().to_vec())
+            .collect(),
+    )
+}
+
+fn selected_factory_parameter_reference(
+    word: &tcl_lexer::NativeWord,
+    parameters: &HashSet<Vec<u8>>,
+    ctx: &ScanCtx<'_>,
+) -> bool {
+    if word.group().kind != tcl_lexer::WordKind::Bare || word.group().expand {
+        return false;
+    }
+    let mut parts = word.executable_parts().all_parts();
+    let Some(part) = parts.next() else {
+        return false;
+    };
+    if parts.next().is_some() {
+        return false;
+    }
+    let tcl_lexer::ExecutablePart::Variable { index: None, .. } = &part.part else {
+        return false;
+    };
+    let Some(policy) = ctx.name_policy() else {
+        return false;
+    };
+    let Some(root) =
+        crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+            word, part.span, ctx.rules, policy,
+        )
+    else {
+        return false;
+    };
+    parameters.contains(root.bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_source_factory_uses_registry_definer_and_inner_procedure_layouts() {
+        // Source-only selected form and body geometry; no procedure execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let source =
+            "# λ\nproc factory {name args body} {proc $name $args $body}\nfactory generated {} {}";
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let scan = super::super::extract_signatures_with_original_bindings(
+            source, config, registry, &bindings,
+        );
+        assert!(scan.procs.contains_key("::generated"));
+    }
 
     #[test]
     fn original_factory_scans_keep_body_bom_distinct_from_definer_and_call_heads() {
@@ -298,6 +473,7 @@ mod tests {
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
             namespace_scope: None,
             ns_prefix: ns.to_string(),
+            original_factory_body: None,
         }
     }
 
@@ -351,6 +527,39 @@ mod tests {
             namespace_scope: None,
             ns_prefix: ns.to_string(),
         }
+    }
+
+    #[test]
+    fn selected_factory_requires_exact_scalar_formal_roots() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let analyse = |source: &str| {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                registry,
+                crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+            );
+            super::super::extract_signatures_with_original_bindings(
+                source, config, registry, &bindings,
+            )
+        };
+        let positive = analyse(
+            "proc factory {name args body} {proc $name $args $body}\nfactory generated {} {}",
+        );
+        assert!(positive.procs.contains_key("::generated"));
+        let punctuation = analyse(
+            "proc factory {name-tail args body} {proc $name-tail $args $body}\nfactory generated {} {}",
+        );
+        assert!(!punctuation.procs.contains_key("::generated"));
     }
 
     #[test]

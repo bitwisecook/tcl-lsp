@@ -3174,9 +3174,14 @@ impl CommandRegistry {
         self.is_manufacturer_method(word)
             || self.by_name.values().any(|specs| {
                 specs.last().is_some_and(|spec| {
-                    spec.definition_body
-                        .and_then(|grammar| grammar.bare_word_construction_hint)
-                        .is_some_and(|recognises| recognises(word))
+                    spec.definition_body.is_some_and(|grammar| {
+                        match grammar.bare_word_construction_source_hint {
+                            Some(hint) => hint.recognises(word),
+                            None => grammar
+                                .bare_word_construction_hint
+                                .is_some_and(|recognises| recognises(word)),
+                        }
+                    })
                 })
             })
     }
