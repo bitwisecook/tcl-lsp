@@ -1,0 +1,131 @@
+{
+  "selected": 902,
+  "counts": {
+    "PASS": 725,
+    "FAIL": 174,
+    "TIMEOUT": 3
+  },
+  "retained726": {
+    "PASS": 603,
+    "FAIL": 120,
+    "TIMEOUT": 3
+  },
+  "original584": {
+    "PASS": 506,
+    "FAIL": 76,
+    "TIMEOUT": 2
+  },
+  "added176": {
+    "PASS": 122,
+    "FAIL": 54
+  },
+  "harness_errors": [],
+  "retained726_order_unchanged": true,
+  "retained_gains": [
+    {
+      "retained_row": 128,
+      "target": "tcl_lsp_server",
+      "selector": "tests::cross_document_definition_resolves_sibling_proc",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 597,
+      "target": "tcl_compiler",
+      "selector": "analyser::types::logical_members::tests::logical_class_body_word_comes_from_the_actual_definition_script_factory",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 662,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 664,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 666,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 683,
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_keep_alias_prefix_unknown_effects_and_currentness",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 725,
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_structure::conditional_native_case_receipt_tests::nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "retained_prior_pass_regressions": [],
+  "retained_all_status_changes": [
+    {
+      "retained_row": 128,
+      "target": "tcl_lsp_server",
+      "selector": "tests::cross_document_definition_resolves_sibling_proc",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 597,
+      "target": "tcl_compiler",
+      "selector": "analyser::types::logical_members::tests::logical_class_body_word_comes_from_the_actual_definition_script_factory",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 662,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 664,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 666,
+      "target": "tcl_lsp_core",
+      "selector": "original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 683,
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_keep_alias_prefix_unknown_effects_and_currentness",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 725,
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_structure::conditional_native_case_receipt_tests::nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "all39019_inputs_five_ELFs_providers_postflight_match": true,
+  "ordinary_acceptance": false,
+  "completed_utc": "2026-10-17T00:17:48.795911+00:00",
+  "limits": "Selected replay only; failures/timeouts preserved. Required full gates and editor hosts are not established."
+}

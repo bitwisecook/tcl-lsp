@@ -1,0 +1,60 @@
+{
+  "last_utc": "2026-10-17T00:07:00Z",
+  "next_utc": "2026-10-17T00:37:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 177,
+  "lsp_required": 325,
+  "lsp_semantic_integrated": 83,
+  "lsp_validation_integrated": 92,
+  "lsp_documentation_integrated": 2,
+  "lsp_no_integration": 148,
+  "effective_integrated_at_report": 367,
+  "effective_required": 2217,
+  "gains_since_previous_report": {
+    "lsp": 0,
+    "effective": 0
+  },
+  "verified": 0,
+  "delivery": "Chat and repository only, per explicit user reply; external guide unchanged.",
+  "validation": {
+    "ordinary_build": "PASS316.785s39019inputs0drift/fiveactualELFs frozen",
+    "standard902": {
+      "status": "RUNNING_PARTIAL_NO_FINAL_POSTFLIGHT",
+      "completed": 670,
+      "passed": 564,
+      "failed": 104,
+      "timed_out": 2,
+      "harness_errors": 0,
+      "retained_gains_observed": [
+        128,
+        597,
+        662,
+        664,
+        666
+      ],
+      "prior_pass_regressions_observed": 0
+    },
+    "extra10": {
+      "status": "COMPLETE",
+      "passed": 9,
+      "failed": 1,
+      "timed_out": 0,
+      "harness_errors": 0,
+      "all39019_inputs_and_nine_ELFs_postflight_match": true,
+      "failure_scope": "First helper vector reaches native command-name execution refusal before intended notice; second vector unobserved; Runtime/VM work deferred."
+    },
+    "editor": "PASS408inputs0drift; actualhosts unexecuted",
+    "jetbrains": "OriginalSDK extractionENOSPC before Kotlin/tests,67inputs0drift, gate unpassed"
+  },
+  "latest_push": "a978e4088",
+  "queued_source_work": [
+    "Workspace724 sourcecleared current-base repair",
+    "Definitiongrammar V3 source/contractcleared",
+    "Studio output/source/lifecycle ownership successor underreview",
+    "Current diagnostic full-report/source/dialect transport underreview",
+    "Both actual chat optimiser result consumers underreview",
+    "Optimiser genuine CU/FU/raw/body/final owner successor with memo-purpose/backdate review holds",
+    "Source checker actual self/trait/generic receiver V4 sourceclear; execution pending"
+  ],
+  "scope": "AllLSP+necessarysharedowners; Runtime/VM andBIGIP dedicatedworkdeferred."
+}

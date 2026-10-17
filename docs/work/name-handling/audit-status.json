@@ -1115,8 +1115,8 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "last_utc": "2026-10-16T23:37:00Z",
-      "next_utc": "2026-10-17T00:07:00Z",
+      "last_utc": "2026-10-17T00:07:00Z",
+      "next_utc": "2026-10-17T00:37:00Z",
       "cadence_minutes": 30,
       "lsp_integrated_at_report": 177,
       "lsp_required": 325,
@@ -1127,11 +1127,52 @@
       "effective_integrated_at_report": 367,
       "effective_required": 2217,
       "gains_since_previous_report": {
-        "lsp": 10,
-        "effective": 10
+        "lsp": 0,
+        "effective": 0
       },
       "verified": 0,
-      "delivery": "Chat and repository only, per explicit user reply; leave external guide unchanged."
+      "delivery": "Chat and repository only, per explicit user reply; external guide unchanged.",
+      "validation": {
+        "ordinary_build": "PASS316.785s39019inputs0drift/fiveactualELFs frozen",
+        "standard902": {
+          "status": "RUNNING_PARTIAL_NO_FINAL_POSTFLIGHT",
+          "completed": 670,
+          "passed": 564,
+          "failed": 104,
+          "timed_out": 2,
+          "harness_errors": 0,
+          "retained_gains_observed": [
+            128,
+            597,
+            662,
+            664,
+            666
+          ],
+          "prior_pass_regressions_observed": 0
+        },
+        "extra10": {
+          "status": "COMPLETE",
+          "passed": 9,
+          "failed": 1,
+          "timed_out": 0,
+          "harness_errors": 0,
+          "all39019_inputs_and_nine_ELFs_postflight_match": true,
+          "failure_scope": "First helper vector reaches native command-name execution refusal before intended notice; second vector unobserved; Runtime/VM work deferred."
+        },
+        "editor": "PASS408inputs0drift; actualhosts unexecuted",
+        "jetbrains": "OriginalSDK extractionENOSPC before Kotlin/tests,67inputs0drift, gate unpassed"
+      },
+      "latest_push": "a978e4088",
+      "queued_source_work": [
+        "Workspace724 sourcecleared current-base repair",
+        "Definitiongrammar V3 source/contractcleared",
+        "Studio output/source/lifecycle ownership successor underreview",
+        "Current diagnostic full-report/source/dialect transport underreview",
+        "Both actual chat optimiser result consumers underreview",
+        "Optimiser genuine CU/FU/raw/body/final owner successor with memo-purpose/backdate review holds",
+        "Source checker actual self/trait/generic receiver V4 sourceclear; execution pending"
+      ],
+      "scope": "AllLSP+necessarysharedowners; Runtime/VM andBIGIP dedicatedworkdeferred."
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -2207,13 +2248,144 @@
       "attempt2": "FAIL216.585s2ServerDebugerrors39019inputs0drift; privateexactEqstampmanualDebug+obsoleteprivatehelper/route cleanup peer3daf applied",
       "attempt3": "FAIL68.688s existing assertion formatting requires private DocumentStamp Debug;39019inputs0drift. Manual Debug repair29a5 peer9bdf applied; assertions and Eq/currentness unchanged.",
       "editor": "PASS408inputs0drift23:24UTC TSnoEmit/scopedPrettier/worker/Node+browserbundles afterreviewedboundmethodrepair e046; actualhostunexecuted",
-      "next_selection": "Actual902standard replay running with original726prefix/guards intact; source/5ELF preflight and real listings pass, full replay/postflight pending. Extra10 exact4-target replay running after actualV11binding and independentV4launcher review.",
+      "next_selection": "COMPLETE902 {'PASS': 725, 'FAIL': 174, 'TIMEOUT': 3}; retained726 {'PASS': 603, 'FAIL': 120, 'TIMEOUT': 3}; 7 prior non-PASS gains, 0 prior-PASS regressions; zero harness errors; full39019/fiveELF/provider postflight match. Source freeze released after final postflight; next batch still unexecuted.",
       "source_counts_unchanged": "177LSP/367effectiveintegrated,0verified",
       "pending_source_only": "Workspace724 current05beb successor8656 sourcecleared/notintegrated. Studio15 held for genuine mixed/unowned output-pane origin at lazy mount; successor WIP. Definitiongrammar V2 sourcepacket under peer. Optimiser genuine lattice/raw/body/final producer+DB adopter union under construction. All queued work uncounted.",
       "capsule": "experiments/name-handling/results/owner-adoption-20261016/lsp-current-source-owners-successor",
       "attempt4": "PASS316.785s actual ordinary five-library build;39019inputs0drift;all5actualELFs relocated/hashverified afterCargoexit. One unused reference_locations_at warning; no tests yet.",
       "extra_libraries": "PASS200.567s actualLexer/Syntax/SpecTcl library build, PASS314.537s actualxtaskBIN build; each39019inputs0drift/all4ELFs relocated/hashverified.",
       "extra10_execution": "COMPLETE9PASS1FAIL0TIMEOUT/noharnesserrors;all39019inputs/all9ELFs postflightmatch23:59:48UTC. All5retainedextraPASS;new5=4P1F. NewSpecTclhelpernotice fixture blocked earlier by unavailableNativecommandprotocol; unchanged failure retained/source diagnosis pending."
+    },
+    "ordinary_cumulative902": {
+      "selected": 902,
+      "counts": {
+        "PASS": 725,
+        "FAIL": 174,
+        "TIMEOUT": 3
+      },
+      "retained726": {
+        "PASS": 603,
+        "FAIL": 120,
+        "TIMEOUT": 3
+      },
+      "original584": {
+        "PASS": 506,
+        "FAIL": 76,
+        "TIMEOUT": 2
+      },
+      "added176": {
+        "PASS": 122,
+        "FAIL": 54
+      },
+      "harness_errors": [],
+      "retained726_order_unchanged": true,
+      "retained_gains": [
+        {
+          "retained_row": 128,
+          "target": "tcl_lsp_server",
+          "selector": "tests::cross_document_definition_resolves_sibling_proc",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 597,
+          "target": "tcl_compiler",
+          "selector": "analyser::types::logical_members::tests::logical_class_body_word_comes_from_the_actual_definition_script_factory",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 662,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 664,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 666,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 683,
+          "target": "tcl_compiler",
+          "selector": "command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_keep_alias_prefix_unknown_effects_and_currentness",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 725,
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::source_structure::conditional_native_case_receipt_tests::nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts",
+          "before": "FAIL",
+          "after": "PASS"
+        }
+      ],
+      "retained_prior_pass_regressions": [],
+      "retained_all_status_changes": [
+        {
+          "retained_row": 128,
+          "target": "tcl_lsp_server",
+          "selector": "tests::cross_document_definition_resolves_sibling_proc",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 597,
+          "target": "tcl_compiler",
+          "selector": "analyser::types::logical_members::tests::logical_class_body_word_comes_from_the_actual_definition_script_factory",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 662,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 664,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 666,
+          "target": "tcl_lsp_core",
+          "selector": "original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 683,
+          "target": "tcl_compiler",
+          "selector": "command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_keep_alias_prefix_unknown_effects_and_currentness",
+          "before": "FAIL",
+          "after": "PASS"
+        },
+        {
+          "retained_row": 725,
+          "target": "tcl_compiler",
+          "selector": "registry_invocation::source_structure::conditional_native_case_receipt_tests::nested_native_case_receipt_retains_actual_vector_unknown_selection_and_debts",
+          "before": "FAIL",
+          "after": "PASS"
+        }
+      ],
+      "all39019_inputs_five_ELFs_providers_postflight_match": true,
+      "ordinary_acceptance": false,
+      "completed_utc": "2026-10-17T00:17:48.795911+00:00",
+      "limits": "Selected replay only; failures/timeouts preserved. Required full gates and editor hosts are not established."
     }
   }
 }

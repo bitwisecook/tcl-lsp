@@ -1,0 +1,50 @@
+{
+  "status": "SOURCE_DIAGNOSIS_EXECUTED_FIRST_FIXTURE_REFUSED_BEFORE_TARGET_NOTICE_NO_REPAIR_OR_EXECUTION",
+  "failed_raw_log": {
+    "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_spectcl/test-002.log",
+    "sha256": "0f63c32feb5d2279d064f5f14085143e80f26bc4844784d5eb0601e829bd39ad"
+  },
+  "passing_static_cache_control": {
+    "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra10-results/tcl_spectcl/test-001.log",
+    "sha256": "115837fc099ce322bf2b68abb2a0fcb1d6726e1be02d99beef35798bfe92f072"
+  },
+  "source": {
+    "rust/tcl-spectcl/src/loader/eval.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-spectcl/src/loader/eval.rs",
+      "sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d"
+    },
+    "rust/tcl-spec-hooks/src/pack_eval.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-spec-hooks/src/pack_eval.rs",
+      "sha256": "99be908bd539260baefeb62f6cf532ffb90b23a2db7f3db3715c886f7343d295"
+    },
+    "rust/tcl-engine-tclvm/src/lib.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-engine-tclvm/src/lib.rs",
+      "sha256": "6314de24e46c84b225b7089a16fa80034af86d6918950046c084a123a49c92be"
+    },
+    "rust/tcl-vm/src/interp.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-vm/src/interp.rs",
+      "sha256": "11008e623c6bf2561dc1d1edc8a1d617d6adc976cb8840dd9e6528b8d66eff27"
+    },
+    "rust/tcl-vm/src/embed.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-vm/src/embed.rs",
+      "sha256": "3c8cbcffdd2c4721ca6d16f9cd447192b6a394f6f36451eb1a2e8361cfb2f38d"
+    },
+    "rust/tcl-spectcl/tests/eval_loader.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-spectcl/tests/eval_loader.rs",
+      "sha256": "71e9e200fbe94f3a4b41cc392470ee0c16d75c16f4162d556f09c37c98c4f21f"
+    },
+    "rust/tcl-registry/src/native_string_materialization.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-registry/src/native_string_materialization.rs",
+      "sha256": "a77c89c6461c78c4afe6766deeee5a0ad6d7efe174217f35decc4a6223cdbc25"
+    },
+    "rust/tcl-syntax/src/naming/native.rs": {
+      "path": "/workspace/tcl-lsp/rust/tcl-syntax/src/naming/native.rs",
+      "sha256": "34920f1b21ff47aa38ce3d16a69c216636d79f4e34474c37584d0642798fbfd4"
+    }
+  },
+  "observed": "Original new selector fails at first proc-helper vector on genuine native command-name protocol execution refusal. No unknown-property notice reached. Second variable-body vector is not evidenced by this run.",
+  "fixture_profile_configuration": "evaluate_pack has no dialect parameter; EvalOptions defaults to bundled/trusted/full normal budgets, PackEvalConfig contains budget only. PackEval run_pack_program constructs actual TclVmEngine::new(), whose with_registry explicitly selects/validates actual native tcl9.0 engine profile.",
+  "classification": "No demonstrated notice geometry owner regression; actual evaluated path is blocked by a prior native execution capability refusal. Source inspection does not establish which runtime boundary lost/unavailable the name policy; no claim of exact runtime root cause.",
+  "repair": "No source-only justified fixture/owner successor. Preserve all original/new fixtures/assertions, raw logs and Native refusal guards. Any re-entry/VM/name issuer repair needs actual owning execution dependency evidence and separate authorisation; not a label/profile substitution.",
+  "execution": "No tests/traces/VM/native/artifact/list/build/Cargo/Git/main execution or changes; read-only existing sources/results and TMP diagnosis only."
+}
