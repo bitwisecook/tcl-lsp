@@ -273,12 +273,14 @@ const PREFER_VALUES: &[ArgValue] = &[
 const VSATISFIES_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "tcl8.4",
+        source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::exact(2),
         surface: Some(SpecSurface::TCL84),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
         name: "tcl8.5+",
+        source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::at_least(2),
         surface: Some(SpecSurface::TCL85_PLUS),
         ..SubCommandForm::DEFAULT
@@ -414,6 +416,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "provide",
+        source_package_query: Some(crate::source_navigation::SourcePackageQuery::ProvidedVersion),
         state_transitions: Some(package_descriptor(provide_transitions)),
         arity: Arity::new(1, 2),
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
@@ -430,6 +433,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "require",
+        source_package_query: Some(crate::source_navigation::SourcePackageQuery::RequiredVersion),
         state_transitions: Some(package_descriptor(require_transitions)),
         arity: Arity::at_least(1),
         detail: "Ensures a version of package satisfying the given requirements is loaded: if not already provided, evaluates the highest-acceptable package ifneeded script (in the global namespace), falling back to package unknown as a last resort. Returns the loaded version; raises an error if no acceptable version becomes available. The highest acceptable version is selected; from Tcl 8.5, this is subject to the package prefer mode (stable by default, preferring a stable version over an unstable one) — Tcl 8.4 has no package prefer and no stable/unstable distinction, so it always simply picks the highest acceptable version.",
@@ -508,6 +512,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "vsatisfies",
+        source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         // Tcl 8.4 (pre-TIP-268): exactly 2 words (version1 version2) — a
         // single plain-version comparison; the 8.4 manpage's synopsis is
         // literally `package vsatisfies version1 version2`, no `...`. Tcl

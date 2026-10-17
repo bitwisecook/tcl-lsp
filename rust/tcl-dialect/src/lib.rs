@@ -71,13 +71,14 @@ pub use grammar::{
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile, DialectProfileKey, EvaluationEvidence};
 pub use version::{
-    ByteStringEncoding, ConcatPolicy, CorePackage, DirectPackageFile, DirectPackageFileBytes,
-    DirectPackageFileKind, FrameLevelPresence, IndexGrammar, IndexIntegerWidth, IndexSyntax,
-    InterpreterProtocol, ListSetBounds, NamespaceImportBinding, NativeProcedureHeaderCompilation,
-    PackagePrefer, PackageProtocol, ParameterGrammar, ProcessExitConversion, RegexStartGrammar,
-    RequirementBytesValidationError, RequirementValidationError, StringCharacterModel, TclVersion,
-    Ternary, VariableContainerModel, VariableLinkBinding, VariableLookupPolicy, compare_versions,
-    compare_versions_bytes_for, compare_versions_for, exact_requirement, select_package_version,
+    ByteStringEncoding, ConcatPolicy, CorePackage, CorePackageRole, DirectPackageFile,
+    DirectPackageFileBytes, DirectPackageFileKind, FrameLevelPresence, IndexGrammar,
+    IndexIntegerWidth, IndexSyntax, InterpreterProtocol, ListSetBounds, NamespaceImportBinding,
+    NativeProcedureHeaderCompilation, PackagePrefer, PackageProtocol, ParameterGrammar,
+    ProcessExitConversion, RegexStartGrammar, RequirementBytesValidationError,
+    RequirementValidationError, StringCharacterModel, TclVersion, Ternary, VariableContainerModel,
+    VariableLinkBinding, VariableLookupPolicy, compare_versions, compare_versions_bytes_for,
+    compare_versions_for, exact_requirement, select_package_version,
     select_package_version_bytes_for, select_package_version_exact_bytes_for,
     select_package_version_exact_for, select_package_version_for, validate_requirement,
     validate_requirement_bytes_for, validate_requirement_for, validate_version,

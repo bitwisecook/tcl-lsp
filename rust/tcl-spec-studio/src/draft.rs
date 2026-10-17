@@ -1448,6 +1448,9 @@ pub fn from_subcommand(sub: &SubCommand) -> Draft {
 }
 
 fn subcommand_body(sub: &SubCommand, lost: &mut Unrecovered) -> Draft {
+    if sub.source_package_query.is_some() {
+        lost.note("source_package_query");
+    }
     let mut d = Map::new();
     subcommand_identity(&mut d, sub, lost);
     subcommand_types(&mut d, sub);
@@ -1830,7 +1833,11 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
     );
     // What is left of the descriptor is native: a compiler proof or a
     // function pointer, with no expression to recover.
-    let native = form.semantic_operation.is_some()
+    if form.source_package_query.is_some() {
+        lost.note("source_package_query");
+    }
+    let native = form.source_package_query.is_some()
+        || form.semantic_operation.is_some()
         || form.completion.is_some()
         || form.result_stability.is_some()
         || form.native_result.is_some()

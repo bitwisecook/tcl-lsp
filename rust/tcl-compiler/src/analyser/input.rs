@@ -83,7 +83,7 @@ impl ResolvedAnalysisInput {
     /// Positively selected Logical editing inputs, independently of the
     /// unversioned Tcl authored naming simulation. A lexical point alone does
     /// not supply a Native naming policy; hosted source stays separate.
-    pub(crate) fn has_logical_source_name_context(&self) -> bool {
+    pub fn has_logical_source_name_context(&self) -> bool {
         // naming.minifier.complete-logical-metadata
         // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
         !self.has_hosted_source_name_context()

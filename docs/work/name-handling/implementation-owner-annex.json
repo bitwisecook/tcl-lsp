@@ -1390,6 +1390,75 @@
         "source_admission_sha256": "a0d376b18f9bf6b9773cc7782e8dc0fd6ca6eb7c723a038f18c35890353b8960"
       },
       "implementation_scope": "Reviewed actual V6 source integration, actual compilation and execution pending. No API/helper/test multiplicity or Native/absence/execution grant."
+    },
+    {
+      "id": "registry.owner.source-package-query-selection",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-package-standalone-control-role-residue"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-registry/src/source_navigation.rs",
+          "symbol": "SourcePackageQuery and selected source_package_query"
+        },
+        {
+          "path": "rust/tcl-registry/src/commands/tcl/package_.rs",
+          "symbol": "Actual selected package query descriptors/forms"
+        }
+      ],
+      "rationale": "Selected package query algebra/actual effective argument layout, selected-form None withdrawal and require option boundaries. Source descriptor facts grant no provided package/loader/Native invocation.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Fresh independent Registry/Dialect review; Root full Unicode package-source review. Actual compilation/execution pending."
+      },
+      "implementation_scope": "One genuine missing owner facet per purpose; no count for helper/getter/test multiplicity or the unfinished standalone package consumer."
+    },
+    {
+      "id": "dialect.owner.core-package-role",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-package-standalone-control-role-residue"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-dialect/src/version.rs",
+          "symbol": "CorePackageRole and core-provided release rows"
+        }
+      ],
+      "rationale": "Authored core package role distinguishes interpreter release aliases from other core packages using actual per-release metadata. No fabricated patchlevel or physical provision.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Fresh independent Registry/Dialect review; Root full Unicode package-source review. Actual compilation/execution pending."
+      },
+      "implementation_scope": "One genuine missing owner facet per purpose; no count for helper/getter/test multiplicity or the unfinished standalone package consumer."
+    },
+    {
+      "id": "compiler.owner.package-unicode-source-value-comparison",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-browser-package-insertion-source-and-identity",
+        "lsp-node-package-insertion-source-identity"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "symbol": "OriginalSourcePackageReference::matches_unicode_source_value"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "symbol": "SourcePackagePresenceCensus Unicode authoring comparison"
+        }
+      ],
+      "rationale": "Explicit intended Unicode source-value comparison from the genuine selected original package word/full configuration. Separate from Native package-key/ASCII metadata recipes; complete negatives retain unsupported references and coverage debt.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Fresh independent Registry/Dialect review; Root full Unicode package-source review. Actual compilation/execution pending."
+      },
+      "implementation_scope": "One genuine missing owner facet per purpose; no count for helper/getter/test multiplicity or the unfinished standalone package consumer."
     }
   ],
   "unverified_or_open": [
@@ -1401,28 +1470,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-17T04:23:59.704968+00:00",
+  "utc": "2026-10-17T09:38:57.233687+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 63,
+    "semantic_code_changes": 66,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 64,
+    "all_required_changes": 67,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 37,
+      "shared_owner_extension": 40,
       "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1862,
+    "semantic_code_changes": 1865,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2222
+    "all_required_changes": 2225
   },
   "implementation_progress": {
-    "implemented_pending_validation": 63,
+    "implemented_pending_validation": 66,
     "not_integrated": 1,
     "verified_complete": 0
   }

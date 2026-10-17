@@ -254,6 +254,11 @@ fn ensemble_subcommand_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
+    // Logical source inventories do not select static ensemble map entries.
+    // The report-map target is unavailable as a substitute for that binding.
+    if analysis.allows_retained_logical_declaration_advice() {
+        return None;
+    }
     let (head, sub, is_dollar) =
         crate::definition::original_instance_method_at_cursor(source, analysis, line, character)?;
     if is_dollar {
@@ -377,6 +382,37 @@ fn proc_hover_at(
     word: &str,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        if let Some(declarations) =
+            analysis.checked_logical_source_procedure_declarations(&image, config)
+        {
+            let mut selected = declarations.into_iter().filter(|declaration| {
+                let span = declaration.metadata().name_span;
+                span.start() <= cursor_offset && cursor_offset < span.end()
+            });
+            if let Some(declaration) = selected.next() {
+                return selected
+                    .next()
+                    .is_none()
+                    .then(|| Hover::markdown(proc_hover_text(declaration.metadata())));
+            }
+        }
+        let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source,
+            analysis,
+            cursor_offset,
+        )?;
+        let declaration = call.declaration(analysis)?;
+        return Some(Hover::markdown(format!(
+            "**Possible procedure**\n\n{}",
+            proc_hover_text(declaration.metadata())
+        )));
+    }
     // A proc's own declaration name (`proc greet …`) is an argument of
     // `proc`, so the head gate below would refuse it; it is answered here,
     // mirroring how `definition()` consults `proc_declaration_sites` before
@@ -976,23 +1012,44 @@ fn hover_impl(
         return Some(hover);
     }
 
-    match crate::original_oo::class_at_cursor(analysis, source, cursor_offset) {
-        std::ops::ControlFlow::Break(Some(record)) => {
-            return Some(Hover::markdown(class_hover_text(
-                analysis,
-                record.metadata(),
-            )));
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if analysis.matches_original_source_image(&image, config)
+            && let Some(class) = analysis.logical_source_class_at(&image, config, cursor_offset)
+            && analysis.logical_source_class_declaration(class).is_some()
+        {
+            let declaration = analysis.logical_source_class_declaration(class)?;
+            let metadata = declaration.metadata();
+            let mut text = format!(
+                "```tcl\n{} create {}\n```",
+                metadata.metaclass, metadata.qualified_name
+            );
+            if !metadata.doc.is_empty() {
+                text.push_str("\n\n");
+                text.push_str(&metadata.doc);
+            }
+            return Some(Hover::markdown(text));
         }
-        std::ops::ControlFlow::Break(None) => {}
-        std::ops::ControlFlow::Continue(()) => {
-            if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
-                analysis,
-                source,
-                ctx,
-                cursor_offset,
-                &word,
-            ) {
-                return Some(Hover::markdown(class_hover_text(analysis, class_def)));
+    } else {
+        match crate::original_oo::class_at_cursor(analysis, source, cursor_offset) {
+            std::ops::ControlFlow::Break(Some(record)) => {
+                return Some(Hover::markdown(class_hover_text(
+                    analysis,
+                    record.metadata(),
+                )));
+            }
+            std::ops::ControlFlow::Break(None) => {}
+            std::ops::ControlFlow::Continue(()) => {
+                if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
+                    analysis,
+                    source,
+                    ctx,
+                    cursor_offset,
+                    &word,
+                ) {
+                    return Some(Hover::markdown(class_hover_text(analysis, class_def)));
+                }
             }
         }
     }
@@ -2416,8 +2473,10 @@ fn alias_hover_at(
     let Some(invocation) = crate::definition::invocation_head_at(analysis, cursor) else {
         return Continue(());
     };
+    let allow_legacy_alias_labels = analysis.allows_lexical_declaration_advice()
+        && !analysis.allows_retained_logical_declaration_advice();
     let Some(reference) = invocation.resolved_command_reference.as_ref() else {
-        if analysis.allows_lexical_declaration_advice() {
+        if allow_legacy_alias_labels {
             return lexical_alias_hover_text(analysis, word)
                 .map_or(Continue(()), |text| Break(Some(text)));
         }
@@ -2455,7 +2514,7 @@ fn alias_hover_at(
         Some(format!("**Alias** \u{2192} `{}`", rendered.join(" ")))
     };
     let answer = original();
-    if answer.is_none() && analysis.allows_lexical_declaration_advice() {
+    if answer.is_none() && allow_legacy_alias_labels {
         return Break(lexical_alias_hover_text(analysis, word));
     }
     Break(answer)
@@ -3334,6 +3393,26 @@ fn class_member_hover_text(
     word: &str,
     cursor_offset: u32,
 ) -> Option<String> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        let selected = analysis.logical_source_member_at(&image, config, cursor_offset)?;
+        let class = analysis.logical_source_member_class(&selected)?;
+        let method = selected.metadata();
+        let side = match selected.side() {
+            tcl_compiler::analyser::MemberSide::Instance => "method",
+            tcl_compiler::analyser::MemberSide::ClassObject => "classmethod",
+        };
+        let mut text = format!("**{side}** `{}::{}`", class.qualified_name, method.name);
+        if !method.doc.is_empty() {
+            text.push_str("\n\n");
+            text.push_str(&method.doc);
+        }
+        return Some(text);
+    }
     if let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset) {
         return Some(text);
     }
@@ -6751,5 +6830,106 @@ mod original_hover_independent_registry_tests {
         )
         .expect("independent Registry branch remains reachable");
         assert_eq!(selected.value, original.value);
+    }
+}
+
+#[cfg(test)]
+mod local_logical_hover_source_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn logical_analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn local_logical_hover_uses_current_procedure_class_and_member_owners() {
+        let source = "proc p {arg} {return $arg}; p 1";
+        let analysis = logical_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let call_cursor = u32::try_from(source.rfind("p 1").unwrap()).unwrap();
+        let call = proc_hover_at(
+            &analysis,
+            source,
+            call_cursor,
+            "p",
+            crate::definition::CallResolution::document_only(),
+        )
+        .expect("current original Logical call candidate");
+        assert!(call.value.contains("Possible procedure"));
+        assert!(call.value.contains("proc ::p {arg} {...}"));
+        assert!(
+            proc_hover_at(
+                &analysis,
+                &format!("{source} "),
+                call_cursor,
+                "p",
+                crate::definition::CallResolution::document_only(),
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            proc_hover_at(
+                &missing,
+                source,
+                call_cursor,
+                "p",
+                crate::definition::CallResolution::document_only(),
+            )
+            .is_none()
+        );
+
+        let class_source = "oo::class create C {method m {} {}}";
+        let class_analysis = logical_analysis(class_source);
+        let class_cursor = u32::try_from(class_source.find("C {").unwrap()).unwrap();
+        let class = class_analysis
+            .logical_source_class_at(
+                &tcl_lexer::SourceImage::document(class_source),
+                class_analysis.body_lexer_config.unwrap(),
+                class_cursor,
+            )
+            .expect("current original Logical class candidate");
+        assert!(
+            class_analysis
+                .logical_source_class_declaration(class)
+                .is_some()
+        );
+        let class_hover = hover_impl(
+            class_source,
+            0,
+            class_cursor,
+            &class_analysis,
+            crate::definition::CallResolution::document_only(),
+            crate::profile_for_analysis(&class_analysis),
+        )
+        .expect("source-owned class hover");
+        assert!(class_hover.value.contains("oo::class create ::C"));
+        assert!(!class_hover.value.contains("provider and dispatch"));
+
+        let member_cursor = u32::try_from(class_source.find("m {} {").unwrap()).unwrap();
+        let member = class_member_hover_text(class_source, &class_analysis, "m", member_cursor)
+            .expect("current original Logical member candidate");
+        assert!(member.contains("**method** `::C::m`"), "{member}");
+        assert!(!member.contains("provider and dispatch"), "{member}");
+        assert!(
+            class_member_hover_text(
+                &format!("{class_source} "),
+                &class_analysis,
+                "m",
+                member_cursor,
+            )
+            .is_none()
+        );
     }
 }

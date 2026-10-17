@@ -35,6 +35,7 @@
  */
 
 import { registerSourceActionCommands } from "./codeActionSource";
+import { insertPackageRequirement } from "./packageRequire";
 import * as vscode from "vscode";
 import {
   commands,
@@ -1102,71 +1103,11 @@ async function translateXcConsole(): Promise<void> {
   );
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function packageInsertLine(document: vscode.TextDocument): number {
-  let line = 0;
-  if (document.lineCount > 0 && document.lineAt(0).text.startsWith("#!")) {
-    line = 1;
-  }
-  while (line < document.lineCount) {
-    if (!/^\s*package\s+require\b/.test(document.lineAt(line).text)) {
-      break;
-    }
-    line += 1;
-  }
-  return line;
-}
-
 async function insertPackageRequire(): Promise<void> {
   const editor = activeTclEditor("insert a package requirement");
   if (!editor) return;
-  const wordRange = editor.document.getWordRangeAtPosition(editor.selection.active, /[\w:]+/);
-  const symbol = wordRange ? editor.document.getText(wordRange) : "";
-
-  let suggestions =
-    (
-      await executeServerCommand<{ suggestions?: string[] }>("tcl-lsp.suggestPackagesForSymbol", [
-        symbol,
-      ])
-    )?.suggestions ?? [];
-  if (suggestions.length === 0) {
-    suggestions =
-      (await executeServerCommand<{ packages?: string[] }>("tcl-lsp.listKnownPackages", []))
-        ?.packages ?? [];
-  }
-  if (suggestions.length === 0) {
-    window.showInformationMessage(
-      "No known packages found. Configure tclLsp.libraryPaths to enable package discovery.",
-    );
-    return;
-  }
-
-  const picked = await window.showQuickPick(suggestions, {
-    placeHolder: symbol ? `Select package to require for '${symbol}'` : "Select package to require",
-    title: "Insert package require",
-  });
-  if (!picked) return;
-
-  const existing = new RegExp(`^\\s*package\\s+require\\s+${escapeRegExp(picked)}(?:\\s|$)`, "m");
-  if (existing.test(editor.document.getText())) {
-    window.showInformationMessage(`'package require ${picked}' already exists.`);
-    return;
-  }
-  const insertAt = packageInsertLine(editor.document);
-  const prefix =
-    insertAt > 0 && editor.document.lineAt(insertAt - 1).text.trim() !== "" ? "\n" : "";
-  const insertPos =
-    insertAt < editor.document.lineCount
-      ? new vscode.Position(insertAt, 0)
-      : editor.document.lineAt(editor.document.lineCount - 1).range.end;
-  const applied = await editor.edit((editBuilder) =>
-    editBuilder.insert(insertPos, `${prefix}package require ${picked}\n`),
-  );
-  window.showInformationMessage(
-    applied ? `Inserted 'package require ${picked}'.` : "Failed to insert package require.",
+  await insertPackageRequirement(editor, () =>
+    executeServerCommand("tcl-lsp.listKnownPackages", []),
   );
 }
 

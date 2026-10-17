@@ -15,7 +15,10 @@ import {
 import { isAnalysisContextCurrent, resourceConfiguration } from "./chat/diagnosticAccess";
 
 export type DocumentTransformCommand =
-  "tcl-lsp.optimiseDocument" | "tcl-lsp.minifyDocument" | "tcl-lsp.fixAllSafeIssues";
+  | "tcl-lsp.optimiseDocument"
+  | "tcl-lsp.minifyDocument"
+  | "tcl-lsp.fixAllSafeIssues"
+  | "tcl-lsp.insertPackageRequire";
 
 export interface DocumentTransformRequest {
   uri: string;

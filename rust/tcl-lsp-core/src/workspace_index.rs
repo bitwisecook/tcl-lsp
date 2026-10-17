@@ -540,6 +540,9 @@ pub enum MethodAccess {
 /// / rename / call-hierarchy can walk every call site of a symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceInvocation {
+    /// Selected source domain, independent of whether a lookup was available.
+    /// Missing input does not authorize report-name settlement.
+    logical_source_domain: Option<bool>,
     /// Original naming producer. Reporting names cannot recreate its bytes,
     /// source channel or independently selected dialect policy.
     pub original_name_input: Option<tcl_compiler::signature_scan::scope::SignatureSourceNameInput>,
@@ -1244,6 +1247,45 @@ impl WorkspaceDiagnosticSourceContext {
     }
 }
 
+/// A readonly Logical call recipe retained by an indexed source view.
+/// Membership follows the actual candidate allocation, not a report label or
+/// revision token. It establishes neither command existence nor a target binding.
+#[derive(Debug, Clone)]
+pub struct WorkspaceLogicalCommandCall {
+    uri: String,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    source: WorkspaceDiagnosticSourceContext,
+    candidates: Arc<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>,
+}
+
+impl WorkspaceLogicalCommandCall {
+    /// Original scope and word geometry for declaration suggestions only.
+    #[must_use]
+    pub fn candidates(&self) -> &tcl_compiler::command_binding::OriginalLogicalCommandCandidates {
+        &self.candidates
+    }
+
+    /// Whether this exact call receipt remains in the indexed source views.
+    /// Accumulating another view keeps it; replacing or removing its document
+    /// retracts it. External document currency remains the caller's obligation.
+    #[must_use]
+    pub fn is_retained_in(&self, index: &WorkspaceIndex) -> bool {
+        index
+            .slots
+            .get(&self.uri)
+            .and_then(|slot| index.docs.get(*slot))
+            .is_some_and(|document| {
+                document
+                    .logical_command_calls
+                    .iter()
+                    .any(|call| Arc::ptr_eq(&call.candidates, &self.candidates))
+                    && self
+                        .candidates
+                        .matches_source(self.source.image(), &self.input)
+            })
+    }
+}
+
 /// The fourteen record tables **one document** contributes to the index.
 ///
 /// Grouping the tables per document is what makes
@@ -1281,6 +1323,7 @@ struct DocumentRecords {
         Option<tcl_compiler::command_binding::OriginalSourceProcedurePublications>,
     original_source_classes: Option<tcl_compiler::command_binding::OriginalSourceClassPublications>,
     original_source_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    logical_command_calls: Vec<WorkspaceLogicalCommandCall>,
     logical_procedure_declarations:
         Vec<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>,
     original_procs: Vec<
@@ -1651,6 +1694,7 @@ impl DocumentRecords {
             original_source_procedures,
             original_source_classes,
             original_source_input,
+            logical_command_calls,
             logical_procedure_declarations,
             original_procs,
             original_classes,
@@ -1690,6 +1734,7 @@ impl DocumentRecords {
         *original_source_procedures = None;
         *original_source_classes = None;
         *original_source_input = None;
+        logical_command_calls.clear();
         logical_procedure_declarations.clear();
         original_procs.clear();
         original_classes.clear();
@@ -1893,6 +1938,17 @@ impl DocumentRecords {
                     source, analysis,
                 )
             });
+        if let (Some(context), Some(input)) = (&self.diagnostic_source, &analysis.resolved_input)
+            && input.has_logical_source_name_context()
+            && let Ok(source) = context.image().try_text()
+            && let Some(calls) = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(source, analysis)
+        {
+            self.logical_command_calls.extend(calls.into_iter().filter_map(|candidates| {
+                candidates.matches_source(context.image(), input).then(|| WorkspaceLogicalCommandCall {
+                    uri: uri.to_owned(), input: input.clone(), source: context.clone(), candidates: Arc::new(candidates),
+                })
+            }));
+        }
         self.original_namespace_patterns
             .extend(analysis.original_namespace_patterns().cloned());
         if let Some(context) = self.diagnostic_source.as_ref() {
@@ -1977,6 +2033,9 @@ impl DocumentRecords {
         );
         for (inv, enclosing_body) in analysis.command_invocations.iter().zip(bodies) {
             self.invocations.push(WorkspaceInvocation {
+                logical_source_domain: analysis.resolved_input.as_ref().map(
+                    tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+                ),
                 original_name_input: inv.original_name_input.clone(),
                 original_lookup: inv.original_lookup.clone(),
                 lookup: inv.lookup,
@@ -4457,6 +4516,41 @@ impl WorkspaceIndex {
         out
     }
 
+    /// One represented Logical call in an exact indexed source/input view.
+    /// No represented call, ambiguous views or unavailable source yields no
+    /// receipt; none of those results proves an empty command census.
+    #[must_use]
+    pub fn logical_command_call_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> Option<WorkspaceLogicalCommandCall> {
+        let input = analysis.resolved_input.as_ref()?;
+        if !input.has_logical_source_name_context() {
+            return None;
+        }
+        let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
+        if context.image().bytes() != source.as_bytes() {
+            return None;
+        }
+        let document = self.docs.get(*self.slots.get(uri)?)?;
+        let mut matches = document.logical_command_calls.iter().filter(|call| {
+            call.input == *input
+                && call.source == context
+                && call.candidates.original_head().is_some_and(|head| {
+                    let span = head.span();
+                    span.start() <= offset && offset < span.end()
+                })
+        });
+        let selected = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(selected.clone())
+    }
+
     /// Every indexed proc.
     pub fn procs(&self) -> impl Iterator<Item = &WorkspaceProc> {
         self.docs.iter().flat_map(|doc| doc.procs.iter())
@@ -6490,8 +6584,13 @@ impl WorkspaceIndex {
                 ))
             };
         }
-        if inv.original_name_input.is_some() {
-            return self.original_assistance_target(inv.original_lookup.as_ref()?, links.is_some());
+        if let Some(lookup) = inv.original_lookup.as_ref()
+            && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
+        {
+            return self.original_assistance_target(lookup, links.is_some());
+        }
+        if inv.original_name_input.is_some() || inv.logical_source_domain != Some(false) {
+            return None;
         }
         // A positioned source receipt precedes the workspace's assistance
         // inventory. Later imports, renames and unrelated same-named records
@@ -15535,6 +15634,39 @@ mod original_source_order_transport_tests {
                 .run_order()
                 .navigation_precedence(first, second)
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_logical_call_membership_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn accumulated_source_view_keeps_actual_call_but_replacement_retracts_it() {
+        let source = "helper";
+        let first = Analyser::new().analyse_with_source_namespace(source, "tcl", "::x");
+        let second = Analyser::new().analyse_with_source_namespace(source, "tcl", "::y");
+        let uri = "file:///calls.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &first)]);
+        let call = index
+            .logical_command_call_at(uri, source, &first, 0)
+            .unwrap();
+        assert!(call.is_retained_in(&index));
+        assert!(
+            index
+                .logical_command_call_at(uri, "changed", &first, 0)
+                .is_none()
+        );
+        index.add_document(uri, &second);
+        assert!(call.is_retained_in(&index));
+        index.replace_document(uri, &second);
+        assert!(!call.is_retained_in(&index));
+        assert!(
+            index
+                .logical_command_call_at(uri, source, &second, 0)
+                .is_some()
         );
     }
 }

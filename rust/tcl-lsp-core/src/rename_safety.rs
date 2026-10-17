@@ -333,7 +333,7 @@ fn computed_method_selector(
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    let selector =
+    let (selector, coverage) =
         crate::receiver_identity::uneditable_method_selector(analysis, source, |selected| {
             selected.method.name == target.method
                 && (selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class)
@@ -350,7 +350,12 @@ fn computed_method_selector(
                             .is_some_and(|method| method.name_span == selected.method.name_span)
                     })
                 })
-        })?;
+        });
+    let Some(selector) = selector else {
+        return (coverage != crate::executable_regions::PotentialSourceVisit::Complete
+            && !target.family.is_empty())
+        .then(|| incomplete_hazard_census(source, line_index, target.method));
+    };
     Some(RenameRefusal::new(
         format!(
             "cannot rename `{}`: a selected dispatch uses a computed method name without exact editable contributor proof.",
@@ -1308,6 +1313,22 @@ mod tests {
         let reason = hazard(src, &["::Dog"], "speak", false)
             .expect("a `my $m` dispatch inside the class must refuse");
         assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    #[test]
+    fn incomplete_method_selector_census_refuses_a_negative_result() {
+        let src = "oo::class create Dog {method speak {} {}}; if {1} $body";
+        let reason = hazard(src, &["::Dog"], "speak", false)
+            .expect("an incomplete method-selector census cannot clear rename safety");
+        assert!(reason.contains("potential source coverage"), "{reason}");
+    }
+
+    #[test]
+    fn positive_computed_method_hazard_survives_incomplete_source_inventory() {
+        let src = "oo::class create Dog {method speak {} {}}; set v [Dog new]; set m speak; $v $m; if {1} $body";
+        let reason = hazard(src, &["::Dog"], "speak", false)
+            .expect("a selected computed method remains a concrete hazard");
+        assert!(reason.contains("computed method name"), "{reason}");
     }
 
     /// FN guard: a plain `my speak` is exactly what the reference scan finds

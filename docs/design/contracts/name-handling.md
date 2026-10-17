@@ -2500,3 +2500,27 @@ handler, runtime result/effect, movement permission, insertion/store/frame
 closure or Native identity. Native alias-insertion refusals remain independent.
 Collision gaps, clause-keyword exclusion and unavailable original/source phases
 remain bounded debt; this tranche does not close runtime alias obligations.
+
+
+### Conditional package target-survey query prerequisites
+
+Selected Registry subcommand/form descriptors retain an explicit
+`SourcePackageQuery` facet. A concrete form with no facet withholds parent
+algebra, regardless of its display name. Complete effective argc, selected
+arity and shared option navigation retain exact source operand geometry;
+option-only require and provision setters supply no query. Require remains
+loading-capable and distinct from provide's read-only query. No queried value,
+provided package, installed handler or runtime result is inferred here.
+
+Core package rows retain their authored semantic subject role, independent of
+their display name and pinned reference patchlevel. An explicit hypothetical
+`Conditions::availability(target)` survey may relate InterpreterRelease rows
+to its supplied release parameter, but cannot treat the pinned build version
+as the target's exact patchlevel or manufacture actual provision. Compiler
+history/source/realm/entry proofs and authoritative traversal coverage remain
+separate prerequisites. The consumer migration remains outstanding.
+
+The source_package_query field is deliberately builtin-only: the genuine
+Studio renderer GAPS register, exhaustive SubCommand coverage and draft
+unrecovered tracking document its exclusion for subcommands and forms. No DSL
+spelling or custom-pack provider/subject authority is silently introduced.

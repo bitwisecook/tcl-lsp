@@ -233,6 +233,10 @@ pub struct CommandForm {
     /// [`crate::CommandSpec::semantics`]; the innermost declaration or
     /// abstention wins.
     pub semantics: SemanticsDeclaration,
+
+    /// Conditional package-query source algebra; custom packs cannot assert
+    /// this builtin survey relation. No physical provision or runtime identity.
+    pub source_package_query: Option<crate::source_navigation::SourcePackageQuery>,
 }
 
 impl CommandForm {
@@ -267,6 +271,7 @@ impl CommandForm {
         lowering_hook: None,
         codegen_hook: None,
         semantics: SemanticsDeclaration::Inherited,
+        source_package_query: None,
     };
 }
 

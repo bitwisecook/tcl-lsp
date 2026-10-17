@@ -811,6 +811,72 @@ pub fn package_require_actions(
     )
 }
 
+/// Explicit new-source declaration, without package installation or execution identity.
+pub struct PackageRequireSource {
+    /// Complete proposed source, or the unchanged source for an existing requirement.
+    pub source: String,
+    /// Whether a genuine current source reference already names the intended value.
+    pub already_required: bool,
+}
+
+/// Propose one requested declaration under the complete current source input.
+/// Explicit Unicode source-value comparison remains separate from Native keys.
+#[must_use]
+pub fn package_require_source(
+    source: &str,
+    analysis: &AnalysisResult,
+    package: &str,
+) -> Option<PackageRequireSource> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let word = tcl_syntax::word_rules::lexical_unicode_source_word(package, current.config())?;
+    let command = format!("package require {word}\n");
+    // This fresh proposed-source owner grants authoring metadata, not a Native entry.
+    let owner =
+        tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
+            &command,
+            analysis.resolved_input.as_ref()?.clone(),
+        );
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        &command,
+        0,
+        current.config(),
+    );
+    let [segment] = commands.as_slice() else {
+        return None;
+    };
+    let words = owner.words(segment)?;
+    let reference = words.package_reference(&current.context())?;
+    if reference.kind() != tcl_registry::source_navigation::SourcePackageReferenceKind::Require
+        || reference.matches_unicode_source_value(
+            &tcl_lexer::SourceImage::document(&command),
+            current.config(),
+            package,
+        ) != Some(true)
+    {
+        return None;
+    }
+    let census = crate::source_structure::SourcePackagePresenceCensus::capture(source, analysis)?;
+    let already_required = census.already_names_unicode_source_value(source, analysis, package)?;
+    if already_required {
+        return Some(PackageRequireSource {
+            source: source.to_owned(),
+            already_required,
+        });
+    }
+    let offset = tcl_compiler::registry_invocation::source_structure::original_package_require_insert_offset(source, analysis)?;
+    let offset = usize::try_from(offset).ok()?;
+    let (before, after) = (source.get(..offset)?, source.get(offset..)?);
+    let separator = if !before.is_empty() && !before.ends_with('\n') {
+        "\n"
+    } else {
+        ""
+    };
+    Some(PackageRequireSource {
+        source: format!("{before}{separator}{command}{after}"),
+        already_required,
+    })
+}
+
 /// Package suggestions under the caller's whole-program declaration view.
 /// Workspace declarations may withdraw source advice; they cannot establish a
 /// Native slot, original source producer or package installation.
@@ -5362,5 +5428,120 @@ mod issued_optimiser_rewrite_currency_tests {
             )
             .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod package_authoring_source_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analysis(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "package-authoring-logical",
+            &[],
+            "Explicit package authoring",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(std::sync::Arc::new(registry)),
+        );
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn authored_package_metacharacters_remain_one_inert_complete_word() {
+        let source = "puts done\n";
+        let current = analysis(source);
+        for package in ["a b", "a; puts injected", "$name[command]", "a\\b"] {
+            let result = package_require_source(source, &current, package)
+                .expect("configured ASCII package authoring");
+            assert!(!result.already_required);
+            let config = current.body_lexer_config.unwrap();
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(&result.source),
+                tcl_lexer::Span::new(0, u32::try_from(result.source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_none());
+            assert_eq!(plan.commands.len(), 2);
+            assert_eq!(plan.commands[0].words.len(), 3);
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(
+                    &plan.commands[0].words[2]
+                )
+                .unwrap(),
+                package.as_bytes()
+            );
+            assert!(result.source.ends_with(source));
+        }
+    }
+
+    #[test]
+    fn authored_package_insertion_preserves_unicode_prologue_and_quoted_requirement() {
+        let source = "#! interpreter 😀\npackage require {old name}\nputs café\n";
+        let current = analysis(source);
+        let result = package_require_source(source, &current, "new name").unwrap();
+        assert_eq!(
+            result.source,
+            "#! interpreter 😀\npackage require {old name}\npackage require {new name}\nputs café\n"
+        );
+        let duplicate = package_require_source(source, &current, "old name").unwrap();
+        assert!(duplicate.already_required);
+        assert_eq!(duplicate.source, source);
+    }
+
+    #[test]
+    fn package_authoring_withdraws_stale_source_full_config_and_foreign_input() {
+        let source = "puts done\n";
+        let current = analysis(source);
+        assert!(package_require_source(source, &current, "owned").is_some());
+        assert!(package_require_source("puts changed\n", &current, "owned").is_none());
+        let mut changed = current.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !changed.body_lexer_config.unwrap().strict_quoting;
+        assert!(package_require_source(source, &changed, "owned").is_none());
+        let mut foreign = current.clone();
+        let input = foreign.resolved_input.as_ref().unwrap();
+        foreign.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(package_require_source(source, &foreign, "owned").is_none());
+        assert!(package_require_source(source, &foreign, "café").is_none());
+        let mut missing = current;
+        missing.resolved_input = None;
+        assert!(package_require_source(source, &missing, "owned").is_none());
+    }
+
+    #[test]
+    fn package_authoring_distinguishes_unicode_values_and_unknown_coverage() {
+        let source = "puts done\n";
+        let unicode = package_require_source(source, &analysis(source), "café").unwrap();
+        assert_eq!(unicode.source, "package require café\nputs done\n");
+        let foreign = "package require {café différent}\nputs done\n";
+        let inserted = package_require_source(foreign, &analysis(foreign), "café").unwrap();
+        assert!(!inserted.already_required);
+        assert_eq!(
+            inserted.source,
+            "package require {café différent}\npackage require café\nputs done\n"
+        );
+        let duplicate =
+            package_require_source(&inserted.source, &analysis(&inserted.source), "café").unwrap();
+        assert!(duplicate.already_required);
+        assert_eq!(duplicate.source, inserted.source);
+        let dynamic = "package require $selected\n";
+        assert!(package_require_source(dynamic, &analysis(dynamic), "owned").is_none());
     }
 }

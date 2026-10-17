@@ -19,6 +19,16 @@ pub(super) fn scan(
     config: LexerConfig,
     visit: &mut dyn FnMut(Reached<'_>),
 ) -> Option<()> {
+    scan_disposition(source, analysis, registry, config, visit).map(|_| ())
+}
+
+pub(super) fn scan_disposition(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    visit: &mut dyn FnMut(Reached<'_>),
+) -> Option<super::OriginalSourceSurveyDisposition> {
     // naming.package.original-reachability-source-controls
     // docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md
     let image = SourceImage::document(source);
@@ -31,16 +41,23 @@ pub(super) fn scan(
     }
     let context = analysis.resolved_input.as_ref()?.context_registry();
     let end = u32::try_from(source.len()).ok()?;
-    let _ = Walker {
+    let mut walker = Walker {
         source,
         analysis,
         registry,
         context: &context,
         config,
         visit,
-    }
-    .script(Span::new(0, end), &Conditions::default(), 0);
-    Some(())
+        complete: true,
+    };
+    let after = walker.script(Span::new(0, end), &Conditions::default(), 0);
+    Some(match (walker.complete, after) {
+        (true, Some(conditions)) => super::OriginalSourceSurveyDisposition::Complete(conditions),
+        (true, None) => super::OriginalSourceSurveyDisposition::Stopped,
+        (false, after) => super::OriginalSourceSurveyDisposition::Incomplete(
+            after.unwrap_or_default().with(Condition::Undecidable),
+        ),
+    })
 }
 
 struct Control {
@@ -59,6 +76,8 @@ struct Walker<'a, 'v> {
     context: &'a tcl_registry::model::ContextRegistry,
     config: LexerConfig,
     visit: &'v mut dyn FnMut(Reached<'_>),
+    // Coverage is sticky and independent of continuation/guard conditions.
+    complete: bool,
 }
 
 impl Walker<'_, '_> {
@@ -103,9 +122,11 @@ impl Walker<'_, '_> {
 
     fn script(&mut self, region: Span, reached: &Conditions, depth: u32) -> Option<Conditions> {
         if super::MAX_GUARD_NESTING_DEPTH.exceeded(depth) {
+            self.complete = false;
             return Some(reached.with(Condition::Undecidable));
         }
         let Some(text) = self.source.get(region.as_range()) else {
+            self.complete = false;
             return Some(reached.with(Condition::Undecidable));
         };
         let original = OriginalScript {
@@ -116,9 +137,11 @@ impl Walker<'_, '_> {
         let Ok(plan) =
             tcl_lexer::native_script_words_in(original.image.clone(), region, self.config)
         else {
+            self.complete = false;
             return Some(reached.with(Condition::Undecidable));
         };
         if plan.fatal_tail.is_some() {
+            self.complete = false;
             return Some(reached.with(Condition::Undecidable));
         }
         let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
@@ -127,9 +150,22 @@ impl Walker<'_, '_> {
             self.config.at_depth(depth),
         );
         let commands = super::walk_command_words_with_config(text, self.config.at_depth(depth));
+        // Coverage needs the whole original vector inventory, not merely a
+        // successful join for the subset the compatibility walker reports.
+        if commands.len() != plan.commands.len()
+            || commands
+                .iter()
+                .zip(&plan.commands)
+                .any(|(words, expected)| {
+                    original.words(words, &plan).as_deref() != Some(expected.words.as_slice())
+                })
+        {
+            self.complete = false;
+        }
         let mut reached = reached.clone();
         for words in &commands {
             let Some(native) = original.words(words, &plan) else {
+                self.complete = false;
                 reached = reached.with(Condition::Undecidable);
                 continue;
             };
@@ -141,9 +177,41 @@ impl Walker<'_, '_> {
                 .find(|segment| segment.span.start() == head.span().start())
                 .and_then(|segment| self.control(segment))
             else {
+                self.complete = false;
                 reached = reached.with(Condition::Undecidable);
                 continue;
             };
+            // The existing walker does not traverse operand substitutions. The
+            // shared full-depth arena includes commands inside variable indexes.
+            // Record omitted script/Expr/error phases BEFORE callbacks or stops.
+            if native.iter().any(|word| {
+                word.executable_parts().all_parts().any(|part| {
+                    matches!(
+                        part.part,
+                        tcl_lexer::ExecutablePart::Command { .. }
+                            | tcl_lexer::ExecutablePart::Expression { .. }
+                            | tcl_lexer::ExecutablePart::ParseError(_)
+                    )
+                })
+            }) {
+                self.complete = false;
+            }
+            let (bodies, bodies_complete) = self.bodies(&control.words);
+            if !control.closed || !bodies_complete {
+                self.complete = false;
+            }
+            match control.words.roles() {
+                Some(roles) => {
+                    for &(argument, role) in roles {
+                        if role == ArgRole::Expr
+                            && !matches!(self.guard(&control.words, argument), Guard::Constant(_))
+                        {
+                            self.complete = false;
+                        }
+                    }
+                }
+                None => self.complete = false,
+            }
             if control.registration {
                 let conditions = if control.closed {
                     reached.clone()
@@ -171,7 +239,6 @@ impl Walker<'_, '_> {
                     AfterIf::NotAChain => {}
                 }
             }
-            let bodies = self.bodies(&control.words);
             let mut might_stop = false;
             for body in bodies {
                 might_stop |= self
@@ -195,31 +262,43 @@ impl Walker<'_, '_> {
         .then_some(content)
     }
 
-    fn bodies(&self, words: &OriginalRegistryWords) -> Vec<Span> {
+    fn bodies(&self, words: &OriginalRegistryWords) -> (Vec<Span>, bool) {
         let mut bodies = Vec::new();
-        for &(argument, role) in words.roles().unwrap_or_default() {
+        let Some(roles) = words.roles() else {
+            return (bodies, false);
+        };
+        let mut complete = true;
+        for &(argument, role) in roles {
             if role == ArgRole::Body {
-                if let Some(body) = self.body(words, argument) {
-                    bodies.push(body);
+                match self.body(words, argument) {
+                    Some(body) => bodies.push(body),
+                    None => complete = false,
                 }
-            } else if role == ArgRole::LambdaLiteral
-                && let Some(word) = words
+            } else if role == ArgRole::LambdaLiteral {
+                let body = words
                     .operands()
                     .get(argument)
                     .and_then(Option::as_ref)
                     .and_then(|operand| operand.word())
-                && let Some(body) =
-                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
-                        .and_then(|elements| elements.braced_body())
-            {
-                bodies.push(body);
+                    .and_then(|word| {
+                        (word.image() == &SourceImage::document(self.source)
+                            && word.config() == self.config)
+                            .then_some(word)
+                    })
+                    .and_then(tcl_compiler::lambda_literal::split_original_lambda_literal)
+                    .and_then(|elements| elements.braced_body());
+                match body {
+                    Some(body) => bodies.push(body),
+                    None => complete = false,
+                }
             }
         }
-        bodies
+        (bodies, complete)
     }
 
     fn chain(&mut self, control: &Control, reached: &Conditions, depth: u32) -> AfterIf {
         let Some(roles) = control.words.roles() else {
+            self.complete = false;
             return AfterIf::NotAChain;
         };
         let bodies: Vec<_> = roles
@@ -228,6 +307,7 @@ impl Walker<'_, '_> {
             .map(|(argument, _)| *argument)
             .collect();
         if bodies.is_empty() {
+            self.complete = false;
             return AfterIf::NotAChain;
         }
         let mut earlier_false = Conditions::default();
@@ -235,6 +315,7 @@ impl Walker<'_, '_> {
         let mut has_else = false;
         let mut definitely_taken_terminates = false;
         let mut previous = None;
+        let mut missing_body = false;
         for body in bodies {
             let expression = roles
                 .iter()
@@ -253,6 +334,9 @@ impl Walker<'_, '_> {
                 } else {
                     Guard::Unknown
                 };
+                if matches!(guard, Guard::Unknown) {
+                    self.complete = false;
+                }
                 if let Some(condition) = guard.condition(true) {
                     branch = branch.with(condition);
                 }
@@ -270,7 +354,10 @@ impl Walker<'_, '_> {
                 branch_reached = branch_reached.with(condition.clone());
             }
             let Some(region) = self.body(&control.words, body) else {
-                return AfterIf::Continues(reached.with(Condition::Undecidable));
+                self.complete = false;
+                missing_body = true;
+                // One missing branch must not suppress discoveries in known siblings.
+                continue;
             };
             if self.script(region, &branch_reached, depth + 1).is_none() {
                 definitely_taken_terminates |= control.closed && branch.is_unconditional();
@@ -279,6 +366,9 @@ impl Walker<'_, '_> {
                     _ => None,
                 });
             }
+        }
+        if missing_body {
+            return AfterIf::Continues(reached.with(Condition::Undecidable));
         }
         if control.closed
             && (definitely_taken_terminates || (has_else && terminating.len() == bodies_len(roles)))
@@ -505,5 +595,141 @@ mod original_package_region_purpose_tests {
             2
         );
         assert!(super::super::walk_command_words_with_config(body, config.at_depth(1)).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod coverage_controls {
+    use super::super::OriginalSourceSurveyDisposition;
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn disposition(source: &str) -> OriginalSourceSurveyDisposition {
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        scan_disposition(
+            source,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+            analysis.body_lexer_config.unwrap(),
+            &mut |_| {},
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn original_coverage_keeps_complete_and_stopped_distinct() {
+        assert!(matches!(
+            disposition("set value 1"),
+            OriginalSourceSurveyDisposition::Complete(_)
+        ));
+        assert_eq!(
+            disposition("return"),
+            OriginalSourceSurveyDisposition::Stopped
+        );
+    }
+
+    #[test]
+    fn original_coverage_checks_omitted_operands_before_registration_and_stop() {
+        for source in [
+            "package ifneeded p 1.0 [list source p.tcl]",
+            "return [list ignored]",
+            "return $array([list index])",
+        ] {
+            assert!(
+                matches!(
+                    disposition(source),
+                    OriginalSourceSurveyDisposition::Incomplete(_)
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_coverage_keeps_unknown_expression_and_missing_body_incomplete() {
+        for source in [
+            "if {$condition} {set x 1}",
+            "if {1} $body",
+            "expr {[list value]}",
+            "if",
+        ] {
+            assert!(
+                matches!(
+                    disposition(source),
+                    OriginalSourceSurveyDisposition::Incomplete(_)
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_coverage_keeps_malformed_source_and_missing_schema_incomplete() {
+        for source in ["list {unterminated", "unknown_command"] {
+            assert!(
+                matches!(
+                    disposition(source),
+                    OriginalSourceSurveyDisposition::Incomplete(_)
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_coverage_preserves_known_registration_callbacks() {
+        let source = "package ifneeded p 1.0 {source p.tcl}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut callbacks = 0;
+        let result = scan_disposition(
+            source,
+            &analysis,
+            analysis.resolved_registry().unwrap(),
+            analysis.body_lexer_config.unwrap(),
+            &mut |reached| {
+                callbacks += 1;
+                assert!(reached.original_words.is_some());
+            },
+        );
+        assert!(result.is_some());
+        assert_eq!(callbacks, 1);
+    }
+
+    #[test]
+    fn original_coverage_rejects_foreign_source_without_callbacks() {
+        let source = "package ifneeded p 1.0 {source p.tcl}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let mut callbacks = 0;
+        assert!(
+            scan_disposition(
+                "package ifneeded q 1.0 {source q.tcl}",
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                analysis.body_lexer_config.unwrap(),
+                &mut |_| callbacks += 1
+            )
+            .is_none()
+        );
+        assert_eq!(callbacks, 0);
+    }
+}
+
+#[cfg(test)]
+mod complete_vector_control {
+    use super::*;
+    #[test]
+    fn complete_source_vectors_keep_quoted_and_braced_data_in_one_command() {
+        let source = "list {a;b} \"quoted value\"; set output 2";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(matches!(
+            scan_disposition(
+                source,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                analysis.body_lexer_config.unwrap(),
+                &mut |_| {}
+            ),
+            Some(super::super::OriginalSourceSurveyDisposition::Complete(_))
+        ));
     }
 }

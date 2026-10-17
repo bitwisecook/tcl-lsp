@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-17T09:34:23.509061+00:00",
+  "status": "FAIL_E0599",
+  "error": "hover declaration.metadata missing on existing LogicalSourceClassDeclaration; add genuine retained-class snapshot projection, preserve caller original-owner gate.",
+  "product_inputs": 43432,
+  "drift": [],
+  "single_cargo_job": true,
+  "ordinary": true,
+  "no_tests_executed": true
+}

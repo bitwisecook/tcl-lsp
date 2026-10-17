@@ -645,6 +645,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         destructive: _,
         returns_path: _,
         source_path_operation: _,
+        source_package_query: _,
         source_configuration_reference: _,
         is_unescape: _,
         cfg_rewrite_name: _,
@@ -799,6 +800,12 @@ pub const SUB_COMMAND: &[Field] = &[
     f("source_index_bounds", Surface::Key("source_index_bounds")),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),
+    f(
+        "source_package_query",
+        Surface::Excluded(
+            "Builtin conditional target-survey algebra; custom packs have no provider/subject receipt",
+        ),
+    ),
     f(
         "source_path_operation",
         Surface::Key("source_path_operation"),

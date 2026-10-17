@@ -168,7 +168,6 @@ impl PartialEq for Optimisation {
 impl Eq for Optimisation {}
 impl std::hash::Hash for Optimisation {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        use std::hash::Hash;
         self.code.hash(state);
         self.message.hash(state);
         self.span.hash(state);

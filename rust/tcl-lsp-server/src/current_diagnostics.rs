@@ -1679,7 +1679,8 @@ mod tests {
         let backend = crate::tests::test_backend();
         backend
             .apply_global_config(&serde_json::json!({"optimiser": {"profile": "full"}}))
-            .await;
+            .await
+            .expect("the fixture configuration is valid");
         let expected = DiagnosticSourceExpectation {
             uri: Uri::from_str("file:///rewrite-wire-captured-source.tcl").unwrap(),
             version: 7,

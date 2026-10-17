@@ -207,7 +207,7 @@
   "all_required_change_total": 2158,
   "final_catalogue": {
     "path": "repository-consumer-audit-final.json",
-    "sha256": "eccf2a55458d9579be93229db23288a1a15c48fd3ce01f0d0a7aea73bfd1df01"
+    "sha256": "7d43301216e01de5105fd201babd749b1af0add899a1db35b274f93ceabe926a"
   },
   "primary_packet": {
     "status": "FINAL_SOURCE_AUDIT_RECONCILED",
@@ -401,12 +401,12 @@
   "incoming_rust": "Incoming `origin/rust` is now `ca698d87c824da24053c7abe279bb505a0acd9cb` (#2477 compiled/direct evaluation, literal-index and error-reporting changes), unmerged and unadmitted. The audit counts are for work at the recorded baseline plus explicit work-source annexes. Recheck and reconcile incoming source before integration; no acceptance is donated from the incoming branch.",
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T09:25:01.521073+00:00",
+    "utc": "2026-10-17T09:39:47.942740+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 371,
+    "implemented_pending_validation": 384,
     "verified_complete": 0,
-    "not_started": 1787,
+    "not_started": 1774,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 64,
-      "implemented_pending_validation": 63,
+      "required": 67,
+      "implemented_pending_validation": 66,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2222,
-    "effective_implemented_pending_validation": 434,
+    "effective_required_units": 2225,
+    "effective_implemented_pending_validation": 450,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,8 +835,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 332,
-    "partially_implemented_pending_validation": 39,
+    "fully_implemented_pending_validation": 334,
+    "partially_implemented_pending_validation": 50,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -1115,89 +1115,86 @@
       "fix": "fluent-uri existing0.4.1 net=[] feature enabled; independent source CLEAR; no dependency/package/version change; retry pending"
     },
     "report": {
-      "observed_utc": "2026-10-17T09:09:24.687763+00:00",
-      "observed_user_time": "2026-10-17T10:09:24.687763+01:00",
-      "user_timezone": "Europe/London",
-      "delivery": "Chat and repository only; external guide unchanged.",
-      "lsp": {
+      "utc": "2026-10-17T09:38:57.233687+00:00",
+      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD03_RUNNING",
+      "base": "671100ac1",
+      "baseline_delta": 13,
+      "baseline_units": [
+        "lsp-browser-package-insertion-source-and-identity",
+        "lsp-node-package-insertion-source-identity",
+        "lsp-if-switch-source-action-boundary",
+        "lsp-switch-dict-source-action-and-fresh-name",
+        "lsp-receiver-incomplete-hazard-query",
+        "lsp-inherited-receiver-method-label-filter",
+        "lsp-method-workspace-slot-projection",
+        "lsp-definition-logical-autoload-head-context",
+        "lsp-hover-logical-command-class-ensemble-binding",
+        "lsp-hover-alias-original-vs-legacy-map",
+        "lsp-hover-logical-member-and-provider-notes",
+        "lsp-workspace-report-proc-class-records",
+        "lsp-workspace-command-existence-settlement"
+      ],
+      "new_owner_facets": [
+        "registry.owner.source-package-query-selection",
+        "dialect.owner.core-package-role",
+        "compiler.owner.package-unicode-source-value-comparison"
+      ],
+      "LSP": {
         "required": 325,
-        "integrated_pending_validation": 229,
-        "not_integrated": 96,
-        "verified_complete": 0,
-        "semantic_integrated": 116,
-        "semantic_required": 201,
-        "validation_integrated": 111,
-        "validation_required": 122,
+        "integrated": 250,
+        "semantic_integrated": 133,
+        "validation_integrated": 115,
         "documentation_integrated": 2,
-        "documentation_required": 2
+        "without_integration": 75,
+        "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 363,
-        "full_scope_pending": 327,
-        "partial": 36
+        "integrated": 384,
+        "full_scope_pending": 334,
+        "partial": 50,
+        "without_integration": 1774
       },
       "annex": {
-        "required": 64,
-        "integrated": 63,
+        "required": 67,
+        "integrated": 66,
         "blocked": 1
       },
       "effective": {
-        "required": 2222,
-        "integrated": 426,
-        "not_integrated": 1796,
+        "required": 2225,
+        "integrated": 450,
+        "without_integration": 1775,
         "verified_complete": 0
       },
-      "gains_since_last_report": 0,
-      "code_checkpoint": "86789813870b2ed07dc2532068798a29a3e2f415",
-      "environment_recovery": {
-        "status": "CONNECTED_FRESH_WORKSPACE_SOURCE_CHECKPOINT_RESTORED",
-        "initial_bootstrap_head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
-        "bootstrap_preserved_branch": "recovery/bootstrap-20261017-fcb7927f0",
-        "previous_local_validation_and_candidate_directories": "ABSENT_AFTER_REPLACEMENT",
-        "checkout": "Sparse source/current compact evidence; bulk historical evidence directories omitted locally. Full proof/portable gates cannot be accepted with omitted payloads.",
-        "compact_archives_sha256_verified": [
-          "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
-          "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd"
-        ]
-      },
-      "last_fully_recorded_standard994": {
-        "PASS": 795,
-        "FAIL": 197,
-        "TIMEOUT": 2,
-        "harness_errors": 0,
-        "prior_PASS_regressions": 0
-      },
-      "retained_current_results": {
-        "standard5_build": "PASS367.722s",
-        "extra3_library_build": "PASS209.828s",
-        "xtask_BIN_build": "PASS238.341s",
-        "focused6": {
-          "PASS": 1,
-          "FAIL": 5
-        },
-        "extra18": {
-          "PASS": 17,
-          "FAIL": 1
-        },
-        "editor_static_and_bundle_checks": "PASS443 inputs, no drift; actual editor hosts pending",
-        "proof_gate": "FAIL2094 structural errors; no evidence/census digest rewrites"
-      },
-      "observed_before_reset_but_raw_files_now_absent": {
-        "native_build": "Observed PASS686.713s completed2026-10-17T05:23:22.316828+00:00; receipt SHA27b1db543af720c09a33e4ae9c33652f29a275df22e3b967b6370b3dd77b8185; requires fresh retained validation, no current executable authority",
-        "additional_SpecTcl6": "Observed6PASS with matching final source/nineELF/provider checks; raw files absent, recapture required",
-        "standard1024": "Final outcome unavailable. Old RUNNING markers are historical, no currently active accepted capture.",
-        "native34": "Build completed; binding started, no test execution or final binding confirmed. Must freshly bind/replay34."
-      },
-      "next_source": "Unpushed V7 composition and separate candidates absent. Reconstruct from retained source packets/chat, re-review and admit; no count for lost or queued work. V7 arity repair was unsealed; hover cross-document String-to-identity HOLD and extraction blanket-disable HOLD remain.",
-      "next_actions": [
-        "Restore exact retained source/selection/provenance metadata without fabricating missing executables or final outcomes.",
-        "Provision current matching original provider/support toolchains, make fresh ordinary source-bound artifacts, independently review bindings and replay original controls with unchanged assertions/fixtures/180s test/30s listing guards.",
-        "Resume remaining generic LSP consumer migrations and necessary Compiler/DB/Registry owners."
+      "causal_and_gate_repairs_not_extra_units": [
+        "minifier actual selected semantics.traits projection",
+        "genuine retained Logical class metadata accessor",
+        "smoke compile-time recursion_limit256 (Tcl runtime/test budgets unchanged)",
+        "unused Hash import/dead private wrapper/test-only method cleanup and actual fixture config-result validation"
       ],
-      "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX. Uncovered BIG-IP is a Tcl8.4 working assumption only, not measured evidence.",
-      "required_gates": "Not green; no PR, merge or #2286 closure.",
-      "report_cadence_minutes": 30
+      "validation": "Build01 FAIL E0609; Build02 FAIL E0599, product inputs stable. Both actual-owner projections repaired and source-reviewed. Build03 ordinary five libraries RUNNING one job/debug0. No new test execution or verified count.",
+      "evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-01 (compact25KB failure/source-review records)",
+      "retained_controls": "All1024 retained function body hashes exact after integration01. Build03 changes one existing diagnostic fixture setup await to expect(valid); assertions/fixtures/budgets unchanged, independent source review retained. New tests require exact source/artifact/provider binding.",
+      "outside_main": "Typed taint sink subject, dispatch census successor, saved+Studio pack notices, Native class/type source lifts, deeper refs/alias/ensemble/package633 owners are queued/unadmitted and uncounted.",
+      "deferred": "Runtime/VM and dedicated BIG-IP; Tcl8.4 assumption only where evidence lacks.",
+      "observed_utc": "2026-10-17T09:39:47.942740+00:00",
+      "observed_user_time": "2026-10-17T10:39:47.942740+01:00",
+      "user_timezone": "Europe/London",
+      "delivery": "Chat and repository only; external guide unchanged.",
+      "gains_since_last_report": {
+        "lsp_integrated": 21,
+        "additional_owner_facets": 3,
+        "effective_integrated": 24,
+        "verified": 0
+      },
+      "current_build": "Build03 ordinary five libraries running; prior E0609/E0599 failures retained, reviewed repairs included. No new test execution.",
+      "next_actions": [
+        "Finish actual source-owner consumers in parallel; keep all outside-Main candidates uncounted until reviewed integration.",
+        "Complete fresh ordinary builds, independently bind actual source/artifacts/providers and replay retained1024/focused6/extra controls with original assertions and180/30 guards.",
+        "Fix scoped validation and required owner/proof/generated/editor-host/rust-check/prep-pr gates; no PR until green."
+      ],
+      "report_cadence_minutes": 30,
+      "next_report_utc": "2026-10-17T10:09:47.942740+00:00"
     },
     "lsp_tk_and_validation29": {
       "baseline_units": [
@@ -1725,12 +1722,12 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "last_utc": "2026-10-17T09:09:24.687763+00:00",
-      "next_utc": "2026-10-17T09:39:24.687763+00:00",
+      "last_utc": "2026-10-17T09:39:47.942740+00:00",
+      "next_utc": "2026-10-17T10:09:47.942740+00:00",
       "cadence_minutes": 30,
       "delivery": "Chat and repository only; external guide unchanged.",
-      "lsp_integrated_at_report": 229,
-      "current_integration_checkpoint": 237
+      "lsp_integrated_at_report": 250,
+      "effective_integrated": 450
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -3477,34 +3474,68 @@
       ]
     },
     "current_generic_lsp_integration": {
-      "utc": "2026-10-17T09:25:01.521073+00:00",
-      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD_RUNNING",
-      "base": "c8879de56",
+      "utc": "2026-10-17T09:38:57.233687+00:00",
+      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD03_RUNNING",
+      "base": "671100ac1",
+      "baseline_delta": 13,
       "baseline_units": [
-        "lsp-context-action-logical-command-fallback",
-        "lsp.validation.15.02.fn0",
-        "lsp.validation.15.02.fn1",
-        "lsp.validation.15.03.fn0",
-        "lsp.validation.15.03.fn1",
-        "lsp-minifier-command-alias-construction",
-        "lsp-minifier-argument-alias-source-phases",
-        "lsp-refactor-standalone-lexical-body-roles"
+        "lsp-browser-package-insertion-source-and-identity",
+        "lsp-node-package-insertion-source-identity",
+        "lsp-if-switch-source-action-boundary",
+        "lsp-switch-dict-source-action-and-fresh-name",
+        "lsp-receiver-incomplete-hazard-query",
+        "lsp-inherited-receiver-method-label-filter",
+        "lsp-method-workspace-slot-projection",
+        "lsp-definition-logical-autoload-head-context",
+        "lsp-hover-logical-command-class-ensemble-binding",
+        "lsp-hover-alias-original-vs-legacy-map",
+        "lsp-hover-logical-member-and-provider-notes",
+        "lsp-workspace-report-proc-class-records",
+        "lsp-workspace-command-existence-settlement"
       ],
-      "baseline_delta": 8,
-      "lsp_integrated": 237,
-      "lsp_without_integration": 88,
-      "lsp_semantic_integrated": 120,
-      "lsp_validation_integrated": 115,
-      "lsp_documentation_integrated": 2,
-      "verified_complete": 0,
-      "source_files": 12,
-      "causal_repair": "Four-file retained Logical word/definition repair extends existing integrated purposes; no extra count.",
-      "reviews": "Fresh independent source peers for focused-four, minifier, refactor, diagnostic source selection; original provider4 source packet and peer recovered from committed capsule and actual beforeimages verified.",
-      "build": "Five ordinary libraries compiling with Rust1.99.1, one job, debug0; no execution result yet.",
-      "fresh_base_check": "cargo check --all-targets failed E0275 in existing smoke integration target: compiler requests recursion_limit256; raw unchanged-base log retained outside Main. Unused-import/dead-code/must-use warnings also remain.",
-      "providers": "Exact5 C Tcl references rebuilt via repository owner; Jim pinned provider rebuilt, upstream HEAD still5bac7c99ad65864c87da513e22e2f01703fa4e03. Setup does not establish naming semantics.",
-      "captures": "/workspace/naming-work/integration-01 and /workspace/naming-work/logs; no old executable reused.",
-      "limits": "Runtime/VM/dedicated BIG-IP deferred; minifier/refactor partial scopes explicitly retained. Other outside-Main candidates are uncounted. Required gates not green; no PR or issue closure."
+      "new_owner_facets": [
+        "registry.owner.source-package-query-selection",
+        "dialect.owner.core-package-role",
+        "compiler.owner.package-unicode-source-value-comparison"
+      ],
+      "LSP": {
+        "required": 325,
+        "integrated": 250,
+        "semantic_integrated": 133,
+        "validation_integrated": 115,
+        "documentation_integrated": 2,
+        "without_integration": 75,
+        "verified_complete": 0
+      },
+      "baseline": {
+        "required": 2158,
+        "integrated": 384,
+        "full_scope_pending": 334,
+        "partial": 50,
+        "without_integration": 1774
+      },
+      "annex": {
+        "required": 67,
+        "integrated": 66,
+        "blocked": 1
+      },
+      "effective": {
+        "required": 2225,
+        "integrated": 450,
+        "without_integration": 1775,
+        "verified_complete": 0
+      },
+      "causal_and_gate_repairs_not_extra_units": [
+        "minifier actual selected semantics.traits projection",
+        "genuine retained Logical class metadata accessor",
+        "smoke compile-time recursion_limit256 (Tcl runtime/test budgets unchanged)",
+        "unused Hash import/dead private wrapper/test-only method cleanup and actual fixture config-result validation"
+      ],
+      "validation": "Build01 FAIL E0609; Build02 FAIL E0599, product inputs stable. Both actual-owner projections repaired and source-reviewed. Build03 ordinary five libraries RUNNING one job/debug0. No new test execution or verified count.",
+      "evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-01 (compact25KB failure/source-review records)",
+      "retained_controls": "All1024 retained function body hashes exact after integration01. Build03 changes one existing diagnostic fixture setup await to expect(valid); assertions/fixtures/budgets unchanged, independent source review retained. New tests require exact source/artifact/provider binding.",
+      "outside_main": "Typed taint sink subject, dispatch census successor, saved+Studio pack notices, Native class/type source lifts, deeper refs/alias/ensemble/package633 owners are queued/unadmitted and uncounted.",
+      "deferred": "Runtime/VM and dedicated BIG-IP; Tcl8.4 assumption only where evidence lacks."
     }
   }
 }

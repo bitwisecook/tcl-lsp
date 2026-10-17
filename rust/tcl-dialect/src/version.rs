@@ -135,10 +135,23 @@ impl StringCharacterModel {
     }
 }
 
+/// Semantic subject of a core package row, independent of its spelling and
+/// pinned reference-build version. This classifies an explicit hypothetical
+/// release survey, never a current interpreter's provision database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CorePackageRole {
+    /// The interpreter release itself (including its authored aliases).
+    InterpreterRelease,
+    /// The separately versioned TclOO package.
+    ObjectSystem,
+}
+
 /// One package a bare interpreter pre-provides for the core itself
 /// ([`TclVersion::core_provided_packages`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CorePackage {
+    /// Authored semantic subject; not inferred from the display name.
+    pub role: CorePackageRole,
     /// The `package provide` name, spelled as C registers it.
     pub name: &'static str,
     /// The version C provides it at.
@@ -160,6 +173,7 @@ impl CorePackage {
             name,
             version,
             ifneeded_stub: false,
+            role: CorePackageRole::InterpreterRelease,
         }
     }
 
@@ -169,6 +183,7 @@ impl CorePackage {
             name,
             version,
             ifneeded_stub: true,
+            role: CorePackageRole::ObjectSystem,
         }
     }
 }
@@ -2549,5 +2564,37 @@ mod tests {
         assert!(TclVersion::V8_6.has_error_stack());
         assert!(TclVersion::V9_0.has_error_stack());
         assert!(TclVersion::V9_1.has_error_stack());
+    }
+}
+
+#[cfg(test)]
+mod core_package_subject_tests {
+    use super::*;
+    #[test]
+    fn semantic_subject_rows_do_not_infer_interpreter_identity_from_other_packages() {
+        for target in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let rows = target.core_provided_packages();
+            assert!(
+                rows.iter()
+                    .any(|row| row.role == CorePackageRole::InterpreterRelease)
+            );
+            for row in rows {
+                assert_eq!(row.role == CorePackageRole::ObjectSystem, row.ifneeded_stub);
+            }
+        }
+        assert!(
+            TclVersion::V9_0
+                .core_provided_packages()
+                .iter()
+                .filter(|row| row.role == CorePackageRole::InterpreterRelease)
+                .count()
+                > 1
+        );
     }
 }

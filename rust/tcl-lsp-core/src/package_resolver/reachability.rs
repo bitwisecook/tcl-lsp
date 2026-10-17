@@ -320,6 +320,19 @@ pub(super) fn scan_selected_registrations(
     .walk_script(content, &Conditions::default(), 0, original.as_ref());
 }
 
+/// Coverage of the existing original-source package survey, independently of
+/// the conditions attached to positive registration discoveries. No result
+/// proves runtime execution, physical provision or command-world absence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalSourceSurveyDisposition {
+    /// All modelled source phases were covered and control may continue.
+    Complete(Conditions),
+    /// Covered control unconditionally stops before the end of this script.
+    Stopped,
+    /// Positive discoveries remain useful, but omitted phases prevent closure.
+    Incomplete(Conditions),
+}
+
 /// Source advice under a current retained analysis and its exact loader axes.
 /// Unknown source applicability never establishes an unconditional path.
 pub(super) fn scan_with_analysis(

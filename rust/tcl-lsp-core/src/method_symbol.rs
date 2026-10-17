@@ -778,12 +778,6 @@ pub fn source_queries(analysis: &AnalysisResult) -> Vec<OriginalMethodQuery> {
     queries
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Header {
-    Class(usize),
-    Procedure,
-}
-
 fn unique_class_records<'a>(
     inventory: impl Iterator<Item = (&'a str, &'a SourceDeclarationMetadata<ClassDef>)>,
 ) -> Vec<(&'a str, &'a SourceDeclarationMetadata<ClassDef>)> {
@@ -802,6 +796,12 @@ fn unique_class_records<'a>(
         }
     }
     records
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Header {
+    Class(usize),
+    Procedure,
 }
 
 /// Select a document-owned source candidate through exact original command
@@ -859,6 +859,75 @@ fn workspace_class_lookup_candidate(
     else {
         return ControlFlow::Break(None);
     };
+    let Some(publications) = index.original_command_candidates(lookup) else {
+        return ControlFlow::Break(None);
+    };
+    if !publications.is_empty() {
+        let mut class_roots = Vec::new();
+        let mut saw_procedure = false;
+        for (uri, publication) in publications {
+            let Some(definition) = publication.definition() else {
+                return ControlFlow::Break(None);
+            };
+            let definition_site = &definition.allocation().site;
+            if publication.kind()
+                == tcl_compiler::command_binding::OriginalCommandPublicationKind::Object
+                && definition.kind()
+                    == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+            {
+                let mut matching_records =
+                    records.iter().enumerate().filter(|(_, (owner, record))| {
+                        *owner == uri
+                            && record.declaration_site() == definition_site
+                            && record.name().policy() == publication.policy()
+                    });
+                let Some((root, _)) = matching_records.next() else {
+                    return ControlFlow::Break(None);
+                };
+                if matching_records.next().is_some() {
+                    return ControlFlow::Break(None);
+                }
+                if !class_roots.contains(&root) {
+                    class_roots.push(root);
+                }
+                continue;
+            }
+            if publication.kind()
+                == tcl_compiler::command_binding::OriginalCommandPublicationKind::Procedure
+                && definition.kind()
+                    == tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
+                && index
+                    .original_procedure_declarations()
+                    .any(|(owner, declaration)| {
+                        owner == uri
+                            && declaration.declaration_site() == definition_site
+                            && declaration.name().policy() == publication.policy()
+                    })
+            {
+                saw_procedure = true;
+                continue;
+            }
+            return ControlFlow::Break(None);
+        }
+        if !class_roots.is_empty() && saw_procedure {
+            return ControlFlow::Break(None);
+        }
+        return match class_roots.as_slice() {
+            [root] => ControlFlow::Break(metadata_candidate(
+                procedures,
+                records,
+                *root,
+                query.selector_input(),
+                query.side(),
+            )),
+            [] if saw_procedure && !*known_class => ControlFlow::Continue(()),
+            _ => ControlFlow::Break(None),
+        };
+    }
+
+    // Header-only source advice has no completed publication world. Keep its
+    // existing slot selection bounded to the original query and retained
+    // declaration owners; this fallback makes no claim about runtime absence.
     let headers = index
         .original_class_source_candidates()
         .filter_map(|(uri, class, slot, policy)| {

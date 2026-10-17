@@ -76,7 +76,8 @@ pub fn switch_to_dict(
     analysis: &AnalysisResult,
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    let config = analysis.body_lexer_config?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let config = current.config();
     let (cmd, obligation) = select(
         source,
         cursor,
@@ -228,22 +229,8 @@ fn assemble_arms(pairs: Vec<(String, BranchBody)>) -> Option<ParsedArms> {
 /// renderer, then the same selected source grammar verifies one literal word.
 fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
     let proposed = tcl_syntax::list::list_element(value);
-    let parsed = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(&proposed),
-        tcl_lexer::Span::new(0, u32::try_from(proposed.len()).ok()?),
-        config.nested(),
-    )
-    .ok()?;
-    let [command] = parsed.commands.as_slice() else {
-        return None;
-    };
-    let [word] = command.words.as_slice() else {
-        return None;
-    };
-    (parsed.fatal_tail.is_none()
-        && tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice()
-            == value.as_bytes())
-    .then_some(proposed)
+    tcl_syntax::word_rules::lexical_unicode_source_word_matches(&proposed, value, config.nested())
+        .then_some(proposed)
 }
 
 /// Build the `dict create` + lookup replacement from the parsed arms.

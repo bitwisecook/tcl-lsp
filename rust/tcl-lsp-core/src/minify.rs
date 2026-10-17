@@ -1912,7 +1912,7 @@ fn source_alias_uses(
         // existing explicit behavior-changing Logical authoring policy.
         let known_byte_compiled = matches!(purpose, AliasWordPurpose::CommandHead)
             && lexical_metadata::with_command_schema(env, command, |schema| {
-                schema.traits.contains(Traits::BYTE_COMPILED)
+                schema.semantics.traits.contains(Traits::BYTE_COMPILED)
             }) == Some(true);
         if known_byte_compiled {
             continue;

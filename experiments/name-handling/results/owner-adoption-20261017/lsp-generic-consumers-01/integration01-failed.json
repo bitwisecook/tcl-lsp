@@ -1,0 +1,79 @@
+{
+  "utc": "2026-10-17T09:28:05.481139+00:00",
+  "status": "FAIL",
+  "error": "E0609 minify schema.traits; use actual schema.semantics.traits",
+  "errors": [
+    {
+      "rendered": "error[E0609]: no field `traits` on type `&ResolvedInvocation<'_, '_>`\n    --> rust/tcl-lsp-core/src/minify.rs:1915:24\n     |\n1915 |                 schema.traits.contains(Traits::BYTE_COMPILED)\n     |                        ^^^^^^ unknown field\n     |\nhelp: one of the expressions' fields has a field of the same name\n     |\n1915 |                 schema.semantics.traits.contains(Traits::BYTE_COMPILED)\n     |                        ++++++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "one of the expressions' fields has a field of the same name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 75045,
+              "byte_start": 75045,
+              "column_end": 24,
+              "column_start": 24,
+              "expansion": null,
+              "file_name": "rust/tcl-lsp-core/src/minify.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 1915,
+              "line_start": 1915,
+              "suggested_replacement": "semantics.",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 24,
+                  "highlight_start": 24,
+                  "text": "                schema.traits.contains(Traits::BYTE_COMPILED)"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no field `traits` on type `&ResolvedInvocation<'_, '_>`",
+      "spans": [
+        {
+          "byte_end": 75051,
+          "byte_start": 75045,
+          "column_end": 30,
+          "column_start": 24,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-core/src/minify.rs",
+          "is_primary": true,
+          "label": "unknown field",
+          "line_end": 1915,
+          "line_start": 1915,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 30,
+              "highlight_start": 24,
+              "text": "                schema.traits.contains(Traits::BYTE_COMPILED)"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0609",
+        "explanation": "Attempted to access a nonexistent field in a struct.\n\nErroneous code example:\n\n```compile_fail,E0609\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.foo); // error: no field `foo` on type `StructWithFields`\n```\n\nTo fix this error, check that you didn't misspell the field's name or that the\nfield actually exists. Example:\n\n```\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.x); // ok!\n```\n"
+      }
+    }
+  ],
+  "tracked_present_inputs": 43566,
+  "product_input_drift": [],
+  "coordination_metadata_excluded": "docs/work/name-handling only; changed during compilation for integration checkpoint",
+  "ordinary": true,
+  "single_cargo_job": true,
+  "debug": 0,
+  "no_tests_executed": true
+}

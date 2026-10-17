@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-17T09:38:57.233687+00:00",
+  "status": "REVIEWED_SOURCE_INTEGRATED_BUILD03_RUNNING",
+  "base": "671100ac1",
+  "baseline_delta": 13,
+  "baseline_units": [
+    "lsp-browser-package-insertion-source-and-identity",
+    "lsp-node-package-insertion-source-identity",
+    "lsp-if-switch-source-action-boundary",
+    "lsp-switch-dict-source-action-and-fresh-name",
+    "lsp-receiver-incomplete-hazard-query",
+    "lsp-inherited-receiver-method-label-filter",
+    "lsp-method-workspace-slot-projection",
+    "lsp-definition-logical-autoload-head-context",
+    "lsp-hover-logical-command-class-ensemble-binding",
+    "lsp-hover-alias-original-vs-legacy-map",
+    "lsp-hover-logical-member-and-provider-notes",
+    "lsp-workspace-report-proc-class-records",
+    "lsp-workspace-command-existence-settlement"
+  ],
+  "new_owner_facets": [
+    "registry.owner.source-package-query-selection",
+    "dialect.owner.core-package-role",
+    "compiler.owner.package-unicode-source-value-comparison"
+  ],
+  "LSP": {
+    "required": 325,
+    "integrated": 250,
+    "semantic_integrated": 133,
+    "validation_integrated": 115,
+    "documentation_integrated": 2,
+    "without_integration": 75,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 384,
+    "full_scope_pending": 334,
+    "partial": 50,
+    "without_integration": 1774
+  },
+  "annex": {
+    "required": 67,
+    "integrated": 66,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2225,
+    "integrated": 450,
+    "without_integration": 1775,
+    "verified_complete": 0
+  },
+  "causal_and_gate_repairs_not_extra_units": [
+    "minifier actual selected semantics.traits projection",
+    "genuine retained Logical class metadata accessor",
+    "smoke compile-time recursion_limit256 (Tcl runtime/test budgets unchanged)",
+    "unused Hash import/dead private wrapper/test-only method cleanup and actual fixture config-result validation"
+  ],
+  "validation": "Build01 FAIL E0609; Build02 FAIL E0599, product inputs stable. Both actual-owner projections repaired and source-reviewed. Build03 ordinary five libraries RUNNING one job/debug0. No new test execution or verified count.",
+  "evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-01 (compact25KB failure/source-review records)",
+  "retained_controls": "All1024 retained function body hashes exact after integration01. Build03 changes one existing diagnostic fixture setup await to expect(valid); assertions/fixtures/budgets unchanged, independent source review retained. New tests require exact source/artifact/provider binding.",
+  "outside_main": "Typed taint sink subject, dispatch census successor, saved+Studio pack notices, Native class/type source lifts, deeper refs/alias/ensemble/package633 owners are queued/unadmitted and uncounted.",
+  "deferred": "Runtime/VM and dedicated BIG-IP; Tcl8.4 assumption only where evidence lacks.",
+  "observed_utc": "2026-10-17T09:39:47.942740+00:00",
+  "observed_user_time": "2026-10-17T10:39:47.942740+01:00",
+  "user_timezone": "Europe/London",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "gains_since_last_report": {
+    "lsp_integrated": 21,
+    "additional_owner_facets": 3,
+    "effective_integrated": 24,
+    "verified": 0
+  },
+  "current_build": "Build03 ordinary five libraries running; prior E0609/E0599 failures retained, reviewed repairs included. No new test execution.",
+  "next_actions": [
+    "Finish actual source-owner consumers in parallel; keep all outside-Main candidates uncounted until reviewed integration.",
+    "Complete fresh ordinary builds, independently bind actual source/artifacts/providers and replay retained1024/focused6/extra controls with original assertions and180/30 guards.",
+    "Fix scoped validation and required owner/proof/generated/editor-host/rust-check/prep-pr gates; no PR until green."
+  ],
+  "report_cadence_minutes": 30,
+  "next_report_utc": "2026-10-17T10:09:47.942740+00:00"
+}

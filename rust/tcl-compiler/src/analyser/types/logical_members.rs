@@ -92,6 +92,12 @@ impl LogicalSourceMemberInsertion {
 }
 
 impl LogicalSourceClassDeclaration {
+    /// Retained original class metadata snapshot; reporting labels do not select it.
+    #[must_use]
+    pub fn metadata(&self) -> &ClassDef {
+        &self.class
+    }
+
     /// Immutable original image and complete retained input correspondence.
     /// This supplies no current class, installed member or execution grant.
     pub(crate) fn matches_source(

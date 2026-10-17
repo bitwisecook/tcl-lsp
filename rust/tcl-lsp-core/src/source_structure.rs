@@ -374,6 +374,33 @@ impl SourcePackagePresenceCensus {
         })
     }
 
+    /// Explicit authoring-value comparison, separate from Native package keys.
+    /// Positive original references survive other incomplete regions; a negative
+    /// requires every retained reference to support this exact source purpose.
+    pub(crate) fn already_names_unicode_source_value(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        package: &str,
+    ) -> Option<bool> {
+        if !self.coverage.matches(source, analysis) {
+            return None;
+        }
+        let config = analysis.body_lexer_config?;
+        let image = SourceImage::document(source);
+        let state = self.coverage.structure.package_census.as_ref()?;
+        let mut unavailable = false;
+        for reference in &state.references {
+            match reference.matches_unicode_source_value(&image, config, package) {
+                Some(true) => return Some(true),
+                Some(false) => {}
+                None => unavailable = true,
+            }
+        }
+        (!unavailable && state.unavailable.is_empty() && state.package_unavailable.is_empty())
+            .then_some(false)
+    }
+
     /// Positive genuine selected references survive incomplete other regions.
     /// Incomplete/no-representation is None, never a complete source negative.
     pub(crate) fn already_names(

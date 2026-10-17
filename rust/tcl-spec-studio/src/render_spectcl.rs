@@ -178,6 +178,13 @@ pub struct Gap {
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
+    // The builtin survey relates exact selected query operands to an explicit
+    // hypothetical target. A custom declaration cannot assert that relation.
+    Gap {
+        key: "source_package_query",
+        spelling: "source_package_query ProvidedVersion|RequiredVersion|VersionSatisfies (subcommand/refine; excluded)",
+        kind: GapKind::Excluded,
+    },
     Gap {
         // Shipped names preserve the entire original grammar, including its
         // native object-method operation. Inline authoring cannot assert that

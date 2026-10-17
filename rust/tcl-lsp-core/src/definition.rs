@@ -2521,6 +2521,41 @@ pub fn command_head_and_namespace_at(
     character: u32,
 ) -> Option<(String, String)> {
     let config = analysis.body_lexer_config?;
+    if analysis.allows_retained_logical_declaration_advice() {
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.matches_original_source_image(&image, config) {
+            return None;
+        }
+        let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+        let mut candidates =
+            tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+                source, analysis,
+            )?
+            .into_iter()
+            .filter(|candidate| {
+                candidate
+                    .original_head()
+                    .is_some_and(|head| head.span().start() <= offset && offset < head.span().end())
+            });
+        let candidate = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        let head = candidate.original_head()?;
+        let word = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            head,
+        )?)
+        .ok()?;
+        let namespace = candidate
+            .declared_source_context()
+            .map_or_else(tcl_core_types::ByteNamespacePath::root, |context| {
+                context.namespace_recipe().clone()
+            });
+        return Some((
+            word,
+            tcl_syntax::naming::checked_namespace_path_key(&namespace)?,
+        ));
+    }
     if !analysis.allows_retained_logical_declaration_advice()
         || !analysis
             .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
@@ -4437,6 +4472,46 @@ mod tests {
         Analyser::new()
             .with_resolved_input(input)
             .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn logical_autoload_head_uses_the_retained_source_namespace_and_refuses_stale_heads() {
+        let source = "namespace eval ::scope {proc p {} {}; p 1}";
+        let analysis = logical_procedure_navigation_analysis(source);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let cursor = source.rfind("p 1").unwrap();
+        assert_eq!(
+            command_head_and_namespace_at(source, &analysis, 0, u32::try_from(cursor).unwrap(),),
+            Some(("p".to_owned(), "::scope".to_owned()))
+        );
+        assert!(
+            command_head_and_namespace_at(
+                &format!("{source} "),
+                &analysis,
+                0,
+                u32::try_from(cursor).unwrap(),
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            command_head_and_namespace_at(source, &missing, 0, u32::try_from(cursor).unwrap(),)
+                .is_none()
+        );
+
+        let computed = "namespace eval ::scope {set head p; $head}";
+        let computed_analysis = logical_procedure_navigation_analysis(computed);
+        let computed_cursor = computed.rfind("$head").unwrap() + 1;
+        assert!(
+            command_head_and_namespace_at(
+                computed,
+                &computed_analysis,
+                0,
+                u32::try_from(computed_cursor).unwrap(),
+            )
+            .is_none()
+        );
     }
 
     #[test]

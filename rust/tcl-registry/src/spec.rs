@@ -4527,6 +4527,10 @@ pub struct SubCommand {
     /// handler, current filename, filesystem state and execution admission.
     pub source_path_operation: Option<crate::source_path::SourcePathOperation>,
 
+    /// Conditional package-query source algebra; custom packs cannot assert
+    /// this builtin survey relation. No physical provision or runtime identity.
+    pub source_package_query: Option<crate::source_navigation::SourcePackageQuery>,
+
     /// Conditional configuration-reference layout from the selected source
     /// schema. This grants no accepted argv, runtime object or handler identity.
     pub source_configuration_reference:
@@ -4901,6 +4905,7 @@ impl SubCommand {
         destructive: false,
         returns_path: false,
         source_path_operation: None,
+        source_package_query: None,
         source_configuration_reference: None,
         is_unescape: false,
         cfg_rewrite_name: None,

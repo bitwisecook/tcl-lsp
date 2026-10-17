@@ -4,6 +4,28 @@
 
 //! Source-navigation operands from the actual authored Registry schema.
 
+/// Conditional source-query algebra from a selected authored descriptor.
+/// No current package, provided value, load success or Native handler follows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcePackageQuery {
+    /// Query the already-provided version of one package; never its setter.
+    ProvidedVersion,
+    /// A requirement that may load code; distinct from a read-only query.
+    RequiredVersion,
+    /// Compare one version against one or more requirement expressions.
+    VersionSatisfies,
+}
+
+/// Exact selected effective operand range, excluding the command head and
+/// subcommand selector. Source values and execution need independent owners.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourcePackageQueryInvocation {
+    /// Selected descriptor algebra, not a display-name classification.
+    pub query: SourcePackageQuery,
+    /// Complete query operands, in the original effective post-head space.
+    pub arguments: std::ops::Range<usize>,
+}
+
 /// Exact post-head ordinal in one source declaration schema. This supplies
 /// source-card geometry only, without native loader, filesystem, package
 /// identity, command presence or successful execution authority.
@@ -52,6 +74,46 @@ pub enum SourcePackageReferenceSelection {
 }
 
 impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
+    /// Reborrow the actual selected subcommand/form query geometry. A selected
+    /// form with no query explicitly withholds the parent's source algebra.
+    /// This is a conditional source model only, never a package-state read.
+    #[must_use]
+    pub fn authored_source_package_query(&self) -> Option<SourcePackageQueryInvocation> {
+        let query = if let Some(form) = self.selected.form {
+            form.source_package_query?
+        } else {
+            self.selected.sub?.source_package_query?
+        };
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        let first = self.semantics.argument_offset;
+        if !self
+            .semantics
+            .arity
+            .accepts(self.argument_count_for_arity()?)
+        {
+            return None;
+        }
+        match query {
+            SourcePackageQuery::ProvidedVersion if count == first.checked_add(1)? => {}
+            SourcePackageQuery::RequiredVersion if count == first.checked_add(1)? => {
+                // The shared option walk must prove that this is a package
+                // operand, not an option-only/malformed require invocation.
+                if self.authored_source_navigation_operand()?
+                    != (SourceNavigationOperand::Package { argument: first })
+                {
+                    return None;
+                }
+            }
+            SourcePackageQuery::VersionSatisfies if count >= first.checked_add(2)? => {}
+            _ => return None,
+        }
+        Some(SourcePackageQueryInvocation {
+            query,
+            arguments: first..count,
+        })
+    }
+
     /// Original namespace-name and sole trailing body operands from the
     /// selected source vocabulary. This describes same-invocation source
     /// syntax, without an entered namespace, frame or executed body.
@@ -547,5 +609,105 @@ mod tests {
             ]),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod target_survey_query_tests {
+    use super::*;
+    use crate::{Arity, CommandRegistry, CommandSpec, SubCommand};
+
+    #[test]
+    fn selected_builtin_queries_keep_complete_ordinals_and_options() {
+        let context = crate::model::ingress::static_context_for("tcl8.6");
+        let select = |args: &[&str]| {
+            crate::model::resolve_invocation_in_context(
+                context.commands(),
+                Some(context.context()),
+                "package",
+                args,
+            )
+            .and_then(|schema| schema.authored_source_package_query())
+        };
+        assert_eq!(
+            select(&["provide", "Tcl"]),
+            Some(SourcePackageQueryInvocation {
+                query: SourcePackageQuery::ProvidedVersion,
+                arguments: 1..2,
+            })
+        );
+        assert_eq!(
+            select(&["require", "Tcl"]),
+            Some(SourcePackageQueryInvocation {
+                query: SourcePackageQuery::RequiredVersion,
+                arguments: 1..2,
+            })
+        );
+        assert_eq!(
+            select(&["vsatisfies", "8.6", "8.5", "9"]),
+            Some(SourcePackageQueryInvocation {
+                query: SourcePackageQuery::VersionSatisfies,
+                arguments: 1..4,
+            })
+        );
+        for args in [
+            vec!["provide", "Tcl", "8.6"],
+            vec!["require", "-exact"],
+            vec!["require", "-exact", "Tcl"],
+            vec!["require"],
+            vec!["provide"],
+            vec!["vsatisfies", "8.6"],
+        ] {
+            assert!(select(&args).is_none(), "{args:?}");
+        }
+        let expanded = [
+            crate::InvocationWord::Literal("provide"),
+            crate::InvocationWord::Expanded,
+        ];
+        assert!(
+            crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("package"),
+                    &expanded
+                ),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .resolved()
+            .and_then(|schema| schema.authored_source_package_query())
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn selected_concrete_form_cannot_inherit_parent_query_by_display_name() {
+        const FORMS: &[crate::forms::SubCommandForm] = &[crate::forms::SubCommandForm {
+            name: "provide",
+            arity: Arity::exact(1),
+            ..crate::forms::SubCommandForm::DEFAULT
+        }];
+        const MEMBERS: &[SubCommand] = &[SubCommand {
+            name: "provide",
+            arity: Arity::exact(1),
+            subcommand_forms: FORMS,
+            source_package_query: Some(SourcePackageQuery::ProvidedVersion),
+            ..SubCommand::DEFAULT
+        }];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "survey-form-fixture",
+            subcommands: MEMBERS,
+            ..CommandSpec::DEFAULT
+        });
+        let schema = crate::model::resolve_invocation_in_context(
+            &registry,
+            None,
+            "survey-form-fixture",
+            &["provide", "Tcl"],
+        )
+        .unwrap();
+        assert!(schema.form.is_some());
+        assert!(schema.authored_source_package_query().is_none());
     }
 }

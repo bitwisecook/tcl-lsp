@@ -36,6 +36,7 @@
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
 mod document_transform;
+mod package_source;
 mod proposal_diagnostics;
 mod rewrite_wire;
 mod studio_source;
@@ -13474,6 +13475,7 @@ impl Backend {
     /// Look up the per-folder dialect override for `uri`,
     /// preferring the deepest (longest-prefix) match so nested
     /// folders shadow their parents.
+    #[cfg(test)]
     async fn resolve_folder_dialect(&self, uri: &Uri) -> Option<String> {
         folder_dialect_for(uri, &self.folder_dialect_overrides().await)
     }
@@ -17860,27 +17862,6 @@ impl Backend {
         };
         drop(rehoming_guard);
         Ok(self.resolve_target_locations(targets).await?)
-    }
-
-    /// Resolve the call-site reference [`Location`]s for the symbol whose name
-    /// starts at `position` — the locations the code-lens peek
-    /// (`tcl-lsp.showReferences`) opens.  The declaration is never included,
-    /// matching the lens's "N references" call-site count; everything else is
-    /// literally [`Self::reference_locations`], the same path the
-    /// `textDocument/references` handler runs.  A separate lens path would
-    /// skip the method/classmethod cross-file layer the handler applies, so a
-    /// lens click would show fewer sites than Find All References on the very
-    /// same declaration.
-    async fn reference_locations_at(
-        &self,
-        uri: &Uri,
-        doc: &DocumentState,
-        analysis: &AnalysisResult,
-        position: Position,
-    ) -> DocumentSourceResult<Vec<Location>> {
-        Ok(self
-            .reference_locations(uri, doc, analysis, position, false)
-            .await?)
     }
 
     /// Every reference [`Location`] for the symbol at `position`: the
@@ -31223,6 +31204,9 @@ impl LanguageServer for Backend {
             }
             "tcl-lsp.fixAllSafeIssues" => self.fix_all_safe_issues_command(&params.arguments).await,
             "tcl-lsp.listSubcommands" => Ok(self.list_subcommands_command(&params.arguments).await),
+            "tcl-lsp.insertPackageRequire" => {
+                self.insert_package_require_command(&params.arguments).await
+            }
             "tcl-lsp.listKnownPackages" => Ok(Some(Self::list_known_packages_command())),
             "tcl-lsp.suggestPackagesForSymbol" => Ok(Some(
                 Self::suggest_packages_for_symbol_command(&params.arguments),
@@ -36222,6 +36206,7 @@ fn build_server_capabilities(
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),
+                "tcl-lsp.insertPackageRequire".to_owned(),
                 "tcl-lsp.listKnownPackages".to_owned(),
                 "tcl-lsp.suggestPackagesForSymbol".to_owned(),
                 "tcl-lsp.exportConfig".to_owned(),

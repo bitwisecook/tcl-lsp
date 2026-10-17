@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { registerSourceActionCommands } from "./codeActionSource";
+import { insertPackageRequirement } from "./packageRequire";
 import {
   closeSync,
   existsSync,
@@ -1713,84 +1714,20 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function packageInsertLine(document: TextDocument): number {
-  let line = 0;
-  if (document.lineCount > 0 && document.lineAt(0).text.startsWith("#!")) {
-    line = 1;
-  }
-  while (line < document.lineCount) {
-    const text = document.lineAt(line).text;
-    if (/^\s*package\s+require\b/.test(text)) {
-      line += 1;
-      continue;
-    }
-    break;
-  }
-  return line;
-}
-
 async function insertPackageRequire(): Promise<void> {
   const editor = window.activeTextEditor;
   if (!editor || !isTclLanguage(editor.document.languageId)) {
     window.showWarningMessage("Open a Tcl file to insert a package requirement.");
     return;
   }
-
-  const wordRange = editor.document.getWordRangeAtPosition(editor.selection.active, /[\w:]+/);
-  const symbol = wordRange ? editor.document.getText(wordRange) : "";
-
-  let suggestions: string[] = [];
-  const suggestResult = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.suggestPackagesForSymbol",
-    arguments: [symbol],
-  })) as { suggestions?: string[] } | null;
-  suggestions = suggestResult?.suggestions ?? [];
-
-  if (suggestions.length === 0) {
-    const listResult = (await client.sendRequest("workspace/executeCommand", {
+  const requestClient = client;
+  if (!requestClient?.isRunning()) return;
+  await insertPackageRequirement(editor, () =>
+    requestClient.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.listKnownPackages",
       arguments: [],
-    })) as { packages?: string[] } | null;
-    suggestions = listResult?.packages ?? [];
-  }
-
-  if (suggestions.length === 0) {
-    window.showInformationMessage(
-      "No known packages found. Configure tclLsp.libraryPaths to enable package discovery.",
-    );
-    return;
-  }
-
-  const picked = await window.showQuickPick(suggestions, {
-    placeHolder: symbol ? `Select package to require for '${symbol}'` : "Select package to require",
-    title: "Insert package require",
-  });
-  if (!picked) {
-    return;
-  }
-
-  const existing = new RegExp(`^\\s*package\\s+require\\s+${escapeRegExp(picked)}(?:\\s|$)`, "m");
-  if (existing.test(editor.document.getText())) {
-    window.showInformationMessage(`'package require ${picked}' already exists.`);
-    return;
-  }
-
-  const insertAt = packageInsertLine(editor.document);
-  const prefix =
-    insertAt > 0 && editor.document.lineAt(insertAt - 1).text.trim() !== "" ? "\n" : "";
-  const text = `${prefix}package require ${picked}\n`;
-  const insertPos =
-    insertAt < editor.document.lineCount
-      ? new vscode.Position(insertAt, 0)
-      : editor.document.lineAt(editor.document.lineCount - 1).range.end;
-  const applied = await editor.edit((editBuilder) => {
-    editBuilder.insert(insertPos, text);
-  });
-  if (applied) {
-    window.showInformationMessage(`Inserted 'package require ${picked}'.`);
-  } else {
-    window.showWarningMessage("Failed to insert package require.");
-  }
+    }),
+  );
 }
 
 function defaultPackageName(): string {

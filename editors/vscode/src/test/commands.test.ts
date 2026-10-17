@@ -462,3 +462,64 @@ suite("Source-bound code action follow-ups", () => {
     }
   });
 });
+
+suite("Source-bound requested package authoring", () => {
+  test("UTF16 source stays intact and a changed buffer retires the issued insertion", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "#! interpreter 😀\nputs café\n",
+    });
+    const editor = await vscode.window.showTextDocument(document);
+    const snapshot = captureDocumentTransform(document);
+    assert.ok(snapshot);
+    const result = await requestDocumentTransform<{ source: string; alreadyRequired: boolean }>(
+      snapshot,
+      "tcl-lsp.insertPackageRequire",
+      ["café"],
+    );
+    assert.ok(result, "actual package source result with ledger receipt");
+    assert.strictEqual(result.source, "#! interpreter 😀\npackage require café\nputs café\n");
+    assert.strictEqual(await applyDocumentTransform(snapshot, result), true);
+    const next = captureDocumentTransform(document);
+    assert.ok(next);
+    const duplicate = await requestDocumentTransform<{ source: string; alreadyRequired: boolean }>(
+      next,
+      "tcl-lsp.insertPackageRequire",
+      ["café"],
+    );
+    assert.ok(duplicate);
+    assert.strictEqual(duplicate.alreadyRequired, true);
+    assert.strictEqual(duplicate.source, document.getText());
+    await editor.edit((edit) => edit.insert(new vscode.Position(2, 0), "# newer\n"));
+    const changed = document.getText();
+    assert.strictEqual(await applyDocumentTransform(next, duplicate), false);
+    assert.strictEqual(document.getText(), changed);
+  });
+
+  test("a resource generation change refuses a package source result", async () => {
+    await activate(getDocUri("simple.tcl"));
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "puts done\n",
+    });
+    await vscode.window.showTextDocument(document);
+    const snapshot = captureDocumentTransform(document);
+    assert.ok(snapshot);
+    const result = await requestDocumentTransform<{ source: string }>(
+      snapshot,
+      "tcl-lsp.insertPackageRequire",
+      ["owned"],
+    );
+    assert.ok(result);
+    const configuration = vscode.workspace.getConfiguration("tclLsp.optimiser", document.uri);
+    const before = configuration.get<boolean>("enabled", true);
+    try {
+      await configuration.update("enabled", !before, undefined);
+      assert.strictEqual(await applyDocumentTransform(snapshot, result), false);
+      assert.strictEqual(document.getText(), "puts done\n");
+    } finally {
+      await configuration.update("enabled", before, undefined);
+    }
+  });
+});

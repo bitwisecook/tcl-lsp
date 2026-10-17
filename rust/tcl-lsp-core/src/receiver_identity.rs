@@ -575,7 +575,7 @@ pub(crate) fn method_calls_on_receiver(
         MethodReferencePurpose::Dispatch,
         |selected| {
             selected.receiver_class.name_span == class.name_span
-                && selected.method.name == method
+                && selected.original_selector_input().bytes() == method.as_bytes()
                 && selected.receiver == receiver
         },
     )
@@ -647,9 +647,12 @@ pub(crate) fn uneditable_method_selector(
     analysis: &AnalysisResult,
     source: &str,
     accepts: impl Fn(&RetainedReceiverMethod<'_>) -> bool,
-) -> Option<Span> {
+) -> (
+    Option<Span>,
+    crate::executable_regions::PotentialSourceVisit,
+) {
     let mut found = None;
-    crate::executable_regions::visit_analysis_executable_commands(
+    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
@@ -663,7 +666,7 @@ pub(crate) fn uneditable_method_selector(
             false
         },
     );
-    found
+    (found, coverage)
 }
 
 /// Type navigation at the original object read, independently of later argv.

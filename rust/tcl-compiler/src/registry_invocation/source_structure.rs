@@ -2311,6 +2311,23 @@ impl OriginalSourcePackageReference {
     pub const fn argument(&self) -> usize {
         self.reference.argument
     }
+    /// Compare one explicitly intended Unicode source value with the same
+    /// genuine written package word under its complete source configuration.
+    /// This purpose does not compare Native package keys or imply installation.
+    /// Missing word/configuration/Unicode correspondence is unavailable.
+    #[must_use]
+    pub fn matches_unicode_source_value(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        value: &str,
+    ) -> Option<bool> {
+        self.words.matches_source(image, config).then_some(())?;
+        let word = self.words.original_argument_word(self.reference.argument)?;
+        let original = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+        Some(original.as_slice() == value.as_bytes())
+    }
+
     /// Match fixed ASCII descriptor metadata under the original package purpose.
     #[must_use]
     pub fn matches_ascii(&self, metadata: &str) -> bool {

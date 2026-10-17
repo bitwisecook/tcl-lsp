@@ -33,24 +33,15 @@ use crate::code_actions::ActionKind;
 fn render_switch_pattern(value: &str, config: LexerConfig) -> Option<String> {
     let spelling = tcl_syntax::list::list_element(value);
     let container = format!("{{{spelling}}}");
-    let parsed = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(&container),
-        tcl_lexer::Span::new(0, u32::try_from(container.len()).ok()?),
+    if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+        &container,
+        &spelling,
         config.nested(),
-    )
-    .ok()?;
-    let [command] = parsed.commands.as_slice() else {
-        return None;
-    };
-    let [word] = command.words.as_slice() else {
-        return None;
-    };
-    if parsed.fatal_tail.is_some() || word.bytes() != container.as_bytes() {
+    ) {
         return None;
     }
-    let actual = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
     let values = tcl_syntax::word_rules::WordValueRules::from_config(&config)
-        .split_list(std::str::from_utf8(&actual).ok()?)
+        .split_list(&spelling)
         .ok()?;
     (values.len() == 1 && values[0].as_ref() == value).then_some(spelling)
 }
@@ -76,7 +67,8 @@ pub fn if_to_switch(
     if let Some(obligation) = obligation {
         return Some(obligation.refusal("Convert if chain to switch"));
     }
-    let config = analysis.body_lexer_config?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let config = current.config();
     let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
         analysis.resolved_input.as_ref()?.unit_profile(),
     );
@@ -92,7 +84,7 @@ pub fn if_to_switch(
     // spellings by hand; a structural defect (a stray word, a chain the
     // grammar cannot parse) declines the conversion.
     let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
-    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let context = current.context();
     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
     let plan = original.with_source_schema(&context, |schema| schema.clause_plan())??;
     if plan.defect.is_some() {
