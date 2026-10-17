@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-17T05:13:54.855824+00:00",
+  "status": "LOSSLESS_ARCHIVE_STORAGE_VERIFIED",
+  "capsules": [
+    {
+      "source": "/workspace/naming-validation/agent-work/v6-current-binding-compact-capsule",
+      "archive": "v6-current-binding-compact-capsule.tar.zst",
+      "archive_bytes": 526618,
+      "archive_sha256": "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
+      "member_index_sha256": "4d3ccc3cf227c48d44c600c0d54bd4db01de5e2215029c7a4673816c1131836d",
+      "verified_archive_file_members": 116,
+      "all_members_roundtrip_exact": true
+    },
+    {
+      "source": "/workspace/naming-validation/agent-work/v6-completed-extra18-evidence-capsule",
+      "archive": "v6-completed-extra18-evidence-capsule.tar.zst",
+      "archive_bytes": 62535,
+      "archive_sha256": "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd",
+      "member_index_sha256": "6c49f887d92c8c499562b2700daf7a63da475ef188d54cbbc01ee1e2c027d6d3",
+      "verified_archive_file_members": 55,
+      "all_members_roundtrip_exact": true
+    }
+  ],
+  "limits": "Build/source/binding receipts and completed focused6=1PASS5FAIL and extra18=17PASS1FAIL only. No ordinary/full-gate acceptance. Ongoing1024/native outputs excluded; no ELF or full input-index payloads. External guide unchanged."
+}

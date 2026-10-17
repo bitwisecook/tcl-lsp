@@ -1,0 +1,111 @@
+{
+  "scheduled_utc": "2026-10-17T05:07:00Z",
+  "last_utc": "2026-10-17T05:07:19.942782+00:00",
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_utc": "2026-10-17T05:37:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 229,
+  "lsp_required": 325,
+  "lsp_by_kind_integrated": {
+    "semantic": 116,
+    "validation": 111,
+    "documentation": 2
+  },
+  "lsp_without_integration": 96,
+  "gains_since_previous_report": {
+    "LSP": 0,
+    "effective": 0,
+    "reason": "Source/artifact freeze for actual current validation. Next packets source-reviewed outside main remain uncounted."
+  },
+  "baseline_integrated": 363,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 327,
+  "baseline_partial": 36,
+  "baseline_without_integration": 1795,
+  "annex_integrated": 63,
+  "annex_required": 64,
+  "effective_integrated_at_report": 426,
+  "effective_required": 2222,
+  "effective_without_integration": 1796,
+  "verified": 0,
+  "actual_builds": {
+    "standard5": {
+      "status": "PASS",
+      "seconds": 367.722
+    },
+    "extra3libraries": {
+      "status": "PASS",
+      "seconds": 209.828
+    },
+    "xtaskBIN": {
+      "status": "PASS",
+      "seconds": 238.341
+    },
+    "source_inputs": 39100,
+    "admitted_paths": 205,
+    "actual_ELFs": 9,
+    "source_drift": 0
+  },
+  "actual_editor": {
+    "status": "PASS",
+    "inputs": 443,
+    "drift": 0,
+    "scope": "TypeScript/configuredformat/worker/Node+browserbundles/StudioWebtypecheck; actualhosts pending."
+  },
+  "actual_focused6": {
+    "counts": {
+      "FAIL": 5,
+      "PASS": 1
+    },
+    "harness_errors": [],
+    "completed_utc": "2026-10-17T04:57:51.847817+00:00",
+    "all39100_source_fiveELFs_provider_prepost_match": true,
+    "scope": "Five previous linked/Itcl/Logicaldefinition failures still fail. Old additional genuineglobalScope test passes. No efficacy claimed for failed causal repairs."
+  },
+  "actual_extra18": {
+    "counts": {
+      "PASS": 17,
+      "FAIL": 1
+    },
+    "harness_errors": [],
+    "completed_utc": "2026-10-17T05:05:11.002735+00:00",
+    "all39100_source_nineELFs_provider_prepost_match": true,
+    "retained_previous18_outcomes_unchanged": true,
+    "remaining": "SpecTcl genuine Native command-name protocol refusal; Runtime/VM deferred."
+  },
+  "current_standard1024": {
+    "status": "RUNNING",
+    "receipt": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair3/retained1024-results-invocation.json",
+    "started_utc": "2026-10-17T04:58:36.666924+00:00",
+    "completed_utc": null,
+    "logs_started": 244,
+    "scope": "Exact previous994 orderedprefix+30newcontrols; actualboundpeerCLEAR; originalsingleton/list/test guards180/30 retained. No partial log passcounts or finaloutcomes inferred."
+  },
+  "actual_full_proof_gate": {
+    "status": "FAIL",
+    "structural_errors": 2094,
+    "seconds": 344.996,
+    "source_inputs": 39100,
+    "checker_inputs": 73526,
+    "drift": 0,
+    "scope": "Original full checker, no inventory/evidence digest rewrite."
+  },
+  "actual_native_e2e": {
+    "source_inventory": 34,
+    "by_target": {
+      "e2e": 24,
+      "preview_tickets_e2e": 10
+    },
+    "changed_existing": 33,
+    "new": 1,
+    "source_peer": "CLEAR",
+    "template_peer": "CLEAR_V2",
+    "actual_build": "PREPARING_ROOT_BUILDER_AFTER_ACTUAL_NINE_ELF_BINDING_PEER_CLEAR",
+    "scope": "Earlier11count corrected from realgenericpacketinventory; dedicatedirulesexcluded. Two V6packagePath controls belongCore1024. Bothrealnative targets+freshserver stillowed."
+  },
+  "next_source": "Nine existingLSP purposes source-reviewed outside main: Workspace2, standaloneRefactor1, package6331, referencesdispatch1, originalTclproviderValidation4. None integrated/counted. Actualfive-failure causal repair sourcecandidate and Nativeclass revision-retag repair require peer; orphan no-wake/census premise conflict remainsHOLD. Proofindex metadata source-only candidate held for canonicalowner/binding correction.",
+  "deferred_scope": "Runtime/VM and dedicated BIGIP/iRules/ILX migrations and suites deferred. Uncovered BIGIP Tcl8.4 assumption only, not measuredNativeevidence.",
+  "storage": "Three obsolete priorNative buildexecutables losslessly archived216763581B; all member sizes/hashes verified before removing1412350808B loosecopies. Current9/source/providers unchanged. NoELFs/fullinputindexes addedGit.",
+  "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr/nativeE2E/actualVSCode-browser-JBhosts not all green. NoPR/merge/#2286closure.",
+  "latest_push": "df1888908ceb7306e0e97ba3f875f5a9d1442efd"
+}
