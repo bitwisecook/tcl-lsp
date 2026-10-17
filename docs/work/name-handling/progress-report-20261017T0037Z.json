@@ -1,0 +1,78 @@
+{
+  "last_utc": "2026-10-17T00:37:00Z",
+  "delivered_utc": "2026-10-17T00:37:17Z",
+  "next_utc": "2026-10-17T01:07:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 181,
+  "lsp_required": 325,
+  "lsp_semantic_integrated": 87,
+  "lsp_validation_integrated": 92,
+  "lsp_documentation_integrated": 2,
+  "lsp_no_integration": 144,
+  "effective_integrated_at_report": 372,
+  "effective_required": 2218,
+  "gains_since_previous_report": {
+    "lsp": 4,
+    "effective": 5,
+    "new_grouped_shared_owner_required": 1
+  },
+  "new_baseline_purposes": [
+    "lsp-definition-grammar-cursor-source-owner",
+    "lsp-ai-optimise-apply-currency",
+    "lsp-code-actions-optimiser-rewrite-current-report",
+    "lsp-editor-diagnostic-display-vs-analysis"
+  ],
+  "new_grouped_annex": "compiler.owner.original-optimiser-rewrite-report-collection",
+  "baseline_integrated": 313,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 293,
+  "baseline_partial": 20,
+  "annex_integrated": 59,
+  "annex_required": 60,
+  "verified": 0,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "validation": {
+    "current_ordinary_build": {
+      "status": "PASS",
+      "seconds": 469.108,
+      "inputs": 39030,
+      "input_drift": 0,
+      "actual_five_ELFs_relocated_after_Cargo_and_hash_verified": true,
+      "completed_utc": "2026-10-17T00:36:03.082832+00:00",
+      "warnings": "Two unused imports and existing unused Server helper retained; no source cleanup during frozen validation."
+    },
+    "current_editor": "PASS408inputs0drift TS/scopedformat/worker/Node+browserbundles after retained TS2554/format failure and independently reviewed narrow callback repair; actualhosts unexecuted.",
+    "previous_source_standard902": {
+      "status": "COMPLETE",
+      "passed": 725,
+      "failed": 174,
+      "timed_out": 3,
+      "harness_errors": 0,
+      "retained726_passed": 603,
+      "retained_gains": 7,
+      "prior_pass_regressions": 0,
+      "all39019_inputs_five_ELFs_providers_postflight_match": true
+    },
+    "previous_source_extra10": {
+      "status": "COMPLETE",
+      "passed": 9,
+      "failed": 1,
+      "timed_out": 0,
+      "harness_errors": 0,
+      "all39019_inputs_nine_ELFs_postflight_match": true,
+      "failure_scope": "First helper notice vector stops at Native command-name protocol refusal before intended notice; second vector unobserved; no Runtime/VM fix."
+    },
+    "next_current_replay": "30 added Rust controls source-inventoried:28standard+2xtask. Prospective930standard retains all902 exactprefix/guards, plus separate12extra retains old10. Listings/execution and current extra-artifact builds pending.",
+    "jetbrains": "OriginalSDK extraction ENOSPC before Kotlin/tests remains unpassed; no fake SDK or host acceptance.",
+    "required_gates": "Owner/proof/generated/global/portable/rust-check/prep-pr not all green; no PR/merge/issue closure."
+  },
+  "latest_push": "c67b18eec",
+  "queued_source_work": [
+    "Studio source-store final saved-image/publication retirement V2 and actualNode/JB pending/accepted readiness V20 under independent review; held predecessors preserved",
+    "Code-action source/version and actualNode/browser checked application/rename intent owner underreview",
+    "Decoded-lambda actual phase transport partial691 sourcepeer; necessary conditionalLogical phase extension active",
+    "Generic Tk new-source/source-only explanation sourcecleared, unintegrated",
+    "Two generic editor validation source-admission callers sourcepacket pending final immutable V2 and review"
+  ],
+  "scope": "AllLSP and necessarysharedCompiler/DB/Registry; Runtime/VM andBIGIP migrations/dedicatedsuites deferred. UncoveredBIGIP Tcl8.4 working assumption remains separate from measured evidence."
+}

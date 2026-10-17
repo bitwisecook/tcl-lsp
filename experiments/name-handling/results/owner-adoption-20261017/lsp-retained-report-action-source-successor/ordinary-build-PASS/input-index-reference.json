@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/input-before.json",
+  "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+  "count": 39030,
+  "all_actual_sources_unchanged": true,
+  "actual_five_artifacts_hash_verified_after_Cargo_exit": true
+}

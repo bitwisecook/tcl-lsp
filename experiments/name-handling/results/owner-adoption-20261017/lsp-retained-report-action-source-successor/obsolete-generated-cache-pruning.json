@@ -1,0 +1,604 @@
+{
+  "utc": "2026-10-17T00:41:27.324504+00:00",
+  "completed_ordinary_build_before_pruning": true,
+  "removed_old_generated_files": [
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-f9e9a13c351e4803.rlib",
+      "bytes": 18030716,
+      "sha256": "48c1eed9c564239c18a37ad6b6b43c1a99c5c1b0ff1e5c7dfbfd71b4d9c567fa",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-f9e9a13c351e4803.rmeta",
+      "bytes": 3887931,
+      "sha256": "b860bf382ecfb31160e1231438fa8fa50326a82da502a9905445504525648307",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-076542b7cd04a51f.rlib",
+      "bytes": 18040686,
+      "sha256": "c17227d55753ea7d9b5eebbe970fdd9f4e472a47b609afcf085998df2e8ae642",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-076542b7cd04a51f.rmeta",
+      "bytes": 3887958,
+      "sha256": "946440edfe383d1ccc73ed1605735166c3607574077b135887dd3a0c730f8df1",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-1c45ccac6dffc828.rlib",
+      "bytes": 18045202,
+      "sha256": "156fc3e0a406bab5489f60a54115b12d8b4eb8ef435d4cc2bd8a9832d1b0dd04",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-1c45ccac6dffc828.rmeta",
+      "bytes": 3887931,
+      "sha256": "f9aa7d80f0879b36e372e9301800c0e857d827e7b695f4b27b8c0e85fc6cc09b",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-77305fb5090140f5.rlib",
+      "bytes": 18048150,
+      "sha256": "cb0d73731be0bfeb100a397b2cbb26118e6ca6e1202573b9f0ddce3dbf4a644b",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-77305fb5090140f5.rmeta",
+      "bytes": 3889234,
+      "sha256": "d6cdd3529e08cfda5cc3974c019d283af9cf10b8042a8d5e2cbd56f88dd6e0c7",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-71e4938f9e55a570.rlib",
+      "bytes": 23823846,
+      "sha256": "fe97fc453022e62278011eaab2e7ea26d63c4f309f4928d152b88cf55baaeb74",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-71e4938f9e55a570.rmeta",
+      "bytes": 3888865,
+      "sha256": "a4066e641b4cc0cfd26c24ac8f6ff233b181f8dfa8dbdfe36b4b8f6e442c1623",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-d3840739d55b19af.rlib",
+      "bytes": 23820322,
+      "sha256": "2639de84f73a5e71ed2e146c186ea0a1f22f245a989b79de0e261eddc9caa5a5",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-d3840739d55b19af.rmeta",
+      "bytes": 3890083,
+      "sha256": "2dc1d6a335803eecb0ebb3a4e433430c10fc0fda07cbf5b7a370aa6e2fb98ec1",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-9bc2c6301b717dd0.rlib",
+      "bytes": 23825428,
+      "sha256": "03bcd8b732f05a2036c03c31c47d11d0d1bd8e880f9c2c2aa5083eb7d1fd0f59",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spectcl-9bc2c6301b717dd0.rmeta",
+      "bytes": 3888630,
+      "sha256": "0e156fb59470b5ff84ce2cb2caf593275861bc070cf8fb50e21ebe3750011b87",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-93225be4506f172e.rlib",
+      "bytes": 10491888,
+      "sha256": "e3d9d0d97e96835c529799b5f9ca6cd018df66508909f1d11552a85c13a7bc1e",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-93225be4506f172e.rmeta",
+      "bytes": 2547807,
+      "sha256": "9db8794467056375e8151cf3397f98b7c83391e8c6f2e424de1d12508a5fcd3e",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-8d3366341436265d.rlib",
+      "bytes": 14419496,
+      "sha256": "71d91b4e4024ec9e41fbe9c0173a0a1246bd64245c17bc92f01ab72f6b249c02",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-8d3366341436265d.rmeta",
+      "bytes": 2547807,
+      "sha256": "939dc280d009a7be40ddad87a07bd5e20bb7e956810d29f701be60a66520fe30",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-cf90215fb6e0bbab.rlib",
+      "bytes": 14415472,
+      "sha256": "f02f5e1ffa48fe2bba5de4b043b1ebf5c188d65f9b461f11896760233cef4d0d",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-cf90215fb6e0bbab.rmeta",
+      "bytes": 2547703,
+      "sha256": "248bcd1f5a98cda4d33ea3300d481aa0a27a2dc74d58f07282ccea07ab33b7bc",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-804e8238ffde7f6b.rlib",
+      "bytes": 14403366,
+      "sha256": "1a7deda97e6b11446b503a3c8414bdeed05b24efe8bd4536999c0a61023cb439",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-804e8238ffde7f6b.rmeta",
+      "bytes": 2549741,
+      "sha256": "5bbf86021e2b5c8f508e059d0dd2b3b10ba79e15bddf79e729408fee2ccc6fdd",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-4fc8f91687be8031.rlib",
+      "bytes": 14420152,
+      "sha256": "b0352ac7adb040e1481ce4551ae72e9de783c3ccdb88f2d85487d297f5b675b4",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_sslictcl-4fc8f91687be8031.rmeta",
+      "bytes": 2547703,
+      "sha256": "28ef423f653d4dafe95a7e45454852986a41e5f37b1e882cac5882e1e6253544",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libsyn-ed9c49cd6ec4dc1f.rlib",
+      "bytes": 12450814,
+      "sha256": "f7990a96a5d424dcfaf9dab92dbcd930671ea5c998b9df96084ce9b100f4d5fc",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libsyn-ed9c49cd6ec4dc1f.rmeta",
+      "bytes": 4773772,
+      "sha256": "63f228e707bb67e0e597b8a91c93047066e87885b8fe786a42a453b97b9a7210",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libsyn-00eaed59f90d1d73.rlib",
+      "bytes": 12525090,
+      "sha256": "cd61a4e332e25d1d27157d5bc9002cd31e71c67b9a04c1e48a3571ce4d70c5f5",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libsyn-00eaed59f90d1d73.rmeta",
+      "bytes": 4829282,
+      "sha256": "6cd60cd57bd10017a9d8acb5eb23fc928c76e6d1f1d60cc952d846481fea1be7",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-40f648db8d9c3dd5.rlib",
+      "bytes": 14216870,
+      "sha256": "d95db0e0f2b79235e2e74d02574d27a402aafa17c3c136c2cc70dd91f1919e59",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-40f648db8d9c3dd5.rmeta",
+      "bytes": 5325094,
+      "sha256": "a4a1b12a1e22fdef3256cf9bcca0b3d3db453088beba45ed3ea0533387214401",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-72fd8c7ba165dc69.rlib",
+      "bytes": 17512538,
+      "sha256": "0f5cfd0bbbd936383238fc18063d36f4a5573a6e7d3d41f71cdf76259e535a7f",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-72fd8c7ba165dc69.rmeta",
+      "bytes": 5314528,
+      "sha256": "6c464ef305f635fdfb3c928d61a1a5d30ce375fadc912c54802eedfd1979f3c7",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-b179c6b88118691e.rlib",
+      "bytes": 17508628,
+      "sha256": "e72cf93b805806961223a4e12773de95bc0ba8a25f01f73e5da2b4ab341c9b45",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-b179c6b88118691e.rmeta",
+      "bytes": 5314528,
+      "sha256": "af06f059ad1d144373dfc725317fae719e44d009bf253b2b6f6918e39e5edd5e",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-45ee13f1fb9e28b9.rlib",
+      "bytes": 14132538,
+      "sha256": "d9930b04242184dac51d0f371898bac20759932293723d594bbb7214fccf5fc9",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-45ee13f1fb9e28b9.rmeta",
+      "bytes": 5311656,
+      "sha256": "7c9ceae149b2c3aee33c0d7523a10dbe1bf1a9765bbf886fd9f8d3ba42865d1c",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-cb5aa95f8991e61a.rlib",
+      "bytes": 17501180,
+      "sha256": "ee37ddf106118bdfe5730d58735512ce11c6cccb0d0ae2271d2a6ea9b6f15a0c",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-cb5aa95f8991e61a.rmeta",
+      "bytes": 5313691,
+      "sha256": "a5ad9960501ce6c339051a43b48fa186c15d5e7be03fc749d41db24884811e85",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-7827d38d41c53628.rlib",
+      "bytes": 17488660,
+      "sha256": "8dac0dc3558b51eb2145fcb61e278945ca54d16036d4fbbbdadea1a6ea71089d",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_syntax-7827d38d41c53628.rmeta",
+      "bytes": 5317624,
+      "sha256": "9d3434adcd7272da28361acb319828cd60a2128b0d45564a93b57ce01143d574",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libregex_automata-1adddd79b0927a0c.rlib",
+      "bytes": 10739472,
+      "sha256": "e4cb1a63b7ffe55bdc8f76777184cf103b5062ae7443eee2d21be650017ba25a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libregex_automata-1adddd79b0927a0c.rmeta",
+      "bytes": 3373115,
+      "sha256": "a1f8009b65e4789b4ba6885bfb887aa10aa32e290cc53a2f6f3b0797f7632dee",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/librustls-406ddabfae118d6b.rlib",
+      "bytes": 18232034,
+      "sha256": "37b3048060963f579daae1f1c9d86ce93add1cc4650b2732af3b31defe398596",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/librustls-406ddabfae118d6b.rmeta",
+      "bytes": 4696990,
+      "sha256": "094a6efcd9ccf5395e45a3ca81e685793ec95317382b0a9d6161df90f047413f",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_registry-70e5ac1f0417b4e1.rlib",
+      "bytes": 132426184,
+      "sha256": "6feb63d83a2cb47fc82af55d31316a071d6bd80931e33f1dee872baa3e1a8a8a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_registry-70e5ac1f0417b4e1.rmeta",
+      "bytes": 58363096,
+      "sha256": "907371676fb3cb2ff880f5cbc1e3795448bf6a170e76e0d607fad77551d92a82",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_registry-b198e098dad750d9.rlib",
+      "bytes": 151758060,
+      "sha256": "11abe30c1e49afeaed9669f6ff97d3c7b2b179b21b896c51ee4e000d3bbc0ead",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_registry-b198e098dad750d9.rmeta",
+      "bytes": 58348750,
+      "sha256": "f635130d30933722c084b8cc489c03d320c01e2b239c2d7b0f7d6c59426e7991",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-9253f122d025857a.rlib",
+      "bytes": 85493926,
+      "sha256": "dc556ccc7056bcee3391dd476c1ebeb17ba582724b4e2d23c498e606370fc261",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-9253f122d025857a.rmeta",
+      "bytes": 9414167,
+      "sha256": "f7bc4c9db91954ef90b690d893fb6de9a690682b22f1d8006e6e3a13026c10fa",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-b82e10e883a69b17.rlib",
+      "bytes": 83191086,
+      "sha256": "2ed2916e5de039fd52cb91e5668a92483b4f94c1d93f8b37c676f5b0d3406cc6",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-b82e10e883a69b17.rmeta",
+      "bytes": 9145315,
+      "sha256": "31d1e33cb287ad1eb3ee4ebfb3a44d3a2ee972bfab175483f15559041378a2b0",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-919546857b6617a2.rlib",
+      "bytes": 83881902,
+      "sha256": "d29e8228d2a83209f6a0a285c02b2fe1ade856c496a3beb9d83aaa563e23740d",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-919546857b6617a2.rmeta",
+      "bytes": 9404782,
+      "sha256": "e3665f8da94a4423dce68789da69dd628c343f17041c151ac35769b30c32934d",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-395a75e2b0089cc6.rlib",
+      "bytes": 82058848,
+      "sha256": "8f2f1db9da9acfc55802ac4e552cbb45a1ce622cd89fff844518d73ccd82fae9",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_core-395a75e2b0089cc6.rmeta",
+      "bytes": 9043684,
+      "sha256": "b6ccc7ee82e9b907677652c0b9f67dba651f3aa1f4f0960f65b1891cd7a8243a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_explorer-e78442bb619f46cc.rlib",
+      "bytes": 14077882,
+      "sha256": "006bba0d0f731515413cf3f5fc4506931c68d0017f5f5e32f3007d2db7e3a9f8",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_explorer-e78442bb619f46cc.rmeta",
+      "bytes": 516424,
+      "sha256": "8a157aa32ad06cb7c7d5937e81c6395275822431777dc4f8a88ac3b686c57109",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_compiler-dbd2302dece8237f.rlib",
+      "bytes": 343843034,
+      "sha256": "a8f4d8302bb8cc297d79c02fa112c2304b6fcfed52e3f8a4ee9b6fe269fbe69a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_compiler-dbd2302dece8237f.rmeta",
+      "bytes": 45415423,
+      "sha256": "2e0d2972b06587afacaa9e806c7d72efc4b1adc77bf7700dd4b6605d5769ec94",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-4d514983de55d3b4.rlib",
+      "bytes": 25924862,
+      "sha256": "0c4a423eec7ef114c109e9996336f11927ef61ca8f0b402bf5e29feed9cae3ed",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-4d514983de55d3b4.rmeta",
+      "bytes": 5170067,
+      "sha256": "3c53767f99a9c3842cee4040ab292a954d3f702a2b808be6c38e4e7baa69fe34",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-00e2bcaa11994574.rlib",
+      "bytes": 25926156,
+      "sha256": "b913393838e03cf1e1ba4b586200810929c9073f0882822a32efd0a0a76c9984",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-00e2bcaa11994574.rmeta",
+      "bytes": 5170067,
+      "sha256": "7d1a9be7a48fbf20bef21020681ce27002a66b77cdd24a4a073aa111b350ba6b",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-8daecc01d92b9d94.rlib",
+      "bytes": 25927188,
+      "sha256": "92bb83c6a1dc5654728626f4936a85d0d55a61bca9f8e984c10ccfb30eeb6886",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-8daecc01d92b9d94.rmeta",
+      "bytes": 5170173,
+      "sha256": "5f9f7c5c0cd2a9f75885fbce8f6b9c9f652308a04e1945bed7d4182f389fba8b",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-b3d2e7c6b86802d9.rlib",
+      "bytes": 25925278,
+      "sha256": "20d03c319bd481b7333f1ef56c386c17eade7b903bbb9148535265a58e2eb5f4",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-b3d2e7c6b86802d9.rmeta",
+      "bytes": 5170067,
+      "sha256": "f544bbd451a68287e21321c17f14821a9c7e38733969bdf7d8875c54d547a033",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-52ca8f94a7efb089.rlib",
+      "bytes": 34283040,
+      "sha256": "038c4473434247e06af3895fd8e2101c6bde092708adcb070cc57ade570b77f3",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-52ca8f94a7efb089.rmeta",
+      "bytes": 5170173,
+      "sha256": "3e7a75735c2e902a341ba55f884037fb9ea71d6fa65ec20a057320e3f7fb98f6",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-908681ebb71046e7.rlib",
+      "bytes": 34283876,
+      "sha256": "56f21e94c8d57bf958f90c3d9ac28c5457ec4abf2ce089fa0f01d6fa37ea0619",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-908681ebb71046e7.rmeta",
+      "bytes": 5170127,
+      "sha256": "f9e14a2a9d8bfecea202d3dbd7c2385bf3c2b12da59f4561f0d6c56f84a110a6",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-c3e76ba811b89552.rlib",
+      "bytes": 34289636,
+      "sha256": "e0c4d5ada6fc44e9460ffa84a4e23934228b90f6453e64e8547b9559817a4dd2",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-c3e76ba811b89552.rmeta",
+      "bytes": 5171120,
+      "sha256": "f88961c34a5aab4260eded611e9edce2f1d348b2de10df73037313671e6af571",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-b47ba3b773fb910d.rlib",
+      "bytes": 34283718,
+      "sha256": "84f9e015cb81c0c132667ef06d021862f0c559ede817c99129255d200654082a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip-b47ba3b773fb910d.rmeta",
+      "bytes": 5170127,
+      "sha256": "28ccefad67963d3dd1573e99450b6d64d45bb80bf87699f3ba26c93fce2dbeec",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-f850fb2a72979147.rlib",
+      "bytes": 12231072,
+      "sha256": "5337adaa5447cbd0d1d17ebe2e8d9b83c152c2fed9a5a4c818eac8e9801e6cfb",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-f850fb2a72979147.rmeta",
+      "bytes": 1201455,
+      "sha256": "1281f7a2b20071a74934fc5f8de1a9cadc0b7a1a60011ccb272b9c665d0323dd",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-b434ee9677423306.rlib",
+      "bytes": 11508538,
+      "sha256": "a1106f876eb8267f670a3330bc05b4ac624aea53bd6ecd0eb8e7b903a79c9ee7",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-b434ee9677423306.rmeta",
+      "bytes": 1134875,
+      "sha256": "5ef6f9904d67b877d4a0338b9cd7a4c1d7a90b4fc9e01cd7569f9864c562e4ed",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-7f409a27c3b9da24.rlib",
+      "bytes": 16775542,
+      "sha256": "e1c4b7ce20f3e861230a81ec862edc0db2fb80c77b9dd5e87194216a40fe8e0e",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_bigip_query-7f409a27c3b9da24.rmeta",
+      "bytes": 1202625,
+      "sha256": "cb6ccc262a1da37b66dcb13bb93a037a7172bb13ffebdbf1400be58e09563a63",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_vm-f06841ba9be2fff1.rlib",
+      "bytes": 77925518,
+      "sha256": "80993120046105e351caf1c5f29e12e1f700de5b3a20816c98e61541ffaa7711",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_vm-f06841ba9be2fff1.rmeta",
+      "bytes": 6881950,
+      "sha256": "20baed8016fbf456358c775cb638bebf63f71df94b46f5523150c8ab1ab166ea",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_vm-e9ade2a2a858b009.rlib",
+      "bytes": 103529100,
+      "sha256": "14027a1db59dbb1ebeb836708cc2d88c9c25169531bd8be02c3bdaa9748e9482",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_vm-e9ade2a2a858b009.rmeta",
+      "bytes": 6881948,
+      "sha256": "657790ab06ecc76879c84cec07169cc97568030c20241cc86642e0e6ae0f1e8a",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libls_types-42916f9b70e1d87e.rlib",
+      "bytes": 15871098,
+      "sha256": "e6a09e672a25e21a5fcbee568c035e8bdf67ae465191990351cb4c353b8fa391",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libls_types-42916f9b70e1d87e.rmeta",
+      "bytes": 14687759,
+      "sha256": "3a3a4c2e4be8ac95fb8d2ff9c3bc186fafa99acf896fa64ab829894cd2c736e5",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spec_studio-72ae1657ac7f0d4a.rlib",
+      "bytes": 23989778,
+      "sha256": "3ba3a98b0f4975077ee7cb296fc7150098738e1ad70b1ca4939be489b629c191",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spec_studio-72ae1657ac7f0d4a.rmeta",
+      "bytes": 1751838,
+      "sha256": "0eb7e1ed0dd928f2dbfd14d75623ca96ed6a9c5fa0b8bfaacf5e28b960fbd325",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spec_studio-52b9b099ad4492de.rlib",
+      "bytes": 23960078,
+      "sha256": "65d0b195f2aee4cdfab7bca7825230be066808ccf7bc9f940d356d3eaf4fc554",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_spec_studio-52b9b099ad4492de.rmeta",
+      "bytes": 1750761,
+      "sha256": "69934b0599472d8bd28945288ec365146e27118f36f37d73ecd636e9f26b388d",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-73751a86a19d24ce.rlib",
+      "bytes": 50661250,
+      "sha256": "198ca2a190c3c8991c45a166f9715ce2162edeb20bc5dfb98a68202d5e6983d0",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-73751a86a19d24ce.rmeta",
+      "bytes": 4400368,
+      "sha256": "f1b6d3aeef6319ca7fd5cf29a8155df6582c12b50096a8638740b8d4a75fd9ee",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-035eb06170b76077.rlib",
+      "bytes": 52613990,
+      "sha256": "f58f0f9cbb0ae6e043ef6dd57a74be635754fc92c4625ef72442c1af8152912c",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-035eb06170b76077.rmeta",
+      "bytes": 4461908,
+      "sha256": "5a79ba2c90ea20b0c184891c20b7711ab5af68670a116842fdd7e00818fff168",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-7454d6701df29bc1.rlib",
+      "bytes": 64243958,
+      "sha256": "330175a08194e344fc78d0db3432442c36dcce62260e95e1107eeef6e45b9e2e",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/debug/deps/libtcl_lsp_db-7454d6701df29bc1.rmeta",
+      "bytes": 4346105,
+      "sha256": "1208dfa30b880d4df3d3e627adc04c7c27c17f9a792ae6c20535b8fcf7944be4",
+      "regeneratable": "Cargo generated rlib/rmeta cache only; source/providers/test ELF evidence untouched."
+    }
+  ],
+  "removed_count": 98,
+  "logical_bytes": 2414223973,
+  "actual_free_bytes_before": 596254720,
+  "actual_free_bytes_after": 3010732032,
+  "all5_actual_frozen_ELFs_unchanged_before_after": true,
+  "limits": "Generated cache may require legitimate rebuild on older feature variants; no source, original provider, full input index, test ELF/result/log/evidence archive deletion.",
+  "full_unchanged_file_reference": {
+    "path": "/workspace/naming-validation/post-report-build-obsolete-rlib-pruning.json",
+    "sha256": "d86b68aafc67b664d6e86391f49961b365df1314785e29e715270105aff25d50"
+  }
+}

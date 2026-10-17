@@ -1,0 +1,54 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+warning: unused import: `tcl_compiler::interprocedural::InterproceduralAnalysis`
+   --> rust/tcl-lsp-db/src/lib.rs:218:5
+    |
+218 | use tcl_compiler::interprocedural::InterproceduralAnalysis;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-db` (lib) generated 1 warning (run `cargo fix --lib -p tcl-lsp-db` to apply 1 suggestion)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+warning: method `reference_locations_at` is never used
+     --> rust/tcl-lsp-server/src/lib.rs:17622:14
+      |
+10078 | impl Backend {
+      | ------------ method in this implementation
+...
+17622 |     async fn reference_locations_at(
+      |              ^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib test) generated 1 warning
+warning: `tcl-compiler` (lib test) generated 1 warning (1 duplicate)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+warning: `tcl-lsp-db` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized] target(s) in 7m 43s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-30b36f5fc9611193)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_core-894b7574946ed478)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_db-4adc210b216c0747)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_server-0d3d6c6a75aed312)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_registry-24ca9a1c83ae5946)

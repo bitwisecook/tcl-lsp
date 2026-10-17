@@ -1,0 +1,31 @@
+{
+  "approved_union_manifest": "/workspace/naming-validation/lsp-next-source-owner-admission/admission.json",
+  "approved_union_manifest_sha256": "686fbd94dbdb97efd595080aa26b8fd26b9eb5312a61abf53937e971d30b60e7",
+  "all_union_afterimages_match_before_build": true,
+  "explicit_union_paths_in_source_snapshot": 85,
+  "source_head": "08b062bc5d2ed398221af52199e8fee814634abb",
+  "rust_diff_sha256": "19b526eed42b1c27478cf91b9d41d9655f1ea4ba90ec9edb541154397ce5c054",
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-registry",
+    "tcl-lsp-server"
+  ],
+  "status": "PASS_FIVE_LIBRARY_BUILD",
+  "input_before_count": 39030,
+  "utc": "2026-10-17T00:28:13.974950+00:00",
+  "command": "CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --locked -p tcl-compiler -p tcl-lsp-core -p tcl-lsp-db -p tcl-registry -p tcl-lsp-server --lib --no-run",
+  "scope": "Actual reviewed current LSP owner/adopter source batch and necessary Compiler/DB/Registry only. Actual workspace dual original/fresh provider source lease, selected definition grammar cursor, original optimiser source/full worker/full report collection+DB context, both chat optimiser callers, completed diagnostic source/session/settings/samepublisher rejoin, and actual source-owner checker routes. Retained902+extra10 preserved; next added controls bind only after actual successful artifacts. Runtime/VM/BIGIP dedicated work deferred. No traces, budget changes or stronger Native/edit/absence/Normal grants.",
+  "exit_code": 0,
+  "build_seconds": 469.108,
+  "input_after_count": 39030,
+  "input_drift_count": 0,
+  "input_drift": [],
+  "completed_utc": "2026-10-17T00:36:03.082832+00:00",
+  "all_five_artifact_relocations_hash_verified": true
+}
