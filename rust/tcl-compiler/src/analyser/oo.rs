@@ -1492,8 +1492,7 @@ impl Analyser {
             .zip(statement.args())
             .any(|(word, name)| {
                 name.as_bytes().contains(&0)
-                    || tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
-                        .as_deref()
+                    || tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref()
                         != Some(name.as_bytes())
             })
         {

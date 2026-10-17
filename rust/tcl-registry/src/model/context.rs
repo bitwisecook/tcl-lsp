@@ -59,7 +59,9 @@ use crate::model::surface::{
     vendor_surface_package,
 };
 use crate::registry::NameProviders;
-use tcl_dialect::model::{CorePoints, PackageFloor, SurfaceQuery, surface_admits};
+#[cfg(test)]
+use tcl_dialect::model::PackageFloor;
+use tcl_dialect::model::{CorePoints, SurfaceQuery, surface_admits};
 // Shared registry-derived payload for vendor-surface queries.
 use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
@@ -237,6 +239,7 @@ pub struct ResolvedContext {
     /// and release the environment resolves to, plus its active packages.
     /// Cached at resolution — every availability answer reads it.
     authoring_scope: AuthoringScope,
+    inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
 }
 
 impl ResolvedContext {
@@ -248,6 +251,18 @@ impl ResolvedContext {
     /// target sets with no point primary.
     #[must_use]
     pub fn resolve(environment: Arc<EnvironmentDefinition>, keyed: &KeyedVersions) -> Self {
+        Self::resolve_with_inherited_surfaces(
+            environment,
+            keyed,
+            tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
+        )
+    }
+
+    pub(crate) fn resolve_with_inherited_surfaces(
+        environment: Arc<EnvironmentDefinition>,
+        keyed: &KeyedVersions,
+        inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+    ) -> Self {
         let mut floors = FloorMap::default();
         // The environment's own declared target set, on whatever axis it
         // names (the core ladder for the Tcl environments; a package axis
@@ -346,6 +361,7 @@ impl ResolvedContext {
             pack_ambient: Vec::new(),
             declared_targets: Vec::new(),
             authoring_scope: AuthoringScope::default(),
+            inherited_surfaces,
         };
         context.authoring_scope = compute_authoring_scope(&context);
         context
@@ -369,6 +385,7 @@ impl ResolvedContext {
                 primary: None,
             });
         }
+        self.authoring_scope = compute_authoring_scope(self);
     }
 
     /// The package floors in force: each package axis whose floor names a
@@ -601,7 +618,21 @@ impl ResolvedContext {
             return true;
         }
         let at = self.floors.primary(&VersionAxisId::core(core.family));
-        tcl_dialect::model::inherited_surface::admits(core.family, *source, name, at)
+        self.inherited_surfaces
+            .admits(core.family, *source, name, at)
+    }
+
+    /// The generation of the exact inherited roster held by this context.
+    /// This is source catalogue observation, not current execution authority.
+    #[must_use]
+    pub fn inherited_surface_generation(&self) -> u64 {
+        self.inherited_surfaces.generation()
+    }
+
+    pub(crate) fn inherited_surface_snapshot(
+        &self,
+    ) -> &tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot {
+        &self.inherited_surfaces
     }
 
     /// Whether the axis primary admits `declaration`'s applicability: the
@@ -1392,15 +1423,36 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             }
         }
     }
+    // Preserve historical vendor order and floor recipe, then project genuine
+    // arbitrary required/ambient provider facts. Ambient pack rows alone are
+    // floor metadata, not activation; package_provider_active remains the gate.
+    let mut names = Vec::<&str>::new();
     for &package in VENDOR_SURFACE_PACKAGES {
         if vendor_surface_package(context.environment.id.as_str()) == Some(package)
             || context.placement_is_ambient(package)
         {
-            scope.packages.push(PackageFloor {
-                name: package,
-                version: context.pack_ambient_floor(package),
-            });
+            names.push(package);
         }
+    }
+    for package in context.required_packages.iter().map(AsRef::as_ref).chain(
+        context
+            .environment
+            .expected_packages
+            .iter()
+            .filter(|row| row.ambient)
+            .map(|row| row.package.as_ref()),
+    ) {
+        if context.package_provider_active(package) && !names.contains(&package) {
+            names.push(package);
+        }
+    }
+    for package in names {
+        scope
+            .packages
+            .push(tcl_dialect::model::OwnedPackageFloor::new(
+                package,
+                context.pack_ambient_floor(package),
+            ));
     }
     scope
 }
@@ -1413,13 +1465,10 @@ pub struct AuthoringScope {
     /// each with the release when one is pinned. A family with an ancestry
     /// anchor lists itself, then the anchor.
     core: Vec<(Family, Option<Version>)>,
-    /// The vendor packages whose surface this environment carries, each at
-    /// the floor a loaded pack declared for it as ambient.
-    ///
-    /// A placement's own floor is an owned [`Version`] and a query lends
-    /// only borrowed strings, so the environment's pin does not appear
-    /// here; a pack's `ambient_package` row is a `'static` spelling and does.
-    packages: Vec<PackageFloor<'static>>,
+    /// Retained vendor and genuine required/ambient source package facts.
+    /// Pack-declared floors preserve the historical floor-only recipe;
+    /// they do not independently activate a package or prove installation.
+    packages: Vec<tcl_dialect::model::OwnedPackageFloor>,
 }
 
 impl AuthoringScope {
@@ -1433,7 +1482,7 @@ impl AuthoringScope {
                     .iter()
                     .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
             ),
-            packages: &self.packages,
+            packages: tcl_dialect::model::PackageFloors::Owned(&self.packages),
         }
     }
 }
@@ -2319,7 +2368,7 @@ mod tests {
             SurfaceQuery {
                 realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
-                packages: &[],
+                packages: tcl_dialect::model::PackageFloors::Borrowed(&[]),
             }
         );
         for gate in [
@@ -2688,7 +2737,7 @@ mod tests {
             SurfaceQuery {
                 realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: plain.surface_query().core,
-                packages: &[PackageFloor::named("Tk")],
+                packages: tcl_dialect::model::PackageFloors::Borrowed(&[PackageFloor::named("Tk")]),
             }
         );
         assert_eq!(tk.tcl_version_ceiling(), None);
@@ -2712,21 +2761,21 @@ mod tests {
         let mut tk = context("tk");
         assert_eq!(
             tk.authoring_query().package("Tk"),
-            Some(&PackageFloor::named("Tk"))
+            Some(PackageFloor::named("Tk"))
         );
         assert!(tk.spec_available(&gated), "no floor declared: permissive");
 
         tk.record_pack_ambient("Tk", "8.5");
         assert_eq!(
             tk.authoring_query().package("Tk"),
-            Some(&PackageFloor::at("Tk", "8.5"))
+            Some(PackageFloor::at("Tk", "8.5"))
         );
         assert!(!tk.spec_available(&gated), "introduced after the floor");
 
         tk.record_pack_ambient("Tk", "8.6");
         assert_eq!(
             tk.authoring_query().package("Tk"),
-            Some(&PackageFloor::at("Tk", "8.6")),
+            Some(PackageFloor::at("Tk", "8.6")),
             "the strongest claim holds"
         );
         assert!(tk.spec_available(&gated));
@@ -3020,5 +3069,28 @@ mod tests {
         assert!(ctx.is_available(std::slice::from_ref(&declaration)));
         // No core ⇒ no build to answer ⇒ fail, never silently pass.
         assert!(!context("f5-bigip").predicate_passes(&declaration.predicate));
+    }
+    #[test]
+    fn genuine_nonvendor_requirements_retain_owned_source_package_floors() {
+        let mut ctx = context("tcl8.6");
+        let name = String::from("AcmeSourceKit");
+        ctx.record_pack_ambient(&name, "2.0");
+        assert!(
+            !ctx.authoring_query().carries(&name),
+            "a floor alone cannot activate a provider"
+        );
+        ctx.require_package(&name, None);
+        drop(name);
+        assert_eq!(
+            ctx.authoring_query().package("AcmeSourceKit"),
+            Some(PackageFloor::at("AcmeSourceKit", "2.0"))
+        );
+        let source_shape = CommandSpec {
+            name: "acme_source_shape",
+            surface: Some(surface![SpecSurface::package("AcmeSourceKit")]),
+            ..CommandSpec::DEFAULT
+        };
+        assert!(ctx.spec_available(&source_shape));
+        assert!(!ctx.authoring_query().carries("ForeignSourceKit"));
     }
 }

@@ -147,6 +147,24 @@ procedure boundaries using `ProcTaintSummary` values:
 3. Propagate callee return taint back to the caller's result variable.
 4. Iterate until fixpoint.
 
+Source-backed interprocedural option-write summaries use the selected original
+call owner. The compiler first reborrows a registered-instance write schema,
+then the ordinary selected command write schema, and carries each selected
+Global operand through its original written-name receipt. If a supplied source
+owner or target is unavailable, the summary keeps the existing global
+definitions conservatively. The source-backed CFG uses the retained Module's
+actual `LexerConfig`; a Registry profile does not replace that per-source
+configuration. Raw command spelling lookup is retained only for explicit
+ownerless standalone inputs. These summary names do not establish a
+physical variable cell or a completed runtime write. Source formal topology is
+retained separately for Native and Logical declarations; absent declaration
+ownership produces an unknown source summary rather than an empty signature.
+`Module::original_source_formal_topology` is consumed by `infer_proc_summary`
+and by `converge_summaries_with`, whose repeated inference path uses the same
+source-aware summary builder. The source topology contains ordered syntax
+formal facts only; method, lambda and installed-only bodies retain separate
+owners and are not inferred from this procedure topology.
+
 #### What a summary costs, and why
 
 A summary is a **transfer function**, not a single value: a clean base return
@@ -181,7 +199,37 @@ per-`(parameter, basis)` dependency bitset — which changes what the solver
 computes rather than skipping work it can prove redundant, and is not attempted.
 `cargo run --release -p tcl-lsp-db --example tail_profile` measures the phase.
 
-#### Convergence
+#### Original source formal topology
+
+Interprocedural taint summaries use `Module::original_source_formal_topology`
+for the exact Module-owned `ProcedureId`. The issuer reborrows the retained
+original declaration and selected formal-list owner before attaching topology
+to `ProcTaintSummary.source_formals`. `SourceProcedureFormalTopology::Native`
+retains the original Native `ParamList` protocol and selected parameter
+grammar. `Logical` retains the authored source Logical formal objects and
+mapped source name fields. Both retain required/default/rest order and expose
+an argument-count shape; summary binding uses that shape and the selected
+source topology instead of reconstructing formals from the compatibility
+`Procedure.params` labels.
+
+This is readonly declaration syntax for source analysis. It does not establish
+that a procedure was installed, called, entered, completed, or assigned frame
+slots or current local cells. Missing or ambiguous declaration ownership,
+source correspondence, selected grammar, or formal syntax leaves source
+formals unavailable and the production summary unknown. Native byte formals,
+including Jim's separately selected binding grammar, remain distinct from
+Logical Unicode source formals. This contract does not assert a BIG-IP
+provider-specific result.
+
+The owner path is `Module` body ID → retained declaration/formal topology →
+`ProcTaintSummary.source_formals` → source arity and argument transfer in
+`taint_interproc.rs`. The fixed selector
+`source_summary_reborrows_formals_from_its_actual_module_body` covers a
+Logical defaulted formal and rest formal, plus refusal after the compatibility
+parameter vector is changed. It is source coverage; no runtime execution is
+claimed.
+
+### Convergence
 
 `converge_summaries_with` drives the summary fixpoint from a dirty set: a
 procedure is re-inferred only when one of its callees' summaries moved.  The

@@ -1715,7 +1715,7 @@ impl DialectProfile {
             return SurfaceQuery {
                 realm: crate::model::InvocationRealm::RuleLoader,
                 core,
-                packages: &[],
+                packages: crate::model::PackageFloors::Borrowed(&[]),
             };
         }
         if let Some(SpecProvider::Core(family)) = self.vendor_surface {
@@ -1737,7 +1737,7 @@ impl DialectProfile {
                 }
                 None => CorePoints::NONE,
             },
-            packages: self.surface_packages,
+            packages: crate::model::PackageFloors::Borrowed(self.surface_packages),
         }
     }
 
@@ -2414,7 +2414,7 @@ mod tests {
             SurfaceQuery {
                 realm: crate::model::InvocationRealm::RuleLoader,
                 core: DialectProfile::plain_tcl().surface_query().core,
-                packages: &[PackageFloor::named("Tk")],
+                packages: crate::model::PackageFloors::Borrowed(&[PackageFloor::named("Tk")]),
             }
         );
         // A canonical profile and a legacy alias keep their profile-owned
@@ -2576,7 +2576,7 @@ mod tests {
             SurfaceQuery {
                 realm: crate::model::InvocationRealm::RuleLoader,
                 core: CorePoints::NONE,
-                packages: &[PackageFloor::named("bigip")],
+                packages: crate::model::PackageFloors::Borrowed(&[PackageFloor::named("bigip")]),
             }
         );
         // bpf embeds a genuine Tcl 9.0.

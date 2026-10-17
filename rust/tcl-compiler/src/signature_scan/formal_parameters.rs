@@ -11,7 +11,7 @@ use tcl_syntax::formal_params::{ByteFormalParameter, FormalArityError, FormalByt
 /// Original `ParamList` value and its independently selected binding grammar.
 /// This describes source argument topology; it supplies no installed command,
 /// frame, current cell, contents, native object or completion guarantee.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureSourceFormalParameters {
     input: SignatureSourceNameKey,
     parameters: Vec<ByteFormalParameter>,
@@ -43,6 +43,78 @@ pub(crate) struct LogicalSourceFormalParameters {
     input: super::name_value::LogicalSourceListNameInput,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     names: Vec<OriginalSourceFormalName>,
+}
+
+/// Typed source topology for a selected authored Logical procedure ParamList.
+/// It retains the original word and complete source parameter objects, without
+/// treating them as Native formal bytes, an installed local roster or a frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalProcedureFormalTopology {
+    original: tcl_lexer::NativeWord,
+    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    names: Vec<OriginalSourceFormalName>,
+}
+
+impl std::hash::Hash for LogicalProcedureFormalTopology {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.original, state);
+        for parameter in &self.parameters {
+            std::hash::Hash::hash(&parameter.name, state);
+            std::hash::Hash::hash(&parameter.default, state);
+        }
+        for name in &self.names {
+            std::hash::Hash::hash(&name.name, state);
+            std::hash::Hash::hash(&name.span, state);
+            std::hash::Hash::hash(&name.quoted_marker, state);
+        }
+    }
+}
+
+impl LogicalProcedureFormalTopology {
+    pub(crate) fn from_selected_declaration(
+        original: &tcl_lexer::NativeWord,
+        parameters: &[tcl_syntax::formal_params::FormalParameter],
+        names: Vec<OriginalSourceFormalName>,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Self> {
+        if original.config() != config
+            || names.len() != parameters.len()
+            || !names
+                .iter()
+                .zip(parameters)
+                .all(|(name, parameter)| name.name() == parameter.name.as_bytes())
+        {
+            return None;
+        }
+        Some(Self {
+            original: original.clone(),
+            parameters: parameters.to_vec(),
+            names,
+        })
+    }
+
+    /// Selected source Logical formal objects, preserving order/defaults.
+    #[must_use]
+    pub fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.parameters
+    }
+
+    /// Original name fields mapped by the selected source-list owner.
+    #[must_use]
+    pub fn name_sources(&self) -> &[OriginalSourceFormalName] {
+        &self.names
+    }
+
+    /// Argument-count topology under the source Logical procedure grammar.
+    #[must_use]
+    pub fn argument_count_shape(&self) -> tcl_syntax::formal_params::FormalArgumentCountShape {
+        tcl_syntax::formal_params::formal_argument_count_shape(
+            self.parameters
+                .iter()
+                .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+            tcl_dialect::ParameterGrammar::Tcl,
+        )
+    }
 }
 
 impl LogicalSourceFormalParameters {
@@ -316,6 +388,42 @@ impl SignatureSourceFormalParameters {
         config: tcl_lexer::LexerConfig,
     ) -> bool {
         self.input.source_image() == image && self.input.lexer_config() == config
+    }
+}
+
+/// Original source formal topology selected for one retained procedure body.
+/// Native byte protocol and authored Logical source fields remain distinct.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SourceProcedureFormalTopology {
+    /// Native procedure ParamList selected by its Native declaration recipe.
+    Native(SignatureSourceFormalParameters),
+    /// Authored Logical ParamList selected by its retained Logical declaration.
+    Logical(LogicalProcedureFormalTopology),
+}
+
+impl SourceProcedureFormalTopology {
+    /// Number of source formals, without installing locals or an activation.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Native(formals) => formals.parameters().len(),
+            Self::Logical(formals) => formals.parameters().len(),
+        }
+    }
+
+    /// Whether the selected topology contains no parameters.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Source-level argument count under the independently selected purpose.
+    #[must_use]
+    pub fn argument_count_shape(&self) -> tcl_syntax::formal_params::FormalArgumentCountShape {
+        match self {
+            Self::Native(formals) => formals.argument_count_shape(),
+            Self::Logical(formals) => formals.argument_count_shape(),
+        }
     }
 }
 

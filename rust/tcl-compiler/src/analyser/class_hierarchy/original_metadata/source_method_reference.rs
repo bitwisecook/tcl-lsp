@@ -5,7 +5,9 @@
 //! Conditional source selectors joined to original member declarations.
 
 use super::original_instance_metadata_order_for_inventory;
-use crate::analyser::types::{MemberSide, OriginalSourceMethodMetadata};
+use crate::analyser::types::{
+    MemberSide, OriginalSourceMethodMetadata, OriginalSourcePropertyMetadata,
+};
 use crate::analyser::{AnalysisResult, ClassDef};
 use crate::command_binding::OriginalSourceCommandTransitionAdvice;
 use crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody;
@@ -51,6 +53,189 @@ pub struct OriginalSourceSelfMethodReference {
     obligations: Vec<OriginalSourceSelfMethodReferenceObligation>,
 }
 
+/// One possible direct self selector joined to an original instance property.
+/// It is source advice only; property installation and accessor dispatch remain
+/// unproved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceSelfPropertyReference {
+    declaring_class: SourceDeclarationMetadata<ClassDef>,
+    property: OriginalSourcePropertyMetadata,
+    body_class: SourceDeclarationMetadata<ClassDef>,
+    body_method: OriginalSourceMethodMetadata,
+    body: OriginalSourceDefinitionMemberScriptBody,
+    selector: SignatureSourceNameInput,
+    selector_span: Span,
+    command_span: Span,
+    obligations: Vec<OriginalSourceSelfPropertyReferenceObligation>,
+}
+
+/// Separate conditions not proved by an original property source selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginalSourceSelfPropertyReferenceObligation {
+    /// The property declaration may not be installed at the observed call.
+    DeclarationApplicability,
+    /// The enclosing method body may not be entered in a live object frame.
+    MemberBodyEntry,
+    /// The source does not establish a current receiver allocation.
+    ReceiverApplicability,
+    /// Property slot lookup and accessor execution remain unproved.
+    PropertyLookupApplicability,
+    /// Other source effects or observers may add references.
+    ObserverApplicability,
+    /// Declared relation advice does not prove runtime inheritance.
+    InheritanceApplicability,
+}
+
+impl OriginalSourceSelfPropertyReference {
+    /// Exact original class declaring this source property.
+    #[must_use]
+    pub const fn declaring_class(&self) -> &SourceDeclarationMetadata<ClassDef> {
+        &self.declaring_class
+    }
+    /// Retained original property declaration and source-name owner.
+    #[must_use]
+    pub const fn property(&self) -> &OriginalSourcePropertyMetadata {
+        &self.property
+    }
+    /// Exact original class whose member body contains this selector.
+    #[must_use]
+    pub const fn body_class(&self) -> &SourceDeclarationMetadata<ClassDef> {
+        &self.body_class
+    }
+    /// Original enclosing callable member declaration.
+    #[must_use]
+    pub const fn body_method(&self) -> &OriginalSourceMethodMetadata {
+        &self.body_method
+    }
+    /// Authentic selected callable body and its parent source lineage.
+    #[must_use]
+    pub const fn body(&self) -> &OriginalSourceDefinitionMemberScriptBody {
+        &self.body
+    }
+    /// Original source selector name, distinct from property lookup.
+    #[must_use]
+    pub const fn selector_input(&self) -> &SignatureSourceNameInput {
+        &self.selector
+    }
+    /// Original selector content extent for readonly presentation.
+    #[must_use]
+    pub const fn selector_span(&self) -> Span {
+        self.selector_span
+    }
+    /// Original command extent retained by the source catalogue issuer.
+    #[must_use]
+    pub const fn command_span(&self) -> Span {
+        self.command_span
+    }
+    /// Unresolved applicability conditions retained independently of geometry.
+    #[must_use]
+    pub fn obligations(&self) -> &[OriginalSourceSelfPropertyReferenceObligation] {
+        &self.obligations
+    }
+}
+
+/// Positive-only self selectors whose exact original source name selects one
+/// declared instance property. This does not prove a complete occurrence
+/// census, installed property state, or runtime dispatch.
+#[must_use]
+pub fn original_source_self_property_references(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<OriginalSourceSelfPropertyReference>> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = SourceImage::document(source);
+    let realm = analysis.retained_command_realm()?;
+    if analysis.body_lexer_config != Some(config)
+        || !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let context = input.context_registry();
+    let tape = realm
+        .source_bindings_ref()
+        .original_source_transition_advice_tape(&context)?;
+    let records = analysis.original_class_declarations().collect::<Vec<_>>();
+    let occupied = analysis
+        .original_procedure_declarations()
+        .map(SourceDeclarationMetadata::name)
+        .collect::<Vec<_>>();
+    let mut result = tape
+        .original_definition_member_source_catalogue()
+        .filter_map(|advice| capture_property(source, analysis, &records, &occupied, advice))
+        .collect::<Vec<_>>();
+    result.sort_by_key(|reference| {
+        (
+            reference.selector_span.start(),
+            reference.selector_span.end(),
+        )
+    });
+    result.dedup();
+    Some(result)
+}
+
+fn capture_property(
+    source: &str,
+    analysis: &AnalysisResult,
+    records: &[&SourceDeclarationMetadata<ClassDef>],
+    occupied: &[&crate::signature_scan::scope::SignatureSourceCommand],
+    advice: &OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalSourceSelfPropertyReference> {
+    let (body, selector_word) = checked_member_source_schema(source, analysis, advice)?;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let (body_index, body_method, correspondence) =
+        original_body_owner(&context, &body, advice, records)?;
+    let body = crate::registry_invocation::OriginalSourceDefinitionMemberBodyCorrespondence::declaration_body(&correspondence).clone();
+    let key = SignatureSourceNameKey::from_original_native_word(
+        &selector_word,
+        tcl_syntax::word_rules::WordValueRules::from_config(&selector_word.config()),
+        body_method.original_name_input().policy(),
+    )?;
+    let selector = SignatureSourceNameInput::OriginalWord(key);
+    let order = original_instance_metadata_order_for_inventory(records, body_index, occupied)?;
+    for index in order {
+        let class = *records.get(index)?;
+        let mut properties = class
+            .metadata()
+            .original_properties
+            .properties(MemberSide::Instance)?
+            .into_iter()
+            .filter(|property| {
+                property.original_name_input().policy() == selector.policy()
+                    && property.original_name_input().bytes() == selector.bytes()
+            });
+        let Some(property) = properties.next() else {
+            continue;
+        };
+        if properties.next().is_some() {
+            return None;
+        }
+        return Some(OriginalSourceSelfPropertyReference {
+            declaring_class: (*class).clone(),
+            property: property.clone(),
+            body_class: (*records[body_index]).clone(),
+            body_method: body_method.clone(),
+            body,
+            selector,
+            selector_span: selector_word.content_span().ok()?,
+            command_span: Span::new(
+                advice.original_words().first()?.span().start(),
+                advice.original_words().last()?.span().end(),
+            ),
+            obligations: vec![
+                OriginalSourceSelfPropertyReferenceObligation::DeclarationApplicability,
+                OriginalSourceSelfPropertyReferenceObligation::MemberBodyEntry,
+                OriginalSourceSelfPropertyReferenceObligation::ReceiverApplicability,
+                OriginalSourceSelfPropertyReferenceObligation::PropertyLookupApplicability,
+                OriginalSourceSelfPropertyReferenceObligation::ObserverApplicability,
+                OriginalSourceSelfPropertyReferenceObligation::InheritanceApplicability,
+            ],
+        });
+    }
+    None
+}
+
 impl OriginalSourceSelfMethodReference {
     /// Exact canonical source class publishing the selected declaration.
     #[must_use]
@@ -93,6 +278,15 @@ impl OriginalSourceSelfMethodReference {
     #[must_use]
     pub const fn selector_span(&self) -> Span {
         self.selector_span
+    }
+    /// Original command extent retained by the selected transition advice.
+    #[must_use]
+    pub fn command_span(&self) -> Option<Span> {
+        let words = self.source_schema.original_words();
+        Some(Span::new(
+            words.first()?.span().start(),
+            words.last()?.span().end(),
+        ))
     }
     /// The original command keeps its selected schema and unknown-source debts.
     #[must_use]
@@ -450,6 +644,34 @@ mod tests {
             1,
             "report-map corruption cannot alter independently retained original correspondence"
         );
+    }
+
+    #[test]
+    fn readonly_self_selectors_join_original_property_candidates_without_closing_the_census() {
+        let source = "oo::class create C {property size; method body {} {my size}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let references = original_source_self_property_references(source, &analysis)
+            .expect("current partial source catalogue");
+        assert_eq!(references.len(), 1);
+        assert_eq!(&source[references[0].selector_span().as_range()], "size");
+        assert_eq!(
+            references[0].property().original_name_input().bytes(),
+            b"size"
+        );
+        assert!(
+            references[0].obligations().contains(
+                &OriginalSourceSelfPropertyReferenceObligation::PropertyLookupApplicability
+            )
+        );
+        assert!(
+            original_source_self_property_references(&source.replace("size", "other"), &analysis)
+                .is_none()
+        );
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new()
+            .analyse("puts foreign", "tcl9.0")
+            .resolved_input;
+        assert!(original_source_self_property_references(source, &foreign).is_none());
     }
 }
 

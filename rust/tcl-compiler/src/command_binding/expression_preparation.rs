@@ -874,6 +874,7 @@ impl super::SourceInvocationBinding {
     /// Original scoped normalization equivalence. Both command occurrences,
     /// their selected compiler alternatives, frame, world and observer envelopes
     /// remain closed; no actual entry or expression preparation is published.
+    #[cfg(test)]
     pub(crate) fn nested_expression_normalisation(
         &self,
         registry: &tcl_registry::CommandRegistry,
@@ -881,26 +882,34 @@ impl super::SourceInvocationBinding {
         parser: &tcl_syntax::expr::parser::ExprParseContext,
         expected: Option<&crate::expr_ast::ExprNode>,
     ) -> bool {
-        let Some(outer) = self.normalisation_expression(registry, tokens) else {
-            return false;
-        };
+        self.nested_expression_normalisation_source(registry, tokens, parser, expected)
+            .is_some()
+    }
+
+    /// Same scoped normalization proof, retaining the selected inner expression
+    /// and its original command-substitution source. Strings are projections of
+    /// those actual owners, never command identities parsed from report text.
+    pub(crate) fn nested_expression_normalisation_source(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        parser: &tcl_syntax::expr::parser::ExprParseContext,
+        expected: Option<&crate::expr_ast::ExprNode>,
+    ) -> Option<(String, String)> {
+        let outer = self.normalisation_expression(registry, tokens)?;
         if outer.evaluation.context() != parser || expected.is_some_and(|tree| tree != outer.tree())
         {
-            return false;
+            return None;
         }
         let crate::expr_ast::ExprNode::Command { start, end, .. } = outer.tree() else {
-            return false;
+            return None;
         };
-        let Some(begin) = outer.source.base().checked_add(*start) else {
-            return false;
-        };
-        let Some(end) = outer.source.base().checked_add(*end) else {
-            return false;
-        };
+        let begin = outer.source.base().checked_add(*start)?;
+        let command_end = outer.source.base().checked_add(*end)?;
         let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
         let calls = crate::word_subst::lifted_calls_with_surface(
             Some(tokens),
-            tcl_lexer::LexerConfig::from_grammar(outer.lexer_grammar()),
+            self.original_argument_lexer_config(tokens)?,
             &surface,
         );
         let mut inner = calls.iter().filter(|call| {
@@ -911,27 +920,31 @@ impl super::SourceInvocationBinding {
                 .is_some_and(|site| {
                     site.source == outer.invocation.source
                         && site.offset > begin
-                        && site.offset < end
+                        && site.offset < command_end
                 })
         });
-        let Some(tokens) = inner.next().and_then(|call| call.tokens.as_ref()) else {
-            return false;
-        };
+        let tokens = inner.next()?.tokens.as_ref()?;
         if inner.next().is_some() {
-            return false;
+            return None;
         }
-        let Some(binding) = tokens.source_binding.as_ref() else {
-            return false;
-        };
-        let Some(inner) = binding.normalisation_expression(registry, tokens) else {
-            return false;
-        };
-        outer.frame == inner.frame
+        let binding = tokens.source_binding.as_ref()?;
+        let inner = binding.normalisation_expression(registry, tokens)?;
+        (outer.frame == inner.frame
             && outer.namespace_key == inner.namespace_key
             && self.runtime_reachability == binding.runtime_reachability
             && outer
                 .evaluation
-                .numeric_reentry_is_idempotent(&inner.evaluation)
+                .numeric_reentry_is_idempotent(&inner.evaluation))
+        .then_some(())?;
+        Some((
+            inner.source.try_text().ok()?.to_owned(),
+            outer
+                .source
+                .try_text()
+                .ok()?
+                .get(usize::try_from(*start).ok()?..usize::try_from((*end).checked_add(1)?).ok()?)?
+                .to_owned(),
+        ))
     }
 
     fn normalisation_expression(
@@ -1937,6 +1950,82 @@ mod tests {
                     assert!(
                         !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn selected_nested_normalisation_projects_actual_operand_and_command_source() {
+        let expression = "expr {  [expr {$x * 2}]  }";
+        for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let owner = tcl_registry::model::ingress::static_context_for(profile_name);
+            let registry = owner.commands();
+            let profile = registry.profile().unwrap();
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let parser =
+                tcl_registry::InvocationDialect::of_profile(profile).expression_parse_context(None);
+            for (suffix, allowed) in [
+                ("", true),
+                ("; unknown_future_entry", false),
+                ("; trace add execution expr enter callback", false),
+                (
+                    "; rename expr saved; proc expr args {return changed}",
+                    false,
+                ),
+            ] {
+                let source = format!("proc f {{x}} {{{expression}}}{suffix}");
+                let offset = u32::try_from(source.find(expression).unwrap()).unwrap();
+                let bindings = SourceCommandBindings::analyse_with_options(
+                    &source,
+                    config,
+                    registry,
+                    super::super::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        native_compilation:
+                            crate::environment_ingress::authoring_native_compilation(),
+                        ..Default::default()
+                    },
+                );
+                let command = crate::segmenter::segment_commands_with_offset_and_config(
+                    expression, offset, config,
+                )
+                .remove(0);
+                let mut tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceImage::document(&source).source_map(),
+                    config,
+                    &command,
+                );
+                bindings.stamp_original_tokens(&mut tokens);
+                let binding = tokens.source_binding.as_ref().unwrap();
+                assert!(binding.proved_execution_target().is_none());
+                assert_eq!(
+                    binding.nested_expression_normalisation(registry, &tokens, &parser, None),
+                    allowed,
+                    "{profile_name}: {source}"
+                );
+                let projection = binding
+                    .nested_expression_normalisation_source(registry, &tokens, &parser, None);
+                if allowed {
+                    assert_eq!(
+                        projection,
+                        Some(("$x * 2".to_owned(), "[expr {$x * 2}]".to_owned()))
+                    );
+                    let mut wrong_frame = binding.clone();
+                    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+                    assert!(
+                        !wrong_frame
+                            .nested_expression_normalisation(registry, &tokens, &parser, None)
+                    );
+                    let mut foreign = tokens.clone();
+                    foreign.word_exprs.clear();
+                    assert!(
+                        !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
+                    );
+                } else {
+                    assert!(projection.is_none());
                 }
             }
         }

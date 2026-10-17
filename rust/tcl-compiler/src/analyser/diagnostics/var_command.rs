@@ -80,49 +80,115 @@ struct W307FunctionRange<'a> {
 }
 
 impl Analyser {
-    /// True when `my <method>` / `self <method>` dispatched at `site_offset`
-    /// resolves to a method in the enclosing class whose body is a simple
-    /// `return <literal>` — i.e. it returns a plain string, not an object
-    /// handle.  The enclosing class is the one whose `body_span` contains the
-    /// dispatch offset; the method is looked up in its `methods` /
-    /// `class_methods`.  A literal return is `return <word>` on a single line
-    /// with no command substitution (`[`) or variable interpolation (`$`) in
-    /// the returned word.
-    fn oo_self_method_returns_literal(&self, site_offset: u32, method_name: &str) -> bool {
-        let Some(class_def) = self.enclosing_class_at_offset(site_offset) else {
-            return false;
-        };
-        let Some(md) = class_def
-            .methods
-            .get(method_name)
-            .or_else(|| class_def.class_methods.get(method_name))
-        else {
-            // Enclosing class found but no such method — stay conservative
-            // (treat as object-returning).
-            return false;
-        };
-        let start = md.body_span.start() as usize;
-        let end = (md.body_span.end() as usize).min(self.source.len());
-        if start >= end {
-            return false;
+    /// Source-only classification of one selected method's actual body.
+    /// It retains declared source applicability and supplies no entered method,
+    /// MRO dispatch, normal completion or physical returned-value proof.
+    fn oo_self_method_returns_literal(&self, tokens: &crate::ir::CommandTokens) -> bool {
+        self.oo_selected_method_body(tokens)
+            .is_some_and(|body| self.oo_original_literal_return_body(&body))
+    }
+
+    fn oo_selected_method_body(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<tcl_lexer::NativeWord> {
+        let input = self.result.resolved_input.as_ref()?;
+        let config = self.file_lexer_config();
+        let binding = tokens.source_binding.as_ref()?;
+        let context = input.context_registry();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            context.commands(),
+            input,
+        )?;
+        let purpose =
+            binding.original_source_advice_purpose(tokens, metadata, context.commands())?;
+        let site = binding.invocation_site()?;
+        let command = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        let selector = command.native_words().get(1)?;
+        if selector.group().expand {
+            return None;
         }
-        let Some(mut bt) = Analyser::source_slice(&self.source, start, end).map(str::trim) else {
-            return false;
-        };
-        // Strip one layer of surrounding braces.
-        if let Some(inner) = bt.strip_prefix('{') {
-            bt = inner.trim_end();
-            bt = bt.strip_suffix('}').unwrap_or(bt).trim();
+        if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            let request = self
+                .result
+                .logical_source_self_selector_at(&self.source, selector.span().start())?;
+            if request.command_start() != site.offset || request.original_selector() != selector {
+                return None;
+            }
+            let member = self.result.logical_source_member_at(
+                selector.image(),
+                config,
+                selector.span().start(),
+            )?;
+            return member.original_body_word().cloned();
         }
-        // Simple `return <literal>` — single statement, no substitutions.
-        if bt.contains('\n') || bt.contains(';') {
-            return false;
+        let references = super::super::class_hierarchy::original_metadata::original_source_self_method_references(&self.source, &self.result)?;
+        let mut matching = references.iter().filter(|reference| {
+            reference.source_schema().site().offset == site.offset
+                && reference.selector_span()
+                    == selector.content_span().ok().unwrap_or(selector.span())
+        });
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(())?;
+        selected.method().body_word().cloned()
+    }
+
+    fn oo_original_literal_return_body(&self, body: &tcl_lexer::NativeWord) -> bool {
+        self.oo_original_literal_return_operand(body).is_some()
+    }
+
+    fn oo_original_literal_return_operand(
+        &self,
+        body: &tcl_lexer::NativeWord,
+    ) -> Option<tcl_lexer::NativeWord> {
+        let input = self.result.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        if body.group().kind != tcl_lexer::WordKind::Braced
+            || body.group().expand
+            || !self
+                .result
+                .matches_original_source_image(body.image(), input.lexer_config())
+        {
+            return None;
         }
-        let Some(ret_arg) = bt.strip_prefix("return ") else {
-            return false;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            body.image().clone(),
+            body.content_span().ok()?,
+            body.config(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
         };
-        let ret_arg = ret_arg.trim();
-        !ret_arg.is_empty() && !ret_arg.contains('[') && !ret_arg.contains('$')
+        if plan.fatal_tail.is_some() || command.words.len() != 2 {
+            return None;
+        }
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            command.words.first()?.span().start(),
+        )?;
+        if words.arguments().len() != 1
+            || words.with_source_schema(&context, |schema| {
+                schema.facts().operation
+                    == tcl_registry::SemanticOperationId::StructuredLowering(
+                        tcl_registry::hooks::LoweringHookId::Return,
+                    )
+            }) != Some(true)
+            || words.origins().get(1)
+                != Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                    1,
+                ))
+            || words.original_argument_word(0) != command.words.get(1)
+        {
+            return None;
+        }
+        let value = words.original_argument_word(0)?;
+        tcl_syntax::word_rules::original_static_word_unicode_value(value)?;
+        Some(value.clone())
     }
 
     /// The `ClassDef` whose body contains `offset` — the enclosing `TclOO`
@@ -1104,9 +1170,7 @@ impl Analyser {
                     )
                 })
             {
-                let returns_literal = arg_strs.first().is_some_and(|method| {
-                    self.oo_self_method_returns_literal(site.cmd_span.start(), method)
-                });
+                let returns_literal = self.oo_self_method_returns_literal(tokens);
                 if returns_literal {
                     self.result
                         .diagnostics
@@ -1361,6 +1425,15 @@ impl Analyser {
         reach: tcl_registry::definer::MethodReach,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
     ) -> Option<super::types::Diagnostic> {
+        if self.result.allows_retained_logical_declaration_advice() {
+            return self.w308_for_logical_enclosing_receiver(
+                method,
+                method_span,
+                cmd_span,
+                reach,
+                hierarchy,
+            );
+        }
         if self.disabled_diagnostics.contains("W308") {
             return None;
         }
@@ -1404,6 +1477,247 @@ impl Analyser {
                 cmd_span,
             },
         ))
+    }
+
+    /// Conditional Logical source inventory, independently of Native dispatch.
+    /// Only actual receiver-frame lineage chooses the class; source relation
+    /// providers and complete retained ledgers own names and candidate data.
+    fn w308_for_logical_enclosing_receiver(
+        &self,
+        method: &str,
+        method_span: Option<tcl_lexer::Span>,
+        cmd_span: tcl_lexer::Span,
+        reach: tcl_registry::definer::MethodReach,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> Option<super::types::Diagnostic> {
+        if self.disabled_diagnostics.contains("W308") || self.site_in_child_interp(cmd_span.start())
+        {
+            return None;
+        }
+        let input = self.result.resolved_input.as_ref()?;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let caller = self.result.logical_source_member_frame_at(
+            &image,
+            input.lexer_config(),
+            cmd_span.start(),
+        )?;
+        let class = self.result.logical_source_member_class(&caller)?;
+        let (names, grammar) = self.logical_receiver_method_inventory(class, reach)?;
+        let span = method_span?;
+        let (word, _) = self
+            .head_identities
+            .original_written_word_at_span_in_source(&image, span, input.lexer_config())?;
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(&word)?;
+        if value != method.as_bytes()
+            || names.contains(method)
+            || grammar.dynamic_method_dispatch
+            || grammar
+                .unknown_dispatch_method
+                .is_some_and(|unknown| names.contains(unknown))
+        {
+            return None;
+        }
+        // Existing positive template-method hints remain conservative vetoes;
+        // they supply no missing-member or suggestion authority.
+        if reach == tcl_registry::definer::MethodReach::SelfDispatch
+            && (hierarchy
+                .is_some_and(|h| h.subclass_provides_method(&class.qualified_name, method))
+                || self.workspace_subclass_methods.as_ref().is_some_and(|all| {
+                    all.get(&class.qualified_name)
+                        .is_some_and(|names| names.contains(method))
+                }))
+        {
+            return None;
+        }
+        let best = crate::text::suggest_similar(
+            method,
+            names.iter().map(String::as_str),
+            1,
+            crate::text::scaled_max_distance(method),
+        );
+        let mut message = format!(
+            "Unknown method '{method}' on class '{}'",
+            class.qualified_name
+        );
+        let mut fixes = Vec::new();
+        if let Some(best) = best.first() {
+            use std::fmt::Write as _;
+            let _ = write!(message, "; did you mean '{best}'?");
+            if let Some((span, new_text)) = self.w308_configured_method_proposal(
+                W308DiagnosticSite {
+                    reach,
+                    method_span,
+                    cmd_span,
+                },
+                best,
+            ) {
+                fixes.push(super::types::CodeFix {
+                    span,
+                    new_text,
+                    description: format!("Replace with '{best}'"),
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
+                });
+            }
+        }
+        Some(
+            super::types::Diagnostic::new(DiagCode::W308, span, message, Severity::Warning)
+                .with_fixes(fixes),
+        )
+    }
+
+    fn logical_receiver_method_inventory<'a>(
+        &'a self,
+        root: &'a super::types::ClassDef,
+        reach: tcl_registry::definer::MethodReach,
+    ) -> Option<(
+        std::collections::BTreeSet<String>,
+        &'static tcl_registry::definer::DefinitionBodyGrammar,
+    )> {
+        let mut names = std::collections::BTreeSet::new();
+        let mut pending = vec![(root, false)];
+        let mut active = Vec::new();
+        let mut complete = Vec::new();
+        let mut root_grammar = None;
+        while let Some((class, exiting)) = pending.pop() {
+            let identity = std::ptr::from_ref(class);
+            if exiting {
+                active.retain(|current| *current != identity);
+                complete.push(identity);
+                continue;
+            }
+            if complete.contains(&identity) {
+                continue;
+            }
+            if active.contains(&identity) {
+                return None;
+            }
+            active.push(identity);
+            pending.push((class, true));
+            let grammar = self.logical_receiver_class_method_names(class, reach, &mut names)?;
+            if std::ptr::eq(class, root) {
+                root_grammar = Some(grammar);
+            }
+            pending.extend(
+                self.logical_receiver_relation_providers(class)?
+                    .into_iter()
+                    .map(|provider| (provider, false)),
+            );
+        }
+        Some((names, root_grammar?))
+    }
+
+    fn logical_receiver_class_method_names(
+        &self,
+        class: &super::types::ClassDef,
+        reach: tcl_registry::definer::MethodReach,
+        names: &mut std::collections::BTreeSet<String>,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        use super::super::types::MemberSide;
+        let input = self.result.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        let owner = self.result.logical_source_class_declaration(class)?;
+        if class.member_set_incomplete
+            || class.inheritance_unknown
+            || !class.properties.is_empty()
+            || !class.original_members.logical_relation_coverage_available()
+        {
+            return None;
+        }
+        let name_word = owner.original_name_word()?;
+        let (_, factory_offset) = self
+            .head_identities
+            .original_written_word_at_span_in_source(
+                name_word.image(),
+                name_word.span(),
+                input.lexer_config(),
+            )?;
+        let factory = crate::registry_invocation::source_structure::source_class_declaration_at(
+            &self.source,
+            &self.result,
+            factory_offset,
+        )?;
+        if !factory
+            .logical_source_class(&self.result)
+            .is_some_and(|actual| std::ptr::eq(actual, class))
+        {
+            return None;
+        }
+        let grammar = factory.grammar(&context)?;
+        if grammar.dynamic_method_dispatch {
+            return None;
+        }
+        for builtin in grammar.builtin_object_methods {
+            if grammar.builtin_object_method(builtin.name, reach).is_some() {
+                names.insert(builtin.name.to_owned());
+            }
+        }
+        for (side, methods) in [
+            (MemberSide::Instance, &class.methods),
+            (MemberSide::ClassObject, &class.class_methods),
+        ] {
+            class.original_members.methods(side)?;
+            for method in methods.values() {
+                let declaration = owner.member(side, method)?;
+                let word = declaration.original_name_word()?;
+                let name = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+                names.insert(String::from_utf8(name).ok()?);
+            }
+        }
+        Some(grammar)
+    }
+
+    fn logical_receiver_relation_providers<'a>(
+        &'a self,
+        class: &'a super::types::ClassDef,
+    ) -> Option<Vec<&'a super::types::ClassDef>> {
+        use crate::command_binding::LogicalSourceClassRelationTarget as Target;
+        // Original slot operations own final relation values; neither a
+        // report superclass label nor registry name can select a provider.
+        let mut relations: Vec<(
+            tcl_registry::definer::RelationSlot,
+            Vec<&super::types::ClassDef>,
+        )> = Vec::new();
+        for statement in self
+            .result
+            .logical_source_class_relation_candidates(class)?
+        {
+            let mut providers = Vec::new();
+            for operand in statement.operands() {
+                if operand.has_earlier_unknown_mutations() {
+                    return None;
+                }
+                match operand.target(&self.result, class)? {
+                    Target::Source(provider) => {
+                        let actual = self
+                            .result
+                            .all_classes
+                            .values()
+                            .find(|actual| std::ptr::eq(*actual, provider))?;
+                        providers.push(actual);
+                    }
+                    // This typed provider has no complete public method
+                    // inventory here; its absence is never fabricated.
+                    Target::Registry => return None,
+                    Target::External(_) => return None,
+                }
+            }
+            let index = if let Some(index) = relations
+                .iter()
+                .position(|(kind, _)| *kind == statement.relation())
+            {
+                index
+            } else {
+                relations.push((statement.relation(), Vec::new()));
+                relations.len() - 1
+            };
+            statement.apply_values(&mut relations[index].1, &providers);
+        }
+        Some(
+            relations
+                .into_iter()
+                .flat_map(|(_, selected)| selected)
+                .collect(),
+        )
     }
 
     /// Whether a recorded method word is a **literal** name the static
@@ -3358,5 +3672,95 @@ mod configured_method_proposal_controls {
             .unwrap();
         assert_eq!(diagnostic.fixes[0].new_text, "bark");
         assert_eq!(diagnostic.fixes[0].span, diagnostic.span);
+    }
+}
+
+#[cfg(test)]
+mod selected_method_return_source_tests {
+    use super::*;
+
+    #[test]
+    fn selected_original_method_body_requires_real_return_schema_and_static_operand() {
+        for (prefix, value, expected) in [
+            ("", "VALUE", true),
+            ("", "$dynamic", false),
+            ("proc return args {}\n", "VALUE", false),
+        ] {
+            let source = format!(
+                "{prefix}oo::class create C {{method literal {{}} {{return {value}}}; method use {{}} {{[my literal] action}}}}"
+            );
+            let mut analyser = Analyser::new();
+            analyser.analyse(&source, "tcl8.6");
+            let config = analyser.file_lexer_config();
+            let offset = u32::try_from(source.find("my literal").unwrap()).unwrap();
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                "my literal",
+                offset,
+                config,
+            )
+            .remove(0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceImage::document(&source).source_map(),
+                config,
+                &command,
+            );
+            analyser
+                .head_identities
+                .source_bindings()
+                .stamp_original_tokens(&mut tokens);
+            assert_eq!(
+                analyser.oo_self_method_returns_literal(&tokens),
+                expected,
+                "{source}"
+            );
+            analyser.source.push_str("# changed");
+            assert!(!analyser.oo_self_method_returns_literal(&tokens));
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_enclosing_member_inventory_tests {
+    use super::*;
+
+    #[test]
+    fn logical_receiver_inventory_uses_actual_frame_and_refuses_unknown_members() {
+        for (effect, expected) in [("", true), ("mystery;", false)] {
+            let source = format!(
+                "oo::class create C {{{effect} method known {{}} {{}}; method body {{}} {{my knwon}}}}"
+            );
+            let mut analyser = Analyser::new();
+            analyser.analyse(&source, "tcl");
+            assert!(analyser.result.allows_retained_logical_declaration_advice());
+            let input = analyser.result.resolved_input.as_ref().unwrap();
+            let image = tcl_lexer::SourceImage::document(&source);
+            let cursor = u32::try_from(source.find("my knwon").unwrap()).unwrap();
+            let caller = analyser
+                .result
+                .logical_source_member_frame_at(&image, input.lexer_config(), cursor)
+                .unwrap();
+            let class = analyser
+                .result
+                .logical_source_member_class(&caller)
+                .unwrap();
+            let inventory = analyser.logical_receiver_method_inventory(
+                class,
+                tcl_registry::definer::MethodReach::SelfDispatch,
+            );
+            assert_eq!(inventory.is_some(), expected, "{source}");
+            if let Some((names, _)) = inventory {
+                assert!(names.contains("known"));
+                assert!(!names.contains("knwon"));
+            }
+            let mut foreign = analyser.result.clone();
+            foreign
+                .all_classes
+                .values_mut()
+                .next()
+                .unwrap()
+                .methods
+                .clear();
+            assert!(foreign.logical_source_member_class(&caller).is_none());
+        }
     }
 }

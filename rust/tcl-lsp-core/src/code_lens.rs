@@ -81,7 +81,8 @@ pub fn readonly_reference_count_title(
 ) -> String {
     use crate::original_declaration::ReadonlyReferenceCoverage;
     match coverage {
-        ReadonlyReferenceCoverage::ExistingInventory => reference_count_title(count),
+        ReadonlyReferenceCoverage::ExistingInventory
+        | ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus => reference_count_title(count),
         ReadonlyReferenceCoverage::Partial if count > 0 => {
             format!("at least {}", reference_count_title(count))
         }
@@ -268,6 +269,17 @@ mod readonly_source_count_tests {
         assert_eq!(
             readonly_reference_count_title(2, ReadonlyReferenceCoverage::ExistingInventory),
             "2 references"
+        );
+    }
+
+    #[test]
+    fn complete_source_census_titles_report_exact_counts() {
+        assert_eq!(
+            readonly_reference_count_title(
+                1,
+                ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+            ),
+            "1 reference"
         );
     }
 }

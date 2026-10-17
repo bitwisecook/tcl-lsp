@@ -162,7 +162,7 @@ const fn trusted(provenance: Provenance) -> bool {
 }
 
 /// The registered rosters, and the generation they were registered at.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct RosterState {
     rosters: Vec<Arc<InheritedSurface>>,
     generation: u64,
@@ -176,6 +176,33 @@ fn state_cell() -> &'static Mutex<Arc<RosterState>> {
 
 fn snapshot() -> Arc<RosterState> {
     Arc::clone(&state_cell().lock().expect("inherited surface lock"))
+}
+
+/// One immutable actual observation of the authored inherited-surface store.
+/// It owns both generation and rows; it is not a current handler/Native fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InheritedSurfaceSnapshot(Arc<RosterState>);
+impl InheritedSurfaceSnapshot {
+    /// Capture the existing store once, without rebuilding rows or their names.
+    #[must_use]
+    pub fn capture() -> Self {
+        Self(snapshot())
+    }
+    /// Generation of these exact retained rows.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.0.generation
+    }
+    /// Same inherited-source admission rule over this held observation.
+    /// No roster deliberately retains the existing wholesale fail-open policy.
+    #[must_use]
+    pub fn admits(&self, target: Family, source: Family, name: &str, at: Option<&Version>) -> bool {
+        self.0
+            .rosters
+            .iter()
+            .find(|roster| roster.target == target && roster.source == source)
+            .is_none_or(|roster| roster.admits(name, at))
+    }
 }
 
 /// What one [`register_inherited_surfaces`] call did.
@@ -458,5 +485,30 @@ mod tests {
         assert_eq!(retired.rosters, 0);
         assert!(admits(Family::Jim, Family::Tcl, "coroutine", None));
         clear();
+    }
+    #[test]
+    fn retained_snapshot_keeps_its_exact_rows_after_reload_and_retirement() {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _ = register_inherited_surfaces(vec![jim_roster(&[("set", &["0-"])])]);
+        let first = InheritedSurfaceSnapshot::capture();
+        assert!(first.admits(Family::Jim, Family::Tcl, "set", None));
+        assert!(!first.admits(Family::Jim, Family::Tcl, "proc", None));
+        let _ = register_inherited_surfaces(vec![jim_roster(&[("proc", &["0-"])])]);
+        let second = InheritedSurfaceSnapshot::capture();
+        assert_ne!(first.generation(), second.generation());
+        assert!(!second.admits(Family::Jim, Family::Tcl, "set", None));
+        assert!(second.admits(Family::Jim, Family::Tcl, "proc", None));
+        assert!(first.admits(Family::Jim, Family::Tcl, "set", None));
+        assert!(!first.admits(Family::Jim, Family::Tcl, "proc", None));
+        let _ = register_inherited_surfaces(Vec::new());
+        assert!(InheritedSurfaceSnapshot::capture().admits(
+            Family::Jim,
+            Family::Tcl,
+            "unknown",
+            None
+        ));
+        assert!(!second.admits(Family::Jim, Family::Tcl, "unknown", None));
     }
 }

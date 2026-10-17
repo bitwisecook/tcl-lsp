@@ -3059,6 +3059,18 @@ pub struct ReferenceImport {
 }
 
 impl Module {
+    /// Selected original procedure formal topology for one Module-owned body.
+    /// This is source argument structure only and grants no activation/frame.
+    pub(crate) fn original_source_formal_topology(
+        &self,
+        body_id: ProcedureId,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology> {
+        self.retained_source_bindings
+            .as_ref()?
+            .original_procedure_formals_for_module(self, body_id, registry)
+    }
+
     /// Original procedure syntax under this Module issuer, including retained
     /// declaration bodies. Lambdas and installed-only units are separate purposes.
     pub(crate) fn original_source_procedure_bodies(

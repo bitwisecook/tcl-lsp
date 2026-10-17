@@ -430,7 +430,37 @@ pub struct SourceOriginId {
     kind: Arc<SourceOriginKind>,
     fingerprint: u64,
     activation_key: u64,
-    original_lexical_projection: Arc<original_source_projection::OriginalSourceProjectionMemo>,
+}
+
+/// Memo sidecars never participate in source Eq/Hash or allocation identity.
+/// Entries retain only a weak actual owner; dead owners are retired on access.
+struct AllocationMemoTable<O, M> {
+    entries: HashMap<usize, (Weak<O>, Arc<M>)>,
+}
+impl<O, M> Default for AllocationMemoTable<O, M> {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+}
+impl<O, M: Default> AllocationMemoTable<O, M> {
+    fn get_or_init(&mut self, owner: &Arc<O>) -> Arc<M> {
+        self.entries
+            .retain(|_, (owner, _)| owner.strong_count() != 0);
+        let key = Arc::as_ptr(owner) as usize;
+        if let Some((retained, memo)) = self.entries.get(&key)
+            && retained
+                .upgrade()
+                .is_some_and(|retained| Arc::ptr_eq(&retained, owner))
+        {
+            return Arc::clone(memo);
+        }
+        let memo = Arc::new(M::default());
+        self.entries
+            .insert(key, (Arc::downgrade(owner), Arc::clone(&memo)));
+        memo
+    }
 }
 
 #[derive(Default)]
@@ -611,7 +641,6 @@ impl SourceOriginId {
             kind,
             fingerprint,
             activation_key,
-            original_lexical_projection: Arc::default(),
         }
     }
 
@@ -624,8 +653,26 @@ impl SourceOriginId {
         offset: u32,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
-        self.original_lexical_projection
+        self.original_lexical_projection()
             .capture(self.source_image(), words, offset, config)
+    }
+
+    fn original_lexical_projection(
+        &self,
+    ) -> Arc<original_source_projection::OriginalSourceProjectionMemo> {
+        static MEMOS: OnceLock<
+            Mutex<
+                AllocationMemoTable<
+                    SourceOriginKind,
+                    original_source_projection::OriginalSourceProjectionMemo,
+                >,
+            >,
+        > = OnceLock::new();
+        MEMOS
+            .get_or_init(|| Mutex::new(AllocationMemoTable::default()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get_or_init(&self.kind)
     }
 
     const fn fingerprint(&self) -> u64 {
@@ -3574,6 +3621,10 @@ pub(crate) struct OriginalSourceAnalysisOwner {
     source: Arc<SourceOriginId>,
     metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
     config: tcl_lexer::LexerConfig,
+}
+/// Derived products are owned outside every immutable identity used as a key.
+#[derive(Debug, Default)]
+struct OriginalSourceAnalysisMemo {
     // Derived readonly source metadata cannot change this owner's identity.
     registered_instance_sources: std::sync::OnceLock<
         std::sync::Weak<original_name_value::OriginalRegisteredInstanceSourceCache>,
@@ -3596,6 +3647,16 @@ impl Hash for OriginalSourceAnalysisOwner {
     }
 }
 impl OriginalSourceAnalysisOwner {
+    fn derived_memo(self: &Arc<Self>) -> Arc<OriginalSourceAnalysisMemo> {
+        static MEMOS: OnceLock<
+            Mutex<AllocationMemoTable<OriginalSourceAnalysisOwner, OriginalSourceAnalysisMemo>>,
+        > = OnceLock::new();
+        MEMOS
+            .get_or_init(|| Mutex::new(AllocationMemoTable::default()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get_or_init(self)
+    }
     pub(crate) fn matches(
         &self,
         bindings: &SourceCommandBindings,
@@ -6703,8 +6764,8 @@ fn trace_source_analysis(
             .iter()
             .chain(bindings.origin_points.keys())
         {
-            let memo = &origin.original_lexical_projection;
-            if owners.insert(Arc::as_ptr(memo)) {
+            let memo = origin.original_lexical_projection();
+            if owners.insert(Arc::as_ptr(&memo)) {
                 let (owner_requests, owner_captures, owner_rejected) = memo.trace_counts();
                 requests += owner_requests;
                 captures += owner_captures;
@@ -6965,9 +7026,6 @@ impl SourceCommandBindings {
                 source: Arc::clone(source),
                 metadata: state.baseline.metadata_context.clone(),
                 config,
-                registered_instance_sources: std::sync::OnceLock::new(),
-                source_operand_layouts: std::sync::OnceLock::new(),
-                conditional_procedure_declarations: std::sync::OnceLock::new(),
             })
         });
         let namespace_key = frame
@@ -24821,5 +24879,43 @@ mod unavailable_source_read_configuration_tests {
             .source_variables
             .in_frame(&crate::var_resolve::VariableExecutionFrame::Global);
         assert_eq!(child.read_lexer_config(&registry), None);
+    }
+}
+
+#[cfg(test)]
+mod immutable_source_memo_lifetime_tests {
+    use super::*;
+
+    #[test]
+    fn source_memos_do_not_change_identity_or_retain_dead_allocations() {
+        let text: Arc<str> = Arc::from("set value 1");
+        let first = SourceOriginId::authored(&text);
+        let equal = SourceOriginId::authored(&text);
+        assert_eq!(first, equal);
+        assert!(!Arc::ptr_eq(&first.kind, &equal.kind));
+        let memo = first.original_lexical_projection();
+        let clone = first.clone();
+        assert!(Arc::ptr_eq(&memo, &clone.original_lexical_projection()));
+        assert!(!Arc::ptr_eq(&memo, &equal.original_lexical_projection()));
+        let hash = |source: &SourceOriginId| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            source.hash(&mut hasher);
+            std::hash::Hasher::finish(&hasher)
+        };
+        let before = hash(&first);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::plain_tcl().grammar,
+        );
+        assert!(first.original_lexical_command(&[], 0, config).is_none());
+        assert_eq!(hash(&first), before);
+        assert_eq!(first, equal);
+        let owner = Arc::downgrade(&first.kind);
+        let memo_lifetime = Arc::downgrade(&memo);
+        drop(memo);
+        drop(first);
+        drop(clone);
+        assert!(owner.upgrade().is_none());
+        let _ = equal.original_lexical_projection();
+        assert!(memo_lifetime.upgrade().is_none());
     }
 }

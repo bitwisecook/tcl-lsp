@@ -192,6 +192,7 @@ impl Diagnostic {
             super::DiagnosticSubject::RegistrySource(source) => source.required_package_key(),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
             | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -209,6 +210,7 @@ impl Diagnostic {
             super::DiagnosticSubject::UnresolvedCommand(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
             | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -227,6 +229,7 @@ impl Diagnostic {
             super::DiagnosticSubject::UnresolvedMathFunction(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
             | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -248,6 +251,7 @@ impl Diagnostic {
             super::DiagnosticSubject::ConditionalInterpreterVisibility(subject) => Some(subject),
             super::DiagnosticSubject::CallbackSourceArity(_)
             | super::DiagnosticSubject::ObjectSourceArity(_)
+            | super::DiagnosticSubject::PrivateTclNamespace(_)
             | super::DiagnosticSubject::UserSourceArity(_)
             | super::DiagnosticSubject::CommandAvailability(_)
             | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -293,6 +297,15 @@ impl Diagnostic {
     pub fn object_source_arity(&self) -> Option<&super::ObjectSourceAritySubject> {
         match self.subject()? {
             super::DiagnosticSubject::ObjectSourceArity(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
+    /// Original private namespace source policy, without actual lookup authority.
+    #[must_use]
+    pub fn private_tcl_namespace(&self) -> Option<&super::SourcePrivateTclNamespaceSubject> {
+        match self.subject()? {
+            super::DiagnosticSubject::PrivateTclNamespace(subject) => Some(subject),
             _ => None,
         }
     }

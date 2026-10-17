@@ -37,7 +37,7 @@ use tcl_registry::lifecycle::Lifecycle;
 use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
-use crate::expr_ast::{ExprNode, render_expr};
+use crate::expr_ast::ExprNode;
 use tcl_dialect::model::SpecSurface;
 
 /// The tight E003 anchor: the span covering the run of *surplus*
@@ -807,6 +807,14 @@ pub(super) fn is_tcloo_source_class(analyser: &Analyser, class: &super::types::C
     crate::command_binding::OriginalSourceClassDeclaration::from_class(source, analysis, record)
         .and_then(|declaration| declaration.grammar(&input.context_registry()))
         .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo)
+}
+
+/// Deferred original literal-head source policy. It retains the real word and
+/// complete input; it never asserts private implementation execution.
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::analyser) struct PendingPrivateTclSourceAdvice {
+    subject: std::sync::Arc<crate::analyser::SourcePrivateTclNamespaceSubject>,
+    diagnostic: super::types::Diagnostic,
 }
 
 impl Analyser {
@@ -2139,16 +2147,19 @@ impl Analyser {
             return;
         };
         let span = original.head().span();
-        let fixes = if descriptors.command.deprecated_replacement_drop_in {
-            vec![super::types::CodeFix {
+        let fixes = descriptors
+            .command
+            .deprecated_replacement_drop_in
+            .then(|| self.deprecated_command_source_proposal(original, replacement))
+            .flatten()
+            .map(|new_text| super::types::CodeFix {
                 span,
-                new_text: replacement.to_owned(),
+                new_text,
                 description: format!("Replace with '{replacement}'"),
                 safety: crate::irules_checks::FixSafety::RequiresReview,
-            }]
-        } else {
-            Vec::new()
-        };
+            })
+            .into_iter()
+            .collect();
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule2002,
@@ -2164,155 +2175,256 @@ impl Analyser {
         );
     }
 
-    /// **W143.** Warn on a direct call into a private, undocumented
-    /// `::tcl::` implementation namespace (`::tcl::dict::create`,
-    /// `tcl::string::totitle`, …) — real Tcl backs several built-in ensemble
-    /// commands this way, and the call works, but it is never a documented
-    /// or supported way to write Tcl.
-    ///
-    /// Registry-driven — the namespace table, its per-namespace
-    /// [`TailRule`](tcl_registry::private_tcl_namespaces::TailRule), and the
-    /// tail-to-subcommand resolution all live in
-    /// [`tcl_registry::private_tcl_namespaces`], not here.  So a user's own
-    /// namespace nested under `tcl::`, Tcl's own public `tcl::`-rooted
-    /// commands (`tcl::mathop::*`, `tcl::mathfunc::*`, `tcl::prefix`), and
-    /// tcllib's public packages that live *inside* a shared private
-    /// namespace (`tcl::chan::memchan` and the rest of `virtchannel_base`)
-    /// are never flagged.
-    ///
-    /// The **quick fix** is attached only when the classifier hands back a
-    /// `suggestion` — i.e. when the tail is a genuine subcommand of the
-    /// public ensemble in the active dialect, so `<public> <tail>` is a
-    /// legal rewrite — and only for an undelimited command head (see
-    /// [`Self::head_word_is_delimited`]).  A private helper with no public
-    /// spelling (`::tcl::clock::GetSystemTimeZone`) still warns, but with no
-    /// code-corrupting fix.
-    ///
-    /// Always **deferred** to [`Self::flush_w143_diagnostics`]: the two
-    /// remaining suppressions are whole-file facts (a `proc` this document
-    /// defines at the qualified name, and a `package require` covering it).
+    fn deprecated_command_source_proposal(
+        &self,
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        replacement: &str,
+    ) -> Option<String> {
+        if !original.matches_analysis(&self.result, &self.source) {
+            return None;
+        }
+        let head = original.head();
+        let config = head.config();
+        let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(replacement, config)?;
+        let mut proposed = replacement.clone();
+        for ordinal in 0..original.words().arguments().len() {
+            if original.written_index(ordinal) != Some(ordinal) {
+                return None;
+            }
+            let word = original.word(ordinal)?;
+            if word.image() != head.image() || word.config() != config || word.group().expand {
+                return None;
+            }
+            let text =
+                std::str::from_utf8(word.image().bytes().get(word.span().as_range())?).ok()?;
+            proposed.push(' ');
+            proposed.push_str(text);
+        }
+        let image = tcl_lexer::SourceImage::document(&proposed);
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(proposed.len()).ok()?),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        original.words().with_stock_source_command_proposal(
+            original.context(),
+            &command.words,
+            |_| (),
+        )?;
+        Some(replacement)
+    }
+
+    /// W143 is selected Registry source advice where a genuine schema exists.
+    /// Otherwise the same Registry-owned namespace policy reads the original
+    /// static whole head, retaining explicitly unavailable lookup/handler
+    /// applicability. Unregistered helpers cannot acquire a fake descriptor.
+    /// Bare direct written heads alone retain the existing review-only public
+    /// spelling edit; aliases/captures and delimited heads keep advice only.
     pub(in crate::analyser) fn emit_w143_private_tcl_namespace(
         &mut self,
         cmd_name: &str,
         cmd_tok: tcl_lexer::Token,
-        scope_path: &[usize],
+        _scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry.as_deref() else {
+        let Some(input) = self.result.resolved_input.as_ref().cloned() else {
             return;
         };
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let Some((head, site)) = self
+            .head_identities
+            .original_written_head_at_span_in_source(&image, cmd_tok.span, input.lexer_config())
+        else {
+            return;
+        };
+        if head.group().expand {
+            return;
+        }
+        let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&head) else {
+            return;
+        };
+        let Ok(literal_head) = std::str::from_utf8(&value) else {
+            return;
+        };
+        let Some((segment, _)) = self
+            .head_identities
+            .invocation_at_source("", site.offset)
+            .original_recorded_command()
+        else {
+            return;
+        };
+        let original = self.original_diagnostic_source_for_segment(&segment);
+        let selected = original.as_ref().and_then(|source| source.registry());
+        // An existing selected descriptor owns registered spelling/aliases.
+        // Without one this remains the separate literal-head namespace policy,
+        // required for unregistered Whole-namespace implementation helpers.
+        let classified_name = selected
+            .map_or(literal_head, |selected| selected.command())
+            .to_owned();
+        let context = input.context_registry();
         let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
-            cmd_name,
-            registry,
-            Some(self.analysis_context().context().authoring_query()),
+            &classified_name,
+            context.commands(),
+            Some(context.context().authoring_query()),
         ) else {
             return;
         };
         let message = match &call.suggestion {
             Some(suggestion) => format!(
-                "'{cmd_name}' is a private Tcl implementation namespace; use the public \
-                 ensemble command instead — e.g. '{suggestion}'."
+                "'{cmd_name}' is a private Tcl implementation namespace; use the public ensemble command instead — e.g. '{suggestion}'."
             ),
             None => format!(
-                "'{cmd_name}' is a private Tcl implementation namespace; '{}' is not a \
-                 subcommand of the public '{}' ensemble, so there is no supported \
-                 spelling of this call.",
+                "'{cmd_name}' is a private Tcl implementation namespace; '{}' is not a subcommand of the public '{}' ensemble, so there is no supported spelling of this call.",
                 call.tail, call.public_command
             ),
         };
-        let fixes = match call.suggestion {
-            Some(suggestion) if !self.head_word_is_delimited(cmd_tok) => {
-                vec![super::types::CodeFix {
-                    span: cmd_tok.span,
+        let direct_written = selected.is_none_or(|selected| {
+            selected.head() == &head
+                && (0..selected.words().arguments().len())
+                    .all(|argument| selected.written_index(argument) == Some(argument))
+        });
+        let fixes = call
+            .suggestion
+            .as_ref()
+            .and_then(|suggestion| {
+                (direct_written
+                    && !head.group().expand
+                    && head.group().kind == tcl_lexer::WordKind::Bare)
+                    .then_some(())?;
+                let public = tcl_syntax::word_rules::lexical_unicode_source_word(
+                    call.public_command,
+                    head.config(),
+                )?;
+                let tail =
+                    tcl_syntax::word_rules::lexical_unicode_source_word(&call.tail, head.config())?;
+                Some(super::types::CodeFix {
+                    span: head.span(),
+                    new_text: format!("{public} {tail}"),
                     description: format!("Replace with '{suggestion}'"),
-                    new_text: suggestion,
-                    // W143: the public spelling is inferred from the private one; the
-                    // private implementation need not behave identically to the ensemble.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
-                }]
-            }
-            _ => Vec::new(),
-        };
-        let diag = crate::analyser::types::Diagnostic::new(
-            DiagCode::W143,
-            cmd_tok.span,
-            message,
-            Severity::Warning,
-        )
-        .with_fixes(fixes);
-        let ns = self.command_resolution_namespace(scope_path);
-        let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        self.pending_w143
-            .push((cmd_name.to_string(), ns, enforce_order, diag));
+                })
+            })
+            .into_iter()
+            .collect();
+        let subject = std::sync::Arc::new(
+            crate::analyser::SourcePrivateTclNamespaceSubject::from_original_source(
+                head,
+                input,
+                site.offset,
+                selected.map(|selected| selected.words().clone()),
+                classified_name,
+                call,
+            ),
+        );
+        let diagnostic =
+            super::types::Diagnostic::new(DiagCode::W143, cmd_tok.span, message, Severity::Warning)
+                .with_fixes(fixes)
+                .with_subject(crate::analyser::DiagnosticSubject::PrivateTclNamespace(
+                    subject.clone(),
+                ));
+        self.pending_w143.push(PendingPrivateTclSourceAdvice {
+            subject,
+            diagnostic,
+        });
     }
 
-    /// Whether the command head at `cmd_tok` is written as a *delimited*
-    /// word — braced (`{::tcl::dict::create}`) or quoted
-    /// (`"::tcl::dict::create"`).
-    ///
-    /// The lexer's word tokens do not span their delimiters uniformly: a
-    /// braced word's span is the inner text only (the `{`/`}` are stripped),
-    /// while a quoted word's span starts *on* the opening `"` and stops
-    /// before the closing one.  A head-token-sized replacement therefore
-    /// leaves an orphan `}` / `"` behind, and for the braced form the result
-    /// (`{dict create} a 1`) is a single command word rather than the
-    /// intended two — so the quick fix is suppressed for these heads and the
-    /// warning stands on its own.
-    fn head_word_is_delimited(&self, cmd_tok: tcl_lexer::Token) -> bool {
-        cmd_tok.kind == tcl_lexer::TokenType::Str
-            || self
-                .source
-                .as_bytes()
-                .get(cmd_tok.span.start() as usize)
-                .is_some_and(|b| *b == b'"')
-    }
-
-    /// Post-walk flush of the [`Self::pending_w143`] candidates.
-    ///
-    /// Drops a candidate when the document itself supplies the command:
-    ///
-    /// * **it defines it** — a `proc ::tcl::dict::mine`, a class, an
-    ///   `interp alias`, a `rename` target, or an ensemble namespace at the
-    ///   qualified name, resolved through the shared
-    ///   [`UserResolutionFacts`] with the same namespace / load-order rules
-    ///   the W002 and arity flushes use.  A `namespace eval ::tcl::dict {
-    ///   proc mine … }` lands in `all_procs` fully qualified, so it is
-    ///   covered by the same check;
-    /// * **it requires a package that owns it** — a `package require
-    ///   tcl::chan::memchan` (or of any namespace prefix of the call) means
-    ///   the name belongs to that package, not to Tcl's internals.  Without
-    ///   this, a file could draw W120 ("needs `package require X`") and W143
-    ///   ("this is Tcl-private") for the same command, which cannot both be
-    ///   true.
-    ///
-    /// Idempotent: drains `pending_w143`, so a second call is a no-op.
+    /// Whole-file source ownership suppressions are deliberately order-independent
+    /// dependency advice. Every request offset reissues a genuine current
+    /// selected Require operand; reporting package/name maps are not authority.
+    /// Source calls/classes similarly use their authentic declaration receipts.
+    /// Drains the original pending source-policy receipts once.
     pub(in crate::analyser) fn flush_w143_diagnostics(&mut self) {
         if self.pending_w143.is_empty() {
             return;
         }
-        let facts = UserResolutionFacts::build(self);
-        let required: Vec<&str> = self
-            .result
-            .package_requires
-            .iter()
-            .map(|required| required.name.as_str())
-            .collect();
         let pending = std::mem::take(&mut self.pending_w143);
-        for (cmd_name, ns, enforce_order, diag) in pending {
-            let path = crate::analyser::scope::implicit_command_namespace_path_at(
-                &self.result.global_scope,
-                diag.span.start(),
-            );
-            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, diag.span.start()) {
+        for candidate in pending {
+            if !candidate.subject.matches_source(&self.source, &self.result) {
                 continue;
             }
-            if required.iter().any(|package| {
-                tcl_registry::private_tcl_namespaces::required_package_namespace_advice_covers(
-                    package, &cmd_name,
+            let Some(input) = self.result.resolved_input.as_ref() else {
+                continue;
+            };
+            let image = candidate.subject.original_head().image();
+            let offset = candidate.subject.source_offset();
+            // Genuine source declarations are positive suppression advice;
+            // report QName/alias maps do not manufacture a call target.
+            let declared = if input.has_logical_source_name_context() {
+                crate::registry_invocation::source_structure::source_logical_procedure_call_at(
+                    &self.source,
+                    &self.result,
+                    offset,
                 )
-            }) {
+                .is_some()
+            } else {
+                crate::registry_invocation::source_structure::source_original_procedure_call_at(
+                    &self.source,
+                    &self.result,
+                    offset,
+                )
+                .is_some()
+            };
+            if declared
+                || crate::registry_invocation::source_structure::source_class_instance_words_at(
+                    &self.source,
+                    &self.result,
+                    offset,
+                )
+                .is_some()
+            {
                 continue;
             }
-            self.result.diagnostics.push(diag);
+            let context = input.context_registry();
+            let package_covers = self.result.package_requires.iter().any(|required| {
+                let Some((_, offset)) = self
+                    .head_identities
+                    .original_written_word_at_span_in_source(
+                        image,
+                        required.range,
+                        input.lexer_config(),
+                    )
+                else {
+                    return false;
+                };
+                let Some(words) =
+                    crate::registry_invocation::source_structure::source_registry_words_at(
+                        &self.source,
+                        &self.result,
+                        offset,
+                    )
+                else {
+                    return false;
+                };
+                let Some(reference) = words.package_reference(&context) else {
+                    return false;
+                };
+                if reference.kind()
+                    != tcl_registry::source_navigation::SourcePackageReferenceKind::Require
+                {
+                    return false;
+                }
+                let Some(word) = words.original_argument_word(reference.argument()) else {
+                    return false;
+                };
+                let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                else {
+                    return false;
+                };
+                let Ok(package) = std::str::from_utf8(&value) else {
+                    return false;
+                };
+                tcl_registry::private_tcl_namespaces::required_package_namespace_advice_covers(
+                    package,
+                    candidate.subject.classified_source_name(),
+                )
+            });
+            if !package_covers {
+                self.result.diagnostics.push(candidate.diagnostic);
+            }
         }
     }
 
@@ -2636,7 +2748,15 @@ impl Analyser {
                 ExprNode::Binary { op, left, right }
                     if is_simple_operand(left) && is_simple_operand(right) =>
                 {
-                    rewrite_gated_operator(op.as_str(), &render_expr(left), &render_expr(right))
+                    self.gated_operator_source_proposal(
+                        content_span,
+                        trimmed,
+                        &assistance,
+                        &parsed,
+                        op.as_str(),
+                        left,
+                        right,
+                    )
                 }
                 _ => None,
             });
@@ -2682,6 +2802,83 @@ impl Analyser {
     Severity::Warning,
 ).with_fixes(fixes));
         }
+    }
+
+    fn gated_operator_source_proposal(
+        &self,
+        content_span: tcl_lexer::Span,
+        trimmed: &str,
+        assistance: &tcl_syntax::expr::parser::ExprParseContext,
+        parsed: &ExprNode,
+        op: &str,
+        left: &ExprNode,
+        right: &ExprNode,
+    ) -> Option<String> {
+        let config = self.file_lexer_config();
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let (word, offset) = self
+            .head_identities
+            .original_written_word_at_span_in_source(&image, content_span, config)?;
+        if word.group().kind != tcl_lexer::WordKind::Braced
+            || word.content_span().ok()? != content_span
+            || word.image().bytes().get(content_span.as_range())?
+                != self.source.as_bytes().get(content_span.as_range())?
+        {
+            return None;
+        }
+        let (command, _) = self
+            .head_identities
+            .invocation_at_source("", offset)
+            .original_recorded_command()?;
+        let original = self.original_diagnostic_source_for_segment(&command)?;
+        let registry = original.registry()?;
+        if !registry.matches_analysis(&self.result, &self.source) {
+            return None;
+        }
+        let roles = registry
+            .with_schema(crate::analyser::diagnostic_registry::source_expression_arguments)??;
+        let mut matching = roles.arguments.into_iter().filter(|&argument| {
+            original.written_index(argument).is_some() && original.word(argument) == Some(&word)
+        });
+        matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let source = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
+            trimmed, assistance, config,
+        )?;
+        if !source.matches_tree(parsed) {
+            return None;
+        }
+        let left = source.proposed_tcl_argument_source(left)?;
+        let right = source.proposed_tcl_argument_source(right)?;
+        let proposal = rewrite_gated_operator(op, &left, &right)?;
+        // The shared expression AST owns the generated bracket's real script
+        // region. No prefix stripping or parsed name donates original identity.
+        let proposed = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
+            &proposal, assistance, config,
+        )?;
+        let regions = proposed.command_regions()?;
+        let [region] = regions.as_slice() else {
+            return None;
+        };
+        let body = proposal.get(region.body.as_range())?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(body),
+            tcl_lexer::Span::new(0, u32::try_from(body.len()).ok()?),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        registry.words().with_stock_source_command_proposal(
+            registry.context(),
+            &command.words,
+            |_| (),
+        )?;
+        Some(proposal)
     }
 
     /// **W002** for a math function used before its introducing release —
@@ -3595,6 +3792,69 @@ mod configured_proposal_controls {
                 .find(|diagnostic| diagnostic.code == code)
                 .unwrap();
             assert!(diagnostic.fixes.is_empty(), "{captured}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_private_tcl_policy_controls {
+    use super::*;
+
+    #[test]
+    fn actual_source_policy_keeps_unknown_helpers_and_whole_written_fix_boundary() {
+        for dialect in ["tcl8.6", "tcl"] {
+            for (source, fixed) in [
+                ("::tcl::dict::create a 1", true),
+                ("{::tcl::dict::create} a 1", false),
+                ("::tcl::clock::GetSystemTimeZone", false),
+            ] {
+                let result = Analyser::new().analyse(source, dialect);
+                let diagnostic = result
+                    .diagnostics
+                    .iter()
+                    .find(|diagnostic| diagnostic.code == DiagCode::W143)
+                    .unwrap();
+                let subject = diagnostic.private_tcl_namespace().unwrap();
+                assert!(subject.matches_source(source, &result));
+                assert!(!subject.matches_source(&format!("{source} changed"), &result));
+                assert_eq!(!diagnostic.fixes.is_empty(), fixed);
+                assert!(subject.obligations().contains(
+                    &crate::analyser::SourcePrivateTclNamespaceObligation::UnavailableActualLookup
+                ));
+                if source.contains("GetSystemTimeZone") {
+                    assert!(subject.selected_source_words().is_none());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn actual_original_declaration_and_require_own_suppression_not_report_names() {
+        for dialect in ["tcl8.6", "tcl"] {
+            for source in [
+                "proc ::tcl::dict::mine {d} {return $d}; ::tcl::dict::mine value",
+                "::tcl::dict::mine value; package require tcl::dict",
+                "package require tcl::dict; ::tcl::dict::mine value",
+            ] {
+                let result = Analyser::new().analyse(source, dialect);
+                assert!(
+                    !result
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == DiagCode::W143),
+                    "{source}: {dialect}"
+                );
+            }
+            let result = Analyser::new().analyse(
+                "package require :tcl::dict; ::tcl::dict::mine value",
+                dialect,
+            );
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == DiagCode::W143)
+            );
         }
     }
 }

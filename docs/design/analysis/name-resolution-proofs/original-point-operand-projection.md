@@ -111,3 +111,11 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Linked Rust selectors do not establish execution or timing. The unchanged 80-depth default-stack selector and its 60-second result require separate actual execution.
+
+## Immutable identity and derived memo lifetime
+
+`SourceOriginId` retains its unchanged semantic kind, fingerprint and activation key. `OriginalSourceAnalysisOwner` retains its actual allocation identity and immutable original source, complete metadata and configuration. Their Eq/Hash policies do not depend on cache warmth. Mutable lexical projections and the analysis owner's existing weak registered-instance/operand-cache links and conditional-declaration memo are kept outside these key types in private derived sidecars.
+
+A sidecar belongs to the actual Arc allocation: an address is only a bucket, and lookup must upgrade the retained Weak owner and compare the complete actual Arc pointer. Equal-valued independent allocations do not share a memo. The sidecar retains no strong owner, removes dead-owner entries on access, and releases its registry lock before lexical parsing or source interpretation. The existing weak baseline and weak independently owned source-cache checks remain unchanged. A derived result never becomes source identity, metadata admission, Native lookup, entered frame or semantic permission.
+
+Fixed source/analysis-owner lifetime controls retain products through the real lexical and conditional-declaration routes, drop the owner, and verify weak expiry plus retirement on the next sidecar access. Existing lexical projection controls use the accessor in place of the removed mutable field; their capture-count predicates, values and original source fixtures remain unchanged. These source controls are not claimed executed by this packet.

@@ -62,7 +62,7 @@ use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
-use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
+use super::helpers::expr_simplify::NumericCtx;
 use super::{Optimisation, PassContext};
 
 /// Run the expression-simplification pass across every function
@@ -246,29 +246,32 @@ fn report_original_expression_candidates(
         else {
             continue;
         };
-        if let ExprNode::Command { text, .. } = &advice.expression
-            && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
+        if matches!(&advice.expression, ExprNode::Command { .. })
             && original_tokens.words() == tokens.words()
             && ctx.command_mutations.trusts("expr")
-            && ctx
-                .fold_policy()
-                .preparation_context()
-                .is_some_and(|context| {
-                    tokens.source_binding.as_ref().is_some_and(|binding| {
-                        binding.nested_expression_normalisation(
-                            registry,
-                            &tokens,
-                            &context,
-                            Some(&advice.expression),
-                        )
-                    })
-                })
+            && let Some(unwrapped) = ctx.fold_policy().preparation_context().and_then(|context| {
+                tokens
+                    .source_binding
+                    .as_ref()?
+                    .nested_expression_normalisation_source(
+                        registry,
+                        &tokens,
+                        &context,
+                        Some(&advice.expression),
+                    )
+                    .map(|(expression, _)| expression)
+            })
         {
+            let Some(argument) =
+                tcl_syntax::word_rules::lexical_unicode_source_word(&unwrapped, ctx.lexer_config())
+            else {
+                continue;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O115,
                 "Remove redundant nested expr",
                 stmt.span(),
-                format!("expr {{{unwrapped}}}"),
+                format!("expr {argument}"),
             ));
             continue;
         }
@@ -745,28 +748,29 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     // form (the source span on `ExprEval` does not always cover
     // the trailing `}` of a braced body — see
     // `lowering::structured` for the token-span limitation).
-    if let ExprNode::Command { text, .. } = expr
-        && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
-        && ctx
+    if matches!(expr, ExprNode::Command { .. })
+        && let Some(unwrapped) = ctx
             .ir_module
             .zip(ctx.registry)
-            .is_some_and(|(module, registry)| {
-                crate::math_function_binding::ExpressionMathBindings::for_module_statement(
-                    module, span,
-                )
-                .is_some_and(|bindings| {
-                    let Some(context) = ctx.fold_policy().preparation_context() else {
-                        return false;
-                    };
-                    bindings.nested_numeric_normalisation(&context, registry, expr)
-                })
+            .and_then(|(module, registry)| {
+                let bindings =
+                    crate::math_function_binding::ExpressionMathBindings::for_module_statement(
+                        module, span,
+                    )?;
+                let context = ctx.fold_policy().preparation_context()?;
+                bindings.nested_numeric_normalisation_source(&context, registry, expr)
             })
     {
+        let Some(argument) =
+            tcl_syntax::word_rules::lexical_unicode_source_word(&unwrapped, ctx.lexer_config())
+        else {
+            return;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O115,
             "Remove redundant nested expr",
             span,
-            format!("expr {{{unwrapped}}}"),
+            format!("expr {argument}"),
         ));
         return;
     }

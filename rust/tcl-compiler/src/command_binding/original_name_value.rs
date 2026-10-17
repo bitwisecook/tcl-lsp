@@ -762,7 +762,11 @@ impl super::SourceInvocationBinding {
         {
             return None;
         }
-        let cache = owner.registered_instance_sources.get()?.upgrade()?;
+        let cache = owner
+            .derived_memo()
+            .registered_instance_sources
+            .get()?
+            .upgrade()?;
         let receipt = cache
             .entries
             .lock()
@@ -1626,7 +1630,8 @@ impl super::SourceCommandBindings {
             return None;
         }
         let cache = &self.original_registered_instance_sources;
-        let linked = owner
+        let memo = owner.derived_memo();
+        let linked = memo
             .registered_instance_sources
             .get_or_init(|| std::sync::Arc::downgrade(cache));
         if !std::sync::Weak::ptr_eq(linked, &std::sync::Arc::downgrade(cache)) {

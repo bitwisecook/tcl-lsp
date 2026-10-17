@@ -713,7 +713,11 @@ impl SourceCommandBindings {
         tokens: &crate::ir::CommandTokens,
     ) -> Option<OriginalDeclarationSourceOperandAttachment> {
         let owner = self.original_analysis_owner.as_ref()?;
-        let cache = owner.source_operand_layouts.get()?.upgrade()?;
+        let cache = owner
+            .derived_memo()
+            .source_operand_layouts
+            .get()?
+            .upgrade()?;
         if !Arc::ptr_eq(&cache, &self.original_source_operand_layouts)
             || self.lexer_config != Some(owner.config)
             || self.source_metadata_owner() != &owner.metadata
@@ -809,7 +813,8 @@ impl SourceCommandBindings {
         if !std::sync::Weak::ptr_eq(final_state, &Arc::downgrade(&self.final_state)) {
             return;
         }
-        let linked = owner
+        let memo = owner.derived_memo();
+        let linked = memo
             .source_operand_layouts
             .get_or_init(|| Arc::downgrade(cache));
         if !std::sync::Weak::ptr_eq(linked, &Arc::downgrade(cache)) {
@@ -1585,6 +1590,46 @@ impl SourceCommandBindings {
             body.logical_parameters_word.as_ref(),
             body.logical_parameters_text.as_deref()?,
             &body.parameters,
+            input.lexer_config(),
+        )
+    }
+
+    /// Typed source Logical formal topology from the exact retained declaration.
+    /// The returned values keep authored source syntax separate from Native
+    /// ParamList bytes and never grant an entered frame or installed locals.
+    pub(crate) fn original_logical_formal_topology_at(
+        &self,
+        site: &CommandAllocationSite,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<crate::signature_scan::formal_parameters::LogicalProcedureFormalTopology> {
+        if !input.has_logical_source_name_context()
+            || !self.matches_original_source_image(site.source.source_image(), input.lexer_config())
+        {
+            return None;
+        }
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || row.snapshot.state.logical_source_name_advice_input() != Some(input)
+            {
+                return None;
+            }
+        }
+        let body = self.original_declared_procedure_at(site, registry)?;
+        if body.original_parameters.is_some() || body.logical_name.is_none() {
+            return None;
+        }
+        let text = body.logical_parameters_text.as_deref()?;
+        let names = super::logical_definition::formal_name_sources(
+            body.logical_parameters_word.as_ref(),
+            text,
+            &body.parameters,
+            input.lexer_config(),
+        )?;
+        crate::signature_scan::formal_parameters::LogicalProcedureFormalTopology::from_selected_declaration(
+            body.logical_parameters_word.as_ref()?,
+            &body.parameters,
+            names,
             input.lexer_config(),
         )
     }

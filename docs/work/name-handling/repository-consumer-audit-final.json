@@ -1183,7 +1183,18 @@
       ],
       "api": "Actual literal Incr target/place/read owner, existing typed SsaSourceView/point cell APIs",
       "required_change": "Consumer passes literal Statement::Incr.name+name_braced through element_var_name_braced, a substitution-reference helper that strips leading$sigil/unwraps${} for unbraced input (naming1094\u20131110). Actual Incr lowering preserves literal target source (earlier admitted lowerer43\u201383). Need genuine literal-target access, retain scalar/element and escapes/config, physical definition/uses/currentness/observer guards. No wrong-deletion execution claimed.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "selected original literal target source read. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -3091,7 +3102,18 @@
       ],
       "api": "Module::original_source_procedure_bodies + BodyId; formal names report vector; interprocedural::arity_from_names; source propagation",
       "required_change": "Retain genuine selected formal topology/default/rest/argument bindings and source activation slot; names-only params/args convention and name-keyed entry seeds are not complete actual formal binding.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "formal V3 through V5 current source topology. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -5529,7 +5551,24 @@
       ],
       "api": "Existing configured original ExecutablePartArena and checked original argument lifted calls; wholeWordExpr supplied by ExecutableAction::Evaluate\u2192EvaluateWord",
       "required_change": "Replace direct variant/string tests with genuine original wholeword/config/array-index/expression component inventory; actual index substitutions can contain commands while WordExpr::Variable currently returnsfalse and Template onlylooks at direct CommandSubstitution/Opaque. Retain unknown/trace/readobserver/current source as independent effects; missing child owner widens.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-composition/world-state-original-word-v1",
+          "sol-world1736-source-availability-v3",
+          "sol-world1736-source-availability-v4",
+          "sol-world1736-metadata-api-v5"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "compiler",
@@ -6060,7 +6099,18 @@
       ],
       "api": "Actual resolved registration/effective origins/fullconfig/source callback value; existing selected ListArguments source builder owner and source callback recipe",
       "required_change": "Replace list/::list fixed builder recognition4057 with actual retained selected builder role; retain installer/callback future scope/input/source applicability through replay. Fresh synthetic label occupancy/source transformation and per-source input rebase remain explicit unresolved contract questions.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "callback V1 through V4 selected effective ListArguments builder only. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -6360,7 +6410,18 @@
       ],
       "api": "Actual original selected Registry expression operation and original operand/normalisation source owner",
       "required_change": "Current helper written prefix expr585 plus Unicode whitespace and trimfirstlast quote/brace593 reconstructs body. Generic source candidate should consume selected operation/original whole operand and geometry, preserving actual outer/inner frame/namespace/observer/equivalence guard in caller. Separate semantic source-role adapter from string-length purpose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "optimizer nested V1 original operation and operand source facet. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -6390,7 +6451,18 @@
       ],
       "api": "Actual selected Registry string-length semantic operation and effective original argument source",
       "required_change": "Raw strip_prefix(string length)1242 and trimmed rest1252 choose command meaning and operand locally. Use genuine selected source operation/argument and complete word geometry; actual rewrite equivalent gate remains mandatory, no declared label grants live command identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "optimizer nested V1 StringLength source facet. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -6420,7 +6492,18 @@
       ],
       "api": "cmd.lexer_config actual complete config; shared ExprParseContext/parser selected full grammar and source numeric policy",
       "required_change": "Parse original sugar body under actual retained full configuration rather than parse_expr_for_profile(cmd.dialect). Same selected-expression-config repair family as control Expr/Return, distinct actual lowering boundary. Preserve two-byte original source mapping and conditional/Native admission separately.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "lowering full original expression configuration. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -6450,7 +6533,18 @@
       ],
       "api": "extract_proved_expr_arg actual selected nested target and full original config; shared selected full-context Expr parser",
       "required_change": "After genuine child expression source/layout selection, parse_expr_for_profile discards actual cmd.lexer_config. Adapt original expression parser context; preserve original selected target/no prefix/exact scalar argv/config/current input, operand order and value representation.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "lowering full original expression configuration. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -7012,7 +7106,18 @@
       ],
       "api": "Lowerer actual self.config +selected expression context; existing parse_expr_with_syntax_context/ResolvedAnalysisInput expression owner",
       "required_change": "Current condition generation parses using parse_expr_for_profile at482/557/608 although actual full self.config exists. Transport genuine selected full expression/word grammar and exact source/base to shared parser. Preserve selected control schema, body cardinality, current compiler/Native and unknown/error applicability guards.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "lowering full original expression configuration. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -7136,7 +7241,21 @@
       ],
       "api": "Selected whole original operands plus shared original-source construction/command selection owners",
       "required_change": "657 emits hardcoded lappend and652 private is_safe_bare_word permits dollar bytes; review-only proposal discloses review but does not centralise syntax or selected destination command meaning. Adopt existing full-config literal source constructor and selected destination descriptor/premise; original alias/rebinding/source-byte ownership remain. One changed fix boundary, not all unchanged original-schema callers.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-diagnostic-append-proposal-v3"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "compiler",
@@ -7304,7 +7423,18 @@
       ],
       "api": "Existing configured variable_reference_root_bytes and actual source expression lexical context",
       "required_change": "Actual extract_counter_name787 takes first expression Variable then private ASCII word run; $ns::v becomes ns. Shared configured whole substitution root includes actual namespace/braced/array-root spelling. Source root only, not cell/SSA identity. One real helper adopter, preserve command-substitution abstention and unresolved lexing.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "bounds configured analytical root. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -7326,7 +7456,18 @@
       ],
       "api": "Existing whole_scalar_variable_reference_name with actual full config and separate conservative eligibility",
       "required_change": "Copies permissive optional brace/ASCII parser. Adopt genuine whole source scalar projection then retain explicitly justified strict subset/eligibility, not accidental name truncation or reconstructed cell. Distinct whole-scalar purpose from leading analytical array root799.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "bounds configured whole scalar condition. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -7408,7 +7549,17 @@
       ],
       "api": "Actual retained input/realm/full source/config/current context plus NativeWord original groups and selected member roles; existing original_static_word_unicode_value",
       "required_change": "Use genuine Unicode source values for the visibility target-name roster. Keep selected visibility keyword/argc and full vector/currentness gates.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-29/composition.json",
+          "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566"
+        },
+        "scope": "configured Unicode Logical member visibility source operand. Conservative partial source adoption only; remaining lookup/body/materialisation/effect/equivalence obligations independent.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main118 running. No new semantic execution or overall-green result."
+      }
     },
     {
       "area": "compiler",
@@ -7694,7 +7845,21 @@
       ],
       "api": "Existing lexical_unicode_source_word with actual original whole method word/config and genuine source-action edit geometry",
       "required_change": "Actual233 emits arbitrary best candidate String as new_text at representative method span. RequiresReview status is not source syntax correspondence. Adopt checked whole source word and actual original container/replacement extent, preserving chosen method inventory/current receiver purpose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-diagnostic-method-word-v1"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "compiler",
@@ -7716,7 +7881,18 @@
       ],
       "api": "Existing retained original method/body, selected Return invocation and genuine return-value summary owners",
       "required_change": "Private strip braces plus return-prefix parser interprets method body report text without selecting actual inner return operation or retained body/formal receipt. Actual caller1070 selected outer SelfDispatch/Introspection does not select the inner Return. Adopt genuine method/result source summary, preserving conservative W307 suppression purpose.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "actual source method return summary. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -7754,7 +7930,17 @@
       ],
       "api": "Actual source_binding reissue1000; selected invocation1042; existing source receiver/member complete inventory owner",
       "required_change": "Enclosing class/body containment plus report method tables and hierarchy still supply W308 absence/candidate set. Strong method_set_unknowable1787 blocks incomplete/external inheritance. Needs genuine original receiver/current class/method-name inventory under existing linked-member complete-inventory family; not a new Native resolver or broad guard relaxation.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-29/composition.json",
+          "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566"
+        },
+        "scope": "genuine selected Logical class/member ledger. Conservative partial source adoption only; remaining lookup/body/materialisation/effect/equivalence obligations independent.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main118 running. No new semantic execution or overall-green result."
+      }
     },
     {
       "area": "compiler",
@@ -7776,7 +7962,21 @@
       ],
       "api": "Existing typed decoded source-subject interpreter scope owner required",
       "required_change": "contains(@interp@) still uses rendered synthetic namespace marker. Link existing world_state_ssa/interpreter source subject partition family once; actual diagnostic classifier adapter separate from Native interpreter identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-diagnostic-interpreter-subject-v1"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "compiler",
@@ -8363,7 +8563,18 @@
       ],
       "api": "extract_proved_expr_arg authentic source parent+full config; existing ExprParseContext/configured expression parser and original reference owner",
       "required_change": "After real selected expression source proof5194, parse_expr_for_profile5212 and profile grammar5205 drop actual supplied lexer axes before variable read inventory. Transport actual expression parse context/full source config into read collection; same selected-expression-config family, distinct actual adapter.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "lowering full original expression configuration. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -8766,7 +8977,18 @@
       ],
       "api": "Selected original descriptor + authentic introduced replacement head construction/selection",
       "required_change": "Actual F5nearest-familygate2374/source descriptor2378 correct. new_text replacement2392 substitutes original writtenhead but metadata describes effective selected command; alias captured prefix/renamed target maynot preserve argumentlayout/targetresolution. Need complete configured sourcehead and selected introduced command/prefix sourcepremise; source advice doesnot prove Native replacementhandler. Count actual proposaladopter distinctfrom source schema.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "deliberately proposed stock command/expression source metadata with explicit review obligations. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -8796,7 +9018,18 @@
       ],
       "api": "Existing Registry private_tcl_namespaces semantic classifier; extend authentic selected source invocation facade once if required",
       "required_change": "Feed the actual selected original command/descriptor to existing private namespace semantic classifier via OriginalRegistryWords.with_source_schema. Existing pure classifier remains; no new Registry facet is assumed.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "PrivateTcl V3 genuine original source subject and reporting-only conditional advice. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -8826,7 +9059,18 @@
       ],
       "api": "Existing Registry private_tcl_namespaces semantic classifier; extend authentic selected source invocation facade once if required",
       "required_change": "Construct/check the introduced public command arguments against actual configured whole original head and editable written geometry; delimiter predicate alone does not license replacement or public binding.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "PrivateTcl V3 genuine original source subject and reporting-only conditional advice. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -8848,7 +9092,18 @@
       ],
       "api": "Existing Registry private_tcl_namespaces semantic classifier; extend authentic selected source invocation facade once if required",
       "required_change": "Use retained actual positioned source user/publication/package facts when suppressing private command advice, rather than reconstructed report-name maps. Reuse the source user-resolution owner; do not count a second owner repair.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "PrivateTcl V3 genuine original source subject and reporting-only conditional advice. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -8906,7 +9161,18 @@
       ],
       "api": "Original ExprParseContext and shared expr grammar/operators; authentic introduced command source bindings for suggestions",
       "required_change": "Recognition preservesactuallexer/numeralconfig andexplicitlyNativeUnknown3056, notcurrentexecutableroster. Actual rewrite3251\u20133256 hardcodes lsearch/string compare names and render_expr variable operands; needs selected introduced command/variable-source geometry, not absence of spaces alone3234. Actual sourceproposalpurpose distinctfromNativeexecution and must keepRequiresReview. Existing extent/introducedcommand source families supplyowner once; actualadapterhere changes.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "deliberately proposed stock command/expression source metadata with explicit review obligations. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "compiler",
@@ -13171,7 +13437,21 @@
       ],
       "api": "DynamicFamilyId; PackDialect::to_grammar; original loader finish_pack_cores",
       "required_change": "Actual loader accepts slash in pack and dialect components, while family_id concatenates them with slash into an Arc string identity. Distinct pairs (a/b,c) and (a,b/c) collapse, and model bare lookup rsplit further reconstructs component identity. Extend existing DynamicFamilyId owner to retain actual components or explicit injective admitted representation; rendered names cannot recover identity.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-dynamic-family-components-v2"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "db",
@@ -13192,7 +13472,17 @@
       ],
       "api": "Existing enum ALL/WORDS/native hook catalogues; EnvironmentRegistry and SpecSurface",
       "required_change": "Several authoring vocabularies mirror registered enum/hook/name tables manually while Traits/SideEffect already derive from owner metadata. Migrate exact public vocabulary projections at existing owners; exhaustive test witnesses detect omissions but do not centralize producer knowledge.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-29/composition.json",
+          "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566"
+        },
+        "scope": "Registry enum/native table and dialect authored-surface picker vocabulary projections. Conservative partial source adoption only; remaining lookup/body/materialisation/effect/equivalence obligations independent.",
+        "verified_complete": false,
+        "validation": "Root source AST/fmt PASS; actual Main118 running. No new semantic execution or overall-green result."
+      }
     },
     {
       "area": "db",
@@ -13438,7 +13728,21 @@
       ],
       "api": "model::sync_environment_sources accepted/rejected sources; dialect_conversion::to_dynamic_core; model::register_dynamic_families",
       "required_change": "Environment registry triages conflicting/invalid source providers and returns rejected IDs, but dynamic-core publication loops all original packs/environments without retained accepted-provider correspondence. A refused definition can still publish a core for a surviving same-named environment. Carry exact accepted source/declaration correspondence through existing publication owner and preserve complete duplicate/retirement semantics; no String label join or Native grant.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration23 source admission, integration25 causal API repair",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943"
+        },
+        "admitted_packets": [
+          "sol-accepted-environment-core-v1"
+        ],
+        "verified_complete": false,
+        "scope": "Conservative partial adoption of this exact existing generic source-purpose boundary. Actual original inputs/selected owner obligations retained; no family, Native/Normal, execution or semantic-equivalence closure. EvaluateWord1736 specifically leaves EvaluateExpr/whole inventory partial.",
+        "validation": "Root AST/fmt source PASS. Actual95 Compiler/Core lib checks PASS, overall FAIL1 Engine metadata ListError formatting; causal repair pending. No new semantic tests executed."
+      }
     },
     {
       "area": "db",
@@ -13473,7 +13777,18 @@
       ],
       "api": "ResolvedContext actual required_packages/pack_ambient/expected_packages; AuthoringScope/SurfaceQuery",
       "required_change": "Authoring package scope only enumerates fixed VENDOR_SURFACE_PACKAGES even though actual context supports arbitrary required packages/pack ambient rows. Package-surface metadata outside roster cannot be represented in get_for_surface query, despite actual provider_active metadata. Extend existing authoring scope with genuine package owner facts preserving independent activation/availability, not a rendered-name fallback.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "owned package source floors with activation separate from installed supports. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "db",
@@ -13501,7 +13816,18 @@
       ],
       "api": "Existing inherited-surface snapshot/generation owner and ContextRegistry generation identity",
       "required_change": "Context stores no retained roster observation, while admits reads current global store. ContextRegistry entries assembled/keyed under earlier inherited generation can disagree with current context.resolve_spec after roster reload. Retain same actual roster snapshot or explicitly validate currentness; environment/command labels cannot reconstitute prior selected roster.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration26 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703"
+        },
+        "scope": "retained-roster V1 paired V2 genuine assembly snapshot correction. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "31 Rust AST/fmt source PASS; actual Main115 overall FAIL6 Compiler errors. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "db",
@@ -13924,7 +14250,18 @@
       ],
       "api": "ArgRoleResolverInput::LiteralValues; authored_source_argument_roles; InvocationArguments; structured/cardinality resolver alternatives",
       "required_change": "When authored roles are incomplete, arg_roles2831 calls bare literal-value resolver with unknown Dynamic payload represented as empty String. layout_is_proven_in1539 only checks option topology, returning true for empty option table1578; arbitrary pack hook can inspect payload values. Retain real selected dependency/layout/structured-value purpose or refuse exact roles; source cardinality is not value proof.",
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "literal callback actual value dependency. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
+      }
     },
     {
       "area": "db",
@@ -14145,6 +14482,17 @@
             }
           }
         ]
+      },
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Root actual integration27 source admission",
+        "source_admission": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4"
+        },
+        "scope": "selected try list/escape grammar and actual value phase. Conservative partial source adoption; unresolved Native execution, lookup, effects, body applicability and semantic equivalence remain separate.",
+        "verified_complete": false,
+        "validation": "32 Rust AST/fmt source PASS; actual Main116 overall FAIL1 Syntax borrow error. Causal repairs source-reviewed, fresh build retry and semantic validation owed."
       }
     },
     {
@@ -134691,16 +135039,16 @@
       "lsp_integrated_at_report": 281,
       "effective_integrated": 485
     },
-    "utc": "2026-10-17T15:05:35.117002+00:00",
+    "utc": "2026-10-17T15:56:15.362697+00:00",
     "total_required_units": 2158,
-    "implemented_pending_validation": 533,
+    "implemented_pending_validation": 563,
     "fully_implemented_pending_validation": 405,
-    "partially_implemented_pending_validation": 128,
+    "partially_implemented_pending_validation": 158,
     "verified_complete": 0,
-    "not_started": 1625,
+    "not_started": 1595,
     "remaining_unverified_or_unimplemented": 2158,
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 603,
+    "effective_implemented_pending_validation": 633,
     "effective_verified_complete": 0,
     "required_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
     "proof_check": {
@@ -134718,7 +135066,7 @@
       "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
     },
     "current_snapshot": {
-      "utc": "2026-10-17T15:11:57.403199+00:00",
+      "utc": "2026-10-17T15:56:15.362697+00:00",
       "source_head": "Reviewed source admissions through integration21; ordinary10crate source freeze, composition base f3308dda40da10fe3031fca6f6f480dfa612aa4c plus admitted source; no fresh artifacts accepted.",
       "original_LSP": {
         "required": 325,
@@ -134731,10 +135079,10 @@
       },
       "baseline": {
         "required": 2158,
-        "integrated": 533,
+        "integrated": 563,
         "full_scope_pending": 405,
-        "partial": 128,
-        "without_integration": 1625
+        "partial": 158,
+        "without_integration": 1595
       },
       "annex": {
         "required": 71,
@@ -134744,24 +135092,57 @@
       },
       "effective": {
         "required": 2229,
-        "integrated": 603,
-        "without_integration": 1626,
+        "integrated": 633,
+        "without_integration": 1596,
         "verified_complete": 0
       },
       "last_report": {
-        "path": "docs/work/name-handling/progress-report-20261017T1509Z.json",
-        "sha256": "f115831c053238f7c4c7eef71da244ed6147341929bf6b07b73330b47a462d31",
+        "path": "docs/work/name-handling/progress-report-20261017T1539Z.json",
+        "sha256": "23b928436900f05259738ad6c272dd9b5c868b82aca0b49e666fbce4388ede00",
         "frozen_LSP_integrated": 290,
-        "frozen_baseline_integrated": 533,
-        "frozen_effective_integrated": 603
+        "frozen_baseline_integrated": 547,
+        "frozen_effective_integrated": 617
       },
       "new_since_report": {
         "integrated_LSP": 0,
         "semantic": 0,
         "validation": 0,
         "documentation": 0,
-        "additional_baseline_integrated": 0,
-        "admissions": {}
+        "additional_baseline_integrated": 16,
+        "admissions": {
+          "27": {
+            "path": "/workspace/naming-work/integration-27/composition.json",
+            "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4",
+            "new_baseline_unit_ids": [
+              "compiler.source.configured-original-variable-geometry:799",
+              "compiler.source.configured-original-variable-geometry:895",
+              "compiler.source.literal-target-read:487",
+              "compiler.source.original-expression-materialization-config:482",
+              "compiler.source.original-expression-materialization-config:5161",
+              "compiler.source.original-expression-materialization-config:691",
+              "compiler.source.original-expression-materialization-config:755",
+              "compiler.source.selected-introduced-command-proposals:2358",
+              "compiler.source.selected-introduced-command-proposals:2799",
+              "compiler.source.selected-method-return-summary:91",
+              "db.unit.registry.context.package-scope-projection",
+              "db.unit.registry.resolved.literal-resolver-placeholder-dependency",
+              "db.unit.registry.try.selected-list-grammar"
+            ],
+            "original_LSP_delta": 0,
+            "helper_causal_parity_fixture_and_member_repair_count": 0
+          },
+          "29": {
+            "path": "/workspace/naming-work/integration-29/composition.json",
+            "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566",
+            "new_baseline_unit_ids": [
+              "compiler.source.logical-selected-class-member-ledger:985",
+              "compiler.source.logical-unicode-member-operand:1325:visibility",
+              "db.unit.spectcl.catalogue.manual-vocabulary-mirrors"
+            ],
+            "original_LSP_delta": 0,
+            "causal_repair_count": 0
+          }
+        }
       },
       "admissions": {
         "09": {
@@ -135084,6 +135465,88 @@
           "original_LSP_delta": 0,
           "helper_and_causal_fixture_parity_count": 0,
           "conservative_status": "All63 new actual existing IDs partial, not verified; author exact additional rows awaiting separate reconciliation, not counted."
+        },
+        "23": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:1736",
+            "compiler.source.configured-scalar-word-construction:185",
+            "compiler.source.configured-scalar-word-construction:630",
+            "compiler.source.interpreter-subject-identity:350",
+            "db.unit.spectcl.dialect.dynamic-source-id",
+            "db.unit.spectcl.registration.accepted-environment-core-correspondence"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "24": {
+          "path": "/workspace/naming-work/integration-24/composition.json",
+          "sha256": "6f801f65f0f7834eb3a9d3757fc521fb422537c38dd6181b442ded624ab1ef3e",
+          "new_baseline_unit_ids": [],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "25": {
+          "path": "/workspace/naming-work/integration-25/composition.json",
+          "sha256": "97f08dd047199f8524ca4a2e0929595bb7c25fcfcfef9485d29ccf2487c0ef79",
+          "new_baseline_unit_ids": [],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "26": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703",
+          "new_baseline_unit_ids": [
+            "compiler.source.original-formal-topology:166",
+            "compiler.source.original-stored-callback-prefix:3555",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:fix",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:flush",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:selection",
+            "compiler.source.selected-expression-command-rewrite:1242",
+            "compiler.source.selected-expression-command-rewrite:579",
+            "db.unit.registry.context.retained-roster-currentness"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "27": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:799",
+            "compiler.source.configured-original-variable-geometry:895",
+            "compiler.source.literal-target-read:487",
+            "compiler.source.original-expression-materialization-config:482",
+            "compiler.source.original-expression-materialization-config:5161",
+            "compiler.source.original-expression-materialization-config:691",
+            "compiler.source.original-expression-materialization-config:755",
+            "compiler.source.selected-introduced-command-proposals:2358",
+            "compiler.source.selected-introduced-command-proposals:2799",
+            "compiler.source.selected-method-return-summary:91",
+            "db.unit.registry.context.package-scope-projection",
+            "db.unit.registry.resolved.literal-resolver-placeholder-dependency",
+            "db.unit.registry.try.selected-list-grammar"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "28": {
+          "path": "/workspace/naming-work/integration-28/composition.json",
+          "sha256": "056948f89febbf9847aca406e1332f95766cea1613eaeb82aecb976a7e46bc80",
+          "new_baseline_unit_ids": [],
+          "causal_repair_count": 0
+        },
+        "29": {
+          "path": "/workspace/naming-work/integration-29/composition.json",
+          "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566",
+          "new_baseline_unit_ids": [
+            "compiler.source.logical-selected-class-member-ledger:985",
+            "compiler.source.logical-unicode-member-operand:1325:visibility",
+            "db.unit.spectcl.catalogue.manual-vocabulary-mirrors"
+          ],
+          "original_LSP_delta": 0,
+          "causal_repair_count": 0
         }
       },
       "validation": {
@@ -139032,8 +139495,8 @@
             "packets": 3,
             "paths": 11
           },
-          "status": "ACTUALLY_ADMITTED_ROOT_AST_FMT_PASS_COUNTS_PENDING_EXACT_UNIT_RECONCILIATION",
-          "new_Main_check": "Actual Maincheck93 FAIL4 Compiler errors; causal context/member and retained World metadata repairs pending. No new tests executed.",
+          "status": "SOURCE_ADMITTED_SIX_EXACT_OLD_IDS_COUNTED_PARTIAL_OTHERS_ZERO_CAUSAL",
+          "new_Main_check": "Actual95 Compiler/Core library checks PASS; overall FAIL1 engine metadata ListError formatting. No new semantic tests executed.",
           "log": "/workspace/naming-work/integration-24/main-check93.log"
         },
         "capture06": {
@@ -139088,6 +139551,104 @@
           },
           "compiler_errors": 4,
           "status": "ACTUAL_FAIL_CAUSAL_REPAIRS_PENDING_NO_TEST_EXECUTION"
+        },
+        "actual_Main_check95": {
+          "status": "ACTUAL_OVERALL_FAIL1_ENGINE_METADATA_LISTERROR_DISPLAY",
+          "Compiler_and_Core_lib": "PASS scoped only;2Compiler warnings evaluate_taint_def and CoercionTaint.version",
+          "log": "/workspace/naming-work/integration-25/main-check95.log",
+          "tests_executed": false,
+          "causal_repair": "root-host-metadata-list-error-v1 source peer CLEAR; actual build retry owed",
+          "receipt": "/workspace/naming-work/integration-25/main-check95-result.json",
+          "sha256": "3d2d79be15d63fd562e61f0a42762c2238874b1033c820e9eabec7de26509327",
+          "result": {
+            "status": "ACTUAL_MAIN_TYPECHECK",
+            "started": "2026-10-17T15:13:01.017392+00:00",
+            "ended": "2026-10-17T15:15:01.126195+00:00",
+            "argv": [
+              "cargo",
+              "check",
+              "--offline",
+              "--locked",
+              "--tests",
+              "-p",
+              "tcl-compiler",
+              "-p",
+              "tcl-registry",
+              "-p",
+              "tcl-lsp-core",
+              "-p",
+              "tcl-lsp-db",
+              "-p",
+              "tcl-lsp-server",
+              "-p",
+              "tcl-syntax",
+              "-p",
+              "tcl-lexer",
+              "-p",
+              "tcl-spectcl",
+              "-p",
+              "tcl-test-support",
+              "-p",
+              "tcl-spec-hooks",
+              "-p",
+              "xtask"
+            ],
+            "source": "/workspace/tcl-lsp",
+            "target": "/workspace/tcl-lsp/target",
+            "exit": 101,
+            "aborted": null,
+            "log_sha256": "7c367629d58e418512fcd5e031643b89641646b3e9fd38f07b9043b68c96c39a",
+            "composition_sha256": "97f08dd047199f8524ca4a2e0929595bb7c25fcfcfef9485d29ccf2487c0ef79",
+            "tests_executed": false
+          }
+        },
+        "actual_Main_check115": {
+          "status": "ACTUAL_FAIL6_COMPILER_ERRORS",
+          "result": {
+            "path": "/workspace/naming-work/integration-26/main-check115-result.json",
+            "sha256": "8b4828e764139c0304f79351884159b7329f713b475aa80c1fbaf0dc41b3fcb3"
+          },
+          "log": {
+            "path": "/workspace/naming-work/integration-26/main-check115.log",
+            "sha256": "0456da2e88c4fd6129c8b2e513cdf7b28264a40d39279bbef891d4a5404d28f8"
+          },
+          "tests_executed": false,
+          "causal_repairs": "Three PrivateTcl public type paths and three property ownership/Debug/relative AST extent issues source-reviewed; build retry owed."
+        },
+        "actual_Main_check116": {
+          "status": "ACTUAL_FAIL1_SYNTAX_BORROW_ERROR",
+          "result": {
+            "path": "/workspace/naming-work/integration-27/main-check116-result.json",
+            "sha256": "2db84fcb64c6d600d2a39ce49234ff2ee8c80d2e29079e15588ecadea319fb2b"
+          },
+          "log": {
+            "path": "/workspace/naming-work/integration-27/main-check116.log",
+            "sha256": "80dcc755f3bdecfd9891ea373b615b5e1740b5ed3b86d4d225c13cce3bc94aab"
+          },
+          "tests_executed": false,
+          "causal_repairs": "Borrowed proposed expression ExecutablePart matching source-reviewed; build retry owed."
+        },
+        "actual_Main_check117": {
+          "status": "ACTUAL_FAIL1_COMPILER_EVALUATEEXPR_ITERATOR_ERROR",
+          "log": "/workspace/naming-work/integration-28/main-check117.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after borrowed-part causal correction; no verdict received.",
+          "causal_repair": "EvaluateExprV5 actual29 admitted .into_iter() formation correction; no source permission change.",
+          "result": {
+            "path": "/workspace/naming-work/integration-28/main-check117-result.json",
+            "sha256": "97051a9c62d0cc586cc83b456c8abe8d831ac69a645ceb2615fd31a23f84cca6"
+          }
+        },
+        "actual_Main_check118": {
+          "status": "ACTUAL_FAIL1_RUNTIMEENGINE_LISTERROR_DISPLAY",
+          "log": "/workspace/naming-work/integration-29/main-check118.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after actual29source admission; no verdict received.",
+          "causal_repair": "Root RuntimeEngine read-only host metadata adapter full_message(source) source-reviewed; retry owed.",
+          "result": {
+            "path": "/workspace/naming-work/integration-29/main-check118-result.json",
+            "sha256": "38670a247b4249bdf6905adc132c1e4b0ba22cd06eb512439aa90495e15eec63"
+          }
         }
       },
       "remaining_LSP_unintegrated": [
@@ -139273,7 +139834,7 @@
         "source_diagnostic_boundary_scope_review": 0
       },
       "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
-      "next_report_utc": "2026-10-17T15:39:49Z",
+      "next_report_utc": "2026-10-17T16:09:49Z",
       "green_PR": false,
       "merge_or_issue_closure": false,
       "pending_generator_boundaries": "Five companion generator source consumers V5 admitted, actual generator/drift checks remain owed. Remaining generic Compiler/DB/Registry/Syntax dependencies explicitly open; no blanket completion.",

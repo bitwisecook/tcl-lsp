@@ -526,9 +526,43 @@ struct CallbackTargetDescription {
     obligations: Vec<RegisteredInstanceObligationDescription>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum PrivateTclObligationDescription {
+    OriginalHeadMaterialization,
+    SourcePolicyApplicability,
+    UnavailableActualLookup,
+    PublicRewriteEquivalence,
+}
+impl From<&tcl_compiler::analyser::SourcePrivateTclNamespaceObligation>
+    for PrivateTclObligationDescription
+{
+    fn from(value: &tcl_compiler::analyser::SourcePrivateTclNamespaceObligation) -> Self {
+        use tcl_compiler::analyser::SourcePrivateTclNamespaceObligation as O;
+        match value {
+            O::OriginalHeadMaterialization => Self::OriginalHeadMaterialization,
+            O::SourcePolicyApplicability => Self::SourcePolicyApplicability,
+            O::UnavailableActualLookup => Self::UnavailableActualLookup,
+            O::PublicRewriteEquivalence => Self::PublicRewriteEquivalence,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 enum SubjectDescription {
+    PrivateTclNamespace {
+        #[serde(rename = "sourceName")]
+        source_name: String,
+        #[serde(rename = "publicCommand")]
+        public_command: String,
+        tail: String,
+        #[serde(rename = "selectedSourceDescriptor")]
+        selected_source_descriptor: bool,
+        obligations: Vec<PrivateTclObligationDescription>,
+        start: u32,
+        end: u32,
+    },
     UserSourceArity {
         #[serde(rename = "logicalSource")]
         logical_source: bool,
@@ -1014,6 +1048,20 @@ impl DiagnosticSubjectData {
     #[must_use]
     pub fn from_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
         let subject = match diagnostic.subject()? {
+            DiagnosticSubject::PrivateTclNamespace(original) => {
+                if diagnostic.code != tcl_core_types::DiagCode::W143 {
+                    return None;
+                }
+                SubjectDescription::PrivateTclNamespace {
+                    source_name: original.classified_source_name().to_owned(),
+                    public_command: original.policy().public_command.to_owned(),
+                    tail: original.policy().tail.clone(),
+                    selected_source_descriptor: original.selected_source_words().is_some(),
+                    obligations: original.obligations().iter().map(Into::into).collect(),
+                    start: original.original_head().span().start(),
+                    end: original.original_head().span().end(),
+                }
+            }
             DiagnosticSubject::UserSourceArity(original) => {
                 if !matches!(
                     diagnostic.code,
@@ -1219,23 +1267,27 @@ impl DiagnosticSubjectData {
         let data: Self = serde_json::from_value(value.clone()).ok()?;
         let supported_subject = matches!(
             (&data.subject, data.code.as_str()),
-            (
-                SubjectDescription::ObjectSourceArity { .. }
-                    | SubjectDescription::UserSourceArity { .. },
-                "E002" | "E003"
-            ) | (
-                SubjectDescription::CommandAvailability {
-                    classification: CommandAvailabilityDescription::Unavailable,
-                    ..
-                },
-                "W002"
-            ) | (
-                SubjectDescription::CommandAvailability {
-                    classification: CommandAvailabilityDescription::RuleLoaderRefused,
-                    ..
-                },
-                "IRULE2004"
-            ) | (SubjectDescription::RequiredPackage { .. }, "W120")
+            (SubjectDescription::PrivateTclNamespace { .. }, "W143")
+                | (
+                    SubjectDescription::ObjectSourceArity { .. }
+                        | SubjectDescription::UserSourceArity { .. },
+                    "E002" | "E003"
+                )
+                | (
+                    SubjectDescription::CommandAvailability {
+                        classification: CommandAvailabilityDescription::Unavailable,
+                        ..
+                    },
+                    "W002"
+                )
+                | (
+                    SubjectDescription::CommandAvailability {
+                        classification: CommandAvailabilityDescription::RuleLoaderRefused,
+                        ..
+                    },
+                    "IRULE2004"
+                )
+                | (SubjectDescription::RequiredPackage { .. }, "W120")
                 | (SubjectDescription::UnresolvedCommand { .. }, "W123")
                 | (SubjectDescription::UnresolvedMathFunction { .. }, "W123")
                 | (
@@ -1278,6 +1330,7 @@ impl DiagnosticSubjectData {
             }
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::PrivateTclNamespace { .. }
             | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
@@ -1295,6 +1348,7 @@ impl DiagnosticSubjectData {
             SubjectDescription::UnresolvedCommand { reporting_name, .. } => Some(reporting_name),
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::PrivateTclNamespace { .. }
             | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
@@ -1314,6 +1368,7 @@ impl DiagnosticSubjectData {
             }
             SubjectDescription::CallbackSourceArity { .. }
             | SubjectDescription::ObjectSourceArity { .. }
+            | SubjectDescription::PrivateTclNamespace { .. }
             | SubjectDescription::UserSourceArity { .. }
             | SubjectDescription::CommandAvailability { .. }
             | SubjectDescription::RegisteredInstanceSource { .. }
@@ -2369,5 +2424,30 @@ mod conditional_user_signature_transport_controls {
         let mut presentation = diagnostic.clone();
         presentation.message = "different display label".to_owned();
         assert_eq!(super::diagnostic_subject_data(&presentation), Some(value));
+    }
+}
+
+#[cfg(test)]
+mod private_tcl_source_policy_wire_controls {
+    #[test]
+    fn unknown_helper_reports_unknown_lookup_without_reconstructing_selection() {
+        let source = "::tcl::clock::GetSystemTimeZone";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let diagnostic = analysis
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.private_tcl_namespace().is_some())
+            .unwrap();
+        let value = super::diagnostic_subject_data(diagnostic).unwrap();
+        assert_eq!(value["subject"]["kind"], "privateTclNamespace");
+        assert_eq!(value["subject"]["selectedSourceDescriptor"], false);
+        assert!(
+            value["subject"]["obligations"]
+                .as_array()
+                .unwrap()
+                .contains(&serde_json::json!("unavailableActualLookup"))
+        );
+        assert!(super::DiagnosticSubjectData::from_value(&value, "W143").is_some());
+        assert!(super::DiagnosticSubjectData::from_value(&value, "E002").is_none());
     }
 }

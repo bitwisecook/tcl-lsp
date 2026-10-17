@@ -239,6 +239,9 @@ fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>
 ///   creates an absent cell.
 struct RaiseProof<'a> {
     fu: &'a FunctionUnit,
+    source_unit: Option<&'a CompilationUnit>,
+    source: &'a str,
+    source_config: Option<tcl_lexer::LexerConfig>,
     /// Names a scope alias binds, which another frame may unset.
     scope_aliases: HashSet<String>,
     /// Names a module-wide trace guards; a read trace may raise.
@@ -391,6 +394,9 @@ impl<'a> RaiseProof<'a> {
             });
         Self {
             fu,
+            source_unit: None,
+            source: ctx.source,
+            source_config: ctx.source_lexer_config,
             metadata_available: metadata.is_some(),
             logical_source_assistance,
             scope_aliases: scan_scope_aliases_with_metadata_context(&fu.cfg, registry, metadata),
@@ -410,6 +416,21 @@ impl<'a> RaiseProof<'a> {
                 defined: Defined::of(ctx, fu, execution_namespace.is_some(), is_top_level),
             },
         }
+    }
+
+    fn with_source_unit(mut self, unit: &'a CompilationUnit) -> Self {
+        if self.source == unit.source
+            && self
+                .source_config
+                .is_none_or(|config| config == unit.ir_module.lexer_config)
+            && self
+                .calls
+                .module
+                .is_none_or(|module| std::ptr::eq(module, &unit.ir_module))
+        {
+            self.source_unit = Some(unit);
+        }
+        self
     }
 
     /// Whether a trace, a scope alias or an alias-observed link may unset or
@@ -474,19 +495,8 @@ impl<'a> RaiseProof<'a> {
                         && self.calls_complete(stmt)
                         && self.reads_are_set(block, idx))
             }
-            Statement::Incr {
-                name,
-                name_braced,
-                amount,
-                ..
-            } => {
-                folded()
-                    || self.incr_cannot_raise(
-                        block,
-                        idx,
-                        crate::naming::element_var_name_braced(name, *name_braced),
-                        amount.as_deref(),
-                    )
+            Statement::Incr { amount, .. } => {
+                folded() || self.incr_cannot_raise(block, idx, amount.as_deref())
             }
             _ => folded(),
         }
@@ -555,10 +565,20 @@ impl<'a> RaiseProof<'a> {
         &self,
         block: crate::cfg::BlockId,
         idx: usize,
-        place: &str,
         amount: Option<&str>,
     ) -> bool {
-        if crate::naming::normalise_var_name(place) != place || self.observed(place) {
+        let Some((sym, source_name)) = self.original_incr_target(block, idx) else {
+            return false;
+        };
+        // Tcl literal receiver values have no substitution sigil to strip.
+        // Elements remain excluded independently of their root's scalar facts.
+        if tcl_syntax::naming::split_element_ref_bytes(&source_name).is_some() {
+            return false;
+        }
+        let Ok(place) = std::str::from_utf8(&source_name) else {
+            return false;
+        };
+        if self.observed(place) {
             return false;
         }
         if amount.is_some_and(|amount| {
@@ -568,9 +588,6 @@ impl<'a> RaiseProof<'a> {
         }) {
             return false;
         }
-        let Some(sym) = self.fu.ssa.var_symbol_at(block, idx, place) else {
-            return false;
-        };
         let holds_integer = || {
             self.statement(block, idx)
                 .and_then(|ssa_stmt| ssa_stmt.uses.get(&sym))
@@ -582,6 +599,44 @@ impl<'a> RaiseProof<'a> {
             Some(Existence::Bound(BindingKind::Scalar)) => holds_integer(),
             _ => false,
         }
+    }
+
+    /// Select the literal receiver from the current source-definition facade,
+    /// not a reference-normalised name or displayed SSA label.
+    fn original_incr_target(
+        &self,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) -> Option<(crate::ssa::Symbol, Vec<u8>)> {
+        let unit = self.source_unit?;
+        let statement = self.statement(block, index)?;
+        let tokens =
+            crate::ssa::SsaSourceView::at_statement(&self.fu.ssa, block, index).source_tokens()?;
+        let mut original = tokens.clone();
+        crate::lattice_rebase::rebase_command_tokens(&mut original, self.fu.base_offset);
+        let mut selected = None;
+        for word in original.words() {
+            let Some(span) = word.original_written_span(unit.ir_module.source.bytes()) else {
+                continue;
+            };
+            let Some(definition) =
+                crate::ssa::original_analysis_definition_at_unit(unit, span, self.calls.registry)
+            else {
+                continue;
+            };
+            if !std::ptr::eq(definition.function(), self.fu)
+                || statement.defs.get(&definition.symbol()) != Some(&definition.version())
+                || statement.may_defs.contains(&definition.symbol())
+            {
+                continue;
+            }
+            let candidate = (definition.symbol(), definition.source_name_bytes().to_vec());
+            if selected.as_ref().is_some_and(|old| old != &candidate) {
+                return None;
+            }
+            selected = Some(candidate);
+        }
+        selected
     }
 
     /// Whether the version `(sym, ver)` holds an integer wherever the place
@@ -678,6 +733,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             module: Some(&cu.ir_module),
         };
         let baseline = emit_dead_stores_and_unused(
+            cu,
             ctx,
             &cu.top_level,
             is_top_level(&cu.top_level),
@@ -685,7 +741,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             None,
             &proc_index,
         );
-        emit_adce(ctx, &cu.top_level, &baseline, purity, true, None);
+        emit_adce(cu, ctx, &cu.top_level, &baseline, purity, true, None);
     }
 
     // `manager::build_pass_context` populates this shared safety fact once,
@@ -724,8 +780,8 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             }),
             module: Some(&cu.ir_module),
         };
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, false, None);
+        let baseline = emit_dead_stores_and_unused(cu, ctx, fu, false, purity, None, &proc_index);
+        emit_adce(cu, ctx, fu, &baseline, purity, false, None);
     }
     ctx.cross_event_vars = saved_proc_cross;
 
@@ -756,9 +812,16 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             }),
             module: Some(&cu.ir_module),
         };
-        let baseline =
-            emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, false, execution_namespace);
+        let baseline = emit_dead_stores_and_unused(
+            cu,
+            ctx,
+            fu,
+            false,
+            purity,
+            execution_namespace,
+            &proc_index,
+        );
+        emit_adce(cu, ctx, fu, &baseline, purity, false, execution_namespace);
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -916,6 +979,7 @@ struct DseEntry {
 /// keys that were reported — the ADCE pass uses it as the
 /// "already eliminated" seed for its fixpoint.
 fn emit_dead_stores_and_unused(
+    unit: &CompilationUnit,
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     is_top_level: bool,
@@ -956,7 +1020,8 @@ fn emit_dead_stores_and_unused(
         );
         &fallback_contexts
     };
-    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace, is_top_level);
+    let raise_proof =
+        RaiseProof::new(ctx, fu, execution_namespace, is_top_level).with_source_unit(unit);
     let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
     // The `def_use` builder does not scan Return-value reads or
     // embedded string-interpolation reads; do a supplementary
@@ -1370,6 +1435,7 @@ fn emit_dse_entries(
 
 /// Emit **O108** (transitively dead code) — the ADCE fixpoint.
 fn emit_adce(
+    unit: &CompilationUnit,
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
@@ -1386,7 +1452,8 @@ fn emit_adce(
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     keep_forever.extend(observed_store_definitions(ctx, fu, top_level, registry));
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace, top_level);
+    let raise_proof =
+        RaiseProof::new(ctx, fu, execution_namespace, top_level).with_source_unit(unit);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
@@ -2983,5 +3050,69 @@ mod tests {
         context_logical.ir_module = None;
         let proof = RaiseProof::new(&context_logical, &logical.top_level, None, true);
         assert!(!proof.logical_source_assistance);
+    }
+    #[test]
+    fn literal_increment_target_uses_source_definition_not_reference_spelling() {
+        let source = "set {$x} 1; incr {$x}; set x 2; incr x";
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+        ctx.registry = Some(context.commands());
+        ctx.ir_module = Some(&unit.ir_module);
+        let mut targets = Vec::new();
+        {
+            let proof = RaiseProof::new(&ctx, &unit.top_level, None, true).with_source_unit(&unit);
+            for (block, body) in &unit.top_level.cfg.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    if matches!(statement, Statement::Incr { .. }) {
+                        targets.push(proof.original_incr_target(*block, index).unwrap());
+                    }
+                }
+            }
+        }
+        assert_eq!(targets.len(), 2);
+        assert_ne!(targets[0].0, targets[1].0);
+        assert!(targets.iter().any(|(_, name)| name == b"$x"));
+        assert!(targets.iter().any(|(_, name)| name == b"x"));
+        ctx.source = "foreign source";
+        assert!(
+            RaiseProof::new(&ctx, &unit.top_level, None, true)
+                .with_source_unit(&unit)
+                .source_unit
+                .is_none()
+        );
+        ctx.source = source;
+        let mut wrong = config;
+        wrong.strict_quoting = !wrong.strict_quoting;
+        ctx.source_lexer_config = Some(wrong);
+        assert!(
+            RaiseProof::new(&ctx, &unit.top_level, None, true)
+                .with_source_unit(&unit)
+                .source_unit
+                .is_none()
+        );
     }
 }

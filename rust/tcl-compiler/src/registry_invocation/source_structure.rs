@@ -6737,3 +6737,122 @@ mod conditional_native_case_receipt_tests {
         );
     }
 }
+
+impl OriginalRegistryWords {
+    /// Project Registry metadata for a deliberately different, complete stock
+    /// source-command proposal under this original source owner's full context.
+    /// The original schema must remain authenticated first. Proposed argv owns
+    /// a separate complete image/configuration and must pass the canonical word
+    /// inventory. It never becomes an original invocation or a detached body's
+    /// entry. Stock lookup, operand materialisation, effects and equivalence
+    /// remain independent review premises; no Native purpose is supplied.
+    pub fn with_stock_source_command_proposal<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        proposed: &[tcl_lexer::NativeWord],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        self.with_source_schema(context, |_| ())?;
+        let first = proposed.first()?;
+        let image = first.image();
+        if image.channel() != tcl_lexer::SourceChannel::Document
+            || proposed.iter().any(|word| {
+                word.image() != image || word.config() != self.config || word.group().expand
+            })
+        {
+            return None;
+        }
+        let end = u32::try_from(image.bytes().len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            tcl_lexer::Span::new(0, end),
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some()
+            || command.words.as_slice() != proposed
+            || first.span().start() != 0
+            || proposed.last()?.span().end() != end
+        {
+            return None;
+        }
+        let head_value = tcl_syntax::word_rules::original_static_word_unicode_value(first)?;
+        let head = std::str::from_utf8(&head_value).ok()?;
+        let values = proposed[1..]
+            .iter()
+            .map(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .and_then(|value| String::from_utf8(value).ok())
+            })
+            .collect::<Vec<_>>();
+        let arguments = values
+            .iter()
+            .map(|value| {
+                value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let invocation = tcl_registry::InvocationWords::structured(
+            tcl_registry::InvocationWord::Literal(head),
+            &arguments,
+        );
+        let invocation = self
+            .dialect
+            .map_or(invocation, |dialect| invocation.with_dialect(dialect));
+        let selected = tcl_registry::model::assembly::resolve_invocation_words_in_context(
+            context.commands(),
+            Some(context.context()),
+            invocation,
+        )?;
+        Some(project(&selected))
+    }
+}
+
+#[cfg(test)]
+mod stock_source_proposal_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn proposed_metadata_keeps_separate_image_and_refuses_extra_commands_or_expansion() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "puts original";
+        let syntax = OriginalSourceRegistryContext::capture(source, input);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let original = syntax.words(&commands[0]).unwrap();
+        for (proposal, accepted) in [
+            ("list proposed", true),
+            ("list proposed; puts extra", false),
+            ("list {*}$args", false),
+        ] {
+            let plan = tcl_lexer::native_script_words_in_with_purpose(
+                tcl_lexer::SourceImage::document(proposal),
+                tcl_lexer::Span::new(0, u32::try_from(proposal.len()).unwrap()),
+                config,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap();
+            assert_eq!(
+                original
+                    .with_stock_source_command_proposal(&context, &plan.commands[0].words, |_| ())
+                    .is_some(),
+                accepted
+            );
+        }
+        assert_eq!(original.command(), "puts");
+        assert_eq!(
+            original.head_source().unwrap().word().unwrap().image(),
+            syntax.source_image()
+        );
+    }
+}

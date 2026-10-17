@@ -904,9 +904,26 @@ pub fn reference_spans(
                 .then_some(query.span())
             })
             .collect(),
-        OriginalDeclarationRole::Property(_)
-        | OriginalDeclarationRole::Special(_, _)
-        | OriginalDeclarationRole::Document => Vec::new(),
+        OriginalDeclarationRole::Property(_) => {
+            tcl_compiler::analyser::class_hierarchy::original_metadata::
+                original_source_self_property_references(source, analysis)
+                .into_iter()
+                .flatten()
+                .filter_map(|reference| {
+                    (OriginalDeclarationIdentity::for_property(
+                        identity.uri(),
+                        source,
+                        analysis,
+                        reference.declaring_class(),
+                        reference.property(),
+                    )
+                    .as_ref()
+                        == Some(identity))
+                    .then_some(reference.selector_span())
+                })
+                .collect()
+        }
+        OriginalDeclarationRole::Special(_, _) | OriginalDeclarationRole::Document => Vec::new(),
     }
 }
 
@@ -915,6 +932,8 @@ pub fn reference_spans(
 pub enum ReadonlyReferenceCoverage {
     /// This role uses its existing inventory; no member source facet was requested.
     ExistingInventory,
+    /// The checked source walk and typed member tape cover every selector.
+    CompleteSourceOccurrenceCensus,
     /// Genuine whole-source ownership retains partial positive occurrences.
     Partial,
     /// The independent source facet is unavailable; existing positives remain.
@@ -952,6 +971,106 @@ impl ReadonlyReferenceReport {
     }
 }
 
+/// Exact property occurrences require the checked source walker to see every
+/// self-dispatch command and the compiler's typed method/property tape to map
+/// each one to exactly one retained declaration. Applicability remains separate.
+fn complete_property_source_occurrences(
+    identity: &OriginalDeclarationIdentity,
+    source: &str,
+    analysis: &AnalysisResult,
+    properties: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference],
+) -> Option<Vec<Span>> {
+    let methods = tcl_compiler::analyser::class_hierarchy::original_metadata::
+        original_source_self_method_references(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let syntax = crate::source_structure::SourceSyntaxStructure::capture(source, analysis)?;
+    let mut walked = Vec::new();
+    let mut uncertain = false;
+    let status = crate::executable_regions::visit_checked_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _head, execution_context| {
+            let selected =
+                crate::original_invocation::source_registry_words(source, analysis, command)
+                    .and_then(|words| {
+                        words.with_source_schema(&context, |schema| {
+                            schema
+                                .semantics
+                                .traits
+                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+                        })
+                    });
+            // Selected definition members have their own scoped vocabulary;
+            // a global name lookup cannot classify them. Join the complete
+            // actual member vector to this checked source command first.
+            let member = command.argv.first().and_then(|head| {
+                syntax
+                    .definition_member_at(head.span.start())
+                    .ok()
+                    .flatten()
+            });
+            let member_matches = member.as_ref().is_some_and(|member| {
+                let words = member.original_words();
+                words
+                    .first()
+                    .is_some_and(|word| word.span().start() == command.span.start())
+                    && words
+                        .last()
+                        .is_some_and(|word| word.span().end() == command.span.end())
+                    && words
+                        .iter()
+                        .flat_map(|word| word.tokens().iter())
+                        .copied()
+                        .eq(command.all_tokens.iter().copied())
+            });
+            let self_dispatch = selected.or_else(|| member_matches.then_some(false));
+            match self_dispatch {
+                Some(false) => {}
+                Some(true)
+                    if execution_context
+                        == crate::executable_regions::ExecutableContext::PotentialBody =>
+                {
+                    walked.push(command.span);
+                }
+                Some(true) => uncertain = true,
+                None => uncertain = true,
+            }
+            false
+        },
+    );
+    if status != crate::executable_regions::PotentialSourceVisit::Complete || uncertain {
+        return None;
+    }
+    walked.sort_by_key(|span| (span.start(), span.end()));
+    let mut recorded = methods
+        .iter()
+        .map(|reference| reference.command_span())
+        .collect::<Option<Vec<_>>>()?;
+    recorded.extend(properties.iter().map(|reference| reference.command_span()));
+    recorded.sort_by_key(|span| (span.start(), span.end()));
+    if walked != recorded || recorded.windows(2).any(|pair| pair[0] == pair[1]) {
+        return None;
+    }
+    Some(
+        properties
+            .iter()
+            .filter_map(|reference| {
+                (OriginalDeclarationIdentity::for_property(
+                    identity.uri(),
+                    source,
+                    analysis,
+                    reference.declaring_class(),
+                    reference.property(),
+                )
+                .as_ref()
+                    == Some(identity))
+                .then_some(reference.selector_span())
+            })
+            .collect(),
+    )
+}
+
 /// Add conditional original member-body source correspondences for reporting.
 /// Existing declaration/reference and transformation inventories are unchanged.
 #[must_use]
@@ -969,6 +1088,36 @@ pub fn readonly_reference_report(
         spans: reference_spans(identity, source, analysis, follow_links),
         coverage: ReadonlyReferenceCoverage::ExistingInventory,
     };
+    if matches!(identity.role(), OriginalDeclarationRole::Property(_)) {
+        match tcl_compiler::analyser::class_hierarchy::original_metadata::
+            original_source_self_property_references(source, analysis)
+        {
+            Some(references) => {
+                if let Some(occurrences) = complete_property_source_occurrences(
+                    identity, source, analysis, &references,
+                ) {
+                    report.coverage = ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus;
+                    report.extend(occurrences);
+                } else {
+                    report.coverage = ReadonlyReferenceCoverage::Partial;
+                    report.extend(references.into_iter().filter_map(|reference| {
+                        (OriginalDeclarationIdentity::for_property(
+                            identity.uri(),
+                            source,
+                            analysis,
+                            reference.declaring_class(),
+                            reference.property(),
+                        )
+                        .as_ref()
+                            == Some(identity))
+                        .then_some(reference.selector_span())
+                    }));
+                }
+            }
+            None => report.coverage = ReadonlyReferenceCoverage::Unavailable,
+        }
+        return Some(report);
+    }
     if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance)
         || identity.object_owner.is_some()
     {
@@ -1589,6 +1738,90 @@ mod readonly_source_reference_tests {
         missing.resolved_input = None;
         assert!(readonly_reference_report(&identity, source, &missing, true).is_none());
     }
+
+    #[test]
+    fn readonly_property_reports_promote_only_a_complete_typed_source_census() {
+        let source = "oo::class create C {property size; method body {} {my size}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let class = analysis.original_class_declarations().next().unwrap();
+        let property = class
+            .metadata()
+            .original_properties
+            .declarations()
+            .find(|property| property.original_name_input().bytes() == b"size")
+            .unwrap();
+        let identity =
+            OriginalDeclarationIdentity::for_property("", source, &analysis, class, property)
+                .unwrap();
+        let report = readonly_reference_report(&identity, source, &analysis, true).unwrap();
+        assert_eq!(
+            report.coverage(),
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        );
+        assert_eq!(report.spans().len(), 1);
+        assert_eq!(&source[report.spans()[0].as_range()], "size");
+        let unused_source = "oo::class create C {property size; method body {} {return ok}}";
+        let unused_analysis = Analyser::new().analyse(unused_source, "tcl9.0");
+        let unused_class = unused_analysis
+            .original_class_declarations()
+            .next()
+            .unwrap();
+        let unused_property = unused_class
+            .metadata()
+            .original_properties
+            .declarations()
+            .find(|property| property.original_name_input().bytes() == b"size")
+            .unwrap();
+        let unused_identity = OriginalDeclarationIdentity::for_property(
+            "",
+            unused_source,
+            &unused_analysis,
+            unused_class,
+            unused_property,
+        )
+        .unwrap();
+        let unused_report =
+            readonly_reference_report(&unused_identity, unused_source, &unused_analysis, true)
+                .unwrap();
+        assert_eq!(
+            unused_report.coverage(),
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        );
+        assert!(unused_report.spans().is_empty());
+        let dynamic_source = "oo::class create C {property size; method body {} {my $selector}}";
+        let dynamic_analysis = Analyser::new().analyse(dynamic_source, "tcl9.0");
+        let dynamic_class = dynamic_analysis
+            .original_class_declarations()
+            .next()
+            .unwrap();
+        let dynamic_property = dynamic_class
+            .metadata()
+            .original_properties
+            .declarations()
+            .find(|property| property.original_name_input().bytes() == b"size")
+            .unwrap();
+        let dynamic_identity = OriginalDeclarationIdentity::for_property(
+            "",
+            dynamic_source,
+            &dynamic_analysis,
+            dynamic_class,
+            dynamic_property,
+        )
+        .unwrap();
+        let dynamic_report =
+            readonly_reference_report(&dynamic_identity, dynamic_source, &dynamic_analysis, true)
+                .unwrap();
+        assert_eq!(
+            dynamic_report.coverage(),
+            ReadonlyReferenceCoverage::Partial
+        );
+        assert!(dynamic_report.spans().is_empty());
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Analyser::new()
+            .analyse("puts foreign", "tcl9.0")
+            .resolved_input;
+        assert!(readonly_reference_report(&identity, source, &foreign, true).is_none());
+    }
 }
 
 #[cfg(test)]
@@ -1967,5 +2200,45 @@ mod relationship_transport_purpose_tests {
             serde_json::to_value(native).unwrap(),
             serde_json::json!({"schema":1,"token":1})
         );
+    }
+}
+
+#[cfg(test)]
+mod property_source_census_unclassified_receiver_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn unclassified_object_receivers_and_unknown_heads_preserve_partial_counts() {
+        for suffix in [
+            "; set obj [C new]; $obj size",
+            "; mystery",
+            "; set selector size; my $selector",
+        ] {
+            let source = format!(
+                "oo::class create C {{property size; method body {{}} {{my size}}}}{suffix}"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl9.0");
+            let class = analysis.original_class_declarations().next().unwrap();
+            let property = class
+                .metadata()
+                .original_properties
+                .declarations()
+                .find(|property| property.original_name_input().bytes() == b"size")
+                .unwrap();
+            let identity =
+                OriginalDeclarationIdentity::for_property("", &source, &analysis, class, property)
+                    .unwrap();
+            let report = readonly_reference_report(&identity, &source, &analysis, true).unwrap();
+            assert_eq!(
+                report.coverage(),
+                ReadonlyReferenceCoverage::Partial,
+                "{source}"
+            );
+            assert!(
+                !report.spans().is_empty(),
+                "existing positive source selector remains"
+            );
+        }
     }
 }

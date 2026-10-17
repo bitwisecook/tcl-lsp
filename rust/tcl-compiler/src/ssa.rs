@@ -1013,6 +1013,7 @@ pub struct OriginalAnalysisSsaDefinition<'a> {
     span: tcl_lexer::Span,
     symbol: Symbol,
     version: Version,
+    source_name: Vec<u8>,
 }
 impl<'a> OriginalAnalysisSsaDefinition<'a> {
     /// Actual current function owning this definition.
@@ -1034,6 +1035,12 @@ impl<'a> OriginalAnalysisSsaDefinition<'a> {
     #[must_use]
     pub const fn version(&self) -> Version {
         self.version
+    }
+    /// Exact literal receiver value retained by this original definition's
+    /// source producer. It is not a reference spelling or a physical cell.
+    #[must_use]
+    pub fn source_name_bytes(&self) -> &[u8] {
+        &self.source_name
     }
 }
 
@@ -1403,6 +1410,7 @@ fn original_authored_analysis_definition_at_unit<'a>(
                         !std::ptr::eq(old.function, function)
                             || old.symbol != symbol
                             || old.version != version
+                            || old.source_name != name.as_bytes()
                     }) {
                         return None;
                     }
@@ -1411,6 +1419,7 @@ fn original_authored_analysis_definition_at_unit<'a>(
                         span,
                         symbol,
                         version,
+                        source_name: name.into_bytes(),
                     });
                 }
             }
@@ -1463,7 +1472,12 @@ pub fn original_analysis_definition_at_unit<'a>(
                         if let Some(name) =
                             view.original_source_definition_for_body(symbol, unit, body, registry)
                         {
-                            definitions.push((name.span(), symbol, version));
+                            definitions.push((
+                                name.span(),
+                                symbol,
+                                version,
+                                name.original_name_input().bytes().to_vec(),
+                            ));
                         }
                     }
                 } else if input.has_logical_source_name_context() {
@@ -1485,10 +1499,15 @@ pub fn original_analysis_definition_at_unit<'a>(
                             let Some(word) = original.words().get(argument + 1) else {
                                 continue;
                             };
+                            let Some(receiver_span) =
+                                word.original_written_span(module.source.bytes())
+                            else {
+                                continue;
+                            };
                             let Some(name) = original_written_source_variable_name(
                                 &words,
                                 argument,
-                                word.source().span,
+                                receiver_span,
                             ) else {
                                 continue;
                             };
@@ -1499,7 +1518,12 @@ pub fn original_analysis_definition_at_unit<'a>(
                                 continue;
                             };
                             if !statement.may_defs.contains(&symbol) {
-                                definitions.push((word.source().span, symbol, version));
+                                definitions.push((
+                                    receiver_span,
+                                    symbol,
+                                    version,
+                                    name.as_bytes().to_vec(),
+                                ));
                             }
                         }
                     } else {
@@ -1538,7 +1562,12 @@ pub fn original_analysis_definition_at_unit<'a>(
                                 continue;
                             };
                             if !statement.may_defs.contains(&symbol) {
-                                definitions.push((word.source().span, symbol, version));
+                                definitions.push((
+                                    word.source().span,
+                                    symbol,
+                                    version,
+                                    name.as_bytes().to_vec(),
+                                ));
                             }
                         }
                     }
@@ -1561,11 +1590,16 @@ pub fn original_analysis_definition_at_unit<'a>(
                             let end =
                                 u32::try_from(i64::from(name.span().end()).checked_add(offset)?)
                                     .ok()?;
-                            definitions.push((tcl_lexer::Span::new(start, end), symbol, version));
+                            definitions.push((
+                                tcl_lexer::Span::new(start, end),
+                                symbol,
+                                version,
+                                name.original_name_input().bytes().to_vec(),
+                            ));
                         }
                     }
                 }
-                for (definition_span, symbol, version) in definitions {
+                for (definition_span, symbol, version, source_name) in definitions {
                     if definition_span != span {
                         continue;
                     }
@@ -1573,6 +1607,7 @@ pub fn original_analysis_definition_at_unit<'a>(
                         !std::ptr::eq(old.function, function)
                             || old.symbol != symbol
                             || old.version != version
+                            || old.source_name != source_name
                     }) {
                         return None;
                     }
@@ -1581,6 +1616,7 @@ pub fn original_analysis_definition_at_unit<'a>(
                         span,
                         symbol,
                         version,
+                        source_name,
                     });
                 }
             }
@@ -6715,7 +6751,7 @@ fn enrich_instance_option_defs(
     (!defs.is_empty()).then_some(enriched)
 }
 
-fn linked_option_definition_name(
+pub(crate) fn linked_option_definition_name(
     tokens: &CommandTokens,
     index: usize,
     global: bool,
@@ -8018,8 +8054,13 @@ impl<'a> RenameWalk<'a> {
                     let Some(word) = tokens.words().get(argument + 1) else {
                         continue;
                     };
+                    let Some(receiver_span) = binding.invocation_site().and_then(|site| {
+                        word.original_written_span(site.source.source_image().bytes())
+                    }) else {
+                        continue;
+                    };
                     let Some(name) =
-                        original_written_source_variable_name(&words, argument, word.source().span)
+                        original_written_source_variable_name(&words, argument, receiver_span)
                     else {
                         continue;
                     };
@@ -15788,6 +15829,42 @@ mod original_analysis_definition_selector_tests {
                 &foreign.top_level,
                 block,
                 index,
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn definition_receiver_retains_literal_sigil_and_complete_braced_word() {
+        let source = "set {$x} 1; incr {$x}; set x 2; incr x";
+        let (unit, context) = unit(source);
+        let plan = tcl_lexer::native_script_words_in(
+            unit.ir_module.source.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            unit.ir_module.lexer_config,
+        )
+        .unwrap();
+        let left = original_analysis_definition_at_unit(
+            &unit,
+            plan.commands[1].words[1].span(),
+            context.commands(),
+        )
+        .unwrap();
+        let right = original_analysis_definition_at_unit(
+            &unit,
+            plan.commands[3].words[1].span(),
+            context.commands(),
+        )
+        .unwrap();
+        assert_eq!(left.source_name_bytes(), b"$x");
+        assert_eq!(right.source_name_bytes(), b"x");
+        assert_ne!(left.symbol(), right.symbol());
+        assert_eq!(source.get(left.span().as_range()), Some("{$x}"));
+        assert!(
+            original_analysis_definition_at_unit(
+                &unit,
+                tcl_lexer::Span::new(left.span().start(), left.span().end() - 1),
                 context.commands()
             )
             .is_none()

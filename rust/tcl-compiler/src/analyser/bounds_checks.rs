@@ -39,7 +39,7 @@ mod source_index;
 pub(super) use source_index::original_index_diagnostics;
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr_checked_with_grammar};
+use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType};
 
 use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
@@ -571,7 +571,7 @@ pub(crate) fn loop_termination_candidate(
     };
     let progress_var = constant
         .is_none()
-        .then(|| extract_counter_name(args[shape.cond].as_str(), grammar))
+        .then(|| extract_counter_name(args[shape.cond].as_str(), grammar, lexer_config))
         .flatten();
     Some(LoopTerminationCandidate {
         cmd_name: cmd_name.to_owned(),
@@ -636,7 +636,8 @@ fn loop_counter(
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<LoopCounter> {
-    let (var, op, bound) = parse_simple_for_cond(words.condition, grammar)?;
+    let (var, op, bound) =
+        parse_simple_for_cond_configured(words.condition, grammar, lexer_config)?;
     if body_may_exit(words.body, registry, lexer_config) {
         return None;
     }
@@ -784,32 +785,58 @@ pub(crate) fn loop_termination_diagnostics(
 /// `rest`, a threshold the loop never touches, over `u`, which the body
 /// visibly shrinks each iteration — so abstaining avoids the false positive
 /// (corpus example: `tcltest.tcl`'s option-usage word-wrapper).
-fn extract_counter_name(cond: &str, grammar: &tcl_dialect::LexerGrammar) -> Option<String> {
-    let tokens = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
+fn extract_counter_name(
+    cond: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let tokens = configured_bounds_expression_tokens(strip_braces(cond), grammar, config)?;
     if tokens.iter().any(|t| t.kind == ExprTokenType::Command) {
         return None;
     }
     let var = tokens.iter().find(|t| t.kind == ExprTokenType::Variable)?;
-    var_scalar_name(&var.text)
+    var_scalar_name(&var.text, config)
 }
 
-/// The leading scalar name of a `Variable` token's text — the `name`
-/// portion of `$name`, `${name}`, `$name(idx)`, `$ns::name` (taking the
-/// first word run, matching the `\$\{?(\w+)\}?` capture shape).
-fn var_scalar_name(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    if bytes.first() != Some(&b'$') {
+/// The genuine configured whole variable reference supplies its complete root.
+/// The bounds heuristic independently restricts that root to plain ASCII local
+/// identifiers; it never truncates a qualified or non-ASCII name to a prefix.
+fn var_scalar_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let root =
+        tcl_syntax::naming::variable_reference_root_bytes(text.as_bytes(), config).ok()??;
+    (!root.is_empty() && root.iter().copied().all(is_word_byte)).then_some(())?;
+    String::from_utf8(root.to_vec()).ok()
+}
+
+/// The expression owner receives every original lexer knob rather than a
+/// reconstructed grammar-only configuration. Recovery tokens cannot establish
+/// the counter or its comparison geometry.
+fn configured_bounds_expression_tokens(
+    source: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<ExprToken>> {
+    let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+        source.as_bytes(),
+        grammar,
+        None,
+        None,
+        config,
+    );
+    if !failures.is_empty() {
         return None;
     }
-    let mut i = 1;
-    if bytes.get(i) == Some(&b'{') {
-        i += 1;
-    }
-    let start = i;
-    while i < bytes.len() && is_word_byte(bytes[i]) {
-        i += 1;
-    }
-    (i > start).then(|| text[start..i].to_string())
+    tokens
+        .into_iter()
+        .map(|token| {
+            Some(ExprToken {
+                kind: token.kind,
+                text: String::from_utf8(token.text).ok()?,
+                start: token.start,
+                end: token.end,
+            })
+        })
+        .collect()
 }
 
 /// A `\w` byte: ASCII alphanumeric or underscore.
@@ -837,11 +864,24 @@ fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
 /// comparison operator must split it into a single-variable side and a
 /// signed-integer side; any logical / ternary operator, or a second
 /// comparison, disqualifies it as compound.
+#[cfg(test)]
 fn parse_simple_for_cond(
     cond: &str,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<(String, String, i64)> {
-    let all = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
+    parse_simple_for_cond_configured(
+        cond,
+        grammar,
+        tcl_lexer::LexerConfig::from_grammar(*grammar),
+    )
+}
+
+fn parse_simple_for_cond_configured(
+    cond: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, String, i64)> {
+    let all = configured_bounds_expression_tokens(strip_braces(cond), grammar, config)?;
     let tokens: Vec<&ExprToken> = all
         .iter()
         .filter(|t| !t.kind.is_skipped() && t.kind != ExprTokenType::Eof)
@@ -868,11 +908,11 @@ fn parse_simple_for_cond(
     let (lhs, rhs) = (&tokens[..at], &tokens[at + 1..]);
     let op = tokens[at].text.as_str();
     // `$v OP int`
-    if let (Some(v), Some(bound)) = (tokens_as_scalar_var(lhs), tokens_as_int(rhs)) {
+    if let (Some(v), Some(bound)) = (tokens_as_scalar_var(lhs, config), tokens_as_int(rhs)) {
         return Some((v, op.to_string(), bound));
     }
     // `int OP $v` — flip the operator so the variable is on the left.
-    if let (Some(bound), Some(v)) = (tokens_as_int(lhs), tokens_as_scalar_var(rhs)) {
+    if let (Some(bound), Some(v)) = (tokens_as_int(lhs), tokens_as_scalar_var(rhs, config)) {
         return Some((v, flip_comparison(op).to_string(), bound));
     }
     None
@@ -882,43 +922,20 @@ fn parse_simple_for_cond(
 /// plain `$name` / `${name}` token.  Array (`$a(i)`) and namespace-
 /// qualified (`$ns::v`) forms are rejected, accepting only a full match
 /// of `\$\{?(\w+)\}?` on the comparison's variable side.
-fn tokens_as_scalar_var(tokens: &[&ExprToken]) -> Option<String> {
+fn tokens_as_scalar_var(tokens: &[&ExprToken], config: tcl_lexer::LexerConfig) -> Option<String> {
     match tokens {
-        [v] if v.kind == ExprTokenType::Variable => strict_scalar_name(&v.text),
+        [v] if v.kind == ExprTokenType::Variable => strict_scalar_name(&v.text, config),
         _ => None,
     }
 }
 
-/// The scalar name when `text` is exactly `$name`, `${name}`, `${name`
-/// or `$name}` (the `\$\{?(\w+)\}?` fullmatch shape — leading `{` and
-/// trailing `}` each independently optional), with nothing trailing.
-fn strict_scalar_name(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    if bytes.first() != Some(&b'$') {
-        return None;
-    }
-    let mut i = 1;
-    if bytes.get(i) == Some(&b'{') {
-        i += 1;
-    }
-    let start = i;
-    while i < bytes.len() && is_word_byte(bytes[i]) {
-        i += 1;
-    }
-    if i == start {
-        return None; // no word
-    }
-    let name = text[start..i].to_string();
-    if bytes.get(i) == Some(&b'}') {
-        i += 1;
-    }
-    (i == bytes.len()).then_some(name) // reject any trailing chars
+/// Exact configured whole scalar reference, with the same independently
+/// conservative plain-local identifier eligibility as the bounds heuristic.
+fn strict_scalar_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(text, config)?;
+    (!name.is_empty() && name.bytes().all(is_word_byte)).then(|| name.to_owned())
 }
 
-/// A signed-integer token slice — a `Number`, optionally preceded by a
-/// unary `-` operator (the expression lexer tokenises `-5` as two
-/// tokens).  A leading `+` is *not* accepted, matching the `-?\d+`
-/// bound pattern.  Returns the value when the slice is exactly that shape.
 fn tokens_as_int(tokens: &[&ExprToken]) -> Option<i64> {
     match tokens {
         [num] if num.kind == ExprTokenType::Number => parse_decimal(&num.text),
@@ -3054,5 +3071,47 @@ mod selected_descriptor_metadata_tests {
         ] {
             assert!(owner.spec(label).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod configured_variable_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn analytical_roots_and_scalar_names_never_truncate_or_accept_partial_braces() {
+        let grammar = tcl_dialect::LexerGrammar::default();
+        let config = tcl_lexer::LexerConfig::from_grammar(grammar);
+        for source in ["$i", "${i}"] {
+            assert_eq!(var_scalar_name(source, config).as_deref(), Some("i"));
+            assert_eq!(strict_scalar_name(source, config).as_deref(), Some("i"));
+        }
+        assert_eq!(
+            var_scalar_name("$arr(index)", config).as_deref(),
+            Some("arr")
+        );
+        assert!(strict_scalar_name("$arr(index)", config).is_none());
+        for source in ["${missing", "$name}", "$ns::value", "$café", "$a$b"] {
+            assert!(var_scalar_name(source, config).is_none(), "{source}");
+            assert!(strict_scalar_name(source, config).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn actual_condition_configuration_reaches_both_counter_projection_paths() {
+        let grammar = tcl_dialect::LexerGrammar::default();
+        let mut config = tcl_lexer::LexerConfig::from_grammar(grammar);
+        config.strict_quoting = !config.strict_quoting;
+        assert_eq!(
+            extract_counter_name("${i} < 10", &grammar, config).as_deref(),
+            Some("i")
+        );
+        assert_eq!(
+            parse_simple_for_cond_configured("${i} < 10", &grammar, config),
+            Some(("i".to_owned(), "<".to_owned(), 10))
+        );
+        assert!(parse_simple_for_cond_configured("$ns::i < 10", &grammar, config).is_none());
+        assert!(extract_counter_name("[next] < $i", &grammar, config).is_none());
+        assert!(parse_simple_for_cond_configured("${missing < 10", &grammar, config).is_none());
     }
 }

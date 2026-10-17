@@ -964,7 +964,7 @@ impl InvocationDialect {
         Some(SurfaceQuery {
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             core,
-            packages: &[],
+            packages: tcl_dialect::model::PackageFloors::Borrowed(&[]),
         })
     }
 

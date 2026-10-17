@@ -184,6 +184,8 @@ pub enum ObjectSourceAritySubject {
 /// Typed semantic subject supplied by the genuine diagnostic emitter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticSubject {
+    /// Original literal-head namespace source policy, never private-call proof.
+    PrivateTclNamespace(Arc<SourcePrivateTclNamespaceSubject>),
     /// Conditional original user procedure signature and its source premises.
     UserSourceArity(Arc<SourceUserCallAritySubject>),
     /// Original callback prefix plus current readonly source-signature advice.
@@ -514,5 +516,122 @@ mod user_source_call_controls {
             )
             .is_none()
         );
+    }
+}
+
+/// Independent debts of private-namespace source advice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcePrivateTclNamespaceObligation {
+    /// Original source spelling has not proved a physical head value.
+    OriginalHeadMaterialization,
+    /// Namespace spelling/descriptor policy is not actual private handler entry.
+    SourcePolicyApplicability,
+    /// Neither the private nor public command has a current lookup proof.
+    UnavailableActualLookup,
+    /// A suggested public spelling may differ in values, effects and behaviour.
+    PublicRewriteEquivalence,
+}
+
+/// Genuine original head and its distinct selected-schema or literal-source policy.
+/// The latter deliberately supports unregistered helper spellings without
+/// constructing a Registry invocation or asserting helper existence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourcePrivateTclNamespaceSubject {
+    head: tcl_lexer::NativeWord,
+    input: super::ResolvedAnalysisInput,
+    offset: u32,
+    selected: Option<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    classified_name: String,
+    call: tcl_registry::private_tcl_namespaces::PrivateTclNamespaceCall,
+}
+impl SourcePrivateTclNamespaceSubject {
+    pub(crate) fn from_original_source(
+        head: tcl_lexer::NativeWord,
+        input: super::ResolvedAnalysisInput,
+        offset: u32,
+        selected: Option<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+        classified_name: String,
+        call: tcl_registry::private_tcl_namespaces::PrivateTclNamespaceCall,
+    ) -> Self {
+        Self {
+            head,
+            input,
+            offset,
+            selected,
+            classified_name,
+            call,
+        }
+    }
+    /// Complete original written head; source bytes do not grant a Native name.
+    #[must_use]
+    pub const fn original_head(&self) -> &tcl_lexer::NativeWord {
+        &self.head
+    }
+    /// Request position of the retained original parent head.
+    #[must_use]
+    pub const fn source_offset(&self) -> u32 {
+        self.offset
+    }
+    /// Independently retained real selected source schema, if available.
+    /// None is the explicit literal-head source policy, not a fake descriptor.
+    #[must_use]
+    pub fn selected_source_words(
+        &self,
+    ) -> Option<&crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        self.selected.as_ref()
+    }
+    /// Source policy spelling, never a runtime key or lookup request.
+    #[must_use]
+    pub fn classified_source_name(&self) -> &str {
+        &self.classified_name
+    }
+    /// Existing Registry-owned namespace policy and conditional public suggestion.
+    #[must_use]
+    pub const fn policy(&self) -> &tcl_registry::private_tcl_namespaces::PrivateTclNamespaceCall {
+        &self.call
+    }
+    /// Unresolved original-value, lookup and public-rewrite obligations.
+    #[must_use]
+    pub const fn obligations(&self) -> &'static [SourcePrivateTclNamespaceObligation] {
+        &[
+            SourcePrivateTclNamespaceObligation::OriginalHeadMaterialization,
+            SourcePrivateTclNamespaceObligation::SourcePolicyApplicability,
+            SourcePrivateTclNamespaceObligation::UnavailableActualLookup,
+            SourcePrivateTclNamespaceObligation::PublicRewriteEquivalence,
+        ]
+    }
+    /// Rejoin the same whole original source/input and original head occurrence.
+    /// This supplies no selected runtime target or package installation.
+    #[must_use]
+    pub fn matches_source(&self, source: &str, analysis: &super::AnalysisResult) -> bool {
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return false;
+        };
+        if input != &self.input
+            || self.head.config() != input.lexer_config()
+            || self.head.image().bytes() != source.as_bytes()
+            || !analysis.matches_original_source_image(self.head.image(), input.lexer_config())
+        {
+            return false;
+        }
+        let Some(realm) = analysis.retained_command_realm() else {
+            return false;
+        };
+        if !realm.matches_resolved_analysis_input(input) {
+            return false;
+        }
+        let Some((head, site)) = realm.original_written_head_at_span_in_source(
+            self.head.image(),
+            self.head.span(),
+            input.lexer_config(),
+        ) else {
+            return false;
+        };
+        head == self.head
+            && site.offset == self.offset
+            && self.selected.as_ref().is_none_or(|words| {
+                words.matches_source(self.head.image(), input.lexer_config())
+                    && words.matches_registry(input.borrowed_context_registry().commands())
+            })
     }
 }

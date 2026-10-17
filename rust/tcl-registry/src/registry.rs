@@ -578,11 +578,12 @@ pub fn selected_try_control_invocation(
     let plan = crate::commands::tcl::NATIVE_TRY_GRAMMAR
         .walk_arguments(arguments.slice_from(offset), &[], dialect.authoring_query())?
         .ok()?;
-    let mut selected = parse_try_control_invocation(
+    let mut selected = parse_try_control_invocation_with_lists(
         &plan,
         &values,
         tcl_syntax::number::Numbers::Target(dialect.numbers),
         dialect.completion_code_policy(),
+        Some((dialect.lexer_grammar, arguments.is_source_aware())),
     )?;
     selected.body_index += offset;
     for clause in &mut selected.clauses {
@@ -599,6 +600,49 @@ pub(crate) fn parse_try_control_invocation(
     numbers: tcl_syntax::number::Numbers,
     policy: crate::completion::CompletionCodePolicy,
 ) -> Option<TryControlInvocation> {
+    parse_try_control_invocation_with_lists(plan, args, numbers, policy, None)
+}
+
+/// Selected argument values retain their actual list grammar and whether the
+/// source-aware operand producer already separated value from source syntax.
+pub(crate) fn parse_selected_try_control_invocation(
+    plan: &crate::ClausePlan,
+    arguments: crate::InvocationArguments<'_>,
+) -> Option<TryControlInvocation> {
+    let dialect = arguments.dialect()?;
+    parse_try_control_invocation_with_lists(
+        plan,
+        &arguments.literal_values()?,
+        tcl_syntax::number::Numbers::Target(dialect.numbers),
+        dialect.completion_code_policy(),
+        Some((dialect.lexer_grammar, arguments.is_source_aware())),
+    )
+}
+
+fn parse_try_control_invocation_with_lists(
+    plan: &crate::ClausePlan,
+    args: &[&str],
+    numbers: tcl_syntax::number::Numbers,
+    policy: crate::completion::CompletionCodePolicy,
+    selected: Option<(tcl_dialect::LexerGrammar, bool)>,
+) -> Option<TryControlInvocation> {
+    let list_len = |value: &str| {
+        if !selected.is_some_and(|(_, evaluated)| evaluated)
+            && tcl_syntax::naming::is_dynamic_word(value)
+        {
+            return None;
+        }
+        match selected {
+            Some((grammar, _)) => {
+                tcl_syntax::list::split_list_with_syntax(value, grammar.list_parse, grammar.escapes)
+                    .ok()
+                    .map(|items| items.len())
+            }
+            None => tcl_syntax::list::split_list(value)
+                .ok()
+                .map(|items| items.len()),
+        }
+    };
     // The clause grammar's walk decides the chain — which words introduce a
     // handler, which is `finally`, where the chain stops making sense — and
     // this reads each clause by its timing and its handler vocabulary, never
@@ -627,20 +671,13 @@ pub(crate) fn parse_try_control_invocation(
                         TryClauseKind::On(parse_try_completion_selector(selector, numbers, policy)?)
                     }
                     crate::value_transfer::HandlerMatch::ErrorCodePrefix => {
-                        if tcl_syntax::naming::is_dynamic_word(selector)
-                            || tcl_syntax::list::split_list(selector).is_err()
-                        {
-                            return None;
-                        }
+                        list_len(selector)?;
                         TryClauseKind::Trap
                     }
                 };
                 let variable_list_index = clause.operand(ArgRole::LoopVarList)?;
                 let variable_list = *args.get(variable_list_index)?;
-                if tcl_syntax::naming::is_dynamic_word(variable_list) {
-                    return None;
-                }
-                if tcl_syntax::list::split_list(variable_list).ok()?.len() > 2 {
+                if list_len(variable_list)? > 2 {
                     return None;
                 }
                 // A marker with no later handler to run is Tcl's "last
@@ -718,6 +755,21 @@ pub(crate) fn try_control_arms_for_grammar(
     policy: crate::completion::CompletionCodePolicy,
 ) -> Option<Vec<(usize, ControlArmSemantics)>> {
     let invocation = parse_try_control_invocation(plan, args, numbers, policy)?;
+    Some(try_control_arms_from_invocation(invocation))
+}
+
+pub(crate) fn selected_try_control_arms(
+    plan: &crate::ClausePlan,
+    arguments: crate::InvocationArguments<'_>,
+) -> Option<Vec<(usize, ControlArmSemantics)>> {
+    Some(try_control_arms_from_invocation(
+        parse_selected_try_control_invocation(plan, arguments)?,
+    ))
+}
+
+fn try_control_arms_from_invocation(
+    invocation: TryControlInvocation,
+) -> Vec<(usize, ControlArmSemantics)> {
     let mut arms = vec![(invocation.body_index, ControlArmSemantics::Always)];
     arms.extend(invocation.clauses.into_iter().filter_map(|clause| {
         (!clause.fallthrough).then_some((
@@ -729,7 +781,7 @@ pub(crate) fn try_control_arms_for_grammar(
             },
         ))
     }));
-    Some(arms)
+    arms
 }
 
 impl EventInfo {
@@ -3589,7 +3641,8 @@ impl CommandRegistry {
                 .profile
                 .filter(|profile| crate::InvocationDialect::of_profile(profile) == dialect)
             {
-                query.packages = profile.surface_packages;
+                query.packages =
+                    tcl_dialect::model::PackageFloors::Borrowed(profile.surface_packages);
             }
             query.with_realm(realm)
         });
@@ -11108,7 +11161,7 @@ mod tests {
         let own_first = SurfaceQuery {
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
-            packages: &[],
+            packages: tcl_dialect::model::PackageFloors::Borrowed(&[]),
         };
 
         // The own-family row wins over an inherited row registered after
@@ -11221,7 +11274,7 @@ mod tests {
         let query = own.expect("a profiled registry has a point");
         assert_eq!(
             query.package("iapps"),
-            Some(&PackageFloor::at("iapps", "1.0"))
+            Some(PackageFloor::at("iapps", "1.0"))
         );
         assert_ne!(query, iapps.surface_query());
         assert!(query.same_point(&iapps.surface_query()));
@@ -19891,5 +19944,94 @@ mod inherited_instance_context_tests {
             ),
             Err(InstanceMethodContextUnavailable::ReceiverOptionAxes)
         ));
+    }
+}
+
+#[cfg(test)]
+mod selected_try_list_controls {
+    use super::*;
+
+    #[test]
+    fn selected_literal_list_values_do_not_repeat_source_substitution_checks() {
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let values = [
+            "body",
+            "trap",
+            "$literal [inert]",
+            "$message [options]",
+            "handler",
+        ];
+        let words = values.map(crate::InvocationWord::Literal);
+        let arguments = crate::InvocationArguments::structured(&words).with_dialect(dialect);
+        let selected =
+            selected_try_control_invocation(arguments, 0).expect("closed literal values");
+        assert_eq!(selected.clauses.len(), 1);
+        assert_eq!(selected.clauses[0].kind, TryClauseKind::Trap);
+        assert!(
+            selected_try_control_invocation(
+                crate::InvocationArguments::literals(&values).with_dialect(dialect),
+                0,
+            )
+            .is_none()
+        );
+        let dynamic = [
+            crate::InvocationWord::Literal("body"),
+            crate::InvocationWord::Literal("trap"),
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("m o"),
+            crate::InvocationWord::Literal("handler"),
+        ];
+        assert!(
+            selected_try_control_invocation(
+                crate::InvocationArguments::structured(&dynamic).with_dialect(dialect),
+                0
+            )
+            .is_none()
+        );
+        assert!(
+            selected_try_control_invocation(crate::InvocationArguments::structured(&words), 0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn selected_try_lists_obey_the_supplied_strict_or_lenient_grammar() {
+        let mut dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let words = [
+            crate::InvocationWord::Literal("body"),
+            crate::InvocationWord::Literal("trap"),
+            crate::InvocationWord::Literal("{unfinished"),
+            crate::InvocationWord::Literal("m o"),
+            crate::InvocationWord::Literal("handler"),
+        ];
+        assert!(
+            selected_try_control_invocation(
+                crate::InvocationArguments::structured(&words).with_dialect(dialect),
+                0
+            )
+            .is_none()
+        );
+        dialect.lexer_grammar.list_parse = tcl_dialect::ListParse::Lenient;
+        assert!(
+            selected_try_control_invocation(
+                crate::InvocationArguments::structured(&words).with_dialect(dialect),
+                0
+            )
+            .is_some()
+        );
+        let overfull = [
+            crate::InvocationWord::Literal("body"),
+            crate::InvocationWord::Literal("on"),
+            crate::InvocationWord::Literal("error"),
+            crate::InvocationWord::Literal("a b c"),
+            crate::InvocationWord::Literal("handler"),
+        ];
+        assert!(
+            selected_try_control_invocation(
+                crate::InvocationArguments::structured(&overfull).with_dialect(dialect),
+                0
+            )
+            .is_none()
+        );
     }
 }

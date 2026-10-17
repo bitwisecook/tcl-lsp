@@ -10,7 +10,7 @@ use super::ParameterListLevel;
 use crate::naming::NativeNameProtocol;
 
 /// A decoded formal whose default retains the adapter's original value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteFormalParameter<V = Vec<u8>> {
     /// Actual native formal storage key, distinct from its enumeration spelling.
     pub name: Vec<u8>,

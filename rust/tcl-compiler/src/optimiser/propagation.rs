@@ -68,7 +68,7 @@ use crate::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
-use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
+use super::helpers::expr_simplify::{NumericCtx, operand_types};
 use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{
     line_delete_span, original_quoted_word_rewrite_span, original_statement_rewrite_span,
@@ -1518,17 +1518,18 @@ fn retained_o115(
         return None;
     }
     let tokens = call.tokens.as_ref()?;
-    tokens
+    let (_, command) = tokens
         .source_binding
         .as_ref()?
-        .nested_expression_normalisation(
+        .nested_expression_normalisation_source(
             registry,
             tokens,
             &ctx.fold_policy().preparation_context()?,
             None,
-        )
-        .then(|| o115_redundant_nested_expr(word))
-        .flatten()
+        )?;
+    // The call was selected from the exact original whole substitution. The
+    // inner command source comes from its retained outer expression owner.
+    (ctx.source.get(call.span.as_range()) == Some(word)).then_some(command)
 }
 
 /// Report an `O129` for each single-token `[cmd …]` word of this command that
@@ -2218,6 +2219,33 @@ fn original_return_value_replacement(
     tokens: &CommandTokens,
     value: &str,
 ) -> Option<(tcl_lexer::Span, String)> {
+    let replacement = render_propagation_word(value, ctx.lexer_config())?;
+    original_return_word_replacement(ctx, statement, tokens, &replacement)
+}
+
+/// Splice one deliberately constructed complete word into the same original
+/// return's retained result ordinal. This supplies source geometry only.
+fn original_return_word_replacement(
+    ctx: &PassContext<'_>,
+    statement: &Statement,
+    tokens: &CommandTokens,
+    replacement: &str,
+) -> Option<(tcl_lexer::Span, String)> {
+    let image = tcl_lexer::SourceImage::document(replacement);
+    let extent = tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?);
+    let plan = tcl_lexer::native_script_words_in(image, extent, ctx.lexer_config()).ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let [proposed] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [proposed_word] = proposed.words.as_slice() else {
+        return None;
+    };
+    if proposed_word.span() != extent || proposed_word.group().expand {
+        return None;
+    }
     let Statement::Return {
         value_word: Some(value_word),
         ..
@@ -2250,14 +2278,23 @@ fn original_return_value_replacement(
     let word = command.native_words().get(written)?;
     let start = usize::try_from(word.span().start().checked_sub(span.start())?).ok()?;
     let end = usize::try_from(word.span().end().checked_sub(span.start())?).ok()?;
-    let replacement = render_propagation_word(value, config)?;
     let mut source = ctx
         .source
         .get(span.start() as usize..span.end() as usize)?
         .to_owned();
     source.get(start..end)?;
-    source.replace_range(start..end, &replacement);
-    Some((span, source))
+    source.replace_range(start..end, replacement);
+    // Full proposed statement parsing detects any quote/continuation seam.
+    let image = tcl_lexer::SourceImage::document(&source);
+    let extent = tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?);
+    let after = tcl_lexer::native_script_words_in(image, extent, config).ok()?;
+    if after.fatal_tail.is_some() {
+        return None;
+    }
+    let [after] = after.commands.as_slice() else {
+        return None;
+    };
+    (after.words.len() == command.native_words().len()).then_some((span, source))
 }
 
 /// Fold an original return operand using its retained word kind and constants.
@@ -2305,12 +2342,15 @@ fn try_fold_return_terminator(
         }
         retained_o115(ctx, module, tokens, call, raw, registry)
     });
-    if let Some(collapsed) = collapse {
+    if let Some(collapsed) = collapse
+        && let Some((span, replacement)) = tokens
+            .and_then(|tokens| original_return_word_replacement(ctx, statement, tokens, &collapsed))
+    {
         ctx.report(Optimisation::new(
             DiagCode::O115,
             "Remove redundant nested expr",
             span,
-            format!("return {collapsed}"),
+            replacement,
         ));
         return;
     }
@@ -2490,23 +2530,6 @@ fn try_substitute_assign_expr(
         rewrite_span,
         replacement,
     ));
-}
-
-/// O115 (value position): collapse a redundant double-`expr` command
-/// substitution `[expr {[expr {E}]}]` to `[expr {E}]`, returning the
-/// inner cmd-sub when *word* has that shape.
-///
-/// Sound because both forms evaluate `E` as an expression. The gate is
-/// the double-unwrap: the outer `[expr {…}]`'s body must itself be an
-/// `[expr {…}]` cmd-sub, so the collapsed form stays a valid value-
-/// position word. A plain `[expr {$x + 1}]` (whose unwrap `$x + 1`
-/// would be invalid as a bare value) — or an `[expr {[other]}]` whose
-/// inner is not itself `expr` (not value-equivalent for non-numeric
-/// results) — yields `None`.
-fn o115_redundant_nested_expr(word: &str) -> Option<String> {
-    let expr_arg = try_unwrap_expr_in_expr(word)?;
-    try_unwrap_expr_in_expr(&expr_arg)?;
-    Some(expr_arg)
 }
 
 /// O103 (CMD-subst form): walk each argv word looking for a
@@ -3368,6 +3391,70 @@ mod tests {
             ctx.source = "return foreign";
             assert!(
                 original_return_value_replacement(&ctx, statement, tokens, "Hello World").is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn return_source_word_constructor_keeps_head_and_rejects_multiple_words() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (source, expected) in [
+            ("::return $result", "::return [::expr {$x}]"),
+            ("return [::expr {2 + 3}]", "return [::expr {$x}]"),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            assert!(matches!(
+                statement,
+                Statement::Return {
+                    value_word: Some(_),
+                    ..
+                }
+            ));
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let mut ctx = PassContext::new(source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&module);
+            let (span, replacement) =
+                original_return_word_replacement(&ctx, statement, tokens, "[::expr {$x}]").unwrap();
+            assert_eq!(
+                span,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap())
+            );
+            assert_eq!(replacement, expected);
+            assert!(
+                original_return_word_replacement(
+                    &ctx,
+                    statement,
+                    tokens,
+                    "[::expr {$x}]; unwanted"
+                )
+                .is_none()
+            );
+            assert!(
+                original_return_word_replacement(&ctx, statement, tokens, "{*}[::expr {$x}]")
+                    .is_none()
+            );
+            ctx.source = "return foreign";
+            assert!(
+                original_return_word_replacement(&ctx, statement, tokens, "[::expr {$x}]")
+                    .is_none()
             );
         }
     }

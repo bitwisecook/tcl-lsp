@@ -1427,7 +1427,7 @@ pub struct BodyFragment {
     /// (see [`super::state::Analyser::pending_w143`]) and carried in the same
     /// shape, so the tail can apply the whole-file `proc` / `package require`
     /// suppressions an isolated body cannot see.
-    private_ns_calls: Vec<(String, String, bool, super::types::Diagnostic)>,
+    private_ns_calls: Vec<super::diagnostics::PendingPrivateTclSourceAdvice>,
     /// Legacy W304 presentation buffer; its final owner clears it rather than
     /// infer substituted values from another scope or source text.
     w304: Vec<(
@@ -1673,7 +1673,8 @@ fn merge_scope_vars(
 /// the existing owner that can issue these receipts from original command rows.
 fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
     let result = &fragment.result;
-    if !fragment.pending_ctor_arity.is_empty()
+    if !fragment.private_ns_calls.is_empty()
+        || !fragment.pending_ctor_arity.is_empty()
         || !fragment.pending_next_arity.is_empty()
         || !result.all_procs.is_empty()
         || !result.all_classes.is_empty()
@@ -1718,6 +1719,7 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
                     super::DiagnosticSubject::RegistrySource(_)
                         | super::DiagnosticSubject::CallbackSourceArity(_)
                         | super::DiagnosticSubject::ObjectSourceArity(_)
+                        | super::DiagnosticSubject::PrivateTclNamespace(_)
                         | super::DiagnosticSubject::UserSourceArity(_)
                         | super::DiagnosticSubject::CommandAvailability(_)
                         | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -2210,9 +2212,8 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
     for (_, ns, _, _) in &mut frag.disabled_commands {
         fix(ns);
     }
-    for (_, ns, _, _) in &mut frag.private_ns_calls {
-        fix(ns);
-    }
+    // Original word/input receipts require the whole-source owner, not rebasing.
+    assert!(frag.private_ns_calls.is_empty());
     for cand in &mut frag.pending_user_call_arity {
         fix(&mut cand.cmd_name);
     }
@@ -2251,9 +2252,7 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, _, _, diag) in &mut frag.disabled_commands {
         rebase_diag(diag, d);
     }
-    for (_, _, _, diag) in &mut frag.private_ns_calls {
-        rebase_diag(diag, d);
-    }
+    assert!(frag.private_ns_calls.is_empty());
     for cand in &mut frag.pending_user_call_arity {
         cand.call_off += d;
     }
@@ -2868,6 +2867,15 @@ mod tests {
         }
         assert!(src.len() > OVERSIZED_BODY_BYTES, "fixture must be large");
         fast_path(&src);
+    }
+
+    #[test]
+    fn private_source_advice_requires_whole_document_owner() {
+        let source = "proc caller {} {::tcl::clock::GetSystemTimeZone}";
+        let (gate, result) = gate_and_result(source, "tcl8.6");
+        assert_eq!(gate, Some(PerItemFallback::OriginalSourceOwnership));
+        let whole = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(result.diagnostics, whole.diagnostics);
     }
 
     #[test]

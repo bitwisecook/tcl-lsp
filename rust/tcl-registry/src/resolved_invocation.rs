@@ -3122,8 +3122,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         }
         let (mut selected, complete) = self.authored_source_argument_roles();
         if !complete {
-            // Position-only legacy hooks can read inert payloads only after the
-            // selected option owner proves that no payload selects a layout.
+            // A literal-value hook may inspect any payload. Option topology
+            // alone cannot establish value independence for that callback.
             if !self.layout_is_proven()
                 || self.semantics.clause_grammar.is_some()
                 || self.semantics.frame_effect.is_some()
@@ -3132,9 +3132,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             {
                 return None;
             }
-            let spellings = self.placeholder_spellings()?;
+            let values = arguments.literal_values()?;
             selected =
-                self.semantics.arg_role_resolver?(spellings.get(self.semantics.argument_offset..)?);
+                self.semantics.arg_role_resolver?(values.get(self.semantics.argument_offset..)?);
             let mut complete = true;
             self.extend_repeated_roles(&mut selected, &mut complete, false, None);
             selected.extend(
@@ -3974,16 +3974,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 crate::registry::control_arm_semantics_for_hook(hook)
             }
             LoweringHookId::Try => {
-                let dialect = arguments.dialect()?;
-                let values = arguments.literal_values()?;
-                crate::registry::try_control_arms_for_grammar(
-                    &self.clause_plan()?,
-                    &values,
-                    tcl_syntax::number::Numbers::Target(dialect.numbers),
-                    dialect.completion_code_policy(),
-                )?
-                .into_iter()
-                .find_map(|(ordinal, semantics)| (ordinal == argument).then_some(semantics))
+                crate::registry::selected_try_control_arms(&self.clause_plan()?, arguments)?
+                    .into_iter()
+                    .find_map(|(ordinal, semantics)| (ordinal == argument).then_some(semantics))
             }
             hook => crate::registry::control_arm_semantics_for_hook(hook),
         }
@@ -12102,5 +12095,87 @@ mod logical_source_alias_projection_tests {
         .unwrap();
         assert_eq!(selected.authored_source_list_arguments(), Some(0..1));
         assert_eq!(selected.authored_source_ascii_list_result(), None);
+    }
+}
+
+#[cfg(test)]
+mod literal_role_dependency_controls {
+    use super::*;
+
+    fn payload_roles(values: &[&str]) -> Vec<(u8, ArgRole)> {
+        if values.first() == Some(&"body") {
+            vec![(1, ArgRole::Body)]
+        } else {
+            vec![(1, ArgRole::VarRead)]
+        }
+    }
+
+    #[test]
+    fn arbitrary_literal_hook_never_observes_a_computed_empty_placeholder() {
+        let mut registry = crate::CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            name: "payload-dependent-source-roles",
+            arity: crate::Arity::any(),
+            arg_role_resolver: Some(payload_roles),
+            ..crate::CommandSpec::DEFAULT
+        });
+        for (selector, expected) in [("body", ArgRole::Body), ("", ArgRole::VarRead)] {
+            let values = [
+                crate::InvocationWord::Literal(selector),
+                crate::InvocationWord::Literal("operand"),
+            ];
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("payload-dependent-source-roles"),
+                        &values,
+                    ),
+                    None,
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(selected.arg_roles(), Some(vec![(1, expected)]));
+        }
+        let values = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("operand"),
+        ];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("payload-dependent-source-roles"),
+                    &values,
+                ),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert!(selected.arg_roles().is_none());
+        assert!(!selected.authored_source_argument_roles().1);
+    }
+
+    #[test]
+    fn existing_count_owned_roles_still_accept_unknown_operand_values() {
+        let registry = crate::CommandRegistry::build_default();
+        let values = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("destination"),
+        ];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("lassign"),
+                    &values,
+                ),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert!(
+            selected
+                .arg_roles()
+                .unwrap()
+                .contains(&(1, ArgRole::VarWrite))
+        );
     }
 }

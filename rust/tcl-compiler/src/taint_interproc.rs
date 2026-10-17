@@ -176,6 +176,12 @@ pub struct ProcTaintSummary {
     /// `(param, [taint_per_basis])`, `taint_per_basis[i]` is the taint the
     /// call returns when `param` is seeded with `TaintBasis::ALL[i]`'s lattice.
     pub return_by_param_basis: Vec<(String, Vec<TaintLattice>)>,
+    /// Original selected formal topology, when the Module issuer reborrowed it.
+    /// This is syntax/binding structure only; it grants no activation.
+    pub source_formals:
+        Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology>,
+    /// Production summaries require source formals; absent topology is unknown.
+    pub source_formals_required: bool,
 }
 
 impl ProcTaintSummary {
@@ -198,6 +204,50 @@ impl ProcTaintSummary {
                 .iter()
                 .map(|p| (p.clone(), vec![clean; TaintBasis::ALL.len()]))
                 .collect(),
+            source_formals: None,
+            source_formals_required: false,
+        }
+    }
+
+    fn untainted_for_source(
+        qname: &str,
+        params: &[String],
+        source_formals: Option<
+            crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+        >,
+    ) -> Self {
+        let Some(formals) = source_formals
+            .as_ref()
+            .filter(|formals| formal_names_match(params, formals))
+        else {
+            return Self::unknown_for_source(qname, params, source_formals);
+        };
+        let mut summary = Self::untainted(qname, params);
+        summary.arity = source_formal_arity(formals).unwrap_or_else(Arity::any);
+        summary.source_formals = source_formals;
+        summary.source_formals_required = true;
+        summary
+    }
+
+    fn unknown_for_source(
+        qname: &str,
+        params: &[String],
+        source_formals: Option<
+            crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+        >,
+    ) -> Self {
+        let tainted = TaintLattice::tainted();
+        Self {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: Arity::any(),
+            return_base: tainted,
+            return_by_param_basis: params
+                .iter()
+                .map(|parameter| (parameter.clone(), vec![tainted; TaintBasis::ALL.len()]))
+                .collect(),
+            source_formals,
+            source_formals_required: true,
         }
     }
 
@@ -210,6 +260,125 @@ impl ProcTaintSummary {
         }
         TaintLattice::clean()
     }
+}
+
+fn formal_names_match(
+    report_names: &[String],
+    formals: &crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+) -> bool {
+    let mut seen = HashSet::new();
+    match formals {
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Native(
+            formals,
+        ) => {
+            report_names.len() == formals.parameters().len()
+                && report_names
+                    .iter()
+                    .zip(formals.parameters())
+                    .all(|(reported, formal)| {
+                        reported.as_bytes() == formal.name.as_slice()
+                            && seen.insert(formal.name.as_slice().to_vec())
+                    })
+        }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            formals,
+        ) => {
+            report_names.len() == formals.parameters().len()
+                && report_names
+                    .iter()
+                    .zip(formals.parameters())
+                    .all(|(reported, formal)| {
+                        reported.as_bytes() == formal.name.as_bytes()
+                            && seen.insert(formal.name.as_bytes().to_vec())
+                    })
+        }
+    }
+}
+
+fn source_formal_arity(
+    formals: &crate::signature_scan::formal_parameters::SourceProcedureFormalTopology,
+) -> Option<Arity> {
+    let shape = formals.argument_count_shape();
+    let min = u16::try_from(shape.minimum).ok()?;
+    let max = shape
+        .maximum
+        .map(u16::try_from)
+        .transpose()
+        .ok()?
+        .unwrap_or(Arity::UNLIMITED);
+    Some(Arity::new(min, max))
+}
+
+fn source_formal_argument_taints(
+    summary: &ProcTaintSummary,
+    args: &[TaintLattice],
+) -> Option<Vec<(String, TaintLattice)>> {
+    let formals = summary.source_formals.as_ref()?;
+    if !formal_names_match(&summary.params, formals) {
+        return None;
+    }
+    let mut bound = vec![TaintLattice::clean(); formals.len()];
+    match formals {
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Native(
+            formals,
+        ) => {
+            for binding in formals.bindings(args.len()).ok()? {
+                use tcl_syntax::formal_params::FormalByteArgumentBinding as Binding;
+                match binding {
+                    Binding::Value {
+                        parameter,
+                        argument,
+                    } => {
+                        bound[parameter] = *args.get(argument)?;
+                    }
+                    Binding::Default { .. } => {}
+                    Binding::Rest {
+                        parameter,
+                        start,
+                        len,
+                        ..
+                    } => {
+                        let end = start.checked_add(len)?;
+                        for value in args.get(start..end)? {
+                            bound[parameter] = bound[parameter].join(*value);
+                        }
+                    }
+                    // Caller-link bytes name a caller location; they are not
+                    // the value taint, so preserve uncertainty.
+                    Binding::CallerLink { parameter, .. } => {
+                        bound[parameter] = TaintLattice::tainted();
+                    }
+                }
+            }
+        }
+        crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            formals,
+        ) => {
+            let shape = formals.argument_count_shape();
+            if !shape.accepts(args.len()) {
+                return None;
+            }
+            let parameters = formals.parameters();
+            let mut argument = 0;
+            for (parameter, formal) in parameters.iter().enumerate() {
+                if parameter + 1 == parameters.len() && formal.name == "args" {
+                    for value in args.get(argument..)? {
+                        bound[parameter] = bound[parameter].join(*value);
+                    }
+                    argument = args.len();
+                } else if let Some(value) = args.get(argument) {
+                    bound[parameter] = *value;
+                    argument += 1;
+                } else if formal.default.is_none() {
+                    return None;
+                }
+            }
+            if argument != args.len() {
+                return None;
+            }
+        }
+    }
+    Some(summary.params.iter().cloned().zip(bound).collect())
 }
 
 /// Apply a procedure's return-taint summary to a tuple of argument taints.
@@ -227,8 +396,19 @@ pub fn apply_proc_return_summary(
         return TaintLattice::clean();
     }
 
+    let source_bound = if summary.source_formals_required {
+        let Some(bound) = source_formal_argument_taints(summary, arg_taints) else {
+            return TaintLattice::tainted();
+        };
+        Some(bound)
+    } else {
+        None
+    };
+
     let mut bound: Vec<(String, TaintLattice)> = Vec::with_capacity(summary.params.len());
-    if summary.params.last().is_some_and(|p| p == "args") {
+    if let Some(source_bound) = source_bound {
+        bound = source_bound;
+    } else if summary.params.last().is_some_and(|p| p == "args") {
         let fixed = summary.params.len() - 1;
         for (i, p) in summary.params.iter().take(fixed).enumerate() {
             let t = arg_taints
@@ -651,6 +831,9 @@ pub fn infer_proc_summary(
         registry,
         interproc,
         source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+        source_formals: cu
+            .ir_module
+            .original_source_formal_topology(body_id, registry),
         known,
         summaries,
     }))
@@ -663,6 +846,7 @@ struct ProcSummaryInputs<'a> {
     registry: &'a CommandRegistry,
     interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
     source: TaintSourceContext<'a>,
+    source_formals: Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology>,
     known: &'a HashSet<crate::ir::ProcedureId>,
     summaries: &'a HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
 }
@@ -675,9 +859,17 @@ fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSum
         registry,
         interproc,
         source,
+        source_formals,
         known,
         summaries,
     } = inputs;
+
+    if !source_formals
+        .as_ref()
+        .is_some_and(|formals| formal_names_match(params, formals))
+    {
+        return ProcTaintSummary::unknown_for_source(qname, params, source_formals);
+    }
 
     if fu.cfg.has_opaque_native_accesses() {
         return ProcTaintSummary {
@@ -694,6 +886,8 @@ fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSum
                     )
                 })
                 .collect(),
+            source_formals,
+            source_formals_required: true,
         };
     }
     // Prune 1 — the return taint does not depend on the taint map at all, so
@@ -702,7 +896,7 @@ fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSum
     // `ProcTaintSummary::untainted` builds.  Checked before the index build
     // below, so a constant-return procedure costs nothing at all.
     if return_taint_is_constant(fu) {
-        return ProcTaintSummary::untainted(qname, params);
+        return ProcTaintSummary::untainted_for_source(qname, params, source_formals);
     }
 
     // One index build for the baseline propagation and every scenario below.
@@ -765,9 +959,12 @@ fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSum
     ProcTaintSummary {
         qualified_name: qname.to_owned(),
         params: params.to_vec(),
-        arity: crate::interprocedural::arity_from_names(params),
+        arity: source_formal_arity(source_formals.as_ref().expect("validated source formals"))
+            .unwrap_or_else(Arity::any),
         return_base,
         return_by_param_basis: by_param_basis,
+        source_formals,
+        source_formals_required: true,
     }
 }
 
@@ -1210,6 +1407,26 @@ fn update_entry(
     let entry = entry_taints.entry(callee.to_owned()).or_default();
     let mut changed = false;
 
+    if summary.source_formals_required {
+        let bindings = source_formal_argument_taints(summary, args).unwrap_or_else(|| {
+            summary
+                .params
+                .iter()
+                .cloned()
+                .map(|parameter| (parameter, TaintLattice::tainted()))
+                .collect()
+        });
+        for (parameter, incoming) in bindings {
+            let slot = entry.entry(parameter).or_insert_with(TaintLattice::clean);
+            let merged = slot.join(incoming);
+            if merged != *slot {
+                *slot = merged;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     if summary.params.last().is_some_and(|p| p == "args") {
         let fixed = summary.params.len() - 1;
         for (i, param) in summary.params.iter().take(fixed).enumerate() {
@@ -1314,7 +1531,12 @@ pub fn converge_summaries_with(
             .expect("current original procedure body");
         summaries.insert(
             (*qname).clone(),
-            ProcTaintSummary::untainted(&proc.qualified_name, &proc.params),
+            ProcTaintSummary::untainted_for_source(
+                &proc.qualified_name,
+                &proc.params,
+                cu.ir_module
+                    .original_source_formal_topology(**qname, registry),
+            ),
         );
     }
     let known: HashSet<crate::ir::ProcedureId> = summaries.keys().cloned().collect();
@@ -1388,6 +1610,9 @@ pub fn converge_summaries_with(
                         registry,
                         interproc,
                         source,
+                        source_formals: cu
+                            .ir_module
+                            .original_source_formal_topology(**qname, registry),
                         known: &known,
                         summaries: &summaries,
                     })
@@ -1426,6 +1651,9 @@ pub fn converge_summaries_with(
                     registry,
                     interproc,
                     source,
+                    source_formals: cu
+                        .ir_module
+                        .original_source_formal_topology(**qname, registry),
                     known: &known,
                     summaries: &summaries,
                 })
@@ -1458,6 +1686,9 @@ pub fn converge_summaries_with(
                 registry,
                 interproc,
                 source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                source_formals: cu
+                    .ir_module
+                    .original_source_formal_topology(**qname, registry),
                 known: &known,
                 summaries: &summaries,
             });
@@ -2024,6 +2255,61 @@ mod tests {
     }
 
     #[test]
+    fn source_summary_reborrows_formals_from_its_actual_module_body() {
+        let (context, cu) = crate::interprocedural::logical_completion_unit(
+            "proc defaulted {{value fallback} args} { return $value }",
+            "tcl8.6",
+        );
+        let registry = context.commands();
+        let body = *cu.ir_module.procedures.keys().next().unwrap();
+        let formals = cu
+            .ir_module
+            .original_source_formal_topology(body, registry)
+            .expect("the exact retained source procedure supplies its selected ParamList");
+        assert_eq!(formals.len(), 2);
+        let crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical(
+            logical,
+        ) = &formals
+        else {
+            panic!("Logical source procedure keeps its separate selected topology");
+        };
+        assert_eq!(logical.parameters()[0].name, "value");
+        assert_eq!(logical.parameters()[0].default.as_deref(), Some("fallback"));
+        assert_eq!(logical.parameters()[1].name, "args");
+        assert_eq!(formals.argument_count_shape().minimum, 0);
+        assert_eq!(formals.argument_count_shape().maximum, None);
+
+        let summary = infer_proc_summary(
+            &cu,
+            body,
+            registry,
+            cu.interproc.as_ref(),
+            None,
+            &HashSet::from([body]),
+            &HashMap::new(),
+        )
+        .expect("the Module-owned procedure summary is available");
+        assert_eq!(summary.source_formals.as_ref(), Some(&formals));
+        assert!(summary.source_formals_required);
+        assert_eq!(
+            apply_proc_return_summary(&summary, &[TaintLattice::tainted(), TaintLattice::clean()],),
+            TaintLattice::tainted(),
+            "the actual first formal carries its tainted argument"
+        );
+
+        let mut foreign = cu.clone();
+        foreign.ir_module.procedures.get_mut(&body).unwrap().params[0] =
+            "renamed_without_source_change".to_owned();
+        assert!(
+            foreign
+                .ir_module
+                .original_source_formal_topology(body, registry)
+                .is_none(),
+            "a changed body projection cannot reuse the retained source ParamList"
+        );
+    }
+
+    #[test]
     fn self_recursive_proc_taint_summary_converges() {
         // A directly self-recursive proc — `fib` calling itself inside
         // `[expr {[fib …]}]` — has no self-call edge in `direct_calls` (it is
@@ -2220,6 +2506,8 @@ mod tests {
             arity: crate::interprocedural::arity_from_names(&proc.params),
             return_base,
             return_by_param_basis: by_param_basis,
+            source_formals: None,
+            source_formals_required: false,
         }
     }
 

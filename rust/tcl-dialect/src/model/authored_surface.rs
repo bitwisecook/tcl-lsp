@@ -311,6 +311,98 @@ pub enum InvocationRealm {
     InterpreterRuntime,
 }
 
+/// Owned package source facts retained by a resolved authoring context.
+/// Presence and floor describe its declaration/requirement, not installation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedPackageFloor {
+    name: std::sync::Arc<str>,
+    version: Option<std::sync::Arc<str>>,
+}
+impl OwnedPackageFloor {
+    /// Retain the actual source package and optional guaranteed floor.
+    #[must_use]
+    pub fn new(name: &str, version: Option<&str>) -> Self {
+        Self {
+            name: std::sync::Arc::from(name),
+            version: version.map(std::sync::Arc::from),
+        }
+    }
+}
+
+/// Borrow legacy static floors or a context's genuinely retained owned facts.
+/// No string interning, leaks or self-referential data are required.
+#[derive(Debug, Clone, Copy)]
+pub enum PackageFloors<'a> {
+    /// Existing literal/static package metadata.
+    Borrowed(&'a [PackageFloor<'a>]),
+    /// Same named floor facts owned by the actual resolved context.
+    Owned(&'a [OwnedPackageFloor]),
+}
+impl<'a> PackageFloors<'a> {
+    /// Number of represented package facts.
+    #[must_use]
+    pub const fn len(self) -> usize {
+        match self {
+            Self::Borrowed(rows) => rows.len(),
+            Self::Owned(rows) => rows.len(),
+        }
+    }
+    /// Whether the actual represented inventory is empty.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+    /// Borrow each actual name/floor without allocating or decoding identity.
+    #[must_use]
+    pub fn iter(self) -> PackageFloorIter<'a> {
+        match self {
+            Self::Borrowed(rows) => PackageFloorIter::Borrowed(rows.iter()),
+            Self::Owned(rows) => PackageFloorIter::Owned(rows.iter()),
+        }
+    }
+}
+impl PartialEq for PackageFloors<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+impl Eq for PackageFloors<'_> {}
+
+/// Borrowed projection of either existing package floor representation.
+#[derive(Debug, Clone)]
+pub enum PackageFloorIter<'a> {
+    /// Existing literal floor slice.
+    Borrowed(std::slice::Iter<'a, PackageFloor<'a>>),
+    /// Context-retained source floor slice.
+    Owned(std::slice::Iter<'a, OwnedPackageFloor>),
+}
+impl<'a> Iterator for PackageFloorIter<'a> {
+    type Item = PackageFloor<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed(rows) => rows.next().copied(),
+            Self::Owned(rows) => rows.next().map(|row| PackageFloor {
+                name: row.name.as_ref(),
+                version: row.version.as_deref(),
+            }),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Self::Borrowed(rows) => rows.size_hint(),
+            Self::Owned(rows) => rows.size_hint(),
+        }
+    }
+}
+impl ExactSizeIterator for PackageFloorIter<'_> {}
+impl<'a> IntoIterator for PackageFloors<'a> {
+    type Item = PackageFloor<'a>;
+    type IntoIter = PackageFloorIter<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// The point a surface question is asked at — the replacement for the retired
 /// availability point (Q13).
 ///
@@ -331,7 +423,7 @@ pub struct SurfaceQuery<'a> {
     pub core: CorePoints<'a>,
     /// The packages active in the context, each with the floor the context
     /// guarantees of it.
-    pub packages: &'a [PackageFloor<'a>],
+    pub packages: PackageFloors<'a>,
 }
 
 impl<'a> SurfaceQuery<'a> {
@@ -341,7 +433,7 @@ impl<'a> SurfaceQuery<'a> {
         Self {
             realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, Some(release)),
-            packages: &[],
+            packages: PackageFloors::Borrowed(&[]),
         }
     }
 
@@ -351,7 +443,7 @@ impl<'a> SurfaceQuery<'a> {
         Self {
             realm: InvocationRealm::RuleLoader,
             core: CorePoints::one(family, None),
-            packages: &[],
+            packages: PackageFloors::Borrowed(&[]),
         }
     }
 
@@ -376,12 +468,15 @@ impl<'a> SurfaceQuery<'a> {
     /// A query carrying `packages` as well as this one's core.
     #[must_use]
     pub const fn with_packages(self, packages: &'a [PackageFloor<'a>]) -> Self {
-        Self { packages, ..self }
+        Self {
+            packages: PackageFloors::Borrowed(packages),
+            ..self
+        }
     }
 
     /// The floor this query carries for `name`, if the package is active.
     #[must_use]
-    pub fn package(&self, name: &str) -> Option<&PackageFloor<'a>> {
+    pub fn package(&self, name: &str) -> Option<PackageFloor<'a>> {
         self.packages.iter().find(|carried| carried.name == name)
     }
 
@@ -754,7 +849,7 @@ mod tests {
         SurfaceQuery {
             realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
-            packages: &[],
+            packages: crate::model::PackageFloors::Borrowed(&[]),
         }
     }
 
@@ -783,7 +878,7 @@ mod tests {
         let pinned = |release| SurfaceQuery {
             realm: crate::model::InvocationRealm::RuleLoader,
             core: CorePoints::two((Family::Jim, Some(release)), (Family::Tcl, Some("8.6"))),
-            packages: &[],
+            packages: crate::model::PackageFloors::Borrowed(&[]),
         };
         assert!(surface_admits(JIM_FROM_080, Some(&pinned("0.82"))));
         assert!(!surface_admits(JIM_FROM_080, Some(&pinned("0.76"))));
@@ -834,3 +929,22 @@ mod tests {
         assert_eq!(CorePoints::one(Family::Tcl, None).len(), 1);
     }
 }
+
+/// Canonical environment surfaces offered by source descriptor authoring.
+/// EDA package libraries are carried as packages rather than independent surfaces.
+pub const SOURCE_AUTHORING_ENVIRONMENT_SURFACES: &[(&str, &[SpecSurface])] = &[
+    ("tcl8.4", SpecSurface::TCL84),
+    ("tcl8.5", SpecSurface::TCL85),
+    ("tcl8.6", SpecSurface::TCL86),
+    ("tcl9.0", SpecSurface::TCL90),
+    ("tcl9.1", SpecSurface::TCL91),
+    ("f5-irules", SpecSurface::IRULES),
+    ("f5-iapps", SpecSurface::IAPPS),
+    ("tk", SpecSurface::TK),
+    ("expect", SpecSurface::EXPECT),
+    ("bpf", SpecSurface::BPF),
+    ("f5-tmsh", SpecSurface::TMSH),
+    ("f5-bigip", SpecSurface::BIGIP),
+    ("spectcl", SpecSurface::SPECTCL),
+    ("sslictcl", SpecSurface::SSLICTCL),
+];

@@ -45,7 +45,9 @@ use tcl_dialect::model::{
 };
 use tcl_dialect::{DialectProfile, DialectProfileKey, LexerGrammar, LibraryVersionOverrides};
 
-use crate::model::assembly::{ContextRegistry, OverlayMiss, registry_for_environment_if_built};
+use crate::model::assembly::{
+    ContextRegistry, OverlayMiss, registry_for_environment_with_surfaces,
+};
 use crate::model::context::{KeyedVersions, ResolvedContext};
 
 /// The **live** environment registry: the compiled seed set at
@@ -80,6 +82,7 @@ pub struct DocumentEnvironment {
     pub definition: Arc<EnvironmentDefinition>,
     /// The `(id, generation, overlay)` identity for generation caching.
     pub identity: EnvironmentIdentity,
+    inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
 }
 
 /// Resolve a user-written dialect name — canonical id, alias, or editor
@@ -97,6 +100,8 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     DocumentEnvironment {
         definition,
         identity,
+        inherited_surfaces:
+            tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
     }
 }
 
@@ -127,6 +132,8 @@ fn resolve_known_environment_in(
     Some(DocumentEnvironment {
         definition,
         identity,
+        inherited_surfaces:
+            tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
     })
 }
 
@@ -147,6 +154,20 @@ pub fn resolve_language_id(language_id: &str) -> Option<DocumentEnvironment> {
 }
 
 impl DocumentEnvironment {
+    // Reborrow the actual environment/identity and already held roster input.
+    // Sibling assembly paths must not sample a different global observation.
+    pub(crate) fn from_resolved_with_inherited_surfaces(
+        definition: Arc<EnvironmentDefinition>,
+        identity: EnvironmentIdentity,
+        inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+    ) -> Self {
+        Self {
+            definition,
+            identity,
+            inherited_surfaces,
+        }
+    }
+
     /// Whether this is the `tk` environment — an **identity** question
     /// (the `wish` ingress), never an availability one.
     ///
@@ -369,15 +390,27 @@ impl DocumentEnvironment {
         keyed: &KeyedVersions,
         overlay: u64,
     ) -> Result<Arc<ContextRegistry>, OverlayMiss> {
-        registry_for_environment_if_built(&self.definition, &self.identity, keyed, overlay)
+        registry_for_environment_with_surfaces(
+            &self.definition,
+            &self.identity,
+            keyed,
+            overlay,
+            self.inherited_surfaces.clone(),
+        )
     }
 
     /// The generation with no pack overlay, at `keyed` — always built, so
     /// there is no miss to answer.
     #[must_use]
     pub fn plain_context_registry(&self, keyed: &KeyedVersions) -> Arc<ContextRegistry> {
-        registry_for_environment_if_built(&self.definition, &self.identity, keyed, 0)
-            .expect("the un-overlaid generation always builds")
+        registry_for_environment_with_surfaces(
+            &self.definition,
+            &self.identity,
+            keyed,
+            0,
+            self.inherited_surfaces.clone(),
+        )
+        .expect("the un-overlaid generation always builds")
     }
 
     /// The un-overlaid generation at default keyed axes — the plain
@@ -465,7 +498,7 @@ fn roster_axis_of(environment: &DocumentEnvironment) -> u64 {
         })
     });
     if reimplements {
-        tcl_dialect::model::inherited_surface_generation()
+        environment.inherited_surfaces.generation()
     } else {
         0
     }

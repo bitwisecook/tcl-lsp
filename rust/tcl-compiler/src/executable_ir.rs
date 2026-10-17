@@ -848,6 +848,19 @@ struct OriginalExecutableWordSource {
     evaluated: WordExpr,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalExpressionEffectOwner {
+    Source(std::sync::Arc<crate::ir::CommandTokens>),
+    TrapPrefix,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalExpressionCommandEffect {
+    expression: ExecutableExpr,
+    owner: Option<OriginalExpressionEffectOwner>,
+    runs_commands: Option<bool>,
+}
+
 /// One executable semantic function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFunction {
@@ -865,6 +878,11 @@ pub struct ExecutableFunction {
     // missing entries and present None both mean unavailable source geometry.
     original_word_sources:
         Option<BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>>,
+    // Outer None is the explicit carrierless compatibility constructor. A
+    // production function retains every EvaluateExpr value, with inner None
+    // distinguishing a missing source owner from a complete no-command proof.
+    original_expression_command_effects:
+        Option<BTreeMap<ExecutableValueId, OriginalExpressionCommandEffect>>,
 }
 
 impl ExecutableFunction {
@@ -881,6 +899,7 @@ impl ExecutableFunction {
             blocks,
             native_compilation_admission: None,
             original_word_sources: None,
+            original_expression_command_effects: None,
         }
     }
 
@@ -920,6 +939,36 @@ impl ExecutableFunction {
                 )
             }))
         })())
+    }
+
+    /// Source-backed command effects for one EvaluateExpr value. Outer None
+    /// denotes an explicitly carrierless compatibility function; inner None
+    /// denotes a missing/changed production operand owner.
+    pub(crate) fn original_expression_command_effects(
+        &self,
+        value: ExecutableValueId,
+        expression: &ExecutableExpr,
+    ) -> Option<Option<bool>> {
+        let effects = self.original_expression_command_effects.as_ref()?;
+        let Some(retained) = effects.get(&value) else {
+            return Some(None);
+        };
+        if retained.expression != *expression {
+            return Some(None);
+        }
+        match (&retained.owner, retained.runs_commands) {
+            (Some(OriginalExpressionEffectOwner::Source(tokens)), Some(effect))
+                if tokens.source_binding.is_some() =>
+            {
+                Some(Some(effect))
+            }
+            (Some(OriginalExpressionEffectOwner::TrapPrefix), Some(false))
+                if matches!(expression, ExecutableExpr::TrapPrefix { .. }) =>
+            {
+                Some(Some(false))
+            }
+            _ => Some(None),
+        }
     }
 
     /// Validate the bounded executable-IR invariants.
@@ -2386,6 +2435,8 @@ fn build_executable_ir_with_metadata_context(
     // This is unconditional at production function assembly, including when
     // the builder emitted only non-word operations and the map is empty.
     executable.original_word_sources = Some(builder.original_word_sources);
+    executable.original_expression_command_effects =
+        Some(builder.original_expression_command_effects);
     executable.native_compilation_admission =
         crate::native_compilation_admission::retained_script_admission(script);
     debug_assert!(
@@ -2499,6 +2550,8 @@ struct FunctionBuilder {
     allocator: IdAllocator,
     blocks: Vec<ExecutableBlock>,
     original_word_sources: BTreeMap<ExecutableValueId, Option<OriginalExecutableWordSource>>,
+    original_expression_command_effects:
+        BTreeMap<ExecutableValueId, OriginalExpressionCommandEffect>,
 }
 
 impl FunctionBuilder {
@@ -2507,6 +2560,7 @@ impl FunctionBuilder {
             allocator: IdAllocator::new(function),
             blocks: Vec::new(),
             original_word_sources: BTreeMap::new(),
+            original_expression_command_effects: BTreeMap::new(),
         }
     }
 
@@ -2572,6 +2626,54 @@ impl FunctionBuilder {
             });
             self.original_word_sources.insert(value, retained);
         }
+    }
+
+    fn retain_expression_command_effect(
+        &mut self,
+        value: ExecutableValueId,
+        expression: &ExecutableExpr,
+        original_tokens: Option<&crate::ir::CommandTokens>,
+        operand_argument: Option<usize>,
+    ) {
+        let effect = match expression {
+            ExecutableExpr::Condition { expr, base } => original_tokens.and_then(|tokens| {
+                let (config, _) = crate::registry_invocation::original_lowered_expression_syntax(
+                    expr, *base, tokens,
+                )?;
+                // A failed variable-reference parse cannot prove the absence of
+                // command substitutions. Keep ordinary configured variables,
+                // including their parsed array-index expressions, on the path.
+                let variables_available = expr.evaluation_nodes().into_iter().all(|node| {
+                    !matches!(node, ExprNode::Var { .. })
+                        || matches!(node.variable_reference(config), Ok(Some(_)))
+                });
+                variables_available.then(|| expr_footprint(expr, *base, Some(tokens)).runs_commands)
+            }),
+            ExecutableExpr::Operand { text, braced } => original_tokens.and_then(|tokens| {
+                let argument = operand_argument?;
+                crate::registry_invocation::original_argument_command_effect(
+                    tokens, argument, text, *braced,
+                )
+            }),
+            // This is the registry-parsed handler prefix value, not source
+            // text requiring Tcl substitution.
+            ExecutableExpr::TrapPrefix { .. } => Some(false),
+        };
+        let owner = if matches!(expression, ExecutableExpr::TrapPrefix { .. }) {
+            Some(OriginalExpressionEffectOwner::TrapPrefix)
+        } else {
+            original_tokens.map(|tokens| {
+                OriginalExpressionEffectOwner::Source(std::sync::Arc::new(tokens.clone()))
+            })
+        };
+        self.original_expression_command_effects.insert(
+            value,
+            OriginalExpressionCommandEffect {
+                expression: expression.clone(),
+                owner,
+                runs_commands: effect,
+            },
+        );
     }
 
     /// Allocate one empty block. Allocation order is block-ID order, which is
@@ -2766,8 +2868,16 @@ impl FunctionBuilder {
             return Ok(self.finish(block, completion, control, tail));
         }
         if structured_region_projection(statement).is_some() {
-            return self
-                .emit_structured_region(registry, context, statement, node, block, control, tail);
+            return self.emit_structured_region(
+                registry,
+                context,
+                statement,
+                original_tokens,
+                node,
+                block,
+                control,
+                tail,
+            );
         }
         if let Some(descriptor) = opaque_region_descriptor(statement) {
             let completion = self.allocator.completion();
@@ -2857,6 +2967,7 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
@@ -2869,6 +2980,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 clauses,
                 else_body.as_ref(),
                 node,
@@ -2886,6 +2998,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &LoopParts {
                     init: None,
                     condition,
@@ -2911,6 +3024,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &LoopParts {
                     init: Some(init),
                     condition,
@@ -2927,7 +3041,16 @@ impl FunctionBuilder {
             Statement::Foreach {
                 iterators, body, ..
             } => self.emit_cursor_loop(
-                registry, context, statement, iterators, body, node, block, control, tail,
+                registry,
+                context,
+                statement,
+                original_tokens,
+                iterators,
+                body,
+                node,
+                block,
+                control,
+                tail,
             ),
             Statement::Catch {
                 body,
@@ -2965,6 +3088,7 @@ impl FunctionBuilder {
             ),
             Statement::Switch {
                 subject,
+                subject_braced,
                 subject_span,
                 arms,
                 default_body,
@@ -2976,8 +3100,10 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                original_tokens,
                 &SwitchParts {
                     subject,
+                    subject_braced: *subject_braced,
                     subject_span: *subject_span,
                     arms,
                     default_body: default_body.as_ref(),
@@ -3194,6 +3320,7 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         clauses: &[crate::ir::IfClause],
         else_body: Option<&Script>,
         node: &NodeId,
@@ -3212,6 +3339,11 @@ impl FunctionBuilder {
                 current,
                 control,
             );
+            let expression = ExecutableExpr::Condition {
+                expr: Box::new(clause.condition.clone()),
+                base: clause.condition_base,
+            };
+            self.retain_expression_command_effect(condition, &expression, original_tokens, None);
             let body_entry = self.new_block();
             let next_test = self.new_block();
             self.terminate(
@@ -3245,6 +3377,7 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         parts: &LoopParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -3268,6 +3401,11 @@ impl FunctionBuilder {
             header,
             control,
         );
+        let expression = ExecutableExpr::Condition {
+            expr: Box::new(parts.condition.clone()),
+            base: parts.condition_base,
+        };
+        self.retain_expression_command_effect(condition, &expression, original_tokens, None);
         let body_entry = self.new_block();
         self.terminate(
             decided,
@@ -3312,6 +3450,7 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         iterators: &[crate::ir::ForeachIterator],
         body: &Script,
         node: &NodeId,
@@ -3319,7 +3458,7 @@ impl FunctionBuilder {
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
-        let names = original_list_iterator_names(registry, statement, iterators).ok_or(
+        let sources = original_list_iterator_sources(registry, statement, iterators).ok_or(
             SourceCompatibilityDecline::UnsupportedStatement {
                 statement_index: node.path().last().copied().unwrap_or(0) as usize,
                 kind: "unowned or non-list iteration",
@@ -3328,7 +3467,7 @@ impl FunctionBuilder {
         let source = SourceSite::source(statement.span());
         let mut current = block;
         let mut groups = Vec::with_capacity(iterators.len());
-        for (iterator, names) in iterators.iter().zip(names) {
+        for (iterator, (names, argument)) in iterators.iter().zip(sources) {
             let value = self.allocator.value();
             let completion = self.allocator.completion();
             self.push(
@@ -3343,6 +3482,16 @@ impl FunctionBuilder {
                     node: node.clone(),
                     source: source.clone(),
                 },
+            );
+            let expression = ExecutableExpr::Operand {
+                text: iterator.list_arg.clone(),
+                braced: iterator.list_braced,
+            };
+            self.retain_expression_command_effect(
+                value,
+                &expression,
+                original_tokens,
+                Some(argument),
             );
             current = self.dispatch(current, completion, control);
             groups.push(IteratorGroup {
@@ -3593,19 +3742,21 @@ impl FunctionBuilder {
                 // already performed, never a local re-parse of the grammar.
                 let value = self.allocator.value();
                 let completion = self.allocator.completion();
+                let expression = ExecutableExpr::TrapPrefix {
+                    completion: caught,
+                    prefix,
+                };
                 self.push(
                     current,
                     ExecutableInstruction::EvaluateExpr {
                         value,
                         completion,
-                        expr: ExecutableExpr::TrapPrefix {
-                            completion: caught,
-                            prefix,
-                        },
+                        expr: expression.clone(),
                         node: node.clone(),
                         source: source.clone(),
                     },
                 );
+                self.retain_expression_command_effect(value, &expression, None, None);
                 let decided = self.dispatch(current, completion, control);
                 let matched = self.new_block();
                 self.terminate(
@@ -3658,12 +3809,37 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         parts: &SwitchParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        let subject_source = original_tokens.and_then(|tokens| {
+            let (command, _) = tokens
+                .source_binding
+                .as_ref()?
+                .original_recorded_command()?;
+            (command.span == statement.span()).then_some(())?;
+            let selected =
+                crate::registry_invocation::original_source_name_roles(registry, tokens)?;
+            (selected.facts().operation
+                == SemanticOperationId::StructuredLowering(LoweringHookId::Switch))
+            .then_some(())?;
+            tokens.words().iter().enumerate().find_map(|(index, word)| {
+                let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+                if word.source().span == parts.subject_span
+                    && word.legacy_text() == parts.subject
+                    && braced == parts.subject_braced
+                {
+                    Some((index.checked_sub(1)?, braced))
+                } else {
+                    None
+                }
+            })
+        });
+        let subject_braced = parts.subject_braced;
         let subject_value = self.allocator.value();
         let subject_completion = self.allocator.completion();
         self.push(
@@ -3673,11 +3849,21 @@ impl FunctionBuilder {
                 completion: subject_completion,
                 expr: ExecutableExpr::Operand {
                     text: parts.subject.to_owned(),
-                    braced: false,
+                    braced: subject_braced,
                 },
                 node: node.clone(),
                 source: SourceSite::source(parts.subject_span),
             },
+        );
+        let expression = ExecutableExpr::Operand {
+            text: parts.subject.to_owned(),
+            braced: subject_braced,
+        };
+        self.retain_expression_command_effect(
+            subject_value,
+            &expression,
+            original_tokens,
+            subject_source.map(|(argument, _)| argument),
         );
         let mut current = self.dispatch(block, subject_completion, control);
         let join = self.new_block();
@@ -3755,6 +3941,7 @@ struct LoopParts<'a> {
 /// The registry-parsed `switch` operands one decision tree needs.
 struct SwitchParts<'a> {
     subject: &'a str,
+    subject_braced: bool,
     subject_span: tcl_lexer::Span,
     arms: &'a [crate::ir::SwitchArm],
     default_body: Option<&'a Script>,
@@ -4079,11 +4266,21 @@ fn lowered_operation_footprint(
     }
 }
 
+#[cfg(test)]
 fn original_list_iterator_names(
     registry: &CommandRegistry,
     statement: &Statement,
     iterators: &[crate::ir::ForeachIterator],
 ) -> Option<Vec<Vec<String>>> {
+    original_list_iterator_sources(registry, statement, iterators)
+        .map(|sources| sources.into_iter().map(|(names, _)| names).collect())
+}
+
+fn original_list_iterator_sources(
+    registry: &CommandRegistry,
+    statement: &Statement,
+    iterators: &[crate::ir::ForeachIterator],
+) -> Option<Vec<(Vec<String>, usize)>> {
     let Statement::Foreach {
         raw_tokens: Some(tokens),
         is_lmap,
@@ -4122,7 +4319,7 @@ fn original_list_iterator_names(
                 argument,
                 tcl_registry::ArgRole::LoopVarList,
             )?;
-            (names == iterator.vars).then_some(names)
+            (names == iterator.vars).then_some((names, argument.checked_add(1)?))
         })
         .collect()
 }

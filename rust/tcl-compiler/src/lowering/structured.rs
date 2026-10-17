@@ -30,7 +30,7 @@ use tcl_registry::arg_role::ArgRole;
 use tcl_registry::spec::CaseListSpec;
 use tcl_registry::{ClauseAbstention, ClausePlan, ClauseRowId, ClauseShapeError, ClauseTiming};
 
-use crate::expr_parser::parse_expr_for_profile;
+use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::{
     ForeachIterator, HandlerMatch, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler,
 };
@@ -479,7 +479,11 @@ impl Lowerer<'_> {
             let cond_single = arg_single.get(cond_idx).copied().unwrap_or(false);
             let cond_text = condition_source_text(cond_tok, cond_single, &args[cond_idx]);
             clauses.push(IfClause {
-                condition: parse_expr_for_profile(&cond_text, self.dialect),
+                condition: parse_expr_for_profile_with_lexer_config(
+                    &cond_text,
+                    self.dialect,
+                    self.config,
+                ),
                 condition_span: cond_tok.map_or(seg.span, |t| t.span),
                 condition_base: cond_tok
                     .and_then(|t| word_content_base(t.span, cond_single, &cond_text)),
@@ -554,9 +558,10 @@ impl Lowerer<'_> {
             span: seg.span,
             init,
             init_span: self.script_word_span(&arg_tokens[0]),
-            condition: parse_expr_for_profile(
+            condition: parse_expr_for_profile_with_lexer_config(
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
                 self.dialect,
+                self.config,
             ),
             condition_span: arg_tokens[1].span,
             condition_base: word_content_base(
@@ -605,9 +610,10 @@ impl Lowerer<'_> {
 
         Statement::While {
             span: seg.span,
-            condition: parse_expr_for_profile(
+            condition: parse_expr_for_profile_with_lexer_config(
                 &condition_source_text(arg_tokens.first(), arg_single[0], &args[0]),
                 self.dialect,
+                self.config,
             ),
             condition_span: arg_tokens[0].span,
             condition_base: word_content_base(
@@ -2827,5 +2833,58 @@ mod original_dict_name_tests {
             module.source.bytes().get(span.as_range()),
             Some(b"$receiver".as_slice())
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_expression_lexer_configuration_tests {
+    use crate::expr_ast::ExprNode;
+    use crate::ir::Statement;
+
+    #[test]
+    fn structured_conditions_preserve_the_actual_braced_variable_override() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let baseline = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        for (config, variable) in [
+            (baseline, true),
+            (
+                tcl_lexer::LexerConfig {
+                    braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                    ..baseline
+                },
+                false,
+            ),
+        ] {
+            for source in [
+                "if {${a{b}c}} {}",
+                "while {${a{b}c}} {}",
+                "for {} {${a{b}c}} {} {}",
+            ] {
+                let module = crate::lowering::lower_to_ir_with_dialect(
+                    source,
+                    context.commands(),
+                    config,
+                    Some(profile),
+                );
+                let condition = match &module.top_level.statements[0] {
+                    Statement::If { clauses, .. } => &clauses[0].condition,
+                    Statement::For { condition, .. } | Statement::While { condition, .. } => {
+                        condition
+                    }
+                    other => panic!("selected structured source: {other:?}"),
+                };
+                assert_eq!(
+                    matches!(condition, ExprNode::Var { .. }),
+                    variable,
+                    "{source}"
+                );
+                assert_eq!(
+                    matches!(condition, ExprNode::Raw { .. }),
+                    !variable,
+                    "{source}"
+                );
+            }
+        }
     }
 }

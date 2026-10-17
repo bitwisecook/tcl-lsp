@@ -2048,7 +2048,11 @@ impl super::SourceInvocationBinding {
         }
         let owner = self.original_analysis_owner.as_ref()?;
         let offset = tokens.words().first()?.source().span.start();
-        let cache = owner.source_operand_layouts.get()?.upgrade()?;
+        let cache = owner
+            .derived_memo()
+            .source_operand_layouts
+            .get()?
+            .upgrade()?;
         let layout = cache
             .entries
             .lock()

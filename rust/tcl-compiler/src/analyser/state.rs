@@ -1162,16 +1162,10 @@ pub struct Analyser {
     /// same current-namespace-then-global resolution and top-level order gate
     /// as [`Self::flush_arity_diagnostics`].
     pub(super) pending_disabled_commands: Vec<(String, String, bool, super::types::Diagnostic)>,
-    /// Deferred W143 (private `::tcl::` implementation namespace)
-    /// diagnostics, in the same `(command name, call-site namespace,
-    /// enforce_order, diagnostic)` shape as
-    /// [`Self::pending_disabled_commands`].  Always deferred: the
-    /// suppressions W143 needs are whole-file facts an isolated body cannot
-    /// see — a `proc ::tcl::dict::mine` defined anywhere in the document
-    /// (`UserResolutionFacts`), and a `package require` covering the
-    /// qualified name (`result.package_requires`).
-    /// [`Self::flush_w143_diagnostics`] applies both in the tail.
-    pub(super) pending_w143: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// Original private namespace source-policy receipts and their reporting
+    /// diagnostics. Whole-source/input/head currency is rejoined at the final
+    /// flush; source declaration/dependency suppressions use actual issuers.
+    pub(super) pending_w143: Vec<super::diagnostics::PendingPrivateTclSourceAdvice>,
     /// Compatibility buffer for deferred W304 presentation. Original source
     /// option advice emits at its authenticated invocation; the tail clears
     /// this buffer without inferring a value from text or another scope.

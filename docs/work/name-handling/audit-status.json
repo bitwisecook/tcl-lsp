@@ -207,7 +207,7 @@
   "all_required_change_total": 2158,
   "final_catalogue": {
     "path": "repository-consumer-audit-final.json",
-    "sha256": "a811ab20b6af697cc5aab967321c48dc31e74ab4ba0aa2998cae864373b31619"
+    "sha256": "ea868cf7d6859c62a2d27bd73d620880a842569710099919fe8a4aa78bc6eaba"
   },
   "primary_packet": {
     "status": "FINAL_SOURCE_AUDIT_RECONCILED",
@@ -426,16 +426,16 @@
       "lsp_integrated_at_report": 281,
       "effective_integrated": 485
     },
-    "utc": "2026-10-17T15:05:35.117002+00:00",
+    "utc": "2026-10-17T15:56:15.362697+00:00",
     "total_required_units": 2158,
-    "implemented_pending_validation": 533,
+    "implemented_pending_validation": 563,
     "fully_implemented_pending_validation": 405,
-    "partially_implemented_pending_validation": 128,
+    "partially_implemented_pending_validation": 158,
     "verified_complete": 0,
-    "not_started": 1625,
+    "not_started": 1595,
     "remaining_unverified_or_unimplemented": 2158,
     "effective_required_units": 2229,
-    "effective_implemented_pending_validation": 603,
+    "effective_implemented_pending_validation": 633,
     "effective_verified_complete": 0,
     "required_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
     "proof_check": {
@@ -453,7 +453,7 @@
       "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
     },
     "current_snapshot": {
-      "utc": "2026-10-17T15:11:57.403199+00:00",
+      "utc": "2026-10-17T15:56:15.362697+00:00",
       "source_head": "Reviewed source admissions through integration21; ordinary10crate source freeze, composition base f3308dda40da10fe3031fca6f6f480dfa612aa4c plus admitted source; no fresh artifacts accepted.",
       "original_LSP": {
         "required": 325,
@@ -466,10 +466,10 @@
       },
       "baseline": {
         "required": 2158,
-        "integrated": 533,
+        "integrated": 563,
         "full_scope_pending": 405,
-        "partial": 128,
-        "without_integration": 1625
+        "partial": 158,
+        "without_integration": 1595
       },
       "annex": {
         "required": 71,
@@ -479,24 +479,57 @@
       },
       "effective": {
         "required": 2229,
-        "integrated": 603,
-        "without_integration": 1626,
+        "integrated": 633,
+        "without_integration": 1596,
         "verified_complete": 0
       },
       "last_report": {
-        "path": "docs/work/name-handling/progress-report-20261017T1509Z.json",
-        "sha256": "f115831c053238f7c4c7eef71da244ed6147341929bf6b07b73330b47a462d31",
+        "path": "docs/work/name-handling/progress-report-20261017T1539Z.json",
+        "sha256": "23b928436900f05259738ad6c272dd9b5c868b82aca0b49e666fbce4388ede00",
         "frozen_LSP_integrated": 290,
-        "frozen_baseline_integrated": 533,
-        "frozen_effective_integrated": 603
+        "frozen_baseline_integrated": 547,
+        "frozen_effective_integrated": 617
       },
       "new_since_report": {
         "integrated_LSP": 0,
         "semantic": 0,
         "validation": 0,
         "documentation": 0,
-        "additional_baseline_integrated": 0,
-        "admissions": {}
+        "additional_baseline_integrated": 16,
+        "admissions": {
+          "27": {
+            "path": "/workspace/naming-work/integration-27/composition.json",
+            "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4",
+            "new_baseline_unit_ids": [
+              "compiler.source.configured-original-variable-geometry:799",
+              "compiler.source.configured-original-variable-geometry:895",
+              "compiler.source.literal-target-read:487",
+              "compiler.source.original-expression-materialization-config:482",
+              "compiler.source.original-expression-materialization-config:5161",
+              "compiler.source.original-expression-materialization-config:691",
+              "compiler.source.original-expression-materialization-config:755",
+              "compiler.source.selected-introduced-command-proposals:2358",
+              "compiler.source.selected-introduced-command-proposals:2799",
+              "compiler.source.selected-method-return-summary:91",
+              "db.unit.registry.context.package-scope-projection",
+              "db.unit.registry.resolved.literal-resolver-placeholder-dependency",
+              "db.unit.registry.try.selected-list-grammar"
+            ],
+            "original_LSP_delta": 0,
+            "helper_causal_parity_fixture_and_member_repair_count": 0
+          },
+          "29": {
+            "path": "/workspace/naming-work/integration-29/composition.json",
+            "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566",
+            "new_baseline_unit_ids": [
+              "compiler.source.logical-selected-class-member-ledger:985",
+              "compiler.source.logical-unicode-member-operand:1325:visibility",
+              "db.unit.spectcl.catalogue.manual-vocabulary-mirrors"
+            ],
+            "original_LSP_delta": 0,
+            "causal_repair_count": 0
+          }
+        }
       },
       "admissions": {
         "09": {
@@ -819,6 +852,88 @@
           "original_LSP_delta": 0,
           "helper_and_causal_fixture_parity_count": 0,
           "conservative_status": "All63 new actual existing IDs partial, not verified; author exact additional rows awaiting separate reconciliation, not counted."
+        },
+        "23": {
+          "path": "/workspace/naming-work/integration-23/composition.json",
+          "sha256": "7975de66bef6d18705fbf1354831ceaa3fea1815037249d1e93d4711da888943",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:1736",
+            "compiler.source.configured-scalar-word-construction:185",
+            "compiler.source.configured-scalar-word-construction:630",
+            "compiler.source.interpreter-subject-identity:350",
+            "db.unit.spectcl.dialect.dynamic-source-id",
+            "db.unit.spectcl.registration.accepted-environment-core-correspondence"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "24": {
+          "path": "/workspace/naming-work/integration-24/composition.json",
+          "sha256": "6f801f65f0f7834eb3a9d3757fc521fb422537c38dd6181b442ded624ab1ef3e",
+          "new_baseline_unit_ids": [],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "25": {
+          "path": "/workspace/naming-work/integration-25/composition.json",
+          "sha256": "97f08dd047199f8524ca4a2e0929595bb7c25fcfcfef9485d29ccf2487c0ef79",
+          "new_baseline_unit_ids": [],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "26": {
+          "path": "/workspace/naming-work/integration-26/composition.json",
+          "sha256": "dd3d105876b73e7c91264c717ad642af9012c41dff12ed2ffada41b0900d9703",
+          "new_baseline_unit_ids": [
+            "compiler.source.original-formal-topology:166",
+            "compiler.source.original-stored-callback-prefix:3555",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:fix",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:flush",
+            "compiler.source.private-tcl-selected-invocation-advice:2441:selection",
+            "compiler.source.selected-expression-command-rewrite:1242",
+            "compiler.source.selected-expression-command-rewrite:579",
+            "db.unit.registry.context.retained-roster-currentness"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "27": {
+          "path": "/workspace/naming-work/integration-27/composition.json",
+          "sha256": "50eb00e8b77909204507c2ad70814eafbe57c4fb653a31e8e52593a7f2a8a4a4",
+          "new_baseline_unit_ids": [
+            "compiler.source.configured-original-variable-geometry:799",
+            "compiler.source.configured-original-variable-geometry:895",
+            "compiler.source.literal-target-read:487",
+            "compiler.source.original-expression-materialization-config:482",
+            "compiler.source.original-expression-materialization-config:5161",
+            "compiler.source.original-expression-materialization-config:691",
+            "compiler.source.original-expression-materialization-config:755",
+            "compiler.source.selected-introduced-command-proposals:2358",
+            "compiler.source.selected-introduced-command-proposals:2799",
+            "compiler.source.selected-method-return-summary:91",
+            "db.unit.registry.context.package-scope-projection",
+            "db.unit.registry.resolved.literal-resolver-placeholder-dependency",
+            "db.unit.registry.try.selected-list-grammar"
+          ],
+          "original_LSP_delta": 0,
+          "helper_causal_parity_fixture_and_member_repair_count": 0
+        },
+        "28": {
+          "path": "/workspace/naming-work/integration-28/composition.json",
+          "sha256": "056948f89febbf9847aca406e1332f95766cea1613eaeb82aecb976a7e46bc80",
+          "new_baseline_unit_ids": [],
+          "causal_repair_count": 0
+        },
+        "29": {
+          "path": "/workspace/naming-work/integration-29/composition.json",
+          "sha256": "ded4f469764325e2f5f537c71a4656027b2462e4a7c9e07f67fbeb9dc4f75566",
+          "new_baseline_unit_ids": [
+            "compiler.source.logical-selected-class-member-ledger:985",
+            "compiler.source.logical-unicode-member-operand:1325:visibility",
+            "db.unit.spectcl.catalogue.manual-vocabulary-mirrors"
+          ],
+          "original_LSP_delta": 0,
+          "causal_repair_count": 0
         }
       },
       "validation": {
@@ -4767,8 +4882,8 @@
             "packets": 3,
             "paths": 11
           },
-          "status": "ACTUALLY_ADMITTED_ROOT_AST_FMT_PASS_COUNTS_PENDING_EXACT_UNIT_RECONCILIATION",
-          "new_Main_check": "Actual Maincheck93 FAIL4 Compiler errors; causal context/member and retained World metadata repairs pending. No new tests executed.",
+          "status": "SOURCE_ADMITTED_SIX_EXACT_OLD_IDS_COUNTED_PARTIAL_OTHERS_ZERO_CAUSAL",
+          "new_Main_check": "Actual95 Compiler/Core library checks PASS; overall FAIL1 engine metadata ListError formatting. No new semantic tests executed.",
           "log": "/workspace/naming-work/integration-24/main-check93.log"
         },
         "capture06": {
@@ -4823,6 +4938,104 @@
           },
           "compiler_errors": 4,
           "status": "ACTUAL_FAIL_CAUSAL_REPAIRS_PENDING_NO_TEST_EXECUTION"
+        },
+        "actual_Main_check95": {
+          "status": "ACTUAL_OVERALL_FAIL1_ENGINE_METADATA_LISTERROR_DISPLAY",
+          "Compiler_and_Core_lib": "PASS scoped only;2Compiler warnings evaluate_taint_def and CoercionTaint.version",
+          "log": "/workspace/naming-work/integration-25/main-check95.log",
+          "tests_executed": false,
+          "causal_repair": "root-host-metadata-list-error-v1 source peer CLEAR; actual build retry owed",
+          "receipt": "/workspace/naming-work/integration-25/main-check95-result.json",
+          "sha256": "3d2d79be15d63fd562e61f0a42762c2238874b1033c820e9eabec7de26509327",
+          "result": {
+            "status": "ACTUAL_MAIN_TYPECHECK",
+            "started": "2026-10-17T15:13:01.017392+00:00",
+            "ended": "2026-10-17T15:15:01.126195+00:00",
+            "argv": [
+              "cargo",
+              "check",
+              "--offline",
+              "--locked",
+              "--tests",
+              "-p",
+              "tcl-compiler",
+              "-p",
+              "tcl-registry",
+              "-p",
+              "tcl-lsp-core",
+              "-p",
+              "tcl-lsp-db",
+              "-p",
+              "tcl-lsp-server",
+              "-p",
+              "tcl-syntax",
+              "-p",
+              "tcl-lexer",
+              "-p",
+              "tcl-spectcl",
+              "-p",
+              "tcl-test-support",
+              "-p",
+              "tcl-spec-hooks",
+              "-p",
+              "xtask"
+            ],
+            "source": "/workspace/tcl-lsp",
+            "target": "/workspace/tcl-lsp/target",
+            "exit": 101,
+            "aborted": null,
+            "log_sha256": "7c367629d58e418512fcd5e031643b89641646b3e9fd38f07b9043b68c96c39a",
+            "composition_sha256": "97f08dd047199f8524ca4a2e0929595bb7c25fcfcfef9485d29ccf2487c0ef79",
+            "tests_executed": false
+          }
+        },
+        "actual_Main_check115": {
+          "status": "ACTUAL_FAIL6_COMPILER_ERRORS",
+          "result": {
+            "path": "/workspace/naming-work/integration-26/main-check115-result.json",
+            "sha256": "8b4828e764139c0304f79351884159b7329f713b475aa80c1fbaf0dc41b3fcb3"
+          },
+          "log": {
+            "path": "/workspace/naming-work/integration-26/main-check115.log",
+            "sha256": "0456da2e88c4fd6129c8b2e513cdf7b28264a40d39279bbef891d4a5404d28f8"
+          },
+          "tests_executed": false,
+          "causal_repairs": "Three PrivateTcl public type paths and three property ownership/Debug/relative AST extent issues source-reviewed; build retry owed."
+        },
+        "actual_Main_check116": {
+          "status": "ACTUAL_FAIL1_SYNTAX_BORROW_ERROR",
+          "result": {
+            "path": "/workspace/naming-work/integration-27/main-check116-result.json",
+            "sha256": "2db84fcb64c6d600d2a39ce49234ff2ee8c80d2e29079e15588ecadea319fb2b"
+          },
+          "log": {
+            "path": "/workspace/naming-work/integration-27/main-check116.log",
+            "sha256": "80dcc755f3bdecfd9891ea373b615b5e1740b5ed3b86d4d225c13cce3bc94aab"
+          },
+          "tests_executed": false,
+          "causal_repairs": "Borrowed proposed expression ExecutablePart matching source-reviewed; build retry owed."
+        },
+        "actual_Main_check117": {
+          "status": "ACTUAL_FAIL1_COMPILER_EVALUATEEXPR_ITERATOR_ERROR",
+          "log": "/workspace/naming-work/integration-28/main-check117.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after borrowed-part causal correction; no verdict received.",
+          "causal_repair": "EvaluateExprV5 actual29 admitted .into_iter() formation correction; no source permission change.",
+          "result": {
+            "path": "/workspace/naming-work/integration-28/main-check117-result.json",
+            "sha256": "97051a9c62d0cc586cc83b456c8abe8d831ac69a645ceb2615fd31a23f84cca6"
+          }
+        },
+        "actual_Main_check118": {
+          "status": "ACTUAL_FAIL1_RUNTIMEENGINE_LISTERROR_DISPLAY",
+          "log": "/workspace/naming-work/integration-29/main-check118.log",
+          "tests_executed": false,
+          "scope": "Root actual12roots check after actual29source admission; no verdict received.",
+          "causal_repair": "Root RuntimeEngine read-only host metadata adapter full_message(source) source-reviewed; retry owed.",
+          "result": {
+            "path": "/workspace/naming-work/integration-29/main-check118-result.json",
+            "sha256": "38670a247b4249bdf6905adc132c1e4b0ba22cd06eb512439aa90495e15eec63"
+          }
         }
       },
       "remaining_LSP_unintegrated": [
@@ -5008,7 +5221,7 @@
         "source_diagnostic_boundary_scope_review": 0
       },
       "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
-      "next_report_utc": "2026-10-17T15:39:49Z",
+      "next_report_utc": "2026-10-17T16:09:49Z",
       "green_PR": false,
       "merge_or_issue_closure": false,
       "pending_generator_boundaries": "Five companion generator source consumers V5 admitted, actual generator/drift checks remain owed. Remaining generic Compiler/DB/Registry/Syntax dependencies explicitly open; no blanket completion.",

@@ -33,7 +33,7 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_runtime_api::CommandBindingIdentity;
 
 use crate::alias::{CommandAliasMap, resolve_alias};
-use crate::expr_parser::parse_expr_for_profile;
+use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::{CommandTokens, Statement};
 
 /// Parsed command context passed to lowering hooks.
@@ -688,7 +688,11 @@ fn lower_set(
                 // for the sugar covers the `$(` opener plus the body and
                 // ends before the closer, so the body starts two bytes in.
                 if let Some(body) = value.strip_prefix("$(").and_then(|s| s.strip_suffix(')')) {
-                    let expr = parse_expr_for_profile(body, cmd.dialect);
+                    let expr = parse_expr_for_profile_with_lexer_config(
+                        body,
+                        cmd.dialect,
+                        cmd.lexer_config,
+                    );
                     let expr_base = cmd.tokens.as_ref().and_then(|t| {
                         let span = *t.argv.get(2)?;
                         if !t.single_token_word.get(2).copied().unwrap_or(false) {
@@ -752,7 +756,7 @@ fn set_expr_from_command_value(
         context,
         cmd.lexer_config,
     )?;
-    let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
+    let expr = parse_expr_for_profile_with_lexer_config(&expr_arg, cmd.dialect, cmd.lexer_config);
     // Anchor the expression text absolutely when both the `[...]` value
     // word's content and the expr word within it are verbatim slices:
     // absolute = the bracketed word's content start + the expr word's

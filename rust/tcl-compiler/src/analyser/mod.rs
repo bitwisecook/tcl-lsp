@@ -97,6 +97,7 @@ pub use diagnostic_subject::{
     DiagnosticSubject, ObjectSourceAritySubject, RegisteredInstanceSourceDiagnosticKind,
     RegisteredInstanceSourceDiagnosticSubject, SourceCallbackArgumentCounts,
     SourceCallbackArityIssue, SourceCallbackAritySubject, SourceCallbackSignatureLookup,
+    SourcePrivateTclNamespaceObligation, SourcePrivateTclNamespaceSubject,
     SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
     SourceUserCallAritySubject,
 };

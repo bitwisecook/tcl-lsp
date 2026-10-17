@@ -19,7 +19,8 @@ struct ProjectionEntry {
     original: OnceLock<Option<Arc<OriginalSourceCommandProjection>>>,
 }
 
-/// The containing SourceOriginId owns the immutable image and source channel.
+/// The actual immutable source-kind allocation owns image and source channel.
+/// The weak-owner sidecar table retains this derived memo outside source keys.
 /// A bucket key never substitutes for exact complete vector correspondence.
 pub(super) struct OriginalSourceProjectionMemo {
     entries: Mutex<ProjectionEntries>,
@@ -177,7 +178,7 @@ mod tests {
                     .original_lexical_command(&words, offset, config)
                     .unwrap();
                 assert!(Arc::ptr_eq(&first, &second));
-                assert_eq!(owner.original_lexical_projection.capture_count(), 1);
+                assert_eq!(owner.original_lexical_projection().capture_count(), 1);
                 let uncached = crate::registry_invocation::original_native_compiler_words(
                     &image, &words, offset, config,
                 )
@@ -250,13 +251,13 @@ mod tests {
                     .original_lexical_command(vector, start, lexer)
                     .is_none()
             );
-            let count = owner.original_lexical_projection.capture_count();
+            let count = owner.original_lexical_projection().capture_count();
             assert!(
                 owner
                     .original_lexical_command(vector, start, lexer)
                     .is_none()
             );
-            assert_eq!(owner.original_lexical_projection.capture_count(), count);
+            assert_eq!(owner.original_lexical_projection().capture_count(), count);
         }
         let partial = SourceImage::document("list {");
         let (start, vector) = original_words(&partial, config);
@@ -300,8 +301,8 @@ mod tests {
         assert!(Arc::ptr_eq(&original, &from_clone));
         assert!(!Arc::ptr_eq(&original, &separate));
         assert_eq!(original.native_words(), separate.native_words());
-        assert_eq!(owner.original_lexical_projection.capture_count(), 1);
-        assert_eq!(independent.original_lexical_projection.capture_count(), 1);
+        assert_eq!(owner.original_lexical_projection().capture_count(), 1);
+        assert_eq!(independent.original_lexical_projection().capture_count(), 1);
         assert_eq!(owner, independent);
         assert_eq!(owner.cmp(&independent), std::cmp::Ordering::Equal);
         let mut after = std::collections::hash_map::DefaultHasher::new();
@@ -335,6 +336,6 @@ mod tests {
                     .all(|result| Arc::ptr_eq(result, &results[0]))
             );
         });
-        assert_eq!(concurrent.original_lexical_projection.capture_count(), 1);
+        assert_eq!(concurrent.original_lexical_projection().capture_count(), 1);
     }
 }

@@ -787,12 +787,13 @@ fn conditional_procedure_declaration_selections(
     {
         return None;
     }
+    let derived = owner.derived_memo();
     let baseline = Arc::downgrade(&seed.baseline);
     let registry = context.commands().snapshot().semantic_key();
     let matches = |memo: &OriginalConditionalProcedureDeclarationMemo| {
         std::sync::Weak::ptr_eq(&memo.baseline, &baseline) && memo.registry == registry
     };
-    if let Some(memo) = owner
+    if let Some(memo) = derived
         .conditional_procedure_declarations
         .get()
         .filter(|memo| matches(memo))
@@ -809,8 +810,8 @@ fn conditional_procedure_declaration_selections(
         }
     }
     let selections = Arc::new(selected);
-    if owner.conditional_procedure_declarations.get().is_none() {
-        let _ = owner.conditional_procedure_declarations.set(
+    if derived.conditional_procedure_declarations.get().is_none() {
+        let _ = derived.conditional_procedure_declarations.set(
             OriginalConditionalProcedureDeclarationMemo {
                 baseline: baseline.clone(),
                 registry: registry.clone(),
@@ -821,7 +822,7 @@ fn conditional_procedure_declaration_selections(
     // Another actual baseline must compute its own product. A same-key racing
     // publication may reuse only the genuinely identical owner's selection map.
     Some(
-        owner
+        derived
             .conditional_procedure_declarations
             .get()
             .filter(|memo| matches(memo))
@@ -4169,5 +4170,37 @@ mod tests {
         assert!(
             conditional_procedure_declaration_selections(owner, &unavailable, &context).is_none()
         );
+    }
+    #[test]
+    fn conditional_memo_does_not_retain_its_actual_analysis_owner() {
+        use super::*;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar);
+        let source = "rename $old decl\nproc kept {} {list retained}";
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        let owner = Arc::clone(bindings.original_analysis_owner().unwrap());
+        let seed = bindings.original_source_transition_seed().unwrap();
+        let context = seed.source_context(registry).unwrap();
+        let selected =
+            conditional_procedure_declaration_selections(&owner, &seed, &context).unwrap();
+        let weak = Arc::downgrade(&owner);
+        let memo = owner.derived_memo();
+        let memo_lifetime = Arc::downgrade(&memo);
+        let equal =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+        assert!(!Arc::ptr_eq(
+            &memo,
+            &equal.original_analysis_owner().unwrap().derived_memo()
+        ));
+        drop(memo);
+        drop(owner);
+        drop(seed);
+        drop(bindings);
+        assert!(weak.upgrade().is_none());
+        // Selected source syntax may outlive its analysis without owning it.
+        assert!(!selected.is_empty());
+        let _ = equal.original_analysis_owner().unwrap().derived_memo();
+        assert!(memo_lifetime.upgrade().is_none());
     }
 }

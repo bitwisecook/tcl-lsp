@@ -1265,13 +1265,14 @@ impl<'a> Planner<'a> {
             // commands is the one exception, and it takes the same
             // conservative barrier a command-substituting word does.
             ExecutableInstruction::EvaluateExpr {
-                expr, completion, ..
-            } => Ok(Some((
-                block.id,
-                *completion,
-                executable_expr_intents(expr),
-                Vec::new(),
-            ))),
+                value,
+                expr,
+                completion,
+                ..
+            } => {
+                let ordinary = executable_expr_intents_with_source(self.function, *value, expr);
+                Ok(Some((block.id, *completion, ordinary, Vec::new())))
+            }
             ExecutableInstruction::IterateLists {
                 groups, completion, ..
             } => Ok(Some((
@@ -1760,8 +1761,34 @@ fn lowered_footprint_intents(
     intents
 }
 
-/// Project one structured-control operand evaluation into world-state intents.
+/// Compatibility projection for an explicitly carrierless hand-built function.
+/// Source-built functions use `executable_expr_intents_with_source` and never
+/// use these flattened text heuristics to establish substitution absence.
 fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    if let ExecutableExpr::TrapPrefix { .. } = expr {
+        return Vec::new();
+    }
+    if let ExecutableExpr::Operand { braced: true, .. } = expr {
+        return Vec::new();
+    }
+    if let ExecutableExpr::Condition {
+        expr: condition, ..
+    } = expr
+    {
+        if condition.command_texts().is_empty() {
+            return known_noncommand_expr_intents(expr);
+        }
+    } else if let ExecutableExpr::Operand { text, .. } = expr {
+        if !text.contains('[') {
+            return known_noncommand_expr_intents(expr);
+        }
+    }
+    conservative_region_intents()
+}
+
+fn known_noncommand_expr_intents(
+    expr: &ExecutableExpr,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
     let variable_store = WorldRegion::domain_wildcard(
         WorldRegionKind::VariableStore,
         WorldInterpreterScope::Current,
@@ -1769,23 +1796,30 @@ fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, 
     );
     match expr {
         ExecutableExpr::Condition { expr, .. } => {
-            if expr.command_texts().is_empty() {
-                vec![(WorldStateIntentKind::Use, variable_store)]
-            } else {
-                conservative_region_intents()
-            }
+            let _ = expr;
+            vec![(WorldStateIntentKind::Use, variable_store)]
         }
-        ExecutableExpr::Operand { text, braced } => {
+        ExecutableExpr::Operand { braced, .. } => {
             if *braced {
                 Vec::new()
-            } else if text.contains('[') {
-                conservative_region_intents()
             } else {
                 vec![(WorldStateIntentKind::Use, variable_store)]
             }
         }
         // Reading the joined completion's options dictionary touches no cell.
         ExecutableExpr::TrapPrefix { .. } => Vec::new(),
+    }
+}
+
+fn executable_expr_intents_with_source(
+    function: &ExecutableFunction,
+    value: crate::executable_ir::ExecutableValueId,
+    expression: &ExecutableExpr,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    match function.original_expression_command_effects(value, expression) {
+        None => executable_expr_intents(expression),
+        Some(Some(true)) | Some(None) => conservative_region_intents(),
+        Some(Some(false)) => known_noncommand_expr_intents(expression),
     }
 }
 
@@ -2064,6 +2098,61 @@ mod tests {
             &module.top_level,
         )
         .expect("fixture source builds valid executable IR")
+    }
+
+    fn compiled_native_source(source: &str, id: usize) -> ExecutableFunction {
+        let fixture = crate::provider_fixtures::original_native_module(source, "tcl8.6");
+        let (context, module) = &*fixture;
+        build_linear_executable_ir_with_metadata_context(
+            context.commands(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                module,
+            ),
+            ExecutableFunctionId::new(id),
+            &module.top_level,
+        )
+        .expect("actual source-backed module builds executable IR")
+    }
+
+    #[test]
+    fn structured_expression_effects_retain_exact_source_substitution_shape() {
+        for (source, expected) in [
+            ("if {1 + 1} {}", false),
+            ("if {[rename old new]} {}", true),
+            ("switch {[rename old new]} {}", false),
+            ("switch [rename old new] {}", true),
+            ("foreach name {one two} {}", false),
+            ("foreach name [list one two] {}", true),
+        ] {
+            let function = compiled_native_source(source, 403);
+            let expression = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::EvaluateExpr { value, expr, .. } = instruction {
+                        Some((*value, expr))
+                    } else {
+                        None
+                    }
+                })
+                .expect("structured source lowering emits an expression value");
+            assert_eq!(
+                function.original_expression_command_effects(expression.0, expression.1),
+                Some(Some(expected)),
+                "{source}"
+            );
+            let intents =
+                executable_expr_intents_with_source(&function, expression.0, expression.1);
+            assert_eq!(
+                intents
+                    .iter()
+                    .any(|(_, region)| *region == WorldRegion::Any),
+                expected,
+                "{source}"
+            );
+        }
     }
 
     #[test]

@@ -1095,9 +1095,10 @@ pub(crate) fn tainted_global_writes(
         ir_module,
         false,
         registry,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        ir_module.lexer_config,
     );
-    let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
+    let writes =
+        direct_instance_option_writes(ir_module, &mut cfg_module, registry, global_classes);
     close_tainted_global_writes(ir_module, registry, writes)
 }
 
@@ -1108,15 +1109,24 @@ fn tainted_global_writes_from_cfg(
     global_classes: &HashMap<ProcedureId, crate::taint::InstanceClassState>,
 ) -> HashMap<ProcedureId, HashSet<String>> {
     let mut cfg_module = cfg_module.clone();
-    let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
+    let writes =
+        direct_instance_option_writes(ir_module, &mut cfg_module, registry, global_classes);
     close_tainted_global_writes(ir_module, registry, writes)
 }
 
 fn direct_instance_option_writes(
+    ir_module: &crate::ir::Module,
     cfg_module: &mut crate::cfg::CfgModule,
     registry: &tcl_registry::CommandRegistry,
     global_classes: &HashMap<ProcedureId, crate::taint::InstanceClassState>,
 ) -> HashMap<ProcedureId, HashSet<String>> {
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module);
+    // Only an ownerless Module is the standalone compatibility path. A module
+    // that carries source input/bindings but cannot reborrow a selected source
+    // invocation must conservatively retain its existing global defs.
+    let standalone =
+        ir_module.source_metadata_input.is_none() && ir_module.retained_source_bindings.is_none();
     cfg_module
         .procedures
         .iter_mut()
@@ -1132,11 +1142,80 @@ fn direct_instance_option_writes(
                         canonical_command,
                         args,
                         defs: call_defs,
+                        tokens,
                         ..
                     } = statement
                     else {
                         continue;
                     };
+                    if let Some(metadata) = metadata {
+                        let Some(tokens) = tokens.as_ref() else {
+                            defs.extend(
+                                call_defs
+                                    .iter()
+                                    .filter(|name| name.starts_with("::"))
+                                    .cloned(),
+                            );
+                            continue;
+                        };
+                        // Prefer the genuine point-local registered receiver
+                        // owner. The command source owner covers ordinary
+                        // selected option writers when no instance applies.
+                        let selected =
+                            crate::ssa::original_instance_option_writes(tokens, metadata, registry)
+                                .or_else(|| {
+                                    crate::ssa::original_command_taint_option_writes(
+                                        tokens, metadata, registry,
+                                    )
+                                });
+                        let Some(selected) = selected else {
+                            defs.extend(
+                                call_defs
+                                    .iter()
+                                    .filter(|name| name.starts_with("::"))
+                                    .cloned(),
+                            );
+                            continue;
+                        };
+                        let mut joined_every_target = true;
+                        for write in selected
+                            .iter()
+                            .filter(|write| write.scope == tcl_registry::VariableScope::Global)
+                        {
+                            let Some(name) = crate::ssa::linked_option_definition_name(
+                                tokens,
+                                write.written_argument,
+                                true,
+                                metadata,
+                                registry,
+                            ) else {
+                                joined_every_target = false;
+                                continue;
+                            };
+                            // The selected source write and original written
+                            // name are the authority for this summary. Do not
+                            // rejoin them through the IR's display-name set.
+                            defs.insert(name);
+                        }
+                        if !joined_every_target {
+                            defs.extend(
+                                call_defs
+                                    .iter()
+                                    .filter(|name| name.starts_with("::"))
+                                    .cloned(),
+                            );
+                        }
+                        continue;
+                    }
+                    if !standalone {
+                        defs.extend(
+                            call_defs
+                                .iter()
+                                .filter(|name| name.starts_with("::"))
+                                .cloned(),
+                        );
+                        continue;
+                    }
                     let lookup = canonical_command.as_deref().unwrap_or(command);
                     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
                     for variable in call_defs.iter().filter(|name| name.starts_with("::")) {
@@ -1216,7 +1295,8 @@ pub(crate) fn enrich_instance_taint_cfg(
     registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<ProcedureId, HashSet<String>> {
     let global_classes = global_instance_classes(ir_module, registry);
-    let direct_writes = direct_instance_option_writes(cfg_module, registry, &global_classes);
+    let direct_writes =
+        direct_instance_option_writes(ir_module, cfg_module, registry, &global_classes);
     let writes = close_tainted_global_writes(ir_module, registry, direct_writes);
 
     let annotate_calls = |cfg: &mut crate::cfg::Function| {
@@ -8231,6 +8311,70 @@ mod effect_propagation_tests {
             !s.effect_reads.contains(EffectRegion::HTTP_STATE),
             "inert braced operand must not propagate HTTP_STATE; reads={:?}",
             s.effect_reads
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_global_option_taint_tests {
+    use super::*;
+
+    fn build_tk_module(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::ir::Module,
+    ) {
+        let environment = tcl_registry::model::ingress::resolve_environment("tk");
+        let context = environment.default_context_registry();
+        let profile = environment.unit_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        (context, lowerer.finish_module(source))
+    }
+
+    #[test]
+    fn interprocedural_option_summary_uses_selected_alias_target_receipt() {
+        let source = "interp alias {} linkedEntry {} entry .e -textvariable; proc p {} {linkedEntry ::bound}";
+        let (context, module) = build_tk_module(source);
+        let registry = context.commands();
+        let id = *module
+            .procedures
+            .keys()
+            .next()
+            .expect("one source procedure");
+        let writes = tainted_global_writes(
+            &module,
+            registry,
+            &global_instance_classes(&module, registry),
+        );
+        assert!(writes[&id].contains("::bound"));
+
+        let ordinary_source = "proc p {} {entry .e -state normal}";
+        let (context, ordinary) = build_tk_module(ordinary_source);
+        let registry = context.commands();
+        let id = *ordinary
+            .procedures
+            .keys()
+            .next()
+            .expect("one source procedure");
+        let writes = tainted_global_writes(
+            &ordinary,
+            registry,
+            &global_instance_classes(&ordinary, registry),
+        );
+        assert!(
+            !writes
+                .get(&id)
+                .is_some_and(|names| names.contains("::normal"))
         );
     }
 }

@@ -795,9 +795,6 @@ impl OriginalSourceMemberLedger {
         input: &crate::analyser::ResolvedAnalysisInput,
         image: &tcl_lexer::SourceImage,
     ) -> Option<tcl_registry::definer::MemberVisibility> {
-        if !name.is_ascii() {
-            return None;
-        }
         self.logical_visibility_for_side(name.as_bytes(), MemberSide::Instance, input, image)
     }
 
@@ -1278,6 +1275,53 @@ mod primary_source_declaration_tests {
         assert_eq!(
             primary[0].declaration().original_word(),
             secondary.declaration().original_word()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_unicode_visibility_source_tests {
+    use super::*;
+
+    #[test]
+    fn unchanged_unicode_visibility_target_uses_the_original_logical_operand() {
+        let source = "oo::class create C {method café {} {}; unexport café}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let class = analysis
+            .checked_logical_source_class_declarations()
+            .unwrap()[0];
+        let effect = class
+            .original_members
+            .logical_visibility_name("café", input, &image);
+        assert_eq!(
+            effect,
+            Some(tcl_registry::definer::MemberVisibility::Unexported)
+        );
+        let mut changed = input.clone();
+        changed.config.strict_quoting = !changed.config.strict_quoting;
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name("café", &changed, &image)
+                .is_none()
+        );
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name(
+                    "café",
+                    input,
+                    &tcl_lexer::SourceImage::document(&format!("{source}# changed"))
+                )
+                .is_none()
+        );
+        assert!(
+            class
+                .original_members
+                .logical_visibility_name("café\0", input, &image)
+                .is_none()
         );
     }
 }

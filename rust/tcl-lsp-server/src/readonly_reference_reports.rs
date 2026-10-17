@@ -141,6 +141,7 @@ pub(super) struct OriginalReadonlyReferenceReport {
 pub(super) const fn coverage_tag(coverage: ReadonlyReferenceCoverage) -> &'static str {
     match coverage {
         ReadonlyReferenceCoverage::ExistingInventory => "existing-inventory",
+        ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus => "complete-source-census",
         ReadonlyReferenceCoverage::Partial => "partial",
         ReadonlyReferenceCoverage::Unavailable => "unavailable",
     }
@@ -164,6 +165,8 @@ impl OriginalReadonlyReferenceReport {
             self.coverage,
         );
         let clickable = self.coverage == ReadonlyReferenceCoverage::ExistingInventory
+            || self.coverage == ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+                && !self.locations.is_empty()
             || self.coverage == ReadonlyReferenceCoverage::Partial && !self.locations.is_empty();
         tower_lsp_server::ls_types::Command {
             title,

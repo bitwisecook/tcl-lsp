@@ -37,7 +37,7 @@ use crate::alias::CommandAliasMap;
 use crate::command_binding::{
     RetainedSourceBodyInventory, SourceAnalysisOptions, SourceCommandBindings, TrustedPackageLoader,
 };
-use crate::expr_parser::parse_expr_for_profile;
+use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::{
     CommandBindingSite, CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure,
     Script, Statement,
@@ -5335,15 +5335,8 @@ impl<'r> Lowerer<'r> {
         ) else {
             return Vec::new();
         };
-        let grammar = self
-            .dialect
-            .or_else(|| self.registry.profile())
-            .map_or_else(
-                || tcl_dialect::grammar_of_dialect_name(None),
-                |profile| profile.grammar,
-            );
-        parse_expr_for_profile(&expression, self.dialect)
-            .vars_element_qualified_with_grammar(grammar)
+        parse_expr_for_profile_with_lexer_config(&expression, self.dialect, self.config)
+            .vars_element_qualified_with_config(self.config)
             .into_iter()
             .collect()
     }

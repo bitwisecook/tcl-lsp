@@ -1369,3 +1369,115 @@ mod original_binary_operator_geometry_controls {
         assert!(OriginalSourceExpression::capture("$x ==", &context, config).is_none());
     }
 }
+
+impl OriginalSourceExpression {
+    /// Source text for a deliberately proposed Tcl argument corresponding to
+    /// one unique complete original expression leaf. The retained source tree,
+    /// parser context and full configuration remain the geometry owners.
+    /// This checks source shape and substitution phase only: argument values,
+    /// lookup, evaluation order, effects and rewrite equivalence remain unknown.
+    #[must_use]
+    pub fn proposed_tcl_argument_source(&self, node: &ExprNode) -> Option<String> {
+        let mut selected = self
+            .tree
+            .evaluation_nodes()
+            .into_iter()
+            .filter(|candidate| *candidate == node);
+        let node = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        let (text, start, end) = match node {
+            ExprNode::Literal { text, start, end }
+            | ExprNode::String { text, start, end }
+            | ExprNode::Var {
+                text, start, end, ..
+            }
+            | ExprNode::Command { text, start, end } => (text, *start, *end),
+            _ => return None,
+        };
+        let span = super::substitution::expression_span(&self.source, start, end)?;
+        let source = self.source.get(span.as_range())?;
+        if source != text {
+            return None;
+        }
+        if matches!(node, ExprNode::Var { .. })
+            && node.variable_source_span(0, self.config) != Some(span)
+        {
+            return None;
+        }
+        let image = tcl_lexer::SourceImage::document(source);
+        let local_end = u32::try_from(source.len()).ok()?;
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            Span::new(0, local_end),
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some()
+            || word.span() != Span::new(0, local_end)
+            || word.group().expand
+        {
+            return None;
+        }
+        if matches!(node, ExprNode::String { .. })
+            && !matches!(
+                word.group().kind,
+                tcl_lexer::WordKind::Braced | tcl_lexer::WordKind::Quoted
+            )
+        {
+            return None;
+        }
+        if matches!(node, ExprNode::Var { .. } | ExprNode::Command { .. }) {
+            let arena = word.executable_parts();
+            let [part] = arena.list(arena.root()) else {
+                return None;
+            };
+            match (node, &part.part) {
+                (ExprNode::Var { .. }, tcl_lexer::ExecutablePart::Variable { .. })
+                | (ExprNode::Command { .. }, tcl_lexer::ExecutablePart::Command { .. }) => {}
+                _ => return None,
+            }
+        }
+        Some(source.to_owned())
+    }
+}
+
+#[cfg(test)]
+mod proposed_expression_argument_source_tests {
+    use super::*;
+
+    #[test]
+    fn leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = ExprParseContext::for_profile(profile);
+        let config = LexerConfig::from_grammar(context.lexer_grammar);
+        for (text, expected) in [
+            ("${name} lt $other", "${name}"),
+            ("\"two words\" lt $other", "\"two words\""),
+            ("[list value] lt $other", "[list value]"),
+        ] {
+            let original = OriginalSourceExpression::capture(text, &context, config).unwrap();
+            let ExprNode::Binary { left, .. } = &original.tree else {
+                panic!("binary source");
+            };
+            assert_eq!(
+                original.proposed_tcl_argument_source(left),
+                Some(expected.to_owned())
+            );
+            let foreign =
+                OriginalSourceExpression::capture("$foreign lt 3", &context, config).unwrap();
+            let ExprNode::Binary { left, .. } = &foreign.tree else {
+                unreachable!()
+            };
+            assert!(original.proposed_tcl_argument_source(left).is_none());
+        }
+    }
+}

@@ -90,7 +90,6 @@ impl OriginalProcedureSource {
         }
     }
 
-    #[cfg(test)]
     fn matches(&self, procedure: &Procedure) -> bool {
         self.body_kind == procedure.body_kind
             && self.publication == procedure.publication
@@ -256,6 +255,47 @@ impl RetainedSourceModuleBindings {
             return None;
         }
         Some(&self.positioned)
+    }
+
+    /// Reborrow the selected source `ParamList` topology for one procedure
+    /// still owned by this exact Module. Report names and raw parameter text
+    /// never substitute for the original selected declaration layout.
+    pub(crate) fn original_procedure_formals_for_module(
+        &self,
+        module: &Module,
+        body_id: crate::ir::ProcedureId,
+        registry: &CommandRegistry,
+    ) -> Option<crate::signature_scan::formal_parameters::SourceProcedureFormalTopology> {
+        let positioned = self.positioned_for_module(module, registry)?;
+        let (_, procedure) = module
+            .original_source_procedure_bodies()
+            .find(|(id, _)| **id == body_id)?;
+        let retained = self.procedures.get(&body_id)?;
+        if !retained.matches(procedure)
+            || !matches!(
+                procedure.body_kind,
+                crate::ir::ProcedureBodyKind::Named
+                    | crate::ir::ProcedureBodyKind::OriginalDeclaration
+            )
+        {
+            return None;
+        }
+        let site = procedure.declaration_site.as_ref()?;
+        if site.source.source_image() != &module.source {
+            return None;
+        }
+        if let Some(input) = module
+            .source_metadata_input
+            .as_ref()
+            .filter(|input| input.has_logical_source_name_context())
+        {
+            return positioned
+                .original_logical_formal_topology_at(site, registry, input)
+                .map(crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Logical);
+        }
+        positioned
+            .original_procedure_formals_at(site, registry)
+            .map(crate::signature_scan::formal_parameters::SourceProcedureFormalTopology::Native)
     }
 
     /// Exact source-snapshot comparison for an authored test declaration.

@@ -1996,6 +1996,7 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
 }
 
 /// Determine the taint produced by a statement's definition(s).
+#[cfg(test)]
 fn evaluate_taint_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
     defined_var: Symbol,
@@ -3890,6 +3891,81 @@ struct CallbackReplayCandidate {
     source_is_command_substitution: bool,
     callback_span: Span,
     callback_input_label: String,
+    selected_builder: Option<CallbackListBuilder>,
+}
+
+/// The actual selected registry owner for one whole source callback builder.
+/// This authorizes only list-result materialization, not callback execution.
+#[derive(Clone)]
+struct CallbackListBuilder {
+    source: String,
+    invocation: crate::registry_invocation::ResolvedStatementInvocation,
+}
+
+fn retained_callback_list_builder(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    parent: &CommandTokens,
+    span: Span,
+) -> Option<CallbackListBuilder> {
+    let input = metadata.source_analysis_input()?;
+    metadata.matches_registry(registry).then_some(())?;
+    let parent_binding = parent.source_binding.as_ref()?;
+    parent_binding.original_argument_metadata_for_input(parent, input, registry)?;
+    let parent_site = parent_binding.invocation_site()?;
+    let mut candidates =
+        crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)?
+            .into_iter()
+            .filter(|candidate| candidate.span == span);
+    let child = candidates.next()?;
+    if candidates.next().is_some() {
+        return None;
+    }
+    let tokens = child.tokens?;
+    if !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_argument_metadata_for_input(&tokens, input, registry)?;
+    let site = binding.invocation_site()?;
+    if !std::sync::Arc::ptr_eq(&parent_site.source, &site.source)
+        || site.offset < span.start()
+        || site.offset >= span.end()
+        || binding.invocation_realm()
+            != Some(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
+    {
+        return None;
+    }
+    let image = binding.original_argument_source_image(&tokens)?;
+    let bytes = image
+        .bytes()
+        .get(span.start() as usize..span.end() as usize)?;
+    let source = std::str::from_utf8(bytes).ok()?.to_owned();
+    if source.len() != span.end().checked_sub(span.start())? as usize
+        || !source.starts_with('[')
+        || !source.ends_with(']')
+    {
+        return None;
+    }
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        &tokens,
+    )?;
+    // The retained effective vectors below start after the command head.
+    // Until they carry the selected operand slice, only offset-zero result
+    // contracts have an exact correspondence to that full vector.
+    if !invocation
+        .facts
+        .traits
+        .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+        || invocation.facts.argument_offset != 0
+        || invocation.facts.native_result
+            != Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+    {
+        return None;
+    }
+    Some(CallbackListBuilder { source, invocation })
 }
 
 /// Each callback is an independently retained future procedure body.
@@ -3956,9 +4032,6 @@ fn taint_callback_substitution_report(
 ) -> TaintWarningReport {
     let mut candidates = Vec::new();
     // Most files have no statically replayable command-substitution callback.
-    // Project the original positioned command owner only when a builder head
-    // needs it, sharing either its result or its refusal across candidates.
-    let callback_head_identities = std::cell::OnceCell::new();
     let lexer_config = cu.ir_module.lexer_config;
 
     for fu in cu.all_body_function_units() {
@@ -4085,25 +4158,25 @@ fn taint_callback_substitution_report(
                     let callback_span = tokens
                         .and_then(|tokens| tokens.argv.get(written_index + 1).copied())
                         .unwrap_or_else(|| stmt.span());
-                    // naming.source.retained-positioned-command-realm
-                    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
-                    let head_identities = source_is_command_substitution
-                        .then(|| {
-                            callback_head_identities
-                                .get_or_init(|| {
-                                    crate::realm::document_realm_bindings_for_module(
-                                        &cu.ir_module,
-                                        registry,
-                                    )
-                                })
-                                .as_ref()
-                        })
-                        .flatten();
-                    if source_is_command_substitution && head_identities.is_none() {
-                        // No realm is a refusal, not unchanged-spelling builder
-                        // assistance. Do not allocate or compile a replay.
-                        continue;
-                    }
+                    let selected_builder = if source_is_command_substitution {
+                        let Some(metadata) = source.metadata_context() else {
+                            continue;
+                        };
+                        let Some(tokens) = tokens else {
+                            continue;
+                        };
+                        let Some(builder) = retained_callback_list_builder(
+                            registry,
+                            metadata,
+                            tokens,
+                            callback_span,
+                        ) else {
+                            continue;
+                        };
+                        Some(builder)
+                    } else {
+                        None
+                    };
                     // Prove the callback can be materialised before choosing
                     // synthetic names. The probe is never compiled or
                     // evaluated, so it need not be collision-free; it only
@@ -4117,7 +4190,7 @@ fn taint_callback_substitution_report(
                         "__tcl_lsp_callback_probe",
                         "::__tcl_lsp_callback_probe",
                         lexer_config,
-                        head_identities.map(|identities| (identities, callback_span.start())),
+                        selected_builder.as_ref(),
                     )
                     .is_none()
                     {
@@ -4129,6 +4202,7 @@ fn taint_callback_substitution_report(
                         source_is_command_substitution,
                         callback_span,
                         callback_input_label,
+                        selected_builder,
                     });
                 }
             }
@@ -4157,10 +4231,7 @@ fn taint_callback_substitution_report(
                 &input_var,
                 &proc_name,
                 lexer_config,
-                callback_head_identities
-                    .get()
-                    .and_then(Option::as_ref)
-                    .map(|identities| (identities, candidate.callback_span.start())),
+                candidate.selected_builder.as_ref(),
             )
             .expect("callback replay preflight proved this script is static");
             replays.push((
@@ -4372,7 +4443,7 @@ fn callback_replay_source(
     input_var: &str,
     proc_name: &str,
     config: tcl_lexer::LexerConfig,
-    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
+    selected_builder: Option<&CallbackListBuilder>,
 ) -> Option<CallbackReplaySource> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
     // Current lowering normally preserves the brackets in `args`; older
@@ -4388,7 +4459,7 @@ fn callback_replay_source(
             inputs,
             input_var,
             config,
-            builder_context,
+            selected_builder,
         )?;
         return Some(callback_replay_with_input(&script, proc_name, input_var));
     }
@@ -4405,55 +4476,46 @@ fn callback_replay_list_prefix(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    config: tcl_lexer::LexerConfig,
-    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
+    _config: tcl_lexer::LexerConfig,
+    selected_builder: Option<&CallbackListBuilder>,
 ) -> Option<String> {
-    let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
-    let config = config.nested();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    let [command] = commands.as_slice() else {
-        return None;
-    };
-    if command.is_partial || !command.word_views_aligned() {
+    let selected_builder = selected_builder?;
+    if selected_builder.source != callback
+        || !selected_builder
+            .invocation
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+        || selected_builder.invocation.facts.argument_offset != 0
+        || selected_builder.invocation.facts.native_result
+            != Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+    {
         return None;
     }
-    let expand = command.expand_word.as_deref().unwrap_or_default();
-    let mut values = Vec::new();
-    for (index, (word, fragments)) in command
-        .texts
+    let invocation = &selected_builder.invocation;
+    if invocation.evaluated_arguments.len() != invocation.evaluated_words.len() {
+        return None;
+    }
+    let mut elements = Vec::new();
+    for (word, presentation) in invocation
+        .evaluated_words
         .iter()
-        .zip(&command.word_fragments)
-        .enumerate()
+        .zip(&invocation.evaluated_arguments)
     {
-        let value = callback_static_word_value(
-            word,
-            fragments,
-            config.escapes,
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-        )?;
-        if expand.get(index).copied().unwrap_or(false) {
-            values.extend(
-                tcl_syntax::word_rules::WordValueRules::from_config(&config)
-                    .split_list(&value)
-                    .ok()?
-                    .into_iter()
-                    .map(std::borrow::Cow::into_owned),
-            );
-        } else {
-            values.push(value);
+        match word {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value)
+                if presentation.as_deref() == Some(value.as_str()) =>
+            {
+                elements.push(value.clone());
+            }
+            crate::registry_invocation::EffectiveInvocationWord::KnownExpansion(values)
+                if presentation.is_none() =>
+            {
+                elements.extend(values.iter().cloned());
+            }
+            _ => return None,
         }
     }
-    let written_builder = values.first()?;
-    let resolved_builder =
-        builder_context.map_or(written_builder.as_str(), |(identities, source_position)| {
-            identities
-                .resolve(written_builder, source_position)
-                .spec_name()
-        });
-    if resolved_builder != "list" && resolved_builder != "::list" {
-        return None;
-    }
-    let elements = &values[1..];
     if elements.is_empty() {
         return None;
     }
@@ -7088,7 +7150,6 @@ fn collect_coercion_operands(
 
 struct CoercionTaint {
     symbol: Symbol,
-    version: Option<Version>,
     value: TaintLattice,
 }
 
@@ -7100,7 +7161,6 @@ impl CoercionTaint {
     ) -> Self {
         Self {
             symbol,
-            version: Some(version),
             value: taints
                 .get(&(symbol, version))
                 .copied()
@@ -7151,7 +7211,6 @@ fn expression_read_taint<S: std::hash::BuildHasher>(
     }
     Some(CoercionTaint {
         symbol: reference.symbol,
-        version: None,
         value,
     })
 }
@@ -13116,6 +13175,40 @@ mod tests {
             assert_eq!(callback_replay_build_count(), 0);
             assert_eq!(callback_replay_name_search_count(), 0);
         }
+    }
+
+    #[test]
+    fn callback_list_replay_uses_the_selected_captured_builder_prefix() {
+        let source = "interp alias {} mylist {} list helper\n\
+                      proc helper {value} {eval $value}\n\
+                      entry .entry -validatecommand [mylist %P]";
+        let (unit, registry) = loaded_tk_callback_unit(source);
+        let warnings = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            warnings.iter().any(|warning| {
+                warning.code == DiagCode::T100
+                    && warning.sink_command == "eval"
+                    && warning.variable == "%P"
+            }),
+            "the selected effective list result retains its captured `helper` prefix: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn callback_list_replay_uses_the_selected_static_expansion_owner() {
+        let source = "interp alias {} mylist {} list helper\n\
+                      proc helper {value} {eval $value}\n\
+                      entry .entry -validatecommand [mylist {*}{%P}]";
+        let (unit, registry) = loaded_tk_callback_unit(source);
+        let warnings = find_callback_substitution_warnings(&unit, &registry, None, &[]);
+        assert!(
+            warnings.iter().any(|warning| {
+                warning.code == DiagCode::T100
+                    && warning.sink_command == "eval"
+                    && warning.variable == "%P"
+            }),
+            "the retained KnownExpansion operand preserves the selected list result: {warnings:?}"
+        );
     }
 
     #[test]

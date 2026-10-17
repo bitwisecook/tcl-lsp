@@ -411,25 +411,20 @@ impl<'a> ExpressionMathBindings<'a> {
         }
     }
 
-    /// Exact scoped normalization of the original expression tree. This query
-    /// consumes the source owner's original frame/world/handler envelope;
-    /// actual compiler preparation remains a separate executable obligation.
-    pub(crate) fn nested_numeric_normalisation(
+    /// Selected original inner operand under the same scoped numeric proof.
+    /// This does not publish preparation or infer identity from rendered text.
+    pub(crate) fn nested_numeric_normalisation_source(
         &self,
         context: &tcl_syntax::expr::parser::ExprParseContext,
         registry: &tcl_registry::CommandRegistry,
         expected: &crate::expr_ast::ExprNode,
-    ) -> bool {
-        self.tokens
-            .and_then(|tokens| {
-                Some(
-                    tokens
-                        .source_binding
-                        .as_ref()?
-                        .nested_expression_normalisation(registry, tokens, context, Some(expected)),
-                )
-            })
-            .unwrap_or(false)
+    ) -> Option<String> {
+        let tokens = self.tokens?;
+        tokens
+            .source_binding
+            .as_ref()?
+            .nested_expression_normalisation_source(registry, tokens, context, Some(expected))
+            .map(|(expression, _)| expression)
     }
 
     /// Prove the actual native implementation after reached operand evaluations.

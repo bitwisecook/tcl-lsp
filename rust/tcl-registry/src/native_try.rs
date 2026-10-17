@@ -118,7 +118,6 @@ fn layout(
     words: InvocationWords<'_>,
     dialect: InvocationDialect,
 ) -> Option<crate::TryControlInvocation> {
-    let values = words.arguments().literal_values()?;
     let plan = crate::commands::tcl::NATIVE_TRY_GRAMMAR
         .walk_arguments(
             words.arguments().with_dialect(dialect),
@@ -126,11 +125,9 @@ fn layout(
             dialect.authoring_query(),
         )?
         .ok()?;
-    crate::registry::parse_try_control_invocation(
+    crate::registry::parse_selected_try_control_invocation(
         &plan,
-        &values,
-        tcl_syntax::number::Numbers::Target(dialect.numbers),
-        dialect.completion_code_policy(),
+        words.arguments().with_dialect(dialect),
     )
 }
 

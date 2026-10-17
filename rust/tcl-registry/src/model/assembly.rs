@@ -203,7 +203,11 @@ impl ContextRegistry {
             }
         }
         Self::assemble(
-            ResolvedContext::resolve(Arc::new(environment), &KeyedVersions::default()),
+            ResolvedContext::resolve_with_inherited_surfaces(
+                Arc::new(environment),
+                &KeyedVersions::default(),
+                self.context.inherited_surface_snapshot().clone(),
+            ),
             Arc::new(self.commands.project_for_profile(profile)),
         )
     }
@@ -400,12 +404,15 @@ fn command_store(
     environment: &Arc<EnvironmentDefinition>,
     identity: &EnvironmentIdentity,
     overlay: u64,
+    inherited_surfaces: &tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
 ) -> Option<Arc<CommandRegistry>> {
-    let execution = crate::model::ingress::DocumentEnvironment {
-        definition: Arc::clone(environment),
-        identity: identity.clone(),
-    }
-    .unit_profile();
+    let execution =
+        crate::model::ingress::DocumentEnvironment::from_resolved_with_inherited_surfaces(
+            Arc::clone(environment),
+            identity.clone(),
+            inherited_surfaces.clone(),
+        )
+        .unit_profile();
     // Unoverlaid execution views use the exact retained profile cache, including
     // projected Jim and Tk points. Published legacy overlays are looked up at
     // their authoring key and projected without losing registered rows.
@@ -469,6 +476,22 @@ pub fn registry_for_environment_if_built(
     keyed: &KeyedVersions,
     overlay: u64,
 ) -> Result<Arc<ContextRegistry>, OverlayMiss> {
+    registry_for_environment_with_surfaces(
+        environment,
+        identity,
+        keyed,
+        overlay,
+        tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot::capture(),
+    )
+}
+
+pub(crate) fn registry_for_environment_with_surfaces(
+    environment: &Arc<EnvironmentDefinition>,
+    identity: &EnvironmentIdentity,
+    keyed: &KeyedVersions,
+    overlay: u64,
+    inherited_surfaces: tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+) -> Result<Arc<ContextRegistry>, OverlayMiss> {
     static CACHE: OnceLock<Mutex<FxHashMap<GenerationKey, Arc<ContextRegistry>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(FxHashMap::default()));
     let key: GenerationKey = (
@@ -476,7 +499,7 @@ pub fn registry_for_environment_if_built(
         environment.point(),
         keyed.content_hash(),
         overlay,
-        tcl_dialect::model::inherited_surface_generation(),
+        inherited_surfaces.generation(),
         crate::cache::core_surface_generation(),
     );
     if let Some(generation) = cache
@@ -490,12 +513,19 @@ pub fn registry_for_environment_if_built(
     // dropped in favour of the first published entry. The store lookup
     // stays outside too: an overlay miss must not park anything in the
     // cache — the packs may be installed a moment later.
-    let commands = command_store(environment, identity, overlay).ok_or_else(|| OverlayMiss {
-        environment: environment.id.to_string(),
-        overlay,
-    })?;
+    let commands =
+        command_store(environment, identity, overlay, &inherited_surfaces).ok_or_else(|| {
+            OverlayMiss {
+                environment: environment.id.to_string(),
+                overlay,
+            }
+        })?;
     let assembled = Arc::new(ContextRegistry::assemble(
-        ResolvedContext::resolve(Arc::clone(environment), keyed),
+        ResolvedContext::resolve_with_inherited_surfaces(
+            Arc::clone(environment),
+            keyed,
+            inherited_surfaces,
+        ),
         commands,
     ));
     let mut guard = cache.lock().expect("context registry cache mutex");

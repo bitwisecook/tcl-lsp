@@ -3572,3 +3572,120 @@ relations. A real ordinary namespace containing the marker has no special role.
 This is a source diagnostic compartment only, with no physical interpreter,
 child existence, entered body, command availability or Native grant. Row350
 changes; independent class/member/source receiver proof remains required.
+
+
+### Retained inherited source roster observation
+
+DocumentEnvironment retains the actual immutable inherited-surface snapshot,
+not only a separately sampled generation. Assembly/cache/promotion keys and
+ResolvedContext queries consume that same observation. Profile projection keeps
+the parent observation, and explicit command-store reassembly keeps its context.
+Public legacy assembly/resolve entries capture one real snapshot at entry.
+Later publication cannot alter an old context's admission answers; new ingress
+captures new rows. The deliberate no-roster fail-open source policy is unchanged.
+These are authored catalogue rows, not runtime handler availability or Native
+lookup/effect/current execution facts.
+
+
+### Original private Tcl namespace diagnostic source policy
+
+W143 uses the genuine original selected Registry source descriptor when one
+is retained. Unregistered implementation-helper spellings use a distinct
+literal-head source policy over the actual whole original static head and
+existing Registry namespace table. They never acquire a fabricated descriptor,
+helper existence, handler entry or Native name/value from source spelling.
+The typed diagnostic subject retains the original head/full input, source
+selection when available, and explicit head-materialisation, policy, lookup
+and rewrite-equivalence debts. The final publisher rejoins the actual current
+source/input/head. Fragment reuse requires whole-source context. Core emits
+only reporting data; deserialising it cannot recreate either source issuer.
+
+Existing bare/direct/no-capture review-only public suggestions use configured
+whole-word constructors for the public head and selector. Delimited heads keep
+the old no-fix boundary. The suppression path uses actual Native-source or
+Logical procedure/class receipts and reissues every package report offset as a
+genuine selected original Require word/value under full current input. Package
+namespace coverage stays the existing deliberately whole-file source dependency
+policy, including later requirements; it establishes no loading or installation.
+No report QName, alias chase, required-name string or source offset alone
+donates identity. This adopts row2441's selection/fix/flush source boundaries;
+physical private/public handler equivalence and custom command execution remain
+independent. Other builtin diagnostic suppression policies are unchanged.
+
+
+### Nested expression normalization source projection
+
+The existing scoped numeric normalization owner now projects the actual inner
+expression and original nested-command source only after its unchanged frame,
+namespace, reached-handler/lookup and numeric reentry proof. Its original
+argument-purpose full lexer configuration drives child lifting. Optimizer O115
+source consumers use those selected source projections instead of nominal
+`[expr` prefix parsing; the value-position path retains the actual original
+substitution join. This grants no new preparation, Native or equivalence
+authority. The independent branch strlen and return-construction consumers are
+not closed by this facet. All actual compiler/runtime gates remain required.
+
+
+O115's return projection now uses the same original selected result-word
+constructor as literal return folds. It preserves original head/options and
+splices only the actual retained value ordinal; complete configured word and
+postimage script plans reject expansion, extra commands and malformed seams.
+The nested-command source still requires the independent scoped numeric proof.
+This is source construction only, never new return/Native/equivalence authority.
+
+
+### Owned package scope without a nominal package roster
+
+The existing SurfaceQuery package-floor owner borrows either original static
+floors or actual Arc-owned package source facts retained by AuthoringScope.
+Required and ambient environment placements supply arbitrary package names only
+when the existing package-provider activation rule admits them; pack ambient
+rows alone remain floor metadata and do not activate an uncarried provider.
+Requiring a package recomputes the same scope. Historical vendor ordering and
+pack floor recipe remain; no fixed vendor list is used as the complete scope.
+A declaration/requirement is not package installation or a reached interpreter.
+The query is allocation-free and Copy, with equal value comparison across the
+two storage forms; names are neither leaked nor reconstructed from rendering.
+
+Necessary API formation changes wrap existing literal package slices in the
+borrowed adapter. Four old expected Some(&PackageFloor) expressions become
+Some(PackageFloor), since an owned row projects a borrowed-name value rather
+than a self-referential reference. Exact expected names/floors, assertion
+verdicts and all source fixtures remain; this is not an assertion-byteexact
+claim. Independent provider availability/target windows and Native guards stay.
+
+
+### Original literal increment receiver selection
+
+The current source-definition facade retains the actual literal receiver bytes
+from its existing Native, Logical and authored definition issuers. Those bytes
+are data attached to the same function/symbol/version and original whole word;
+no reported SSA name or reference-normalized `$` spelling selects a target.
+Logical braced receivers use the existing original whole-word span under their
+retained source image rather than a token extent that can omit the closer.
+Elimination's increment existence/integer checks reborrow the same CU/function
+and actual represented definition; shared literal array splitting keeps element
+receivers excluded. Source/metadata/currentness, observer and semantic deletion
+gates remain independent. Source ownership never becomes a physical cell,
+completed store, Native entry or erase/equivalence grant. Existing row487 only.
+
+### Complete source configuration in lowering expression projections
+
+The existing LoweringCommand and Lowerer retain the actual complete LexerConfig
+from the compilation-unit/source ingress. Set expression-sugar and selected
+nested expression values, if/for/while conditions, and nested expression reads
+in general set calls now pass that existing configuration to the shared
+profile-aware expression parser. The selected profile still owns expression
+operator/numeric semantics; lexical overrides are not reconstructed from it.
+Nested read enumeration uses the same configured source-variable walker.
+Existing original call/header, selected operation, complete-vector, alias and
+source-offset checks remain independent. This syntax/read projection issues no
+Native preparation, physical frame/cell, successful evaluation or Normal grant.
+Original rows691,755,482,5161 only; new helper counts are zero. The fixed source
+condition override control is unexecuted in this source packet.
+
+Selected `try` clause lists consume the actual invocation dialect’s list and escape grammar. A structured literal operand is already a post-head value: literal dollar or bracket bytes do not become substitutions again. Dynamic, expanded, opaque or unknown-dialect operands cannot issue this layout. The legacy raw-string compatibility query retains its separate conservative dynamic-spelling check. Native compilation and conditional source control-arm consumers retain their existing independent admission and execution obligations.
+
+An arbitrary literal-value argument-role callback may inspect every payload. A proven argv width or option run does not prove payload independence. The selected role facade therefore requires actual complete literal operands for that fallback; authored structured, cardinality and layout resolvers retain their separately declared dynamic-operand admission. Unknown values are never replaced with empty data for a literal callback.
+
+Source descriptor picker vocabularies project their Registry enum declarations, native registration tables and dialect authored-surface catalogue. Historical picker order is explicit presentation metadata on the owning enum declaration. Native labels are prose only: a label cannot introduce an ID absent from the real registration table. Choosing a picker value does not prove installed support, source selection or Native execution.

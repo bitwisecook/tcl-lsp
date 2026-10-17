@@ -1,0 +1,19 @@
+{
+  "status": "SOURCE_ADMISSIONS_AND_FAILED_ACTUAL_COMPILE_CHECKS",
+  "archive": "source-validation.tar.gz",
+  "sha256": "9ce27c586d0e43b8efa19c2b4b2f96ab125990bce37dc79bb86f67975a1bf2bf",
+  "bytes": 936821,
+  "members": 424,
+  "members_index_sha256": "a42ccd18ce9dafcb386526d201659da5a63073c33b9852e896f2ac2d53fc562a",
+  "admissions": [
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ],
+  "limits": "Bounded source reviews/static checks and actual red compile checks only; ordinary1338 failed old snapshot remains capture06. Explicit API setup/accessor adapters retained; original locked compiler test contradiction unchanged. No semantic completion or green gate."
+}

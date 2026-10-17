@@ -50,6 +50,19 @@ impl<'a> OriginalSourceArgument<'a> {
         literal_word_data(&self.native)
     }
 
+    /// Whether this selected original operand contains a command/expression
+    /// substitution or an unavailable executable component.
+    pub(crate) fn runs_commands(&self) -> bool {
+        self.native.executable_parts().all_parts().any(|part| {
+            matches!(
+                part.part,
+                tcl_lexer::ExecutablePart::Command { .. }
+                    | tcl_lexer::ExecutablePart::Expression { .. }
+                    | tcl_lexer::ExecutablePart::ParseError(_)
+            )
+        })
+    }
+
     /// Exact name syntax of a whole scalar substitution, without a cell or read proof.
     pub(crate) fn scalar_reference_name(&self) -> Option<&str> {
         let (reference, _) = self.word.sole_variable_substitution()?;
@@ -98,6 +111,25 @@ pub(crate) fn original_source_argument_for_script<'a>(
         return None;
     }
     original_source_argument(tokens, argument)
+}
+
+/// Reborrow one exact original operand word selected by its retained argument
+/// ordinal and expected lowered compatibility shape. The returned effect fact
+/// is lexical only and never grants a dispatch or evaluation result.
+pub(crate) fn original_argument_command_effect(
+    tokens: &CommandTokens,
+    argument: usize,
+    expected_text: &str,
+    expected_braced: bool,
+) -> Option<bool> {
+    let source = original_source_argument(tokens, argument)?;
+    let word = source.word();
+    if word.legacy_text() != expected_text
+        || (matches!(word, WordExpr::BracedLiteral { .. }) != expected_braced)
+    {
+        return None;
+    }
+    Some(source.runs_commands())
 }
 
 fn original_source_argument(

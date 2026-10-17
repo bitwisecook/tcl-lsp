@@ -14,7 +14,8 @@ mod source_method_reference;
 
 pub use source_method_reference::{
     OriginalSourceSelfMethodReference, OriginalSourceSelfMethodReferenceObligation,
-    original_source_self_method_references,
+    OriginalSourceSelfPropertyReference, OriginalSourceSelfPropertyReferenceObligation,
+    original_source_self_method_references, original_source_self_property_references,
 };
 
 use crate::analyser::types::{MemberSide, OriginalSourceClassRelationKind};

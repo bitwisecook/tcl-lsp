@@ -335,7 +335,7 @@ mod tests {
             Some(SurfaceQuery {
                 realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: tcl_dialect::model::CorePoints::NONE,
-                packages: &[],
+                packages: tcl_dialect::model::PackageFloors::Borrowed(&[]),
             }),
         ] {
             assert_eq!(
