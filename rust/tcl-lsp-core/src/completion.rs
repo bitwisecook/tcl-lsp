@@ -7846,6 +7846,7 @@ mod inherited_registry_roster_completion_tests {
             allow_unknown_methods: false,
             method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
         };
+        tcl_spectcl::core_surfaces::ensure();
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {
             name: "RosterChild",

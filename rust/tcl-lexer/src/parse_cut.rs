@@ -320,6 +320,125 @@ pub fn first_parse_cut_image_in_checked(
     first_parse_cut_channel_in(commands, tokens, source.bytes(), config, source.channel())
 }
 
+/// Clean recursive verdicts for complete command-substitution bodies of one
+/// whole original image.
+///
+/// A body enters the memo only after the full recursive walk of that body,
+/// under its exact nested parser configuration and input channel, finished
+/// without a cut and without unavailable ownership. Every later walk that
+/// reaches the identical whole-image body extent under the identical
+/// configuration would repeat that same complete walk and conclude the same,
+/// so it skips the descent instead of re-lexing the body. A body with a cut or
+/// an unavailable stream is never recorded and is always walked again, so the
+/// first cut, its term and its ordering are produced by the unchanged walk.
+///
+/// The memo binds to the first whole image it serves; a walk over any other
+/// image bypasses it entirely.
+#[derive(Default)]
+pub struct NestedBodyCutMemo {
+    image: std::sync::OnceLock<SourceImage>,
+    clean: std::sync::Mutex<std::collections::HashSet<NestedBodyKey>>,
+}
+
+// Derived cache warmth is neither semantic identity nor diagnostic output.
+impl std::fmt::Debug for NestedBodyCutMemo {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("NestedBodyCutMemo")
+    }
+}
+
+/// Everything a body walk reads besides its own bytes: the whole-image
+/// extent (which fixes the bytes of the bound image), the walk's own
+/// configuration and the input channel.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct NestedBodyKey {
+    span: Span,
+    config: LexerConfig,
+    channel: SourceChannel,
+}
+
+impl NestedBodyCutMemo {
+    fn bound_to(&self, image: &SourceImage) -> bool {
+        self.image.get_or_init(|| image.clone()) == image
+    }
+
+    fn is_clean(&self, key: NestedBodyKey) -> bool {
+        self.clean
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(&key)
+    }
+
+    fn record_clean(&self, key: NestedBodyKey) {
+        self.clean
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key);
+    }
+}
+
+/// A walk over the region of a bound whole image that starts at `origin`.
+#[derive(Clone, Copy)]
+struct MemoAnchor<'m> {
+    memo: &'m NestedBodyCutMemo,
+    origin: u32,
+}
+
+impl MemoAnchor<'_> {
+    /// The whole-image key of a command body found at `body` in an arena whose
+    /// own coordinates start `base` bytes into the walked region.
+    fn key(
+        self,
+        base: u32,
+        body: Span,
+        config: LexerConfig,
+        channel: SourceChannel,
+    ) -> Option<NestedBodyKey> {
+        let start = self.origin.checked_add(base)?.checked_add(body.start())?;
+        let end = self.origin.checked_add(base)?.checked_add(body.end())?;
+        Some(NestedBodyKey {
+            span: Span::new(start, end),
+            config,
+            channel,
+        })
+    }
+}
+
+/// [`first_parse_cut_image_in_checked`] over `local`, the bytes of `whole`
+/// starting at `origin`, sharing clean nested-body verdicts through `memo`.
+/// The answer is identical to the unmemoised walk over `local`.
+///
+/// # Errors
+/// Returns unavailable original component geometry or a nested lexical stream.
+pub(crate) fn first_parse_cut_region_in_checked_with_memo(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    local: &SourceImage,
+    config: LexerConfig,
+    whole: &SourceImage,
+    origin: u32,
+    memo: &NestedBodyCutMemo,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    let anchored = local.channel() == whole.channel()
+        && usize::try_from(origin).ok().is_some_and(|start| {
+            whole
+                .bytes()
+                .get(start..)
+                .and_then(|rest| rest.get(..local.bytes().len()))
+                == Some(local.bytes())
+        })
+        && memo.bound_to(whole);
+    first_parse_cut_channel_in_anchored(
+        commands,
+        tokens,
+        local.bytes(),
+        config,
+        local.channel(),
+        ParseCutDescent::RecursiveCommands,
+        anchored.then_some(MemoAnchor { memo, origin }),
+    )
+}
+
 fn first_parse_cut_channel_in(
     commands: &[CommandSpan],
     tokens: &[Token],
@@ -345,9 +464,21 @@ fn first_parse_cut_channel_in_with_descent(
     channel: SourceChannel,
     descent: ParseCutDescent,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    first_parse_cut_channel_in_anchored(commands, tokens, src, config, channel, descent, None)
+}
+
+fn first_parse_cut_channel_in_anchored(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &[u8],
+    config: LexerConfig,
+    channel: SourceChannel,
+    descent: ParseCutDescent,
+    anchor: Option<MemoAnchor<'_>>,
+) -> Result<Option<ParseCut>, ParseCutUnavailable> {
     for (index, command) in commands.iter().enumerate() {
         if let Some((offset, term, kind)) =
-            command_cut(command, tokens, src, config, channel, descent)?
+            command_cut(command, tokens, src, config, channel, descent, anchor)?
         {
             return Ok(Some(ParseCut {
                 command: index,
@@ -398,6 +529,9 @@ enum Frame {
         base: u32,
         next: usize,
         report_at: Option<u32>,
+        /// The whole-image key of a command body, recorded clean when every
+        /// job of the body has been walked without a cut.
+        clean_key: Option<NestedBodyKey>,
     },
     /// One ordered component list in a retained flat executable arena.
     Parts {
@@ -437,6 +571,7 @@ fn command_cut(
     config: LexerConfig,
     channel: SourceChannel,
     descent: ParseCutDescent,
+    anchor: Option<MemoAnchor<'_>>,
 ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     let jobs = word_jobs(&command.words, tokens, src, 0, config);
     let mut stack = vec![Frame::Words {
@@ -445,8 +580,9 @@ fn command_cut(
         base: 0,
         next: 0,
         report_at: None,
+        clean_key: None,
     }];
-    drain(&mut stack, config, channel, descent)
+    drain(&mut stack, config, channel, descent, anchor)
 }
 
 /// Resolve every word of a grouped script into its [`WordJob`], with offsets
@@ -556,6 +692,7 @@ fn drain(
     config: LexerConfig,
     channel: SourceChannel,
     descent: ParseCutDescent,
+    anchor: Option<MemoAnchor<'_>>,
 ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
     while let Some(frame) = stack.last_mut() {
         match frame {
@@ -565,9 +702,15 @@ fn drain(
                 base,
                 next,
                 report_at,
+                clean_key,
             } => {
                 let report_at = *report_at;
                 let Some(job) = jobs.get(*next) else {
+                    // Every nested frame this body pushed has already been
+                    // popped without a cut, so the whole body walk is clean.
+                    if let (Some(anchor), Some(key)) = (anchor, *clean_key) {
+                        anchor.memo.record_clean(key);
+                    }
                     stack.pop();
                     continue;
                 };
@@ -650,10 +793,19 @@ fn drain(
                         if descent == ParseCutDescent::EnclosingScript {
                             continue;
                         }
+                        let clean_key =
+                            anchor.and_then(|anchor| anchor.key(base, body, config, channel));
+                        // An identical body already walked clean cannot cut here.
+                        if let (Some(anchor), Some(key)) = (anchor, clean_key)
+                            && anchor.memo.is_clean(key)
+                        {
+                            continue;
+                        }
                         // The inner script's original extent is independent of
                         // the enclosing variable's diagnostic reporting anchor.
-                        let pushed =
-                            command_part_frame(arena, body, base, report_at, config, channel)?;
+                        let pushed = command_part_frame(
+                            arena, body, base, report_at, config, channel, clean_key,
+                        )?;
                         stack.push(pushed);
                     }
                 }
@@ -691,6 +843,7 @@ fn command_part_frame(
     report_at: Option<u32>,
     config: LexerConfig,
     channel: SourceChannel,
+    clean_key: Option<NestedBodyKey>,
 ) -> Result<Frame, ParseCutUnavailable> {
     let unavailable = || {
         ParseCutUnavailable::SourceGeometry(
@@ -699,7 +852,7 @@ fn command_part_frame(
     };
     let child_base = base.checked_add(body.start()).ok_or_else(unavailable)?;
     let body = arena.bytes(body).ok_or_else(unavailable)?;
-    body_frame(body, child_base, report_at, config, channel)
+    body_frame(body, child_base, report_at, config, channel, clean_key)
 }
 
 /// A complete `[…]` body as a script frame to walk.
@@ -715,6 +868,7 @@ fn body_frame(
     report_at: Option<u32>,
     config: LexerConfig,
     channel: SourceChannel,
+    clean_key: Option<NestedBodyKey>,
 ) -> Result<Frame, ParseCutUnavailable> {
     let config = crate::SourceSegmentationPurpose::NestedScript.config(config);
     let (tokens, commands) = lex_and_group(body, config, channel)?;
@@ -728,6 +882,7 @@ fn body_frame(
         base,
         next: 0,
         report_at,
+        clean_key,
     })
 }
 
@@ -1388,6 +1543,221 @@ mod original_parse_descent_tests {
                 )
                 .is_err()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod nested_body_cut_memo_tests {
+    use super::*;
+
+    fn span_of(source: &str, part: &str) -> Span {
+        let start = source.find(part).unwrap();
+        Span::new(
+            u32::try_from(start).unwrap(),
+            u32::try_from(start + part.len()).unwrap(),
+        )
+    }
+
+    fn whole_span(image: &SourceImage) -> Span {
+        Span::new(0, u32::try_from(image.len()).unwrap())
+    }
+
+    /// The unmemoised and memoised cuts of `region`, lexed as an original
+    /// region capture lexes it.
+    fn region_cuts(
+        whole: &SourceImage,
+        region: Span,
+        config: LexerConfig,
+        memo: &NestedBodyCutMemo,
+    ) -> [Result<Option<ParseCut>, ParseCutUnavailable>; 2] {
+        let local = SourceImage::from_bytes(&whole.bytes()[region.as_range()], whole.channel());
+        let config = crate::SourceSegmentationPurpose::NestedScript
+            .config(config)
+            .normalized();
+        let tokens = Lexer::with_source_image(&local, config)
+            .tokenise_all()
+            .unwrap();
+        let groups = group_commands_bytes(&tokens, local.bytes(), config);
+        [
+            first_parse_cut_image_in_checked(&groups, &tokens, &local, config),
+            first_parse_cut_region_in_checked_with_memo(
+                &groups,
+                &tokens,
+                &local,
+                config,
+                whole,
+                region.start(),
+                memo,
+            ),
+        ]
+    }
+
+    fn clean_bodies(memo: &NestedBodyCutMemo) -> usize {
+        memo.clean.lock().unwrap().len()
+    }
+
+    #[test]
+    fn nested_body_memo_shares_a_clean_body_between_overlapping_regions() {
+        let source = "set a [list [list x] [list y]]; set b 1";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        let debug = format!("{memo:?}");
+        for region in [
+            span_of(source, "set a [list [list x] [list y]]"),
+            span_of(source, "list [list x] [list y]"),
+            whole_span(&whole),
+        ] {
+            let [plain, memoised] = region_cuts(&whole, region, LexerConfig::default(), &memo);
+            assert_eq!(plain, Ok(None));
+            assert_eq!(memoised, plain);
+            // `list x`, `list y` and the body enclosing them.
+            assert_eq!(clean_bodies(&memo), 3);
+        }
+        assert_eq!(format!("{memo:?}"), debug);
+    }
+
+    #[test]
+    fn nested_body_memo_rewalks_a_cut_beside_a_clean_body() {
+        let source = "list [list [list a] [set y {a}b]]";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        for region in [
+            whole_span(&whole),
+            span_of(source, "list [list a] [set y {a}b]"),
+            whole_span(&whole),
+        ] {
+            let [plain, memoised] = region_cuts(&whole, region, LexerConfig::default(), &memo);
+            assert_eq!(
+                plain.clone().unwrap().unwrap().message,
+                crate::word_parts::EXTRA_AFTER_CLOSE_BRACE
+            );
+            assert_eq!(memoised, plain);
+            assert_eq!(clean_bodies(&memo), 1);
+        }
+    }
+
+    #[test]
+    fn nested_body_memo_keeps_the_unterminated_quote_fallback_after_a_clean_body() {
+        let source = "puts \"[list [list a] b]";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        let [plain, memoised] = region_cuts(
+            &whole,
+            span_of(source, "list [list a] b"),
+            LexerConfig::default(),
+            &memo,
+        );
+        assert_eq!(plain, Ok(None));
+        assert_eq!(memoised, plain);
+        assert_eq!(clean_bodies(&memo), 1);
+        for _ in 0..2 {
+            let [plain, memoised] =
+                region_cuts(&whole, whole_span(&whole), LexerConfig::default(), &memo);
+            assert_eq!(
+                plain.clone().unwrap().unwrap().message,
+                crate::word_parts::MISSING_QUOTE
+            );
+            assert_eq!(memoised, plain);
+            assert_eq!(clean_bodies(&memo), 2);
+        }
+    }
+
+    #[test]
+    fn nested_body_memo_keeps_the_variable_index_reporting_anchor() {
+        let source = "puts $a([list [list x] {y}z])";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        let [plain, memoised] = region_cuts(
+            &whole,
+            span_of(source, "list [list x] {y}z"),
+            LexerConfig::default(),
+            &memo,
+        );
+        assert!(plain.clone().unwrap().is_some());
+        assert_eq!(memoised, plain);
+        assert_eq!(clean_bodies(&memo), 1);
+        let [plain, memoised] =
+            region_cuts(&whole, whole_span(&whole), LexerConfig::default(), &memo);
+        let cut = plain.clone().unwrap().unwrap();
+        assert_eq!(cut.offset as usize, source.find('$').unwrap());
+        assert_eq!(cut.term as usize, source.find("{y}z").unwrap() + 3);
+        assert_eq!(cut.message, crate::word_parts::EXTRA_AFTER_CLOSE_BRACE);
+        assert_eq!(memoised, plain);
+        assert_eq!(clean_bodies(&memo), 1);
+    }
+
+    #[test]
+    fn nested_body_memo_never_records_unavailable_streams() {
+        let strict = LexerConfig {
+            strict_quoting: true,
+            ..LexerConfig::default()
+        };
+        let source = "list [list a] [list \"x\"y]";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        for _ in 0..2 {
+            let [plain, memoised] = region_cuts(&whole, whole_span(&whole), strict, &memo);
+            assert!(matches!(plain, Err(ParseCutUnavailable::LexicalStream(_))));
+            assert_eq!(memoised, plain);
+            assert_eq!(clean_bodies(&memo), 1);
+        }
+
+        let source = "list [list a] b";
+        let whole = SourceImage::document(source);
+        let config = LexerConfig::default();
+        let tokens = Lexer::with_source_image(&whole, config)
+            .tokenise_all()
+            .unwrap();
+        let mut groups = group_commands_bytes(&tokens, whole.bytes(), config);
+        groups[0].words[2].tokens.end = tokens.len() + 1;
+        let memo = NestedBodyCutMemo::default();
+        for _ in 0..2 {
+            let plain = first_parse_cut_image_in_checked(&groups, &tokens, &whole, config);
+            let memoised = first_parse_cut_region_in_checked_with_memo(
+                &groups, &tokens, &whole, config, &whole, 0, &memo,
+            );
+            assert!(matches!(plain, Err(ParseCutUnavailable::SourceGeometry(_))));
+            assert_eq!(memoised, plain);
+            assert_eq!(clean_bodies(&memo), 1);
+        }
+    }
+
+    #[test]
+    fn nested_body_memo_keys_each_lexer_configuration_separately() {
+        let source = "list [foo {*}{a b}]";
+        let whole = SourceImage::document(source);
+        let memo = NestedBodyCutMemo::default();
+        for (dialect, cuts) in [("tcl8.6", false), ("tcl8.4", true), ("tcl8.6", false)] {
+            let [plain, memoised] = region_cuts(
+                &whole,
+                whole_span(&whole),
+                LexerConfig::for_dialect(dialect),
+                &memo,
+            );
+            assert_eq!(plain.clone().unwrap().is_some(), cuts, "{dialect}");
+            assert_eq!(memoised, plain, "{dialect}");
+            assert_eq!(clean_bodies(&memo), 1, "{dialect}");
+        }
+    }
+
+    #[test]
+    fn nested_body_memo_bypasses_a_foreign_image() {
+        let memo = NestedBodyCutMemo::default();
+        let bound = SourceImage::document("list [list {x} y]");
+        // The same body extent cuts in the first foreign image; the other two
+        // would add a clean body had the memo served them.
+        for (image, cuts) in [
+            (bound.clone(), false),
+            (SourceImage::document("list [list {x}y ]"), true),
+            (SourceImage::document("list [list q]"), false),
+            (SourceImage::native(bound.bytes()), false),
+        ] {
+            let [plain, memoised] =
+                region_cuts(&image, whole_span(&image), LexerConfig::default(), &memo);
+            assert_eq!(plain.clone().unwrap().is_some(), cuts);
+            assert_eq!(memoised, plain);
+            assert_eq!(clean_bodies(&memo), 1);
         }
     }
 }

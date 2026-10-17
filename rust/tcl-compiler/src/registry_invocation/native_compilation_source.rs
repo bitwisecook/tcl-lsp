@@ -178,6 +178,19 @@ impl OriginalSourceCommandProjection {
         offset: u32,
         config: LexerConfig,
     ) -> Option<Self> {
+        Self::capture_with_nested_cuts(image, words, offset, config, None)
+    }
+
+    /// [`Self::capture`] sharing clean nested command-body parse verdicts of
+    /// the same whole image. The recursive syntax validation, its first cut
+    /// and every geometry/IR check below are unchanged.
+    pub(crate) fn capture_with_nested_cuts(
+        image: &SourceImage,
+        words: &[WordExpr],
+        offset: u32,
+        config: LexerConfig,
+        nested_cuts: Option<&tcl_lexer::NestedBodyCutMemo>,
+    ) -> Option<Self> {
         if words.is_empty()
             || words
                 .iter()
@@ -205,12 +218,22 @@ impl OriginalSourceCommandProjection {
             return None;
         }
         let region = Span::new(offset, spans.last()?.end());
-        let mut parsed = match tcl_lexer::native_script_words_in_with_purpose(
-            image.clone(),
-            region,
-            config,
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        ) {
+        let parsed = match nested_cuts {
+            Some(memo) => tcl_lexer::native_script_words_in_with_purpose_and_memo(
+                image.clone(),
+                region,
+                config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                memo,
+            ),
+            None => tcl_lexer::native_script_words_in_with_purpose(
+                image.clone(),
+                region,
+                config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            ),
+        };
+        let mut parsed = match parsed {
             Ok(parsed) => parsed,
             Err(_error) => {
                 #[cfg(test)]

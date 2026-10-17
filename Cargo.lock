@@ -4517,6 +4517,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-regex",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-sslictcl",
  "tcl-syntax",
  "tcl-test-support",

@@ -3748,3 +3748,7 @@ outer braced word under the same configured list rules. Unrepresentable raw
 words retain ExportLoss and the explicitly lossy quoted recovery; Studio keeps
 its no-quoted-fallback boundary. These proposed words issue no original source,
 Native identity, selected command, package loading or execution guarantee.
+
+### Structural LSP class factory ownership
+
+The structural document-analysis path retains the same readonly Logical class factory, Name word, source coordinate and relation owners as full analysis. Those facets reborrow the current actual source/input/Realm and uniquely corresponding class/factory records; they do not depend on emitting diagnostics or building a compilation unit. Class-body syntax remains separate: only the existing actual Module producer can populate `body_word`. The project procedure-role provider therefore receives its original class blocker coordinate during structure-only DB analysis without reconstructing a report name, making a fresh analysis/module, admitting a Native class or weakening unavailable-provider withdrawal.

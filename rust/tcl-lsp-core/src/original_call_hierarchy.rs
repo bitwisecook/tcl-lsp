@@ -453,6 +453,12 @@ fn source_procedure_edges(
         .into_iter()
         .flatten()
     {
+        // Earlier unknown mutations and pre-lookup operand effects are
+        // retained debts of this conditional relation; they may delete or
+        // replace the header, so they cannot issue a call edge.
+        if !call.uncertain_operations().is_empty() || call.has_lookup_operand_effects() {
+            continue;
+        }
         let Some((caller_record, target_record)) = call
             .caller_declaration(document.analysis)
             .zip(call.declaration(document.analysis))
@@ -477,6 +483,49 @@ fn source_procedure_edges(
             continue;
         };
         let edge = (caller, target, head.span());
+        if !edges.contains(&edge) {
+            edges.push(edge);
+        }
+    }
+    edges
+}
+
+// Direct `my` selectors inside authentic member bodies are conditional source
+// relations retained by the compiler's member-body catalogue. Body entry,
+// receiver, lookup and inheritance obligations stay with that relation.
+fn source_self_method_edges(
+    document: &OriginalCallDocument<'_>,
+) -> Vec<(
+    OriginalDeclarationIdentity,
+    OriginalDeclarationIdentity,
+    Span,
+)> {
+    let mut edges = Vec::new();
+    for reference in
+        tcl_compiler::analyser::class_hierarchy::original_metadata::original_source_self_method_references(
+            document.source,
+            document.analysis,
+        )
+        .into_iter()
+        .flatten()
+    {
+        let Some((caller, target)) = OriginalDeclarationIdentity::for_method(
+            document.uri,
+            document.source,
+            document.analysis,
+            reference.body_class(),
+            reference.body_method(),
+        )
+        .zip(OriginalDeclarationIdentity::for_method(
+            document.uri,
+            document.source,
+            document.analysis,
+            reference.declaring_class(),
+            reference.method(),
+        )) else {
+            continue;
+        };
+        let edge = (caller, target, reference.selector_span());
         if !edges.contains(&edge) {
             edges.push(edge);
         }
@@ -519,6 +568,11 @@ fn edges(
             }
         }
         for edge in source_procedure_edges(document) {
+            if !edges.contains(&edge) {
+                edges.push(edge);
+            }
+        }
+        for edge in source_self_method_edges(document) {
             if !edges.contains(&edge) {
                 edges.push(edge);
             }

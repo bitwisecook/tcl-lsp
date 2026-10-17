@@ -80,8 +80,10 @@ dependency graph (a crate can only use what it declares in
    undivided — `tcl-core-types` is `#![no_std]`, and `tcl-platform` bans
    syscalls by charter and already owns the host-filesystem trait.  See
    [lsp-source-store.md](lsp-source-store.md), "Where the trait lives, and
-   why".  The edge introduces no cycle, and it is the only reason
-   `tcl-spectcl` may name anything in the LSP layer.
+   why".  The edge introduces no normal-dependency cycle (`tcl-lsp-core`'s
+   tests reach back only through a dev-dependency to seed the shipped core
+   surfaces), and it is the only reason `tcl-spectcl` may name anything in
+   the LSP layer.
 5. **Developer tools sit above the compiler, beside the server.**
    `tcl-cli`, `f5-cli`, `tcl-explorer`, `tcl-pkg`, `tcl-debugger`,
    `tcl-fuzz`, and the F5 query/XC crates consume the compiler /

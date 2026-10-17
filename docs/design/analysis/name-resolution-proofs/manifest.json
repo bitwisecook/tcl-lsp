@@ -1133860,7 +1133860,7 @@
         {
           "path": "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
           "symbol": "OriginalSourceProjectionMemo",
-          "purpose": "Memoize only immutable complete original lexical geometry; changed vector/config/offset or incomplete ancestry refuses and warmth carries no metadata/admission."
+          "purpose": "Memoize only immutable complete original lexical geometry; changed vector/config/offset or incomplete ancestry refuses and warmth carries no metadata/admission. Its nested command-body sidecar shares only clean recursive parse verdicts of the same whole image; cut, unavailable and foreign-image bodies are walked again."
         },
         {
           "path": "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
@@ -1133941,6 +1133941,12 @@
           "path": "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
           "selector": "command_binding::original_source_projection::tests::original_lexical_projection_keeps_cache_warmth_and_independent_origins_separate",
           "assertion": "Cache warmth stays outside origin semantic identity while independently created source origins retain separate allocation/projection ownership. This deterministic equality/reuse control has no timing or Native admission claim.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
+          "selector": "command_binding::original_source_projection::tests::original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture",
+          "assertion": "Innermost-first and outermost-first captures of nested command bodies and their enclosing commands, across five Tcl grammars and both channels, give the same native-word and segmented geometry or the same refusal through the projection memo, a shared nested-body cut memo and the unmemoised capture. Cache reuse grants no physical execution.",
           "status": "linked"
         },
         {

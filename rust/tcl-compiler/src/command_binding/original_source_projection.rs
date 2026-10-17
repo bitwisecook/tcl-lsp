@@ -24,6 +24,9 @@ struct ProjectionEntry {
 /// A bucket key never substitutes for exact complete vector correspondence.
 pub(super) struct OriginalSourceProjectionMemo {
     entries: Mutex<ProjectionEntries>,
+    /// Clean nested command-body parse verdicts of this origin's whole image,
+    /// shared by every command projection captured from it.
+    nested_cuts: tcl_lexer::NestedBodyCutMemo,
     #[cfg(any(test, debug_assertions))]
     trace: bool,
     #[cfg(any(test, debug_assertions))]
@@ -38,6 +41,7 @@ impl Default for OriginalSourceProjectionMemo {
     fn default() -> Self {
         Self {
             entries: Mutex::default(),
+            nested_cuts: tcl_lexer::NestedBodyCutMemo::default(),
             #[cfg(any(test, debug_assertions))]
             trace: std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
             #[cfg(any(test, debug_assertions))]
@@ -107,9 +111,14 @@ impl OriginalSourceProjectionMemo {
                     self.captures
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
-                let original =
-                    OriginalSourceCommandProjection::capture(image, &entry.words, offset, config)
-                        .map(Arc::new);
+                let original = OriginalSourceCommandProjection::capture_with_nested_cuts(
+                    image,
+                    &entry.words,
+                    offset,
+                    config,
+                    Some(&self.nested_cuts),
+                )
+                .map(Arc::new);
                 #[cfg(any(test, debug_assertions))]
                 if self.trace && original.is_none() {
                     self.rejected
@@ -147,6 +156,31 @@ mod tests {
             crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
                 .unwrap();
         let command = commands.last().unwrap();
+        (
+            command.span.start(),
+            CommandTokens::from_segmented(&image.source_map(), config, command)
+                .words()
+                .to_vec(),
+        )
+    }
+
+    fn body_words(
+        image: &SourceImage,
+        start: usize,
+        body: &str,
+        config: LexerConfig,
+    ) -> (u32, Vec<WordExpr>) {
+        let local =
+            SourceImage::from_bytes(&image.bytes()[start..start + body.len()], image.channel());
+        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &local,
+            u32::try_from(start).unwrap(),
+            config.nested(),
+        )
+        .unwrap();
+        let [command] = commands.as_slice() else {
+            panic!("one body command")
+        };
         (
             command.span.start(),
             CommandTokens::from_segmented(&image.source_map(), config, command)
@@ -337,5 +371,82 @@ mod tests {
             );
         });
         assert_eq!(concurrent.original_lexical_projection().capture_count(), 1);
+    }
+
+    #[test]
+    fn original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        let source = "set x [list [list a] [list b]]\nlist [list [list a] {b}c]";
+        let clean = source.find("list [list a] [list b]").unwrap();
+        let malformed = source.find("list [list a] {b}c").unwrap();
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for image in [
+                SourceImage::document(source),
+                SourceImage::native(source.as_bytes()),
+            ] {
+                let top = crate::segmenter::segment_commands_image_with_offset_and_config(
+                    &image, 0, config,
+                )
+                .unwrap();
+                let top_words = |index: usize| {
+                    (
+                        top[index].span.start(),
+                        CommandTokens::from_segmented(&image.source_map(), config, &top[index])
+                            .words()
+                            .to_vec(),
+                    )
+                };
+                // Innermost first, as source points are recorded.
+                let captures = [
+                    (body_words(&image, clean + 6, "list a", config), true),
+                    (
+                        body_words(&image, clean, "list [list a] [list b]", config),
+                        true,
+                    ),
+                    (top_words(0), true),
+                    (body_words(&image, malformed + 6, "list a", config), true),
+                    (
+                        body_words(&image, malformed, "list [list a] {b}c", config),
+                        false,
+                    ),
+                    (top_words(1), false),
+                ];
+                for reverse in [false, true] {
+                    let memo = OriginalSourceProjectionMemo::default();
+                    let nested_cuts = tcl_lexer::NestedBodyCutMemo::default();
+                    let mut ordered = captures.iter().collect::<Vec<_>>();
+                    if reverse {
+                        ordered.reverse();
+                    }
+                    for ((offset, words), complete) in ordered {
+                        let geometry = |original: &OriginalSourceCommandProjection| {
+                            (original.native_words().to_vec(), original.command().clone())
+                        };
+                        let unmemoised = OriginalSourceCommandProjection::capture(
+                            &image, words, *offset, config,
+                        )
+                        .map(|original| geometry(&original));
+                        let shared = OriginalSourceCommandProjection::capture_with_nested_cuts(
+                            &image,
+                            words,
+                            *offset,
+                            config,
+                            Some(&nested_cuts),
+                        )
+                        .map(|original| geometry(&original));
+                        let memoised = memo
+                            .capture(&image, words, *offset, config)
+                            .map(|original| geometry(&original));
+                        assert_eq!(unmemoised.is_some(), *complete, "{name} {offset}");
+                        assert_eq!(shared, unmemoised, "{name} {offset}");
+                        assert_eq!(memoised, unmemoised, "{name} {offset}");
+                    }
+                }
+            }
+        }
     }
 }

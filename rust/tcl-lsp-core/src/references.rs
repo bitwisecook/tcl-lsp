@@ -2346,23 +2346,6 @@ pub fn method_next_dispatch_spans(
     scan_next_dispatch_sites(source, analysis, m.body_span)
 }
 
-/// Canonicalise a written class name (`nextto`'s argument) to the qualified
-/// form keyed in `analysis.all_classes`, owner-aware — the same resolution
-/// `definition.rs`'s go-to-definition `next`/`nextto` handling uses (kept as
-/// a separate copy rather than shared: it is a two-line wrapper around the
-/// registry's own `resolve_class_name`, so a cross-module `pub(crate)`
-/// promotion would cost more than it saves). Falls back to the written name
-/// when nothing resolves, so the caller's MRO lookup simply finds no match.
-fn canonicalise_class_name(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
-    let namespace =
-        tcl_compiler::analyser::class_hierarchy::source_namespace_at(&analysis.global_scope, at)?;
-    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name_in_scope(
-        name,
-        namespace,
-        &analysis.all_classes,
-    )
-}
-
 /// Every `next` / `nextto` call site — across every other class in this
 /// document — whose target resolves (via the class hierarchy's MRO) to
 /// `class_q`'s own effective constructor: a subclass constructor chaining
@@ -2406,7 +2389,8 @@ pub(crate) fn constructor_next_chain_references(
         {
             let start_from = match target {
                 Some(target) => {
-                    let Some(target) = canonicalise_class_name(analysis, span.start(), &target)
+                    let Some(target) =
+                        crate::definition::canonicalise_class(analysis, span.start(), &target)
                     else {
                         continue;
                     };
@@ -2447,7 +2431,8 @@ pub(crate) fn destructor_next_chain_references(
         {
             let start_from = match target {
                 Some(target) => {
-                    let Some(target) = canonicalise_class_name(analysis, span.start(), &target)
+                    let Some(target) =
+                        crate::definition::canonicalise_class(analysis, span.start(), &target)
                     else {
                         continue;
                     };

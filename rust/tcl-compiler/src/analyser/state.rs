@@ -2301,7 +2301,11 @@ impl Analyser {
         self.retain_original_callback_signature_lookups(source);
         #[cfg(debug_assertions)]
         trace_phase("parameter-definitions");
-        if !self.structure_only {
+        if self.structure_only {
+            if let Some(registry) = self.registry.as_deref() {
+                self.result.retain_logical_class_source_factories(registry);
+            }
+        } else {
             self.run_diagnostic_emitters(source);
         }
         #[cfg(debug_assertions)]

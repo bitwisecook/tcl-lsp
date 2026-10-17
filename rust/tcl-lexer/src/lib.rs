@@ -105,12 +105,13 @@ pub use line_index::{LineIndex, normalise_lone_cr};
 pub use native_script_words::{
     NativeScriptCommandWords, NativeScriptWordCut, NativeScriptWordsPlan,
     NativeScriptWordsUnavailable, native_script_words_in, native_script_words_in_with_purpose,
-    source_region_tokens_in,
+    native_script_words_in_with_purpose_and_memo, source_region_tokens_in,
 };
 pub use parse_cut::{
-    EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutCompleteness, ParseCutUnavailable, first_parse_cut,
-    first_parse_cut_bytes, first_parse_cut_bytes_in, first_parse_cut_image,
-    first_parse_cut_image_checked, first_parse_cut_image_in_checked, first_parse_cut_in,
+    EXTRA_AFTER_CLOSE_QUOTE, NestedBodyCutMemo, ParseCut, ParseCutCompleteness,
+    ParseCutUnavailable, first_parse_cut, first_parse_cut_bytes, first_parse_cut_bytes_in,
+    first_parse_cut_image, first_parse_cut_image_checked, first_parse_cut_image_in_checked,
+    first_parse_cut_in,
 };
 pub use parse_issue::ParseIssueKind;
 pub use ranges::{

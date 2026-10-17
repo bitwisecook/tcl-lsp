@@ -59,6 +59,11 @@ getrandom = { version = "0.2.17", features = ["js"] }
 fluent-uri = { version = "0.4.1", features = ["net"] }
 
 [dev-dependencies]
+# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
+# permits and `tcl-registry` / `tcl-compiler` already use: the inherited-roster
+# completion test seeds the shipped core surfaces exactly as the server's
+# `initialize` does.
+tcl-spectcl = { path = "../tcl-spectcl" }
 # Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
 tcl-test-support = { path = "../tcl-test-support" }
 # The runtime ARE engine, used as an oracle in the semantic-token regex tests:

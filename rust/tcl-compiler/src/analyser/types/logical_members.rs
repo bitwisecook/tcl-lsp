@@ -361,9 +361,10 @@ impl LogicalSourceMemberDeclaration {
 }
 
 impl AnalysisResult {
-    pub(crate) fn retain_logical_class_body_sources(
+    /// Original source factory/name/relation ownership does not require a CU
+    /// or diagnostic execution. Structural LSP indexes borrow this same facet.
+    pub(crate) fn retain_logical_class_source_factories(
         &mut self,
-        module: &crate::ir::Module,
         registry: &tcl_registry::CommandRegistry,
     ) {
         let sources = self
@@ -374,12 +375,6 @@ impl AnalysisResult {
                     .all_classes
                     .values()
                     .find(|class| declaration.matches(self, class))?;
-                let body = module
-                    .original_class_definition_body_source(class, registry)
-                    .filter(|source| {
-                        source.matches_source_input(&declaration.image, &declaration.input)
-                    })
-                    .map(|source| source.body_word().clone());
                 let factory = self.logical_class_factory(class, &declaration.image);
                 let coordinate = factory
                     .as_ref()
@@ -391,21 +386,47 @@ impl AnalysisResult {
                 let relations = factory
                     .as_ref()
                     .and_then(|factory| self.logical_relation_providers(class, factory, registry));
-                Some((body, coordinate, name_word, relations))
+                Some((coordinate, name_word, relations))
             })
             .collect::<Vec<_>>();
         for (declaration, source) in self.logical_class_declarations.iter_mut().zip(sources) {
-            if let Some((body, coordinate, name_word, relations)) = source {
-                declaration.body_word = body;
+            if let Some((coordinate, name_word, relations)) = source {
                 declaration.candidate_coordinate = coordinate;
                 declaration.name_word = name_word;
                 declaration.relations = relations;
             } else {
-                declaration.body_word = None;
                 declaration.candidate_coordinate = None;
                 declaration.name_word = None;
                 declaration.relations = None;
             }
+        }
+    }
+
+    /// The distinct actual Module issuer still owns class-body syntax.
+    pub(crate) fn retain_logical_class_body_sources(
+        &mut self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        self.retain_logical_class_source_factories(registry);
+        let bodies = self
+            .logical_class_declarations
+            .iter()
+            .map(|declaration| {
+                let class = self
+                    .all_classes
+                    .values()
+                    .find(|class| declaration.matches(self, class))?;
+                module
+                    .original_class_definition_body_source(class, registry)
+                    .filter(|source| {
+                        source.matches_source_input(&declaration.image, &declaration.input)
+                    })
+                    .map(|source| source.body_word().clone())
+            })
+            .collect::<Vec<_>>();
+        for (declaration, body) in self.logical_class_declarations.iter_mut().zip(bodies) {
+            declaration.body_word = body;
         }
     }
 
@@ -1689,6 +1710,47 @@ mod retained_class_metadata_provider_tests {
         assert!(
             native
                 .logical_source_class_declaration(record.metadata())
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod structural_factory_owner_controls {
+    use crate::analyser::Analyser;
+    use tcl_lexer::SourceImage;
+
+    #[test]
+    fn structural_source_factory_does_not_require_or_issue_module_body_syntax() {
+        let source = "oo::class create ::ProjectThing {method kept {} {}}\n::ProjectThing create specimen\nproc bind {name} {upvar 1 $name cell; set cell 1}";
+        let structural = Analyser::new().structure_only().analyse(source, "tcl");
+        let full = Analyser::new().analyse(source, "tcl");
+        let retained = structural.original_class_declarations().next().unwrap();
+        let owner = structural
+            .logical_source_class_declaration(retained.metadata())
+            .unwrap();
+        let full_owner = full
+            .logical_source_class_declaration(&full.all_classes["::ProjectThing"])
+            .unwrap();
+        assert_eq!(
+            owner.source_candidate_coordinate(),
+            full_owner.source_candidate_coordinate()
+        );
+        assert!(owner.source_candidate_coordinate().is_some());
+        assert!(
+            owner
+                .original_body_word(
+                    &SourceImage::document(source),
+                    structural.resolved_input.as_ref().unwrap()
+                )
+                .is_none()
+        );
+        assert!(
+            owner
+                .original_body_word(
+                    &SourceImage::document("different"),
+                    structural.resolved_input.as_ref().unwrap()
+                )
                 .is_none()
         );
     }

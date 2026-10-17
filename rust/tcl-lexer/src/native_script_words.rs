@@ -2,9 +2,10 @@
 //! Original executable words in a region of one retained source image.
 
 use crate::{
-    LeadingBom, Lexer, LexerConfig, NativeWord, NativeWordError, ParseCut, ParseCutUnavailable,
-    SourceImage, SourceSegmentationPurpose, Span, Token, first_parse_cut_image_in_checked,
-    group_commands_bytes,
+    LeadingBom, Lexer, LexerConfig, NativeWord, NativeWordError, NestedBodyCutMemo, ParseCut,
+    ParseCutUnavailable, SourceImage, SourceSegmentationPurpose, Span, Token,
+    first_parse_cut_image_in_checked, group_commands_bytes,
+    parse_cut::first_parse_cut_region_in_checked_with_memo,
 };
 
 /// Complete command words retaining the original whole-image address space.
@@ -97,6 +98,7 @@ impl NativeScriptWordsPlan {
                     .config(self.parse_config)
                     .normalized(),
             },
+            None,
         )
     }
 }
@@ -199,6 +201,31 @@ pub fn native_script_words_in_with_purpose(
         config,
         purpose,
         SyntaxValidation::InspectRecursively,
+        None,
+    )
+}
+
+/// [`native_script_words_in_with_purpose`] sharing clean nested command-body
+/// verdicts of the same whole image through `memo`. Validation is still the
+/// full recursive walk; only a body the same walk already completed clean
+/// under the identical whole-image extent and configuration is not re-lexed.
+///
+/// # Errors
+/// Returns the same unavailable geometry/word ownership as the unmemoised view.
+pub fn native_script_words_in_with_purpose_and_memo(
+    image: SourceImage,
+    region: Span,
+    config: LexerConfig,
+    purpose: SourceSegmentationPurpose,
+    memo: &NestedBodyCutMemo,
+) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
+    capture_native_script_words(
+        image,
+        region,
+        config,
+        purpose,
+        SyntaxValidation::InspectRecursively,
+        Some(memo),
     )
 }
 
@@ -208,6 +235,7 @@ fn capture_native_script_words(
     config: LexerConfig,
     purpose: SourceSegmentationPurpose,
     validation: SyntaxValidation,
+    memo: Option<&NestedBodyCutMemo>,
 ) -> Result<NativeScriptWordsPlan, NativeScriptWordsUnavailable> {
     let original = image
         .bytes()
@@ -224,10 +252,19 @@ fn capture_native_script_words(
     )?;
     let groups = group_commands_bytes(&tokens, local.bytes(), parse_config);
     let cut = match validation {
-        SyntaxValidation::InspectRecursively => {
-            first_parse_cut_image_in_checked(&groups, &tokens, &local, parse_config)
-                .map_err(NativeScriptWordsUnavailable::ParseOwnership)?
+        SyntaxValidation::InspectRecursively => match memo {
+            Some(memo) => first_parse_cut_region_in_checked_with_memo(
+                &groups,
+                &tokens,
+                &local,
+                parse_config,
+                &image,
+                region.start(),
+                memo,
+            ),
+            None => first_parse_cut_image_in_checked(&groups, &tokens, &local, parse_config),
         }
+        .map_err(NativeScriptWordsUnavailable::ParseOwnership)?,
         SyntaxValidation::InheritedCommand {
             parse_config: expected,
         } => {

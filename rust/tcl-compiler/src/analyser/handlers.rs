@@ -6352,8 +6352,21 @@ impl Analyser {
         let context = self.analysis_context();
         let Some((grammar, definer_disabled)) = words
             .with_source_schema(&context, |schema| {
-                let grammar = schema.authored_source_definition_body_grammar()?;
                 let command = schema.authored_source_descriptors().command;
+                // A script operand enters the definition vocabulary only through
+                // the selected configure layout. The inline member form instead
+                // names a member of the selected descriptor's own grammar under
+                // its complete selected layout; that member's body stays Tcl.
+                let grammar = schema
+                    .authored_source_definition_body_grammar()
+                    .or_else(|| {
+                        let declared = command.definition_body?;
+                        (schema.authored_source_argument_roles().1
+                            && args
+                                .get(1)
+                                .is_some_and(|keyword| declared.is_member(keyword)))
+                        .then_some(declared)
+                    })?;
                 Some((grammar, !context.context().spec_available(command)))
             })
             .flatten()

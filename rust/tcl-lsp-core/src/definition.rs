@@ -1319,22 +1319,41 @@ fn next_dispatch_target(
     tcl_compiler::analyser::class_hierarchy::class_member_def(cd, &method).map(|md| md.name_span)
 }
 
-/// Canonicalise a written class name to the qualified form keyed in
-/// `all_classes`, **owner-aware** — resolved relative to `owner`'s namespace
-/// (the class writing the `nextto`) via the shared [`resolve_class_name`]
-/// resolver: exact, `::name`, an outward namespace walk, then a unique tail.
-/// This lets `nextto Base` reach a namespaced base class (`::Ns::Base`) named
-/// bare from a sibling in the same namespace, instead of only matching a
-/// global `::Base`.  Falls back to the written name when nothing resolves so
-/// the caller's `next_provider` lookup simply finds no target.
-fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
-    let namespace =
-        tcl_compiler::analyser::class_hierarchy::source_namespace_at(&analysis.global_scope, at)?;
-    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name_in_scope(
-        name,
-        namespace,
-        &analysis.all_classes,
-    )
+/// Canonicalise a written `nextto` class name to the qualified form keyed in
+/// `all_classes`, or `None` when the name does not resolve unambiguously.
+///
+/// A `TclOO` member body resolves a command word through the object's own
+/// namespace, the registry's implicit member-body path, then `::` — never the
+/// class's declaring namespace (tclsh 8.6.18 / 9.0.4: `nextto A` inside
+/// `::Ns::B` raises `A does not refer to an object`). A class created inside
+/// the object namespace at run time is not distinguished from a root class,
+/// so the root lookup answers unless the name reaches a class under a path
+/// namespace first; that case is refused rather than guessed. Outside a
+/// member body the written scope resolves it.
+pub(crate) fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
+    use tcl_compiler::analyser::class_hierarchy::{
+        resolve_written_class_name, resolve_written_class_name_in_scope, source_namespace_at,
+    };
+    let path = tcl_compiler::analyser::scope::implicit_command_namespace_path_at(
+        &analysis.global_scope,
+        at,
+    );
+    if path.is_empty() {
+        let namespace = source_namespace_at(&analysis.global_scope, at)?;
+        return resolve_written_class_name_in_scope(name, namespace, &analysis.all_classes);
+    }
+    let shadowed = !name.starts_with("::")
+        && path.iter().any(|namespace| {
+            resolve_written_class_name(
+                &tcl_syntax::naming::qualify(namespace, name),
+                &analysis.all_classes,
+            )
+            .is_some()
+        });
+    if shadowed {
+        return None;
+    }
+    resolve_written_class_name(name, &analysis.all_classes)
 }
 
 /// Current complete command-head and selector syntax. Actual receiver identity,
