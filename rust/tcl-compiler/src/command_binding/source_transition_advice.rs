@@ -1017,6 +1017,24 @@ impl OriginalSourceTransitionAdviceTape {
             return None;
         }
         let mut selected = self.logical_body_original_word_at_span(origin, input, span);
+        // Declared Logical bodies retain whole vectors independently of a
+        // selected Registry handler or ordinary invocation.
+        for (&offset, receipt) in self.logical_variable_words.range(..=span.start()) {
+            let Some(receipt) = receipt else {
+                continue;
+            };
+            let Some(current) = receipt.original_word_at_span(image, input, span) else {
+                continue;
+            };
+            if current.1 != offset
+                || selected
+                    .as_ref()
+                    .is_some_and(|previous| previous != &current)
+            {
+                return None;
+            }
+            selected = Some(current);
+        }
         for offset in offsets {
             if self.blocks_registry_source(offset) {
                 continue;

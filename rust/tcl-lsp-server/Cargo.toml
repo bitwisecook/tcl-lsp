@@ -141,6 +141,8 @@ js-sys = "0.3"
 tokio = { version = "1", default-features = false, features = ["sync", "macros", "rt", "time"] }
 
 [dev-dependencies]
+# Validated C Tcl release selection and byte-preserving execution for oracle tests.
+tcl-test-support = { path = "../tcl-test-support" }
 temp-env = "0.3"
 # The diagnostic-policy truth table, for the LSP and code-action passes over
 # its rows (`src/policy_truth_table.rs`); only this crate's tests build it.

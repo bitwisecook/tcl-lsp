@@ -925,7 +925,20 @@ pub fn find_command_at(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Option<SegmentedCommand> {
-    find_command_at_inner(source, cursor, predicate, registry, config, 0)
+    let source_owner = standalone_source_registry_context(source, registry, config);
+    find_command_at_inner(
+        &FindCtx {
+            full: source,
+            cursor,
+            predicate,
+            registry,
+            config,
+            source_owner: source_owner.as_ref(),
+        },
+        source,
+        0,
+        0,
+    )
 }
 
 /// Recursively walk every command in `source`, including those nested inside
@@ -944,12 +957,14 @@ pub fn walk_commands(
     config: LexerConfig,
 ) -> Vec<(Vec<String>, u32, u32)> {
     let line_index = LineIndex::new(source);
+    let source_owner = standalone_source_registry_context(source, registry, config);
     let mut out = Vec::new();
     walk_commands_inner(
         &WalkCtx {
             full: source,
             registry,
             config,
+            source_owner: source_owner.as_ref(),
             line_index: &line_index,
         },
         source,
@@ -967,6 +982,9 @@ struct WalkCtx<'a> {
     full: &'a str,
     registry: &'a CommandRegistry,
     config: LexerConfig,
+    source_owner: Option<
+        &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    >,
     line_index: &'a LineIndex,
 }
 
@@ -985,7 +1003,11 @@ fn walk_commands_inner(
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
         // Spans here are absolute into `full` (the segmenter was given
         // `offset`), so the lambda splitter reads from `full` too.
-        for body in body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)) {
+        let bodies = ctx.source_owner.map_or_else(
+            || body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)),
+            |owner| body_words_with_owner(ctx.full, &cmd, owner),
+        );
+        for body in bodies {
             let Some(body_slice) = ctx
                 .full
                 .get(body.inner_start as usize..body.inner_end as usize)
@@ -1004,41 +1026,55 @@ fn walk_commands_inner(
 pub(super) const MAX_COMMAND_SEARCH_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-fn find_command_at_inner(
-    source: &str,
+/// Unchanged source and selection state of a standalone lexical cursor walk.
+struct FindCtx<'a> {
+    full: &'a str,
     cursor: u32,
-    predicate: Option<&str>,
-    registry: &CommandRegistry,
+    predicate: Option<&'a str>,
+    registry: &'a CommandRegistry,
     config: LexerConfig,
+    source_owner: Option<
+        &'a tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+    >,
+}
+
+fn find_command_at_inner(
+    ctx: &FindCtx<'_>,
+    region: &str,
+    offset: u32,
     depth: u32,
 ) -> Option<SegmentedCommand> {
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return None;
     }
-    for cmd in segment_commands_with_offset_and_config(source, 0, config.at_depth(depth)) {
-        if cursor < cmd.span.start() {
+    for cmd in segment_commands_with_offset_and_config(region, offset, ctx.config.at_depth(depth)) {
+        if ctx.cursor < cmd.span.start() {
             continue;
         }
         let (cmd_start, cmd_end) =
-            configured_command_span_offsets(source, &cmd, config.at_depth(depth))?;
-        if cursor < cmd_start || cursor > cmd_end {
+            configured_command_span_offsets(ctx.full, &cmd, ctx.config.at_depth(depth))?;
+        if ctx.cursor < cmd_start || ctx.cursor > cmd_end {
             continue;
         }
-        // Recurse into body arguments first — the innermost match wins.
-        for body in body_words(source, &cmd, registry, config.at_depth(depth)) {
-            if let Some(inner) = find_command_at_inner(
-                &source[body.inner_start as usize..body.inner_end as usize],
-                cursor.saturating_sub(body.inner_start),
-                predicate,
-                registry,
-                config,
-                depth + 1,
-            ) {
-                // Relocate the inner command's spans back into `source`.
-                return Some(inner.shifted_by(body.inner_start));
+        let selected = ctx.source_owner.and_then(|owner| owner.words(&cmd));
+        let bodies = ctx.source_owner.map_or_else(
+            || body_words(ctx.full, &cmd, ctx.registry, ctx.config.at_depth(depth)),
+            |owner| body_words_with_owner(ctx.full, &cmd, owner),
+        );
+        for body in bodies {
+            let body_slice = ctx
+                .full
+                .get(body.inner_start as usize..body.inner_end as usize)?;
+            if let Some(inner) = find_command_at_inner(ctx, body_slice, body.inner_start, depth + 1)
+            {
+                return Some(inner);
             }
         }
-        if predicate.is_none_or(|name| cmd.name() == name) {
+        if ctx.predicate.is_none_or(|name| {
+            selected
+                .as_ref()
+                .map_or_else(|| cmd.name() == name, |words| words.command() == name)
+        }) {
             return Some(cmd);
         }
     }
@@ -1052,53 +1088,139 @@ struct BodyWord {
     inner_end: u32,
 }
 
-/// Yield configured lexical body ranges for the explicit standalone walks.
-/// Registry roles select the original braced word; its shared content extent
-/// supplies the script bytes. A lambda uses the same word's selected list
-/// grammar and only its braced body element, without decoding new edit offsets.
-/// These ranges supply no analysis, invocation, entered frame or edit authority.
+/// Retain the actual Registry profile and caller's full configuration once.
+/// This is a standalone source interpretation, not an analysed runtime world.
+fn standalone_source_registry_context(
+    source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext> {
+    let profile = registry.profile()?;
+    let context = crate::context_for_dialect_profile(profile)
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context),
+        config,
+    );
+    Some(
+        tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
+            source, input,
+        ),
+    )
+}
+
+/// Standalone lexical helper; a profileless Registry supplies conditional roles.
 fn body_words(
     source: &str,
     cmd: &SegmentedCommand,
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Vec<BodyWord> {
-    let name = cmd.name();
-    if name.is_empty() {
+    standalone_source_registry_context(source, registry, config).map_or_else(
+        || body_words_with_registry_schema(source, cmd, registry, config),
+        |owner| body_words_with_owner(source, cmd, &owner),
+    )
+}
+
+fn body_words_with_owner(
+    source: &str,
+    cmd: &SegmentedCommand,
+    owner: &tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext,
+) -> Vec<BodyWord> {
+    let Some(words) = owner.words(cmd) else {
+        return Vec::new();
+    };
+    let context = owner.editing_input().context_registry();
+    let Some(Some(roles)) = words.with_source_schema(&context, |schema| schema.arg_roles()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (argument, role) in roles {
+        let Some(word) = words
+            .operands()
+            .get(argument)
+            .and_then(Option::as_ref)
+            .and_then(|operand| operand.word())
+        else {
+            continue;
+        };
+        if word.image().bytes() != source.as_bytes() {
+            continue;
+        }
+        push_role_body_word(&mut out, word, role);
+    }
+    out
+}
+
+fn body_words_with_registry_schema(
+    source: &str,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Vec<BodyWord> {
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        cmd,
+    );
+    if !tokens.original_words_match_argv_text() {
         return Vec::new();
     }
     let Some(words) = configured_command_words(source, cmd, config) else {
         return Vec::new();
     };
-    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    let Some(head) = words
+        .first()
+        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+        .and_then(|value| String::from_utf8(value).ok())
+    else {
+        return Vec::new();
+    };
+    let arguments = tokens
+        .words()
+        .iter()
+        .skip(1)
+        .map(tcl_compiler::registry_invocation::invocation_word)
+        .collect::<Vec<_>>();
+    let Some(roles) = registry.arg_role_assignments_words(
+        &head,
+        tcl_registry::InvocationArguments::structured(&arguments),
+        &[ArgRole::Body, ArgRole::LambdaLiteral],
+    ) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    for idx in registry.arg_indices_for_role(name, &args, ArgRole::Body) {
-        let Some(word) = words.get(idx + 1) else {
+    for (argument, role) in roles {
+        let Some(word) = words.get(argument + 1) else {
             continue;
         };
-        if word.group().kind != tcl_lexer::WordKind::Braced || word.group().expand {
-            continue;
+        push_role_body_word(&mut out, word, role);
+    }
+    out
+}
+
+fn push_role_body_word(out: &mut Vec<BodyWord>, word: &tcl_lexer::NativeWord, role: ArgRole) {
+    if word.group().expand {
+        return;
+    }
+    if role == ArgRole::Body {
+        if word.group().kind != tcl_lexer::WordKind::Braced {
+            return;
         }
         let Ok(content) = word.content_span() else {
-            continue;
+            return;
         };
-        push_body_word(&mut out, content.start(), content.end());
-    }
-    for idx in registry.arg_indices_for_role(name, &args, ArgRole::LambdaLiteral) {
-        let Some(word) = words.get(idx + 1) else {
-            continue;
-        };
-        if word.group().expand {
-            continue;
-        }
+        push_body_word(out, content.start(), content.end());
+    } else if role == ArgRole::LambdaLiteral {
         let Some(body) = tcl_compiler::lambda_literal::split_original_lambda_literal(word)
             .and_then(|elements| elements.braced_body())
         else {
-            continue;
+            return;
         };
-        push_body_word(&mut out, body.start(), body.end());
+        push_body_word(out, body.start(), body.end());
     }
-    out
 }
 
 /// Record a descendable interior range, skipping an empty one (nothing to
@@ -1646,6 +1768,49 @@ mod standalone_original_presentation_tests {
             let mut changed_values = command.clone();
             changed_values.texts[0] = "dummy".into();
             assert!(configured_command_words(source, &changed_values, config).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod standalone_original_body_role_tests {
+    use super::*;
+
+    #[test]
+    fn braced_heads_retain_absolute_original_body_geometry() {
+        let registry = test_registry();
+        let source = "{proc} p {} {{if} 1 {set x 1}}";
+        let cursor = u32::try_from(source.find("set x").unwrap()).unwrap();
+        let command = find_command_at(
+            source,
+            cursor,
+            Some("set"),
+            &registry,
+            LexerConfig::default(),
+        )
+        .expect("nested command through actual braced heads");
+        assert_eq!(command.name(), "set");
+        assert_eq!(command.span.start(), cursor);
+    }
+
+    #[test]
+    fn profileless_alias_and_disagreeing_numeric_roles_stay_unavailable() {
+        let registry = test_registry();
+        for source in [
+            "interp alias {} alias_if {} if; alias_if 1 {set x 1}",
+            "after 0d5 {set x 1}",
+        ] {
+            let cursor = u32::try_from(source.find("set x").unwrap()).unwrap();
+            assert!(
+                find_command_at(
+                    source,
+                    cursor,
+                    Some("set"),
+                    &registry,
+                    LexerConfig::default()
+                )
+                .is_none()
+            );
         }
     }
 }

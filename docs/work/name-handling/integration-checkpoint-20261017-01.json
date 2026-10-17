@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-17T09:25:01.521073+00:00",
+  "status": "REVIEWED_SOURCE_INTEGRATED_BUILD_RUNNING",
+  "base": "c8879de56",
+  "baseline_units": [
+    "lsp-context-action-logical-command-fallback",
+    "lsp.validation.15.02.fn0",
+    "lsp.validation.15.02.fn1",
+    "lsp.validation.15.03.fn0",
+    "lsp.validation.15.03.fn1",
+    "lsp-minifier-command-alias-construction",
+    "lsp-minifier-argument-alias-source-phases",
+    "lsp-refactor-standalone-lexical-body-roles"
+  ],
+  "baseline_delta": 8,
+  "lsp_integrated": 237,
+  "lsp_without_integration": 88,
+  "lsp_semantic_integrated": 120,
+  "lsp_validation_integrated": 115,
+  "lsp_documentation_integrated": 2,
+  "verified_complete": 0,
+  "source_files": 12,
+  "causal_repair": "Four-file retained Logical word/definition repair extends existing integrated purposes; no extra count.",
+  "reviews": "Fresh independent source peers for focused-four, minifier, refactor, diagnostic source selection; original provider4 source packet and peer recovered from committed capsule and actual beforeimages verified.",
+  "build": "Five ordinary libraries compiling with Rust1.99.1, one job, debug0; no execution result yet.",
+  "fresh_base_check": "cargo check --all-targets failed E0275 in existing smoke integration target: compiler requests recursion_limit256; raw unchanged-base log retained outside Main. Unused-import/dead-code/must-use warnings also remain.",
+  "providers": "Exact5 C Tcl references rebuilt via repository owner; Jim pinned provider rebuilt, upstream HEAD still5bac7c99ad65864c87da513e22e2f01703fa4e03. Setup does not establish naming semantics.",
+  "captures": "/workspace/naming-work/integration-01 and /workspace/naming-work/logs; no old executable reused.",
+  "limits": "Runtime/VM/dedicated BIG-IP deferred; minifier/refactor partial scopes explicitly retained. Other outside-Main candidates are uncounted. Required gates not green; no PR or issue closure."
+}

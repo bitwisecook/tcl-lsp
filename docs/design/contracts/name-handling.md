@@ -2478,3 +2478,25 @@ directory/discovery census.
 Unretained include, package-source and extension-artefact input phases withhold
 this setup receipt. Their existing ordinary loading remains available; a
 successful load alone cannot donate saved-input coverage to this purpose.
+
+
+### Original source phases for aggressive alias authoring
+
+The `lsp-minifier-command-alias-construction` and
+`lsp-minifier-argument-alias-source-phases` consumers borrow the existing
+`lexical_metadata::command_census`: current immutable source, complete resolved
+input/configuration, retained Realm and shared source syntax/body phases.
+Candidate edits require original whole bare, nonexpanded words whose static
+Unicode value equals their complete written spelling. Report names/lengths
+cannot select edits, and inert data is not relexed as script. Observed partial
+candidates grant neither complete collision coverage nor absence.
+
+Configured Syntax literal and scalar-reference constructors own emitted
+assignment/read spelling; compression compares actual emitted byte lengths.
+Selected source-schema byte-compilation traits are a compression heuristic;
+unknown schema remains unknown under the existing explicit Logical
+behavior-changing authoring policy. These syntax facts supply no installed
+handler, runtime result/effect, movement permission, insertion/store/frame
+closure or Native identity. Native alias-insertion refusals remain independent.
+Collision gaps, clause-keyword exclusion and unavailable original/source phases
+remain bounded debt; this tranche does not close runtime alias obligations.

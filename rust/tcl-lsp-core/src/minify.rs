@@ -741,16 +741,9 @@ fn lexical_aggressive(
     let _unresolved_collision_debt = &live_names.gaps;
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
     claimed_names.extend(live_names.names.iter().cloned());
-    let (renamed, cmd_aliases) = alias_repeated_commands(
-        &renamed,
-        dialect,
-        &mut claimed_names,
-        registry,
-        input.lexer_config(),
-    );
+    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, input, &mut claimed_names);
     symbol_map.command_aliases = cmd_aliases;
-    let (renamed, arg_aliases) =
-        alias_repeated_arguments(&renamed, dialect, &mut claimed_names, input.lexer_config());
+    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, input, &mut claimed_names);
     symbol_map.argument_aliases = arg_aliases;
     let (renamed, str_aliases) = alias_string_literals(&renamed, input, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
@@ -1857,6 +1850,104 @@ fn collect_live_names(
     LiveNameInventory { names: out, gaps }
 }
 
+/// Configured syntax only; insertion, store, frame and dispatch obligations
+/// remain the separate explicit aggressive-authoring policy, never Native grants.
+struct AuthoredAliasSpelling {
+    assignment: String,
+    reference: String,
+}
+
+fn authored_alias_spelling(
+    alias: &str,
+    value: &str,
+    config: LexerConfig,
+) -> Option<AuthoredAliasSpelling> {
+    let command = tcl_syntax::word_rules::lexical_unicode_source_word("set", config)?;
+    let target = tcl_syntax::word_rules::lexical_unicode_source_word(alias, config)?;
+    let literal = tcl_syntax::word_rules::lexical_unicode_source_word(value, config)?;
+    let reference = tcl_syntax::naming::scalar_source_reference(alias, config, false)?;
+    Some(AuthoredAliasSpelling {
+        assignment: format!("{command} {target} {literal}\n"),
+        reference,
+    })
+}
+
+#[derive(Clone, Copy)]
+enum AliasWordPurpose {
+    CommandHead,
+    Argument,
+}
+
+/// Reborrow original complete words from the existing configured source-phase
+/// owner. Observed partial candidates provide no absence or complete inventory.
+fn source_alias_uses(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    purpose: AliasWordPurpose,
+) -> (Vec<String>, HashMap<String, Vec<usize>>) {
+    let mut order = Vec::new();
+    let mut uses = HashMap::<String, Vec<usize>>::new();
+    let analysis = original::analysis_with_input(source, input);
+    let Some(identities) = analysis.retained_command_realm() else {
+        return (order, uses);
+    };
+    let context = input.context_registry();
+    let env = MinifyEnv {
+        original_source: source,
+        analysis: &analysis,
+        input,
+        dialect: input.unit_profile(),
+        config: input.lexer_config(),
+        registry: context.commands(),
+        context: &context,
+        identities,
+    };
+    let Some(census) = lexical_metadata::command_census(source, env) else {
+        return (order, uses);
+    };
+    let mut seen = HashSet::new();
+    for command in census.observed_commands() {
+        // Selected descriptor compression heuristic, not nominal lookup.
+        // Unavailable metadata is unknown; unknown written commands retain the
+        // existing explicit behavior-changing Logical authoring policy.
+        let known_byte_compiled = matches!(purpose, AliasWordPurpose::CommandHead)
+            && lexical_metadata::with_command_schema(env, command, |schema| {
+                schema.traits.contains(Traits::BYTE_COMPILED)
+            }) == Some(true);
+        if known_byte_compiled {
+            continue;
+        }
+        for (ordinal, word) in command.words.iter().enumerate() {
+            if matches!(purpose, AliasWordPurpose::CommandHead) != (ordinal == 0)
+                || word.group().expand
+                || word.group().kind != tcl_lexer::WordKind::Bare
+            {
+                continue;
+            }
+            let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+            else {
+                continue;
+            };
+            let span = word.word_span();
+            if value.len() < 3
+                || source.get(span.as_range()) != Some(value.as_str())
+                || (matches!(purpose, AliasWordPurpose::Argument) && is_clause_keyword(&value))
+                || !seen.insert((span.start(), span.end()))
+            {
+                continue;
+            }
+            uses.entry(value.clone())
+                .or_insert_with(|| {
+                    order.push(value);
+                    Vec::new()
+                })
+                .push(span.start() as usize);
+        }
+    }
+    (order, uses)
+}
+
 /// Shared cost-benefit + apply for command / argument aliasing:
 /// each name used ≥ 2 times becomes `$alias` with a `set alias name`
 /// preamble when that saves bytes.  `used` accumulates claimed alias
@@ -1882,7 +1973,7 @@ fn alias_by_uses(
         })
     });
     let mut names = AuthoredCompactNameSequence::new(config);
-    let mut aliases: Vec<(String, String)> = Vec::new();
+    let mut aliases: Vec<(String, String, AuthoredAliasSpelling)> = Vec::new();
     for name in &cands {
         let count = uses[name].len();
         if count < 2 {
@@ -1892,14 +1983,23 @@ fn alias_by_uses(
             continue;
         };
         let alias = alias.into_name();
+        let Some(spelling) = authored_alias_spelling(&alias, name, config) else {
+            continue;
+        };
+        if uses[name].iter().any(|off| {
+            off.checked_add(name.len())
+                .and_then(|end| source.get(*off..end))
+                != Some(name.as_str())
+        }) {
+            continue;
+        }
         let original_cost = count * name.len();
-        let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
-        let aliased_cost = preamble_cost + count * (alias.len() + 1);
+        let aliased_cost = spelling.assignment.len() + count * spelling.reference.len();
         if aliased_cost >= original_cost {
             continue;
         }
         claimed.insert(alias.clone());
-        aliases.push((name.clone(), alias));
+        aliases.push((name.clone(), alias, spelling));
     }
     if aliases.is_empty() {
         return (source.to_owned(), BTreeMap::new());
@@ -1907,10 +2007,10 @@ fn alias_by_uses(
     let mut edits: Vec<Edit> = Vec::new();
     let mut preamble = String::new();
     let mut map = BTreeMap::new();
-    for (name, alias) in &aliases {
-        let _ = writeln!(preamble, "set {alias} {name}");
+    for (name, alias, spelling) in &aliases {
+        preamble.push_str(&spelling.assignment);
         for &off in &uses[name] {
-            edits.push((off, name.len(), format!("${alias}")));
+            edits.push((off, name.len(), spelling.reference.clone()));
         }
         map.insert(name.clone(), alias.clone());
     }
@@ -1922,27 +2022,11 @@ fn alias_by_uses(
 /// three aliasing passes.
 fn alias_repeated_commands(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
-    registry: &CommandRegistry,
-    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
-    let analysis = original::analysis_for_profile(source, dialect, registry);
-    let mut order: Vec<String> = Vec::new();
-    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
-    for inv in &analysis.command_invocations {
-        let name = &inv.name;
-        if inv.indirect || name.len() <= 2 || registry.is_byte_compiled(name) {
-            continue;
-        }
-        uses.entry(name.clone())
-            .or_insert_with(|| {
-                order.push(name.clone());
-                Vec::new()
-            })
-            .push(inv.range.start() as usize);
-    }
-    alias_by_uses(source, &order, &uses, claimed, config)
+    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::CommandHead);
+    alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
 }
 
 /// Emit unique-prefix keyword abbreviations, after the aliasing passes.
@@ -1998,85 +2082,11 @@ fn abbreviate_keywords(
 /// aliasing pass.
 fn alias_repeated_arguments(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
     claimed: &mut HashSet<String>,
-    config: LexerConfig,
 ) -> (String, BTreeMap<String, String>) {
-    let mut order: Vec<String> = Vec::new();
-    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
-    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
-    while let Some((text, base)) = stack.pop() {
-        let sm = SourceMap::new(&text);
-        let Ok(tokens) =
-            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
-        else {
-            continue;
-        };
-        let mut is_command_word = true;
-        let mut in_quoted = false;
-        for tok in &tokens {
-            match tok.kind {
-                TokenType::Eof => break,
-                TokenType::Eol => {
-                    is_command_word = true;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Sep => {
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Str => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    in_quoted = false;
-                    continue;
-                }
-                TokenType::Cmd => {
-                    let inner = sm.token_text(*tok);
-                    if inner.len() >= 3 {
-                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
-                    }
-                    is_command_word = false;
-                    continue;
-                }
-                _ => {}
-            }
-            if is_command_word {
-                is_command_word = false;
-                continue;
-            }
-            if tok.kind != TokenType::Esc {
-                in_quoted = false;
-                continue;
-            }
-            let abs_off = (base + tok.span.start()) as usize;
-            if source.as_bytes().get(abs_off) == Some(&b'"') {
-                in_quoted = true;
-            }
-            if in_quoted {
-                continue;
-            }
-            let val = sm.token_text(*tok);
-            if val.len() < 3
-                || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
-                || is_clause_keyword(val)
-            {
-                continue;
-            }
-            uses.entry(val.to_owned())
-                .or_insert_with(|| {
-                    order.push(val.to_owned());
-                    Vec::new()
-                })
-                .push(abs_off);
-        }
-    }
-    alias_by_uses(source, &order, &uses, claimed, config)
+    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
+    alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
 }
 
 /// Build a suffix array for `text` (naive sort of byte suffixes).
@@ -5948,5 +5958,90 @@ mod authored_compact_candidate_tests {
             tcl_syntax::naming::scalar_source_reference("c", config, false).as_deref(),
             Some("$c")
         );
+    }
+}
+
+#[cfg(test)]
+mod original_alias_phase_tests {
+    use super::*;
+
+    #[test]
+    fn alias_inventory_keeps_inert_data_out_of_selected_nested_phases() {
+        let source = "set data {foo --verylongflag --verylongflag}\nproc p {} {foo --verylongflag;foo --verylongflag}\nputs [foo --verylongflag]\n";
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &registry,
+        );
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let (_, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
+        assert_eq!(uses["--verylongflag"].len(), 3);
+        assert!(
+            uses["--verylongflag"]
+                .iter()
+                .all(|off| *off > source.find("proc p").unwrap())
+        );
+        let (rewritten, aliases) = alias_repeated_arguments(source, input, &mut HashSet::new());
+        assert!(aliases.contains_key("--verylongflag"));
+        assert!(rewritten.contains("{foo --verylongflag --verylongflag}"));
+    }
+
+    #[test]
+    fn alias_heads_retain_whole_bare_geometry_and_native_refusal() {
+        let source =
+            "mylongcommand x\n{mylongcommand} x\n\"mylongcommand\" x\nset x 1\nset y 2\nset z 3\n";
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &registry,
+        );
+        let (_, uses) = source_alias_uses(
+            source,
+            analysis.resolved_input.as_ref().unwrap(),
+            AliasWordPurpose::CommandHead,
+        );
+        assert_eq!(uses["mylongcommand"], vec![0]);
+        assert!(!uses.contains_key("set"));
+        let native = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            source_alias_uses(
+                source,
+                native.resolved_input.as_ref().unwrap(),
+                AliasWordPurpose::CommandHead
+            )
+            .1
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn alias_source_constructor_preserves_literal_data_and_scalar_read() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let value = "literal;set victim [danger] $read\\tail";
+        let spelling = authored_alias_spelling("a", value, config).unwrap();
+        let image = tcl_lexer::SourceImage::document(&spelling.assignment);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, spelling.assignment.len() as u32),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].words.len(), 3);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_unicode_value(&plan.commands[0].words[2])
+                .as_deref(),
+            Some(value.as_bytes())
+        );
+        let reference = tcl_lexer::scan_var_ref(spelling.reference.as_bytes(), 0, config)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reference.next, spelling.reference.len());
+        assert_eq!(reference.name, b"a");
+        assert!(reference.index.is_none());
+        assert!(authored_alias_spelling("bad(name)", value, config).is_none());
     }
 }

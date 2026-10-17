@@ -116,6 +116,30 @@ impl OriginalLogicalVariableWords {
         self.matches_source(image, input) && self.original.as_ref() == original
     }
 
+    /// Positive geometry from this retained whole vector and source scope.
+    /// This supplies no handler selection, body entry or complete census.
+    pub(super) fn original_word_at_span(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+        span: tcl_lexer::Span,
+    ) -> Option<(NativeWord, u32)> {
+        self.matches_source(image, input).then_some(())?;
+        let mut words = self.original.iter().filter(|word| {
+            word.span() == span
+                || word.content_span().ok() == Some(span)
+                || word
+                    .tokens()
+                    .first()
+                    .is_some_and(|token| token.span == span)
+        });
+        let word = words.next()?;
+        words
+            .next()
+            .is_none()
+            .then_some((word.clone(), self.original.first()?.span().start()))
+    }
+
     pub(super) fn document_words(
         &self,
         image: &tcl_lexer::SourceImage,

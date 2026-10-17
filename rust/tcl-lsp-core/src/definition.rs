@@ -560,6 +560,18 @@ fn positioned_definition_target(
     line_index: &LineIndex,
     cursor_offset: u32,
 ) -> Option<Vec<LspRange>> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let call = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(
+            source, analysis, cursor_offset,
+        )?;
+        return Some(call.declaration(analysis).map_or_else(Vec::new, |header| {
+            vec![span_to_range(
+                source,
+                line_index,
+                header.metadata().name_span,
+            )]
+        }));
+    }
     let reference = invocation_reference_at(analysis, cursor_offset)?
         .resolved_command_reference
         .as_ref()?;

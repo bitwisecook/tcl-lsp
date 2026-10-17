@@ -2353,24 +2353,14 @@ fn references_include_a_const_cmd_dispatch_site_m7() {
     );
 }
 
-/// Find a tclsh to execute transformed rename output under:
-/// `TCL_LSP_TCLSH`, then common `PATH` names (mirrors
-/// `command_resolution_conformance`).  `None` skips the execution leg.
-fn find_tclsh() -> Option<std::path::PathBuf> {
-    if let Ok(explicit) = std::env::var("TCL_LSP_TCLSH") {
-        let p = std::path::PathBuf::from(explicit);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    for name in ["tclsh9.0", "tclsh8.6", "tclsh"] {
-        if let Ok(out) = std::process::Command::new(name).arg("--version").output()
-            && (out.status.success() || !out.stderr.is_empty() || !out.stdout.is_empty())
-        {
-            return Some(std::path::PathBuf::from(name));
-        }
-    }
-    None
+/// Select a validated Tcl 9.0 or 8.6 oracle for transformed rename output.
+/// `None` skips the execution leg when neither optional release is available.
+fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
+    // Ask the shared owner about both preferred releases before choosing, so
+    // a configured required lane cannot be hidden by the other interpreter.
+    let tcl_9_0 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0);
+    let tcl_8_6 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6);
+    tcl_9_0.or(tcl_8_6)
 }
 
 /// Apply line-based [`lsp_core::rename::TextEdit`]s to `src`.
@@ -2430,35 +2420,23 @@ fn rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945() {
     // Execute the transformed output under a real Tcl — the renamed script
     // must still dispatch (this is exactly what the old edit set broke).
     if let Some(tclsh) = find_tclsh() {
-        use std::io::Write;
-        let mut child = std::process::Command::new(&tclsh)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .expect("spawn tclsh");
         let script = format!("{renamed_src}puts [$cmd]\n");
-        child
-            .stdin
-            .as_mut()
-            .expect("tclsh stdin")
-            .write_all(script.as_bytes())
-            .expect("write script");
-        let out = child.wait_with_output().expect("tclsh run");
+        let outcome = tcl_test_support::run_script(&tclsh.path, script.as_bytes())
+            .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
         assert!(
-            out.status.success(),
+            outcome.success(),
             "renamed output must execute cleanly under {}:\n{}\nstderr: {}",
-            tclsh.display(),
+            tclsh.path.display(),
             script,
-            String::from_utf8_lossy(&out.stderr),
+            String::from_utf8_lossy(&outcome.stderr),
         );
         assert_eq!(
-            String::from_utf8_lossy(&out.stdout).trim(),
+            String::from_utf8_lossy(&outcome.stdout).trim(),
             "hi",
             "the dispatch must still reach the renamed proc",
         );
     } else {
-        eprintln!("skipping tclsh execution leg: no tclsh on PATH (set TCL_LSP_TCLSH)");
+        eprintln!("skipping tclsh execution leg: no pinned Tcl 9.0/8.6 oracle is available");
     }
 }
 

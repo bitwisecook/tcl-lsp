@@ -31,23 +31,14 @@ use serde_json::Value;
 use crate::common::helpers::{hover_text, locations, rename_edits, start_lines};
 use crate::common::{Lsp, unique_uri};
 
-/// Find a tclsh to execute transformed rename output under; `None` skips
-/// the execution leg (mirrors `command_resolution_conformance`).
-fn find_tclsh() -> Option<std::path::PathBuf> {
-    if let Ok(explicit) = std::env::var("TCL_LSP_TCLSH") {
-        let p = std::path::PathBuf::from(explicit);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    for name in ["tclsh9.0", "tclsh8.6", "tclsh"] {
-        if let Ok(out) = std::process::Command::new(name).arg("--version").output()
-            && (out.status.success() || !out.stderr.is_empty() || !out.stdout.is_empty())
-        {
-            return Some(std::path::PathBuf::from(name));
-        }
-    }
-    None
+/// Select a validated Tcl 9.0 or 8.6 oracle for transformed rename output;
+/// `None` skips the execution leg when neither optional release is available.
+fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
+    // Ask the shared owner about both preferred releases before choosing, so
+    // a configured required lane cannot be hidden by the other interpreter.
+    let tcl_9_0 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0);
+    let tcl_8_6 = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6);
+    tcl_9_0.or(tcl_8_6)
 }
 
 /// Apply an LSP edit array (single-line edits) to `src`.
@@ -76,28 +67,16 @@ fn apply_lsp_edits(src: &str, edits: &[Value]) -> String {
 /// Run `script` under the discovered tclsh, returning trimmed stdout;
 /// panics on a non-zero exit.  `None` when no tclsh is installed.
 fn run_tclsh(script: &str) -> Option<String> {
-    use std::io::Write;
     let tclsh = find_tclsh()?;
-    let mut child = std::process::Command::new(&tclsh)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("spawn tclsh");
-    child
-        .stdin
-        .as_mut()
-        .expect("tclsh stdin")
-        .write_all(script.as_bytes())
-        .expect("write script");
-    let out = child.wait_with_output().expect("tclsh run");
+    let outcome = tcl_test_support::run_script(&tclsh.path, script.as_bytes())
+        .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
     assert!(
-        out.status.success(),
+        outcome.success(),
         "script must execute cleanly under {}:\n{script}\nstderr: {}",
-        tclsh.display(),
-        String::from_utf8_lossy(&out.stderr),
+        tclsh.path.display(),
+        String::from_utf8_lossy(&outcome.stderr),
     );
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    Some(String::from_utf8_lossy(&outcome.stdout).trim().to_string())
 }
 
 // Faults 1–2: flow-sensitive constant dispatch with provenance.
@@ -126,7 +105,7 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
     if let Some(out) = run_tclsh(&script) {
         assert_eq!(out, "hi", "the dispatch still reaches the renamed proc");
     } else {
-        eprintln!("skipping tclsh execution leg: no tclsh (set TCL_LSP_TCLSH)");
+        eprintln!("skipping tclsh execution leg: no pinned Tcl 9.0/8.6 oracle is available");
     }
 }
 
@@ -495,7 +474,7 @@ fn eval_of_a_list_computed_var_rewrites_the_defining_literal_and_executes_923_id
             "eval $cmdD still dispatches to the renamed proc"
         );
     } else {
-        eprintln!("skipping tclsh execution leg: no tclsh (set TCL_LSP_TCLSH)");
+        eprintln!("skipping tclsh execution leg: no pinned Tcl 9.0/8.6 oracle is available");
     }
 }
 
@@ -596,7 +575,7 @@ fn rename_rewrites_a_method_reached_through_a_var_headed_constructor_923_idx121(
             "the renamed method must still execute through the indirect dispatch"
         );
     } else {
-        eprintln!("skipping tclsh execution leg: no tclsh (set TCL_LSP_TCLSH)");
+        eprintln!("skipping tclsh execution leg: no pinned Tcl 9.0/8.6 oracle is available");
     }
 }
 

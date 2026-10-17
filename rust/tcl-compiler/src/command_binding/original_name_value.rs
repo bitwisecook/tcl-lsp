@@ -1934,8 +1934,10 @@ impl super::SourceCommandBindings {
             };
             if retained_config != config
                 || !words.iter().any(|word| {
-                    word.source().span.start() <= span.start()
-                        && span.end() <= word.source().span.end()
+                    word.original_written_span(origin.source_image().bytes())
+                        .is_some_and(|written| {
+                            written.start() <= span.start() && span.end() <= written.end()
+                        })
                 })
             {
                 continue;

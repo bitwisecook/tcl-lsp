@@ -4561,6 +4561,7 @@ dependencies = [
  "tcl-registry",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-version",
  "temp-env",
  "tokio",

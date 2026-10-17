@@ -17767,7 +17767,12 @@
       "required_change": [
         "After original source schema/argv owner refuses, fallback report HeadWords resolved String +available spec reconstructs SourceCommand with newly parsed whole words. Missing exact current schema/effective-origin proof cannot be supplied by name availability. Needs authentic Logical source action role/carrier, not a metadata label fallback."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance."
+      }
     },
     {
       "area": "lsp",
@@ -17995,7 +18000,13 @@
       "required_change": [
         "Replacements use report name.len, raw set {alias} {name} and $alias without actual original wholeword/value/origin source proof or shared literal/reference construction. Needs shared selected source binding and configured source constructors. Existing string-alias tranche does not migrate this pass."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance.",
+        "remaining": "Original source geometry and configured constructors adopted; insertion/frame/collision/dispatch transformation obligations remain."
+      }
     },
     {
       "area": "lsp",
@@ -18023,7 +18034,13 @@
       "required_change": [
         "Every braced Str treated as script regardless selected source role, allowing candidate offsets inside inert data. Uses local literal exclusion list and raw alias_by_uses source rendering. Needs genuine current source Body/Expr/argv owner and configured value/reference constructor; complete fragments/roles retained."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance.",
+        "remaining": "Shared configured source census replaces relexing inert Str/Cmd data; complete collision/insertion/frame obligations remain."
+      }
     },
     {
       "area": "lsp",
@@ -20424,7 +20441,13 @@
       "required_change": [
         "Role/head selection still uses representative cmd.name()/args without actual source schema/effective operand role receipt; quoted/escaped names and captured/aliased selection are not transported. Distinguish standalone lexical advice from stronger refactor callers, and use shared original schema purpose where a real source action depends on roles. Depth/unsupported bodies return partial positive inventory, not absence."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance.",
+        "remaining": "Actual full source owner and profileless Registry structured roles adopted; unsupported source/body roles remain unavailable."
+      }
     },
     {
       "area": "lsp",
@@ -66675,6 +66698,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance."
       }
     },
     {
@@ -66705,6 +66733,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance."
       }
     },
     {
@@ -66735,6 +66768,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance."
       }
     },
     {
@@ -66765,6 +66803,11 @@
       "links": {
         "source_annex": "lsp-audit-validation-boundary-units.json",
         "source_sha256": "251ada8c6340724a368bb76b4586099dbc9c5b789addb25be8c4edaae14b07de"
+      },
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "reviewed generic LSP integration01 successor of c8879de56",
+        "validation": "Independent bounded source review; actual ordinary five-library build running. Existing selectors/assertions preserved; no semantic or gate acceptance."
       }
     },
     {
@@ -132823,12 +132866,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T09:09:24.687763+00:00",
+    "utc": "2026-10-17T09:25:01.521073+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 363,
+    "implemented_pending_validation": 371,
     "verified_complete": 0,
-    "not_started": 1795,
+    "not_started": 1787,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -133081,13 +133124,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 62,
-      "implemented_pending_validation": 61,
+      "required": 64,
+      "implemented_pending_validation": 63,
       "not_integrated": 1,
       "verified_complete": 0
     },
     "effective_required_units": 2222,
-    "effective_implemented_pending_validation": 426,
+    "effective_implemented_pending_validation": 434,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -133257,8 +133300,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 327,
-    "partially_implemented_pending_validation": 36,
+    "fully_implemented_pending_validation": 332,
+    "partially_implemented_pending_validation": 39,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -134147,115 +134190,12 @@
       "conditional_comment": "e6c39377 actual retained CaseBodyOperands allcandidate syntax, unknown state retained; original strong inventory and232 unchanged"
     },
     "last_30_minute_report": {
-      "scheduled_utc": "2026-10-17T05:07:00Z",
-      "last_utc": "2026-10-17T05:07:19.942782+00:00",
-      "delivery": "Chat and repository only; external guide unchanged.",
-      "next_utc": "2026-10-17T05:37:00Z",
+      "last_utc": "2026-10-17T09:09:24.687763+00:00",
+      "next_utc": "2026-10-17T09:39:24.687763+00:00",
       "cadence_minutes": 30,
+      "delivery": "Chat and repository only; external guide unchanged.",
       "lsp_integrated_at_report": 229,
-      "lsp_required": 325,
-      "lsp_by_kind_integrated": {
-        "semantic": 116,
-        "validation": 111,
-        "documentation": 2
-      },
-      "lsp_without_integration": 96,
-      "gains_since_previous_report": {
-        "LSP": 0,
-        "effective": 0,
-        "reason": "Source/artifact freeze for actual current validation. Next packets source-reviewed outside main remain uncounted."
-      },
-      "baseline_integrated": 363,
-      "baseline_required": 2158,
-      "baseline_fullscope_pending": 327,
-      "baseline_partial": 36,
-      "baseline_without_integration": 1795,
-      "annex_integrated": 63,
-      "annex_required": 64,
-      "effective_integrated_at_report": 426,
-      "effective_required": 2222,
-      "effective_without_integration": 1796,
-      "verified": 0,
-      "actual_builds": {
-        "standard5": {
-          "status": "PASS",
-          "seconds": 367.722
-        },
-        "extra3libraries": {
-          "status": "PASS",
-          "seconds": 209.828
-        },
-        "xtaskBIN": {
-          "status": "PASS",
-          "seconds": 238.341
-        },
-        "source_inputs": 39100,
-        "admitted_paths": 205,
-        "actual_ELFs": 9,
-        "source_drift": 0
-      },
-      "actual_editor": {
-        "status": "PASS",
-        "inputs": 443,
-        "drift": 0,
-        "scope": "TypeScript/configuredformat/worker/Node+browserbundles/StudioWebtypecheck; actualhosts pending."
-      },
-      "actual_focused6": {
-        "counts": {
-          "FAIL": 5,
-          "PASS": 1
-        },
-        "harness_errors": [],
-        "completed_utc": "2026-10-17T04:57:51.847817+00:00",
-        "all39100_source_fiveELFs_provider_prepost_match": true,
-        "scope": "Five previous linked/Itcl/Logicaldefinition failures still fail. Old additional genuineglobalScope test passes. No efficacy claimed for failed causal repairs."
-      },
-      "actual_extra18": {
-        "counts": {
-          "PASS": 17,
-          "FAIL": 1
-        },
-        "harness_errors": [],
-        "completed_utc": "2026-10-17T05:05:11.002735+00:00",
-        "all39100_source_nineELFs_provider_prepost_match": true,
-        "retained_previous18_outcomes_unchanged": true,
-        "remaining": "SpecTcl genuine Native command-name protocol refusal; Runtime/VM deferred."
-      },
-      "current_standard1024": {
-        "status": "RUNNING",
-        "receipt": "/workspace/naming-validation/lsp-next-consumer-source-successor-v6-repair3/retained1024-results-invocation.json",
-        "started_utc": "2026-10-17T04:58:36.666924+00:00",
-        "completed_utc": null,
-        "logs_started": 244,
-        "scope": "Exact previous994 orderedprefix+30newcontrols; actualboundpeerCLEAR; originalsingleton/list/test guards180/30 retained. No partial log passcounts or finaloutcomes inferred."
-      },
-      "actual_full_proof_gate": {
-        "status": "FAIL",
-        "structural_errors": 2094,
-        "seconds": 344.996,
-        "source_inputs": 39100,
-        "checker_inputs": 73526,
-        "drift": 0,
-        "scope": "Original full checker, no inventory/evidence digest rewrite."
-      },
-      "actual_native_e2e": {
-        "source_inventory": 34,
-        "by_target": {
-          "e2e": 24,
-          "preview_tickets_e2e": 10
-        },
-        "changed_existing": 33,
-        "new": 1,
-        "source_peer": "CLEAR",
-        "template_peer": "CLEAR_V2",
-        "actual_build": "PREPARING_ROOT_BUILDER_AFTER_ACTUAL_NINE_ELF_BINDING_PEER_CLEAR",
-        "scope": "Earlier11count corrected from realgenericpacketinventory; dedicatedirulesexcluded. Two V6packagePath controls belongCore1024. Bothrealnative targets+freshserver stillowed."
-      },
-      "next_source": "Nine existingLSP purposes source-reviewed outside main: Workspace2, standaloneRefactor1, package6331, referencesdispatch1, originalTclproviderValidation4. None integrated/counted. Actualfive-failure causal repair sourcecandidate and Nativeclass revision-retag repair require peer; orphan no-wake/census premise conflict remainsHOLD. Proofindex metadata source-only candidate held for canonicalowner/binding correction.",
-      "deferred_scope": "Runtime/VM and dedicated BIGIP/iRules/ILX migrations and suites deferred. Uncovered BIGIP Tcl8.4 assumption only, not measuredNativeevidence.",
-      "storage": "Three obsolete priorNative buildexecutables losslessly archived216763581B; all member sizes/hashes verified before removing1412350808B loosecopies. Current9/source/providers unchanged. NoELFs/fullinputindexes addedGit.",
-      "required_gates": "Owner/proof/global/portable/generated/rust-check/prep-pr/nativeE2E/actualVSCode-browser-JBhosts not all green. NoPR/merge/#2286closure.",
-      "latest_push": "df1888908ceb7306e0e97ba3f875f5a9d1442efd"
+      "current_integration_checkpoint": 237
     },
     "source_geometry_successor": {
       "baseline_new": [
@@ -136000,6 +135940,36 @@
         "4888a7cc80c553b1afa22ef63dff17997dfb5ce0a600fd87ebb8e225d7de7d7b",
         "589a1185f46d9669ae44358a357aa1507f3423183801d5a30e33ea75f88261cd"
       ]
+    },
+    "current_generic_lsp_integration": {
+      "utc": "2026-10-17T09:25:01.521073+00:00",
+      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD_RUNNING",
+      "base": "c8879de56",
+      "baseline_units": [
+        "lsp-context-action-logical-command-fallback",
+        "lsp.validation.15.02.fn0",
+        "lsp.validation.15.02.fn1",
+        "lsp.validation.15.03.fn0",
+        "lsp.validation.15.03.fn1",
+        "lsp-minifier-command-alias-construction",
+        "lsp-minifier-argument-alias-source-phases",
+        "lsp-refactor-standalone-lexical-body-roles"
+      ],
+      "baseline_delta": 8,
+      "lsp_integrated": 237,
+      "lsp_without_integration": 88,
+      "lsp_semantic_integrated": 120,
+      "lsp_validation_integrated": 115,
+      "lsp_documentation_integrated": 2,
+      "verified_complete": 0,
+      "source_files": 12,
+      "causal_repair": "Four-file retained Logical word/definition repair extends existing integrated purposes; no extra count.",
+      "reviews": "Fresh independent source peers for focused-four, minifier, refactor, diagnostic source selection; original provider4 source packet and peer recovered from committed capsule and actual beforeimages verified.",
+      "build": "Five ordinary libraries compiling with Rust1.99.1, one job, debug0; no execution result yet.",
+      "fresh_base_check": "cargo check --all-targets failed E0275 in existing smoke integration target: compiler requests recursion_limit256; raw unchanged-base log retained outside Main. Unused-import/dead-code/must-use warnings also remain.",
+      "providers": "Exact5 C Tcl references rebuilt via repository owner; Jim pinned provider rebuilt, upstream HEAD still5bac7c99ad65864c87da513e22e2f01703fa4e03. Setup does not establish naming semantics.",
+      "captures": "/workspace/naming-work/integration-01 and /workspace/naming-work/logs; no old executable reused.",
+      "limits": "Runtime/VM/dedicated BIG-IP deferred; minifier/refactor partial scopes explicitly retained. Other outside-Main candidates are uncounted. Required gates not green; no PR or issue closure."
     }
   }
 }

@@ -217,106 +217,56 @@ pub(super) fn current_commands(
         return None;
     }
     let mut commands = BTreeMap::new();
-    if !analysis.allows_retained_logical_declaration_advice() {
-        use tcl_compiler::registry_invocation::InvocationWordOrigin;
-        let context = analysis.resolved_input.as_ref()?.context_registry();
-        let structure =
-            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
-        for segment in structure.commands {
-            let Some(selected) =
-                tcl_compiler::registry_invocation::source_structure::source_registry_words(
-                    source, analysis, &segment,
-                )
-            else {
-                continue;
-            };
-            // Hardening a separately issued sink/read needs its actual source
-            // command and whole words, not complete roles for every operand.
-            // Shared barriers, arity and written-origin checks remain intact.
-            if !selected.matches_source(&image, config) || !selected.matches_registry(registry)
-                || selected.origins().len() != segment.argv.len()
-                || selected.origins().iter().enumerate().any(|(index, origin)|
-                    !matches!(origin, InvocationWordOrigin::Written(written) if *written == index))
-                || selected.with_source_schema(&context, |schema|
-                    schema.argument_count_for_arity().is_some_and(|count|
-                        schema.semantics.arity.accepts(count))) != Some(true)
-            { continue; }
-            let Some(head) = selected.head_source().and_then(|operand| operand.word()) else {
-                continue;
-            };
-            let Some(arguments) = selected
-                .operands()
-                .iter()
-                .map(|operand| operand.as_ref()?.word().cloned())
-                .collect::<Option<Vec<_>>>()
-            else {
-                continue;
-            };
-            let mut words = Vec::with_capacity(arguments.len() + 1);
-            words.push(head.clone());
-            words.extend(arguments);
-            if words.iter().any(|word| {
-                word.group().expand || word.image() != &image || word.config() != config
-            }) {
-                continue;
-            }
-            let span = Span::new(head.span().start(), words.last()?.span().end());
-            commands.insert(
-                span.start(),
-                SourceCommand {
-                    canonical: selected.command().to_owned(),
-                    words,
-                    span,
-                },
-            );
+    use tcl_compiler::registry_invocation::InvocationWordOrigin;
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let structure =
+        crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
+    for segment in structure.commands {
+        let Some(selected) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, &segment,
+            )
+        else {
+            continue;
+        };
+        // Hardening a separately issued sink/read needs its actual source
+        // command and whole words, not complete roles for every operand.
+        // Shared barriers, arity and written-origin checks remain intact.
+        if !selected.matches_source(&image, config) || !selected.matches_registry(registry)
+            || selected.origins().len() != segment.argv.len()
+            || selected.origins().iter().enumerate().any(|(index, origin)|
+                !matches!(origin, InvocationWordOrigin::Written(written) if *written == index))
+            || selected.with_source_schema(&context, |schema|
+                schema.argument_count_for_arity().is_some_and(|count|
+                    schema.semantics.arity.accepts(count))) != Some(true)
+        { continue; }
+        let Some(head) = selected.head_source().and_then(|operand| operand.word()) else {
+            continue;
+        };
+        let Some(arguments) = selected
+            .operands()
+            .iter()
+            .map(|operand| operand.as_ref()?.word().cloned())
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
+        let mut words = Vec::with_capacity(arguments.len() + 1);
+        words.push(head.clone());
+        words.extend(arguments);
+        if words
+            .iter()
+            .any(|word| word.group().expand || word.image() != &image || word.config() != config)
+        {
+            continue;
         }
-    } else {
-        crate::executable_regions::visit_analysis_executable_commands(
-            source,
-            analysis,
-            &mut |segment, head, _| {
-                let selected = crate::original_invocation::selected_registry_words(
-                    source, analysis, segment, registry,
-                );
-                let canonical = if let Some(selected) = selected {
-                    use tcl_compiler::registry_invocation::InvocationWordOrigin;
-                    // An alias prefix or expanded operand has no simple insertion geometry.
-                    if selected.origins.iter().enumerate().any(|(index, origin)|
-                        !matches!(origin, InvocationWordOrigin::Written(written) if *written == index))
-                    { return false; }
-                    selected.command
-                } else if analysis.allows_retained_logical_declaration_advice()
-                    && !head.resolved.is_empty()
-                {
-                    let Some(spec) = super::source_action_spec(analysis, registry, head.resolved)
-                    else {
-                        return false;
-                    };
-                    spec.name.to_owned()
-                } else {
-                    return false;
-                };
-                let span = segment.execution_span(source);
-                let Ok(mut plan) = tcl_lexer::native_script_words_in(image.clone(), span, config)
-                else {
-                    return false;
-                };
-                if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
-                    return false;
-                }
-                let words = plan.commands.remove(0).words;
-                if words.iter().any(|word| word.group().expand) {
-                    return false;
-                }
-                commands.insert(
-                    span.start(),
-                    SourceCommand {
-                        canonical,
-                        words,
-                        span,
-                    },
-                );
-                false
+        let span = Span::new(head.span().start(), words.last()?.span().end());
+        commands.insert(
+            span.start(),
+            SourceCommand {
+                canonical: selected.command().to_owned(),
+                words,
+                span,
             },
         );
     }
@@ -962,6 +912,47 @@ mod tests {
                 commands.iter().any(|command| command.canonical == "dict"),
                 available,
                 "{actual}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_source_actions_keep_original_selection_when_reports_disagree() {
+        for source in ["dict create key value", "{dict} create key value"] {
+            let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let registry = analysis
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .shared_registry();
+            for invocation in &mut analysis.command_invocations {
+                invocation.name = "counterfactual".to_owned();
+            }
+            let commands = current_commands(source, &analysis, &registry).unwrap();
+            let command = commands
+                .iter()
+                .find(|command| command.canonical == "dict")
+                .expect("the retained source selection survives unrelated report labels");
+            assert_eq!(command.words.len(), 4);
+            assert_eq!(source_literal(&command.words[0]), Some("dict"));
+            assert!(
+                current_commands(&format!("{source}# changed"), &analysis, &registry).is_none()
+            );
+        }
+        for source in [
+            "proc dict {args} {}; dict create key value",
+            "rename dict {}; dict create key value",
+            "set command dict; $command create key value",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+            let registry = analysis.resolved_registry().unwrap();
+            assert!(
+                !current_commands(source, &analysis, registry)
+                    .unwrap()
+                    .iter()
+                    .any(|command| command.canonical == "dict"),
+                "{source}"
             );
         }
     }
