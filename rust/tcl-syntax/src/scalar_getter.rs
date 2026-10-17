@@ -145,7 +145,7 @@ impl NativeBooleanGetterValue {
 pub struct NativeScalarGetterTargetUnavailable;
 
 /// Checked public primitive layout supported by the retained 456 ABI windows.
-/// The initial recipe covers CHAR_BIT8, C int4 and C long8 only. It authenticates
+/// The initial recipe covers `CHAR_BIT8`, C int4 and C long8 only. It authenticates
 /// no original object, actual interpreter, handler or expression purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeScalarGetterTarget(());
@@ -170,7 +170,9 @@ impl NativeScalarGetterTarget {
 
     fn jim_boolean(self, value: i64) -> NativeBooleanGetterValue {
         // Pinned Jim_GetBoolean's cast retains the captured C int's low bits.
-        // This bounded recipe makes no claim for an unsupported C target.
+        // This bounded recipe makes no claim for an unsupported C target, so
+        // the checked target proof is consumed here.
+        let Self(()) = self;
         NativeBooleanGetterValue(number::native_int32_low_bits(value))
     }
 }
@@ -357,7 +359,7 @@ impl NativeScalarGetterProtocol {
         None
     }
 
-    /// Adopt the audited C8.4 TCL_WIDE_INT_IS_LONG library branch's strtol
+    /// Adopt the audited C8.4 `TCL_WIDE_INT_IS_LONG` library branch's strtol
     /// result. Its signed long narrows to actual C int before truth projection.
     /// None requires the independent strtod stage, not an integer parse failure.
     /// The target facts do not select a library build or authenticate a C call.
@@ -870,7 +872,8 @@ impl NativeScalarGetterProtocol {
                 Double,
                 CachedNumber(Number::Int(_) | Number::Big { .. }),
             )
-            | (Engine::Jim084, Double, CachedNumber(Number::Int(_) | Number::Big { .. })) => None,
+            | (Engine::Jim084, Double, CachedNumber(Number::Int(_) | Number::Big { .. }))
+            | (Engine::Jim084, Boolean, CachedNumber(Number::Int(_))) => None,
             (_, Wide, CachedNumber(Number::Int(value))) => {
                 Some(convert(None, Ok(NativeScalarGetterValue::Wide(*value))))
             }
@@ -894,7 +897,6 @@ impl NativeScalarGetterProtocol {
                     NativeBooleanGetterValue::normalized(*value),
                 )),
             )),
-            (Engine::Jim084, Boolean, CachedNumber(Number::Int(_))) => None,
             (Engine::Tcl(TclVersion::V8_4), Boolean, CachedNumber(number)) => {
                 let value = number_truth(number);
                 let mut conversion = convert(
@@ -1117,8 +1119,8 @@ impl NativeScalarGetterProtocol {
         )))
     }
 
-    /// Transfer an actually reached Jim GetWide conversion through its separate
-    /// public Long64 cast. Target layout establishes no GetWide call or object.
+    /// Transfer an actually reached Jim `GetWide` conversion through its separate
+    /// public Long64 cast. Target layout establishes no `GetWide` call or object.
     ///
     /// # Errors
     /// Refuses a foreign engine or unsupported Long target.

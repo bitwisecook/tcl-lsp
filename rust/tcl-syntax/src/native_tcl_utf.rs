@@ -205,7 +205,7 @@ impl NativeTclUtf {
         self.decode_unit_with(|index| bytes.get(index).copied(), previous)
     }
 
-    /// C86's TclUtfToUCS4 purpose joins a reached surrogate pair while
+    /// C86's `TclUtfToUCS4` purpose joins a reached surrogate pair while
     /// preserving the original byte width. Other releases are not admitted.
     #[must_use]
     pub fn decode_c86_ucs4(self, bytes: &[u8]) -> Option<TclUtfUnit> {

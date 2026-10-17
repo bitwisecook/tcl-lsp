@@ -29,7 +29,7 @@ pub enum VariableDestructionProtocol {
     ArrayLookupThenRootCallbacksThenMembers,
 }
 
-/// Selected C ArrayUnset member lookup after the original array callback.
+/// Selected C `ArrayUnset` member lookup after the original array callback.
 /// The whole-root operation separately relooks up its original name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeArrayUnsetMemberLookup {

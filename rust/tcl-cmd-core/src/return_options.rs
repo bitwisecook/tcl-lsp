@@ -131,8 +131,8 @@ impl ReturnOptionsProtocol {
             .map(|index| i32::try_from(index).expect("completion keyword index"))
     }
 
-    /// Select a native keyword's CString extent after its actual String getter.
-    /// This does not acquire a getter, inspect numbers or install a ReturnCode cache.
+    /// Select a native keyword's `CString` extent after its actual String getter.
+    /// This does not acquire a getter, inspect numbers or install a `ReturnCode` cache.
     #[must_use]
     pub fn native_named_completion_code(self, original: &[u8]) -> Option<i32> {
         self.named_completion_code(nul_prefix(original))

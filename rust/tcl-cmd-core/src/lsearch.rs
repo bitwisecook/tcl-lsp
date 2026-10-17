@@ -319,6 +319,180 @@ impl Opts {
     }
 }
 
+/// C8.4's `lsearch` option table, mapped onto the shared option ordinals.
+const C84_MAPPING: [usize; 14] = [
+    OPT_ALL,
+    OPT_ASCII,
+    OPT_DECREASING,
+    OPT_DICTIONARY,
+    OPT_EXACT,
+    OPT_GLOB,
+    OPT_INCREASING,
+    OPT_INLINE,
+    OPT_INTEGER,
+    OPT_NOT,
+    OPT_REAL,
+    OPT_REGEXP,
+    OPT_SORTED,
+    OPT_START,
+];
+static C84_NAMES: [&str; 14] = [
+    "-all",
+    "-ascii",
+    "-decreasing",
+    "-dictionary",
+    "-exact",
+    "-glob",
+    "-increasing",
+    "-inline",
+    "-integer",
+    "-not",
+    "-real",
+    "-regexp",
+    "-sorted",
+    "-start",
+];
+static C84: OptionTable<'static> = OptionTable::abbreviating("option", &C84_NAMES);
+/// C8.5's `lsearch` option table, mapped onto the shared option ordinals.
+const C85_MAPPING: [usize; 17] = [
+    OPT_ALL,
+    OPT_ASCII,
+    OPT_DECREASING,
+    OPT_DICTIONARY,
+    OPT_EXACT,
+    OPT_GLOB,
+    OPT_INCREASING,
+    OPT_INDEX,
+    OPT_INLINE,
+    OPT_INTEGER,
+    OPT_NOCASE,
+    OPT_NOT,
+    OPT_REAL,
+    OPT_REGEXP,
+    OPT_SORTED,
+    OPT_START,
+    OPT_SUBINDICES,
+];
+static C85_NAMES: [&str; 17] = [
+    "-all",
+    "-ascii",
+    "-decreasing",
+    "-dictionary",
+    "-exact",
+    "-glob",
+    "-increasing",
+    "-index",
+    "-inline",
+    "-integer",
+    "-nocase",
+    "-not",
+    "-real",
+    "-regexp",
+    "-sorted",
+    "-start",
+    "-subindices",
+];
+static C85: OptionTable<'static> = OptionTable::abbreviating("option", &C85_NAMES);
+/// C8.6's `lsearch` option table, mapped onto the shared option ordinals.
+const C86_MAPPING: [usize; 18] = [
+    OPT_ALL,
+    OPT_ASCII,
+    OPT_BISECT,
+    OPT_DECREASING,
+    OPT_DICTIONARY,
+    OPT_EXACT,
+    OPT_GLOB,
+    OPT_INCREASING,
+    OPT_INDEX,
+    OPT_INLINE,
+    OPT_INTEGER,
+    OPT_NOCASE,
+    OPT_NOT,
+    OPT_REAL,
+    OPT_REGEXP,
+    OPT_SORTED,
+    OPT_START,
+    OPT_SUBINDICES,
+];
+static C86_NAMES: [&str; 18] = [
+    "-all",
+    "-ascii",
+    "-bisect",
+    "-decreasing",
+    "-dictionary",
+    "-exact",
+    "-glob",
+    "-increasing",
+    "-index",
+    "-inline",
+    "-integer",
+    "-nocase",
+    "-not",
+    "-real",
+    "-regexp",
+    "-sorted",
+    "-start",
+    "-subindices",
+];
+static C86: OptionTable<'static> = OptionTable::abbreviating("option", &C86_NAMES);
+
+/// Select one option's shared ordinal through the selected release's table.
+fn select_option<O: NativeIndexOps>(ops: &mut O, arg: &O::Value) -> Result<usize, LsearchError> {
+    let (table, mapping): (&OptionTable<'static>, &[usize]) = match ops.index_c_version() {
+        Some(TclVersion::V8_4) => (&C84, &C84_MAPPING),
+        Some(TclVersion::V8_5) => (&C85, &C85_MAPPING),
+        Some(TclVersion::V8_6) => (&C86, &C86_MAPPING),
+        _ => {
+            return OPTIONS
+                .index_of_original(ops, arg)
+                .map_err(LsearchError::from_command);
+        }
+    };
+    let selected = table
+        .index_of_original(ops, arg)
+        .map_err(LsearchError::from_command)?;
+    Ok(mapping[selected])
+}
+
+/// The `-stride` group length, through the original primitive when present.
+fn parse_stride<O: NativeIndexOps>(ops: &mut O, arg: &O::Value) -> Result<usize, LsearchError> {
+    if let Some(integer) = index::original_list_stride(ops, arg, OptionCommand::Search)
+        .map_err(LsearchError::from_command)?
+    {
+        return usize::try_from(integer).map_err(|_| {
+            LsearchError::from_command(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original search stride extent",
+                )
+                .into(),
+            )
+        });
+    }
+    // Explicit neutral lexical route grants no native primitive/cache.
+    let sb = ops.as_bytes(arg);
+    match sort::parse_wide(&sb) {
+        Some(w) if w >= 1 => Ok(usize::try_from(w).unwrap_or(usize::MAX)),
+        Some(_) => Err(LsearchError::msg("stride length must be at least 1")),
+        None => Err(not_integer(&sb)),
+    }
+}
+
+/// The `-index` path, through the original C option path when present.
+fn parse_index_path<O: NativeIndexOps>(
+    ops: &mut O,
+    arg: &O::Value,
+) -> Result<PreparedPath, LsearchError> {
+    if let Some(path) = ops
+        .original_c_option_path(arg, OptionCommand::Search, true)
+        .map_err(LsearchError::from_command)?
+    {
+        return Ok(PreparedPath::original(path));
+    }
+    let path = split_index(&ops.as_bytes(arg))?;
+    validate_index_path(ops, &path)?;
+    Ok(PreparedPath::neutral(path))
+}
+
 fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Opts, LsearchError> {
     let n = args.len();
     let mut o = Opts::new();
@@ -326,142 +500,7 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
     let last_opt = n - 2; // first non-option index
     let mut i = 0;
     while i < last_opt {
-        let option = if ops.index_c_version() == Some(TclVersion::V8_4) {
-            const MAPPING: [usize; 14] = [
-                OPT_ALL,
-                OPT_ASCII,
-                OPT_DECREASING,
-                OPT_DICTIONARY,
-                OPT_EXACT,
-                OPT_GLOB,
-                OPT_INCREASING,
-                OPT_INLINE,
-                OPT_INTEGER,
-                OPT_NOT,
-                OPT_REAL,
-                OPT_REGEXP,
-                OPT_SORTED,
-                OPT_START,
-            ];
-            static NAMES: [&str; 14] = [
-                "-all",
-                "-ascii",
-                "-decreasing",
-                "-dictionary",
-                "-exact",
-                "-glob",
-                "-increasing",
-                "-inline",
-                "-integer",
-                "-not",
-                "-real",
-                "-regexp",
-                "-sorted",
-                "-start",
-            ];
-            static SELECTED: OptionTable<'static> = OptionTable::abbreviating("option", &NAMES);
-            MAPPING[SELECTED
-                .index_of_original(ops, &args[i])
-                .map_err(LsearchError::from_command)?]
-        } else if matches!(
-            ops.index_c_version(),
-            Some(TclVersion::V8_5 | TclVersion::V8_6)
-        ) {
-            let version = ops.index_c_version().expect("selected C release");
-            const C85_MAPPING: [usize; 17] = [
-                OPT_ALL,
-                OPT_ASCII,
-                OPT_DECREASING,
-                OPT_DICTIONARY,
-                OPT_EXACT,
-                OPT_GLOB,
-                OPT_INCREASING,
-                OPT_INDEX,
-                OPT_INLINE,
-                OPT_INTEGER,
-                OPT_NOCASE,
-                OPT_NOT,
-                OPT_REAL,
-                OPT_REGEXP,
-                OPT_SORTED,
-                OPT_START,
-                OPT_SUBINDICES,
-            ];
-            static C85_NAMES: [&str; 17] = [
-                "-all",
-                "-ascii",
-                "-decreasing",
-                "-dictionary",
-                "-exact",
-                "-glob",
-                "-increasing",
-                "-index",
-                "-inline",
-                "-integer",
-                "-nocase",
-                "-not",
-                "-real",
-                "-regexp",
-                "-sorted",
-                "-start",
-                "-subindices",
-            ];
-            const C86_MAPPING: [usize; 18] = [
-                OPT_ALL,
-                OPT_ASCII,
-                OPT_BISECT,
-                OPT_DECREASING,
-                OPT_DICTIONARY,
-                OPT_EXACT,
-                OPT_GLOB,
-                OPT_INCREASING,
-                OPT_INDEX,
-                OPT_INLINE,
-                OPT_INTEGER,
-                OPT_NOCASE,
-                OPT_NOT,
-                OPT_REAL,
-                OPT_REGEXP,
-                OPT_SORTED,
-                OPT_START,
-                OPT_SUBINDICES,
-            ];
-            static C86_NAMES: [&str; 18] = [
-                "-all",
-                "-ascii",
-                "-bisect",
-                "-decreasing",
-                "-dictionary",
-                "-exact",
-                "-glob",
-                "-increasing",
-                "-index",
-                "-inline",
-                "-integer",
-                "-nocase",
-                "-not",
-                "-real",
-                "-regexp",
-                "-sorted",
-                "-start",
-                "-subindices",
-            ];
-            static C85: OptionTable<'static> = OptionTable::abbreviating("option", &C85_NAMES);
-            static C86: OptionTable<'static> = OptionTable::abbreviating("option", &C86_NAMES);
-            if version == TclVersion::V8_5 {
-                C85_MAPPING[C85
-                    .index_of_original(ops, &args[i])
-                    .map_err(LsearchError::from_command)?]
-            } else {
-                C86_MAPPING[C86
-                    .index_of_original(ops, &args[i])
-                    .map_err(LsearchError::from_command)?]
-            }
-        } else {
-            OPTIONS
-                .index_of_original(ops, &args[i])
-                .map_err(LsearchError::from_command)?
-        };
+        let option = select_option(ops, &args[i])?;
         match option {
             OPT_ALL => o.all = true,
             OPT_ASCII => o.dtype = SortMode::Ascii,
@@ -495,28 +534,7 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
                         "\"-stride\" option must be followed by stride length",
                     ));
                 }
-                if let Some(integer) =
-                    index::original_list_stride(ops, &args[i + 1], OptionCommand::Search)
-                        .map_err(LsearchError::from_command)?
-                {
-                    o.group = usize::try_from(integer).map_err(|_| {
-                        LsearchError::from_command(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "original search stride extent",
-                            )
-                            .into(),
-                        )
-                    })?;
-                    i += 2;
-                    continue;
-                }
-                // Explicit neutral lexical route grants no native primitive/cache.
-                let sb = ops.as_bytes(&args[i + 1]);
-                match sort::parse_wide(&sb) {
-                    Some(w) if w >= 1 => o.group = usize::try_from(w).unwrap_or(usize::MAX),
-                    Some(_) => return Err(LsearchError::msg("stride length must be at least 1")),
-                    None => return Err(not_integer(&sb)),
-                }
+                o.group = parse_stride(ops, &args[i + 1])?;
                 i += 1;
             }
             OPT_INDEX => {
@@ -525,17 +543,7 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
                         "\"-index\" option must be followed by list index",
                     ));
                 }
-                o.index_path = match ops
-                    .original_c_option_path(&args[i + 1], OptionCommand::Search, true)
-                    .map_err(LsearchError::from_command)?
-                {
-                    Some(path) => PreparedPath::original(path),
-                    None => {
-                        let path = split_index(&ops.as_bytes(&args[i + 1]))?;
-                        validate_index_path(ops, &path)?;
-                        PreparedPath::neutral(path)
-                    }
-                };
+                o.index_path = parse_index_path(ops, &args[i + 1])?;
                 i += 1;
             }
             _ => unreachable!("the option table is closed"),
@@ -561,6 +569,48 @@ struct SearchInput<'a, V> {
     key_path: Path<'a>,
     pattern: Option<&'a [u8]>,
     number: Option<crate::native_list_numeric::NumericKey>,
+}
+
+/// Split `-stride` + `-index`: the leading index value picks the key element
+/// within each group; the rest of the path applies inside it.
+fn stride_key_path<'o, O: NativeIndexOps>(
+    ops: &mut O,
+    o: &'o Opts,
+) -> Result<(usize, Path<'o>), LsearchError> {
+    let key_path = o.index_path.path();
+    if o.group <= 1 || key_path.is_empty() {
+        return Ok((0, key_path));
+    }
+    match key_path.decode(ops, 0, o.group - 1).map(usize::try_from) {
+        Ok(Ok(g)) if g < o.group => Ok((g, key_path.tail())),
+        Err(error) if error.native_execution_refusal().is_some() => {
+            Err(LsearchError::from_command(error))
+        }
+        _ => Err(LsearchError::msg(
+            "when used with \"-stride\", the leading \"-index\" value must be within the group",
+        )),
+    }
+}
+
+/// The original numeric pattern key of an `-exact`/`-sorted` numeric search.
+fn search_number<O: NativeIndexOps>(
+    ops: &mut O,
+    o: &Opts,
+    pattern: &O::Value,
+) -> Result<Option<crate::native_list_numeric::NumericKey>, LsearchError> {
+    let numeric_kind = if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
+        match o.dtype {
+            SortMode::Integer => Some(index::ListNumericKind::Integer),
+            SortMode::Real => Some(index::ListNumericKind::Real),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    numeric_kind
+        .map(|kind| crate::native_list_numeric::number(ops, pattern, OptionCommand::Search, kind))
+        .transpose()
+        .map_err(LsearchError::from_command)
 }
 
 fn lsearch_with<O: NativeIndexOps, R>(
@@ -595,7 +645,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
 
         let elems = ops
             .index_list_elements(&args[n - 2])
-            .map_err(|e| LsearchError::from_command(e.into()))?;
+            .map_err(LsearchError::from_command)?;
         let listc = elems.len();
         if o.group > 1 && listc % o.group != 0 {
             return Err(LsearchError::msg(
@@ -603,26 +653,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
             ));
         }
 
-        // -stride + -index: the leading index value picks the key element within
-        // each group; the rest of the path applies inside it.
-        let mut group_offset = 0usize;
-        let mut key_path = o.index_path.path();
-        if o.group > 1 && !o.index_path.path().is_empty() {
-            match key_path.decode(ops, 0, o.group - 1) {
-                Ok(g) if g >= 0 && (g as usize) < o.group => {
-                    group_offset = usize::try_from(g).unwrap_or(0);
-                }
-                Err(error) if error.native_execution_refusal().is_some() => {
-                    return Err(LsearchError::from_command(error));
-                }
-                _ => {
-                    return Err(LsearchError::msg(
-                        "when used with \"-stride\", the leading \"-index\" value must be within the group",
-                    ));
-                }
-            }
-            key_path = key_path.tail();
-        }
+        let (group_offset, key_path) = stride_key_path(ops, &o)?;
 
         // Resolve -start (relative to listc, then clamped to a group boundary).
         let mut start = 0usize;
@@ -638,21 +669,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
             start = s - (s % o.group);
         }
 
-        let numeric_kind = if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
-            match o.dtype {
-                SortMode::Integer => Some(index::ListNumericKind::Integer),
-                SortMode::Real => Some(index::ListNumericKind::Real),
-                _ => None,
-            }
-        } else {
-            None
-        };
-        let number = numeric_kind
-            .map(|kind| {
-                crate::native_list_numeric::number(ops, &args[n - 1], OptionCommand::Search, kind)
-            })
-            .transpose()
-            .map_err(LsearchError::from_command)?;
+        let number = search_number(ops, &o, &args[n - 1])?;
         // Original numeric conversion can shimmer the input container itself.
         // The selected C command restores its actual List view after the pattern.
         let elems = if number.is_some() && ops.index_c_version().is_some() {
@@ -756,16 +773,7 @@ fn sorted_search<O: NativeIndexOps>(
     if o.bisect && index < 0 {
         index = lower;
     }
-    result_one(
-        ops,
-        original,
-        elems,
-        index,
-        o,
-        group_offset,
-        key_path,
-        listc,
-    )
+    result_one(ops, original, input, index)
 }
 
 fn linear_search<O: NativeIndexOps, R>(
@@ -825,27 +833,9 @@ fn linear_search<O: NativeIndexOps, R>(
         g += o.group;
     }
     if o.all {
-        return result_all(
-            ops,
-            original,
-            elems,
-            &matches,
-            o,
-            group_offset,
-            key_path,
-            listc,
-        );
+        return result_all(ops, original, input, &matches);
     }
-    result_one(
-        ops,
-        original,
-        elems,
-        index,
-        o,
-        group_offset,
-        key_path,
-        listc,
-    )
+    result_one(ops, original, input, index)
 }
 
 /// The element used as the search key for logical group base `base`: the
@@ -943,13 +933,16 @@ fn empty_result<O: NativeIndexOps>(
 fn result_one<O: NativeIndexOps>(
     ops: &mut O,
     original: &O::IndexOperation,
-    elems: &[O::Value],
+    input: &SearchInput<'_, O::Value>,
     index: isize,
-    o: &Opts,
-    group_offset: usize,
-    key_path: Path<'_>,
-    listc: usize,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
+    let (elems, o, group_offset, key_path) = (
+        input.elems,
+        input.options,
+        input.group_offset,
+        input.key_path,
+    );
+    let listc = elems.len();
     if o.inline {
         if index < 0 {
             return Ok(index::IndexResult::Created(ops.new_list(Vec::new())));
@@ -982,13 +975,16 @@ fn result_one<O: NativeIndexOps>(
 fn result_all<O: NativeIndexOps>(
     ops: &mut O,
     original: &O::IndexOperation,
-    elems: &[O::Value],
+    input: &SearchInput<'_, O::Value>,
     matches: &[usize],
-    o: &Opts,
-    group_offset: usize,
-    key_path: Path<'_>,
-    listc: usize,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
+    let (elems, o, group_offset, key_path) = (
+        input.elems,
+        input.options,
+        input.group_offset,
+        input.key_path,
+    );
+    let listc = elems.len();
     let mut out: Vec<index::IndexResult<O::Value>> = Vec::new();
     for &base in matches {
         if o.inline {
@@ -1051,7 +1047,7 @@ fn discard_search_items<O: NativeIndexOps>(ops: &mut O, items: Vec<index::IndexR
             index::IndexResult::Created(created)
             | index::IndexResult::Detached(created)
             | index::IndexResult::ReturnedOwnedTransport(created) => {
-                ops.discard_owned_index_result(created)
+                ops.discard_owned_index_result(created);
             }
             index::IndexResult::Borrowed(member) => drop(member),
         }

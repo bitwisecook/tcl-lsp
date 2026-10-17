@@ -173,7 +173,7 @@ impl NativeVariableNameProtocol {
         }
     }
     /// C84 counts every target Var; later C counts only a hash-owned Var.
-    /// Compiled-local metadata must not fabricate the later VarHash role.
+    /// Compiled-local metadata must not fabricate the later `VarHash` role.
     #[must_use]
     pub const fn alias_target_owns_reference(self, hash_owned: bool) -> bool {
         matches!(self.version, TclVersion::V8_4) || hash_owned
@@ -231,8 +231,8 @@ impl NativeVariableNameProtocol {
         !matches!(self.version, TclVersion::V8_4)
     }
 
-    /// C84 VarErrMsg resets the result and active global error episode before
-    /// its legacy append producer. Later ObjVarErrMsg replaces only the result.
+    /// C84 `VarErrMsg` resets the result and active global error episode before
+    /// its legacy append producer. Later `ObjVarErrMsg` replaces only the result.
     #[must_use]
     pub const fn diagnostic_resets_interpreter_result(self) -> bool {
         matches!(self.version, TclVersion::V8_4)

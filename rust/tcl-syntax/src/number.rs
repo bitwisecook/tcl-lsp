@@ -1273,8 +1273,8 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
     None
 }
 
-/// Native C8 TclCheckBadOctal diagnostic on an already rejected index.
-/// This CString hint does not classify numeric parsing or accept an index.
+/// Native C8 `TclCheckBadOctal` diagnostic on an already rejected index.
+/// This `CString` hint does not classify numeric parsing or accept an index.
 #[must_use]
 pub fn native_index_octal_hint(bytes: &[u8], version: tcl_dialect::TclVersion) -> bool {
     use tcl_dialect::TclVersion;

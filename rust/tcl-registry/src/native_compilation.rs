@@ -1899,16 +1899,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::StringTrim { .. } => matches!(count, 1 | 2),
             NativeCompilationGrammar::NamespaceCurrent => count == 0,
             NativeCompilationGrammar::NamespaceWhich => {
-                let tcl_syntax::native_string::NativeStringProtocol::C(version) =
-                    words.source_protocol()
-                else {
-                    return false;
-                };
-                crate::native_introspection_compilation::namespace_which_shape(
-                    &words.shapes()[operand_from..],
-                    words.literal(operand_from),
-                    version,
-                ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
+                namespace_which_preserves_names(words, operand_from)
             }
             NativeCompilationGrammar::NamespaceCode => {
                 count == 1
@@ -3922,20 +3913,10 @@ impl NativeCompilationSpec {
                 self.operation,
             ),
             NativeCompilationGrammar::NamespaceUpvarBindings => {
-                if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
-                {
-                    Selection::Generic
-                } else {
-                    Selection::Unknown
-                }
+                generic_before_or_in_script(TclVersion::V8_6, version, context.frame)
             }
             NativeCompilationGrammar::NamespaceLegacy => {
-                if version < TclVersion::V8_5 || context.frame == NativeCompilationFrame::ScriptCode
-                {
-                    Selection::Generic
-                } else {
-                    Selection::Unknown
-                }
+                generic_before_or_in_script(TclVersion::V8_5, version, context.frame)
             }
             NativeCompilationGrammar::ProcedureHookFrom(first) => {
                 procedure_hook_selection(version, first, context.frame)
@@ -4811,6 +4792,35 @@ fn variable_append_grammar_bytes(
 fn implementation_version_matches(dialect: InvocationDialect, first: TclVersion) -> bool {
     dialect.family() == Some(Family::Tcl)
         && dialect.tcl_version.is_some_and(|version| version >= first)
+}
+
+/// Generic before release `first` or in script code, otherwise unknown.
+fn generic_before_or_in_script(
+    first: TclVersion,
+    version: TclVersion,
+    frame: NativeCompilationFrame,
+) -> NativeCompilationSelection {
+    if version < first || frame == NativeCompilationFrame::ScriptCode {
+        NativeCompilationSelection::Generic
+    } else {
+        NativeCompilationSelection::Unknown
+    }
+}
+
+/// Whether a C `namespace which` operand shape compiles from its literal words.
+fn namespace_which_preserves_names(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+) -> bool {
+    let tcl_syntax::native_string::NativeStringProtocol::C(version) = words.source_protocol()
+    else {
+        return false;
+    };
+    crate::native_introspection_compilation::namespace_which_shape(
+        &words.shapes()[operand_from..],
+        words.literal(operand_from),
+        version,
+    ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
 }
 
 fn dictionary_preserves_names(command: crate::native_dictionary::NativeDictionaryCommand) -> bool {

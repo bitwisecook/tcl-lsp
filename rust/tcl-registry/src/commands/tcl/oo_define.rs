@@ -437,13 +437,11 @@ pub(crate) fn oo_define_layout_roles(
     if grammar.member(selector).is_none() {
         return (count == 2).then(|| vec![(1, ArgRole::Body)]);
     }
-    Some(
-        grammar
-            .source_member_script_layout_arguments(selector.as_bytes(), args.slice_from(2))?
-            .into_iter()
-            .map(|body| Some((u8::try_from(body.argument() + 2).ok()?, ArgRole::Body)))
-            .collect::<Option<Vec<_>>>()?,
-    )
+    grammar
+        .source_member_script_layout_arguments(selector.as_bytes(), args.slice_from(2))?
+        .into_iter()
+        .map(|body| Some((u8::try_from(body.argument() + 2).ok()?, ArgRole::Body)))
+        .collect::<Option<Vec<_>>>()
 }
 
 /// `oo::define Target property name ?-set BODY? ?-get BODY?` →

@@ -329,7 +329,7 @@ pub fn append_published_counted_source_checked<O: NativeAppendObjects>(
     check()
 }
 
-/// Append one CString operand onto the genuine refcount-zero unshared object
+/// Append one `CString` operand onto the genuine refcount-zero unshared object
 /// already allocated by Jim's key constructor. This does not acquire a working
 /// native reference or repeat a copy-on-write decision. The caller retains an
 /// allocation lease and checks the original operation at every reached stage.
@@ -347,7 +347,7 @@ pub fn append_unshared_jim_cstring<O: NativeAppendObjects>(
     append_jim_cstring_checked(ops, protocol, receiver, original_bytes, check)
 }
 
-/// Append one CString onto the actual already published, unshared Jim result.
+/// Append one `CString` onto the actual already published, unshared Jim result.
 /// The caller checks the original result slot, receiver sharing and operation
 /// before each reached stage; this borrows the header without a native reference.
 /// The independent key-constructor API retains its refcount-zero precondition.
@@ -742,16 +742,22 @@ fn append_jim_string_checked<O: NativeAppendObjects>(
     updated
 }
 
+/// The genuine receiver and source objects of one C append.
+struct AppendOperands<'v, V> {
+    receiver: &'v V,
+    source: &'v V,
+}
+
 fn append_c_unicode_source<O: NativeAppendObjects>(
     ops: &O,
     string_protocol: NativeStringProtocol,
-    receiver: &O::Value,
-    source: &O::Value,
+    operands: &AppendOperands<'_, O::Value>,
     source_shape: &NativeObjectSnapshot,
     source_bytes: Option<Rc<[u8]>>,
     old_units: &[u32],
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
+    let AppendOperands { receiver, source } = *operands;
     let source_units = if matches!(source_shape.cache, Cache::String { .. }) {
         checked_append_stage(ops, check, || ops.unicode(source, string_protocol))?
     } else {
@@ -830,8 +836,7 @@ fn append_c_string<O: NativeAppendObjects>(
         append_c_unicode_source(
             ops,
             string_protocol,
-            receiver,
-            source,
+            &AppendOperands { receiver, source },
             source_shape,
             source_bytes,
             old_units,
@@ -842,8 +847,7 @@ fn append_c_string<O: NativeAppendObjects>(
     append_c_byte_source(
         ops,
         protocol,
-        receiver,
-        source,
+        &AppendOperands { receiver, source },
         &receiver_shape,
         receiver_bytes,
         source_bytes,
@@ -854,13 +858,13 @@ fn append_c_string<O: NativeAppendObjects>(
 fn append_c_byte_source<O: NativeAppendObjects>(
     ops: &O,
     protocol: NativeObjectAppendProtocol,
-    receiver: &O::Value,
-    source: &O::Value,
+    operands: &AppendOperands<'_, O::Value>,
     receiver_shape: &NativeObjectSnapshot,
     receiver_bytes: Option<Rc<[u8]>>,
     source_bytes: Option<Rc<[u8]>>,
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
+    let AppendOperands { receiver, source } = *operands;
     let string_protocol = protocol.string_protocol();
     let source_bytes = match source_bytes {
         Some(bytes) => bytes,

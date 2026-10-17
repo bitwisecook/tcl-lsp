@@ -104,11 +104,13 @@ pub struct NativeJimStringRangeConstruction<'a, V> {
 
 impl<V> NativeJimStringRangeConstruction<'_, V> {
     /// The actual selected source and index operands.
+    #[must_use]
     pub fn operands(&self) -> [&V; 3] {
         [self.original, self.first, self.last]
     }
 
     /// The actual selected borrowed or created output.
+    #[must_use]
     pub fn result(&self) -> &V {
         match self.result {
             index::IndexResult::Borrowed(value)
@@ -674,6 +676,147 @@ fn titlecase_digraph(c: char) -> Option<char> {
     })
 }
 
+/// Jim's counted `string replace` over its original UTF-8 representation.
+fn replace_jim<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    // naming.string.original-counted-replacement-and-index-stages:
+    // the original count precedes both original indices, including
+    // when the subject itself is one of those Index headers.
+    let len = ops.index_character_count(&args[0])?;
+    let first = index::resolve_value(ops, &args[1], len)?.max(0);
+    let last =
+        index::resolve_value(ops, &args[2], len)?.min(i64::try_from(len).unwrap_or(i64::MAX) - 1);
+    if last < first {
+        return Ok(index::IndexResult::Borrowed(args[0].clone()));
+    }
+    let first = usize::try_from(first).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim replacement prefix extent",
+        )
+    })?;
+    let last = usize::try_from(last).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original Jim replacement after-part extent",
+        )
+    })?;
+    let raw = RawString::from_bytes(ops.index_operand_bytes(&args[0])?);
+    let (mut bytes, after) = raw.jim084_replacement_parts(first, last, len)?;
+    let mut count = first;
+    if let Some(replacement) = args.get(3) {
+        let replacement = ops.index_operand_bytes(replacement)?;
+        count += RawString::from_bytes(std::rc::Rc::clone(&replacement))
+            .jim084_characters()
+            .count();
+        bytes.extend_from_slice(&replacement);
+    }
+    count += RawString::from_bytes(after.as_slice())
+        .jim084_characters()
+        .count();
+    bytes.extend_from_slice(&after);
+    Ok(index::IndexResult::Created(
+        ops.new_jim_string(&bytes, count),
+    ))
+}
+
+/// C's `string replace` through the selected release's original producer.
+fn replace_c<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    version: tcl_dialect::TclVersion,
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    // naming.string.original-counted-replacement-and-index-stages
+    // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
+    // C84–86 reach original Unicode first. C9 reaches CharLength first
+    // and defers Unicode until a range is actually replaced.
+    let initial_units = if version < tcl_dialect::TclVersion::V9_0 {
+        Some(ops.index_c_unicode_units(&args[0])?)
+    } else {
+        None
+    };
+    let len = match &initial_units {
+        Some(units) => units.len(),
+        None => ops.index_character_count(&args[0])?,
+    };
+    let end = i64::try_from(len).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C replacement character width",
+        )
+    })? - 1;
+    let first = index::resolve_value(ops, &args[1], len)?;
+    let last = index::resolve_value(ops, &args[2], len)?;
+    if last < 0 || first > end || last < first {
+        return Ok(index::IndexResult::Borrowed(args[0].clone()));
+    }
+    if version >= tcl_dialect::TclVersion::V9_0 {
+        let first = usize::try_from(first.max(0)).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original C replacement prefix extent",
+            )
+        })?;
+        let after = usize::try_from(last.min(end).saturating_add(1)).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original C replacement suffix extent",
+            )
+        })?;
+        return replace_c_parsed_range_result(
+            ops,
+            &args[0],
+            first,
+            after - first,
+            args.get(3),
+            true,
+        );
+    }
+    let units = if version == tcl_dialect::TclVersion::V8_4 {
+        let units = initial_units.expect("reached original C84 Unicode");
+        let snapshot = ops.native_object_snapshot(&args[0])?;
+        if !matches!(snapshot.cache, tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+            protocol: tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
+            unicode: Some(ref cached), ..
+        } if std::rc::Rc::ptr_eq(cached, &units))
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original C84 replacement Unicode backing",
+            )
+            .into());
+        }
+        units
+    } else {
+        ops.index_c_unicode_units(&args[0])?
+    };
+    let first = usize::try_from(first.max(0)).map_err(|_| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C replacement prefix extent",
+        )
+    })?;
+    let after = usize::try_from(last.saturating_add(1))
+        .unwrap_or(usize::MAX)
+        .min(units.len());
+    let prefix =
+        units
+            .get(..first)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original C replacement prefix extent",
+            ))?;
+    let result = ops.index_c_unicode_result(prefix.into(), version)?;
+    let reached = (|| -> Result<(), CmdError> {
+        if let Some(replacement) = args.get(3) {
+            ops.index_c_append_object(&result, replacement)?;
+        }
+        if after < units.len() {
+            ops.index_c_append_unicode(&result, &units[after..])?;
+        }
+        Ok(())
+    })();
+    if let Err(first) = reached {
+        ops.discard_owned_index_result(result);
+        return Err(first);
+    }
+    Ok(index::IndexResult::Created(result))
+}
+
 /// `string replace string first last ?newstring?` — remove the characters in
 /// `[first, last]` (inclusive), optionally inserting `newstring`. An empty or
 /// inverted range leaves the string unchanged.
@@ -685,133 +828,10 @@ pub fn replace<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<O::V
             ));
         }
         if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-            // naming.string.original-counted-replacement-and-index-stages:
-            // the original count precedes both original indices, including
-            // when the subject itself is one of those Index headers.
-            let len = ops.index_character_count(&args[0])?;
-            let first = index::resolve_value(ops, &args[1], len)?.max(0);
-            let last = index::resolve_value(ops, &args[2], len)?
-                .min(i64::try_from(len).unwrap_or(i64::MAX) - 1);
-            if last < first {
-                return Ok(index::IndexResult::Borrowed(args[0].clone()));
-            }
-            let first = usize::try_from(first).map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original Jim replacement prefix extent",
-                )
-            })?;
-            let last = usize::try_from(last).map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original Jim replacement after-part extent",
-                )
-            })?;
-            let raw = RawString::from_bytes(ops.index_operand_bytes(&args[0])?);
-            let (mut bytes, after) = raw.jim084_replacement_parts(first, last, len)?;
-            let mut count = first;
-            if let Some(replacement) = args.get(3) {
-                let replacement = ops.index_operand_bytes(replacement)?;
-                count += RawString::from_bytes(std::rc::Rc::clone(&replacement))
-                    .jim084_characters()
-                    .count();
-                bytes.extend_from_slice(&replacement);
-            }
-            count += RawString::from_bytes(after.as_slice())
-                .jim084_characters()
-                .count();
-            bytes.extend_from_slice(&after);
-            return Ok(index::IndexResult::Created(
-                ops.new_jim_string(&bytes, count),
-            ));
+            return replace_jim(ops, args);
         }
         if let Some(version) = ops.index_c_version() {
-            // naming.string.original-counted-replacement-and-index-stages
-            // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
-            // C84–86 reach original Unicode first. C9 reaches CharLength first
-            // and defers Unicode until a range is actually replaced.
-            let initial_units = if version < tcl_dialect::TclVersion::V9_0 {
-                Some(ops.index_c_unicode_units(&args[0])?)
-            } else {
-                None
-            };
-            let len = match &initial_units {
-                Some(units) => units.len(),
-                None => ops.index_character_count(&args[0])?,
-            };
-            let end = i64::try_from(len).map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original C replacement character width",
-                )
-            })? - 1;
-            let first = index::resolve_value(ops, &args[1], len)?;
-            let last = index::resolve_value(ops, &args[2], len)?;
-            if last < 0 || first > end || last < first {
-                return Ok(index::IndexResult::Borrowed(args[0].clone()));
-            }
-            if version >= tcl_dialect::TclVersion::V9_0 {
-                let first = usize::try_from(first.max(0)).map_err(|_| {
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "original C replacement prefix extent",
-                    )
-                })?;
-                let after = usize::try_from(last.min(end).saturating_add(1)).map_err(|_| {
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "original C replacement suffix extent",
-                    )
-                })?;
-                return replace_c_parsed_range_result(
-                    ops,
-                    &args[0],
-                    first,
-                    after - first,
-                    args.get(3),
-                    true,
-                );
-            }
-            let units = if version == tcl_dialect::TclVersion::V8_4 {
-                let units = initial_units.expect("reached original C84 Unicode");
-                let snapshot = ops.native_object_snapshot(&args[0])?;
-                if !matches!(snapshot.cache, tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
-                    protocol: tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
-                    unicode: Some(ref cached), ..
-                } if std::rc::Rc::ptr_eq(cached, &units))
-                {
-                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "retired original C84 replacement Unicode backing",
-                    )
-                    .into());
-                }
-                units
-            } else {
-                ops.index_c_unicode_units(&args[0])?
-            };
-            let first = usize::try_from(first.max(0)).map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "original C replacement prefix extent",
-                )
-            })?;
-            let after = usize::try_from(last.saturating_add(1))
-                .unwrap_or(usize::MAX)
-                .min(units.len());
-            let prefix = units.get(..first).ok_or(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "retired original C replacement prefix extent",
-                ),
-            )?;
-            let result = ops.index_c_unicode_result(prefix.into(), version)?;
-            let reached = (|| -> Result<(), CmdError> {
-                if let Some(replacement) = args.get(3) {
-                    ops.index_c_append_object(&result, replacement)?;
-                }
-                if after < units.len() {
-                    ops.index_c_append_unicode(&result, &units[after..])?;
-                }
-                Ok(())
-            })();
-            if let Err(first) = reached {
-                ops.discard_owned_index_result(result);
-                return Err(first);
-            }
-            return Ok(index::IndexResult::Created(result));
+            return replace_c(ops, args, version);
         }
         let chars: Vec<char> = ops.index_unicode(&args[0])?.chars().collect();
         let len = chars.len();
@@ -837,7 +857,7 @@ pub fn replace<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<O::V
 /// Replace an already parsed, bounded range through the original C9 producer.
 /// The caller supplies the actual in-place flag; original native sharing decides
 /// whether equal-sized binary replacement can reuse the subject header. This
-/// entry supplies neither an index-parser result nor an entered EvalObjv role.
+/// entry supplies neither an index-parser result nor an entered `EvalObjv` role.
 ///
 /// # Errors
 /// A missing actual C9 producer, invalid reached range, original storage failure,

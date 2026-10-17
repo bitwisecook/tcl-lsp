@@ -94,9 +94,9 @@ pub enum NativeDictionaryRootPurpose {
 /// Sharing decision at the actual original conversion boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeDictionaryRootSharing {
-    /// Jim_SetDictKeysVector tests the root before SetDictFromAny.
+    /// `Jim_SetDictKeysVector` tests the root before `SetDictFromAny`.
     BeforeConversion,
-    /// Jim array set reaches DictSize before Jim_IsShared.
+    /// Jim array set reaches `DictSize` before `Jim_IsShared`.
     AfterConversion,
 }
 

@@ -442,10 +442,10 @@ pub(crate) fn fold_lindex(args: &[&str]) -> Option<String> {
 
 /// `lrange list first last` — returns the sublist (re-quoted).
 pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
-    let [list, first, last] = args else {
+    let [source, first, last] = args else {
         return None;
     };
-    let length = split_list(list)?.len();
+    let length = split_list(source)?.len();
     parse_range(first, last, length)?;
 
     let contract = crate::native_result::NativeResultContract::ListRange {

@@ -187,6 +187,18 @@ pub fn word_cursor_prefix_in(
             }));
         }
     }
+    empty_boundary_prefix(image, region, cursor, config, &tokens, &commands)
+}
+
+/// The empty word boundary at a cursor that sits inside no written word.
+fn empty_boundary_prefix(
+    image: &SourceImage,
+    region: Span,
+    cursor: u32,
+    config: LexerConfig,
+    tokens: &[crate::Token],
+    commands: &[crate::CommandSpan],
+) -> Result<Option<WordCursorPrefix>, WordCursorUnavailable> {
     if tokens.iter().any(|token| {
         token.kind == TokenType::Expand
             && token.span.start() <= cursor
@@ -202,7 +214,7 @@ pub fn word_cursor_prefix_in(
         return Ok(None);
     }
     let command = commands.iter().enumerate().find_map(|(index, command)| {
-        let extent = command.source_extent(&tokens, region.end() as usize)?;
+        let extent = command.source_extent(tokens, region.end() as usize)?;
         (extent.start() <= cursor && cursor <= extent.end()).then_some((
             index,
             extent,
@@ -224,7 +236,7 @@ pub fn word_cursor_prefix_in(
 
 /// A configured original argv cursor. This retains whole source grouping and
 /// an honest parse cut, including dynamic/expanded and unfinished arguments.
-/// Only the original head is a complete NativeWord. Active arguments retain
+/// Only the original head is a complete `NativeWord`. Active arguments retain
 /// geometry without an evaluated value, semantic role or entered frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgumentCursor {
@@ -470,6 +482,73 @@ fn terminal_dollar(bytes: &[u8], start: usize, config: LexerConfig) -> Option<us
     None
 }
 
+/// How an unfinished array index prefix continues a variable cursor.
+enum IndexPrefix {
+    /// The index is closed or otherwise holds no variable cursor prefix.
+    Inert,
+    /// A nested variable reference starting at this offset owns the cursor.
+    Nested(usize),
+    /// The literal index prefix through the cursor.
+    Index(Span),
+}
+
+fn index_prefix(
+    prefix: &[u8],
+    open: usize,
+    cursor: usize,
+    config: LexerConfig,
+) -> Result<IndexPrefix, VariableCursorUnavailable> {
+    let scan = if config.var_syntax.index_parens_nest() {
+        let end = crate::ranges::jim_parenthesis_body_end(prefix, open + 1);
+        if prefix.get(end) == Some(&b')') || end < cursor {
+            return Ok(IndexPrefix::Inert);
+        }
+        None
+    } else {
+        Some(scan_array_index_in(prefix, open, config))
+    };
+    if scan.is_some_and(|scan| scan.invalid.is_some()) {
+        return Err(VariableCursorUnavailable::IndexSubstitution);
+    }
+    if scan.is_some_and(|scan| matches!(scan.end, ArrayIndexEnd::Closed(_))) {
+        return Ok(IndexPrefix::Inert);
+    }
+    let start = open + 1;
+    let parts = shallow_spanned_parts(
+        &prefix[start..],
+        SubstFlags::default(),
+        config,
+        TemplateVariableSyntax::WrittenWord,
+    );
+    if let Some(last) = parts.last() {
+        let nested = match &last.part {
+            WordPart::Variable(_) if last.end == cursor - start => Some(start + last.start),
+            WordPart::ParseError(_)
+                if matches!(
+                    last.error_kind,
+                    Some(ParseIssueKind::MissingVariableBrace | ParseIssueKind::MissingParenthesis)
+                ) && prefix.get(start + last.start) == Some(&b'$') =>
+            {
+                Some(start + last.start)
+            }
+            WordPart::Text(_) => {
+                terminal_dollar(&prefix[start..], last.start, config).map(|at| start + at)
+            }
+            _ => None,
+        };
+        if let Some(nested) = nested {
+            return Ok(IndexPrefix::Nested(nested));
+        }
+    }
+    if parts
+        .iter()
+        .any(|part| !matches!(part.part, WordPart::Text(_)))
+    {
+        return Err(VariableCursorUnavailable::IndexSubstitution);
+    }
+    Ok(IndexPrefix::Index(span(start, cursor)?))
+}
+
 fn prefix_at(
     image: &SourceImage,
     region: Span,
@@ -513,60 +592,14 @@ fn prefix_at(
                 && !(end == name && config.var_syntax.has_expr_sugar())
             {
                 root_end = end;
-                let scan = if config.var_syntax.index_parens_nest() {
-                    let end = crate::ranges::jim_parenthesis_body_end(prefix, end + 1);
-                    if prefix.get(end) == Some(&b')') || end < cursor {
-                        return Ok(None);
-                    }
-                    None
-                } else {
-                    Some(scan_array_index_in(prefix, end, config))
-                };
-                if scan.is_some_and(|scan| scan.invalid.is_some()) {
-                    return Err(VariableCursorUnavailable::IndexSubstitution);
-                }
-                if scan.is_some_and(|scan| matches!(scan.end, ArrayIndexEnd::Closed(_))) {
-                    return Ok(None);
-                }
-                let start = end + 1;
-                let parts = shallow_spanned_parts(
-                    &prefix[start..],
-                    SubstFlags::default(),
-                    config,
-                    TemplateVariableSyntax::WrittenWord,
-                );
-                if let Some(last) = parts.last() {
-                    let nested = match &last.part {
-                        WordPart::Variable(_) if last.end == cursor - start => {
-                            Some(start + last.start)
-                        }
-                        WordPart::ParseError(_)
-                            if matches!(
-                                last.error_kind,
-                                Some(
-                                    ParseIssueKind::MissingVariableBrace
-                                        | ParseIssueKind::MissingParenthesis
-                                )
-                            ) && prefix.get(start + last.start) == Some(&b'$') =>
-                        {
-                            Some(start + last.start)
-                        }
-                        WordPart::Text(_) => terminal_dollar(&prefix[start..], last.start, config)
-                            .map(|at| start + at),
-                        _ => None,
-                    };
-                    if let Some(nested) = nested {
+                match index_prefix(prefix, end, cursor, config)? {
+                    IndexPrefix::Inert => return Ok(None),
+                    IndexPrefix::Nested(nested) => {
                         at = nested;
                         continue;
                     }
+                    IndexPrefix::Index(written) => index = Some(written),
                 }
-                if parts
-                    .iter()
-                    .any(|part| !matches!(part.part, WordPart::Text(_)))
-                {
-                    return Err(VariableCursorUnavailable::IndexSubstitution);
-                }
-                index = Some(span(start, cursor)?);
             } else {
                 return Ok(None);
             }
@@ -650,14 +683,18 @@ pub fn variable_cursor_prefix_in(
 mod tests {
     use super::*;
 
+    fn offset(value: usize) -> u32 {
+        u32::try_from(value).expect("test source offset fits u32")
+    }
+
     fn word_at(marked: &str) -> (SourceImage, Option<WordCursorPrefix>) {
         let cursor = marked.find("<|>").unwrap();
         let source = marked.replacen("<|>", "", 1);
         let image = SourceImage::document(&source);
         let prefix = word_cursor_prefix_in(
             &image,
-            Span::new(0, image.len() as u32),
-            cursor as u32,
+            Span::new(0, offset(image.len())),
+            offset(cursor),
             LexerConfig::default(),
         )
         .unwrap();
@@ -679,7 +716,7 @@ mod tests {
                 &image.bytes()[prefix.partial_span().as_range()],
                 partial.as_bytes()
             );
-            assert_eq!(prefix.container_span(), Span::new(0, image.len() as u32));
+            assert_eq!(prefix.container_span(), Span::new(0, offset(image.len())));
             assert_eq!(prefix.kind(), kind);
             assert_eq!(prefix.word_index(), 0);
             assert!(!prefix.is_empty_boundary());
@@ -720,8 +757,8 @@ mod tests {
         assert_eq!(
             word_cursor_prefix_in(
                 &image,
-                Span::new(0, image.len() as u32),
-                image.len() as u32,
+                Span::new(0, offset(image.len())),
+                offset(image.len()),
                 LexerConfig::default()
             ),
             Err(WordCursorUnavailable::WordShape)
@@ -733,8 +770,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0", "jim"] {
             let config = LexerConfig::for_dialect(dialect);
             let image = SourceImage::document("; café\\ name");
-            let region = Span::new(1, image.len() as u32);
-            let prefix = word_cursor_prefix_in(&image, region, image.len() as u32, config)
+            let region = Span::new(1, offset(image.len()));
+            let prefix = word_cursor_prefix_in(&image, region, offset(image.len()), config)
                 .unwrap()
                 .unwrap();
             assert_eq!(prefix.region_span(), region);
@@ -755,8 +792,8 @@ mod tests {
         let image = SourceImage::document(&source);
         let result = variable_cursor_prefix_in(
             &image,
-            Span::new(0, image.len() as u32),
-            cursor as u32,
+            Span::new(0, offset(image.len())),
+            offset(cursor),
             config,
         )
         .unwrap();
@@ -865,8 +902,8 @@ mod tests {
         assert_eq!(
             variable_cursor_prefix_in(
                 &image,
-                Span::new(0, image.len() as u32),
-                (image.len() - 1) as u32,
+                Span::new(0, offset(image.len())),
+                offset(image.len() - 1),
                 config
             ),
             Err(VariableCursorUnavailable::IndexSubstitution)
@@ -909,8 +946,8 @@ mod tests {
             assert_eq!(
                 variable_cursor_prefix_in(
                     &image,
-                    Span::new(0, image.len() as u32),
-                    cursor as u32,
+                    Span::new(0, offset(image.len())),
+                    offset(cursor),
                     config,
                 ),
                 Err(VariableCursorUnavailable::ReferenceSyntax)

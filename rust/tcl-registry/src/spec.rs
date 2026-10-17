@@ -837,6 +837,41 @@ impl CaseListSpec {
         self.invocation_values_with_clause_validation(args, options, dialect, false, true)
     }
 
+    /// Skip a written clause-shape selector at `at`, returning the next word
+    /// index and whether a list or an inline selector was written.
+    fn skip_clause_selector(
+        self,
+        args: &[Option<&str>],
+        shape: &tcl_syntax::case_list::CaseListShape,
+        at: usize,
+        outer_options_ended: bool,
+    ) -> (usize, bool, bool) {
+        // Selectors are descriptor syntax, not ordinary command options.
+        // They are considered only while the outer scan is active: after an
+        // outer `--`, an option-shaped word is positional data instead.
+        let force_list = !outer_options_ended
+            && self
+                .clause_force_list_shape
+                .is_some_and(|shape| shape.matches_values(args, self.clause_force_list_flag, at));
+        let force_inline = !outer_options_ended
+            && self
+                .clause_force_inline_flag
+                .is_some_and(|flag| args.get(at).copied().flatten() == Some(flag));
+        let skipped = force_list
+            || (force_inline
+                && args
+                    .get(at)
+                    .copied()
+                    .flatten()
+                    .and_then(|word| shape.resolve_flag(word))
+                    .is_none());
+        // When the inline selector is itself a clause flag (Expect's
+        // `-nobrace`), leave it to `inline_clauses` so consumers retain
+        // its decorator location. A selector outside that vocabulary is
+        // shape-only and is not part of the first clause.
+        (at + usize::from(skipped), force_list, force_inline)
+    }
+
     fn invocation_values_with_clause_validation(
         self,
         args: &[Option<&str>],
@@ -865,38 +900,11 @@ impl CaseListSpec {
                 CaseSubjectProjection::AfterSelectedOptions
             },
         )?;
-        let mut i = scan.index;
         let mode = scan.mode.unwrap_or(self.default_mode);
         let special_option = scan.special_option;
         let nocase = scan.nocase;
-        let outer_options_ended = scan.outer_options_ended;
-        // Selectors are descriptor syntax, not ordinary command options.
-        // They are considered only while the outer scan is active: after an
-        // outer `--`, an option-shaped word is positional data instead.
-        let force_list = !outer_options_ended
-            && self
-                .clause_force_list_shape
-                .is_some_and(|shape| shape.matches_values(args, self.clause_force_list_flag, i));
-        let force_inline = !outer_options_ended
-            && self
-                .clause_force_inline_flag
-                .is_some_and(|flag| args.get(i).copied().flatten() == Some(flag));
-        if force_list {
-            i += 1;
-        } else if force_inline
-            && args
-                .get(i)
-                .copied()
-                .flatten()
-                .and_then(|word| shape.resolve_flag(word))
-                .is_none()
-        {
-            // When the inline selector is itself a clause flag (Expect's
-            // `-nobrace`), leave it to `inline_clauses` so consumers retain
-            // its decorator location. A selector outside that vocabulary is
-            // shape-only and is not part of the first clause.
-            i += 1;
-        }
+        let (mut i, force_list, force_inline) =
+            self.skip_clause_selector(args, &shape, scan.index, scan.outer_options_ended);
         let subject_index = (self.subject_args == 1).then_some(i);
         i += usize::from(self.subject_args);
         // A descriptor-declared literal separator between the subject and the
@@ -1030,12 +1038,12 @@ impl CaseListSpec {
                     break;
                 }
             }
-            if !scan.outer_options_ended
-                && !options.is_empty()
-                && args.get(scan.index) == Some(&None)
-                && !(self.subject_args == 1
-                    && subject_projection.retains_unknown_subject(scan.index))
-            {
+            let readable_boundary = scan.outer_options_ended
+                || options.is_empty()
+                || args.get(scan.index) != Some(&None)
+                || (self.subject_args == 1
+                    && subject_projection.retains_unknown_subject(scan.index));
+            if !readable_boundary {
                 // An unreadable active candidate can still select an option;
                 // it does not establish the positional subject boundary.
                 // Source shape after a selected prefix and possible-body
@@ -4499,7 +4507,7 @@ pub struct SubCommand {
     pub taint_output_sink: Option<&'static str>,
 
     /// Credential-value argument index, counting the selected subcommand word
-    /// itself as zero. This field preserves the SpecTcl verbatim coordinate,
+    /// itself as zero. This field preserves the `SpecTcl` verbatim coordinate,
     /// unlike other subcommand-relative argument fields. `None` = none.
     pub credential_arg: Option<u8>,
 

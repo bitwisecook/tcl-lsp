@@ -721,7 +721,7 @@ pub struct InvocationOptionOccurrence<'r> {
     pub values: std::ops::Range<usize>,
 }
 
-impl<'r, 'q> InvocationOptions<'r, 'q> {
+impl<'r> InvocationOptions<'r, '_> {
     /// Keyword vocabulary of the same selected options and prefix policy.
     /// Actual surface, package floor and form inheritance remain on this
     /// metadata; option positions and value widths require `prefix_occurrences`.
@@ -1249,7 +1249,7 @@ impl InvocationSemantics<'_, '_> {
 pub struct AuthoredSourceScopeAliasArgument {
     /// Effective post-head argument naming the local declaration.
     pub local: usize,
-    /// Adjacent selected VarRead ordinal, without an alias-target grant.
+    /// Adjacent selected `VarRead` ordinal, without an alias-target grant.
     pub preceding_read: Option<usize>,
 }
 
@@ -2635,6 +2635,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// Finite conditional no-level roles from an explicitly registered derived
     /// alias-pair producer. The ordinary/generic source layout remains Unknown.
     /// No actual default caller, selected local, completion or absence follows.
+    #[must_use]
     pub fn conditional_no_level_source_alias_layout(
         &self,
     ) -> Option<ConditionalNoLevelAliasLayout> {
@@ -2727,24 +2728,10 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         &self,
         source_dialect: crate::InvocationDialect,
     ) -> Option<crate::source_operation::AuthoredSourceOperationContinuation> {
-        use crate::world_effect::{
-            EffectAccessMode, SourceWorldEffectResolver, WorldEffectComposition,
-        };
+        use crate::world_effect::{EffectAccessMode, SourceWorldEffectResolver};
         let selectors = self.authored_source_option_selector_path()?;
         let arguments = self.words.arguments().with_dialect(source_dialect);
-        let count = arguments.exact_argv_len()?;
-        let head = self.words.head_literal()?;
-        if head.contains('\0') {
-            return None;
-        }
-        let mut words = vec![head.to_owned()];
-        for at in 0..count {
-            let value = arguments.literal_at(at)?;
-            if value.contains('\0') {
-                return None;
-            }
-            words.push(value.to_owned());
-        }
+        let words = self.nul_free_literal_words(arguments)?;
         if self
             .words
             .arguments()
@@ -2768,23 +2755,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         ) {
             return None;
         }
-        let mut descriptors = Vec::new();
-        for descriptor in [
-            self.semantics.world_effects.command,
-            self.semantics.world_effects.subcommand,
-            self.semantics.world_effects.form,
-        ]
-        .into_iter()
-        .flatten()
-        {
-            if descriptor.composition == WorldEffectComposition::Replace {
-                descriptors.clear();
-            }
-            descriptors.push(descriptor);
-        }
-        let [descriptor] = descriptors.as_slice() else {
-            return None;
-        };
+        let descriptor = sole_world_effect_descriptor(&self.semantics.world_effects)?;
         let SourceWorldEffectResolver::ResultTransitions { effects, coverage } =
             descriptor.source_resolver?
         else {
@@ -2808,13 +2779,13 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         let mut residual = crate::world_effect::WorldEffectDescriptor {
             static_footprint: crate::world_effect::StaticEffectFootprint::EMPTY,
             resolver: Some(effects),
-            ..*descriptor
+            ..descriptor
         }
         .resolve_with_transition_coverage(arguments, &selected.coverage);
         residual.extend(
             crate::world_effect::WorldEffectDescriptor {
                 resolver: None,
-                ..*descriptor
+                ..descriptor
             }
             .resolve(arguments),
         );
@@ -2841,6 +2812,27 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 coverage: selected.coverage,
             },
         )
+    }
+
+    /// The NUL-free literal head and argument words of this invocation.
+    fn nul_free_literal_words(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<Vec<String>> {
+        let count = arguments.exact_argv_len()?;
+        let head = self.words.head_literal()?;
+        if head.contains('\0') {
+            return None;
+        }
+        let mut words = vec![head.to_owned()];
+        for at in 0..count {
+            let value = arguments.literal_at(at)?;
+            if value.contains('\0') {
+                return None;
+            }
+            words.push(value.to_owned());
+        }
+        Some(words)
     }
 
     /// Readonly aliases from the same Logical state-fact projection. Unknown
@@ -3387,6 +3379,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        use crate::frame_effect::FrameArgumentResolution as Layout;
         let frame = self.semantics.frame_effect?;
         if frame.layout != crate::FrameArgLayout::ScriptInSelectedFrame {
             return None;
@@ -3399,7 +3392,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         } else {
             frame.resolve_arguments(arguments)
         };
-        use crate::frame_effect::FrameArgumentResolution as Layout;
         let starts = match layout {
             Layout::Valid { level_word_len, .. } => vec![level_word_len],
             Layout::Invalid => Vec::new(),
@@ -5936,6 +5928,35 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         })
     }
 
+    /// The taint colour of this invocation's selected transform, if declared.
+    fn selected_taint_transform(&self) -> Option<crate::taint::TaintColour> {
+        self.semantics.taint_transform.and_then(|transform| {
+            transform.resolve(
+                self.words.arguments(),
+                self.semantics.argument_offset,
+                self.semantics.options,
+            )
+        })
+    }
+
+    /// A procedure definition's dialect-selected arity, else the declared arity.
+    fn selected_arity(&self) -> Arity {
+        self.semantics
+            .procedure_definition
+            .map_or(self.semantics.arity, |descriptor| {
+                descriptor.arity(self.words.arguments().dialect())
+            })
+    }
+
+    /// The procedure definition this invocation's words select, if declared.
+    fn selected_procedure_definition(
+        &self,
+    ) -> Option<crate::native_procedure::NativeProcedureDefinitionSelection> {
+        self.semantics
+            .procedure_definition
+            .map(|descriptor| descriptor.select(self.words.arguments()))
+    }
+
     fn facts_on_edge(&self, successful: bool) -> InvocationFacts {
         let (transitions, transition_effect_coverage) = if successful {
             self.semantics
@@ -5997,20 +6018,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             dispatch_dependencies: self.semantics.dispatch_dependencies.resolve(),
             traits: self.semantics.traits,
             taint_source: self.normal_source_colour(),
-            taint_transform: self.semantics.taint_transform.and_then(|transform| {
-                transform.resolve(
-                    self.words.arguments(),
-                    self.semantics.argument_offset,
-                    self.semantics.options,
-                )
-            }),
+            taint_transform: self.selected_taint_transform(),
             mutator: self.semantics.mutator,
-            arity: self
-                .semantics
-                .procedure_definition
-                .map_or(self.semantics.arity, |descriptor| {
-                    descriptor.arity(self.words.arguments().dialect())
-                }),
+            arity: self.selected_arity(),
             arity_argument_count: self.argument_count_for_arity(),
             frozen_argument_count: self.words.arguments().exact_argv_len(),
             argument_offset: self.semantics.argument_offset,
@@ -6019,10 +6029,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             arg_roles_complete,
             arg_role_resolver_roles: self.semantics.arg_role_resolver_roles,
             return_type: self.semantics.return_type,
-            procedure_definition: self
-                .semantics
-                .procedure_definition
-                .map(|descriptor| descriptor.select(self.words.arguments())),
+            procedure_definition: self.selected_procedure_definition(),
             native_compilation: self.semantics.native_compilation,
             successful_handler: self.semantics.successful_handler,
             variable_receivers: self.semantics.variable_receivers,
@@ -6045,6 +6052,26 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         }
         facts
     }
+}
+
+/// The one world-effect descriptor left after replacing declarations apply.
+fn sole_world_effect_descriptor(
+    effects: &crate::world_effect::ResolvedWorldEffects,
+) -> Option<crate::world_effect::WorldEffectDescriptor> {
+    let mut descriptors = Vec::new();
+    for descriptor in [effects.command, effects.subcommand, effects.form]
+        .into_iter()
+        .flatten()
+    {
+        if descriptor.composition == crate::world_effect::WorldEffectComposition::Replace {
+            descriptors.clear();
+        }
+        descriptors.push(descriptor);
+    }
+    let [descriptor] = descriptors.as_slice() else {
+        return None;
+    };
+    Some(*descriptor)
 }
 
 #[cfg(test)]
@@ -11656,14 +11683,17 @@ pub struct ConditionalNoLevelAliasLayout {
 impl ConditionalNoLevelAliasLayout {
     /// Actual target/local subjects; original Written-word correspondence is
     /// independently required by a source consumer.
+    #[must_use]
     pub fn pairs(&self) -> &[(crate::TransitionSubject, crate::TransitionSubject)] {
         &self.pairs
     }
     /// Original unresolved state facts, including their variable/trace widening.
+    #[must_use]
     pub fn residual(&self) -> &crate::StateTransitions {
         &self.residual
     }
     /// The alternate level interpretation may produce an argument error.
+    #[must_use]
     pub const fn may_argument_error(&self) -> bool {
         true
     }

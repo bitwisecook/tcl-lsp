@@ -135,7 +135,7 @@ pub struct CommandJob<V, K> {
     indices_out: bool,
     /// The `-command` prefix value (the adapter's comparator evaluates it).
     pub cmd_prefix: V,
-    /// Exact C84 SortElement member references; key metadata clones add no holds.
+    /// Exact C84 `SortElement` member references; key metadata clones add no holds.
     _temporary_members: Vec<K>,
     original: Option<Box<OriginalCommand<V, K>>>,
 }
@@ -650,13 +650,12 @@ pub fn prepare<O: NativeIndexOps>(
                     if unique {
                         let mut kept = Vec::with_capacity(order.len());
                         for position in order {
-                            if let Some(&prior) = kept.last() {
-                                if compare(ops, prior, position)
+                            if let Some(&prior) = kept.last()
+                                && compare(ops, prior, position)
                                     .map_err(LsortError::from_command)?
                                     .is_eq()
-                                {
-                                    kept.pop();
-                                }
+                            {
+                                kept.pop();
                             }
                             kept.push(position);
                         }
@@ -724,7 +723,7 @@ pub fn prepare<O: NativeIndexOps>(
                 index::IndexResult::Created(value)
                 | index::IndexResult::Detached(value)
                 | index::IndexResult::ReturnedOwnedTransport(value) => {
-                    ops.discard_owned_index_result(value)
+                    ops.discard_owned_index_result(value);
                 }
             },
             // Key guards retain constructor cleanup independently of borrowed
@@ -830,8 +829,8 @@ fn bucket_order<E>(
     mut step: impl FnMut(MergeStep) -> Result<core::cmp::Ordering, E>,
 ) -> Result<Vec<usize>, E> {
     fn merge<E>(
-        left: Vec<usize>,
-        right: Vec<usize>,
+        left: &[usize],
+        right: &[usize],
         duplicate: &mut [bool],
         unique: bool,
         mark: bool,
@@ -870,16 +869,14 @@ fn bucket_order<E>(
             let Some(left) = buckets[level].take() else {
                 break;
             };
-            node = merge(left, node, &mut duplicate, unique, mark, &mut step)?;
+            node = merge(&left, &node, &mut duplicate, unique, mark, &mut step)?;
             level += 1;
         }
         buckets[level.min(29)] = Some(node);
     }
     let mut ordered = Vec::new();
-    for bucket in buckets {
-        if let Some(left) = bucket {
-            ordered = merge(left, ordered, &mut duplicate, unique, mark, &mut step)?;
-        }
+    for left in buckets.into_iter().flatten() {
+        ordered = merge(&left, &ordered, &mut duplicate, unique, mark, &mut step)?;
     }
     if unique && mark {
         ordered.retain(|&position| !duplicate[position]);
@@ -1070,10 +1067,10 @@ fn original_command_order<O: NativeIndexOps, E>(
         if input.job.unique {
             let mut kept = Vec::with_capacity(order.len());
             for position in order {
-                if let Some(&prior) = kept.last() {
-                    if compare_command(ops, input, (prior, position), compare, failure)?.is_eq() {
-                        kept.pop();
-                    }
+                if let Some(&prior) = kept.last()
+                    && compare_command(ops, input, (prior, position), compare, failure)?.is_eq()
+                {
+                    kept.pop();
                 }
                 kept.push(position);
             }

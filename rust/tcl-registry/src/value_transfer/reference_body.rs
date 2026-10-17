@@ -615,16 +615,15 @@ fn expression_text(text: &str, depth: u32, config: LexerConfig) -> Result<(), In
                         .map_err(|_| Inexpressible::Unreadable)?;
                     return Err(Inexpressible::Variable(name.to_owned()));
                 }
-                if let Some(inner) = reference.index {
-                    if let tcl_lexer::word_parts::WordBody::Parts(parts) =
+                if let Some(inner) = reference.index
+                    && let tcl_lexer::word_parts::WordBody::Parts(parts) =
                         tcl_lexer::word_parts::decompose(
                             inner,
                             tcl_lexer::word_parts::SubstFlags::default(),
                             config,
                         )
-                    {
-                        check_index_parts(&parts, depth + 1)?;
-                    }
+                {
+                    check_index_parts(&parts, depth + 1)?;
                 }
                 index = reference.next;
             }

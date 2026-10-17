@@ -27,7 +27,7 @@
 pub struct Utf8EncodingControl {
     /// Original native probe case identifier.
     pub case: &'static str,
-    /// The original probe's explicit ByteArray constructor, not inferred from bytes.
+    /// The original probe's explicit `ByteArray` constructor, not inferred from bytes.
     pub binary: bool,
     /// Whole immutable stdout for each of the five original C providers.
     pub columns: [&'static str; 5],
@@ -273,7 +273,9 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
 pub fn decode_hex(hex: &str) -> Vec<u8> {
     assert!(hex.len().is_multiple_of(2));
     hex.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).expect("ASCII capture"), 16)
                 .expect("hex capture")

@@ -358,7 +358,7 @@ pub enum NativeJimCommandInventory {
     Flat {
         /// Relative index in the original member operands, excluding the selector.
         pattern: Option<usize>,
-        /// The exact -all option includes table names containing CString spaces.
+        /// The exact -all option includes table names containing `CString` spaces.
         include_spaces: bool,
     },
     /// Invoke the actual current literal `namespace info` command.
@@ -498,7 +498,7 @@ pub struct NativeJimInfoReport {
 
 #[derive(Clone, Copy, Debug)]
 enum JimInfoReportKind {
-    /// Registered Jim_InfoCoreCommand arity, checked before Jim_ParseSubCmd.
+    /// Registered `Jim_InfoCoreCommand` arity, checked before `Jim_ParseSubCmd`.
     CoreWrongArity(crate::native_usage::NativeUsageProtocol),
     Missing,
     Commands,
@@ -510,7 +510,7 @@ enum JimInfoReportKind {
 }
 
 impl NativeJimInfoProtocol {
-    /// Original Jim_Eval input for an already selected core member.
+    /// Original `Jim_Eval` input for an already selected core member.
     /// These bytes supply no installed helper or execution authority.
     #[must_use]
     pub fn literal_script(self, member: &str) -> Option<&'static [u8]> {

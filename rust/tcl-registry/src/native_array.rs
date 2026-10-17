@@ -25,8 +25,8 @@ impl crate::InvocationDialect {
         }
     }
 
-    /// The actual C9 ArrayForNRCmd List-copy/script-retain worker. A shared
-    /// release boundary with ArrayDefault does not grant its unrelated purpose.
+    /// The actual C9 `ArrayForNRCmd` List-copy/script-retain worker. A shared
+    /// release boundary with `ArrayDefault` does not grant its unrelated purpose.
     #[must_use]
     pub fn native_array_for_protocol(self) -> Option<NativeStringProtocol> {
         match self.native_string_protocol()? {

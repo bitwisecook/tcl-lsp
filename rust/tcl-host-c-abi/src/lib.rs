@@ -13,7 +13,7 @@ pub use integer_formatter::LoadedNativeIntegerFormatter;
 pub use native_list_sort::NativeListSortingEnvironment;
 
 /// Stateless access to this compiled target's current C numeric environment.
-/// WASIp1 uses its own linked guest libc and errno cell, independently of any
+/// `WASIp1` uses its own linked guest libc and errno cell, independently of any
 /// SDK capture or host-native library. It supplies no Tcl getter recipe.
 pub struct NativeNumericEnvironment;
 
@@ -164,6 +164,11 @@ mod native {
         })
     }
 
+    /// C `long` is 32 or 64 bits by target; both widen losslessly to `i64`.
+    fn widen_c_long<Long: Into<i64>>(value: Long) -> i64 {
+        value.into()
+    }
+
     pub(super) fn signed_long(
         bytes: &[u8],
         base: u32,
@@ -185,7 +190,7 @@ mod native {
             (value, end.offset_from(original.as_ptr()))
         };
         let after = state();
-        let value = i64::try_from(value).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
+        let value = widen_c_long(value);
         let end =
             usize::try_from(consumed).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
         if end > original.as_bytes().len() {

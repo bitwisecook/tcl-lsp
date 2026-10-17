@@ -36,7 +36,7 @@ pub enum NativeJimExistsKind {
     Variable,
 }
 
-/// The pinned Jim core's GetEnum table, separate from lookup and record flags.
+/// The pinned Jim core's `GetEnum` table, separate from lookup and record flags.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeJimExistsProtocol;
 impl NativeJimExistsProtocol {

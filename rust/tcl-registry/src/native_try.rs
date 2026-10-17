@@ -56,7 +56,7 @@ pub enum NativeTryClauseFailure {
 }
 
 impl InvocationDialect {
-    /// Actual Jim GetEnum declaration, independent of source clause grammar.
+    /// Actual Jim `GetEnum` declaration, independent of source clause grammar.
     #[must_use]
     pub fn native_jim_try_handler_table(
         self,

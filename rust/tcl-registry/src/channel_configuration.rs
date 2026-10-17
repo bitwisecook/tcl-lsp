@@ -15,7 +15,7 @@ pub enum ChannelConfigurationSpec {
 }
 
 impl ChannelConfigurationSpec {
-    /// Complete SpecTcl and Studio authoring vocabulary.
+    /// Complete `SpecTcl` and Studio authoring vocabulary.
     pub const ALL: &'static [Self] = &[Self::EncodingTranslation];
 
     pub(crate) fn project(

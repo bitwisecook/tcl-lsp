@@ -124,19 +124,16 @@ fn dict_filter_arg_roles(
         FILTER_TYPE_VALUES.iter().map(|value| value.value),
         FILTER_TYPE_PREFIX_MATCHING,
     );
-    match table.resolve_bytes(bytes).unique()? {
-        "script" => (count == 4).then(|| vec![(2, ArgRole::LoopVarList), (3, ArgRole::Body)]),
-        _ => {
-            let release = args.dialect().and_then(|dialect| dialect.tcl_version);
-            let valid = match release {
-                Some(tcl_dialect::TclVersion::V8_4) => false,
-                Some(tcl_dialect::TclVersion::V8_5) => count == 3,
-                Some(_) => count >= 2,
-                None => count == 3,
-            };
-            valid.then(Vec::new)
-        }
+    if table.resolve_bytes(bytes).unique()? == "script" {
+        return (count == 4).then(|| vec![(2, ArgRole::LoopVarList), (3, ArgRole::Body)]);
     }
+    let release = args.dialect().and_then(|dialect| dialect.tcl_version);
+    let valid = match release {
+        Some(tcl_dialect::TclVersion::V8_4) => false,
+        Some(tcl_dialect::TclVersion::V8_5) | None => count == 3,
+        Some(_) => count >= 2,
+    };
+    valid.then(Vec::new)
 }
 
 /// `dict filter dictionaryValue filterType ...`'s `filterType` word (index 1

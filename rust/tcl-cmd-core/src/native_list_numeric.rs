@@ -73,13 +73,7 @@ pub fn search_order(left: NumericKey, right: NumericKey) -> Ordering {
     match (left, right) {
         (NumericKey::Integer(a), NumericKey::Integer(b)) => a.cmp(&b),
         (NumericKey::Real(a), NumericKey::Real(b)) => {
-            if a == b {
-                Ordering::Equal
-            } else if a < b {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            }
+            a.partial_cmp(&b).unwrap_or(Ordering::Greater)
         }
         _ => unreachable!("one selected search primitive"),
     }
@@ -99,13 +93,7 @@ pub fn sort_order(left: NumericKey, right: NumericKey, jim: bool) -> Result<Orde
         }
         (NumericKey::Integer(a), NumericKey::Integer(b)) => a.cmp(&b),
         (NumericKey::Real(a), NumericKey::Real(b)) if jim => {
-            if a == b {
-                Ordering::Equal
-            } else if a > b {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
+            a.partial_cmp(&b).unwrap_or(Ordering::Less)
         }
         (NumericKey::Real(a), NumericKey::Real(b)) => {
             if a > b {

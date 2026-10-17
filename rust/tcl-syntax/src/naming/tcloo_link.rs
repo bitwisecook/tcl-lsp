@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Symbolic source geometry of the stock C9 TclOO link worker.
+//! Symbolic source geometry of the stock C9 `TclOO` link worker.
 
 use super::{NativeNameProtocol, canonical_written_command};
 use tcl_dialect::TclVersion;

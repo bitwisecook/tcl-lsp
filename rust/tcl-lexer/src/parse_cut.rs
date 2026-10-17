@@ -420,7 +420,7 @@ pub(crate) fn first_parse_cut_region_in_checked_with_memo(
     memo: &NestedBodyCutMemo,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
     let anchored = local.channel() == whole.channel()
-        && usize::try_from(origin).ok().is_some_and(|start| {
+        && usize::try_from(origin).is_ok_and(|start| {
             whole
                 .bytes()
                 .get(start..)
@@ -716,11 +716,7 @@ fn drain(
                 };
                 *next += 1;
                 match job {
-                    WordJob::Unavailable => {
-                        return Err(ParseCutUnavailable::SourceGeometry(
-                            crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
-                        ));
-                    }
+                    WordJob::Unavailable => return Err(source_geometry()),
                     WordJob::Literal => {}
                     WordJob::Cut(offset, term, kind) => {
                         return Ok(Some((report_at.unwrap_or(*offset), *term, *kind)));
@@ -763,18 +759,7 @@ fn drain(
                     | ExecutablePart::Expression { .. }
                     | ExecutablePart::Variable { index: None, .. } => {}
                     ExecutablePart::ParseError(_) => {
-                        let term = component
-                            .parse_error_term()
-                            .and_then(|term| base.checked_add(term))
-                            .ok_or(ParseCutUnavailable::SourceGeometry(
-                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
-                            ))?;
-                        let kind = component.parse_issue_kind().ok_or(
-                            ParseCutUnavailable::SourceGeometry(
-                                crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
-                            ),
-                        )?;
-                        return Ok(Some((at, term, kind)));
+                        return component_cut(component, base, at).map(Some);
                     }
                     ExecutablePart::Variable {
                         index: Some(index), ..
@@ -813,6 +798,26 @@ fn drain(
         }
     }
     Ok(None)
+}
+
+/// The cut a component's retained parse error reports at `at`.
+fn component_cut(
+    component: &crate::SpannedExecutablePart,
+    base: u32,
+    at: u32,
+) -> Result<(u32, u32, crate::ParseIssueKind), ParseCutUnavailable> {
+    let term = component
+        .parse_error_term()
+        .and_then(|term| base.checked_add(term))
+        .ok_or_else(source_geometry)?;
+    let kind = component.parse_issue_kind().ok_or_else(source_geometry)?;
+    Ok((at, term, kind))
+}
+
+const fn source_geometry() -> ParseCutUnavailable {
+    ParseCutUnavailable::SourceGeometry(
+        crate::word_parts::ExecutablePartsUnavailable::SourceGeometry,
+    )
 }
 
 fn content_part_frame(

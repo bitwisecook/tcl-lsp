@@ -4,7 +4,7 @@
 
 //! Literal namespace geometry for Unicode analytical reporting keys.
 
-/// Selected geometry of a reporting QName's namespace presentation.
+/// Selected geometry of a reporting `QName`'s namespace presentation.
 /// Each purpose supplies metadata only, independently of retained source or
 /// execution namespace identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub enum ReportedQNameNamespacePurpose {
     LiteralPrefix,
 }
 
-/// Select a reporting QName's literal namespace prefix, defaulting to `::`.
+/// Select a reporting `QName`'s literal namespace prefix, defaulting to `::`.
 /// The last literal `::` pair supplies the split under the selected purpose;
 /// overlapping colon pairs and all other Unicode/NUL text remain intact.
 /// This query supplies no written-name grammar, constructed-key partition,

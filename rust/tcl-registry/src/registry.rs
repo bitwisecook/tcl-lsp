@@ -6313,17 +6313,16 @@ impl CommandRegistry {
                     return tcl_dialect::TclVersion::from_package_version(release);
                 }
                 let version = tcl_dialect::model::DialectPoint::tcl_version_of_release;
-                match release {
-                    Some(spelling) => family
+                if let Some(spelling) = release {
+                    family
                         .releases()
                         .iter()
                         .find(|release| release.as_str() == spelling)
-                        .and_then(|&release| version(release)),
-                    None => {
-                        let mut versions = family.releases().iter().copied().map(version);
-                        let first = versions.next()?;
-                        first.filter(|&first| versions.all(|next| next == Some(first)))
-                    }
+                        .and_then(|&release| version(release))
+                } else {
+                    let mut versions = family.releases().iter().copied().map(version);
+                    let first = versions.next()?;
+                    first.filter(|&first| versions.all(|next| next == Some(first)))
                 }
             }),
             None => self.runtime_version(),
@@ -7346,16 +7345,12 @@ impl CommandRegistry {
         let resolved = self
             .resolve_structured_invocation(words, query)
             .resolved()?;
-        self.selected_argument_role_assignments(name, args, wanted, query, resolved)
+        Self::selected_argument_role_assignments(wanted, &resolved)
     }
 
     fn selected_argument_role_assignments(
-        &self,
-        _name: &str,
-        _args: InvocationArguments<'_>,
         wanted: &[ArgRole],
-        _query: Option<SurfaceQuery<'_>>,
-        resolved: ResolvedInvocation<'_, '_>,
+        resolved: &ResolvedInvocation<'_, '_>,
     ) -> Option<Vec<(usize, ArgRole)>> {
         // naming.source.authored-registry-role-projection
         // docs/design/analysis/name-resolution-proofs/authored-registry-role-projection.md
@@ -7573,9 +7568,7 @@ impl CommandRegistry {
         } else {
             &[ArgRole::VarRead]
         };
-        let Some(roles) =
-            self.selected_argument_role_assignments(name, args, wanted, query, invocation)
-        else {
+        let Some(roles) = Self::selected_argument_role_assignments(wanted, &invocation) else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
                 opaque_variable_frame: self.get_for_surface(name, query).is_some_and(|spec| {
@@ -7681,7 +7674,7 @@ impl CommandRegistry {
         Self::selected_variable_write_projection(
             &invocation,
             VariableWriteProjectionPurpose::Invocation,
-            || self.arg_role_variable_writes(name, words, query, invocation),
+            || self.arg_role_variable_writes(name, words, query, &invocation),
         )
     }
 
@@ -7836,7 +7829,7 @@ impl CommandRegistry {
         name: &str,
         words: InvocationWords<'_>,
         query: Option<SurfaceQuery<'_>>,
-        invocation: ResolvedInvocation<'_, '_>,
+        invocation: &ResolvedInvocation<'_, '_>,
     ) -> VariableWriteProjection {
         let args = words.arguments();
         if args.exact_argv_len().is_some_and(|count| {
@@ -7856,13 +7849,9 @@ impl CommandRegistry {
                     == Some(crate::hover::VariableScope::Global)
             })
             .collect();
-        let Some(roles) = self.selected_argument_role_assignments(
-            name,
-            args,
-            &[ArgRole::VarWrite],
-            query,
-            invocation,
-        ) else {
+        let Some(roles) =
+            Self::selected_argument_role_assignments(&[ArgRole::VarWrite], invocation)
+        else {
             return VariableWriteProjection {
                 literal_names: Vec::new(),
                 read_before_write_names: Vec::new(),

@@ -9,7 +9,7 @@ pub use tcl_runtime_api::variable_destruction::{
 };
 
 impl crate::InvocationDialect {
-    /// Select C ArrayUnset's member lookup after its array callback. This rule
+    /// Select C `ArrayUnset`'s member lookup after its array callback. This rule
     /// does not license a cell, original object or native execution by itself.
     #[must_use]
     pub fn array_unset_member_lookup(self) -> Option<NativeArrayUnsetMemberLookup> {

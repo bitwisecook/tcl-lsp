@@ -350,7 +350,8 @@ impl IntrinsicId {
             | Self::StringCompare
             | Self::StringReplace
             | Self::StringLength
-            | Self::Concat => IntrinsicFamily::Value,
+            | Self::Concat
+            | Self::ProcedureNoOp => IntrinsicFamily::Value,
             Self::ListAssign
             | Self::ListSet
             | Self::DictSet
@@ -361,7 +362,6 @@ impl IntrinsicId {
             | Self::StringIs
             | Self::Regexp
             | Self::ChannelWrite => IntrinsicFamily::STORES,
-            Self::ProcedureNoOp => IntrinsicFamily::Value,
             Self::InfoCommandsResolve | Self::NamespaceOrigin | Self::NamespaceCode => {
                 IntrinsicFamily::FamilyB {
                     domains: GuardDomains::one(GuardDomain::CommandEnvironment)

@@ -60,7 +60,7 @@ impl NativeBooleanTruthPurpose {
 /// Interpreter result effect of a reached unsuccessful primitive getter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeBooleanTruthGetterEffects {
-    /// The original producer passed NULL or used JimGetWideNoErr.
+    /// The original producer passed NULL or used `JimGetWideNoErr`.
     ErrorNeutral,
     /// The actual getter reports its diagnostic even before a later success.
     ReportGuestFailure,
@@ -76,7 +76,7 @@ pub enum NativeBooleanTruthProbe {
         /// Whether a failure updates actual interpreter state immediately.
         effects: NativeBooleanTruthGetterEffects,
     },
-    /// C8.4 GET_WIDE_OR_INT; retain its native-long versus wide cache recipe.
+    /// C8.4 `GET_WIDE_OR_INT`; retain its native-long versus wide cache recipe.
     ExpressionInteger84,
     /// C8.4 LNOT converts a stringless Boolean primary to native long in place.
     ExpressionWordBoolean84(bool),
@@ -87,7 +87,7 @@ pub enum NativeBooleanTruthProbe {
 pub enum NativeBooleanTruthFailureProducer {
     /// Keep the last reached primitive's own diagnostic and state update.
     ScalarGetter,
-    /// C IllegalExprOperandType, independently of primitive getter wording.
+    /// C `IllegalExprOperandType`, independently of primitive getter wording.
     LogicalOperand,
 }
 
@@ -168,7 +168,7 @@ impl NativeBooleanExpressionResultProtocol {
         }
     }
 
-    /// Select an actually reached C TRY_CVT_TO_NUMERIC instruction. This
+    /// Select an actually reached C `TRY_CVT_TO_NUMERIC` instruction. This
     /// always converts the numeric result and never performs an API copy.
     /// Jim supplies no corresponding C instruction producer.
     #[must_use]
@@ -200,7 +200,7 @@ impl NativeBooleanExpressionResultProtocol {
         self.producer
     }
 
-    /// Whether the selected outer Boolean result producer retains TRY_NUM.
+    /// Whether the selected outer Boolean result producer retains `TRY_NUM`.
     /// C8.6+ peephole compilation removes it before conditional jumps; the
     /// public expression API still evaluates its independent expression program.
     /// Jim evaluates its original term without borrowing either C operation.
@@ -216,7 +216,7 @@ impl NativeBooleanExpressionResultProtocol {
         })
     }
 
-    /// C8.6+ public Tcl_ExprObj copies the evaluated result through
+    /// C8.6+ public `Tcl_ExprObj` copies the evaluated result through
     /// ExprObjCallback/TclSetDuplicateObj, after successful evaluation, including a nonnumeric result.
     /// An inline compiled expression does not perform this API copy.
     #[must_use]
@@ -264,8 +264,8 @@ impl NativeBooleanTruthProtocol {
         self.purpose
     }
 
-    /// JimExprGetTermBoolean installs the evaluated original term before
-    /// ExprBool. Numeric unary logical-not has its separate original path.
+    /// `JimExprGetTermBoolean` installs the evaluated original term before
+    /// `ExprBool`. Numeric unary logical-not has its separate original path.
     #[must_use]
     pub const fn publishes_original_operand(self) -> bool {
         self.scalar.is_jim084() && !matches!(self.purpose, NativeBooleanTruthPurpose::LogicalNot)

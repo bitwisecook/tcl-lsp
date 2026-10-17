@@ -640,8 +640,6 @@ fn replace_range(first: i64, last: i64, len: usize) -> (usize, usize) {
     (lo, end)
 }
 
-/// The ASCII whitespace Tcl trims/splits on (space, tab, newline, CR, VT, FF).
-
 /// `concat ?arg ...?` — trim each argument and join with single spaces, dropping
 /// the args that are empty after trimming.
 pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {

@@ -89,10 +89,10 @@ pub fn concatenate_jim_checked<O: NativeAppendObjects, E: From<ValueError>>(
     )
 }
 
-fn jim_cat_stage<V, E>(
-    check: &mut Option<&mut dyn FnMut(&V) -> Result<(), E>>,
-    original: &V,
-) -> Result<(), E> {
+/// An optional original-stage check run before each Jim cat operand access.
+type JimCatCheck<'c, V, E> = Option<&'c mut dyn FnMut(&V) -> Result<(), E>>;
+
+fn jim_cat_stage<V, E>(check: &mut JimCatCheck<'_, V, E>, original: &V) -> Result<(), E> {
     check.as_mut().map_or(Ok(()), |check| check(original))
 }
 
@@ -101,7 +101,7 @@ fn concatenate_jim_using<O: NativeAppendObjects, E: From<ValueError>>(
     protocol: tcl_syntax::native_string::NativeStringProtocol,
     inputs: &[O::Value],
     original_string: &mut impl FnMut(&O::Value) -> Result<Rc<[u8]>, E>,
-    check: &mut Option<&mut dyn FnMut(&O::Value) -> Result<(), E>>,
+    check: &mut JimCatCheck<'_, O::Value, E>,
     retain: &mut dyn FnMut(&E),
 ) -> Result<O::Value, E> {
     if !protocol.is_jim084() {

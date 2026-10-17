@@ -75,7 +75,7 @@ pub fn procedures(
     let namespace = if library == NativeScriptedLibrary::NamespaceEnsemble
         && dialect
             .native_name_protocol()
-            .is_some_and(|recipe| recipe.is_jim084())
+            .is_some_and(tcl_syntax::naming::NativeNameProtocol::is_jim084)
     {
         JIM_NAMESPACE_ENSEMBLE
     } else {
@@ -86,7 +86,7 @@ pub fn procedures(
         NativeScriptedLibrary::NamespaceInfo | NativeScriptedLibrary::NamespaceEnsemble
     ) && dialect
         .native_name_protocol()
-        .is_some_and(|recipe| recipe.is_jim084())
+        .is_some_and(tcl_syntax::naming::NativeNameProtocol::is_jim084)
     {
         JIM_NAMESPACE_INFO
     } else {

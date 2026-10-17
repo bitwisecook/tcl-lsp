@@ -40,7 +40,7 @@ impl NativeCommandNameProtocol {
     }
 
     /// Original namespace lookup invalidation follows the outer trace pass.
-    /// C8.4 has no TclInvalidateNsCmdLookup at this deletion site.
+    /// C8.4 has no `TclInvalidateNsCmdLookup` at this deletion site.
     #[must_use]
     pub const fn deletion_invalidates_namespace_after_trace(self) -> bool {
         !matches!(self.0, tcl_dialect::TclVersion::V8_4)

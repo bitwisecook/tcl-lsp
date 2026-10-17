@@ -217,7 +217,9 @@ impl NativePropertyLookupProtocol {
     /// member array. This source-inspected recipe supplies no physical owner.
     #[must_use]
     pub const fn storage_retirement(self) -> [NativePropertyStorageRetirementStep; 4] {
-        use NativePropertyStorageRetirementStep::*;
+        use NativePropertyStorageRetirementStep::{
+            ReadableCache, ReadableMembers, WritableCache, WritableMembers,
+        };
         [
             ReadableCache,
             WritableCache,
@@ -232,7 +234,9 @@ impl NativePropertyLookupProtocol {
     /// issued by the pure recipe.
     #[must_use]
     pub const fn member_installation(self) -> [NativePropertyMemberInstallationStep; 4] {
-        use NativePropertyMemberInstallationStep::*;
+        use NativePropertyMemberInstallationStep::{
+            Cache, IncomingReferences, OldMembers, UniqueHash,
+        };
         [Cache, IncomingReferences, OldMembers, UniqueHash]
     }
     /// `Tcl_NewMethod` always changes Foundation; instance method creation only

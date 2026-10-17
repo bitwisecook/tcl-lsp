@@ -12,7 +12,7 @@
 //! Neither branch issues a value, command handler, entered source or edit owner.
 
 use crate::{
-    DocumentLineEndingProjection, JimScriptTokensUnavailable, LexError, LexerConfig,
+    DocumentLineEndingProjection, JimScriptTokensUnavailable, LexError, LexerConfig, ParseCut,
     ParseCutCompleteness, ParseCutUnavailable, SourceChannel, SourceImage,
 };
 
@@ -69,7 +69,7 @@ pub fn script_image_is_complete(
             .map_err(ScriptCompletenessUnavailable::JimScript);
     }
     let cut = match crate::first_parse_cut_image_checked(image, config) {
-        Ok(cut) => cut.map(|cut| cut.completeness()),
+        Ok(cut) => cut.map(ParseCut::completeness),
         // Strict mode retains the first error from the same selected lexer.
         // Its known owner-issued kinds have the same readonly incomplete flag.
         Err(ParseCutUnavailable::LexicalStream(LexError::SyntaxError { kind, .. })) => {

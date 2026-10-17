@@ -68,7 +68,7 @@ impl NativeErrorLogProtocol {
         matches!(self, Self::C(tcl_dialect::TclVersion::V8_4))
     }
 
-    /// C8.4's direct Tcl_LogCommandInfo clears ERR_ALREADY_LOGGED after
+    /// C8.4's direct `Tcl_LogCommandInfo` clears `ERR_ALREADY_LOGGED` after
     /// the global setters; the evaluating bytecode command sets it separately.
     #[must_use]
     pub const fn evaluation_owns_logged_flag(self) -> bool {

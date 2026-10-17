@@ -132,7 +132,7 @@ pub fn jim_script_tokens(
 /// keep command bodies opaque until their own script entry; the roster retains
 /// malformed tokens, the missing marker and its original source line.
 ///
-/// This readonly projection grants no NativeValue ingress, Script object,
+/// This readonly projection grants no `NativeValue` ingress, Script object,
 /// filename, interpreter identity or execution authority.
 ///
 /// # Errors

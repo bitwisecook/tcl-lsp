@@ -47,7 +47,7 @@ fn backing(snapshot: &NativeObjectSnapshot, version: TclVersion) -> Option<&[u8]
     None
 }
 
-/// Reach Jim_StringEqObj, independently of Jim_StringCompareObj's character
+/// Reach `Jim_StringEqObj`, independently of `Jim_StringCompareObj`'s character
 /// preparation. The caller retains each original header and supplies its checked
 /// String getter; equal physical headers do not reach either String getter.
 ///

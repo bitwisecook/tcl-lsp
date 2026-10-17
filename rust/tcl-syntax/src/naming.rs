@@ -330,7 +330,7 @@ pub fn textmate_unquoted_entity_name() -> &'static str {
     r#"[^\s"{}\[\];$]+"#
 }
 
-/// Static TextMate braced-variable display fragment, including the empty name.
+/// Static `TextMate` braced-variable display fragment, including the empty name.
 /// This preserves the historical first-close projection. It is exact for
 /// [`tcl_dialect::BracedVarStyle::FirstClose`]; nested Tcl 9 names and escaped
 /// closers need semantic tokens for exact extents. No lookup or cell follows.
@@ -372,7 +372,6 @@ pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
 /// assert_eq!(qualifier_component_extents(b"a:b").collect::<Vec<_>>(),
 ///            vec![0..3]);
 /// ```
-#[must_use]
 pub fn qualifier_component_extents(
     name: &[u8],
 ) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {

@@ -35,8 +35,8 @@ pub enum NativePublicCommandRegistrationRecipe {
     /// C public registration projects unqualified names globally and qualified
     /// names through the original current namespace.
     CNamespacePublication,
-    /// Jim_CreateCommand constructs a fresh CString name in the root table;
-    /// Jim_RegisterCommand then retains its independently owned table key.
+    /// `Jim_CreateCommand` constructs a fresh `CString` name in the root table;
+    /// `Jim_RegisterCommand` then retains its independently owned table key.
     JimRootCStringKey,
 }
 
@@ -92,7 +92,7 @@ impl NativeCommandCreationProtocol {
         }
     }
 
-    /// Project the genuine Jim public API's root CString name through the
+    /// Project the genuine Jim public API's root `CString` name through the
     /// existing name owner. This describes key units, never a live key header.
     #[must_use]
     pub fn public_jim_registration_key(

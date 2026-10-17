@@ -203,7 +203,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
                 let first = match reached {
                     Err(first) => first,
                     Ok(value) => {
-                        let first = after.err().expect("original literal post-cleanup refusal");
+                        let first = after.expect_err("original literal post-cleanup refusal");
                         let retired = acquired.and_then(|index| world.borrow_mut().release(index));
                         drop(retired);
                         drop(value);

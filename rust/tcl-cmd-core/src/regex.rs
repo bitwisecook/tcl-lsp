@@ -55,6 +55,12 @@ pub struct RegMatch {
     pub eo: usize,
 }
 
+/// A subexpression that did not participate in the match.
+const UNMATCHED: RegMatch = RegMatch {
+    so: NO_MATCH,
+    eo: NO_MATCH,
+};
+
 /// What a bounded match establishes (`docs/design/compiler/value-evaluation.md`
 /// § *The typed precision result*). The only variant a compile-time fact may
 /// be built from is `Exact`.
@@ -85,12 +91,7 @@ impl RegexpPrecision<RegMatch> {
         match self {
             Self::Exact { whole, groups, .. } => Some(
                 std::iter::once(*whole)
-                    .chain(groups.iter().map(|group| {
-                        group.unwrap_or(RegMatch {
-                            so: NO_MATCH,
-                            eo: NO_MATCH,
-                        })
-                    }))
+                    .chain(groups.iter().map(|group| group.unwrap_or(UNMATCHED)))
                     .collect(),
             ),
             Self::NoMatch | Self::Declined(_) => None,
@@ -1119,15 +1120,20 @@ fn jim_options<O: NativeRegexSource>(
     }
     Ok(selected)
 }
-fn jim_byte_offset(bytes: &[u8], index: i32) -> Result<usize, ValueError> {
-    let adjusted = if index < 0 {
+/// Jim's `-start` index, with a negative index counted back from one past the end.
+fn jim_adjusted_start(length: usize, index: i32) -> Result<i64, ValueError> {
+    Ok(if index < 0 {
         i64::from(index)
-            + i64::try_from(bytes.len())
+            + i64::try_from(length)
                 .map_err(|_| ValueError::CommandProtocolUnavailable("Jim regexp source length"))?
             + 1
     } else {
         i64::from(index)
-    };
+    })
+}
+
+fn jim_byte_offset(bytes: &[u8], index: i32) -> Result<usize, ValueError> {
+    let adjusted = jim_adjusted_start(bytes.len(), index)?;
     if adjusted <= 0 {
         return Ok(0);
     }
@@ -1249,17 +1255,8 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
         vars
     };
     let mut offset = jim_byte_offset(&subject, selected.start).map_err(regex_execution_error)?;
-    let mut character_offset = if selected.start < 0 {
-        i64::from(selected.start)
-            + i64::try_from(subject.len()).map_err(|_| {
-                regex_execution_error(ValueError::CommandProtocolUnavailable(
-                    "Jim regexp source length",
-                ))
-            })?
-            + 1
-    } else {
-        i64::from(selected.start)
-    };
+    let mut character_offset =
+        jim_adjusted_start(subject.len(), selected.start).map_err(regex_execution_error)?;
     let mut notbol = selected.start != 0;
     let mut matches_count = 0i64;
     let mut output = Vec::new();
@@ -1277,10 +1274,7 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             jim_whole_match(&matches, subject.len() - offset).map_err(regex_execution_error)?;
         matches_count += 1;
         for index in 0..count {
-            let span = matches.get(index).copied().unwrap_or(RegMatch {
-                so: NO_MATCH,
-                eo: NO_MATCH,
-            });
+            let span = matches.get(index).copied().unwrap_or(UNMATCHED);
             let value = jim_capture_value::<O, E>(
                 ops,
                 &subject,
@@ -1460,6 +1454,46 @@ struct RegexpOptions {
     about: bool,
 }
 
+/// `TclRegAbout` (`tclRegexp.c`): a two-element list of the subexpression
+/// count and the engine's `re_info` flag names. The compile flags still apply
+/// — `regexp -about -expanded {a b}` is `0 REG_UNONPOSIX` on every release —
+/// but nothing else about the command runs: no subject decode, no `-start`, no
+/// match loop, and `-indices`/`-all` are simply ignored (all tclsh-verified,
+/// 8.4.20 through 9.1b0).
+fn regexp_about<O: NativeIndexOps, E: RegexEngine, Err>(
+    ops: &mut O,
+    pattern: &[u8],
+    flags: RegexFlags,
+    version: TclVersion,
+    run: &mut Run<'_, '_>,
+) -> Result<RegexpResult<O::Value>, RegexpRunError<Err>>
+where
+    E::Regex: 'static,
+{
+    let re = run
+        .compile::<E>(pattern, flags, version)
+        .map_err(RegexpRunError::Regex)?;
+    // `Inline` is "the command result *is* this value, and no match
+    // variable is written", which is exactly `-about`'s contract too — so
+    // it carries the answer rather than the result enum gaining a variant
+    // every adapter would have to learn.
+    Ok(RegexpResult::Inline(about_answer::<O, E>(
+        ops,
+        &re.borrow(),
+    )))
+}
+
+/// The `-about` answer: the subexpression count and the engine's flag names.
+fn about_answer<O: ValueOps, E: RegexEngine>(ops: &mut O, re: &E::Regex) -> O::Value {
+    let count = ops.new_int(i64::try_from(E::nsub(re)).unwrap_or(i64::MAX));
+    let names = E::info_names(re)
+        .into_iter()
+        .map(|name| ops.new_str(name))
+        .collect();
+    let names = ops.new_list(names);
+    ops.new_list(vec![count, names])
+}
+
 fn regexp_selected_run<O: NativeIndexOps, E: RegexEngine, Err>(
     ops: &mut O,
     rest: &[&[u8]],
@@ -1498,29 +1532,7 @@ where
 
     let pattern = rest[0];
     if about {
-        // `TclRegAbout` (`tclRegexp.c`): a two-element list of the
-        // subexpression count and the engine's `re_info` flag names. The
-        // compile flags still apply — `regexp -about -expanded {a b}` is
-        // `0 REG_UNONPOSIX` on every release — but nothing else about the
-        // command runs: no subject decode, no `-start`, no match loop, and
-        // `-indices`/`-all` are simply ignored (all tclsh-verified, 8.4.20
-        // through 9.1b0).
-        let re = run
-            .compile::<E>(pattern, c.flags, version)
-            .map_err(RegexpRunError::Regex)?;
-        let re = re.borrow();
-        let nsubs = i64::try_from(E::nsub(&re)).unwrap_or(i64::MAX);
-        let count = ops.new_int(nsubs);
-        let flags: Vec<O::Value> = E::info_names(&re)
-            .into_iter()
-            .map(|name| ops.new_str(name))
-            .collect();
-        let info = ops.new_list(flags);
-        // `Inline` is "the command result *is* this value, and no match
-        // variable is written", which is exactly `-about`'s contract too — so
-        // it carries the answer rather than the result enum gaining a variant
-        // every adapter would have to learn.
-        return Ok(RegexpResult::Inline(ops.new_list(vec![count, info])));
+        return regexp_about::<O, E, Err>(ops, pattern, c.flags, version, run);
     }
     let str_bytes = rest[1];
     let (cps, byteoff) = decode_utf8(str_bytes);
@@ -1847,7 +1859,7 @@ pub fn regsub_prepare_original<'a, O: NativeRegexSource>(
                     .map(|spec| {
                         let length = ops
                             .index_character_count(&originals[1])
-                            .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
+                            .map_err(RegexError::from)?;
                         resolve_start_checked(ops, spec, length)
                     })
                     .transpose()?
@@ -2472,13 +2484,8 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             .map_err(RegexpExecutionError::Regex)?;
     let nsubs = E::nsub(&compiled.borrow());
     if about {
-        let count = ops.new_int(i64::try_from(nsubs).unwrap_or(i64::MAX));
-        let names = E::info_names(&compiled.borrow())
-            .into_iter()
-            .map(|name| ops.new_str(name))
-            .collect();
-        let names = ops.new_list(names);
-        return Ok(RegexpResult::Inline(ops.new_list(vec![count, names])));
+        let answer = about_answer::<O, E>(ops, &compiled.borrow());
+        return Ok(RegexpResult::Inline(answer));
     }
     let mut count = 0_i64;
     let mut items = Vec::new();

@@ -57,6 +57,7 @@ struct CheckedWordGeometry {
     group: crate::WordSpan,
     tokens: Box<[Token]>,
 }
+#[derive(Clone, Copy)]
 enum SyntaxValidation {
     InspectRecursively,
     InheritedCommand { parse_config: LexerConfig },
@@ -77,7 +78,7 @@ impl NativeScriptWordsPlan {
     /// # Errors
     /// Refuses foreign image/channel/config/word/part geometry, or unavailable
     /// inherited lexical ownership. The complete parent configuration remains
-    /// on child words; the local parser purpose is explicitly NestedScript.
+    /// on child words; the local parser purpose is explicitly `NestedScript`.
     pub fn reborrow_command_substitution_plan(
         &self,
         word: &NativeWord,
@@ -275,42 +276,18 @@ fn capture_native_script_words(
         }
     };
     let complete_count = cut.map_or(groups.len(), |cut| cut.command);
-    let fatal_tail = if let Some(mut cut) = cut {
-        let command = groups
-            .get(cut.command)
-            .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
-        let command_start = rebase_offset(command.span.start(), region)?;
-        cut.offset = rebase_offset(cut.offset, region)?;
-        cut.term = rebase_offset(cut.term, region)?;
-        Some(NativeScriptWordCut { command_start, cut })
-    } else {
-        None
-    };
+    let fatal_tail = cut
+        .map(|cut| rebase_fatal_tail(cut, &groups, region))
+        .transpose()?;
     let source_extents = groups
         .iter()
         .take(complete_count)
-        .map(|command| {
-            let extent = command
-                .source_extent(&tokens, original.len())
-                .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
-            rebase_span(extent, region)
-        })
+        .map(|command| rebase_source_extent(command, &tokens, original.len(), region))
         .collect::<Result<Vec<_>, _>>()?;
     let terminators = groups
         .iter()
         .take(complete_count)
-        .map(|command| {
-            command
-                .terminator
-                .map(|index| {
-                    let token = tokens
-                        .get(index)
-                        .filter(|token| token.kind == crate::TokenType::Eol)
-                        .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
-                    rebase_span(token.span, region)
-                })
-                .transpose()
-        })
+        .map(|command| rebase_terminator(command, &tokens, region))
         .collect::<Result<Vec<_>, _>>()?;
     for token in &mut tokens {
         token.span = rebase_span(token.span, region)?;
@@ -358,6 +335,52 @@ fn capture_native_script_words(
         commands,
         fatal_tail,
     })
+}
+
+/// Rebase an authentic malformed command after the complete prefix.
+fn rebase_fatal_tail(
+    mut cut: ParseCut,
+    groups: &[crate::CommandSpan],
+    region: Span,
+) -> Result<NativeScriptWordCut, NativeScriptWordsUnavailable> {
+    let command = groups
+        .get(cut.command)
+        .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
+    let command_start = rebase_offset(command.span.start(), region)?;
+    cut.offset = rebase_offset(cut.offset, region)?;
+    cut.term = rebase_offset(cut.term, region)?;
+    Ok(NativeScriptWordCut { command_start, cut })
+}
+
+/// Rebase a command's terminator-delimited source extent, including trivia.
+fn rebase_source_extent(
+    command: &crate::CommandSpan,
+    tokens: &[Token],
+    source_len: usize,
+    region: Span,
+) -> Result<Span, NativeScriptWordsUnavailable> {
+    let extent = command
+        .source_extent(tokens, source_len)
+        .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
+    rebase_span(extent, region)
+}
+
+/// Rebase a command's original `Eol` terminator token, when it has one.
+fn rebase_terminator(
+    command: &crate::CommandSpan,
+    tokens: &[Token],
+    region: Span,
+) -> Result<Option<Span>, NativeScriptWordsUnavailable> {
+    command
+        .terminator
+        .map(|index| {
+            let token = tokens
+                .get(index)
+                .filter(|token| token.kind == crate::TokenType::Eol)
+                .ok_or(NativeScriptWordsUnavailable::SourceGeometry)?;
+            rebase_span(token.span, region)
+        })
+        .transpose()
 }
 
 fn rebase_offset(local: u32, region: Span) -> Result<u32, NativeScriptWordsUnavailable> {

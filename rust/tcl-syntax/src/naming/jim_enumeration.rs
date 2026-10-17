@@ -16,7 +16,7 @@ fn matches(pattern: &[u8], candidate: &[u8]) -> Result<bool, NativeGlobUnavailab
 }
 
 impl NativeNameProtocol {
-    /// Apply the original CString space exclusion after its reached key getter.
+    /// Apply the original `CString` space exclusion after its reached key getter.
     ///
     /// # Errors
     /// Refuses a non-Jim recipe; bytes grant no physical key/getter authority.
@@ -32,7 +32,7 @@ impl NativeNameProtocol {
     }
 
     /// Candidate positions reached by the original flat-table hash shortcut
-    /// or scan. The CString triviality test and counted key equality differ.
+    /// or scan. The `CString` triviality test and counted key equality differ.
     ///
     /// # Errors
     /// Refuses a non-Jim recipe. This supplies no actual table or getter role.

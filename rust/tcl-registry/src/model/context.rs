@@ -497,7 +497,7 @@ impl ResolvedContext {
     /// require` — it declares a placement for it (§3.2's placement
     /// claims).
     ///
-    /// Closed-world F5, EDA, BPF and SpecTcl environments declare no Tk
+    /// Closed-world F5, EDA, BPF and `SpecTcl` environments declare no Tk
     /// placement. Plain Tcl, its lenient sink and Tk declare one.
     ///
     /// Distinct from [`Self::package_active`]: hosting is what the

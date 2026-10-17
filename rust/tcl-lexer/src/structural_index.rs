@@ -825,6 +825,18 @@ impl BraceBuilder<'_> {
         j
     }
 
+    /// Whether the byte at `i` legitimately follows a closed brace/quote word.
+    fn separates_closed_word(&self, i: usize, stop_at_bracket: bool) -> bool {
+        match self.bytes[i] {
+            b' ' | b'\t' | b'\r' | b'\n' | b';' => true,
+            b'\\' => backslash_continuation_end(self.bytes, i).is_some(),
+            // A `]` terminating the enclosing command sub is a
+            // legitimate follow (`[set x {b}]`), not extra-chars.
+            b']' => stop_at_bracket,
+            _ => false,
+        }
+    }
+
     fn scan_script(&mut self, start: usize, stop_at_bracket: bool, depth: u32) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
@@ -850,19 +862,13 @@ impl BraceBuilder<'_> {
                 );
                 continue;
             }
-            // "Extra characters after close-brace/quote" gate.
+            // "Extra characters after close-brace/quote" gate: terminal
+            // extra-chars stop and propagate "complete".
             if just_closed_word {
-                match self.bytes[i] {
-                    b' ' | b'\t' | b'\r' | b'\n' | b';' => just_closed_word = false,
-                    b'\\' if backslash_continuation_end(self.bytes, i).is_some() => {
-                        just_closed_word = false;
-                    }
-                    // A `]` terminating the enclosing command sub is a
-                    // legitimate follow (`[set x {b}]`), not extra-chars.
-                    b']' if stop_at_bracket => just_closed_word = false,
-                    // Terminal extra-chars: stop and propagate "complete".
-                    _ => return (i, true),
+                if !self.separates_closed_word(i, stop_at_bracket) {
+                    return (i, true);
                 }
+                just_closed_word = false;
             }
             // Command / word context.
             match self.bytes[i] {

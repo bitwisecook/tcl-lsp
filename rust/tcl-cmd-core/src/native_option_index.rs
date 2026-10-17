@@ -33,9 +33,9 @@ use tcl_syntax::{
 /// A foreign library or BIG-IP layout requires its own actual issuer.
 #[derive(Clone, Copy, Debug)]
 pub struct NativeOptionIndexLayout {
-    /// Local native Tcl_Size maximum.
+    /// Local native `Tcl_Size` maximum.
     pub size_max: i64,
-    /// Pinned C9 ListStore allocation bound under that local C ABI layout.
+    /// Pinned C9 `ListStore` allocation bound under that local C ABI layout.
     pub list_max: i64,
 }
 impl NativeOptionIndexLayout {
@@ -116,7 +116,7 @@ pub enum Path<'a> {
     Neutral(&'a [Vec<u8>]),
     Original(&'a [NativeCompiledListIndex]),
 }
-impl<'a> Path<'a> {
+impl Path<'_> {
     /// Number of prepared nested selections.
     #[must_use]
     pub fn len(self) -> usize {

@@ -42,7 +42,7 @@ impl EngineCommandInventory {
             length = length.checked_add(25)?;
             for bytes in parts
                 .iter()
-                .map(|part| part.as_ref())
+                .map(AsRef::<[u8]>::as_ref)
                 .chain(std::iter::once(row.slot.simple.as_ref()))
             {
                 u32::try_from(bytes.len()).ok()?;

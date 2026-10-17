@@ -682,6 +682,16 @@ impl ComponentParseError {
             ..self
         }
     }
+    /// The error component that terminates a walk from `start` to `end`.
+    fn spanned_part<'s>(self, start: usize, end: usize) -> SpannedPart<'s> {
+        SpannedPart {
+            part: WordPart::ParseError(self.kind.message()),
+            start,
+            end,
+            error_term: Some(self.term),
+            error_kind: Some(self.kind),
+        }
+    }
 }
 
 fn scan_var_ref_with_term(
@@ -1006,13 +1016,7 @@ fn scan_parts<'s>(
                 // scanned are kept (they run first — see the module docs) and
                 // the error terminates the walk.
                 Err(error) => {
-                    parts.push(SpannedPart {
-                        part: WordPart::ParseError(error.kind.message()),
-                        start: i,
-                        end: len,
-                        error_term: Some(error.term),
-                        error_kind: Some(error.kind),
-                    });
+                    parts.push(error.spanned_part(i, len));
                     return parts;
                 }
             }
@@ -1038,13 +1042,7 @@ fn scan_parts<'s>(
                 Err(_) if flags.unclosed_bracket_is_data => i += 1,
                 Err(error) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
-                    parts.push(SpannedPart {
-                        part: WordPart::ParseError(error.kind.message()),
-                        start: i,
-                        end: len,
-                        error_term: Some(error.term),
-                        error_kind: Some(error.kind),
-                    });
+                    parts.push(error.spanned_part(i, len));
                     return parts;
                 }
             }

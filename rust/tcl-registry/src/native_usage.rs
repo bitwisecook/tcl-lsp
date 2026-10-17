@@ -68,8 +68,8 @@ impl NativeUsageProtocol {
     }
 
     /// Present an already selected procedure header and formal usage suffix.
-    /// Jim's JimCmdUsage keeps counted bytes until JimSetProcWrongArgs passes
-    /// the assembled usage through the formatter's CString boundary. The C
+    /// Jim's `JimCmdUsage` keeps counted bytes until `JimSetProcWrongArgs` passes
+    /// the assembled usage through the formatter's `CString` boundary. The C
     /// procedure presenter retains the counted header and suffix here.
     #[must_use]
     pub fn render_procedure_message(self, header: &[u8], suffix: &[u8]) -> Vec<u8> {
@@ -77,7 +77,7 @@ impl NativeUsageProtocol {
     }
 
     /// Present the selected called-name and registered usage suffix. Jim's
-    /// native and procedure branches of JimCmdUsage assemble counted bytes
+    /// native and procedure branches of `JimCmdUsage` assemble counted bytes
     /// before JimCallNative/JimSetProcWrongArgs applies the final formatter.
     /// This rendering does not confer a resolved command or registered arity.
     #[must_use]

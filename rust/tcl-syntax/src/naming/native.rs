@@ -926,7 +926,7 @@ impl NativeNameProtocol {
     }
 
     /// Child alias extensions construct their command name independently of the
-    /// standalone alias command. Jim's Jim_RegisterCmd receives Jim_String and
+    /// standalone alias command. Jim's `Jim_RegisterCmd` receives `Jim_String` and
     /// builds a new -1-length string at the child root; original counted input
     /// remains separate from the selected C-string extent and report spelling.
     /// C uses its existing alias-registration rule in the selected child realm.
@@ -1093,11 +1093,11 @@ impl NativeNameProtocol {
             .map(NativeCommandSlotProjection::into_slot)
     }
 
-    /// Public collision message for an original TclOO object publication.
+    /// Public collision message for an original `TclOO` object publication.
     /// The caller independently supplies the actual occupied slot and result producer.
     ///
     /// # Errors
-    /// Refuses engines without audited TclOO object publication.
+    /// Refuses engines without audited `TclOO` object publication.
     pub fn oo_object_collision_message(
         self,
         original: &[u8],
@@ -1470,10 +1470,8 @@ impl NativeNameProtocol {
         original: &[u8],
         tail: bool,
     ) -> NativeNamespaceTextResult<'_> {
-        if self.is_jim084() && !tail {
-            if jim_namespace_qualifier(original).is_none() {
-                return NativeNamespaceTextResult::SharedEmpty;
-            }
+        if self.is_jim084() && !tail && jim_namespace_qualifier(original).is_none() {
+            return NativeNamespaceTextResult::SharedEmpty;
         }
         let bytes = if tail {
             let prefix = c_string_extent(original);
@@ -1904,8 +1902,8 @@ impl NativeNameProtocol {
     /// Select the actual Jim command-table key constructor. An occupied slot
     /// keeps its original key; this selects only the incoming constructor role.
     /// Alias registration uses the supplied object, while the child/public
-    /// CString API constructs a fresh object. Procedure and rename qualification
-    /// duplicate the genuine namespace object before appending CString units.
+    /// `CString` API constructs a fresh object. Procedure and rename qualification
+    /// duplicate the genuine namespace object before appending `CString` units.
     ///
     /// # Errors
     /// Refuses other engines, unsupported purposes or a missing namespace owner.

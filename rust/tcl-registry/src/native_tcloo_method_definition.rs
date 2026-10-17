@@ -136,7 +136,7 @@ pub enum NativeTclooCallReportKind {
     Method,
 }
 impl NativeTclooCallReportKind {
-    /// Original RenderCallChain precedence; selector spelling is not an input.
+    /// Original `RenderCallChain` precedence; selector spelling is not an input.
     #[must_use]
     pub const fn from_flags(filter: bool, unknown: bool, private: bool) -> Self {
         if filter {
@@ -181,7 +181,7 @@ pub enum NativeTclooClassVariableNameFailure {
     NamespaceSeparator,
 }
 impl NativeTclooClassVariableNameFailure {
-    /// Original CString diagnostic, independent of the counted lookup key.
+    /// Original `CString` diagnostic, independent of the counted lookup key.
     #[must_use]
     pub fn message(self, original: &[u8]) -> Vec<u8> {
         let reason: &[u8] = match self {
@@ -314,7 +314,7 @@ pub enum NativeTclooMethodReportRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeTclooMethodReportProtocol;
 impl NativeTclooMethodReportProtocol {
-    /// Select through the existing actual TclOO declaration availability owner.
+    /// Select through the existing actual `TclOO` declaration availability owner.
     #[must_use]
     pub fn select(dialect: InvocationDialect) -> Option<Self> {
         NativeTclooMethodDefinitionProtocol::select(dialect).map(|_| Self)

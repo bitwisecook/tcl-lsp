@@ -43,7 +43,7 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
-/// Retained private ClockClientData objects supplied by the runtime adapter.
+/// Retained private `ClockClientData` objects supplied by the runtime adapter.
 pub struct FormatArgumentLiterals<V> {
     pub format: V,
     pub locale: V,
@@ -94,7 +94,7 @@ pub fn parse_format_args<O: ValueOps>(
         "option",
         &["-format", "-gmt", "-locale", "-timezone"],
     );
-    for pair in args[1..].chunks_exact(2) {
+    for pair in args[1..].as_chunks::<2>().0 {
         let index = match table.index_of_original(ops, &pair[0]) {
             Ok(index) => index,
             Err(error) => {

@@ -78,6 +78,16 @@ pub enum NativeListInsertionIndex {
     },
 }
 
+impl NativeListInsertionIndex {
+    /// The C8.6 clamped coordinate, when no runtime index object is evaluated.
+    fn immediate(self) -> Option<NativeCompiledListIndex> {
+        match self {
+            Self::Immediate(index) => Some(index),
+            Self::Original { .. } => None,
+        }
+    }
+}
+
 /// Original C8.6 insertion burst, preserving its List conversion order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeListInsertionStep {
@@ -104,10 +114,7 @@ pub fn c86_list_insertion_steps(
     elements: Vec<NativeCompilerWordOperand>,
 ) -> Option<Vec<NativeListInsertionStep>> {
     use NativeListInsertionStep as Step;
-    let NativeListInsertionIndex::Immediate(index) = index else {
-        return None;
-    };
-    let index = index.encoded();
+    let index = index.immediate()?.encoded();
     let count = elements.len();
     let mut steps = vec![Step::Operand(list)];
     steps.extend(elements.into_iter().map(Step::Operand));
@@ -116,7 +123,7 @@ pub fn c86_list_insertion_steps(
         0 => steps.push(Step::Reverse(2)),
         -2 => {}
         index => {
-            let (last, first) = if index > 0 {
+            let (prefix_last, suffix_first) = if index > 0 {
                 (index.checked_sub(1)?, index)
             } else {
                 (index, index.checked_add(1)?)
@@ -125,11 +132,11 @@ pub fn c86_list_insertion_steps(
                 Step::Over(1),
                 Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
                     first: NativeCompiledListIndex::from_encoded(0),
-                    last: NativeCompiledListIndex::from_encoded(last),
+                    last: NativeCompiledListIndex::from_encoded(prefix_last),
                 }),
                 Step::Reverse(3),
                 Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
-                    first: NativeCompiledListIndex::from_encoded(first),
+                    first: NativeCompiledListIndex::from_encoded(suffix_first),
                     last: NativeCompiledListIndex::from_encoded(-2),
                 }),
                 Step::Concat,

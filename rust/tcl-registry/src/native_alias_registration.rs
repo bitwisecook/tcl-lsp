@@ -93,7 +93,7 @@ impl<Token> NativeAliasRegistrationTable<Token> {
         Ok(())
     }
 
-    /// Select original C STRING_KEYS arithmetic with independently supplied ABI.
+    /// Select original C `STRING_KEYS` arithmetic with independently supplied ABI.
     /// This grants no interpreter authority; physical entry history is retained.
     pub fn select_order(
         &mut self,

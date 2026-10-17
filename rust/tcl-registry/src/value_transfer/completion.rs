@@ -655,8 +655,10 @@ fn return_option_pairs(text: &str) -> Result<Vec<(String, String)>, ReturnDecodi
         return Err(ReturnDecoding::Rejects);
     }
     Ok(elements
-        .chunks_exact(2)
-        .map(|pair| (pair[0].to_string(), pair[1].to_string()))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|[key, value]| (key.to_string(), value.to_string()))
         .collect())
 }
 

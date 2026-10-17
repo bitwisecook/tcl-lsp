@@ -176,52 +176,19 @@ impl crate::InvocationDialect {
                 kind,
                 name: "namespace which",
                 parameters: "{type -command} name",
-                body: r#"
-	set nsname ::[uplevel 1 [list ::namespace canon $name]]
-	if {$type eq "-variable"} {
-		return $nsname
-	}
-	if {$type eq "-command"} {
-		if {[exists -command $nsname]} {
-			return $nsname
-		} elseif {[exists -command ::$name]} {
-			return ::$name
-		}
-		return ""
-	}
-	return -code error {wrong # args: should be "namespace which ?-command? ?-variable? name"}
-"#,
+                body: include_str!("native_scripts/jim_namespace_which.tcl"),
             },
             NativeJimNamespaceHelperKind::Code => NativeJimNamespaceHelper {
                 kind,
                 name: "namespace code",
                 parameters: "arg",
-                body: r#"
-	if {[string first "::namespace inscope " $arg] == 0} {
-		# Already scoped
-		return $arg
-	}
-	list ::namespace inscope [uplevel 1 ::namespace current] $arg
-"#,
+                body: include_str!("native_scripts/jim_namespace_code.tcl"),
             },
             NativeJimNamespaceHelperKind::Origin => NativeJimNamespaceHelper {
                 kind,
                 name: "namespace origin",
                 parameters: "name",
-                body: r#"
-	set nscanon [uplevel 1 [list ::namespace canon $name]]
-	if {[exists -alias $nscanon]} {
-		tailcall {namespace origin} [info alias $nscanon]
-	}
-	if {[exists -command $nscanon]} {
-		return ::$nscanon
-	}
-	if {[exists -command $name]} {
-		return ::$name
-	}
-
-	return -code error "invalid command name \"$name\""
-"#,
+                body: include_str!("native_scripts/jim_namespace_origin.tcl"),
             },
             NativeJimNamespaceHelperKind::Inscope => NativeJimNamespaceHelper {
                 kind,
@@ -233,28 +200,13 @@ impl crate::InvocationDialect {
                 kind,
                 name: "namespace delete",
                 parameters: "args",
-                body: r#"
-	foreach name $args {
-		if {$name ni {:: ""}} {
-			set name [uplevel 1 [list ::namespace canon $name]]
-			foreach i [info commands ${name}::*] { rename $i "" }
-			uplevel #0 [list unset {*}[info globals ${name}::*]]
-		}
-	}
-"#,
+                body: include_str!("native_scripts/jim_namespace_delete.tcl"),
             },
             NativeJimNamespaceHelperKind::Upvar => NativeJimNamespaceHelper {
                 kind,
                 name: "namespace upvar",
                 parameters: "ns args",
-                body: r#"
-	set nscanon ::[uplevel 1 [list ::namespace canon $ns]]
-	set script [list upvar 0]
-	foreach {other local} $args {
-		lappend script ${nscanon}::$other $local
-	}
-	tailcall {*}$script
-"#,
+                body: include_str!("native_scripts/jim_namespace_upvar.tcl"),
             },
             NativeJimNamespaceHelperKind::Import => NativeJimNamespaceHelper {
                 kind,
@@ -272,56 +224,7 @@ impl crate::InvocationDialect {
                 kind,
                 name: "namespace info",
                 parameters: "cmd {pattern *}",
-                body: r#"
-	set current [uplevel 1 ::namespace canon]
-	# Now we may need to strip $pattern
-	if {[string first :: $pattern] == 0} {
-		set global 1
-		set prefix ::
-	} else {
-		set global 0
-		set clen [string length $current]
-		incr clen 2
-	}
-	set fqp [namespace canon $current $pattern]
-	switch -glob -- $cmd {
-		co* - p* {
-			if {$global} {
-				set result [info $cmd $fqp]
-			} else {
-				# Add commands in the current namespace
-				set r {}
-				foreach c [info $cmd $fqp] {
-					dict set r [string range $c $clen end] 1
-				}
-				if {[string match co* $cmd]} {
-					# Now in the global namespace
-					foreach c [info -nons commands $pattern] {
-						dict set r $c 1
-					}
-				}
-				set result [dict keys $r]
-			}
-		}
-		ch* {
-			set result [info channels $pattern]
-		}
-		v* {
-			#puts "uplevel #0 info gvars $fqp"
-			set result [uplevel #0 info -nons vars $fqp]
-		}
-		g* {
-			set result [info globals $fqp]
-		}
-		l* {
-			set result [uplevel 1 info -nons locals $pattern]
-		}
-	}
-	if {$global} {
-		set result [lmap p $result { string cat $prefix $p }]
-	}
-	return $result
-"#,
+                body: include_str!("native_scripts/jim_namespace_info_source.tcl"),
             },
         })
     }

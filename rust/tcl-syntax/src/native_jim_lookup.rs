@@ -24,7 +24,7 @@ pub enum NativeJimLinkTargetInput<'a> {
     StrippedGlobal(&'a [u8]),
 }
 
-/// Typed Jim_SetVariableLink rejection, before any alias publication.
+/// Typed `Jim_SetVariableLink` rejection, before any alias publication.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeJimAliasFailure {
     /// A local dictionary-sugar operand cannot name a scalar alias.
@@ -43,7 +43,7 @@ pub enum NativeJimAliasFailure {
 pub enum NativeJimVariableInventoryLookup<'a> {
     /// No pattern: append eligible original keys without reading their bytes.
     All,
-    /// JimTrivialMatch classifies the CString prefix, but hash lookup uses the
+    /// `JimTrivialMatch` classifies the `CString` prefix, but hash lookup uses the
     /// unchanged counted original pattern.
     Exact(&'a [u8]),
     /// Walk the real table and match each eligible original key object.
@@ -94,7 +94,7 @@ impl NativeJimLookupProtocol {
         message
     }
 
-    /// Jim_CreateNamespaceVariable diagnostic after its counted local String getter.
+    /// `Jim_CreateNamespaceVariable` diagnostic after its counted local String getter.
     /// This supplies no alias, variable cell or selected frame.
     #[must_use]
     pub fn namespace_variable_failure_message(self, original_local: &[u8]) -> Vec<u8> {

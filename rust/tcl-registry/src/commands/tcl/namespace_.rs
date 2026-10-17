@@ -270,8 +270,7 @@ fn namespace_which_arg_roles(
     let is_variable = occurrences
         .iter()
         .filter_map(|occurrence| occurrence.option)
-        .filter(|option| option.name == "-variable" || option.name == "-command")
-        .last()
+        .rfind(|option| option.name == "-variable" || option.name == "-command")
         .is_some_and(|option| option.name == "-variable");
     let role = if is_variable {
         ArgRole::VarRead

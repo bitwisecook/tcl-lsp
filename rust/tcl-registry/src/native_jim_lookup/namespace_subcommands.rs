@@ -281,7 +281,7 @@ impl NativeJimNamespaceSubcommandTable {
             .namespace_subcommand_prefix_input(original);
         Some(scan(&names, input.selected(), false))
     }
-    /// Resolve exact CString then counted abbreviation through the shared matcher.
+    /// Resolve exact `CString` then counted abbreviation through the shared matcher.
     /// Physical cache access and each original getter remain with the caller.
     ///
     /// # Errors
@@ -364,19 +364,19 @@ impl crate::InvocationDialect {
     pub fn native_jim_namespace_subcommand_table(
         self,
     ) -> Option<NativeJimNamespaceSubcommandTable> {
-        self.native_jim_lookup_protocol()?;
         static OWNER: OnceLock<Arc<()>> = OnceLock::new();
+        self.native_jim_lookup_protocol()?;
         Some(NativeJimNamespaceSubcommandTable {
             owner: OWNER.get_or_init(|| Arc::new(())),
         })
     }
-    /// Original ParseSubCmd special literals, separate from selected table caches.
+    /// Original `ParseSubCmd` special literals, separate from selected table caches.
     #[must_use]
     pub fn native_jim_namespace_parser_comparison_table(
         self,
     ) -> Option<crate::native_index_lookup::NativeStaticIndexTable> {
-        self.native_jim_lookup_protocol()?;
         static SPECIAL: &[&str] = &["-help", "-commands"];
+        self.native_jim_lookup_protocol()?;
         Some(crate::native_index_lookup::NativeStaticIndexTable::supported_backend(SPECIAL))
     }
     /// Original immediate root-literal comparison, separate from namespace lookup.
@@ -384,8 +384,8 @@ impl crate::InvocationDialect {
     pub fn native_jim_namespace_parent_root_comparison_table(
         self,
     ) -> Option<crate::native_index_lookup::NativeStaticIndexTable> {
-        self.native_jim_lookup_protocol()?;
         static ROOT: &[&str] = &["::"];
+        self.native_jim_lookup_protocol()?;
         Some(crate::native_index_lookup::NativeStaticIndexTable::supported_backend(ROOT))
     }
 }

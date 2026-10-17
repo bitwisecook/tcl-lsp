@@ -50,6 +50,10 @@ pub enum NativeSortError<E> {
     Comparison(E),
 }
 
+/// A selected original `ByteArray` receipt and its bytes, or `None` when the
+/// value is not binary-eligible.
+type IndexBinarySelection<R> = Result<Option<(R, std::rc::Rc<[u8]>)>, CmdError>;
+
 /// Original index conversion at the command boundary, with full Host causes.
 /// Portable adapters explicitly use the neutral default; physical Jim adapters
 /// select their original-object worker independently of the numeral grammar.
@@ -103,13 +107,13 @@ pub trait NativeIndexOps: ValueOps {
     /// adapters use (); later C branches do not borrow this captured-pointer role.
     type IndexBinaryReceipt;
 
-    /// Inspect actual ByteArray eligibility without invoking a String getter.
+    /// Inspect actual `ByteArray` eligibility without invoking a String getter.
     /// The release is the actual selected C producer, not neutral grammar.
     fn index_c_select_binary(
         &mut self,
         _original: &Self::Value,
         _version: TclVersion,
-    ) -> Result<Option<(Self::IndexBinaryReceipt, std::rc::Rc<[u8]>)>, CmdError> {
+    ) -> IndexBinarySelection<Self::IndexBinaryReceipt> {
         Ok(None)
     }
 
@@ -145,7 +149,7 @@ pub trait NativeIndexOps: ValueOps {
         Err(ValueError::CommandProtocolUnavailable("original C String ABI").into())
     }
 
-    /// Fresh counted String constructor for GetRange's raw byte-slice branch.
+    /// Fresh counted String constructor for `GetRange`'s raw byte-slice branch.
     fn index_c_counted_string_result(
         &mut self,
         _bytes: std::rc::Rc<[u8]>,
@@ -177,7 +181,7 @@ pub trait NativeIndexOps: ValueOps {
     }
 
     /// Construct an integer result under the command's original operation.
-    /// Actual C84 adapters select Tcl_NewIntObj's Long descriptor and queried ABI;
+    /// Actual C84 adapters select `Tcl_NewIntObj`'s Long descriptor and queried ABI;
     /// the explicit neutral default retains its ordinary constructor.
     ///
     /// # Errors
@@ -196,7 +200,7 @@ pub trait NativeIndexOps: ValueOps {
     /// interpreter's unconditional first-cause owner.
     fn retain_index_failure(&mut self, error: &CmdError);
 
-    /// Discard a reached Created, Detached or ReturnedOwnedTransport result.
+    /// Discard a reached Created, Detached or `ReturnedOwnedTransport` result.
     /// Borrowed input transport is released by the shared role owner instead.
     /// Mandatory retirement continues after refusal and grants no new role.
     fn discard_owned_index_result(&mut self, created: Self::Value);
@@ -322,7 +326,7 @@ pub trait NativeIndexOps: ValueOps {
         Ok(None)
     }
 
-    /// C84's SortElement record holds every original input member before the
+    /// C84's `SortElement` record holds every original input member before the
     /// first comparator. This temporary role is distinct from a result hold.
     fn index_c84_sort_member_hold(
         &mut self,
@@ -400,7 +404,7 @@ pub trait NativeIndexOps: ValueOps {
         ))
     }
 
-    /// Original C ListIndex worker, including its source-selected owner/copy order.
+    /// Original C `ListIndex` worker, including its source-selected owner/copy order.
     /// Neutral and Jim adapters return None; actual C adapters cannot reparse
     /// their original headers through the neutral Unicode fallback.
     fn original_c_list_index(
@@ -412,7 +416,7 @@ pub trait NativeIndexOps: ValueOps {
         Ok(None)
     }
 
-    /// Original C ListRange worker and actual returned ownership transport.
+    /// Original C `ListRange` worker and actual returned ownership transport.
     fn original_c_list_range(
         &mut self,
         _list: &Self::Value,
@@ -451,7 +455,7 @@ pub trait NativeIndexOps: ValueOps {
         self.native_unicode_units(original).map_err(Into::into)
     }
 
-    /// Actual original pure ByteArray eligibility at the reached C stage.
+    /// Actual original pure `ByteArray` eligibility at the reached C stage.
     /// C9 proper binary backing remains eligible with a resident String.
     /// Snapshots grant no producer purpose.
     fn index_c_pure_binary(
@@ -1556,7 +1560,7 @@ pub fn drill_prepared_c<O: NativeIndexOps>(
 
 /// Drill Jim's original member path with its independently selected native
 /// Index objects. Every original coordinate precedes every container getter.
-/// The reached missing-member message is Jim's CString diagnostic, without a
+/// The reached missing-member message is Jim's `CString` diagnostic, without a
 /// C errorCode or a native String-result claim.
 ///
 /// # Errors
@@ -1587,8 +1591,7 @@ pub fn drill_original_jim<O: NativeIndexOps>(
                 }
                 let encoded = encoded
                     .as_ref()
-                    .map(|indices| i64::from(indices[ordinal]))
-                    .unwrap_or(at);
+                    .map_or(at, |indices| i64::from(indices[ordinal]));
                 let out_of_range = encoded < 0
                     || usize::try_from(encoded).is_ok_and(|index| index > members.len());
                 let spelling = ops.index_operand_bytes(original)?;

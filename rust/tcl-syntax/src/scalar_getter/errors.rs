@@ -71,9 +71,8 @@ impl NativeScalarGetterError {
             return None;
         }
         match self.failure {
-            Failure::IntWidthOverflow => Some(FreshString),
             Failure::IntegerOverflow if matches!(version, TclVersion::V8_4) => Some(AppendString),
-            Failure::IntegerOverflow => Some(FreshString),
+            Failure::IntWidthOverflow | Failure::IntegerOverflow => Some(FreshString),
             Failure::Invalid | Failure::InvalidOctal | Failure::CachedNonInteger => {
                 Some(AppendString)
             }
@@ -95,7 +94,7 @@ impl NativeScalarGetterError {
 
     /// Additional update at actual script propagation, after the primitive
     /// update. C8.4 invalid-input getters reset the error episode without
-    /// replacing its global code; Tcl_AddObjErrorInfo later supplies NONE.
+    /// replacing its global code; `Tcl_AddObjErrorInfo` later supplies NONE.
     /// Merely rendering a live primitive failure does not select this boundary.
     #[must_use]
     pub const fn eval_error_code_update(&self) -> &NativeScalarGetterErrorCode {

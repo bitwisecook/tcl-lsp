@@ -1937,10 +1937,10 @@ impl ResolvedStateTransitions {
             .flatten()
         {
             let mut resolved = match descriptor.logical_source_resolver {
-                Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver))
-                | Some(LogicalSourceStateTransitionResolver::FrameAliasPairs {
-                    resolver, ..
-                }) => resolver(arguments),
+                Some(
+                    LogicalSourceStateTransitionResolver::FrameAliases(resolver)
+                    | LogicalSourceStateTransitionResolver::FrameAliasPairs { resolver, .. },
+                ) => resolver(arguments),
                 Some(LogicalSourceStateTransitionResolver::CompletionState(_)) | None => {
                     descriptor.resolve(arguments)
                 }
@@ -1973,8 +1973,10 @@ impl ResolvedStateTransitions {
                 Some(LogicalSourceStateTransitionResolver::CompletionState(resolver)) => {
                     resolver(arguments)
                 }
-                Some(LogicalSourceStateTransitionResolver::FrameAliases(_))
-                | Some(LogicalSourceStateTransitionResolver::FrameAliasPairs { .. })
+                Some(
+                    LogicalSourceStateTransitionResolver::FrameAliases(_)
+                    | LogicalSourceStateTransitionResolver::FrameAliasPairs { .. },
+                )
                 | None => descriptor.resolve(arguments),
             };
             resolved.widen_dynamic_arguments(
@@ -2498,22 +2500,21 @@ fn alias_pairs_with_source_target(
         level_word,
         layout: FrameArgLayout::AliasPairs,
     };
-    let taken = match frame.level_word_len_for_arguments(arguments) {
-        Some(taken) => taken,
-        None => {
-            if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
-                transitions.widen(subject, VARIABLE_ALIAS_DOMAINS);
-            }
-            // A conditional source role is not a pre-dispatch layout or frame.
-            if !retain_source_target
-                || frame
-                    .conditional_no_level_source_layout(arguments)
-                    .is_none()
-            {
-                return transitions;
-            }
-            0
+    let taken = if let Some(taken) = frame.level_word_len_for_arguments(arguments) {
+        taken
+    } else {
+        if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
+            transitions.widen(subject, VARIABLE_ALIAS_DOMAINS);
         }
+        // A conditional source role is not a pre-dispatch layout or frame.
+        if !retain_source_target
+            || frame
+                .conditional_no_level_source_layout(arguments)
+                .is_none()
+        {
+            return transitions;
+        }
+        0
     };
     let level = match taken {
         0 => CallerFrameSelection::DefaultCaller,

@@ -132,7 +132,6 @@ impl NativeNumericCommandProtocol {
         match self.purpose {
             Purpose::DebugFrame => Kind::Boolean,
             Purpose::ListSortComparisonResult if self.version.is_none() => Kind::Wide,
-            Purpose::ListSortComparisonResult => Kind::Int,
             Purpose::ListSearchReal | Purpose::ListSortReal => Kind::Double,
             Purpose::ListSearchInteger
                 if matches!(self.version, Some(TclVersion::V8_4 | TclVersion::V8_5)) =>
@@ -144,13 +143,10 @@ impl NativeNumericCommandProtocol {
             {
                 Kind::Long
             }
-            Purpose::ListSearchInteger | Purpose::ListSortInteger => Kind::Wide,
             Purpose::ListSearchStride | Purpose::ListSortStride if self.version.is_none() => {
                 Kind::Long
             }
             Purpose::ListSortStride if matches!(self.version, Some(TclVersion::V8_6)) => Kind::Int,
-            Purpose::ListSearchStride | Purpose::ListSortStride => Kind::Wide,
-            Purpose::SeekOffset => Kind::Wide,
             Purpose::ReadCount
                 if matches!(
                     self.version,
@@ -159,13 +155,20 @@ impl NativeNumericCommandProtocol {
             {
                 Kind::Int
             }
-            Purpose::ReadCount => Kind::Wide,
+            Purpose::ListSearchInteger
+            | Purpose::ListSortInteger
+            | Purpose::ListSearchStride
+            | Purpose::ListSortStride
+            | Purpose::SeekOffset
+            | Purpose::ReadCount => Kind::Wide,
             Purpose::Base64LineLength
                 if matches!(self.version, Some(TclVersion::V9_0 | TclVersion::V9_1)) =>
             {
                 Kind::Wide
             }
-            Purpose::Base64LineLength | Purpose::UuencodeLineLength => Kind::Int,
+            Purpose::ListSortComparisonResult
+            | Purpose::Base64LineLength
+            | Purpose::UuencodeLineLength => Kind::Int,
         }
     }
 

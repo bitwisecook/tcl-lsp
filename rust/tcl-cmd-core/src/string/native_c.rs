@@ -123,7 +123,7 @@ pub(super) fn original_index<O: NativeIndexOps>(
     Ok(ops.new_bytes(&bytes))
 }
 
-/// Same selected GetRange producer for command and compiled parsed coordinates.
+/// Same selected `GetRange` producer for command and compiled parsed coordinates.
 /// It preserves raw one-byte-per-unit slices and native Unicode constructors;
 /// neither route projects through Rust Unicode or aliases the entire C subject.
 pub(crate) fn parsed_range<O: NativeIndexOps>(

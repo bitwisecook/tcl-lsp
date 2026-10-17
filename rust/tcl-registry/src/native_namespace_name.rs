@@ -14,13 +14,13 @@ pub enum NativeNamespaceImportPreloadRoute {
     /// C8.4 invokes the already selected global command's objProc directly.
     GlobalDirect,
     /// C8.5+ evaluate the unqualified generated head in the current namespace.
-    /// Their Tcl_EvalObjv flags are TCL_GLOBAL_ONLY (1), not TCL_EVAL_GLOBAL.
+    /// Their `Tcl_EvalObjv` flags are `TCL_GLOBAL_ONLY` (1), not `TCL_EVAL_GLOBAL`.
     CurrentEvaluation,
 }
 
 impl NativeNamespaceNameProtocol {
     /// Select only the actual C preload invocation route; helper spelling and
-    /// source transfer knowledge remain in the existing NamespaceTransition.
+    /// source transfer knowledge remain in the existing `NamespaceTransition`.
     #[must_use]
     pub const fn import_preload_route(self) -> NativeNamespaceImportPreloadRoute {
         if matches!(self.0.version(), tcl_dialect::TclVersion::V8_4) {

@@ -13,7 +13,7 @@ use tcl_core_types::{
 use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueError;
 
-/// A retained actual native declaration used by CompareStringImmediate.
+/// A retained actual native declaration used by `CompareStringImmediate`.
 /// Literal identities are equality keys; entries and storage come from this owner.
 pub trait NativeImmediateLiteralTable {
     /// Borrow the original literal at a validated native ordinal.
@@ -371,7 +371,7 @@ mod tests {
 }
 
 impl crate::InvocationDialect {
-    /// C8.4 info dispatches its original selector through GetIndexFromObj's
+    /// C8.4 info dispatches its original selector through `GetIndexFromObj`'s
     /// option table. C8.5+ dispatches through the actual namespace ensemble;
     /// Jim has its separately selected command-inventory and helper protocol.
     /// This selection grants no table/header object or lookup result.

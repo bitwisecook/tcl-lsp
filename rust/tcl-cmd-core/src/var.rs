@@ -95,7 +95,7 @@ pub fn native_jim_alias_error(
         .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084)
 }
 
-/// Publish Jim_CreateNamespaceVariable's local-name diagnostic.
+/// Publish `Jim_CreateNamespaceVariable`'s local-name diagnostic.
 #[must_use]
 pub fn native_jim_namespace_variable_error(
     protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,

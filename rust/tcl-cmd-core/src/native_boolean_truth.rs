@@ -305,11 +305,8 @@ fn returned_truth(
     match (stage, value) {
         (
             NativeBooleanTruthProbe::ExpressionInteger84
-            | NativeBooleanTruthProbe::ExpressionWordBoolean84(_),
-            NativeScalarGetterValue::Wide(integer),
-        )
-        | (
-            NativeBooleanTruthProbe::Scalar {
+            | NativeBooleanTruthProbe::ExpressionWordBoolean84(_)
+            | NativeBooleanTruthProbe::Scalar {
                 kind: NativeScalarGetterKind::Wide | NativeScalarGetterKind::Long,
                 ..
             },
@@ -652,7 +649,7 @@ fn settled<O: NativeBooleanTruthOps, T>(
 fn legacy_result_probe<O: NativeBooleanTruthOps>(
     value: &O::Value,
     truth: NativeBooleanTruthProtocol,
-    current: Option<NativeScalarCache>,
+    current: Option<&NativeScalarCache>,
     resident: bool,
     ops: &mut O,
 ) -> Result<(), CmdError> {
@@ -670,7 +667,7 @@ fn legacy_result_probe<O: NativeBooleanTruthOps>(
         );
     if !known {
         let stage = if !resident && let Some(NativeScalarCache::WordBoolean(boolean)) = current {
-            NativeBooleanTruthProbe::ExpressionWordBoolean84(boolean)
+            NativeBooleanTruthProbe::ExpressionWordBoolean84(*boolean)
         } else {
             let original = ops.original_string(value, truth);
             let original = settled(ops, original)?;
@@ -696,7 +693,7 @@ fn legacy_result_probe<O: NativeBooleanTruthOps>(
 /// returning its owned result. No extra retained input changes the COW decision.
 /// # Errors
 /// Retains first Host failures and reached nonfinite expression diagnostics;
-/// ordinary unsuccessful TRY_NUM probes retain their original nonnumeric value.
+/// ordinary unsuccessful `TRY_NUM` probes retain their original nonnumeric value.
 pub fn original_boolean_expression_result<O: NativeBooleanExpressionResultOps>(
     value: &O::Value,
     protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
@@ -712,7 +709,7 @@ pub fn original_boolean_expression_result<O: NativeBooleanExpressionResultOps>(
     if protocol.converts_numeric_result() {
         let legacy = scalar.tcl_version() == Some(tcl_dialect::TclVersion::V8_4);
         if legacy {
-            legacy_result_probe(value, truth, current, resident, ops)?;
+            legacy_result_probe(value, truth, current.as_ref(), resident, ops)?;
         } else {
             let conversion = ops.original_number_probe(value, protocol);
             settled(ops, conversion)?;

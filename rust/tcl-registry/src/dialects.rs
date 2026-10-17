@@ -438,7 +438,7 @@ pub fn literal_basename_glob_any_case(literal: &str) -> Result<String, LiteralEd
 /// Exact case-folded filename-extension patterns. Empty input is `Ok([])`;
 /// unsupported filename components are `Err`, never an empty successful set.
 ///
-/// VSCode's brace parser cannot nest literal brace/comma classes inside an outer
+/// `VSCode`'s brace parser cannot nest literal brace/comma classes inside an outer
 /// alternative group. Emit one precise pattern per extension in that case;
 /// otherwise preserve the existing compact alternative representation for two or more entries.
 pub fn extension_globs_any_case<'a>(

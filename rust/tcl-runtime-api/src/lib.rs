@@ -1574,7 +1574,7 @@ pub trait VarStore {
         self.unset_elem(target.frame(), target.name(), key)
     }
 
-    /// Remove an exact byte key for the selected ArrayUnset operation.
+    /// Remove an exact byte key for the selected `ArrayUnset` operation.
     /// Native adapters select their release's retained-array or original-name
     /// lookup rule. Unicode-only stores refuse an unrepresentable key first.
     fn unset_elem_bytes_at(
@@ -1743,7 +1743,7 @@ pub enum NativeJimAliasLookupFailure {
 }
 
 impl NativeJimAliasLookupFailure {
-    /// Jim's original-object diagnostic uses the formatter's CString extent.
+    /// Jim's original-object diagnostic uses the formatter's `CString` extent.
     #[must_use]
     pub fn message(self, original_name: &[u8]) -> Vec<u8> {
         let (prefix, suffix): (&[u8], &[u8]) = match self {
@@ -2220,10 +2220,7 @@ pub trait Procs: tcl_syntax::value::ValueOps {
     fn proc_body_original_value(
         &mut self,
         _original: &Self::Value,
-    ) -> Result<
-        Option<ProcBodyValueQuery<Self::Value, Self::OperationError, Self>>,
-        Self::OperationError,
-    > {
+    ) -> ProcBodyValueResult<Self::Value, Self::OperationError, Self> {
         Ok(None)
     }
 
@@ -2285,6 +2282,9 @@ pub trait OriginalProcedureBodyValue<V, E, O: ?Sized> {
     /// Retains the first Host cause or changed original operation/caller state.
     fn finish(self: Box<Self>, actual: &mut O) -> Result<(), E>;
 }
+
+/// A represented original body query, or `None` for byte compatibility.
+type ProcBodyValueResult<V, E, O> = Result<Option<ProcBodyValueQuery<V, E, O>>, E>;
 
 /// Original body query outcome, distinct from a freshly constructed byte report.
 pub enum ProcBodyValueQuery<V, E, O: ?Sized> {

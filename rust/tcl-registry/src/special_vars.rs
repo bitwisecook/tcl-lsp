@@ -1428,9 +1428,9 @@ pub struct NativeBootstrapInputs {
 /// a string extent; independently live source and target object owners are required.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeJimInterpreterCopyPurpose {
-    /// JimInterpCopyObj copies all counted bytes of scripts, arguments and results.
+    /// `JimInterpCopyObj` copies all counted bytes of scripts, arguments and results.
     Object,
-    /// JimInterpCopyVariable passes Jim_String to NewStringObj with length -1.
+    /// `JimInterpCopyVariable` passes `Jim_String` to `NewStringObj` with length -1.
     ChildStartupVariable,
 }
 
@@ -1454,14 +1454,14 @@ pub struct NativeChildInitialisation {
 }
 
 impl NativeChildInitialisation {
-    /// JimInterpCommand explicitly initializes its compiled static extensions.
+    /// `JimInterpCommand` explicitly initializes its compiled static extensions.
     /// C retains its independently selected child constructor path.
     #[must_use]
     pub const fn initialises_jim_static_extensions(self) -> bool {
         matches!(self.names, tcl_syntax::naming::NativeNameProtocol::Jim084)
     }
 
-    /// JimInterpCommand's exact GLOBAL_ONLY variable-copy operands. Missing
+    /// `JimInterpCommand`'s exact `GLOBAL_ONLY` variable-copy operands. Missing
     /// parent values are not synthesized; C grants no Jim variable-copy plan.
     #[must_use]
     pub const fn copied_parent_variables(self) -> &'static [&'static [u8]] {

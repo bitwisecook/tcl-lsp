@@ -48,7 +48,7 @@ pub fn scalar_getter_recipe_abi(
 }
 
 /// Execute the selected C8.4 precision callback's decimal strtoul stage.
-/// This is neither GetLong nor a Boolean conversion. Original String access,
+/// This is neither `GetLong` nor a Boolean conversion. Original String access,
 /// callback entry and thread precision publication belong to the caller.
 ///
 /// # Errors

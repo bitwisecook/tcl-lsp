@@ -284,6 +284,63 @@ const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDes
     ..crate::WorldEffectDescriptor::EMPTY
 };
 
+/// `return`'s options, each gated by the release that introduced it.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-code",
+        value: OptionValue::Takes(OptionArg {
+            values: RETURN_CODE_VALUES,
+            closed: true,
+            integer: Some(IntegerDomain::Any),
+            hint: "code",
+            ..OptionArg::DEFAULT
+        }),
+        detail: "Exceptional return code: ok/error/return/break/continue, or an integer (5–0x3fffffff reserved for application use by convention, not enforced).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-level",
+        value: OptionValue::Takes(OptionArg {
+            integer: Some(IntegerDomain::Range(0, 2_147_483_647)),
+            hint: "level",
+            ..OptionArg::DEFAULT
+        }),
+        detail: "Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Must be 0..=2147483647; a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).",
+        surface: Some(SpecSurface::TCL85_PLUS),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errorcode",
+        value: OptionValue::value("list"),
+        detail: "Additional error info, merged into the errorCode global. Only meaningful with -code error; defaults to \"NONE\" when omitted there.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errorinfo",
+        value: OptionValue::value("info"),
+        detail: "Initial stack trace, merged into the errorInfo global. Only meaningful with -code error; Tcl supplies its own default when omitted there.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-errorstack",
+        value: OptionValue::Takes(OptionArg {
+            arity: OptionArity::Hook(errorstack_value),
+            hint: "list",
+            ..OptionArg::DEFAULT
+        }),
+        detail: "Initial error stack (must be an even-sized list). Only meaningful with -code error.",
+        surface: Some(SpecSurface::TCL86_PLUS),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-options",
+        value: OptionValue::value("dict"),
+        detail: "Dictionary of additional option/value pairs, merged in as if each had been given directly.",
+        surface: Some(SpecSurface::TCL85_PLUS),
+        ..OptionSpec::DEFAULT
+    },
+];
+
 /// Command spec for `return`.
 ///
 /// -level and -options were added in Tcl 8.5 — absent from Tcl 8.4's
@@ -354,63 +411,7 @@ pub fn spec() -> CommandSpec {
         // Native return scans option/value pairs while preserving the last
         // word as a possible result, including an unknown singleton value.
         reserved_trailing_words: 1,
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-code",
-                    value: OptionValue::Takes(OptionArg {
-                        values: RETURN_CODE_VALUES,
-                        closed: true,
-                        integer: Some(IntegerDomain::Any),
-                        hint: "code",
-                        ..OptionArg::DEFAULT
-                    }),
-                    detail: "Exceptional return code: ok/error/return/break/continue, or an integer (5–0x3fffffff reserved for application use by convention, not enforced).",
-                    ..OptionSpec::DEFAULT
-                },
-                OptionSpec {
-                    name: "-level",
-                    value: OptionValue::Takes(OptionArg {
-                        integer: Some(IntegerDomain::Range(0, 2_147_483_647)),
-                        hint: "level",
-                        ..OptionArg::DEFAULT
-                    }),
-                    detail: "Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Must be 0..=2147483647; a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).",
-                    surface: Some(SpecSurface::TCL85_PLUS),
-                    ..OptionSpec::DEFAULT
-                },
-                OptionSpec {
-                    name: "-errorcode",
-                    value: OptionValue::value("list"),
-                    detail: "Additional error info, merged into the errorCode global. Only meaningful with -code error; defaults to \"NONE\" when omitted there.",
-                    ..OptionSpec::DEFAULT
-                },
-                OptionSpec {
-                    name: "-errorinfo",
-                    value: OptionValue::value("info"),
-                    detail: "Initial stack trace, merged into the errorInfo global. Only meaningful with -code error; Tcl supplies its own default when omitted there.",
-                    ..OptionSpec::DEFAULT
-                },
-                OptionSpec {
-                    name: "-errorstack",
-                    value: OptionValue::Takes(OptionArg {
-                        arity: OptionArity::Hook(errorstack_value),
-                        hint: "list",
-                        ..OptionArg::DEFAULT
-                    }),
-                    detail: "Initial error stack (must be an even-sized list). Only meaningful with -code error.",
-                    surface: Some(SpecSurface::TCL86_PLUS),
-                    ..OptionSpec::DEFAULT
-                },
-                OptionSpec {
-                    name: "-options",
-                    value: OptionValue::value("dict"),
-                    detail: "Dictionary of additional option/value pairs, merged in as if each had been given directly.",
-                    surface: Some(SpecSurface::TCL85_PLUS),
-                    ..OptionSpec::DEFAULT
-                },
-            ]
-        },
+        options: OPTIONS,
         ..CommandSpec::DEFAULT
     }
 }

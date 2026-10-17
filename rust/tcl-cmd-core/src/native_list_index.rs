@@ -88,7 +88,7 @@ pub trait NativeListIndexOps: crate::index::NativeIndexOps {
     /// # Errors
     /// The actual C object issuer is missing.
     fn index_version(&self) -> Result<TclVersion, ValueError>;
-    /// Actual local backend Tcl_Size and ListStore bounds, independently of original Int32.
+    /// Actual local backend `Tcl_Size` and `ListStore` bounds, independently of original Int32.
     /// This descriptive layout does not grant a foreign C library issuer.
     ///
     /// # Errors
@@ -102,7 +102,7 @@ pub trait NativeListIndexOps: crate::index::NativeIndexOps {
     fn index_retain(value: &Self::Value) -> Self::Owner;
     /// Allocate and own native `Tcl_NewObj`.
     fn index_empty(&mut self) -> Self::Owner;
-    /// Independently selected CString Int32 temporary, separate from an
+    /// Independently selected `CString` Int32 temporary, separate from an
     /// original index/member header and its primary cache.
     ///
     /// # Errors
@@ -139,7 +139,7 @@ pub trait NativeListIndexOps: crate::index::NativeIndexOps {
     fn index_members_checked(&mut self, value: &Self::Value) -> Result<Self::Members, CmdError> {
         self.index_members(value).map_err(Into::into)
     }
-    /// Checked ordinary conversion, separate from abstract GetElements.
+    /// Checked ordinary conversion, separate from abstract `GetElements`.
     fn index_ordinary_members_checked(
         &mut self,
         value: &Self::Value,
@@ -470,10 +470,10 @@ pub fn original_index_using<O: NativeListIndexOps>(
     let reached = crate::index::run_index_metadata(ops, |ops| {
         original_index_inner(ops, value, end, report, check)
     });
-    if check.is_some() {
-        if let Err(first) = &reached {
-            ops.retain_index_failure(first);
-        }
+    if check.is_some()
+        && let Err(first) = &reached
+    {
+        ops.retain_index_failure(first);
     }
     check_stage(ops, check)?;
     reached
@@ -675,13 +675,13 @@ fn single_inner<O: NativeListIndexOps>(
     if version == TclVersion::V8_4 {
         return match ops.index_members_using(index, check) {
             Ok(_) => path84(ops, list, index, check),
-            Err(error) if error.native_execution_refusal().is_some() => Err(error.into()),
+            Err(error) if error.native_execution_refusal().is_some() => Err(error),
             Err(_) => flat_using(ops, list, std::slice::from_ref(index), check),
         };
     }
     let private = match ops.index_list_copy_using(index, check) {
         Ok(copy) => copy,
-        Err(error) if error.native_execution_refusal().is_some() => return Err(error.into()),
+        Err(error) if error.native_execution_refusal().is_some() => return Err(error),
         Err(_) => return flat_using(ops, list, std::slice::from_ref(index), check),
     };
     let members = ops.index_members_using(O::index_original(&private), check)?;

@@ -113,7 +113,7 @@ pub fn compile_native_introspection(
     })
 }
 
-/// Original SIMPLE_WORD option grammar, independent of registration authority.
+/// Original `SIMPLE_WORD` option grammar, independent of registration authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeNamespaceWhichShape {
     Command { argument: usize },

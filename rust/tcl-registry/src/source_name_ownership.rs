@@ -193,18 +193,17 @@ impl ResolvedInvocation<'_, '_> {
                 }),
         };
         for fact in transitions.facts() {
-            if purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations {
-                if let StateTransition::Trace(crate::TraceTransition::Add {
+            if purpose == SourceNameOwnershipPurpose::ScopeAliasesAndTraceRegistrations
+                && let StateTransition::Trace(crate::TraceTransition::Add {
                     target: crate::TraceTarget::Variable(subject),
                     ..
                 }) = &fact.transition
-                {
-                    match trace_registration_root(self, role_purpose, subject) {
-                        Some(root) => {
-                            SourceVariableNameOwnership::include_root(&mut out.bindings, &root)
-                        }
-                        None => out.opaque = true,
+            {
+                match trace_registration_root(self, role_purpose, subject) {
+                    Some(root) => {
+                        SourceVariableNameOwnership::include_root(&mut out.bindings, &root);
                     }
+                    None => out.opaque = true,
                 }
             }
             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
@@ -346,32 +345,13 @@ impl crate::CommandRegistry {
                     target_lookup,
                 } => {
                     if source_interpreter.literal() == Some("") {
-                        let exact_argument = |subject: &crate::TransitionSubject| {
-                            let ordinal = subject.argument_index()?;
-                            let expected = subject
-                                .literal()
-                                .map(str::as_bytes)
-                                .or_else(|| subject.native_bytes())?;
-                            let actual = words.arguments().get(ordinal)?;
-                            (actual
-                                .literal()
-                                .map(str::as_bytes)
-                                .or_else(|| actual.native_bytes())
-                                == Some(expected))
-                            .then_some(ordinal)
-                        };
-                        let replacement = (|| {
-                            (target_interpreter.literal() == Some("")
-                                && *target_lookup == crate::AliasTargetLookup::Global)
-                                .then_some(())?;
-                            Some(NominalSourceAliasReplacement {
-                                target: exact_argument(target)?,
-                                prefix: arguments
-                                    .iter()
-                                    .map(exact_argument)
-                                    .collect::<Option<Vec<_>>>()?,
-                            })
-                        })();
+                        let replacement = nominal_alias_replacement(
+                            words.arguments(),
+                            target_interpreter,
+                            target,
+                            arguments,
+                            *target_lookup,
+                        );
                         subjects.push((alias, replacement));
                     }
                 }
@@ -410,6 +390,41 @@ impl crate::CommandRegistry {
         }
         hazards
     }
+}
+
+/// The exact written-word replacement of a same-interpreter global alias.
+fn nominal_alias_replacement(
+    words: crate::InvocationArguments<'_>,
+    target_interpreter: &crate::TransitionSubject,
+    target: &crate::TransitionSubject,
+    prefix: &[crate::TransitionSubject],
+    target_lookup: crate::AliasTargetLookup,
+) -> Option<NominalSourceAliasReplacement> {
+    if target_interpreter.literal() != Some("") || target_lookup != crate::AliasTargetLookup::Global
+    {
+        return None;
+    }
+    let exact_argument = |subject: &crate::TransitionSubject| {
+        let ordinal = subject.argument_index()?;
+        let expected = subject
+            .literal()
+            .map(str::as_bytes)
+            .or_else(|| subject.native_bytes())?;
+        let actual = words.get(ordinal)?;
+        (actual
+            .literal()
+            .map(str::as_bytes)
+            .or_else(|| actual.native_bytes())
+            == Some(expected))
+        .then_some(ordinal)
+    };
+    Some(NominalSourceAliasReplacement {
+        target: exact_argument(target)?,
+        prefix: prefix
+            .iter()
+            .map(exact_argument)
+            .collect::<Option<Vec<_>>>()?,
+    })
 }
 
 #[cfg(test)]

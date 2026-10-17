@@ -125,15 +125,15 @@ impl NativeSourceFileProtocol {
         }
     }
 
-    fn read_error(self, path: &[u8], error: HostError) -> CmdError {
-        if error == HostError::Unsupported {
+    fn read_error(self, path: &[u8], error: &HostError) -> CmdError {
+        if *error == HostError::Unsupported {
             return ValueError::CommandProtocolUnavailable("source filesystem byte path").into();
         }
         if matches!(error, HostError::Io(_)) {
             return ValueError::CommandProtocolUnavailable("source filesystem errno unavailable")
                 .into();
         }
-        let reason = if self == Self::Jim && error == HostError::NotFound {
+        let reason = if self == Self::Jim && *error == HostError::NotFound {
             "No such file or directory".to_owned()
         } else {
             error.reason()
@@ -310,6 +310,40 @@ fn prepare_source_filename<O: OriginalSourceFileOps>(
     })
 }
 
+/// Convert read source bytes through the selected channel encoding into the
+/// selected release's native script representation.
+fn decode_source_script(
+    protocol: NativeSourceFileProtocol,
+    encoding: ChannelEncoding,
+    bytes: Vec<u8>,
+) -> Result<Vec<u8>, CmdError> {
+    if encoding == ChannelEncoding::Identity {
+        return Ok(bytes);
+    }
+    let system = match encoding {
+        ChannelEncoding::Utf8 => SystemEncoding::Utf8,
+        ChannelEncoding::Iso88591 | ChannelEncoding::Tcl8Binary => SystemEncoding::Iso88591,
+        ChannelEncoding::Ascii => SystemEncoding::Ascii,
+        ChannelEncoding::Unicode => SystemEncoding::Unicode,
+        ChannelEncoding::Identity => unreachable!("identity returned separately"),
+    };
+    let text = decode_text(&bytes, system);
+    let version = match protocol {
+        NativeSourceFileProtocol::CSystem(version) | NativeSourceFileProtocol::CUtf8(version) => {
+            version
+        }
+        NativeSourceFileProtocol::Jim => unreachable!("Jim returned separately"),
+    };
+    let units: Vec<u32> = if version < TclVersion::V9_0 {
+        text.encode_utf16().map(u32::from).collect()
+    } else {
+        text.chars().map(u32::from).collect()
+    };
+    tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+        .encode_units(&units)
+        .ok_or_else(|| ValueError::CommandProtocolUnavailable("source text conversion").into())
+}
+
 /// Obtain encoding String, open the actual file, select encoding, read, and always close it.
 /// Pure conversion uses existing channel decoding and native UTF representation workers.
 ///
@@ -340,7 +374,7 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
         Ok(Ok(file)) => file,
         Ok(Err(error)) => {
             after_open?;
-            return Err(protocol.read_error(&path, error));
+            return Err(protocol.read_error(&path, &error));
         }
         Err(error) => {
             after_open?;
@@ -373,40 +407,14 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
         };
         let read = file.read_all();
         ops.check()?;
-        let bytes = read.map_err(|error| protocol.read_error(&path, error))?;
+        let bytes = read.map_err(|error| protocol.read_error(&path, &error))?;
         if protocol == NativeSourceFileProtocol::Jim {
             return Ok(PreparedSourceFile {
                 path: filename.label.clone(),
                 script: bytes,
             });
         }
-        let script = if encoding == ChannelEncoding::Identity {
-            bytes
-        } else {
-            let system = match encoding {
-                ChannelEncoding::Utf8 => SystemEncoding::Utf8,
-                ChannelEncoding::Iso88591 | ChannelEncoding::Tcl8Binary => SystemEncoding::Iso88591,
-                ChannelEncoding::Ascii => SystemEncoding::Ascii,
-                ChannelEncoding::Unicode => SystemEncoding::Unicode,
-                ChannelEncoding::Identity => unreachable!("identity returned separately"),
-            };
-            let text = decode_text(&bytes, system);
-            let version = match protocol {
-                NativeSourceFileProtocol::CSystem(version)
-                | NativeSourceFileProtocol::CUtf8(version) => version,
-                NativeSourceFileProtocol::Jim => unreachable!("Jim returned separately"),
-            };
-            let units: Vec<u32> = if version < TclVersion::V9_0 {
-                text.encode_utf16().map(u32::from).collect()
-            } else {
-                text.chars().map(u32::from).collect()
-            };
-            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-                .encode_units(&units)
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "source text conversion",
-                ))?
-        };
+        let script = decode_source_script(protocol, encoding, bytes)?;
         ops.check()?;
         Ok(PreparedSourceFile {
             path: filename.label.clone(),
@@ -420,7 +428,7 @@ pub fn prepare_source_file<O: OriginalSourceFileOps>(
     let closed = file.close();
     // Native source ignores a close Guest result while preserving an earlier failed stage.
     let closed = if reached.is_ok() {
-        closed.map_err(|error| protocol.read_error(&path, error))
+        closed.map_err(|error| protocol.read_error(&path, &error))
     } else {
         Ok(())
     };

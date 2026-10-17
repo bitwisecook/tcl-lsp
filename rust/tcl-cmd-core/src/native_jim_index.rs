@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Jim's original `Jim_GetIndex` worker. Concrete adapters retain the SAME
-//! entered operation and header while supplying getters, safe GetWideExpr and
+//! entered operation and header while supplying getters, safe `GetWideExpr` and
 //! checked primary retirement/adoption. Geometry belongs to tcl-syntax.
 
 use crate::CmdError;

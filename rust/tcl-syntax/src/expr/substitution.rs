@@ -1021,33 +1021,7 @@ impl OriginalSourceExpression {
                     if replaced {
                         return None;
                     }
-                    let token_source = std::str::from_utf8(&token.text).ok()?;
-                    let extent = Span::new(0, u32::try_from(token_source.len()).ok()?);
-                    let plan = tcl_lexer::native_script_words_in_with_purpose(
-                        tcl_lexer::SourceImage::document(token_source),
-                        extent,
-                        self.config,
-                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    )
-                    .ok()?;
-                    let [command] = plan.commands.as_slice() else {
-                        return None;
-                    };
-                    let [word] = command.words.as_slice() else {
-                        return None;
-                    };
-                    let local = Span::new(
-                        reference.start().checked_sub(token.start)?,
-                        reference.end().checked_sub(token.start)?,
-                    );
-                    if plan.fatal_tail.is_some()
-                        || word.span() != extent
-                        || !crate::word_rules::lexical_source_scalar_literal_substitution(
-                            word, local, value,
-                        )
-                    {
-                        return None;
-                    }
+                    self.token_word_admits(&token, reference, value)?;
                     if token.kind == ExprTokenType::Variable {
                         let literal = tokens(value)?
                             .into_iter()
@@ -1117,6 +1091,39 @@ impl OriginalSourceExpression {
             (expected == actual).then_some(fragment)
         };
         admits()
+    }
+
+    /// The original token holding `reference` is exactly one complete lexical
+    /// word whose scalar substitution admits `value` as its literal.
+    fn token_word_admits(
+        &self,
+        token: &tcl_lexer::ExprToken<Vec<u8>>,
+        reference: Span,
+        value: &str,
+    ) -> Option<()> {
+        let token_source = std::str::from_utf8(&token.text).ok()?;
+        let extent = Span::new(0, u32::try_from(token_source.len()).ok()?);
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(token_source),
+            extent,
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        let local = Span::new(
+            reference.start().checked_sub(token.start)?,
+            reference.end().checked_sub(token.start)?,
+        );
+        (plan.fatal_tail.is_none()
+            && word.span() == extent
+            && crate::word_rules::lexical_source_scalar_literal_substitution(word, local, value))
+        .then_some(())
     }
 }
 
@@ -1237,7 +1244,7 @@ impl OriginalSourceExpression {
                         regions.push(OriginalExpressionCommandRegion {
                             substitution: part.span,
                             body,
-                        })
+                        });
                     }
                     _ => {}
                 }

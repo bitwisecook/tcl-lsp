@@ -2233,6 +2233,15 @@ pub enum SourceDefinitionMemberBodyPresentation {
     CallableBlock,
 }
 
+/// How a source member walk reads its surface and which roles it admits.
+#[derive(Clone, Copy)]
+struct SourceMemberQuery<'q> {
+    dialect: Option<SurfaceQuery<'q>>,
+    admit: &'q dyn Fn(ArgRole) -> bool,
+    complete: bool,
+    source_layout: bool,
+}
+
 /// One selected source script operand within a definition-member call.
 /// The ordinal owns no runtime member, installation or entered body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3685,54 +3694,13 @@ impl DefinitionBodyGrammar {
             }
             MemberKind::Flat => selected().into_iter().map(script_argument).collect(),
             MemberKind::Wrapper => {
-                if count == 0 {
-                    return (!complete).then(Vec::new);
-                }
-                let inner = word_at(0)?;
-                if let Ok(inner) = std::str::from_utf8(inner)
-                    && self.member(inner).is_some()
-                {
-                    if !source_layout && self.source_member_in(inner.as_bytes(), dialect).is_none()
-                    {
-                        return (!complete).then(Vec::new);
-                    }
-                    let mut indices = self
-                        .source_member_indices_where(
-                            inner,
-                            args.slice_from(1),
-                            dialect,
-                            admit,
-                            complete,
-                            source_layout,
-                        )?
-                        .into_iter()
-                        .map(|mut argument| {
-                            argument.argument += 1;
-                            argument
-                        })
-                        .collect::<Vec<_>>();
-                    if admit(ArgRole::Keyword) {
-                        indices.insert(0, script_argument(0));
-                    }
-                    indices
-                } else if member.wrapper_block_body {
-                    if complete && count != 1 {
-                        return None;
-                    }
-                    selected()
-                        .into_iter()
-                        .map(|argument| SourceDefinitionMemberScriptArgument {
-                            argument,
-                            definition_body: true,
-                            presentation: SourceDefinitionMemberBodyPresentation::OrdinaryBlock,
-                        })
-                        .collect()
-                } else {
-                    if complete {
-                        return None;
-                    }
-                    Vec::new()
-                }
+                let query = SourceMemberQuery {
+                    dialect,
+                    admit,
+                    complete,
+                    source_layout,
+                };
+                return self.source_wrapper_indices_where(member, option, args, query);
             }
             MemberKind::FlagKeyed => self
                 .source_property_declarations_where(count, &word_at, dialect, source_layout)?
@@ -3742,6 +3710,82 @@ impl DefinitionBodyGrammar {
                 .collect(),
         };
         Some(indices)
+    }
+
+    /// A wrapper member's script arguments: its delegated inner member, shifted
+    /// past the wrapper keyword, or its own block body.
+    fn source_wrapper_indices_where(
+        &self,
+        member: &MemberSpec,
+        option: Option<MemberOptionValue>,
+        args: crate::InvocationArguments<'_>,
+        query: SourceMemberQuery<'_>,
+    ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
+        let SourceMemberQuery {
+            dialect,
+            admit,
+            complete,
+            source_layout,
+        } = query;
+        let count = args.exact_argv_len()?;
+        if count == 0 {
+            return (!complete).then(Vec::new);
+        }
+        let inner = args.get(0).and_then(|word| {
+            word.literal()
+                .map(str::as_bytes)
+                .or_else(|| word.native_bytes())
+        })?;
+        if let Ok(inner) = std::str::from_utf8(inner)
+            && self.member(inner).is_some()
+        {
+            if !source_layout && self.source_member_in(inner.as_bytes(), dialect).is_none() {
+                return (!complete).then(Vec::new);
+            }
+            let mut indices = self
+                .source_member_indices_where(
+                    inner,
+                    args.slice_from(1),
+                    dialect,
+                    admit,
+                    complete,
+                    source_layout,
+                )?
+                .into_iter()
+                .map(|mut argument| {
+                    argument.argument += 1;
+                    argument
+                })
+                .collect::<Vec<_>>();
+            if admit(ArgRole::Keyword) {
+                indices.insert(
+                    0,
+                    SourceDefinitionMemberScriptArgument {
+                        argument: 0,
+                        definition_body: false,
+                        presentation: member.source_body_presentation(0, option),
+                    },
+                );
+            }
+            Some(indices)
+        } else if member.wrapper_block_body {
+            if complete && count != 1 {
+                return None;
+            }
+            Some(
+                member
+                    .selected_indices_where(option, count, admit)
+                    .into_iter()
+                    .map(|argument| SourceDefinitionMemberScriptArgument {
+                        argument,
+                        definition_body: true,
+                        presentation: SourceDefinitionMemberBodyPresentation::OrdinaryBlock,
+                    })
+                    .collect(),
+            )
+        } else {
+            (!complete).then(Vec::new)
+        }
     }
 
     /// Whether `name` is a type-level member this family provides without

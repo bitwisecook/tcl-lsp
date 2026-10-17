@@ -727,7 +727,7 @@ impl<'ctx> ConstOps<'ctx> {
     pub fn decline(&mut self, error: &CmdError) -> DeclineReason {
         match error.message() {
             Ok(message) => self.decline_raising(Raised::parse_failure(&self.target, message)),
-            Err(refusal) => self.decline_execution(refusal),
+            Err(refusal) => self.decline_execution(&refusal),
         }
     }
 
@@ -737,27 +737,25 @@ impl<'ctx> ConstOps<'ctx> {
         if let Some(refusal) = error.native_access_refusal() {
             return self.decline_access(refusal);
         }
-        match error {
-            // Overflow belongs to the target's integer tower, not a guest error
-            // inferred from this fixed-width analysis model.
-            ValueError::IntegerOverflow => self.fault.unwrap_or(DeclineReason::WrongRepresentation),
-            _ => {
-                let bytes = error.message_bytes();
-                let raised = std::str::from_utf8(&bytes).map_or_else(
-                    |_| Raised::unproven(),
-                    |message| Raised::parse_failure(&self.target, message),
-                );
-                self.decline_raising(raised)
-            }
+        // Overflow belongs to the target's integer tower, not a guest error
+        // inferred from this fixed-width analysis model.
+        if *error == ValueError::IntegerOverflow {
+            return self.fault.unwrap_or(DeclineReason::WrongRepresentation);
         }
+        let bytes = error.message_bytes();
+        let raised = std::str::from_utf8(&bytes).map_or_else(
+            |_| Raised::unproven(),
+            |message| Raised::parse_failure(&self.target, message),
+        );
+        self.decline_raising(raised)
     }
 
     /// Classify an operational decline by its typed owner, without inspecting
     /// its diagnostic. The caller retains the borrowed command's full cause;
     /// an analysis decline never manufactures a guest completion.
-    fn decline_execution(&mut self, refusal: NativeExecutionError) -> DeclineReason {
+    fn decline_execution(&mut self, refusal: &NativeExecutionError) -> DeclineReason {
         match refusal {
-            NativeExecutionError::ValueAccessRefusal(refusal) => self.decline_access(refusal),
+            NativeExecutionError::ValueAccessRefusal(refusal) => self.decline_access(*refusal),
             NativeExecutionError::CompilationAdmission(_)
             | NativeExecutionError::CompileServiceRefusal(_)
             | NativeExecutionError::ExpressionRefusal(_)
@@ -965,7 +963,7 @@ impl tcl_cmd_core::index::NativeIndexOps for ConstOps<'_> {
     fn enter_index_operation(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
         Ok(())
     }
-    fn check_index_operation(&mut self, _: &()) -> Result<(), tcl_cmd_core::CmdError> {
+    fn check_index_operation(&mut self, (): &()) -> Result<(), tcl_cmd_core::CmdError> {
         Ok(())
     }
     fn retain_index_failure(&mut self, _error: &tcl_cmd_core::CmdError) {
