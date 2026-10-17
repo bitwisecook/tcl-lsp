@@ -776,6 +776,15 @@ fn namespace_ensemble_state_transitions(arguments: InvocationArguments<'_>) -> S
     if arguments.len() > 1 && arguments.literal_at(1) != Some("exists") {
         transitions.push(StateTransition::Namespace(NamespaceTransition::Ensemble {
             namespace: current_namespace(),
+            operation: arguments.literal_at(1).map(|word| match word {
+                "create" => crate::state_transition::EnsembleManagementOperation::Create,
+                "configure" => crate::state_transition::EnsembleManagementOperation::Configure,
+                "exists" => crate::state_transition::EnsembleManagementOperation::Exists,
+                _ => crate::state_transition::EnsembleManagementOperation::Other,
+            }),
+            arguments: (0..arguments.len())
+                .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+                .collect(),
         }));
     }
     transitions

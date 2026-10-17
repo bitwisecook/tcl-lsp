@@ -88,6 +88,9 @@ pub(crate) fn proc_reference_spans(
     proc_def: &tcl_compiler::analyser::ProcDef,
     source: &str,
 ) -> Vec<tcl_lexer::Span> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_proc_reference_spans(source, analysis, proc_def);
+    }
     if !analysis.allows_lexical_declaration_advice() {
         let Some(declaration) = analysis
             .original_procedure_declarations()
@@ -142,6 +145,205 @@ pub(crate) fn proc_reference_spans(
         })
         .map(|inv| inv.range)
         .collect()
+}
+
+/// Represented conditional source references only; no absence, dispatch or
+/// rename permission follows from an empty or incomplete Logical inventory.
+fn logical_proc_reference_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: &tcl_compiler::analyser::ProcDef,
+) -> Vec<tcl_lexer::Span> {
+    let collect = || -> Option<Vec<tcl_lexer::Span>> {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let image = tcl_lexer::SourceImage::document(source);
+        let input = analysis.resolved_input.as_ref()?;
+        let mut selected = analysis
+            .logical_source_procedure_declarations()
+            .filter(|row| {
+                row.matches_source(&image, input)
+                    && row.metadata().name_span == target.name_span
+                    && row.metadata().body_span == target.body_span
+            });
+        let target = selected.next()?;
+        selected.next().is_none().then_some(())?;
+        let mut spans: Vec<_> =
+            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_calls(
+                source, analysis,
+            )?
+            .into_iter()
+            .filter(|call| {
+                call.declaration(analysis)
+                    .is_some_and(|row| std::ptr::eq(row, target))
+            })
+            .filter_map(|call| {
+                call.original_words()
+                    .first()
+                    .map(tcl_lexer::NativeWord::span)
+            })
+            .collect();
+        for reference in
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, analysis,
+            )?
+        {
+            if reference
+                .declaration(analysis)
+                .is_some_and(|row| std::ptr::eq(row, target))
+            {
+                spans.push(reference.operand().span());
+            }
+        }
+        for callback in
+            tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+                source, analysis,
+            )?
+        {
+            if callback
+                .procedure_declaration(analysis)
+                .is_some_and(|row| std::ptr::eq(row, target))
+                && let Some(span) = callback.head().source_span()
+            {
+                spans.push(span);
+            }
+        }
+        spans.sort_by_key(|span| (span.start(), span.end()));
+        spans.dedup();
+        Some(spans)
+    };
+    collect().unwrap_or_default()
+}
+
+fn logical_proc_at_cursor<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    cursor: u32,
+) -> Option<&'a tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration> {
+    let image = tcl_lexer::SourceImage::document(source);
+    let input = analysis.resolved_input.as_ref()?;
+    let contains = |span: tcl_lexer::Span| span.start() <= cursor && cursor < span.end();
+    let mut headers: Vec<_> = analysis
+        .logical_source_procedure_declarations()
+        .filter(|header| {
+            header.matches_source(&image, input) && contains(header.metadata().name_span)
+        })
+        .collect();
+    if let Some(call) = tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_for_cursor(source, analysis, cursor)
+        && let Some(header) = call.declaration(analysis)
+    { headers.push(header); }
+    for reference in
+        tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+            source, analysis,
+        )?
+    {
+        if contains(reference.operand().span())
+            && let Some(header) = reference.declaration(analysis)
+        {
+            headers.push(header);
+        }
+    }
+    for callback in
+        tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+            source, analysis,
+        )?
+    {
+        if callback.head().source_span().is_some_and(contains)
+            && let Some(header) = callback.procedure_declaration(analysis)
+        {
+            headers.push(header);
+        }
+    }
+    let first = *headers.first()?;
+    headers
+        .iter()
+        .all(|header| std::ptr::eq(*header, first))
+        .then_some(first)
+}
+
+fn logical_class_reference_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: &tcl_compiler::analyser::ClassDef,
+) -> Vec<tcl_lexer::Span> {
+    let collect = || -> Option<Vec<tcl_lexer::Span>> {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        analysis.logical_source_class_declaration(target)?;
+        let mut spans = Vec::new();
+        for candidate in
+            tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+                source, analysis,
+            )?
+        {
+            let Some(head) = candidate.original_head() else {
+                continue;
+            };
+            let Some(call) =
+                tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+                    source,
+                    analysis,
+                    head.span().start(),
+                )
+            else {
+                continue;
+            };
+            if call
+                .class_declaration()
+                .logical_source_class(analysis)
+                .is_some_and(|class| std::ptr::eq(class, target))
+            {
+                spans.push(head.span());
+            }
+        }
+        for reference in
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, analysis,
+            )?
+        {
+            if reference
+                .class_declaration(analysis)
+                .is_some_and(|class| std::ptr::eq(class, target))
+            {
+                spans.push(reference.operand().span());
+            }
+        }
+        for callback in
+            tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+                source, analysis,
+            )?
+        {
+            if callback
+                .class_declaration(analysis)
+                .is_some_and(|class| std::ptr::eq(class, target))
+                && let Some(span) = callback.head().source_span()
+            {
+                spans.push(span);
+            }
+        }
+        for receiver in analysis.all_classes.values() {
+            if analysis
+                .logical_source_class_declaration(receiver)
+                .is_none()
+            {
+                continue;
+            }
+            let Some(statements) = analysis.logical_source_class_relation_candidates(receiver)
+            else {
+                continue;
+            };
+            for statement in statements {
+                for operand in statement.operands() {
+                    if matches!(operand.target(analysis, receiver), Some(tcl_compiler::command_binding::LogicalSourceClassRelationTarget::Source(class)) if std::ptr::eq(class, target))
+                    {
+                        spans.push(operand.operand().span());
+                    }
+                }
+            }
+        }
+        spans.sort_by_key(|span| (span.start(), span.end()));
+        spans.dedup();
+        Some(spans)
+    };
+    collect().unwrap_or_default()
 }
 
 /// Whether a live `namespace import -force` has taken this call away from the
@@ -526,6 +728,14 @@ pub(crate) fn invocation_calls_proc(
     proc_def: &tcl_compiler::analyser::ProcDef,
     source: &str,
 ) -> bool {
+    if analysis.allows_retained_logical_declaration_advice() {
+        if !inv.lookup.is_execution_site() {
+            return false;
+        }
+        return tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(source, analysis, inv.range.start())
+            .and_then(|call| call.declaration(analysis))
+            .is_some_and(|header| header.metadata().name_span == proc_def.name_span && header.metadata().body_span == proc_def.body_span);
+    }
     if !analysis.allows_lexical_declaration_advice() {
         if !inv.lookup.is_execution_site() {
             return false;
@@ -1243,6 +1453,9 @@ pub(crate) fn class_reference_spans(
     class_def: &tcl_compiler::analyser::ClassDef,
     source: &str,
 ) -> Vec<tcl_lexer::Span> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        return logical_class_reference_spans(source, analysis, class_def);
+    }
     if !analysis.allows_lexical_declaration_advice() {
         let Some(declaration) = analysis
             .original_class_declarations()
@@ -1319,13 +1532,81 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // surface an unrelated same-named class's reference set).
-    let (qname, class_def) = crate::definition::resolve_class_target_at(
-        analysis,
-        source,
-        ctx.resolution,
-        cursor_off,
-        word,
-    )?;
+    let (qname, class_def) = if analysis.allows_retained_logical_declaration_advice() {
+        let cursor = crate::original_context::CurrentSourcePosition::capture(
+            source, analysis, line, character,
+        )?
+        .offset();
+        let image = tcl_lexer::SourceImage::document(source);
+        let mut classes = Vec::new();
+        for candidate in
+            tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates(
+                source, analysis,
+            )?
+        {
+            let Some(head) = candidate.original_head() else {
+                continue;
+            };
+            if head.span().start() <= cursor
+                && cursor < head.span().end()
+                && let Some(call) =
+                    tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+                        source,
+                        analysis,
+                        head.span().start(),
+                    )
+                && let Some(class) = call.class_declaration().logical_source_class(analysis)
+            {
+                classes.push(class);
+            }
+        }
+        for reference in
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, analysis,
+            )?
+        {
+            if reference.operand().span().start() <= cursor
+                && cursor < reference.operand().span().end()
+                && let Some(class) = reference.class_declaration(analysis)
+            {
+                classes.push(class);
+            }
+        }
+        for callback in
+            tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(
+                source, analysis,
+            )?
+        {
+            if callback
+                .head()
+                .source_span()
+                .is_some_and(|span| span.start() <= cursor && cursor < span.end())
+                && let Some(class) = callback.class_declaration(analysis)
+            {
+                classes.push(class);
+            }
+        }
+        if let Some(class) =
+            analysis.logical_source_class_at(&image, analysis.body_lexer_config?, cursor)
+        {
+            classes.push(class);
+        }
+        let class = *classes.first()?;
+        classes
+            .iter()
+            .all(|other| std::ptr::eq(*other, class))
+            .then_some(())?;
+        analysis.logical_source_class_declaration(class)?;
+        (&class.qualified_name, class)
+    } else {
+        crate::definition::resolve_class_target_at(
+            analysis,
+            source,
+            ctx.resolution,
+            cursor_off,
+            word,
+        )?
+    };
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, class_def.name_span));
@@ -1366,13 +1647,22 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // *target* without it would make this function disagree with itself: it
     // would seed from the local definition a `-force` import deleted and then
     // drop every span that definition owns.
-    let (qname, proc_def) = crate::definition::resolve_proc_target_at(
-        analysis,
-        source,
-        cursor_off,
-        word,
-        ctx.resolution,
-    )?;
+    let (qname, proc_def) = if analysis.allows_retained_logical_declaration_advice() {
+        let cursor = crate::original_context::CurrentSourcePosition::capture(
+            source, analysis, line, character,
+        )?
+        .offset();
+        let metadata = logical_proc_at_cursor(source, analysis, cursor)?.metadata();
+        (&metadata.qualified_name, metadata)
+    } else {
+        crate::definition::resolve_proc_target_at(
+            analysis,
+            source,
+            cursor_off,
+            word,
+            ctx.resolution,
+        )?
+    };
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
@@ -4007,6 +4297,104 @@ pub(crate) fn frame_shifted_dispatch_regions(
     }
     regions
 }
+/// Complete potential-source traversal with its actual per-command positive
+/// child projections. Completeness belongs to the checked source walker;
+/// neither an empty projection nor a missing command can issue a census.
+struct RetainedDispatchRegions {
+    command: tcl_compiler::segmenter::SegmentedCommand,
+    regions: Vec<(usize, usize)>,
+}
+
+pub(crate) struct DispatchRegionCensus {
+    image: tcl_lexer::SourceImage,
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    commands: std::collections::BTreeMap<(u32, u32), Vec<RetainedDispatchRegions>>,
+}
+
+impl DispatchRegionCensus {
+    pub(crate) fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
+        crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let input = analysis.resolved_input.as_ref()?.clone();
+        let mut commands = std::collections::BTreeMap::<_, Vec<_>>::new();
+        let mut regions = Vec::new();
+        let coverage =
+            crate::executable_regions::visit_checked_analysis_executable_commands_with_regions(
+                source,
+                analysis,
+                &mut |command, _, _| {
+                    commands
+                        .entry((command.span.start(), command.span.end()))
+                        .or_default()
+                        .push(RetainedDispatchRegions {
+                            command: command.clone(),
+                            regions: Vec::new(),
+                        });
+                    false
+                },
+                &mut regions,
+            );
+        if coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+            return None;
+        }
+        regions.sort_unstable_by_key(|(span, depth)| (span.start(), span.end(), *depth));
+        for bucket in commands.values_mut() {
+            for retained in bucket {
+                let first = regions
+                    .partition_point(|(span, _)| span.start() < retained.command.span.start());
+                let last = regions
+                    .partition_point(|(span, _)| span.start() <= retained.command.span.end());
+                retained.regions = regions[first..last]
+                    .iter()
+                    .filter_map(|(span, _)| {
+                        let command = &retained.command;
+                        (command.span.start() <= span.start()
+                            && span.end() <= command.span.end()
+                            && *span != command.span)
+                            .then_some((span.start() as usize, span.end() as usize))
+                    })
+                    .collect();
+                retained.regions.sort_unstable();
+                retained.regions.dedup();
+            }
+        }
+        Some(Self {
+            image: analysis
+                .retained_command_realm()?
+                .original_source_image()?
+                .clone(),
+            input,
+            commands,
+        })
+    }
+
+    /// Exact retained source/input/command membership, including genuine empty
+    /// children. A source mismatch or absent command remains unavailable.
+    pub(crate) fn regions_for(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+    ) -> Option<&[(usize, usize)]> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if self.image.bytes() != source.as_bytes()
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+            || current.config() != self.input.lexer_config()
+        {
+            return None;
+        }
+        let mut selected = self
+            .commands
+            .get(&(command.span.start(), command.span.end()))?
+            .iter()
+            .filter(|retained| retained.command.all_tokens == command.all_tokens);
+        let selected_regions = &selected.next()?.regions;
+        if selected.any(|other| other.regions != *selected_regions) {
+            return None;
+        }
+        Some(selected_regions)
+    }
+}
+
 /// Every nested script region a **rename-safety** scan must also visit from
 /// one segmented command: the union of the same-frame set
 /// ([`nested_dispatch_regions`]) and the frame-shifted set
@@ -9028,5 +9416,275 @@ mod itcl_original_source_geometry_tests {
         assert!(
             itcl_class_proc_call_sites(source, &analysis, profile, "::Factory", "make").is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod logical_reference_source_owner_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_name_references_keep_source_headers_without_reporting_maps() {
+        let source = "proc p {} {}; p; interp alias {} shortcut {} p; shortcut";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let target = analysis.all_procs["::p"].clone();
+        let original = logical_proc_reference_spans(source, &analysis, &target);
+        assert_eq!(original.len(), 2);
+        assert!(
+            original
+                .iter()
+                .any(|span| &source[span.as_range()] == "shortcut")
+        );
+        analysis.all_procs.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "unrelated-report-label".to_owned();
+            invocation.resolved_qualified_name = Some("::wrong".to_owned());
+        }
+        assert_eq!(
+            logical_proc_reference_spans(source, &analysis, &target),
+            original
+        );
+        assert!(logical_proc_reference_spans(&format!("{source} "), &analysis, &target).is_empty());
+    }
+
+    #[test]
+    fn logical_class_references_keep_actual_constructor_and_relation_operands() {
+        let source = "oo::class create C {}; oo::class create D {superclass C}; C new";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let original =
+            logical_class_reference_spans(source, &analysis, &analysis.all_classes["::C"]);
+        assert_eq!(original.len(), 2);
+        assert!(original.iter().all(|span| &source[span.as_range()] == "C"));
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "wrong".to_owned();
+            invocation.resolved_qualified_name = None;
+        }
+        assert_eq!(
+            logical_class_reference_spans(source, &analysis, &analysis.all_classes["::C"]),
+            original
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !analysis.body_lexer_config.unwrap().strict_quoting;
+        assert!(
+            logical_class_reference_spans(source, &changed, &changed.all_classes["::C"]).is_empty()
+        );
+    }
+
+    #[test]
+    fn logical_reference_candidates_do_not_replace_missing_input_or_native_owners() {
+        let source = "proc p {} {}; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let target = analysis.all_procs["::p"].clone();
+        assert_eq!(
+            logical_proc_reference_spans(source, &analysis, &target).len(),
+            1
+        );
+        analysis.resolved_input = None;
+        assert!(logical_proc_reference_spans(source, &analysis, &target).is_empty());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(logical_proc_reference_spans(source, &native, &native.all_procs["::p"]).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod logical_consumed_and_callback_reference_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn source_consumed_names_and_callbacks_join_actual_headers_without_becoming_edits() {
+        let source = "proc p {} {}; info body p; after 0 p; p";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let target = analysis.all_procs["::p"].clone();
+        let spans = logical_proc_reference_spans(source, &analysis, &target);
+        assert_eq!(spans.len(), 3);
+        for offset in [
+            source.find("body p").unwrap() + 5,
+            source.find("0 p").unwrap() + 2,
+        ] {
+            let header =
+                logical_proc_at_cursor(source, &analysis, u32::try_from(offset).unwrap()).unwrap();
+            assert_eq!(header.metadata().name_span, target.name_span);
+        }
+        assert!(spans.iter().all(|span| &source[span.as_range()] == "p"));
+        analysis.command_invocations.clear();
+        analysis.all_procs.clear();
+        assert_eq!(
+            logical_proc_reference_spans(source, &analysis, &target),
+            spans
+        );
+        assert!(logical_proc_reference_spans(&format!("{source} "), &analysis, &target).is_empty());
+    }
+
+    #[test]
+    fn consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barriers() {
+        let source = "proc p {} {}; interp alias {} shortcut {} p; info body shortcut; after 0 shortcut; rename shortcut {}; info body shortcut; after 0 shortcut";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let references =
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, &analysis,
+            )
+            .unwrap();
+        let before = u32::try_from(source.find("info body shortcut").unwrap()).unwrap();
+        let after = u32::try_from(source.rfind("info body shortcut").unwrap()).unwrap();
+        assert!(
+            references
+                .iter()
+                .any(|reference| reference.operand().span().start() > before
+                    && reference.operand().span().start() < after
+                    && reference.declaration(&analysis).is_some())
+        );
+        assert!(
+            !references
+                .iter()
+                .any(|reference| reference.operand().span().start() > after
+                    && reference.declaration(&analysis).is_some())
+        );
+        let callbacks = tcl_compiler::registry_invocation::source_structure::source_logical_callback_candidates(source, &analysis).unwrap();
+        let before_callback = callbacks
+            .iter()
+            .find(|callback| callback.registration().site().offset < after)
+            .unwrap();
+        assert!(before_callback.procedure_declaration(&analysis).is_some());
+        let after_callback = callbacks
+            .iter()
+            .find(|callback| callback.registration().site().offset > after)
+            .unwrap();
+        assert!(after_callback.procedure_declaration(&analysis).is_none());
+    }
+    #[test]
+    fn logical_class_consumed_operands_and_callbacks_retain_actual_alias_history() {
+        let source = "oo::class create C {}; interp alias {} shortcut {} C; info body shortcut; after 0 shortcut; C new";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = analysis
+            .all_classes
+            .values()
+            .find(|class| class.name == "C")
+            .unwrap();
+        let spans = logical_class_reference_spans(source, &analysis, class);
+        assert_eq!(spans.len(), 3);
+        assert_eq!(
+            spans
+                .iter()
+                .filter(|span| &source[span.as_range()] == "shortcut")
+                .count(),
+            2
+        );
+        let references =
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, &analysis,
+            )
+            .unwrap();
+        let reference = references
+            .iter()
+            .find(|reference| &source[reference.operand().span().as_range()] == "shortcut")
+            .unwrap();
+        assert!(std::ptr::eq(
+            reference.class_declaration(&analysis).unwrap(),
+            class
+        ));
+        assert!(reference.declaration(&analysis).is_none());
+        assert!(!reference.lineage().is_empty());
+    }
+
+    #[test]
+    fn logical_probe_patterns_and_foreign_inputs_do_not_manufacture_selected_references() {
+        let source = "proc p {} {}; info commands p; info commands p*; info body p";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let references =
+            tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
+                source, &analysis,
+            )
+            .unwrap();
+        assert!(references.iter().any(|reference| reference.role()
+            == tcl_registry::ArgRole::CommandNameProbe
+            && reference.declaration(&analysis).is_some()));
+        assert!(
+            !references
+                .iter()
+                .any(|reference| &source[reference.operand().span().as_range()] == "p*")
+        );
+        let foreign = Analyser::new().analyse(&format!("{source} "), "tcl");
+        assert!(
+            references
+                .iter()
+                .all(|reference| reference.declaration(&foreign).is_none())
+        );
+        let different_configuration = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            references
+                .iter()
+                .all(|reference| reference.declaration(&different_configuration).is_none())
+        );
+    }
+}
+
+#[cfg(test)]
+mod dispatch_region_census_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn checked_census_distinguishes_empty_children_and_unavailable_source_phases() {
+        let source = "set value 1";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let census = DispatchRegionCensus::capture(source, &analysis).unwrap();
+        let mut observed_empty = false;
+        crate::executable_regions::visit_analysis_executable_commands(
+            source,
+            &analysis,
+            &mut |command, _, _| {
+                assert_eq!(
+                    census.regions_for(source, &analysis, command),
+                    Some([].as_slice())
+                );
+                assert!(
+                    census
+                        .regions_for("set value 2", &analysis, command)
+                        .is_none()
+                );
+                let mut foreign = command.clone();
+                foreign.all_tokens.clear();
+                assert!(census.regions_for(source, &analysis, &foreign).is_none());
+                observed_empty = true;
+                false
+            },
+        );
+        assert!(observed_empty);
+        for source in ["if {1} $body", "apply $lambda", "$handler {}"] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            assert!(
+                DispatchRegionCensus::capture(source, &analysis).is_none(),
+                "{source}"
+            );
+        }
+    }
+    #[test]
+    fn complete_children_include_variable_index_and_expression_commands() {
+        for source in ["set value $arr([set key 1])", "expr {[set key 1] + 2}"] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let census = DispatchRegionCensus::capture(source, &analysis).unwrap();
+            let start = u32::try_from(source.find("set key 1").unwrap()).unwrap();
+            let end = start + u32::try_from("set key 1".len()).unwrap();
+            let mut outer = false;
+            crate::executable_regions::visit_analysis_executable_commands(
+                source,
+                &analysis,
+                &mut |command, _, _| {
+                    if command.span.start() == 0 {
+                        let regions = census.regions_for(source, &analysis, command).unwrap();
+                        assert!(
+                            regions.contains(&(start as usize, end as usize)),
+                            "{source}: {regions:?}"
+                        );
+                        outer = true;
+                    }
+                    false
+                },
+            );
+            assert!(outer);
+        }
     }
 }

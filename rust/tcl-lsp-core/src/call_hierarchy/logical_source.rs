@@ -256,6 +256,7 @@ struct Snapshot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Evidence {
     Procedure {
+        retained: Option<Box<tcl_compiler::command_binding::OriginalLogicalProcedureCall>>,
         ordinary: Option<Box<OriginalLogicalCommandCandidates>>,
         absolute: Option<Box<OriginalLogicalAbsoluteCommandCandidate>>,
         head: NativeWord,
@@ -287,10 +288,18 @@ impl Evidence {
     fn is_current(&self, consumer: OriginalDeclarationDocument<'_>) -> bool {
         match self {
             Self::Procedure {
+                retained,
                 ordinary,
                 absolute,
                 head,
             } => {
+                if let Some(retained) = retained {
+                    return retained.original_words().first() == Some(head)
+                        && tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                            consumer.source, consumer.analysis, head.span().start()
+                        ).as_ref() == Some(retained.as_ref())
+                        && retained.declaration(consumer.analysis).is_some();
+                }
                 let current = tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(consumer.source, consumer.analysis, head.span().start());
                 let current_absolute = if current.is_none() {
                     tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(consumer.source, consumer.analysis, head.span().start())
@@ -572,6 +581,22 @@ impl<'a> Inventory<'a> {
         document: OriginalDeclarationDocument<'a>,
         offset: u32,
     ) -> (Vec<LogicalCallIdentity>, bool) {
+        if let Some(call) =
+            tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                document.source,
+                document.analysis,
+                offset,
+            )
+        {
+            let selected = call.declaration(document.analysis).and_then(|header| {
+                LogicalCallIdentity::capture(
+                    document,
+                    Selection::Procedure(Box::new(header.clone())),
+                )
+            });
+            let incomplete = selected.is_none() || call.has_unresolved_applicability();
+            return (selected.into_iter().collect(), incomplete);
+        }
         match logical_method_procedure_at(document.source, document.analysis, offset) {
             LogicalMethodProcedureSelection::Occupied {
                 procedure,
@@ -698,6 +723,9 @@ impl<'a> Inventory<'a> {
         Some((
             targets,
             Evidence::Procedure {
+                retained: tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(
+                    document.source, document.analysis, head.span().start(),
+                ).map(Box::new),
                 ordinary: ordinary.map(Box::new),
                 absolute: absolute.map(Box::new),
                 head: head.clone(),
@@ -1353,5 +1381,87 @@ mod tests {
             assert_eq!(item.presentation().selection_range.start_character, 5);
             assert_eq!(item.presentation().selection_range.end_character, 6);
         }
+    }
+    #[test]
+    fn actual_call_header_and_alias_history_survive_without_reporting_proc_maps() {
+        let source = "proc p {} {}; rename p moved; interp alias {} shortcut {} moved; shortcut";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.all_procs.clear();
+        analysis.command_invocations.clear();
+        let docs = [document("file:///actual.tcl", source, &analysis)];
+        let advice = prepare(
+            docs[0].uri,
+            source,
+            source.rfind("shortcut").unwrap(),
+            &docs,
+        );
+        assert_eq!(advice.possible_source_items().len(), 1);
+        let identity = advice.possible_source_items()[0].identity();
+        assert_eq!(identity.uri(), docs[0].uri);
+        assert!(identity.is_current_in(&docs));
+        let Selection::Procedure(header) = &identity.selected else {
+            panic!("actual source procedure required");
+        };
+        assert_eq!(
+            &source[header.original_name_word().unwrap().span().as_range()],
+            "p"
+        );
+        let provenance = identity.provenance.as_ref().unwrap();
+        let Evidence::Procedure {
+            retained: Some(call),
+            ..
+        } = &provenance.evidence
+        else {
+            panic!("original call owner required");
+        };
+        assert_eq!(
+            call.original_words().first().unwrap().span().start(),
+            u32::try_from(source.rfind("shortcut").unwrap()).unwrap()
+        );
+        assert!(!call.lineage().is_empty());
+        let incoming = logical_incoming_from_inventory(identity, &docs).unwrap();
+        assert_eq!(incoming.possible_source_edges().len(), 1);
+        assert!(incoming.is_current(&docs));
+    }
+
+    #[test]
+    fn retained_call_target_reissues_consumer_and_declaring_source_under_wire_identity() {
+        let source = "proc p {} {}; interp alias {} shortcut {} p; shortcut";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let docs = [document("file:///actual.tcl", source, &analysis)];
+        let advice = prepare(
+            docs[0].uri,
+            source,
+            source.rfind("shortcut").unwrap(),
+            &docs,
+        );
+        let identity = advice.possible_source_items()[0].identity();
+        let changed_source =
+            "proc p {} {}; interp alias {} shortcut {} p; rename shortcut {}; shortcut";
+        let changed = Analyser::new().analyse(changed_source, "tcl");
+        assert!(!identity.is_current_in(&[document(docs[0].uri, changed_source, &changed)]));
+        assert!(!identity.is_current_in(&[document("file:///foreign.tcl", source, &analysis)]));
+        let foreign_input = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!identity.is_current_in(&[document(docs[0].uri, source, &foreign_input)]));
+        let mut registry = OriginalDeclarationRegistry::default();
+        let publication = crate::original_declaration::LogicalCallHostPublication::retain(());
+        let handle = registry
+            .issue_logical_call(identity.clone(), publication.clone())
+            .unwrap();
+        assert!(
+            registry
+                .resolve_logical_call(handle, docs[0].uri, &docs, &publication)
+                .is_some()
+        );
+        assert!(
+            registry
+                .resolve_logical_call(
+                    handle,
+                    docs[0].uri,
+                    &[document(docs[0].uri, changed_source, &changed)],
+                    &publication
+                )
+                .is_none()
+        );
     }
 }

@@ -17,6 +17,8 @@ mod source_parameter_template;
 pub(crate) use source_parameter_template::OriginalLogicalParameterSourcePrefix;
 mod logical_declaration;
 mod logical_math;
+mod logical_name_reference;
+pub use logical_name_reference::OriginalLogicalNameReference;
 mod logical_procedure_invocation;
 pub use logical_procedure_invocation::OriginalLogicalProcedureCall;
 mod logical_navigation;
@@ -770,6 +772,9 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     logical_procedure_calls: BTreeMap<u32, Option<OriginalLogicalProcedureCall>>,
+    logical_ensemble_transition_receipts:
+        BTreeMap<u32, Option<Arc<OriginalSourceCommandTransition>>>,
+    logical_name_references: BTreeMap<u32, Option<Vec<OriginalLogicalNameReference>>>,
     logical_procedure_catalogue_refusals: BTreeSet<LogicalProcedureCatalogueRefusal>,
     logical_variable_scopes:
         BTreeMap<(u32, u32), Option<Arc<super::OriginalDeclaredLogicalBodyContext>>>,
@@ -835,6 +840,19 @@ impl OriginalSourceTransitionAdviceTape {
         self.logical_procedure_bodies
             .values()
             .flatten()
+            .cloned()
+            .collect()
+    }
+
+    /// Represented source ensemble operations in original order. Each receipt
+    /// keeps its complete argv, Registry transition recipe, input ordinals, and
+    /// alias/move lineage. This is a positive receipt list, not a complete
+    /// census: empty or partial results prove neither absence nor current state.
+    pub(crate) fn logical_ensemble_transition_receipts(
+        &self,
+    ) -> Option<Vec<Arc<OriginalSourceCommandTransition>>> {
+        self.logical_ensemble_transition_receipts
+            .values()
             .cloned()
             .collect()
     }
@@ -1189,6 +1207,16 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, call) in other.logical_procedure_calls {
             source_class::merge_receipt(&mut self.logical_procedure_calls, offset, call);
+        }
+        for (offset, reference) in other.logical_name_references {
+            source_class::merge_receipt(&mut self.logical_name_references, offset, reference);
+        }
+        for (offset, operation) in other.logical_ensemble_transition_receipts {
+            source_class::merge_receipt(
+                &mut self.logical_ensemble_transition_receipts,
+                offset,
+                operation,
+            );
         }
         for (offset, prefix) in other.arity_prefixes {
             source_class::merge_receipt(&mut self.arity_prefixes, offset, prefix);
@@ -1687,6 +1715,13 @@ impl AdviceGraph {
         input: &SourceAdviceNameInput,
     ) -> Option<SourceAliasCellSelection<'_>> {
         let start = self.lookup_head_key(input.bytes())?;
+        self.resolve_source_cell_at_slot(start)
+    }
+
+    fn resolve_source_cell_at_slot(
+        &self,
+        start: ByteCommandSlot,
+    ) -> Option<SourceAliasCellSelection<'_>> {
         if tcl_syntax::naming::alias_chain_loops(start.clone(), |key| match self.cells.get(key) {
             Some(AdviceCell::Alias { target, lookup, .. }) => {
                 Ok::<_, ()>(Some(self.alias_target_key(target, *lookup).ok_or(())?))
@@ -2112,6 +2147,14 @@ fn transition_subjects(transitions: &tcl_registry::StateTransitions) -> Vec<Tran
                         subjects.push(path.clone());
                         namespace
                     }
+                    NamespaceTransition::Ensemble {
+                        namespace,
+                        arguments,
+                        ..
+                    } => {
+                        subjects.extend(arguments.iter().cloned());
+                        namespace
+                    }
                     NamespaceTransition::Delete { namespace } => namespace,
                     _ => continue,
                 };
@@ -2267,6 +2310,17 @@ impl AdviceInvocationContext<'_> {
         } = invocation;
         let mut inventory = OriginalSourceTransitionAdviceTape::default();
         let transitions = schema.state_transitions();
+        let ensemble_transition = transitions.facts().iter().any(|fact| {
+            matches!(
+                &fact.transition,
+                StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensemble { .. })
+            )
+        });
+        if ensemble_transition {
+            inventory
+                .logical_ensemble_transition_receipts
+                .insert(native.first()?.span().start(), None);
+        }
         let receipt = capture_transition(
             self.origin,
             native,
@@ -2276,6 +2330,12 @@ impl AdviceInvocationContext<'_> {
             lineage,
         );
         if let Some(receipt) = &receipt {
+            if ensemble_transition {
+                inventory.logical_ensemble_transition_receipts.insert(
+                    receipt.original_words().first()?.span().start(),
+                    Some(Arc::clone(receipt)),
+                );
+            }
             let applied = graph.apply(receipt).is_some();
             if !applied {
                 graph.widen(native);
@@ -2337,6 +2397,7 @@ impl AdviceInvocationContext<'_> {
         }
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_logical_callback_candidates(tape, invocation, graph, schema, callback_scope);
+        self.retain_logical_name_references(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
         Some(())

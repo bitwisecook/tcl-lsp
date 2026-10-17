@@ -199,6 +199,72 @@ pub fn extract_proc_rename_command(
     })
 }
 
+/// Source-bound generated Name continuation under the actual original input.
+/// The afterimage is independently parsed by the existing declaration owners;
+/// a reporting name or raw substring cannot supply the target. Failure omits
+/// only the optional rename UI and grants no source-action/edit permission.
+#[must_use]
+pub fn extract_proc_rename_command_for_analysis(
+    refactoring: &Refactoring,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<ActionCommand> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if refactoring.disabled.is_some()
+        || refactoring.edits.iter().any(|edit| {
+            edit.start > edit.end || source.get(edit.start as usize..edit.end as usize).is_none()
+        })
+    {
+        return None;
+    }
+    let insertion = refactoring
+        .edits
+        .iter()
+        .filter(|edit| edit.start == edit.end)
+        .min_by_key(|edit| edit.start)?;
+    if refactoring
+        .edits
+        .iter()
+        .any(|edit| edit.start < insertion.start)
+    {
+        return None;
+    }
+    let after = refactoring.apply(source);
+    let mut analyser = tcl_compiler::analyser::Analyser::new().with_resolved_input(input.clone());
+    let generated = analyser.analyse(&after, "tcl");
+    crate::original_context::CurrentSourceContext::capture(&after, &generated)?;
+    let mut words = Vec::new();
+    if input.has_logical_source_name_context() {
+        for header in generated.logical_source_procedure_declarations() {
+            if header.original_definition_site()?.offset == insertion.start {
+                words.push(header.original_name_word()?.clone());
+            }
+        }
+    } else {
+        for header in generated.original_procedure_declarations() {
+            if header.declaration_site().offset == insertion.start {
+                words.push(header.name_input().original_word().clone());
+            }
+        }
+    }
+    let word = words.first()?;
+    (words.len() == 1
+        && word.image() == &tcl_lexer::SourceImage::document(&after)
+        && word.config() == input.lexer_config())
+    .then_some(())?;
+    let token = after.get(word.span().as_range())?.to_owned();
+    let lines = tcl_lexer::LineIndex::new_lsp(&after);
+    let start = lines.position_at_utf16(word.span().start(), &after);
+    let end = lines.position_at_utf16(word.span().end(), &after);
+    (start.line == end.line).then_some(())?;
+    Some(ActionCommand {
+        command: "tclLsp.renameSymbolAtPosition".to_owned(),
+        args: vec![start.line, start.character.get(), end.character.get()],
+        string_args: vec![after, token],
+    })
+}
+
 /// The byte range of the innermost script region containing `offset`.
 #[derive(Clone, Copy)]
 struct Scope {
@@ -2135,5 +2201,72 @@ puts done";
                 assert!(extract_proc(source, selection, &changed, registry).is_none());
             }
         }
+    }
+    #[test]
+    fn generated_rename_uses_genuine_afterimage_header_and_utf16_with_original_input() {
+        let source = "# 😀\r\nputs café\r\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let insertion = u32::try_from(source.find("puts").unwrap()).unwrap();
+        let refactoring = Refactoring {
+            title: "fixture".to_owned(),
+            edits: vec![RefactorEdit {
+                start: insertion,
+                end: insertion,
+                new_text: "proc café {} {}\r\n".to_owned(),
+            }],
+            kind: ActionKind::RefactorExtract,
+            data_group: None,
+            disabled: None,
+        };
+        let command =
+            extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).unwrap();
+        assert_eq!(command.string_args[0], refactoring.apply(source));
+        assert_eq!(command.string_args[1], "café");
+        assert_eq!(command.args, vec![1, 5, 9]);
+        assert!(
+            extract_proc_rename_command_for_analysis(
+                &refactoring,
+                &format!("{source} "),
+                &analysis
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(extract_proc_rename_command_for_analysis(&refactoring, source, &missing).is_none());
+    }
+
+    #[test]
+    fn generated_rename_does_not_select_rendered_comment_or_nonheader_names() {
+        let source = "puts ok\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let mut refactoring = Refactoring {
+            title: "fixture".to_owned(),
+            edits: vec![RefactorEdit {
+                start: 0,
+                end: 0,
+                new_text: "# proc decoy {} {}\nset data generated\n".to_owned(),
+            }],
+            kind: ActionKind::RefactorExtract,
+            data_group: None,
+            disabled: None,
+        };
+        assert!(
+            extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).is_none()
+        );
+        refactoring.edits[0].new_text = "proc generated {} {}\n".to_owned();
+        assert!(
+            extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).is_some()
+        );
+        refactoring.disabled = Some("source action unavailable".to_owned());
+        assert!(
+            extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).is_none()
+        );
+        refactoring.disabled = None;
+        refactoring.edits[0].start = 999;
+        refactoring.edits[0].end = 999;
+        assert!(
+            extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).is_none()
+        );
     }
 }

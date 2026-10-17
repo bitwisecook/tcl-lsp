@@ -62,6 +62,16 @@ impl LogicalSourceProcedureDeclaration {
         })
     }
 
+    /// Actual complete-source definition site retained by this header owner.
+    /// This authoring/navigation geometry grants no installation or editing.
+    #[must_use]
+    pub fn original_definition_site(
+        &self,
+    ) -> Option<&crate::command_binding::CommandAllocationSite> {
+        self.matches_source(&self.image, &self.input)
+            .then_some(self.body.site())
+    }
+
     /// Original simple name from the header's source coordinate.
     #[must_use]
     pub fn name(&self) -> Option<&str> {

@@ -4007,6 +4007,10 @@ struct DiagInputs {
     client: Client,
     diagnostic_publisher: Arc<DiagnosticPublisher>,
     registry: Arc<CommandRegistry>,
+    /// The exact pack publication selected with the registry for this run.
+    pack_seq: u64,
+    pack_set: Arc<tcl_spectcl::PackSet>,
+    spec_packs: Arc<Mutex<PublishedPackSet>>,
     /// The analyser's production-time skip for this document's folder (see
     /// [`LiftInputs::disabled`]).
     disabled: HashSet<String>,
@@ -4255,13 +4259,34 @@ struct DiagnosticMailboxState {
 /// completed `start_send` before parking in `poll_flush` — so it is allowed to
 /// finish and the newest queued state follows it.  This gives close/edit
 /// ordering without timeout-and-retry duplicates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PackNoticeSourceOwner {
+    Saved(vfs::SourcePathOrigin),
+    Studio(Arc<DocumentPathAdmission>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PackNoticeEntry {
+    diagnostic: tower_lsp_server::ls_types::Diagnostic,
+    source: Arc<str>,
+    owner: PackNoticeSourceOwner,
+}
+
+#[derive(Default)]
+struct PackNoticePublication {
+    seq: u64,
+    packs: Option<Arc<tcl_spectcl::PackSet>>,
+    overlays: Vec<Arc<CommandRegistry>>,
+    by_uri: HashMap<Uri, Vec<PackNoticeEntry>>,
+}
+
 struct DiagnosticPublisher {
     completion: Mutex<HashMap<Uri, DiagnosticCompletionEntry>>,
     client: Client,
     state: std::sync::Mutex<DiagnosticMailboxState>,
-    /// The pack-load notices standing on each URI, unioned into every set
-    /// published for it — see [`DiagnosticPublisher::with_pack_notices`].
-    pack_notices: std::sync::Mutex<HashMap<Uri, Vec<tower_lsp_server::ls_types::Diagnostic>>>,
+    /// Current pack notices with their loader source and actual publication
+    /// owners, rather than wire diagnostics keyed by URI alone.
+    pack_notices: std::sync::Mutex<PackNoticePublication>,
     ready: tokio::sync::Notify,
     started: std::sync::atomic::AtomicBool,
 }
@@ -4272,67 +4297,174 @@ impl DiagnosticPublisher {
             completion: Mutex::new(HashMap::new()),
             client,
             state: std::sync::Mutex::new(DiagnosticMailboxState::default()),
-            pack_notices: std::sync::Mutex::new(HashMap::new()),
+            pack_notices: std::sync::Mutex::new(PackNoticePublication::default()),
             ready: tokio::sync::Notify::new(),
             started: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
-    /// `diagnostics` unioned with the pack-load notices standing on `uri`.
-    ///
-    /// A `.tclspec` is both a spec pack and — `.tclspec` being a Tcl source
-    /// extension — an analysed document, and `publishDiagnostics` replaces a
-    /// URI's whole set. Two independent producers publishing the same URI
-    /// therefore overwrite each other: without this, editing an open pack
-    /// shows the analyser's view alone until the next reload restores the
-    /// loader's notices. Making this the one place a URI's set is assembled
-    /// means the two are merged rather than raced: whichever producer moved
-    /// last, the other's findings survive it.
-    ///
-    /// The notices are the *pack* layer; everything else a document produces
-    /// is the analysed layer and stays owned by the diagnostics pipeline. A
-    /// URI with no notices — every document that is not a pack file, and every
-    /// pack that loaded cleanly — pays one hash lookup and keeps its vector.
+    /// Merge pack notices only when their loader image and installed registry
+    /// are the exact owners used by this document report.
     fn with_pack_notices(
         &self,
         uri: &Uri,
-        mut diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        source: &str,
+        pack_seq: u64,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+        store: &dyn vfs::SourceStore,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        self.with_pack_notices_during(
+            uri,
+            source,
+            pack_seq,
+            packs,
+            registry,
+            store,
+            diagnostics,
+            |diagnostics| diagnostics,
+        )
+    }
+
+    /// Rejoin the selected provider source while the synchronous publication
+    /// callback commits the assembled diagnostic set.
+    fn with_pack_notices_during<R>(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pack_seq: u64,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+        store: &dyn vfs::SourceStore,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
+    ) -> R {
+        let mut publish = Some(publish);
+        let mut diagnostics = Some(diagnostics);
         let notices = self
             .pack_notices
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(standing) = notices.get(uri) {
-            diagnostics.extend(standing.iter().cloned());
+        if notices.seq != pack_seq
+            || !notices
+                .packs
+                .as_ref()
+                .is_some_and(|published| Arc::ptr_eq(published, packs))
+            || !notices
+                .overlays
+                .iter()
+                .any(|overlay| Arc::ptr_eq(overlay, registry))
+        {
+            return publish.take().expect("publication callback is available")(
+                diagnostics.take().expect("base report is available"),
+            );
         }
-        diagnostics
+        let matching: Vec<_> = notices
+            .by_uri
+            .get(uri)
+            .into_iter()
+            .flatten()
+            .filter(|notice| notice.source.as_ref() == source)
+            .collect();
+        if matching.is_empty() {
+            return publish.take().expect("publication callback is available")(
+                diagnostics.take().expect("base report is available"),
+            );
+        }
+        let saved_sources: Vec<_> = matching
+            .iter()
+            .filter_map(|notice| match &notice.owner {
+                PackNoticeSourceOwner::Saved(origin) => Some((origin, notice.source.as_bytes())),
+                PackNoticeSourceOwner::Studio(_) => None,
+            })
+            .collect();
+        let mut studio_sources = Vec::new();
+        let mut studio_inputs_available = true;
+        for notice in &matching {
+            if let PackNoticeSourceOwner::Studio(admission) = &notice.owner {
+                match admission.current_saved_source_path(store) {
+                    Ok(path) => studio_sources.push((path, notice.source.as_bytes())),
+                    Err(_) => {
+                        studio_inputs_available = false;
+                        break;
+                    }
+                }
+            }
+        }
+        let extra: Vec<_> = matching
+            .iter()
+            .map(|notice| notice.diagnostic.clone())
+            .collect();
+        let mut result = None;
+        let mut commit = || {
+            let mut assembled = diagnostics.take().expect("base report is available");
+            assembled.extend(extra.iter().cloned());
+            result = Some(publish.take().expect("publication callback is available")(
+                assembled,
+            ));
+        };
+        if studio_inputs_available
+            && store
+                .with_current_saved_source_inputs(&studio_sources, &saved_sources, &mut commit)
+                .is_ok()
+        {
+            if let Some(result) = result {
+                return result;
+            }
+            unreachable!("a successful provider callback publishes exactly once");
+        }
+        publish.take().expect("publication callback is available")(
+            diagnostics.take().expect("base report is available"),
+        )
     }
 
-    /// Replace the standing pack notices with `by_uri` and report which URIs
-    /// changed — the ones whose published set has to be reassembled.
+    /// Replace the standing pack notices with a loader-backed publication and
+    /// report every URI whose assembled report needs refreshing.
     fn set_pack_notices(
         &self,
-        by_uri: HashMap<Uri, Vec<tower_lsp_server::ls_types::Diagnostic>>,
+        seq: u64,
+        packs: Arc<tcl_spectcl::PackSet>,
+        overlays: Vec<Arc<CommandRegistry>>,
+        by_uri: HashMap<Uri, Vec<PackNoticeEntry>>,
     ) -> Vec<Uri> {
         let mut notices = self
             .pack_notices
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let publication_changed = notices.seq != seq
+            || notices
+                .packs
+                .as_ref()
+                .is_none_or(|old| !Arc::ptr_eq(old, &packs))
+            || notices.overlays.len() != overlays.len()
+            || notices
+                .overlays
+                .iter()
+                .zip(&overlays)
+                .any(|(old, fresh)| !Arc::ptr_eq(old, fresh));
         let mut touched: Vec<Uri> = notices
+            .by_uri
             .keys()
-            .filter(|uri| !by_uri.contains_key(*uri))
+            .filter(|uri| !by_uri.contains_key(*uri) || publication_changed)
             .cloned()
             .collect();
-        // Only a URI whose notices actually moved needs its set reassembled: a
-        // reload that finds the same problems must not restate them, or every
-        // unrelated watched-file event would republish every pack file.
         touched.extend(
             by_uri
                 .iter()
-                .filter(|(uri, fresh)| notices.get(*uri) != Some(*fresh))
+                .filter(|(uri, fresh)| {
+                    publication_changed || notices.by_uri.get(*uri) != Some(*fresh)
+                })
                 .map(|(uri, _)| uri.clone()),
         );
-        *notices = by_uri;
+        *notices = PackNoticePublication {
+            seq,
+            packs: Some(packs),
+            overlays,
+            by_uri,
+        };
+        touched.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+        touched.dedup();
         touched
     }
 
@@ -4347,7 +4479,6 @@ impl DiagnosticPublisher {
         client_supports_pull: bool,
         announce: bool,
     ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
-        let diagnostics = self.with_pack_notices(&uri, diagnostics);
         self.enqueue_assembled(uri, diagnostics, version, client_supports_pull, announce)
     }
 
@@ -4469,6 +4600,12 @@ struct DeliveryCtx<'a> {
     /// The closed-file generation map, consulted by the currency guard for a
     /// [`DiagCurrency::ClosedFromDisk`] run.
     closed_diag_gen: &'a Arc<Mutex<HashMap<Uri, u64>>>,
+    /// The source and pack/registry publication consumed by this run.
+    source: &'a str,
+    pack_seq: u64,
+    pack_set: Option<&'a Arc<tcl_spectcl::PackSet>>,
+    registry: Option<&'a Arc<CommandRegistry>>,
+    spec_packs: Option<&'a Arc<Mutex<PublishedPackSet>>>,
     uri: &'a Uri,
     currency: DiagCurrency,
     version: Option<i32>,
@@ -4515,6 +4652,32 @@ impl DeliveryCtx<'_> {
             DiagCurrency::Open(revision) => revision,
             DiagCurrency::ClosedFromDisk(_) => u64::MAX,
         }
+    }
+
+    fn publish_with_pack_notices<R>(
+        &self,
+        published: Option<&PublishedPackSet>,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
+    ) -> R {
+        let (Some(published), Some(packs), Some(registry)) =
+            (published, self.pack_set, self.registry)
+        else {
+            return publish(diagnostics);
+        };
+        if published.seq != self.pack_seq || !Arc::ptr_eq(&published.packs, packs) {
+            return publish(diagnostics);
+        }
+        self.diagnostic_publisher.with_pack_notices_during(
+            self.uri,
+            self.source,
+            self.pack_seq,
+            packs,
+            registry,
+            self.store.as_ref(),
+            diagnostics,
+            publish,
+        )
     }
 
     /// Commit `diags` iff this run is still current for `uri`.
@@ -4569,15 +4732,23 @@ impl DeliveryCtx<'_> {
         }
         let docs = self.documents.lock("deliver_fast_tier_if_current").await;
         if self.is_current(&docs).await {
+            let published = match self.spec_packs {
+                Some(spec_packs) => Some(spec_packs.lock().await),
+                None => None,
+            };
             // Do not wait: the deep future is pinned in this same task and must
             // keep progressing so its authoritative set can replace this one.
-            Some(self.diagnostic_publisher.enqueue(
-                self.uri.clone(),
-                diags,
-                self.version,
-                false,
-                false,
-            ))
+            Some(
+                self.publish_with_pack_notices(published.as_deref(), diags, |diags| {
+                    self.diagnostic_publisher.enqueue_assembled(
+                        self.uri.clone(),
+                        diags,
+                        self.version,
+                        false,
+                        false,
+                    )
+                }),
+            )
         } else {
             None
         }
@@ -4592,32 +4763,40 @@ impl DeliveryCtx<'_> {
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> IssuedDiagnosticPublication {
+        let published = match self.spec_packs {
+            Some(spec_packs) => Some(spec_packs.lock().await),
+            None => None,
+        };
         // Assemble once, before the cache entry is taken: a pulled report and
         // a pushed one are the same set, so a `.tclspec`'s pack-load notices
         // have to be in the bytes the cache serves as well as in the ones the
         // publisher sends.
-        let diags = self.diagnostic_publisher.with_pack_notices(self.uri, diags);
         let result_id = next_pull_diag_result_id();
         self.documents
             .retag_held("cache_and_enqueue: pull_diag_cache");
-        self.pull_diag_cache.lock().await.insert(
-            self.uri.clone(),
-            PullDiagEntry {
-                currency: self
-                    .diagnostic_pass
-                    .map(|pass| DiagnosticCacheReceipt::from_publisher(pass)),
-                result_id: result_id.clone(),
-                revision: self.revision_for_cache(),
-                diagnostics: diags.clone(),
-            },
-        );
-        let receipt = self.diagnostic_publisher.enqueue_assembled(
-            self.uri.clone(),
-            diags,
-            self.version,
-            self.client_supports_pull,
-            true,
-        );
+        let mut pull_cache = self.pull_diag_cache.lock().await;
+        let receipt = self.publish_with_pack_notices(published.as_deref(), diags, |diags| {
+            pull_cache.insert(
+                self.uri.clone(),
+                PullDiagEntry {
+                    currency: self
+                        .diagnostic_pass
+                        .map(|pass| DiagnosticCacheReceipt::from_publisher(pass)),
+                    result_id: result_id.clone(),
+                    revision: self.revision_for_cache(),
+                    diagnostics: diags.clone(),
+                },
+            );
+            self.diagnostic_publisher.enqueue_assembled(
+                self.uri.clone(),
+                diags,
+                self.version,
+                self.client_supports_pull,
+                true,
+            )
+        });
+        drop(pull_cache);
+        drop(published);
         IssuedDiagnosticPublication { result_id, receipt }
     }
 }
@@ -6387,6 +6566,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         diag_slots: &inputs.diag_slots,
         pull_diag_cache: &inputs.pull_diag_cache,
         closed_diag_gen: &inputs.closed_diag_gen,
+        source: &text,
+        pack_seq: inputs.pack_seq,
+        pack_set: Some(&inputs.pack_set),
+        registry: Some(&inputs.registry),
+        spec_packs: Some(&inputs.spec_packs),
         uri,
         currency,
         version,
@@ -15709,6 +15893,8 @@ impl Backend {
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
     async fn compute_definition(&self, uri: &Uri, pos: Position) -> jsonrpc::Result<Vec<Location>> {
+        let source_epoch = self.diag_inputs_epoch();
+        let source_generation = self.live_publication_uri_generation(uri);
         let Some(doc) = self.read_document(uri).await? else {
             return Ok(Vec::new());
         };
@@ -15863,6 +16049,16 @@ impl Backend {
         }
         // Cross-document fallback: resolve a proc / class
         // defined in a sibling document via the workspace index.
+        if !analysis.allows_lexical_declaration_advice() {
+            return Ok(self
+                .original_definition_locations_for_snapshot(
+                    (uri.clone(), doc.clone(), source_generation),
+                    &analysis,
+                    pos,
+                    source_epoch,
+                )
+                .await?);
+        }
         let cross = self
             .cross_document_definition(uri, &doc.text, pos, &analysis)
             .await?;
@@ -17287,6 +17483,56 @@ impl Backend {
         Ok(self.resolve_target_locations(targets).await?)
     }
 
+    /// The genuine original declaration producer retains the requesting
+    /// document through all remote analysis before lifting its target span.
+    /// Missing or stale ownership is terminal for this Native source route.
+    async fn original_definition_locations_for_snapshot(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+        epoch: u64,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        if analysis.allows_lexical_declaration_advice() {
+            return Ok(Vec::new());
+        }
+        let Some(identity) = self
+            .original_declaration_identity_at(&caller.0, &caller.1.text, analysis, position)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
+        let Ok(owner) = identity.uri().parse::<Uri>() else {
+            return Ok(Vec::new());
+        };
+        let generation = self.live_publication_uri_generation(&owner);
+        let Some(document) = self.read_document(&owner).await? else {
+            return Ok(Vec::new());
+        };
+        let current = self
+            .analysis_for(&owner, document.text.clone(), document.dialect.clone())
+            .await?;
+        if !identity.is_current(owner.as_str(), &document.text, &current) {
+            return Ok(Vec::new());
+        }
+        let Some(context) =
+            core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&current)
+        else {
+            return Ok(Vec::new());
+        };
+        let Some(location) = OriginalIndexedSourceLocation::from_declaration(&context, &identity)
+        else {
+            return Ok(Vec::new());
+        };
+        self.resolve_current_original_class_type_location(
+            caller,
+            (owner, document, current, generation),
+            location,
+            epoch,
+        )
+        .await
+    }
+
     /// Revalidate indexed facts in each actual current document before using
     /// their spans or counting them. Configuration changes withdraw the batch.
     async fn validated_original_indexed_locations(
@@ -17300,11 +17546,14 @@ impl Backend {
                 continue;
             }
             let resolved = if let Ok(uri) = target.uri().parse::<Uri>() {
+                let generation = self.live_publication_uri_generation(&uri);
                 if let Some(document) = self.read_document(&uri).await? {
                     let analysis = self
                         .analysis_for(&uri, document.text.clone(), document.dialect.clone())
                         .await?;
-                    Some((uri, document, analysis))
+                    self.class_type_source(&uri, document, generation)
+                        .await
+                        .map(|source| (source, analysis))
                 } else {
                     None
                 }
@@ -17313,30 +17562,77 @@ impl Backend {
             };
             documents.insert(target.uri().to_owned(), resolved);
         }
-        if self.diag_inputs_epoch() != epoch {
+        let mut saved = Vec::new();
+        for (source, _) in documents.values().flatten() {
+            if source.open_revision.is_some() {
+                continue;
+            }
+            let Some(admission) = source.document.path_admission.as_ref() else {
+                return Ok(Vec::new());
+            };
+            admission.check_for(&source.uri, self.store.as_ref())?;
+            let Some(path) = admission.path().map(Path::to_path_buf) else {
+                return Ok(Vec::new());
+            };
+            let store = Arc::clone(&self.store);
+            let Ok(Ok(bytes)) = crate::rt::spawn_blocking(move || store.read(&path)).await else {
+                return Ok(Vec::new());
+            };
+            let (decoded, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            if tcl_lexer::normalise_lone_cr(&decoded).as_ref() != source.document.text.as_ref() {
+                return Ok(Vec::new());
+            }
+            saved.push((Arc::clone(admission), bytes));
+        }
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let _rehoming = self.rehoming_gate.lock().await;
+        let current = self
+            .documents
+            .lock("original_indexed_location_publish")
+            .await;
+        if self.diag_inputs_epoch() != epoch
+            || documents.values().flatten().any(|(source, _)| {
+                !source.matches_open_documents(&current)
+                    || self.live_publication_uri_generation(&source.uri) != source.uri_generation
+            })
+        {
             return Ok(Vec::new());
         }
-        let mut seen = HashSet::new();
-        Ok(targets
-            .into_iter()
-            .filter_map(|target| {
-                let (uri, document, analysis) = documents.get(target.uri())?.as_ref()?;
-                let span = target.validated_span(&document.text, analysis)?;
-                seen.insert((uri.clone(), span)).then_some(())?;
-                let range = lift_lsp_range(core_definition::span_to_range(
-                    &document.text,
-                    &document.line_index,
-                    span,
-                ));
-                Some((
-                    target,
-                    Location {
-                        uri: uri.clone(),
-                        range,
-                    },
-                ))
-            })
-            .collect())
+        for (source, _) in documents.values().flatten() {
+            let Some(admission) = source.document.path_admission.as_ref() else {
+                return Ok(Vec::new());
+            };
+            admission.check_for(&source.uri, self.store.as_ref())?;
+        }
+        let selected = saved
+            .iter()
+            .map(|(admission, bytes)| (admission.as_ref(), bytes.as_slice()))
+            .collect::<Vec<_>>();
+        let mut result = Vec::new();
+        DocumentPathAdmission::with_current_saved_sources(&selected, self.store.as_ref(), || {
+            let mut seen = HashSet::new();
+            result = targets
+                .iter()
+                .filter_map(|target| {
+                    let (source, analysis) = documents.get(target.uri())?.as_ref()?;
+                    let span = target.validated_span(&source.document.text, analysis)?;
+                    seen.insert((source.uri.clone(), span)).then_some(())?;
+                    let range = lift_lsp_range(core_definition::span_to_range(
+                        &source.document.text,
+                        &source.document.line_index,
+                        span,
+                    ));
+                    Some((
+                        target.clone(),
+                        Location {
+                            uri: source.uri.clone(),
+                            range,
+                        },
+                    ))
+                })
+                .collect();
+        })?;
+        Ok(result)
     }
 
     async fn resolve_original_indexed_locations(
@@ -17349,6 +17645,115 @@ impl Backend {
             .into_iter()
             .map(|(_, location)| location)
             .collect())
+    }
+
+    /// Capture this exact request snapshot without retagging a same-text
+    /// dependency revision as the source that produced its analysis.
+    async fn class_type_source(
+        &self,
+        uri: &Uri,
+        document: DocumentState,
+        uri_generation: u64,
+    ) -> Option<LibraryPublicationSource> {
+        let documents = self.documents.lock("class_type_source_capture").await;
+        if self.live_publication_uri_generation(uri) != uri_generation {
+            return None;
+        }
+        if documents
+            .get(uri)
+            .is_some_and(|current| current.revision != document.revision)
+        {
+            return None;
+        }
+        let source = LibraryPublicationSource {
+            uri: uri.clone(),
+            open_revision: documents.get(uri).map(|current| current.revision),
+            uri_generation,
+            document,
+        };
+        source.matches_open_documents(&documents).then_some(source)
+    }
+
+    /// Lift one genuine Native declaration against its whole issuer
+    /// document. Final source/configuration checks follow every await; saved
+    /// sources use the actual provider's byte observation callback.
+    async fn resolve_current_original_class_type_location(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        target: (Uri, DocumentState, Arc<AnalysisResult>, u64),
+        location: OriginalIndexedSourceLocation,
+        epoch: u64,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        let Some(caller) = self.class_type_source(&caller.0, caller.1, caller.2).await else {
+            return Ok(Vec::new());
+        };
+        let (target_uri, target_document, target_analysis, target_generation) = target;
+        let Some(target) = self
+            .class_type_source(&target_uri, target_document, target_generation)
+            .await
+        else {
+            return Ok(Vec::new());
+        };
+        let mut saved = Vec::new();
+        for source in [&caller, &target] {
+            if source.open_revision.is_some() {
+                continue;
+            }
+            let Some(admission) = source.document.path_admission.as_ref() else {
+                return Ok(Vec::new());
+            };
+            admission.check_for(&source.uri, self.store.as_ref())?;
+            let Some(path) = admission.path().map(Path::to_path_buf) else {
+                return Ok(Vec::new());
+            };
+            let store = Arc::clone(&self.store);
+            let Ok(Ok(bytes)) = crate::rt::spawn_blocking(move || store.read(&path)).await else {
+                return Ok(Vec::new());
+            };
+            let (decoded, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            if tcl_lexer::normalise_lone_cr(&decoded).as_ref() != source.document.text.as_ref() {
+                return Ok(Vec::new());
+            }
+            saved.push((Arc::clone(admission), bytes));
+        }
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let _rehoming = self.rehoming_gate.lock().await;
+        let documents = self.documents.lock("class_type_location_publish").await;
+        if self.diag_inputs_epoch() != epoch
+            || [&caller, &target].iter().any(|source| {
+                !source.matches_open_documents(&documents)
+                    || self.live_publication_uri_generation(&source.uri) != source.uri_generation
+            })
+        {
+            return Ok(Vec::new());
+        }
+        for source in [&caller, &target] {
+            let Some(admission) = source.document.path_admission.as_ref() else {
+                return Ok(Vec::new());
+            };
+            admission.check_for(&source.uri, self.store.as_ref())?;
+        }
+        let selected = saved
+            .iter()
+            .map(|(admission, bytes)| (admission.as_ref(), bytes.as_slice()))
+            .collect::<Vec<_>>();
+        DocumentPathAdmission::with_current_saved_sources(&selected, self.store.as_ref(), || {
+            if location.uri() != target.uri.as_str() {
+                return Vec::new();
+            }
+            let Some(span) = location.validated_span(&target.document.text, &target_analysis)
+            else {
+                return Vec::new();
+            };
+            vec![Location {
+                uri: target.uri.clone(),
+                range: lift_lsp_range(core_definition::span_to_range(
+                    &target.document.text,
+                    &target.document.line_index,
+                    span,
+                )),
+            }]
+        })
     }
 
     /// Resolve a list of `(target-uri, byte-span)` pairs to LSP
@@ -24135,7 +24540,19 @@ impl Backend {
         let epoch = self.diag_inputs_epoch();
         let (disabled, non_ascii_mode) = self.resolved_analysis_settings(uri).await;
         let policy_layers = self.resolved_policy_layers(uri).await;
-        let registry = self.registry_for_dialect(dialect.name).await;
+        let (pack_seq, pack_set) = {
+            let published = self.spec_packs.lock().await;
+            (published.seq, Arc::clone(&published.packs))
+        };
+        let registry = if !pack_set.is_empty() {
+            tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, &pack_set)
+        } else {
+            Arc::clone(
+                tcl_lsp_core::environment_for_dialect(dialect.name)
+                    .default_context_registry()
+                    .commands(),
+            )
+        };
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
         let extra_commands = self
@@ -24154,6 +24571,9 @@ impl Backend {
             client: self.client.clone(),
             diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
             registry,
+            pack_seq,
+            pack_set: Arc::clone(&pack_set),
+            spec_packs: Arc::clone(&self.spec_packs),
             disabled,
             policy_layers,
             extra_commands,
@@ -24194,7 +24614,11 @@ impl Backend {
                 .load(std::sync::atomic::Ordering::Relaxed),
             store: Arc::clone(&self.store),
         };
-        if self.diag_inputs_epoch() == epoch {
+        let publication_is_current = {
+            let current = self.spec_packs.lock().await;
+            current.seq == pack_seq && Arc::ptr_eq(&current.packs, &pack_set)
+        };
+        if self.diag_inputs_epoch() == epoch && publication_is_current {
             inputs.inputs_epoch = Some(epoch);
         }
         inputs
@@ -24549,9 +24973,22 @@ impl Backend {
         language_id: &str,
     ) -> DocumentSourceResult<Vec<tower_lsp_server::ls_types::Diagnostic>> {
         let analysed = self
-            .analysed_diagnostics_for(uri, text, dialect, language_id)
+            .analysed_diagnostics_for(uri, Arc::clone(&text), dialect.clone(), language_id)
             .await?;
-        Ok(self.diagnostic_publisher.with_pack_notices(uri, analysed))
+        let (pack_seq, pack_set) = {
+            let published = self.spec_packs.lock().await;
+            (published.seq, Arc::clone(&published.packs))
+        };
+        let registry = self.registry_for_dialect(&dialect).await;
+        Ok(self.diagnostic_publisher.with_pack_notices(
+            uri,
+            &text,
+            pack_seq,
+            &pack_set,
+            &registry,
+            self.store.as_ref(),
+            analysed,
+        ))
     }
 
     #[cfg(test)]
@@ -25329,7 +25766,21 @@ impl Backend {
 
         let packs = self.spec_packs().await;
         let mut overlays = Vec::new();
-        if !packs.is_empty() {
+        if packs.is_empty() {
+            // Loader-only notices still need the actual default registry owner
+            // used by ordinary analysis when there are no pack commands.
+            let installed = tcl_registry::model::store_profiles()
+                .map(|profile| {
+                    let registry = tcl_lsp_core::environment_for_dialect(profile.name)
+                        .default_context_registry();
+                    Some((profile, Arc::clone(registry.commands())))
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(installed) = installed else {
+                return Ok(false);
+            };
+            overlays = installed;
+        } else {
             // Build the `(profile, key)` registry for every dialect now.
             //
             // The analyser resolves its own registry and can only *look up*
@@ -25386,8 +25837,16 @@ impl Backend {
         }
         drop(studio_sources);
         drop(analyser_inputs_guard);
-        self.report_pack_reload(&packs, registration.as_ref(), changed)
-            .await?;
+        self.report_pack_reload(
+            &packs,
+            registration.as_ref(),
+            changed,
+            seq,
+            &loader_inputs,
+            &studio_snapshot,
+            &overlays,
+        )
+        .await?;
         self.settle_pack_reload(changed, trigger).await?;
         *reload = Some(PackConfigurationPublication {
             options,
@@ -25413,6 +25872,10 @@ impl Backend {
         packs: &Arc<tcl_spectcl::PackSet>,
         registration: Option<&tcl_spectcl::PackSetRegistration>,
         changed: bool,
+        seq: u64,
+        loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
+        studio_snapshot: &studio_source::StudioSourceSnapshot,
+        overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
     ) -> DocumentSourceResult<()> {
         // Shipped-command collisions are not load notices — the loader has no
         // registry to compare against, so `PackSet::notices` cannot carry
@@ -25442,7 +25905,15 @@ impl Backend {
         // which rule and which pack rather than "some environments did not
         // load".
         collisions.extend(Self::environment_rejection_notices(packs, registration));
-        self.publish_spec_pack_notices(packs, &collisions).await?;
+        self.publish_spec_pack_notices(
+            packs,
+            &collisions,
+            seq,
+            loader_inputs,
+            studio_snapshot,
+            overlays,
+        )
+        .await?;
 
         Ok(if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
@@ -25902,16 +26373,61 @@ impl Backend {
     /// whichever producer ran last.
     async fn publish_spec_pack_notices(
         &self,
-        packs: &tcl_spectcl::PackSet,
+        packs: &Arc<tcl_spectcl::PackSet>,
         collisions: &[tcl_spectcl::PackNotice],
+        seq: u64,
+        loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
+        studio_snapshot: &studio_source::StudioSourceSnapshot,
+        overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
     ) -> DocumentSourceResult<()> {
         use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 
-        let mut by_uri: HashMap<Uri, Vec<Diagnostic>> = HashMap::new();
+        let mut by_uri: HashMap<Uri, Vec<PackNoticeEntry>> = HashMap::new();
         for notice in packs.notices.iter().chain(collisions) {
             let Some(uri) = canonical_file_uri(&notice.path) else {
                 continue;
             };
+            let paths = [notice.path.clone()];
+            let (source_owner, source) = if let Some(mut selected) = loader_inputs.selected(&paths)
+            {
+                let Some((origin, bytes)) = selected.pop() else {
+                    continue;
+                };
+                if self.store.validate_source_path_origin(origin).is_err() {
+                    continue;
+                }
+                let Ok(source) = std::str::from_utf8(bytes) else {
+                    continue;
+                };
+                if !matches!(self.store.read_to_string(&notice.path), Ok(current) if current == source)
+                {
+                    continue;
+                }
+                (
+                    PackNoticeSourceOwner::Saved(origin.clone()),
+                    Arc::<str>::from(source),
+                )
+            } else {
+                let Some((admission, source)) = studio_snapshot.source_for_saved_path(&notice.path)
+                else {
+                    continue;
+                };
+                if admission.check_current(self.store.as_ref()).is_err()
+                    || !matches!(self.store.read_to_string(&notice.path), Ok(current) if current.as_str() == source.as_ref())
+                {
+                    continue;
+                }
+                (PackNoticeSourceOwner::Studio(admission), source)
+            };
+            if let Some(subject) = &notice.subject {
+                if !subject
+                    .image()
+                    .try_text()
+                    .is_ok_and(|image| image == source.as_ref())
+                {
+                    continue;
+                }
+            }
             let notice_data = if let Some(subject) = &notice.subject {
                 if let Ok(source) = subject.image().try_text() {
                     let analysis = self
@@ -25935,7 +26451,7 @@ impl Backend {
                 tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
                 tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
             };
-            by_uri.entry(uri).or_default().push(Diagnostic {
+            let diagnostic = Diagnostic {
                 range: whole_line_range(notice),
                 severity: Some(severity),
                 code: Some(NumberOrString::String(
@@ -25945,6 +26461,11 @@ impl Backend {
                 message: format!("{}: {}", notice.context, notice.message),
                 data: notice_data,
                 ..Diagnostic::default()
+            };
+            by_uri.entry(uri).or_default().push(PackNoticeEntry {
+                diagnostic,
+                source,
+                owner: source_owner,
             });
         }
 
@@ -25975,29 +26496,82 @@ impl Backend {
         // A file that had notices last time and does not now must be cleared,
         // or a fixed pack keeps its badge until the editor restarts — which
         // `set_pack_notices` reports as a touched URI just as a new notice is.
-        let touched = self.diagnostic_publisher.set_pack_notices(by_uri);
-        // Which of them the editor has open, taken once: an open buffer's set
-        // belongs to the diagnostics pipeline, and publishing the notices
-        // alone here would drop the analyser's findings until the next edit.
-        // Rescheduling makes the pipeline reassemble both, through the same
-        // union every other publish for this URI now goes through.
-        let open: HashMap<Uri, String> = {
+        let notices_for_publish = by_uri.clone();
+        let registry_owners = overlays
+            .iter()
+            .map(|(_, registry)| Arc::clone(registry))
+            .collect();
+        let touched = self.diagnostic_publisher.set_pack_notices(
+            seq,
+            Arc::clone(packs),
+            registry_owners,
+            by_uri,
+        );
+        // Open documents go back through their current report owner. Closed
+        // files rejoin the installed pack publication and provider source at
+        // the synchronous enqueue boundary below.
+        let session_dialect = self.session_dialect().await;
+        let session_profile = tcl_lsp_core::profile_for_dialect(&session_dialect);
+        let registry = overlays
+            .iter()
+            .find(|(profile, _)| profile.name == session_profile.name)
+            .map(|(_, registry)| Arc::clone(registry));
+        for uri in touched {
             let docs = self.documents.lock("publish_spec_pack_notices").await;
-            touched
-                .iter()
-                .filter_map(|uri| docs.get(uri).map(|doc| (uri.clone(), doc.dialect.clone())))
-                .collect()
-        };
-        Ok(for uri in touched {
-            if let Some(dialect) = open.get(&uri) {
-                self.reschedule_diagnostics(uri, dialect.clone()).await;
+            if let Some(document) = docs.get(&uri) {
+                let dialect = document.dialect.clone();
+                drop(docs);
+                self.reschedule_diagnostics(uri, dialect).await;
                 continue;
             }
-            let receipt = self
-                .diagnostic_publisher
-                .enqueue(uri, Vec::new(), None, false, false);
+            let Some(registry) = registry.as_ref() else {
+                continue;
+            };
+            // Keep both the closed-document decision and the installed pack
+            // generation through the final provider/source rejoin and enqueue.
+            let published = self.spec_packs.lock().await;
+            if published.seq != seq || !Arc::ptr_eq(&published.packs, packs) {
+                continue;
+            }
+            let receipt = notices_for_publish
+                .get(&uri)
+                .and_then(|entries| entries.first())
+                .map_or_else(
+                    || {
+                        self.diagnostic_publisher.enqueue_assembled(
+                            uri.clone(),
+                            Vec::new(),
+                            None,
+                            false,
+                            false,
+                        )
+                    },
+                    |entry| {
+                        self.diagnostic_publisher.with_pack_notices_during(
+                            &uri,
+                            &entry.source,
+                            seq,
+                            packs,
+                            registry,
+                            self.store.as_ref(),
+                            Vec::new(),
+                            |diagnostics| {
+                                self.diagnostic_publisher.enqueue_assembled(
+                                    uri.clone(),
+                                    diagnostics,
+                                    None,
+                                    false,
+                                    false,
+                                )
+                            },
+                        )
+                    },
+                );
+            drop(published);
+            drop(docs);
             let _ = receipt.await;
-        })
+        }
+        Ok(())
     }
 
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
@@ -29471,6 +30045,8 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
+        let source_epoch = self.diag_inputs_epoch();
+        let caller_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
@@ -29486,21 +30062,48 @@ impl LanguageServer for Backend {
                     let Ok(owner) = method.uri().parse::<Uri>() else {
                         return Ok(None);
                     };
+                    let target_generation = self.live_publication_uri_generation(&owner);
                     let Some(target) = self.read_document(&owner).await? else {
                         return Ok(None);
                     };
                     let target_analysis = self
-                        .analysis_for(&owner, target.text.clone(), target.dialect)
+                        .analysis_for(&owner, target.text.clone(), target.dialect.clone())
                         .await?;
                     let Some(class) = method.declaring_class_in(&target.text, &target_analysis)
                     else {
                         return Ok(None);
                     };
-                    let span = class.name_input().span();
-                    return Ok(Some(GotoTypeDefinitionResponse::Array(
-                        self.resolve_target_locations(vec![(owner.to_string(), span)])
-                            .await?,
-                    )));
+                    let Some(identity) =
+                        tcl_lsp_core::original_declaration::OriginalDeclarationIdentity::for_class(
+                            owner.as_str(),
+                            &target.text,
+                            &target_analysis,
+                            class,
+                        )
+                    else {
+                        return Ok(None);
+                    };
+                    let Some(context) = tcl_lsp_core::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&target_analysis) else { return Ok(None); };
+                    let Some(location) =
+                        OriginalIndexedSourceLocation::from_declaration(&context, &identity)
+                    else {
+                        return Ok(None);
+                    };
+                    if location
+                        .validated_span(&target.text, &target_analysis)
+                        .is_none()
+                    {
+                        return Ok(None);
+                    }
+                    let locations = self
+                        .resolve_current_original_class_type_location(
+                            (uri.clone(), doc.clone(), caller_generation),
+                            (owner, target, target_analysis, target_generation),
+                            location,
+                            source_epoch,
+                        )
+                        .await?;
+                    return Ok(Some(GotoTypeDefinitionResponse::Array(locations)));
                 }
                 ControlFlow::Break(None) => return Ok(None),
                 ControlFlow::Continue(()) => {}
@@ -45563,6 +46166,11 @@ info exists ::N::v\uD800";
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
+            source: "",
+            pack_seq: 0,
+            pack_set: None,
+            registry: None,
+            spec_packs: None,
             uri: &uri,
             currency: DiagCurrency::ClosedFromDisk(generation),
             version: None,
@@ -50952,6 +51560,11 @@ proc p {} {
                 diag_slots: &backend.diag_slots,
                 pull_diag_cache: &backend.pull_diag_cache,
                 closed_diag_gen: &backend.closed_diag_gen,
+                source: "",
+                pack_seq: 0,
+                pack_set: None,
+                registry: None,
+                spec_packs: None,
                 uri: &uri,
                 currency: DiagCurrency::Open(revision),
                 version: Some(1),
@@ -53518,6 +54131,11 @@ proc p {} {
                 diag_slots: &publishing_backend.diag_slots,
                 pull_diag_cache: &publishing_backend.pull_diag_cache,
                 closed_diag_gen: &publishing_backend.closed_diag_gen,
+                source: "",
+                pack_seq: 0,
+                pack_set: None,
+                registry: None,
+                spec_packs: None,
                 uri: &publishing_uri,
                 currency: DiagCurrency::Open(revision),
                 version: Some(1),
@@ -59901,6 +60519,11 @@ proc p {} {
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
+            source: "",
+            pack_seq: 0,
+            pack_set: None,
+            registry: None,
+            spec_packs: None,
             uri: &uri,
             currency: DiagCurrency::Open(old_revision),
             version: Some(1),
@@ -60203,6 +60826,11 @@ proc p {} {
                 diag_slots: &publisher_backend.diag_slots,
                 pull_diag_cache: &publisher_backend.pull_diag_cache,
                 closed_diag_gen: &publisher_backend.closed_diag_gen,
+                source: "",
+                pack_seq: 0,
+                pack_set: None,
+                registry: None,
+                spec_packs: None,
                 uri: &publisher_b,
                 currency: DiagCurrency::Open(revision),
                 version: None,
@@ -64586,6 +65214,282 @@ mod pack_configuration_input_gate_tests {
         assert_eq!(
             *backend.workspace_trust.lock().await,
             WorkspaceTrust::Untrusted
+        );
+    }
+
+    #[tokio::test]
+    async fn pack_notice_union_requires_matching_source_and_publication_owners() {
+        let backend = crate::tests::test_backend();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after the epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "tcl-lsp-pack-notice-{}-{nonce}.tclspec",
+            std::process::id(),
+        ));
+        let source = "speclib sample 1.0 {}\n";
+        std::fs::write(&path, source).expect("write the exact loader source");
+        let origin = backend
+            .store
+            .source_path_origin(&path)
+            .expect("the native provider issues the selected source path");
+        let uri = canonical_file_uri(&path).expect("the selected path has a file URI");
+        let packs = Arc::new(tcl_spectcl::PackSet::default());
+        let registry = backend.registry_for_dialect("tcl8.6").await;
+        let diagnostic = tower_lsp_server::ls_types::Diagnostic {
+            message: "source-bound notice".to_owned(),
+            ..Default::default()
+        };
+        let mut by_uri = HashMap::new();
+        by_uri.insert(
+            uri.clone(),
+            vec![PackNoticeEntry {
+                diagnostic: diagnostic.clone(),
+                source: Arc::from(source),
+                owner: PackNoticeSourceOwner::Saved(origin.clone()),
+            }],
+        );
+        backend.diagnostic_publisher.set_pack_notices(
+            7,
+            Arc::clone(&packs),
+            vec![Arc::clone(&registry)],
+            by_uri,
+        );
+        let merged = backend.diagnostic_publisher.with_pack_notices(
+            &uri,
+            source,
+            7,
+            &packs,
+            &registry,
+            backend.store.as_ref(),
+            Vec::new(),
+        );
+        assert_eq!(merged, [diagnostic.clone()]);
+        // A retained Studio image has its own real admission owner; it does
+        // not need a fabricated loader SourcePathOrigin to survive the union.
+        let studio_admission = Arc::new(
+            DocumentPathAdmission::capture(&uri, backend.store.as_ref())
+                .expect("capture the selected Studio source path"),
+        );
+        backend.diagnostic_publisher.set_pack_notices(
+            7,
+            Arc::clone(&packs),
+            vec![Arc::clone(&registry)],
+            HashMap::from([(
+                uri.clone(),
+                vec![PackNoticeEntry {
+                    diagnostic: diagnostic.clone(),
+                    source: Arc::from(source),
+                    owner: PackNoticeSourceOwner::Studio(studio_admission),
+                }],
+            )]),
+        );
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                &uri,
+                source,
+                7,
+                &packs,
+                &registry,
+                backend.store.as_ref(),
+                Vec::new(),
+            ),
+            [diagnostic.clone()]
+        );
+        assert!(
+            backend
+                .diagnostic_publisher
+                .with_pack_notices(
+                    &uri,
+                    "speclib changed 1.0 {}\n",
+                    7,
+                    &packs,
+                    &registry,
+                    backend.store.as_ref(),
+                    Vec::new(),
+                )
+                .is_empty()
+        );
+        assert!(
+            backend
+                .diagnostic_publisher
+                .with_pack_notices(
+                    &uri,
+                    source,
+                    8,
+                    &packs,
+                    &registry,
+                    backend.store.as_ref(),
+                    Vec::new(),
+                )
+                .is_empty()
+        );
+        let replacement = Arc::new(tcl_spectcl::PackSet::default());
+        assert!(
+            backend
+                .diagnostic_publisher
+                .with_pack_notices(
+                    &uri,
+                    source,
+                    7,
+                    &replacement,
+                    &registry,
+                    backend.store.as_ref(),
+                    Vec::new(),
+                )
+                .is_empty()
+        );
+        let other_registry = backend.registry_for_dialect("tcl9.0").await;
+        assert!(
+            backend
+                .diagnostic_publisher
+                .with_pack_notices(
+                    &uri,
+                    source,
+                    7,
+                    &packs,
+                    &other_registry,
+                    backend.store.as_ref(),
+                    Vec::new(),
+                )
+                .is_empty()
+        );
+        std::fs::write(&path, "speclib changed 1.0 {}\n")
+            .expect("change the actual provider source");
+        assert!(
+            backend
+                .diagnostic_publisher
+                .with_pack_notices(
+                    &uri,
+                    source,
+                    7,
+                    &packs,
+                    &registry,
+                    backend.store.as_ref(),
+                    Vec::new(),
+                )
+                .is_empty()
+        );
+        std::fs::remove_file(path).expect("remove the temporary pack source");
+    }
+}
+
+#[cfg(test)]
+mod native_class_type_source_revision_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn same_text_dependency_revision_cannot_retag_the_old_class_snapshot() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///class-type-revision.tcl".parse().unwrap();
+        let mut document =
+            DocumentState::new("oo::class create C {}".to_owned(), "tcl8.6".to_owned());
+        document.publication = DocumentPublication::Indexed;
+        backend
+            .documents
+            .lock("class_type_revision_fixture")
+            .await
+            .insert(uri.clone(), document.clone());
+        let generation = backend.live_publication_uri_generation(&uri);
+        assert!(
+            backend
+                .class_type_source(&uri, document.clone(), generation)
+                .await
+                .is_some()
+        );
+        {
+            let mut documents = backend.documents.lock("class_type_revision_bump").await;
+            let current = documents.get_mut(&uri).unwrap();
+            current.bump_analysis_generation();
+            current.publication = DocumentPublication::Indexed;
+            assert_eq!(current.text, document.text);
+            assert_eq!(current.version, document.version);
+        }
+        assert!(
+            backend
+                .class_type_source(&uri, document, generation)
+                .await
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod native_cross_document_snapshot_tests {
+    use super::*;
+
+    async fn register_source(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .documents
+            .lock("native_definition_snapshot_fixture")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(source.to_owned(), "tcl8.6".to_owned()),
+            );
+        backend
+            .db_set_source(uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let analysis = backend
+            .analysis_for(uri, Arc::from(source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    #[tokio::test]
+    async fn original_cross_document_declaration_keeps_caller_revision_after_remote_analysis() {
+        let backend = crate::tests::test_backend();
+        let provider: Uri = "file:///native-definition-provider.tcl".parse().unwrap();
+        let caller: Uri = "file:///native-definition-caller.tcl".parse().unwrap();
+        register_source(&backend, &provider, "proc retained_target {} {}\n").await;
+        register_source(&backend, &caller, "retained_target\n").await;
+        let epoch = backend.diag_inputs_epoch();
+        let generation = backend.live_publication_uri_generation(&caller);
+        let document = backend.read_document(&caller).await.unwrap().unwrap();
+        let analysis = backend
+            .analysis_for(&caller, document.text.clone(), document.dialect.clone())
+            .await
+            .unwrap();
+        let locations = backend
+            .original_definition_locations_for_snapshot(
+                (caller.clone(), document.clone(), generation),
+                &analysis,
+                Position::new(0, 0),
+                epoch,
+            )
+            .await
+            .unwrap();
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].uri, provider);
+        {
+            let mut documents = backend
+                .documents
+                .lock("native_definition_snapshot_bump")
+                .await;
+            let current = documents.get_mut(&caller).unwrap();
+            current.bump_analysis_generation();
+            current.publication = DocumentPublication::Indexed;
+            assert_eq!(current.text, document.text);
+            assert_eq!(current.version, document.version);
+        }
+        assert!(
+            backend
+                .original_definition_locations_for_snapshot(
+                    (caller, document, generation),
+                    &analysis,
+                    Position::new(0, 0),
+                    epoch,
+                )
+                .await
+                .unwrap()
+                .is_empty()
         );
     }
 }

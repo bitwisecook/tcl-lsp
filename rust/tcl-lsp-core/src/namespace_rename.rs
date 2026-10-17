@@ -484,6 +484,8 @@ fn namespace_rename_hazard(
             Some(current.profile()),
         )
     });
+    let census = crate::references::DispatchRegionCensus::capture(source, analysis);
+    let mut complete_dispatch = census.is_some();
     let mut hazard: Option<(Span, HazardKind)> = None;
     let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
         if hazard.is_some() {
@@ -492,7 +494,19 @@ fn namespace_rename_hazard(
         // A word carrying a script is walked as code in its own right, so its
         // text must not be read as a name here — a body word contains every
         // name written inside it.
-        let nested = crate::references::dispatch_scan_regions(source, analysis, dialect, cmd);
+        let retained = census
+            .as_ref()
+            .and_then(|census| census.regions_for(source, analysis, cmd));
+        complete_dispatch &= retained.is_some();
+        // Positive observations remain usable even if another source phase is
+        // unavailable. Only the retained complete census may justify no hazard.
+        let positive;
+        let nested = if let Some(regions) = retained {
+            regions
+        } else {
+            positive = crate::references::dispatch_scan_regions(source, analysis, dialect, cmd);
+            positive.as_slice()
+        };
         let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
             source, analysis, cmd,
         );
@@ -554,7 +568,10 @@ fn namespace_rename_hazard(
             false
         },
     );
-    if hazard.is_none() && coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+    if hazard.is_none()
+        && (!complete_dispatch
+            || coverage != crate::executable_regions::PotentialSourceVisit::Complete)
+    {
         return Some(RenameRefusal::at(
             format!(
                 "cannot rename `{cell}`: original potential source coverage is unavailable; an unrepresented region may name this namespace"

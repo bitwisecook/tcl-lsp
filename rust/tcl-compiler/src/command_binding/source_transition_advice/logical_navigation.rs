@@ -559,9 +559,55 @@ pub struct OriginalLogicalCallbackCandidates {
     external_header_candidates: Option<Vec<ByteCommandSlot>>,
     appended: tcl_registry::AppendedArity,
     baked: usize,
+    source_procedure: Option<Arc<super::OriginalSourceCommandTransition>>,
+    source_class: Option<Arc<super::OriginalSourceClassDeclaration>>,
 }
 
 impl OriginalLogicalCallbackCandidates {
+    /// Actual same-horizon conditional source header, including known alias/move
+    /// selection. This grants no callback execution, future lookup or edit.
+    #[must_use]
+    pub fn procedure_declaration<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<&'a crate::analyser::types::LogicalSourceProcedureDeclaration> {
+        let input = analysis.resolved_input.as_ref()?;
+        let head = self.registration.original_words().first()?;
+        self.matches_source(head.image(), input).then_some(())?;
+        let current = analysis
+            .retained_command_realm()?
+            .original_logical_callback_candidates(input, self.registration.site().offset)?;
+        current
+            .iter()
+            .any(|candidate| candidate == self)
+            .then_some(())?;
+        let definition = self.source_procedure.as_ref()?;
+        let mut headers = analysis
+            .logical_source_procedure_declarations()
+            .filter(|header| header.matches_original_source_transition(analysis, definition));
+        let header = headers.next()?;
+        headers.next().is_none().then_some(header)
+    }
+
+    /// Conditional source class selected at this original registration horizon.
+    /// No future callback target, execution or editable identity follows.
+    #[must_use]
+    pub fn class_declaration<'a>(
+        &self,
+        analysis: &'a crate::analyser::AnalysisResult,
+    ) -> Option<&'a crate::analyser::ClassDef> {
+        let input = analysis.resolved_input.as_ref()?;
+        self.matches_source(self.registration.original_words().first()?.image(), input)
+            .then_some(())?;
+        analysis
+            .retained_command_realm()?
+            .original_logical_callback_candidates(input, self.registration.site().offset)?
+            .iter()
+            .any(|candidate| candidate == self)
+            .then_some(())?;
+        self.source_class.as_ref()?.logical_source_class(analysis)
+    }
+
     /// Independent original installer schema and all applicability obligations.
     #[must_use]
     pub const fn registration(&self) -> &super::OriginalSourceCommandTransitionAdvice {
@@ -710,6 +756,22 @@ impl super::AdviceInvocationContext<'_> {
                     candidates,
                     appended,
                     baked: elements.len().checked_sub(1)?,
+                    source_class: graph
+                        .lookup_logical_head_key(namespace, head.value().as_bytes())
+                        .and_then(|slot| graph.resolve_source_cell_at_slot(slot))
+                        .and_then(|selected| match selected.cell {
+                            super::AdviceCell::SourceClass(class) => Some(Arc::clone(class)),
+                            _ => None,
+                        }),
+                    source_procedure: graph
+                        .lookup_logical_head_key(namespace, head.value().as_bytes())
+                        .and_then(|slot| graph.resolve_source_cell_at_slot(slot))
+                        .and_then(|selected| match selected.cell {
+                            super::AdviceCell::LogicalSourceProcedure { definition, .. } => {
+                                Some(Arc::clone(definition))
+                            }
+                            _ => None,
+                        }),
                 });
             }
             Some((Arc::from(invocation.native), result))

@@ -663,7 +663,7 @@ fn append_namespace(
             namespace,
             patterns: _,
         }
-        | NamespaceTransition::Ensemble { namespace } => {
+        | NamespaceTransition::Ensemble { namespace, .. } => {
             let namespace = namespace_target(namespace);
             append_namespace_bindings(intents, commit, &namespace);
         }

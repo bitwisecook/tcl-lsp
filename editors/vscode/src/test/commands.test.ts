@@ -16,7 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { provideSourceCodeActions } from "../codeActionSource";
+import {
+  provideSourceCodeActions,
+  generatedSourceRenameTarget,
+  generatedSourceRenameRange,
+} from "../codeActionSource";
 import * as assert from "assert";
 import * as vscode from "vscode";
 import {
@@ -521,5 +525,37 @@ suite("Source-bound requested package authoring", () => {
     } finally {
       await configuration.update("enabled", before, undefined);
     }
+  });
+});
+
+suite("Generated source rename target", function () {
+  this.timeout(scaledTimeout(180_000));
+  test("genuine source token and UTF16 range remain coupled to the full afterimage", async () => {
+    const source = "# 😀\r\nproc café {} {}\r\n";
+    const target = generatedSourceRenameTarget([source, "café", 1, 5, 9], source);
+    assert.ok(target);
+    const document = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: source,
+    });
+    const range = generatedSourceRenameRange(document, target);
+    assert.ok(range);
+    assert.strictEqual(document.getText(range), "café");
+    assert.strictEqual(generatedSourceRenameTarget([1, 5, 9], source), undefined);
+    assert.strictEqual(
+      generatedSourceRenameTarget([source + " ", "café", 1, 5, 9], source),
+      undefined,
+    );
+    const wrongToken = generatedSourceRenameTarget([source, "other", 1, 5, 9], source);
+    assert.ok(wrongToken);
+    assert.strictEqual(generatedSourceRenameRange(document, wrongToken), undefined);
+    const foreign = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: source + " ",
+    });
+    assert.strictEqual(generatedSourceRenameRange(foreign, target), undefined);
+    const split = generatedSourceRenameTarget([source, "😀", 0, 3, 4], source);
+    assert.ok(split);
+    assert.strictEqual(generatedSourceRenameRange(document, split), undefined);
   });
 });

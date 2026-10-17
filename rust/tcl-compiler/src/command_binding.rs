@@ -155,12 +155,13 @@ pub use source_transition_advice::{
 pub use source_transition_advice::{
     OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
     OriginalLogicalCommandCandidates, OriginalLogicalMathFunctionOccurrence,
-    OriginalLogicalProcedureBody, OriginalLogicalProcedureCall, OriginalLogicalSourceNameInput,
-    OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
-    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
-    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
-    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
-    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+    OriginalLogicalNameReference, OriginalLogicalProcedureBody, OriginalLogicalProcedureCall,
+    OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
+    OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
+    OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
+    OriginalSourceCallbackRegistration, OriginalSourceClassCandidate,
+    OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding, OriginalSourceClassInstance,
+    OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
     OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
@@ -300,6 +301,8 @@ mod object_instance;
 pub(crate) mod original_name_value;
 pub(crate) use original_name_value::OriginalBodyWrittenWordOwner;
 pub(crate) mod original_variable_compilation;
+mod package_target_survey;
+pub(crate) use package_target_survey::OriginalPackageIndexSourceModel;
 mod source_analysis_cache;
 mod source_analysis_entry;
 use source_analysis_entry::native_compilation_dialect;
@@ -19351,7 +19354,7 @@ fn apply_namespace_transition(
                 state.mark_opaque_resolution();
             }
         }
-        NamespaceTransition::Ensemble { namespace } => {
+        NamespaceTransition::Ensemble { namespace, .. } => {
             if let Some(name) = state.namespace_target_key_at(namespace, current) {
                 Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name);
             } else {
@@ -19601,7 +19604,7 @@ fn collect_namespace_resolution(
         } => (namespace, Some(patterns)),
         NamespaceTransition::SetPath { namespace, .. }
         | NamespaceTransition::SetUnknown { namespace, .. }
-        | NamespaceTransition::Ensemble { namespace }
+        | NamespaceTransition::Ensemble { namespace, .. }
         | NamespaceTransition::Delete { namespace } => (namespace, None),
         // Creating a namespace, or changing its export list, resolves nothing
         // differently for a caller in it.

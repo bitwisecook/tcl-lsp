@@ -133,8 +133,8 @@ pub struct ActionCommand {
     /// String arguments — used by the BIG-IP actions whose command takes
     /// textual arguments rather than integer positions: the document `uri`
     /// (plus a bare partition name for `tclLsp.renamePartition`, or `uri`
-    /// alone for `editor.action.rename`).  Empty for the integer-position
-    /// commands.
+    /// alone for `editor.action.rename`). Source-bound generated renames carry
+    /// the complete generated source and original Name token before `args`.
     pub string_args: Vec<String>,
 }
 
@@ -1919,7 +1919,8 @@ fn refactor_engine_actions(
             // form carries a follow-up rename command; a refused one does
             // not (there is nothing to rename).
             let mut action = refactoring_to_action(&r, source, line_index);
-            action.command = refactor::extract_proc_rename_command(&r, source);
+            action.command =
+                refactor::extract_proc_rename_command_for_analysis(&r, source, analysis);
             out.push(action);
         }
     }
@@ -2563,7 +2564,7 @@ fn taint_subject_actions(
     // This hardening changes subst's accepted input, independently of a
     // semantics-preserving refactoring. The selected source head, option
     // grammar and written insertion extent must all be current.
-    if diagnostic.code.as_str() == "T100" && subject.sink_command() == "subst" {
+    if diagnostic.code.as_str() == "T100" && command.canonical == "subst" {
         let Some(spec) = source_action_spec(analysis, registry, &command.canonical) else {
             return Vec::new();
         };

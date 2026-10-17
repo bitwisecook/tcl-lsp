@@ -121,6 +121,25 @@ pub(crate) fn visit_checked_analysis_executable_commands(
     analysis: &AnalysisResult,
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) -> PotentialSourceVisit {
+    visit_checked_analysis_executable_commands_with_regions(
+        source,
+        analysis,
+        visitor,
+        &mut Vec::new(),
+    )
+}
+
+/// The same checked traversal, retaining its actual visited source regions only
+/// after independent phase/command/child coverage is complete. Partial visits
+/// cannot publish a complete child-region inventory.
+#[must_use]
+pub(crate) fn visit_checked_analysis_executable_commands_with_regions(
+    source: &str,
+    analysis: &AnalysisResult,
+    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
+    completed_regions: &mut Vec<(tcl_lexer::Span, u32)>,
+) -> PotentialSourceVisit {
+    completed_regions.clear();
     let Some((config, registry, identities)) = analysis_walk_inputs(source, analysis) else {
         return PotentialSourceVisit::Unavailable;
     };
@@ -169,8 +188,9 @@ pub(crate) fn visit_checked_analysis_executable_commands(
     if walk.region(0, source.len(), 0, None, ExecutableContext::Direct) {
         return PotentialSourceVisit::Stopped;
     }
-    let regions = regions
-        .into_iter()
+    let region_keys = regions
+        .iter()
+        .copied()
         .map(|(span, depth)| (span.start(), span.end(), depth))
         .collect::<std::collections::BTreeSet<_>>();
     let all_regions = coverage
@@ -178,13 +198,14 @@ pub(crate) fn visit_checked_analysis_executable_commands(
         .is_some_and(|expected| {
             expected
                 .iter()
-                .all(|(span, depth)| regions.contains(&(span.start(), span.end(), *depth)))
+                .all(|(span, depth)| region_keys.contains(&(span.start(), span.end(), *depth)))
         });
     if coverage.applicability(source, analysis)
         == Some(crate::SourceSyntaxCoverageApplicability::Complete)
         && all_regions
         && observed.iter().all(|seen| *seen)
     {
+        completed_regions.extend(regions);
         PotentialSourceVisit::Complete
     } else {
         PotentialSourceVisit::Incomplete

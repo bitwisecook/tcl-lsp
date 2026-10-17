@@ -913,6 +913,38 @@ impl super::CommandBindingRealm {
         )
     }
 
+    /// Positive represented Logical ensemble transition receipts. Complete
+    /// source parsing and input ownership are checked, but unrepresented
+    /// mutations may still exist; an empty list does not prove absence.
+    pub(crate) fn original_logical_ensemble_transition_receipts(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalSourceCommandTransition>> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .logical_ensemble_transition_receipts()?
+                .into_iter()
+                .map(|operation| (*operation).clone())
+                .collect(),
+        )
+    }
+
     pub(crate) fn original_logical_procedure_call_at(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -1072,6 +1104,33 @@ impl super::CommandBindingRealm {
                 .as_ref()
                 .as_ref()?
                 .logical_callback_inventory(input, image),
+        )
+    }
+
+    /// Retained selected Logical name operands are source references, not calls.
+    pub(crate) fn original_logical_name_reference_inventory(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalLogicalNameReference>> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        Some(
+            prepared
+                .as_ref()
+                .as_ref()?
+                .logical_name_reference_inventory(input, image),
         )
     }
 

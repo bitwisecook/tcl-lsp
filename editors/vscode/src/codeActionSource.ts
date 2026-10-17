@@ -12,11 +12,62 @@ import {
 } from "./chat/codeUtils";
 import { isAnalysisContextCurrent, resourceConfiguration } from "./chat/diagnosticAccess";
 
+/** A generated source Name word, never a reconstructed Tcl symbol name. */
+interface GeneratedSourceRenameTarget {
+  readonly source: string;
+  readonly token: string;
+  readonly position: readonly [number, number, number];
+}
+
+/** Retain only the source-bound continuation emitted by the genuine header owner. */
+export function generatedSourceRenameTarget(
+  args: readonly unknown[] | undefined,
+  expectedSource: string,
+): GeneratedSourceRenameTarget | undefined {
+  if (
+    !args ||
+    args.length !== 5 ||
+    args[0] !== expectedSource ||
+    typeof args[1] !== "string" ||
+    args[1].length === 0
+  )
+    return undefined;
+  const positions = args.slice(2);
+  if (
+    !positions.every(
+      (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0,
+    )
+  )
+    return undefined;
+  const position = positions as [number, number, number];
+  if (position[1] >= position[2]) return undefined;
+  return { source: expectedSource, token: args[1], position };
+}
+
+/** Check the retained Name word in the actual generated document, without parsing Tcl. */
+export function generatedSourceRenameRange(
+  document: vscode.TextDocument,
+  target: GeneratedSourceRenameTarget,
+): vscode.Range | undefined {
+  if (document.getText() !== target.source) return undefined;
+  const [line, start, end] = target.position;
+  const from = new vscode.Position(line, start);
+  const to = new vscode.Position(line, end);
+  if (
+    strictOffset(document, from) === undefined ||
+    strictOffset(document, to) === undefined ||
+    start >= end
+  )
+    return undefined;
+  const range = new vscode.Range(from, to);
+  return document.getText(range) === target.token ? range : undefined;
+}
+
 interface SourceActionReceipt {
   readonly snapshot: DocumentSourceSnapshot;
   readonly configuration: string;
   readonly expectedSource: string;
-  readonly rename: readonly [number, number, number] | undefined;
+  readonly rename: GeneratedSourceRenameTarget | undefined;
   readonly listener: vscode.Disposable;
   readonly generation: number;
   invalidated: boolean;
@@ -24,7 +75,7 @@ interface SourceActionReceipt {
 interface RenameIntent {
   readonly snapshot: DocumentSourceSnapshot;
   readonly configuration: string;
-  readonly position: readonly [number, number, number];
+  readonly target: GeneratedSourceRenameTarget;
   readonly current: () => boolean;
 }
 
@@ -143,19 +194,11 @@ export const provideSourceCodeActions: NonNullable<Middleware["provideCodeAction
       return false;
     const expectedSource = editedSource(snapshot, action);
     if (expectedSource === undefined) return false;
-    let rename: readonly [number, number, number] | undefined;
+    let rename: GeneratedSourceRenameTarget | undefined;
     if (action.command) {
-      const args: unknown[] | undefined = action.command.arguments;
-      if (
-        action.command.command !== "tclLsp.renameSymbolAtPosition" ||
-        !args ||
-        args.length !== 3 ||
-        !args.every(
-          (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0,
-        )
-      )
-        return false;
-      rename = args as [number, number, number];
+      if (action.command.command !== "tclLsp.renameSymbolAtPosition") return false;
+      rename = generatedSourceRenameTarget(action.command.arguments, expectedSource);
+      if (!rename) return false;
     }
     let id: string;
     try {
@@ -223,7 +266,7 @@ export function registerSourceActionCommands(): vscode.Disposable {
           renames.set(id, {
             snapshot: applied,
             configuration: receipt.configuration,
-            position: receipt.rename,
+            target: receipt.rename,
             current: live,
           });
           return await vscode.commands.executeCommand<boolean>("tclLsp.renameSymbolAtPosition", id);
@@ -250,17 +293,10 @@ export function registerSourceActionCommands(): vscode.Disposable {
         editor.document !== intent.snapshot.document
       )
         return false;
-      const [line, start, end] = intent.position;
-      const from = new vscode.Position(line, start);
-      const to = new vscode.Position(line, end);
-      if (
-        strictOffset(editor.document, from) === undefined ||
-        strictOffset(editor.document, to) === undefined ||
-        start > end
-      )
-        return false;
-      editor.selection = new vscode.Selection(from, to);
-      editor.revealRange(new vscode.Range(from, to));
+      const range = generatedSourceRenameRange(editor.document, intent.target);
+      if (!range) return false;
+      editor.selection = new vscode.Selection(range.start, range.end);
+      editor.revealRange(range);
       await vscode.commands.executeCommand("editor.action.rename");
       return true;
     },

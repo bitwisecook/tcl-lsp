@@ -575,6 +575,21 @@ pub enum NamespaceTransitionTarget {
     Named(TransitionSubject),
 }
 
+/// Exact namespace ensemble management operation selected by the Registry.
+/// Prefix spellings and other literal words remain `Other` until the selected
+/// sub-subcommand resolver supplies a unique operation receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnsembleManagementOperation {
+    /// Create a command linked to the current namespace.
+    Create,
+    /// Query or update an existing ensemble command.
+    Configure,
+    /// Test whether a command is an ensemble (read-only; normally no transition).
+    Exists,
+    /// Literal but unsupported or abbreviated operation spelling.
+    Other,
+}
+
 /// A mutation of namespace-owned state.
 ///
 /// These are deliberately semantic operations, rather than command names or
@@ -637,6 +652,12 @@ pub enum NamespaceTransition {
     Ensemble {
         /// Namespace owning the ensemble dispatch state.
         namespace: NamespaceTransitionTarget,
+        /// Exact selected operation; dynamic dispatch remains unknown.
+        operation: Option<EnsembleManagementOperation>,
+        /// Complete post-head argv, retaining each original operand ordinal.
+        /// Consumers must use the selected Registry option schema before
+        /// assigning map or subcommand meaning to these values.
+        arguments: Vec<TransitionSubject>,
     },
 }
 
@@ -1374,7 +1395,9 @@ fn transition_namespace_identity(
     match transition {
         NamespaceTransition::Ensure { namespace: target }
         | NamespaceTransition::Delete { namespace: target }
-        | NamespaceTransition::Ensemble { namespace: target }
+        | NamespaceTransition::Ensemble {
+            namespace: target, ..
+        }
         | NamespaceTransition::SetPath {
             namespace: target, ..
         }
@@ -1521,9 +1544,16 @@ fn transition_namespace_visit(
 ) {
     match transition {
         NamespaceTransition::Ensure { namespace: target }
-        | NamespaceTransition::Delete { namespace: target }
-        | NamespaceTransition::Ensemble { namespace: target } => {
+        | NamespaceTransition::Delete { namespace: target } => {
             visit_namespace_subject(target, visit);
+        }
+        NamespaceTransition::Ensemble {
+            namespace: target,
+            arguments,
+            ..
+        } => {
+            visit_namespace_subject(target, visit);
+            arguments.iter_mut().for_each(visit);
         }
         NamespaceTransition::Export {
             namespace: target,

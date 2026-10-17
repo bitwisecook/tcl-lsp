@@ -2168,7 +2168,7 @@ fn apply_namespace_transition(
         }
         NamespaceTransition::Import { namespace, .. }
         | NamespaceTransition::Forget { namespace, .. }
-        | NamespaceTransition::Ensemble { namespace } => {
+        | NamespaceTransition::Ensemble { namespace, .. } => {
             state.namespace_lookup_stable = false;
             match prefix(namespace) {
                 Some(pattern) => state.bindings.record(pattern),

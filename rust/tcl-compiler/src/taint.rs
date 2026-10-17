@@ -335,6 +335,8 @@ pub struct TaintWarning {
     pub variable: String,
     /// Command that acted as the sink.
     pub sink_command: String,
+    /// Original source invocation selected by this warning, when independently retained.
+    pub source_sink: Option<TaintSinkSource>,
     /// Diagnostic code (`"T100"` family).
     pub code: DiagCode,
     /// Formatted message.
@@ -974,6 +976,7 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
 
 mod source_context;
 mod source_warnings;
+pub use source_context::TaintSinkSource;
 pub(crate) use source_context::{TaintPropagationInputs, TaintSourceContext};
 pub use source_warnings::{
     find_destructive_file_warnings_for_module_function,
@@ -2707,6 +2710,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                     )
                 };
                 warnings.push(TaintWarning {
+                    source_sink: None,
                     // Anchor at the offending path argument's own token span
                     // (mirroring T102's per-argument targeting); the whole
                     // statement span is the tokens-unavailable fallback.
@@ -3027,6 +3031,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
             .unwrap_or(TaintLattice::clean());
         if t.is_tainted() && t.colours.intersects(dup_colour) {
             warnings.push(TaintWarning {
+                source_sink: None,
                 span,
                 variable: name.to_owned(),
                 sink_command: command.to_owned(),
@@ -3054,6 +3059,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
             let t = word_taint(arg, uses, taints, ctx);
             if t.is_tainted() && t.colours.intersects(dup_colour) {
                 warnings.push(TaintWarning {
+                    source_sink: None,
                     span,
                     variable: String::new(),
                     sink_command: command.to_owned(),
@@ -5308,6 +5314,7 @@ fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
     }
     let span = word.source().span;
     warnings.push(TaintWarning {
+        source_sink: None,
         span,
         variable: name.to_owned(),
         sink_command: "dynamic command dispatch".to_owned(),
@@ -6129,6 +6136,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         sink_call.tokens,
         sink_call.registry,
     );
+    let first_warning = warnings.len();
     let stmt = &ssa_stmt.statement;
     let span = stmt.span();
 
@@ -6222,6 +6230,13 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     // which can co-occur with the primary classification.
     for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
+    }
+    // These warnings were emitted for this exact selected source invocation;
+    // retain its issuer before any display projection or whole-document lift.
+    let sink = tokens
+        .and_then(|tokens| TaintSinkSource::for_original_invocation(tokens, sink_call.source));
+    for warning in &mut warnings[first_warning..] {
+        warning.source_sink = sink.clone();
     }
 }
 
@@ -6474,6 +6489,7 @@ fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
             continue;
         }
         warnings.push(TaintWarning {
+            source_sink: None,
             span,
             variable: var.clone(),
             sink_command: display_command.to_owned(),
@@ -6768,6 +6784,7 @@ fn emit_expr_coercion_warnings(
             _ => fallback_span,
         };
         warnings.push(TaintWarning {
+            source_sink: None,
             span,
             variable: hit.name.clone(),
             sink_command: "expr".to_owned(),
@@ -6863,6 +6880,7 @@ fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
                 .and_then(|tokens| tokens.argv.get(slot + 1).copied())
                 .unwrap_or(span);
             warnings.push(TaintWarning {
+                source_sink: None,
                 span,
                 message: format!(
                     "Tainted variable ${name} flows into {sink_label}; \
@@ -7831,6 +7849,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         }
         let message = sink_message(code, name, sink_label);
         warnings.push(TaintWarning {
+            source_sink: None,
             span: sink_arg_span(call, name, span),
             variable: name.to_owned(),
             sink_command: sink_label.to_owned(),
@@ -8163,6 +8182,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
                 None => (span, Vec::new()),
             };
             warnings.push(TaintWarning {
+                source_sink: None,
                 span: warn_span,
                 variable: var.clone(),
                 sink_command: cmd_label.clone(),
@@ -8252,6 +8272,7 @@ pub fn find_setter_constraint_warnings<
                     None => Some(standalone_config),
                 };
                 let warn = |variable: String| TaintWarning {
+                    source_sink: None,
                     span,
                     variable,
                     sink_command: command.clone(),

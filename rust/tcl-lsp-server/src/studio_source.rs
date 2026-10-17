@@ -233,7 +233,7 @@ pub(super) struct StudioSourceSnapshot {
 }
 
 impl DocumentPathAdmission {
-    fn current_saved_source_path<'a>(
+    pub(super) fn current_saved_source_path<'a>(
         &'a self,
         store: &dyn vfs::SourceStore,
     ) -> DocumentSourceResult<&'a vfs::SourceUriPath> {
@@ -287,6 +287,19 @@ impl DocumentPathAdmission {
 }
 
 impl StudioSourceSnapshot {
+    /// Reborrow the retained Studio image and its original admission for a loader path.
+    pub(super) fn source_for_saved_path(
+        &self,
+        path: &Path,
+    ) -> Option<(Arc<DocumentPathAdmission>, Arc<str>)> {
+        self.sources.iter().find_map(|image| {
+            image
+                .admission
+                .path()
+                .is_some_and(|selected| selected.as_os_str() == path.as_os_str())
+                .then(|| (Arc::clone(&image.admission), Arc::clone(&image.source)))
+        })
+    }
     pub(super) fn supplies_saved_source(&self, path: &std::path::Path) -> bool {
         self.sources.iter().any(|image| {
             image

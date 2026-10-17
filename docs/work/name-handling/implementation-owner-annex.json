@@ -1459,6 +1459,86 @@
         "source_review": "Fresh independent Registry/Dialect review; Root full Unicode package-source review. Actual compilation/execution pending."
       },
       "implementation_scope": "One genuine missing owner facet per purpose; no count for helper/getter/test multiplicity or the unfinished standalone package consumer."
+    },
+    {
+      "id": "compiler.owner.warning-original-sink-subject",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-context-action-sink-label-projection"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/taint/source_context.rs",
+          "symbol": "warning-original-sink-subject"
+        }
+      ],
+      "rationale": "Actual warning emitter captures the complete original invocation and resolved input once; diagnostic transport retains the genuine sink subject rather than deriving it from a rendered label.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Independent bounded source review; current compile/test efficacy unverified."
+      },
+      "implementation_scope": "One genuine missing shared facet; helpers, getters, additional controls and build repairs add no counts."
+    },
+    {
+      "id": "compiler.owner.package-source-survey-model",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-package-standalone-control-role-residue"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+          "symbol": "package-source-survey-model"
+        }
+      ],
+      "rationale": "Existing source binding/model owner retains selected package source history, entered body, conditional guard and registration advertisement under exact input/source. The standalone consumer is still unintegrated.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Independent bounded source review; current compile/test efficacy unverified."
+      },
+      "implementation_scope": "One genuine missing shared facet; helpers, getters, additional controls and build repairs add no counts."
+    },
+    {
+      "id": "compiler.owner.logical-name-operand-reference",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-references-logical-proc-class-map-resolution"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_name_reference.rs",
+          "symbol": "logical-name-operand-reference"
+        }
+      ],
+      "rationale": "Original selected Registry name operands retain their genuine procedure/class header, original written geometry, namespace and branch/alias history for readonly reference advice.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Independent bounded source review; current compile/test efficacy unverified."
+      },
+      "implementation_scope": "One genuine missing shared facet; helpers, getters, additional controls and build repairs add no counts."
+    },
+    {
+      "id": "compiler.owner.logical-ensemble-operation-source",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-hover-logical-command-class-ensemble-binding"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "symbol": "logical-ensemble-operation-source"
+        }
+      ],
+      "rationale": "Typed original ensemble operations retain selected operation, source subject ordinals, full input/image and history. These positive operations alone do not select current maps; the map-state consumer successor is still outside Main.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false,
+        "source_review": "Independent bounded source review; current compile/test efficacy unverified."
+      },
+      "implementation_scope": "One genuine missing shared facet; helpers, getters, additional controls and build repairs add no counts."
     }
   ],
   "unverified_or_open": [
@@ -1470,28 +1550,28 @@
   ],
   "status_note": "Requirements are counted regardless of implementation presence. No additional requirement or baseline unit is verified complete.",
   "status": "accepted_additional_obligations_unverified",
-  "utc": "2026-10-17T09:38:57.233687+00:00",
+  "utc": "2026-10-17T10:04:21.819047+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 66,
+    "semantic_code_changes": 70,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 67,
+    "all_required_changes": 71,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 40,
+      "shared_owner_extension": 44,
       "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1865,
+    "semantic_code_changes": 1869,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2225
+    "all_required_changes": 2229
   },
   "implementation_progress": {
-    "implemented_pending_validation": 66,
+    "implemented_pending_validation": 70,
     "not_integrated": 1,
     "verified_complete": 0
   }

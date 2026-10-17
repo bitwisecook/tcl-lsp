@@ -241,6 +241,7 @@ pub fn find_setter_constraint_warnings_for_module_function<S: std::hash::BuildHa
                 };
                 if violates {
                     warnings.push(TaintWarning {
+                        source_sink: None,
                         span: selected.span(tokens, argument, statement.statement.span()),
                         variable,
                         sink_command: selected.command.clone(),
@@ -325,6 +326,7 @@ pub fn find_destructive_file_warnings_for_module_function<S: std::hash::BuildHas
                         )
                     };
                     warning = Some(TaintWarning {
+                        source_sink: None,
                         span: selected.span(tokens, argument, statement.statement.span()),
                         variable,
                         sink_command: sink,

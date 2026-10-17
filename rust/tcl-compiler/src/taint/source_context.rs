@@ -11,6 +11,69 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 
+/// Original invocation geometry retained by the diagnostic that selected a sink.
+/// It supplies source correspondence, independently of rendered sink labels,
+/// execution, runtime binding identity or permission to rewrite an evaluation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaintSinkSource {
+    words: Vec<tcl_lexer::NativeWord>,
+    input: ResolvedAnalysisInput,
+}
+
+impl TaintSinkSource {
+    pub(super) fn for_original_invocation(
+        tokens: &crate::ir::CommandTokens,
+        source: TaintSourceContext<'_>,
+    ) -> Option<Self> {
+        let input = source.metadata?.source_analysis_input()?;
+        let binding = tokens.source_binding.as_ref()?;
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        if config != input.lexer_config() || config != source.config {
+            return None;
+        }
+        let metadata = binding.original_invocation_metadata_for_module(
+            tokens,
+            source.module?,
+            input.borrowed_context_registry().commands(),
+        )?;
+        if metadata.source_analysis_input() != Some(input) {
+            return None;
+        }
+        let image = binding.original_argument_source_image(tokens)?;
+        let (segment, original) = binding.original_recorded_command()?;
+        if original.words() != tokens.words() {
+            return None;
+        }
+        let words = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            segment.argv.first()?.span.start(),
+            config,
+        )?;
+        Some(Self {
+            words,
+            input: input.clone(),
+        })
+    }
+
+    /// Compare the current caller's genuine whole vector and complete input.
+    /// Arbitrary spelling, a nearby span or a label cannot reconstruct this subject.
+    #[must_use]
+    pub fn matches_original_words(
+        &self,
+        words: &[tcl_lexer::NativeWord],
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input && self.words == words
+    }
+
+    /// The retained original whole words, without a dispatch or edit grant.
+    #[must_use]
+    pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+        &self.words
+    }
+}
+
 /// Source policy accompanying each projection. Actual missing or mismatched
 /// input remains unavailable; only explicitly standalone callers use a label.
 #[derive(Clone, Copy)]

@@ -1,0 +1,53 @@
+{
+  "utc": "2026-10-17T10:04:21.819047+00:00",
+  "status": "REVIEWED_SOURCE_INTEGRATED_BUILD05_RUNNING",
+  "committed_parent": "191284784",
+  "LSP": {
+    "required": 325,
+    "integrated": 258,
+    "semantic_integrated": 141,
+    "validation_integrated": 115,
+    "documentation_integrated": 2,
+    "without_integration": 67,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 392,
+    "full_scope_pending": 338,
+    "partial": 54,
+    "without_integration": 1766
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 462,
+    "without_integration": 1767,
+    "verified_complete": 0
+  },
+  "new_baseline_units": [
+    "lsp-context-action-sink-label-projection",
+    "lsp-references-dispatch-region-positive-vs-census",
+    "lsp-node-postextract-rename-generated-source-target",
+    "lsp-browser-source-rename-postaction-target",
+    "lsp-references-logical-proc-class-map-resolution",
+    "lsp-server-pack-notice-source-generation",
+    "lsp-server-pack-notice-source-range-issuer",
+    "lsp-server-unowned-indexed-span-lift"
+  ],
+  "new_owner_facets": [
+    "compiler.owner.warning-original-sink-subject",
+    "compiler.owner.package-source-survey-model",
+    "compiler.owner.logical-name-operand-reference",
+    "compiler.owner.logical-ensemble-operation-source"
+  ],
+  "validation": "Build03 setup FAIL missing original compile-time fixtures; restored52 tracked originals and scan now missing0. Build04 FAIL E0308 two reference tuple projections, product43580 byte-stable; source-reviewed narrow repair integrated. Build05 ordinary one-job five-library test build RUNNING. No new test execution.",
+  "retained_source": "All1024 selectors/module routes/attributes freshly AST checked on build05 source;1023 exact old bodies. Sole reviewed delta strengthens existing diagnostic fixture setup await\u2192expect(valid config); assertions/fixtures/budgets preserved.",
+  "outside_main": "Package survey consumer, ensemble map/hover, inline procedure binding, extraction source recipe and Explorer input migration remain unadmitted; independent findings are being repaired.",
+  "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX; uncovered BIG-IP Tcl8.4 is an assumption only.",
+  "next_report_utc": "2026-10-17T10:09:47Z"
+}

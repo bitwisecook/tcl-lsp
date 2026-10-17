@@ -1042,6 +1042,7 @@ fn check_statement<S: std::hash::BuildHasher>(
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ctx)
     {
         warnings.push(TaintWarning {
+            source_sink: None,
             span: stmt_span,
             variable: String::new(),
             sink_command: "split".to_owned(),
@@ -1061,6 +1062,7 @@ fn check_statement<S: std::hash::BuildHasher>(
         if sub_cmd == "string match" {
             if let Some(component) = classify_glob_pattern(&pattern) {
                 warnings.push(TaintWarning {
+                    source_sink: None,
                     span: stmt_span,
                     variable: String::new(),
                     sink_command: "string match".to_owned(),
@@ -1072,6 +1074,7 @@ fn check_statement<S: std::hash::BuildHasher>(
             }
         } else if sub_cmd == "string first" && pattern.chars().any(|c| QUERY_CHARS.contains(&c)) {
             warnings.push(TaintWarning {
+                source_sink: None,
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: "string first".to_owned(),
@@ -1096,6 +1099,7 @@ fn check_statement<S: std::hash::BuildHasher>(
         walk_expr(expr, &ssa_stmt.uses, ctx, &mut hits, 0);
         for (uri_cmd, op_name, component) in hits {
             warnings.push(TaintWarning {
+                source_sink: None,
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: op_name.clone(),
@@ -1133,6 +1137,7 @@ fn check_branch_terminator(
     walk_expr(condition, &ssa_block.exit_versions, ctx, &mut hits, 0);
     for (uri_cmd, op_name, component) in hits {
         warnings.push(TaintWarning {
+            source_sink: None,
             span: *span,
             variable: String::new(),
             sink_command: op_name.clone(),

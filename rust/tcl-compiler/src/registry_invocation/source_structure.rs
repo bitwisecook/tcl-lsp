@@ -4,6 +4,13 @@
 
 //! Readonly original Registry source structure shared by editor and host consumers.
 
+mod package_target_survey;
+pub use package_target_survey::{
+    OriginalPackageIndexAdvertisement, OriginalPackageIndexControl,
+    OriginalPackageIndexRetainedBody, OriginalPackageIndexSourceSurvey,
+    OriginalPackageIndexTargetGuard,
+};
+
 use crate::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
@@ -1871,6 +1878,17 @@ pub fn source_handle_construction_at(
     super::source_publication::OriginalSourceHandleConstruction::capture(words, &context)
 }
 
+/// Same-horizon Logical name references from genuine selected command-name
+/// operands. This is conditional source advice, not an executed lookup or edit.
+#[must_use]
+pub fn source_logical_name_references(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalLogicalNameReference>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_name_reference_inventory(input)
+}
+
 /// Conditional original procedure header at this exact source call horizon.
 /// Alias prefixes and actual definition transitions stay held; missing original
 /// owners remain unavailable, never a report-name or Native target fallback.
@@ -1894,6 +1912,20 @@ pub fn source_logical_procedure_calls(
 ) -> Option<Vec<crate::command_binding::OriginalLogicalProcedureCall>> {
     let (input, realm) = logical_source_candidate_context(source, analysis)?;
     realm.original_logical_procedure_calls(input)
+}
+
+/// Represented Registry-selected Logical ensemble transition receipts from
+/// the exact current source and configuration. The receipt list preserves
+/// original operand ownership without analyzer target reports. Other source
+/// mutations may be unrepresented, so empty or partial results prove neither
+/// an absent ensemble map nor a current dispatch binding.
+#[must_use]
+pub fn source_logical_ensemble_transition_receipts(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<Vec<crate::command_binding::OriginalSourceCommandTransition>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_ensemble_transition_receipts(input)
 }
 
 /// Select only the original head containing the cursor. Whole retained argv,
@@ -3270,6 +3302,46 @@ pub(super) fn logical_source_registry_words(
     .then_some(words)
 }
 
+fn logical_source_registry_words_in_original_image(
+    image: &tcl_lexer::SourceImage,
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Option<OriginalRegistryWords> {
+    if realm
+        .source_bindings_ref()
+        .original_logical_source_name_advice_input()
+        != Some(input)
+        || !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, input.lexer_config())
+    {
+        return None;
+    }
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        input.lexer_config(),
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let context = input.context_registry();
+    let advice = realm
+        .original_source_transition_advice(&context, &tokens)
+        .or_else(|| realm.original_source_prefix_catalogue_advice(input, &tokens))?;
+    let words = source_transition_words_with_segment_in_image(
+        image,
+        input.lexer_config(),
+        &context,
+        segment,
+        advice,
+    )?;
+    let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+        return None;
+    };
+    (advice.original_head().logical_input().is_some()
+        && advice.logical_source_input() == Some(input))
+    .then_some(words)
+}
+
 fn native_source_registry_words(
     source: &str,
     config: tcl_lexer::LexerConfig,
@@ -3581,8 +3653,21 @@ fn source_transition_words_with_segment(
     segment: &crate::segmenter::SegmentedCommand,
     advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
 ) -> Option<OriginalRegistryWords> {
-    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
     let image = matching_document_image(source, advice.original_words().first()?.image())?;
+    source_transition_words_with_segment_in_image(&image, config, context, segment, advice)
+}
+
+// The caller must retain the actual source image; no Document conversion is
+// permitted for entered materialised script values.
+fn source_transition_words_with_segment_in_image(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ContextRegistry,
+    segment: &crate::segmenter::SegmentedCommand,
+    advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
+) -> Option<OriginalRegistryWords> {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let image = image.clone();
     let tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::from_image(&image),
         config,

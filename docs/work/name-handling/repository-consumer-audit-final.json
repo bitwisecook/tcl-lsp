@@ -17800,7 +17800,12 @@
       "required_change": [
         "Matches rendered sink_command by String equality or canonical-name+space prefix and reparses suffix as first source argument. Need typed sink descriptor/selector/original operand projection from same diagnostic owner; rendered composite labels cannot establish exact selected invocation identity. Helper publication remains independently fail closed."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion."
+      }
     },
     {
       "area": "lsp",
@@ -20871,7 +20876,12 @@
       "required_change": [
         "Retain exact source document/action/generation and generated symbol extent rather than active editor plus stale bare coordinates; validate current generated declaration before invoking actual rename. Do not infer authoring handle from action title or old cursor. Keep ordinary legitimate LSP current/versioned edit admission distinct."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion."
+      }
     },
     {
       "area": "lsp",
@@ -21101,7 +21111,12 @@
       "required_change": [
         "Carry exact source document/generated declaration/action/generation through command, validate current insertion and only then invoke rename. Source-aware original semantic owner cannot be recovered from old coordinate in whichever editor is active. Ordinary provider WorkspaceEdit independent guards must remain."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion."
+      }
     },
     {
       "area": "lsp",
@@ -21991,7 +22006,13 @@
       "required_change": [
         "Live fallback compares inv.name/resolved_qualified_name, scope String and all_procs/all_classes presence; absence of report map entry grants tail-match and same-namespace implicit-path match. Replace with genuine selected source bindings preserving builtins/aliases/tombstones/unknowns; report-map absence is not command-slot absence or transform authority."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion.",
+        "remaining": "Actual selected Logical call/header, name-role and callback references now retain original operand and allocation history; external name-only and independent edit intent paths remain open."
+      }
     },
     {
       "area": "lsp",
@@ -22053,7 +22074,12 @@
       "required_change": [
         "Positive source region owners adopted. API Vec silently omits missing selected schemas/unsupported geometry; frame lambda roles/executable unavailable default empty. This is acceptable positive readonly inventory only; rename hazard census needs typed completeness/unknown transport and authentic full lambda/Expr/phase geometry, not union Vec\u2192all hazards accounted."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion."
+      }
     },
     {
       "area": "lsp",
@@ -22149,7 +22175,13 @@
       "required_change": [
         "Standing Vec<wire Diagnostic> keyed URI lacks independently retained document source/version/generation and is appended to every new analysis set. Need original pack notice issuer/source currency during merge; current code-action typed data later refuses stale edits but does not make stale diagnostic ranges/messages current."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion.",
+        "remaining": "Saved loader and retained Studio notices use actual installed pack/Registry/source publication currency. Unreadable or unretained loader-source notices still lack issuer coverage."
+      }
     },
     {
       "area": "lsp",
@@ -22470,7 +22502,13 @@
       "required_change": [
         "Retain authentic original indexed source receipt until target lift and refuse unavailable/stale image/config. This is source currency, not wrong UTF16 conversion. Actual legacy namespace/variable/proc/class/method callers live in inspected regions."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion.",
+        "remaining": "Native class owning-type and Native cross-document declaration producers retain genuine indexed receipts and caller/target currentness through final lift; other report-oriented producers remain open."
+      }
     },
     {
       "area": "lsp",
@@ -22678,7 +22716,13 @@
       "required_change": [
         "Retain original loader image/config/generation through range and standing report currency. Actual action subject still checks genuine source, but current disk line lookup cannot authenticate a stale notice extent and URI-only notice layer cannot follow unsaved buffer currency. Link existing standing merge row rather than claiming weak codeaction bootstrap."
       ],
-      "links": {}
+      "links": {},
+      "implementation": {
+        "status": "partially_implemented_pending_validation",
+        "checkpoint": "Reviewed generic LSP integration04 and integration05, successor of191284784",
+        "validation": "Independent actual source/AST/format reviews; build04 failed two reference tuple type mismatches, independently reviewed two-line repair integrated. Build05 ordinary five-library build running. No new regression execution or verified completion.",
+        "remaining": "Actual loader/Studio original subjects and mixed SourceStore callback guard publication. Missing, unreadable and unsupported nested input issuers remain open."
+      }
     },
     {
       "area": "lsp",
@@ -132942,12 +132986,12 @@
   ],
   "implementation_progress": {
     "resumed_from": "554085e162823ea8bd126898d0c27b7b2a9f8628",
-    "utc": "2026-10-17T09:39:47.942740+00:00",
+    "utc": "2026-10-17T10:04:21.819047+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 384,
+    "implemented_pending_validation": 392,
     "verified_complete": 0,
-    "not_started": 1774,
+    "not_started": 1766,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -133200,13 +133244,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 67,
-      "implemented_pending_validation": 66,
+      "required": 71,
+      "implemented_pending_validation": 70,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2225,
-    "effective_implemented_pending_validation": 450,
+    "effective_required_units": 2229,
+    "effective_implemented_pending_validation": 462,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -133376,8 +133420,8 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 334,
-    "partially_implemented_pending_validation": 50,
+    "fully_implemented_pending_validation": 338,
+    "partially_implemented_pending_validation": 54,
     "runtime_report_adoptions": {
       "baseline_units": [
         "runtime:report.selected-command-variable-qualification:132",
@@ -136015,68 +136059,57 @@
       ]
     },
     "current_generic_lsp_integration": {
-      "utc": "2026-10-17T09:38:57.233687+00:00",
-      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD03_RUNNING",
-      "base": "671100ac1",
-      "baseline_delta": 13,
-      "baseline_units": [
-        "lsp-browser-package-insertion-source-and-identity",
-        "lsp-node-package-insertion-source-identity",
-        "lsp-if-switch-source-action-boundary",
-        "lsp-switch-dict-source-action-and-fresh-name",
-        "lsp-receiver-incomplete-hazard-query",
-        "lsp-inherited-receiver-method-label-filter",
-        "lsp-method-workspace-slot-projection",
-        "lsp-definition-logical-autoload-head-context",
-        "lsp-hover-logical-command-class-ensemble-binding",
-        "lsp-hover-alias-original-vs-legacy-map",
-        "lsp-hover-logical-member-and-provider-notes",
-        "lsp-workspace-report-proc-class-records",
-        "lsp-workspace-command-existence-settlement"
-      ],
-      "new_owner_facets": [
-        "registry.owner.source-package-query-selection",
-        "dialect.owner.core-package-role",
-        "compiler.owner.package-unicode-source-value-comparison"
-      ],
+      "utc": "2026-10-17T10:04:21.819047+00:00",
+      "status": "REVIEWED_SOURCE_INTEGRATED_BUILD05_RUNNING",
+      "committed_parent": "191284784",
       "LSP": {
         "required": 325,
-        "integrated": 250,
-        "semantic_integrated": 133,
+        "integrated": 258,
+        "semantic_integrated": 141,
         "validation_integrated": 115,
         "documentation_integrated": 2,
-        "without_integration": 75,
+        "without_integration": 67,
         "verified_complete": 0
       },
       "baseline": {
         "required": 2158,
-        "integrated": 384,
-        "full_scope_pending": 334,
-        "partial": 50,
-        "without_integration": 1774
+        "integrated": 392,
+        "full_scope_pending": 338,
+        "partial": 54,
+        "without_integration": 1766
       },
       "annex": {
-        "required": 67,
-        "integrated": 66,
+        "required": 71,
+        "integrated": 70,
         "blocked": 1
       },
       "effective": {
-        "required": 2225,
-        "integrated": 450,
-        "without_integration": 1775,
+        "required": 2229,
+        "integrated": 462,
+        "without_integration": 1767,
         "verified_complete": 0
       },
-      "causal_and_gate_repairs_not_extra_units": [
-        "minifier actual selected semantics.traits projection",
-        "genuine retained Logical class metadata accessor",
-        "smoke compile-time recursion_limit256 (Tcl runtime/test budgets unchanged)",
-        "unused Hash import/dead private wrapper/test-only method cleanup and actual fixture config-result validation"
+      "new_baseline_units": [
+        "lsp-context-action-sink-label-projection",
+        "lsp-references-dispatch-region-positive-vs-census",
+        "lsp-node-postextract-rename-generated-source-target",
+        "lsp-browser-source-rename-postaction-target",
+        "lsp-references-logical-proc-class-map-resolution",
+        "lsp-server-pack-notice-source-generation",
+        "lsp-server-pack-notice-source-range-issuer",
+        "lsp-server-unowned-indexed-span-lift"
       ],
-      "validation": "Build01 FAIL E0609; Build02 FAIL E0599, product inputs stable. Both actual-owner projections repaired and source-reviewed. Build03 ordinary five libraries RUNNING one job/debug0. No new test execution or verified count.",
-      "evidence": "experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-01 (compact25KB failure/source-review records)",
-      "retained_controls": "All1024 retained function body hashes exact after integration01. Build03 changes one existing diagnostic fixture setup await to expect(valid); assertions/fixtures/budgets unchanged, independent source review retained. New tests require exact source/artifact/provider binding.",
-      "outside_main": "Typed taint sink subject, dispatch census successor, saved+Studio pack notices, Native class/type source lifts, deeper refs/alias/ensemble/package633 owners are queued/unadmitted and uncounted.",
-      "deferred": "Runtime/VM and dedicated BIG-IP; Tcl8.4 assumption only where evidence lacks."
+      "new_owner_facets": [
+        "compiler.owner.warning-original-sink-subject",
+        "compiler.owner.package-source-survey-model",
+        "compiler.owner.logical-name-operand-reference",
+        "compiler.owner.logical-ensemble-operation-source"
+      ],
+      "validation": "Build03 setup FAIL missing original compile-time fixtures; restored52 tracked originals and scan now missing0. Build04 FAIL E0308 two reference tuple projections, product43580 byte-stable; source-reviewed narrow repair integrated. Build05 ordinary one-job five-library test build RUNNING. No new test execution.",
+      "retained_source": "All1024 selectors/module routes/attributes freshly AST checked on build05 source;1023 exact old bodies. Sole reviewed delta strengthens existing diagnostic fixture setup await\u2192expect(valid config); assertions/fixtures/budgets preserved.",
+      "outside_main": "Package survey consumer, ensemble map/hover, inline procedure binding, extraction source recipe and Explorer input migration remain unadmitted; independent findings are being repaired.",
+      "deferred": "Runtime/VM and dedicated BIG-IP/iRules/ILX; uncovered BIG-IP Tcl8.4 is an assumption only.",
+      "next_report_utc": "2026-10-17T10:09:47Z"
     }
   }
 }

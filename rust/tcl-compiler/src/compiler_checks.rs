@@ -136,6 +136,7 @@ impl DiagnosticSourceContext {
 pub struct TaintDiagnosticSubject {
     variable: String,
     sink_command: String,
+    source_sink: Option<crate::taint::TaintSinkSource>,
 }
 
 impl TaintDiagnosticSubject {
@@ -143,6 +144,11 @@ impl TaintDiagnosticSubject {
     #[must_use]
     pub fn variable(&self) -> &str {
         &self.variable
+    }
+    /// Original source invocation retained by the actual warning producer.
+    #[must_use]
+    pub fn source_sink(&self) -> Option<&crate::taint::TaintSinkSource> {
+        self.source_sink.as_ref()
     }
     /// Sink selected by the producer; never extracted from diagnostic prose.
     #[must_use]
@@ -275,6 +281,7 @@ impl Diagnostic {
             taint_subject: Some(TaintDiagnosticSubject {
                 variable: w.variable.clone(),
                 sink_command: w.sink_command.clone(),
+                source_sink: w.source_sink.clone(),
             }),
         }
     }
@@ -1353,5 +1360,80 @@ mod tests {
             "\"/tmp/$x\"",
             "the fix span must cover exactly the value word",
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_taint_sink_source_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::UnitBuildOptions;
+
+    #[test]
+    fn taint_sink_retains_original_invocation_independently_of_report_labels() {
+        let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+        let profile = environment.analyser_profile();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            environment.unit_profile(),
+            context.clone(),
+            config,
+        );
+        for source in [
+            "set value [gets stdin]; puts $value",
+            "proc p {} {set value [gets stdin]; puts $value}",
+        ] {
+            let cu = CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(environment.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let mut diagnostic =
+                run_all_checks(&cu, context.commands(), Some(environment.unit_profile()))
+                    .into_iter()
+                    .find(|diagnostic| diagnostic.code == DiagCode::T101)
+                    .expect("the original output sink warning");
+            let subject = diagnostic.taint_subject.as_mut().unwrap();
+            let sink = subject
+                .source_sink()
+                .expect("actual original sink invocation")
+                .clone();
+            assert!(sink.matches_original_words(sink.original_words(), &input));
+            let head = sink.original_words().first().unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_unicode_value(head).as_deref(),
+                Some(b"puts".as_slice())
+            );
+            subject.sink_command = "a counterfactual composite reporting label".to_owned();
+            assert_eq!(subject.source_sink(), Some(&sink));
+            assert!(sink.matches_original_words(sink.original_words(), &input));
+            let foreign = ResolvedAnalysisInput::new(
+                profile,
+                environment.unit_profile(),
+                tcl_registry::model::resolve_known_environment("tcl8.4")
+                    .unwrap()
+                    .default_context_registry(),
+                config,
+            );
+            assert!(!sink.matches_original_words(sink.original_words(), &foreign));
+            let other_source = "puts $other";
+            let other = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(other_source),
+                tcl_lexer::Span::new(0, u32::try_from(other_source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(!sink.matches_original_words(&other.commands[0].words, &input));
+        }
     }
 }

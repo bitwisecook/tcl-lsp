@@ -2524,3 +2524,18 @@ The source_package_query field is deliberately builtin-only: the genuine
 Studio renderer GAPS register, exhaustive SubCommand coverage and draft
 unrecovered tracking document its exclusion for subcommands and forms. No DSL
 spelling or custom-pack provider/subject authority is silently introduced.
+
+
+### Original sink subjects in source diagnostic actions
+
+`TaintSinkSource` retains the original invocation selected by the warning
+producer, alongside its display label. The emitter borrows the actual Module,
+complete resolved input, source binding, configuration and whole written word
+vector. The diagnostic carries that subject through its independent span lift.
+Source actions match the retained vector and full input against the current
+source/schema owner; composite sink labels cannot select a command or operand.
+
+This is a positive source correspondence. Missing original Module/vector/input
+remains unavailable, and the subject grants no executed sink, current runtime
+binding, complete read census or permission to add or remove evaluations.
+Existing source-action eligibility and evaluation guards remain independent.

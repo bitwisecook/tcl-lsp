@@ -70,7 +70,9 @@ pub use datagroup::{
     extract_to_datagroup_with_analysis, original_exact_case_source_at_analysis,
     original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
-pub use extract_proc::{extract_proc, extract_proc_rename_command};
+pub use extract_proc::{
+    extract_proc, extract_proc_rename_command, extract_proc_rename_command_for_analysis,
+};
 pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;
 pub use inline_proc::{inline_proc, inline_proc_in_program};

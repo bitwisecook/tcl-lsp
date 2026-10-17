@@ -277,16 +277,10 @@ pub(super) fn selected_sink<'a>(
     commands: &'a [SourceCommand],
     diagnostic: &Diagnostic,
 ) -> Option<&'a SourceCommand> {
-    let subject = diagnostic.taint_subject.as_ref()?;
+    let sink = diagnostic.taint_subject.as_ref()?.source_sink()?;
+    let input = diagnostic.source_context.as_ref()?.analysis_input();
     let mut candidates = commands.iter().filter(|command| {
-        let matches_sink = command.canonical == subject.sink_command()
-            || subject
-                .sink_command()
-                .strip_prefix(&format!("{} ", command.canonical))
-                .is_some_and(|suffix| {
-                    command.words.get(1).and_then(source_literal) == Some(suffix)
-                });
-        matches_sink
+        sink.matches_original_words(&command.words, input)
             && command.span.start() <= diagnostic.span.start()
             && diagnostic.span.end() <= command.span.end()
     });
