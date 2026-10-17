@@ -1,0 +1,249 @@
+{
+  "status": "PREPARED_CURRENT_SOURCE930_REPLAY_REQUIRES_ROOT_REVIEW",
+  "root": "/workspace/tcl-lsp",
+  "destination": "/workspace/naming-validation/lsp-retained-report-action-source-successor",
+  "selected": 930,
+  "unchanged902_prefix": true,
+  "full_input_count": 39030,
+  "source_admission_paths": 85,
+  "files": {
+    "old902": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/selection.json",
+      "sha256": "42ab2ebdbfac891bf7e7e0fb90a2403e58e3cca75cb3c59a6de2974dfee846a3"
+    },
+    "plan": {
+      "path": "/workspace/naming-validation/report-action930-replay-v2/selection.json",
+      "sha256": "95aaeb3582404c0f64dd24ad21135ae70f3f541b0717be86ba269cea323cec83"
+    },
+    "source_control_inventory": {
+      "path": "/workspace/naming-validation/lsp-report-action-next-controls/source-only-added-controls.json",
+      "sha256": "98716a8ac477beaebe65fce456f33b3a9ad393573e09da42b5b4e3bb80740ae2"
+    },
+    "source_admission": {
+      "path": "/workspace/naming-validation/lsp-next-source-owner-admission/admission.json",
+      "sha256": "686fbd94dbdb97efd595080aa26b8fd26b9eb5312a61abf53937e971d30b60e7"
+    },
+    "historical39019": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    },
+    "actual_build": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/source-binding.json",
+      "sha256": "fea3032ec747c89a76210cf9fc53e415dd75f81812fd4098317cb1a8ed1e4cc6"
+    },
+    "actual_inputs": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/input-before.json",
+      "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12"
+    },
+    "actual_artifacts": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/artifacts.json",
+      "sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e"
+    },
+    "actual_source_diff": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/source.diff",
+      "sha256": "19b526eed42b1c27478cf91b9d41d9655f1ea4ba90ec9edb541154397ce5c054"
+    },
+    "canonical_runner": {
+      "path": "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+      "sha256": "aaa269431e0a0f3024367d0a2528b4671408e11cf7a57e801caa2429f181e6c3"
+    },
+    "old902_admission": {
+      "path": "/tmp/naming-replay-retained902-v2/admission.json",
+      "sha256": "de50bdefbc1acb828853dc9da5bc2a972b0504099276c13b80a266c696214153"
+    },
+    "historical902_package_manifest": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/manifest-v10.json",
+      "sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37"
+    },
+    "historical902_generator": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generate_selection.py",
+      "sha256": "3a45cdf3f385ed41285d77a8f8b53d44ae8291e9dccd6971086b19fd8fa144fa"
+    },
+    "historical902_source_tools": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/source_tools.py",
+      "sha256": "f3cdd5205b70b11f1854a426bfcbd470c0db04ac443116874d3fe7187ce41498"
+    },
+    "historical902_selection": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/selection.json",
+      "sha256": "42ab2ebdbfac891bf7e7e0fb90a2403e58e3cca75cb3c59a6de2974dfee846a3"
+    },
+    "historical902_original726": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-frozen/selection.json",
+      "sha256": "237d6e60703bdafb3836a3f1bf8009e578a6da3b9aca367061d0098cde379a80"
+    },
+    "historical902_provider_setup": {
+      "path": "/tmp/lsp-cumulative-source-owners-selection-v5/provider-corrected-setup.json",
+      "sha256": "cf57d1f2af60b425a4f7c1cb644af1682118ff8173186d43a8f554068a483396"
+    },
+    "historical902_source_admission": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-integration/after-compile-api-repair3.json",
+      "sha256": "9287fbbe88f7d000284fc5ca61112774839dee5b42e8d42bd3463464fbfbf4b7"
+    },
+    "historical902_historical_inputs": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/input-before.json",
+      "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+    },
+    "historical902_parent_inputs": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    },
+    "historical902_parent_receipt": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source-binding.json",
+      "sha256": "9796bc9d447ad9db4b85da10e97e1423ed4ee62a44e96cce2c2d898ab85a7956"
+    },
+    "historical902_parent_source_diff": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source.diff",
+      "sha256": "1c21246e4fd0dc21ca09c98cc18b4b411e83c42ea2002fe4dbd145967ac4d1ab"
+    },
+    "historical902_parent_artifacts": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/artifacts.json",
+      "sha256": "283c84eb3e02cbef652465d9dc62303c37426a65d1f03cbeb8d7612f5d58fe81"
+    },
+    "historical902_parent_build_scanner": {
+      "path": "/tmp/naming-build-next-lsp-owner-union-repair3.py",
+      "sha256": "a992287e9f1f584a1875b38f4811971fd1d15f38ef5f25c3cecc9009bef07f70"
+    },
+    "launcher": {
+      "path": "/workspace/naming-validation/report-action930-replay-v2/launch.py",
+      "sha256": "410c83005cff154dec0110b9d0e790d5fa8f6497607945df66af767d71c1b1c5"
+    },
+    "current_source_evidence": {
+      "path": "/workspace/naming-validation/report-action930-replay-v2/current-source-evidence.json",
+      "sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+    },
+    "source_environment": {
+      "path": "/tmp/naming-env.sh",
+      "sha256": "9aa0935a50f24d4d7605520f311029341bd6b36c1520cbb2ba8ae8b7570b3387"
+    },
+    "actual_build_scanner": {
+      "path": "/tmp/naming-build-retained-report-action.py",
+      "sha256": "b0e7378906f3892f77ec070bf6de0d246772383480a35c4c70e059a68b926e48"
+    }
+  },
+  "provider_environment": {
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_TCL_BIN_DIR": "/workspace/.toolchains/tcl/bin",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "native_provider_bindings": {
+    "tclsh9.0": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh9.0",
+      "sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    "tclsh8.6": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh8.6",
+      "sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0"
+    },
+    "tclsh8.4": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh8.4",
+      "sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4"
+    },
+    "tclsh8.5": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh8.5",
+      "sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935"
+    },
+    "tclsh9.1": {
+      "path": "/workspace/.toolchains/tcl/bin/tclsh9.1",
+      "sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    }
+  },
+  "jim_binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "scope": "Exact930standardfive selected capture only; separate12extra require distinct actualartifacts and remainowed. Actualsource/provider/fiveELF pre/postflight; no trace/guards/budget changes or ordinary-gate acceptance.",
+  "optional_provider_environment": {
+    "TCL_LSP_TCLSH84": null,
+    "TCL_LSP_TCLSH85": null,
+    "TCL_LSP_TCLSH86": null,
+    "TCL_LSP_TCLSH90": null,
+    "TCL_LSP_TCLSH91": null,
+    "TCL_LSP_TCL_ROOT84": null,
+    "TCL_LSP_TCL_ROOT85": null,
+    "TCL_LSP_TCL_ROOT86": null,
+    "TCL_LSP_TCL_ROOT90": null,
+    "TCL_LSP_TCL_ROOT91": null,
+    "TCL_LIBRARY": null,
+    "LD_LIBRARY_PATH": null
+  },
+  "additional_provider_files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "purpose": "Literal exec delegate of actual pinned tclsh8.4 wrapper; no version execution/guess"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh",
+      "sha256": "319a62a558ed2e52306c04602d7b5ed621e6ecc6c80722a9c692ba327a270b84",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "purpose": "Literal exec delegate of actual pinned tclsh8.5 wrapper; no version execution/guess"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh",
+      "sha256": "60d6662add9fe3944a1958da095cc7fddb93b0f5b4d55a6ce865dddf61e51a1c",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "purpose": "Literal exec delegate of actual pinned tclsh8.6 wrapper; no version execution/guess"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh",
+      "sha256": "661a8cf02373f7ef5fe3bbd6bac12fac4c5e330f4e7ed744cb06c289602dcd79",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "bb5493a311eea8879d4aa2fa4817720d008ee03cf88f06aefa4a6d7425857f8c",
+      "purpose": "Literal exec delegate of actual pinned tclsh9.0 wrapper; no version execution/guess"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh",
+      "sha256": "cf6f93b09949ceddf21ee3735d130954255e559d8fa714ac3b5aafd81418492f",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "71b428e13bc04578fb9be4aa680915c67a7b7f3a7850f198032d98f363a077ce",
+      "purpose": "Literal exec delegate of actual pinned tclsh9.1 wrapper; no version execution/guess"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh",
+      "sha256": "33047daf0b6406de44f1951fc5f42d3187d706f689b5bbc80c93b2e0c83a12cc",
+      "purpose": "Actual selected provider build/source support; not full source-tree snapshot"
+    }
+  ],
+  "provider_binding_scope": "Original cf57 environment and old9.0/8.6 pins retained; allfive wrappers are named by actual tcl-test-support RELEASES and their literal exec delegates/support files are hashed without execution. Exact optional override environment is retained; individual tests remain responsible for actual version/source-tree witness validation.",
+  "historical_provenance_scope": "All original902 package/generator/source-tools/admission/provider setup records are pinned unchanged as historical. Current930 source evidence is a new static reborrow under actual39030, not a refresh of old historical evidence.",
+  "build_index_scope": "Actual standard build retains input-before.json plus successful final count/zero-drift fields, not a separate input-after.json. No after-index is fabricated. Replay independently rescans exact full membership/bytes pre and post."
+}

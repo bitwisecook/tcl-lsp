@@ -1,0 +1,168 @@
+{
+  "status": "LIBRARY9_CAPTURE_OR_POSTFLIGHT_FAILED_XTASK3_OWED",
+  "utc": "2026-10-17T01:38:45.301775+00:00",
+  "list_only": false,
+  "selected": 9,
+  "all_original9_library_rows_and_guards_unchanged": true,
+  "all_three_xtask_controls_still_owed": [
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::file_route_tests::registry_public_facade_private_kernel_keeps_real_self_and_static_bounds",
+      "purpose": "inherited-provider-gate: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_actual_plain_trait_consumer_bodies",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_unbounded_result_parameters_without_result_donation",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    }
+  ],
+  "package_manifest": "/workspace/naming-validation/report-action-extra-libraries9-v1/manifest.json",
+  "package_sha256": "8592f1527b871fc18d6534d6f28b4f6b8c028adfa57b1d2bee3175f5845eb0dd",
+  "binding_manifest": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libraries9-bound-v1/manifest.json",
+  "binding_sha256": "4f87722108ab5a05c45e9527b5ca69cf54573cd2e9855b5e16b0747d8d8213aa",
+  "preflight": {
+    "standard": {
+      "count": 39030,
+      "source_inputs_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+      "five_artifacts_sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e",
+      "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+      "current_source_route_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+    },
+    "library_build_receipt_sha256": "d8569ae73fe5ee973fe10fe7e48ec38164d033fd712093fc3da60962948f7948",
+    "actual_combined_library_artifacts_sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b",
+    "all39030_source_inputs_five_standard_plus_three_extra_ELFs_and_provider_pins_match": true,
+    "selected_extra_controls": 9,
+    "xtask_controls_still_owed": 3
+  },
+  "scope": "Exactly9 selectors in three canonical target groups; actual combined3Lib manifest, all five standard+three extra artifact/source/provider pre/post. All3 xtask controls remain blocked/owed. Not standard930 replay and not ordinary acceptance.",
+  "ordinary_acceptance": false,
+  "invocations": [
+    {
+      "target": "tcl_lexer",
+      "selected": 6,
+      "invoked": true,
+      "wrapper_exit_code": 0,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_lexer-selection.json",
+        "--manifest-sha256",
+        "c4aa0e2b0e43240a659200fbdfbc4d94ce3b270a9caf7d38fa032218d75650b5",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_lexer",
+        "--group",
+        "tcl_lexer"
+      ],
+      "selected_manifest_sha256": "c4aa0e2b0e43240a659200fbdfbc4d94ce3b270a9caf7d38fa032218d75650b5",
+      "actual_combined_artifact_manifest": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b"
+      },
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+        "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+        "bytes": 5324952,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    {
+      "target": "tcl_syntax",
+      "selected": 1,
+      "invoked": true,
+      "wrapper_exit_code": 0,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_syntax-selection.json",
+        "--manifest-sha256",
+        "b748d411454cb7b3d4794abf4b5d93da77a7915d4d620d8ac7555498421e520d",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_syntax",
+        "--group",
+        "tcl_syntax"
+      ],
+      "selected_manifest_sha256": "b748d411454cb7b3d4794abf4b5d93da77a7915d4d620d8ac7555498421e520d",
+      "actual_combined_artifact_manifest": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b"
+      },
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+        "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+        "bytes": 12470864,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    {
+      "target": "tcl_spectcl",
+      "selected": 2,
+      "invoked": true,
+      "wrapper_exit_code": 1,
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+        "--manifest",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_spectcl-selection.json",
+        "--manifest-sha256",
+        "b97c515c248950e75f349710713105f62a9d1c6296b9ee927fb5d895aa0dc0ac",
+        "--artifacts",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "--root",
+        "/workspace/tcl-lsp",
+        "--out",
+        "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-library9-results/tcl_spectcl",
+        "--group",
+        "tcl_spectcl"
+      ],
+      "selected_manifest_sha256": "b97c515c248950e75f349710713105f62a9d1c6296b9ee927fb5d895aa0dc0ac",
+      "actual_combined_artifact_manifest": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b"
+      },
+      "target_artifact": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+        "sha256": "0441910a8d4596f1b60d32bfd684cc419aeacb0f2cec237300e7b89215f7bc38",
+        "bytes": 182644088,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    }
+  ],
+  "postflight": {
+    "standard": {
+      "count": 39030,
+      "source_inputs_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+      "five_artifacts_sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e",
+      "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+      "current_source_route_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+    },
+    "library_build_receipt_sha256": "d8569ae73fe5ee973fe10fe7e48ec38164d033fd712093fc3da60962948f7948",
+    "actual_combined_library_artifacts_sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b",
+    "all39030_source_inputs_five_standard_plus_three_extra_ELFs_and_provider_pins_match": true,
+    "selected_extra_controls": 9,
+    "xtask_controls_still_owed": 3
+  },
+  "completed_utc": "2026-10-17T01:38:51.668529+00:00",
+  "attempted_groups": 3,
+  "wrapper_exit_code": 1
+}

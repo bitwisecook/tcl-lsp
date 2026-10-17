@@ -1,0 +1,18 @@
+{
+  "status": "IMMUTABLE_SOURCE_ONLY_PREPARED_FOR_ROOT_INDEPENDENT_REVIEW_NOT_EXECUTED",
+  "launcher_sha256": "410c83005cff154dec0110b9d0e790d5fa8f6497607945df66af767d71c1b1c5",
+  "admission_sha256": "e56b30e8b3905fada4d962d3a70db694161de81028367647f87ddcc6173768cb",
+  "selection_sha256": "95aaeb3582404c0f64dd24ad21135ae70f3f541b0717be86ba269cea323cec83",
+  "current_source_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549",
+  "selected": 930,
+  "old902_prefix_exact": true,
+  "new_standard_controls": 28,
+  "separate_extra_controls": 12,
+  "actual_source_inputs": 39030,
+  "actual_admitted_paths": 85,
+  "ordinary_acceptance": false,
+  "launcher_executed": false,
+  "listing_or_tests_executed": false,
+  "source_parser": "Pinned historical source_tools reused solely to reborrow actual current source declarations/routes/recognized Linux cfg; no generator/list/test/provider execution",
+  "build_index_scope": "Actual standard build retains input-before.json plus successful final count/zero-drift fields, not a separate input-after.json. No after-index is fabricated. Replay independently rescans exact full membership/bytes pre and post."
+}

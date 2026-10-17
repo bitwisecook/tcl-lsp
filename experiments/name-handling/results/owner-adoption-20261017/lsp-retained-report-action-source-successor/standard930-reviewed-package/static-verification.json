@@ -1,0 +1,13 @@
+{
+  "status": "STATIC_PACKAGE_VERIFICATION_ONLY_NOT_EXECUTED",
+  "launcher_sha256": "410c83005cff154dec0110b9d0e790d5fa8f6497607945df66af767d71c1b1c5",
+  "admission_sha256": "e56b30e8b3905fada4d962d3a70db694161de81028367647f87ddcc6173768cb",
+  "all_metadata_pins_current": 28,
+  "old902_prefix_and_six_guards_equal": true,
+  "all930_current_source_declarations_routes_cfg_reborrowed": true,
+  "new28_exact_function_hashes_match_Root_inventory": true,
+  "source_evidence_parent_input_count": 39030,
+  "all_five_provider_wrappers_and_fifteen_delegate_support_pins": true,
+  "python_ast_parse": true,
+  "launcher_or_provider_execution": false
+}

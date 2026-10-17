@@ -1,0 +1,18 @@
+{
+  "status": "ACTUAL_LIBRARY9_BOUND_XTASK3_BLOCKED",
+  "selected": 9,
+  "xtask_controls_still_owed": 3,
+  "binder_source_sha256": "e1e40e3c7178b03ffb5daf54925e773ef58965fd9169c5ddb81a770bb37bb5f3",
+  "prepared_package_sha256": "8592f1527b871fc18d6534d6f28b4f6b8c028adfa57b1d2bee3175f5845eb0dd",
+  "files": {
+    "bound-plans.json": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libraries9-bound-v1/bound-plans.json",
+      "sha256": "e4c5587054430c0d91ea14c72657a4416f9607e5abaad3b3e0a16c0075551d80"
+    },
+    "binding.json": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libraries9-bound-v1/binding.json",
+      "sha256": "bd9c49f99317688a66d38faf35a50acdb49e34cac7d4c1bdbb952957cf458ee1"
+    }
+  },
+  "ordinary_acceptance": false
+}

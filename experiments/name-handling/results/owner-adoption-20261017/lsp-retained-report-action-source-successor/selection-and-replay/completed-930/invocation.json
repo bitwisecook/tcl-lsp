@@ -1,0 +1,42 @@
+{
+  "status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+  "utc": "2026-10-17T00:46:08.596319+00:00",
+  "selected": 930,
+  "list_only": false,
+  "all902_ordered_rows_and_guards_unchanged": true,
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/workspace/tcl-lsp/experiments/name-handling/validation/retained-selections/replay-selection.py",
+    "--manifest",
+    "/workspace/naming-validation/report-action930-replay-v2/selection.json",
+    "--manifest-sha256",
+    "95aaeb3582404c0f64dd24ad21135ae70f3f541b0717be86ba269cea323cec83",
+    "--artifacts",
+    "/workspace/naming-validation/lsp-retained-report-action-source-successor/artifacts.json",
+    "--root",
+    "/workspace/tcl-lsp",
+    "--out",
+    "/workspace/naming-validation/lsp-retained-report-action-source-successor/retained930-results"
+  ],
+  "admission": "/workspace/naming-validation/report-action930-replay-v2/admission.json",
+  "admission_sha256": "e56b30e8b3905fada4d962d3a70db694161de81028367647f87ddcc6173768cb",
+  "preflight": {
+    "count": 39030,
+    "source_inputs_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+    "five_artifacts_sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e",
+    "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+    "current_source_route_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+  },
+  "scope": "Exact930standardfive selected capture only; separate12extra require distinct actualartifacts and remainowed. Actualsource/provider/fiveELF pre/postflight; no trace/guards/budget changes or ordinary-gate acceptance.",
+  "ordinary_acceptance": false,
+  "canonical_exit_code": 120,
+  "postflight": {
+    "count": 39030,
+    "source_inputs_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+    "five_artifacts_sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e",
+    "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+    "current_source_route_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+  },
+  "completed_utc": "2026-10-17T01:17:42.069917+00:00",
+  "wrapper_exit_code": 120
+}

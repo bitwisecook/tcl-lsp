@@ -1,0 +1,8 @@
+{
+  "source": "/workspace/naming-validation/report-action930-replay-v2/launch.py",
+  "source_sha256": "410c83005cff154dec0110b9d0e790d5fa8f6497607945df66af767d71c1b1c5",
+  "original_validation_body_sha256": "2116d8fc7cfee9c05f468e6dcd50d29e4fe0227c11753e790ea9407324b905fb",
+  "adapter_validation_body_sha256": "614257cba9aa8c30d9b549fd0781ba753543a3b3bae591f85c6c40243be3e17e",
+  "only_body_change": "Launcher self-path comparison names the exact reviewed standard launcher, not the importing extra helper; no predicate removed",
+  "entry_change": "Explicit admission args replace CLI parsing; returns actual validated closure/data without executing canonical runner"
+}

@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-17T00:42:55.438092+00:00",
+  "source_head": "c67b18eec2bf188eba9dfc0f54ef904cadc6d3f1",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "tcl-lexer",
+    "-p",
+    "tcl-syntax",
+    "-p",
+    "tcl-spectcl",
+    "--lib",
+    "--no-run"
+  ],
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "input_count": 39030,
+  "status": "PASS_EXTRA_ARTIFACT_BUILD",
+  "parent_binding_sha256": "fea3032ec747c89a76210cf9fc53e415dd75f81812fd4098317cb1a8ed1e4cc6",
+  "parent_input_index_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+  "scope": "Actual distinct extra test artifacts only; Lexer/Syntax/SpecTcl library units or real xtask binary unit. No tests executed, no Runtime/VM/BIGIP suite. Exact originalfullsource snapshot required.",
+  "exit_code": 0,
+  "seconds": 130.236,
+  "input_drift": [],
+  "input_drift_count": 0,
+  "completed_utc": "2026-10-17T00:45:05.677081+00:00",
+  "all_artifact_hashes_verified_after_relocation": true
+}

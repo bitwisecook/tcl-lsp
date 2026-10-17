@@ -1,0 +1,78 @@
+{
+  "selected": 930,
+  "counts": {
+    "PASS": 744,
+    "FAIL": 184,
+    "TIMEOUT": 2
+  },
+  "retained902": {
+    "PASS": 728,
+    "FAIL": 172,
+    "TIMEOUT": 2
+  },
+  "original584": {
+    "PASS": 506,
+    "FAIL": 76,
+    "TIMEOUT": 2
+  },
+  "added28": {
+    "PASS": 16,
+    "FAIL": 12
+  },
+  "harness_errors": [],
+  "retained902_order_unchanged": true,
+  "retained_gains": [
+    {
+      "retained_row": 721,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbols_revalidate_closed_source_snapshot_1854",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 723,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 724,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbol_caps_its_answer",
+      "before": "TIMEOUT",
+      "after": "PASS"
+    }
+  ],
+  "retained_prior_pass_regressions": [],
+  "retained_all_status_changes": [
+    {
+      "retained_row": 721,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbols_revalidate_closed_source_snapshot_1854",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 723,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "retained_row": 724,
+      "target": "tcl_lsp_server",
+      "selector": "tests::workspace_symbol_caps_its_answer",
+      "before": "TIMEOUT",
+      "after": "PASS"
+    }
+  ],
+  "all39030_inputs_five_ELFs_providers_postflight_match": true,
+  "actual_canonical_exit_code": 120,
+  "actual_wrapper_exit_code": 120,
+  "actual_wrapper_status": "CANONICAL_CAPTURE_OR_POSTFLIGHT_FAILED",
+  "ordinary_acceptance": false,
+  "completed_utc": "2026-10-17T01:17:42.069917+00:00",
+  "limits": "Selected replay only; failures/timeouts preserved. Required full gates and editor hosts are not established."
+}

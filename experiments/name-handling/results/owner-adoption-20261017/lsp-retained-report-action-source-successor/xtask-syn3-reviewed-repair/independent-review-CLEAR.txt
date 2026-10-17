@@ -1,0 +1,5 @@
+Independent source review: CLEAR
+Patch SHA-256: d55714d0688f54b7242b9fff4037fc25053b1882acd0f7a33ca77f2c80e79ac8
+Manifest SHA-256: 66d8149875255bb9807669a4624d280fb506f084a9510cf404645c57b191ce92
+
+The patch changes only supported_self_method_generics' receiver-shape predicate. Locked syn 3 represents reference receivers as ReceiverKind::Reference(..), with typed self receivers as a separate variant; this is equivalent to the prior syn 2 condition `reference.is_some() && colon_token.is_none()` for shorthand reference self. Shared/mutable references and optional receiver lifetime remain accepted; by-value and typed receivers remain refused. Generic bounds, owner matching and all other predicates are untouched. Current beforeimage SHA matches the manifest and `git apply --check` succeeds. No tests/builds were run.

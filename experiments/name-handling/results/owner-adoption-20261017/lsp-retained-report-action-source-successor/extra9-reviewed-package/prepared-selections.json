@@ -1,0 +1,1220 @@
+{
+  "tcl_lexer": {
+    "test_timeout_seconds": 180,
+    "listing_timeout_seconds": 30,
+    "environment": {
+      "set": {
+        "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+      },
+      "unset": []
+    },
+    "runtime_guards": {
+      "exact_listing_before_execution": true,
+      "expected_singleton_tests_per_selector": 1,
+      "missing_or_multiple_match_is_failure": true,
+      "never_skip_missing_selector": true,
+      "list_timeout_seconds": 30,
+      "test_timeout_seconds": 180,
+      "preserve_exit_status_stdout_stderr_timeout": true,
+      "bind_actual_frozen_elf_before_and_after": true
+    },
+    "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+    "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included. Successor adds no real WASI or native Windows-target control; retained platform-spelling pure controls stay present. Paused Runtime/VM/BIG-IP targets remain excluded.",
+    "group": "Additional actual tcl-lexer lib test artifact only; separate from standard native584 successor",
+    "execution_order": [
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_separates_comments_boundaries_foreign_source_and_config",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding."
+      }
+    ],
+    "groups": {
+      "tcl_lexer": [
+        "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+        "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+        "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+        "word_parts::cursor::argument_cursor_tests::argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals",
+        "word_parts::cursor::argument_cursor_tests::argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer",
+        "word_parts::cursor::argument_cursor_tests::argument_cursor_separates_comments_boundaries_foreign_source_and_config"
+      ]
+    },
+    "expected_group_counts": {
+      "tcl_lexer": 6
+    },
+    "total_exact_selectors": 6,
+    "source_mode": "CURRENT39030_SOURCE_ONLY_AWAITING_ACTUAL_EXTRA_BUILD_BINDING",
+    "historical_source_evidence": [
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2129,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "8cf87e841fdf1f0ab069ea8067275b584c8d42cccc9063971a1bb7505b5f5a30",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2152,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "90218b26e93b80510d819c0056a8cf4374af06bd6222b254099330358d088174",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2165,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "a7b9d16982f576d5c237ff5540c53abeec5f2fdb231af25c8bce1df4de25454c",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 959,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "c6e42b0bbfe6b2d274c9daf62948fbee4354808ba7d89d3b515cad9de313834a",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 973,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "353a44c0a349b0e8c533735ace43359edcfae997bcab611aa68b5baabced2936",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_separates_comments_boundaries_foreign_source_and_config",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 986,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "da809026d54d6deafb4b62b0c5c2e3b475a8c1c5968497df726f8b004f26bee1",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      }
+    ],
+    "historical_freeze_binding": {
+      "status": "SOURCE_ONLY_REQUIRES_DISTINCT_ACTUAL_SINGLE_TARGET_TEST_ARTIFACT",
+      "binary_bindings": null,
+      "package": "tcl-lexer",
+      "target_kind": "lib"
+    },
+    "source_evidence": [
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2129,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "8cf87e841fdf1f0ab069ea8067275b584c8d42cccc9063971a1bb7505b5f5a30",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_retains_unfinished_bytes_without_a_closer",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2152,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "90218b26e93b80510d819c0056a8cf4374af06bd6222b254099330358d088174",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "expr_lexer::original_expression_cursor_tests::original_expression_cursor_refuses_foreign_image_configuration_and_geometry",
+        "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+        "source_line": 2165,
+        "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+        "purpose": "partial-expression-608: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "a7b9d16982f576d5c237ff5540c53abeec5f2fdb231af25c8bce1df4de25454c",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 61,
+            "module": "expr_lexer",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/expr_lexer.rs",
+            "source_sha256": "365071e1fa3ee2ac99d5e0058e3db57ac59b7d8fd892a46aa2d5a9e46a04b323",
+            "source_line": 2105,
+            "module": "original_expression_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_retains_dynamic_expanded_and_future_suffix_ordinals",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 959,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "c6e42b0bbfe6b2d274c9daf62948fbee4354808ba7d89d3b515cad9de313834a",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_keeps_incomplete_source_cut_and_never_adds_a_closer",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 973,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "353a44c0a349b0e8c533735ace43359edcfae997bcab611aa68b5baabced2936",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_lexer",
+        "selector": "word_parts::cursor::argument_cursor_tests::argument_cursor_separates_comments_boundaries_foreign_source_and_config",
+        "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+        "source_line": 986,
+        "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor"
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "da809026d54d6deafb4b62b0c5c2e3b475a8c1c5968497df726f8b004f26bee1",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-lexer/src/lib.rs",
+            "source_sha256": "9e6ea1af998f20cbd408eb42386f702bc6f7560eebf7f1cbede2fe6aa6159c47",
+            "source_line": 81,
+            "module": "word_parts",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts.rs",
+            "source_sha256": "09c5bf7e62af9dce008ccb37c081c170a93b0b4578ecf341444ae1ac5f88bac9",
+            "source_line": 39,
+            "module": "cursor",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-lexer/src/word_parts/cursor.rs",
+            "source_sha256": "d47c9185341ee8a2be054efed4ed3dec8bdd7309413846101e45ee73089c68dd",
+            "source_line": 946,
+            "module": "argument_cursor_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      }
+    ]
+  },
+  "tcl_syntax": {
+    "test_timeout_seconds": 180,
+    "listing_timeout_seconds": 30,
+    "environment": {
+      "set": {
+        "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+      },
+      "unset": []
+    },
+    "runtime_guards": {
+      "exact_listing_before_execution": true,
+      "expected_singleton_tests_per_selector": 1,
+      "missing_or_multiple_match_is_failure": true,
+      "never_skip_missing_selector": true,
+      "list_timeout_seconds": 30,
+      "test_timeout_seconds": 180,
+      "preserve_exit_status_stdout_stderr_timeout": true,
+      "bind_actual_frozen_elf_before_and_after": true
+    },
+    "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+    "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included. Successor adds no real WASI or native Windows-target control; retained platform-spelling pure controls stay present. Paused Runtime/VM/BIG-IP targets remain excluded.",
+    "group": "Additional actual tcl-syntax lib test artifact only; separate from standard native584 successor",
+    "execution_order": [
+      {
+        "target": "tcl_syntax",
+        "selector": "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets",
+        "purpose": "logical-math-609: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+      }
+    ],
+    "groups": {
+      "tcl_syntax": [
+        "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets"
+      ]
+    },
+    "expected_group_counts": {
+      "tcl_syntax": 1
+    },
+    "total_exact_selectors": 1,
+    "source_mode": "CURRENT39030_SOURCE_ONLY_AWAITING_ACTUAL_EXTRA_BUILD_BINDING",
+    "historical_source_evidence": [
+      {
+        "target": "tcl_syntax",
+        "selector": "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets",
+        "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+        "source_line": 962,
+        "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+        "purpose": "logical-math-609: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-syntax/src/lib.rs",
+            "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+            "source_line": 63,
+            "module": "expr"
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+            "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+            "source_line": 35,
+            "module": "substitution"
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+            "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+            "source_line": 958,
+            "module": "original_source_expression_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "d61d5808ddc627528439724a10a6351ebeffbeadc629ef76542c92d206399f73",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-syntax/src/lib.rs",
+            "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+            "source_line": 63,
+            "module": "expr",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+            "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+            "source_line": 35,
+            "module": "substitution",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+            "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+            "source_line": 958,
+            "module": "original_source_expression_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      }
+    ],
+    "historical_freeze_binding": {
+      "status": "SOURCE_ONLY_REQUIRES_DISTINCT_ACTUAL_SINGLE_TARGET_TEST_ARTIFACT",
+      "binary_bindings": null,
+      "package": "tcl-syntax",
+      "target_kind": "lib"
+    },
+    "source_evidence": [
+      {
+        "target": "tcl_syntax",
+        "selector": "expr::substitution::original_source_expression_tests::original_source_expression_retains_complete_configuration_and_untrimmed_offsets",
+        "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+        "source_line": 962,
+        "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+        "purpose": "logical-math-609: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-syntax/src/lib.rs",
+            "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+            "source_line": 63,
+            "module": "expr"
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+            "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+            "source_line": 35,
+            "module": "substitution"
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+            "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+            "source_line": 958,
+            "module": "original_source_expression_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "d61d5808ddc627528439724a10a6351ebeffbeadc629ef76542c92d206399f73",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-syntax/src/lib.rs",
+            "source_sha256": "5bcec95e920cc3b16dcf1b5b034377b32a2816498259522a775ade309e45a1a7",
+            "source_line": 63,
+            "module": "expr",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/mod.rs",
+            "source_sha256": "57b78bd27df13fdc89fecab60471321c7420a73a1f70e2ef91051fa0edc118a0",
+            "source_line": 35,
+            "module": "substitution",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-syntax/src/expr/substitution.rs",
+            "source_sha256": "3d02de57a8e248fa085b18cda31c2bf0bfb4f0819df817205922e1db917be00b",
+            "source_line": 958,
+            "module": "original_source_expression_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      }
+    ]
+  },
+  "tcl_spectcl": {
+    "test_timeout_seconds": 180,
+    "listing_timeout_seconds": 30,
+    "environment": {
+      "set": {
+        "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+      },
+      "unset": []
+    },
+    "runtime_guards": {
+      "exact_listing_before_execution": true,
+      "expected_singleton_tests_per_selector": 1,
+      "missing_or_multiple_match_is_failure": true,
+      "never_skip_missing_selector": true,
+      "list_timeout_seconds": 30,
+      "test_timeout_seconds": 180,
+      "preserve_exit_status_stdout_stderr_timeout": true,
+      "bind_actual_frozen_elf_before_and_after": true
+    },
+    "validation_note": "Exact current binary listing must confirm each selector once before execution. No new source implementation/semantic completion or ordinary acceptance from this selection. Stronger old guards and original test inputs unchanged.",
+    "host_scope": "Actual Linux native binary only. One Windows SourcePath and two real WASI controls remain unexecuted; no silent singleton removal. Three SpecTcl loader controls require a separate ordinary loader artifact and are not included. Successor adds no real WASI or native Windows-target control; retained platform-spelling pure controls stay present. Paused Runtime/VM/BIG-IP targets remain excluded.",
+    "group": "Additional actual tcl-spectcl lib test artifact only; separate from five standard targets",
+    "execution_order": [
+      {
+        "target": "tcl_spectcl",
+        "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding."
+      },
+      {
+        "target": "tcl_spectcl",
+        "selector": "loader::eval::original_notice_body_capture_tests::original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding."
+      }
+    ],
+    "groups": {
+      "tcl_spectcl": [
+        "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "loader::eval::original_notice_body_capture_tests::original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies"
+      ]
+    },
+    "expected_group_counts": {
+      "tcl_spectcl": 2
+    },
+    "total_exact_selectors": 2,
+    "source_mode": "CURRENT39030_SOURCE_ONLY_AWAITING_ACTUAL_EXTRA_BUILD_BINDING",
+    "historical_source_evidence": [
+      {
+        "target": "tcl_spectcl",
+        "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "source_path": "rust/tcl-spectcl/src/cache.rs",
+        "source_line": 1111,
+        "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 70,
+            "module": "cache"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/cache.rs",
+            "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+            "source_line": 736,
+            "module": "tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "1cfc6c0155855a9072338950fc9667592e3fae907ed784c6835d96e9bdb010f0",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 70,
+            "module": "cache",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/cache.rs",
+            "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+            "source_line": 736,
+            "module": "tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      },
+      {
+        "target": "tcl_spectcl",
+        "selector": "loader::eval::original_notice_body_capture_tests::original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies",
+        "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+        "source_line": 2411,
+        "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 81,
+            "module": "loader"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader.rs",
+            "source_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+            "source_line": 179,
+            "module": "eval"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+            "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+            "source_line": 2407,
+            "module": "original_notice_body_capture_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "fec88b5c51fdde53d803c29ec3edbbc1e0328c91aa96a8553269d5f5d88e2240",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 81,
+            "module": "loader",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader.rs",
+            "source_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+            "source_line": 179,
+            "module": "eval",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+            "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+            "source_line": 2407,
+            "module": "original_notice_body_capture_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution.",
+        "source_scope": "ACTUAL_CURRENT_SOURCE_ONLY_NOT_BUILD_AUTHORITY"
+      }
+    ],
+    "historical_freeze_binding": {
+      "status": "SOURCE_ONLY_REQUIRES_DISTINCT_ACTUAL_SPECTCL_LIB_TEST_ARTIFACT",
+      "binary_bindings": null,
+      "package": "tcl-spectcl",
+      "target_kind": "lib",
+      "no_production_dependency_substitute": true
+    },
+    "source_evidence": [
+      {
+        "target": "tcl_spectcl",
+        "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+        "source_path": "rust/tcl-spectcl/src/cache.rs",
+        "source_line": 1111,
+        "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 70,
+            "module": "cache"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/cache.rs",
+            "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+            "source_line": 736,
+            "module": "tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "1cfc6c0155855a9072338950fc9667592e3fae907ed784c6835d96e9bdb010f0",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 70,
+            "module": "cache",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/cache.rs",
+            "source_sha256": "1b433ca6db5335e7e1549185cb8f7ae8ead8fc70d2d225677eb63762a8857a07",
+            "source_line": 736,
+            "module": "tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      },
+      {
+        "target": "tcl_spectcl",
+        "selector": "loader::eval::original_notice_body_capture_tests::original_loader_notice_geometry_refuses_helper_and_changed_evaluated_parent_bodies",
+        "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+        "source_line": 2411,
+        "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+        "purpose": "Reviewed union source control; prospective only until actual integration, listing and artifact binding.",
+        "module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 81,
+            "module": "loader"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader.rs",
+            "source_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+            "source_line": 179,
+            "module": "eval"
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+            "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+            "source_line": 2407,
+            "module": "original_notice_body_capture_tests"
+          }
+        ],
+        "function_attributes": "#[test]",
+        "cfg_expressions": [
+          "test"
+        ],
+        "current_native_linux_source_eligible": true,
+        "actual_test_function_sha256": "fec88b5c51fdde53d803c29ec3edbbc1e0328c91aa96a8553269d5f5d88e2240",
+        "checked_module_route": [
+          {
+            "source_path": "rust/tcl-spectcl/src/lib.rs",
+            "source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+            "source_line": 81,
+            "module": "loader",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader.rs",
+            "source_sha256": "638e156dd767ca302bfd0f0e05c99a2053301b890217f4f717c4b18a9c0ce001",
+            "source_line": 179,
+            "module": "eval",
+            "attributes": "",
+            "cfg_expressions": []
+          },
+          {
+            "source_path": "rust/tcl-spectcl/src/loader/eval.rs",
+            "source_sha256": "8d0643de2c26cc391466b7b6215e706446b5570cf869a9c01eb0ebd97e48a96d",
+            "source_line": 2407,
+            "module": "original_notice_body_capture_tests",
+            "attributes": "#[cfg(test)]",
+            "cfg_expressions": [
+              "test"
+            ]
+          }
+        ],
+        "eligibility_scope": "Current actual source declaration and recognised cfg only; actual frozen listing singleton remains required before execution."
+      }
+    ]
+  }
+}

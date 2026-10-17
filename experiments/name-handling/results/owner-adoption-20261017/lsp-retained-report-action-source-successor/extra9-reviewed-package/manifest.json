@@ -1,0 +1,173 @@
+{
+  "status": "PREPARED_LIBRARY9_ONLY_SOURCE_PACKAGE_REQUIRES_ROOT_REVIEW",
+  "selected": 9,
+  "exact_target_counts": {
+    "tcl_lexer": 6,
+    "tcl_syntax": 1,
+    "tcl_spectcl": 2
+  },
+  "blocked_xtask_controls": 3,
+  "prospective_full_extra_scope": 12,
+  "full_parent_source_count": 39030,
+  "source_admission_paths": 85,
+  "standard_root_review_reported_sha256": "ee964f922a847b1a3997b298b2bfcd13de331c146821177b264feefc7c082fad",
+  "root_review_scope": "Reported by Root; this new package still requires independent review",
+  "files": {
+    "binder": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/bind.py",
+      "sha256": "e1e40e3c7178b03ffb5daf54925e773ef58965fd9169c5ddb81a770bb37bb5f3"
+    },
+    "launcher": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/launch.py",
+      "sha256": "0c5704fcff8b8ac9d6036ee9561471dab4e2dd12d2ef97d7b42a130389d40419"
+    },
+    "support": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/extra_support.py",
+      "sha256": "a16de1fc9a228b5c5a5e3f3762d334541eb8db11785289c865a4c55836a5961c"
+    },
+    "standard_guard": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/standard_guard.py",
+      "sha256": "afc911f3c641d6714d7241124dec0fff8ad95f11620503248c832b376ec9a1a7"
+    },
+    "guard_extraction": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/standard-guard-extraction.json",
+      "sha256": "8d1635ee46b7d92c2969e9a9d58c6d926976eb6006fa6407db0a830b6a2a266a"
+    },
+    "prepared_plans": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/prepared-selections.json",
+      "sha256": "80ecce17d65c1af28b86c9aa77ee36c2f5cc59508e5637be3dac9074c6429c74"
+    },
+    "source_basis": {
+      "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/SOURCE-BASIS.md",
+      "sha256": "49fc4a5bd61c75e7cec72a2b523a291dabfb1fbf835c5e0f138cdc5ee66a918f"
+    },
+    "standard930_admission": {
+      "path": "/workspace/naming-validation/report-action930-replay-v2/admission.json",
+      "sha256": "e56b30e8b3905fada4d962d3a70db694161de81028367647f87ddcc6173768cb"
+    },
+    "standard930_manifest": {
+      "path": "/workspace/naming-validation/report-action930-replay-v2/manifest.json",
+      "sha256": "59d902654cb0ef702171fbf2af18d2e5e33b33175c75371080200059dbc66142"
+    },
+    "old_extra10_admission": {
+      "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/admission.json",
+      "sha256": "e4dd5576073b22505899ef3629b4bf02bd5eae8a3aba93ea71041235c55c0849"
+    },
+    "old_v10_manifest": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/manifest-v10.json",
+      "sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37"
+    },
+    "old_extra10_plans": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/additional-artifacts.json",
+      "sha256": "a6719cb83f0e3d7b215da59def26ff93d3bc3962110fa2f4660658f96da01a3e"
+    },
+    "old_binder_v3": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v11/bind_extra_artifacts_v3.py",
+      "sha256": "077a178dcfdbb4619640ec3a3cef02c55a631a33a86e009c8ae3c180182bfe8e"
+    },
+    "old_launcher_v4": {
+      "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/launch.py",
+      "sha256": "aa1429b961140aa78f8c0eb945345fb06062e14415b0b29579f9853d077f5fad"
+    },
+    "prospective_full12_plans": {
+      "path": "/workspace/naming-validation/report-action-extra12-v1/prepared-selections.json",
+      "sha256": "3606f32c68a63ab15089222a9ea71d0e4997dca90d0843e810c2cf9b3ece9d56"
+    },
+    "prospective_full12_preparation": {
+      "path": "/workspace/naming-validation/report-action-extra12-v1/source-preparation.json",
+      "sha256": "38f4954a6644abad99a143f2a8d771e965f50270d80b81144bbe7ba883ff7466"
+    },
+    "new_root_control_inventory": {
+      "path": "/workspace/naming-validation/lsp-report-action-next-controls/source-only-added-controls.json",
+      "sha256": "98716a8ac477beaebe65fce456f33b3a9ad393573e09da42b5b4e3bb80740ae2"
+    },
+    "failed_xtask_build": {
+      "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-xtask/source-binding.json",
+      "sha256": "114f2a6eca589765e4f13d5631d820ed9db6745fa2285584ae1954eb97b56228"
+    },
+    "actual_extra_build_scanner": {
+      "path": "/tmp/naming-build-report-action-extra-v1.py",
+      "sha256": "d7545a728d3e2205b0239a646ab5a7de06f4a8d6084c9e74c5f88da3dcd48e9d"
+    },
+    "historical_extra10_launcher": {
+      "path": "/workspace/naming-validation/agent-work/retained726-extra10-replay-v4/launch.py",
+      "sha256": "aa1429b961140aa78f8c0eb945345fb06062e14415b0b29579f9853d077f5fad"
+    },
+    "historical_extra10_v10_manifest": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/manifest-v10.json",
+      "sha256": "62fd55e80c572eab9690580f58225d6940c72e455ec7a3cdc5c08a850fd5cb37"
+    },
+    "historical_extra10_v10_additional_artifacts": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/additional-artifacts.json",
+      "sha256": "a6719cb83f0e3d7b215da59def26ff93d3bc3962110fa2f4660658f96da01a3e"
+    },
+    "historical_extra10_generator": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generate_selection.py",
+      "sha256": "3a45cdf3f385ed41285d77a8f8b53d44ae8291e9dccd6971086b19fd8fa144fa"
+    },
+    "historical_extra10_source_tools": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/source_tools.py",
+      "sha256": "f3cdd5205b70b11f1854a426bfcbd470c0db04ac443116874d3fe7187ce41498"
+    },
+    "historical_extra10_standard_selection": {
+      "path": "/workspace/naming-validation/agent-work/retained726-successor-v10/generated-frozen-standard-2/selection.json",
+      "sha256": "42ab2ebdbfac891bf7e7e0fb90a2403e58e3cca75cb3c59a6de2974dfee846a3"
+    },
+    "historical_extra10_original726": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/selection-v5-frozen/selection.json",
+      "sha256": "237d6e60703bdafb3836a3f1bf8009e578a6da3b9aca367061d0098cde379a80"
+    },
+    "historical_extra10_provider_setup": {
+      "path": "/tmp/lsp-cumulative-source-owners-selection-v5/provider-corrected-setup.json",
+      "sha256": "cf57d1f2af60b425a4f7c1cb644af1682118ff8173186d43a8f554068a483396"
+    },
+    "historical_extra10_source_admission": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-integration/after-compile-api-repair3.json",
+      "sha256": "9287fbbe88f7d000284fc5ca61112774839dee5b42e8d42bd3463464fbfbf4b7"
+    },
+    "historical_extra10_historical_inputs": {
+      "path": "/workspace/naming-validation/lsp-expression-wasi-hierarchy-successor/input-before.json",
+      "sha256": "ef2e3595b42a9a67e79cdde284bc7b135764f200bf2ee091b5ae44a811f2f4bb"
+    },
+    "historical_extra10_parent_inputs": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/input-before.json",
+      "sha256": "732fd27db2cf23639c60e7300cb254a3cf1b2fb3321619ff833cba21c8e3bbb7"
+    },
+    "historical_extra10_parent_receipt": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source-binding.json",
+      "sha256": "9796bc9d447ad9db4b85da10e97e1423ed4ee62a44e96cce2c2d898ab85a7956"
+    },
+    "historical_extra10_parent_source_diff": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/source.diff",
+      "sha256": "1c21246e4fd0dc21ca09c98cc18b4b411e83c42ea2002fe4dbd145967ac4d1ab"
+    },
+    "historical_extra10_parent_artifacts": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/artifacts.json",
+      "sha256": "283c84eb3e02cbef652465d9dc62303c37426a65d1f03cbeb8d7612f5d58fe81"
+    },
+    "historical_extra10_parent_build_scanner": {
+      "path": "/tmp/naming-build-next-lsp-owner-union-repair3.py",
+      "sha256": "a992287e9f1f584a1875b38f4811971fd1d15f38ef5f25c3cecc9009bef07f70"
+    },
+    "historical_extra10_v11_manifest": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-selection-v11-frozen/manifest-v11.json",
+      "sha256": "f0c37fbd3434c4a89998b07d1afd376017ca6729528d37beb34e87d79db3847c"
+    },
+    "historical_extra10_v11_additional_artifacts": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-selection-v11-frozen/additional-artifacts-v11.json",
+      "sha256": "44a88bbca5539440a823826fb8ebaf281053430472571f63c318fa98276ed429"
+    },
+    "historical_extra10_v11_binder": {
+      "path": "/workspace/naming-validation/lsp-current-source-owners-successor-repair3/extra-selection-v11-frozen/bind_extra_artifacts.py",
+      "sha256": "077a178dcfdbb4619640ec3a3cef02c55a631a33a86e009c8ae3c180182bfe8e"
+    },
+    "historical_extra10_v11_binder_review": {
+      "path": "/tmp/retained726-v11-binder-v3-independent-review/independent-db-owner-review-CLEAR.txt",
+      "sha256": "a6267caf7be4681695859d55cbefad0401824e4f047d15a725b69d59ea320076"
+    }
+  },
+  "actual_artifact_binding": null,
+  "ordinary_acceptance": false,
+  "listing_or_tests_executed": false,
+  "binder_or_launcher_executed": false
+}

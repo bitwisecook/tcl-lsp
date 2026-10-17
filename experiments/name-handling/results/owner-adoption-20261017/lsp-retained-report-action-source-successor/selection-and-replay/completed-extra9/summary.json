@@ -1,0 +1,46 @@
+{
+  "selected": 9,
+  "counts": {
+    "PASS": 7,
+    "FAIL": 2
+  },
+  "errors": [],
+  "actual_wrapper_exit_code": 1,
+  "all39030_inputs_eight_ELFs_providers_postflight_match": true,
+  "retained_status_changes": [
+    {
+      "target": "tcl_spectcl",
+      "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+      "before": "PASS",
+      "after": "FAIL"
+    }
+  ],
+  "prior_PASS_regressions": [
+    {
+      "target": "tcl_spectcl",
+      "selector": "cache::tests::original_loader_notice_sites_survive_cold_and_disk_warm_cache_without_serialised_geometry",
+      "before": "PASS",
+      "after": "FAIL"
+    }
+  ],
+  "xtask_controls_owed": [
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::file_route_tests::registry_public_facade_private_kernel_keeps_real_self_and_static_bounds",
+      "purpose": "inherited-provider-gate: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_actual_plain_trait_consumer_bodies",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_unbounded_result_parameters_without_result_donation",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    }
+  ],
+  "ordinary_acceptance": false,
+  "completed_utc": "2026-10-17T01:38:51.668529+00:00",
+  "failure_limits": "Loader helper Nativeprotocol refusal retained. Cache cold/disk-warm notice control regressed fromPASS toFAIL and needs diagnosis; no Runtime/VM guard weakening."
+}

@@ -1,0 +1,96 @@
+{
+  "last_utc": "2026-10-17T01:38:00Z",
+  "delivered_utc": "2026-10-17T01:38:00Z",
+  "next_utc": "2026-10-17T02:07:00Z",
+  "cadence_minutes": 30,
+  "lsp_integrated_at_report": 181,
+  "lsp_required": 325,
+  "lsp_semantic_integrated": 87,
+  "lsp_validation_integrated": 92,
+  "lsp_documentation_integrated": 2,
+  "lsp_no_integration": 144,
+  "effective_integrated_at_report": 372,
+  "effective_required": 2218,
+  "gains_since_previous_report": {
+    "lsp": 0,
+    "effective": 0,
+    "new_grouped_shared_owner_required": 0
+  },
+  "new_baseline_purposes": [],
+  "new_grouped_annex": null,
+  "baseline_integrated": 313,
+  "baseline_required": 2158,
+  "baseline_fullscope_pending": 293,
+  "baseline_partial": 20,
+  "annex_integrated": 59,
+  "annex_required": 60,
+  "verified": 0,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "validation": {
+    "current_ordinary_build": {
+      "status": "PASS",
+      "seconds": 469.108,
+      "inputs": 39030,
+      "input_drift": 0,
+      "actual_five_ELFs_relocated_after_Cargo_and_hash_verified": true,
+      "completed_utc": "2026-10-17T00:36:03.082832+00:00",
+      "warnings": "Two unused imports and existing unused Server helper retained; no source cleanup during frozen validation."
+    },
+    "current_editor": "PASS408inputs0drift TS/scopedformat/worker/Node+browserbundles after retained TS2554/format failure and independently reviewed narrow callback repair; actualhosts unexecuted.",
+    "previous_source_standard902": {
+      "status": "COMPLETE",
+      "passed": 725,
+      "failed": 174,
+      "timed_out": 3,
+      "harness_errors": 0,
+      "retained726_passed": 603,
+      "retained_gains": 7,
+      "prior_pass_regressions": 0,
+      "all39019_inputs_five_ELFs_providers_postflight_match": true
+    },
+    "previous_source_extra10": {
+      "status": "COMPLETE",
+      "passed": 9,
+      "failed": 1,
+      "timed_out": 0,
+      "harness_errors": 0,
+      "all39019_inputs_nine_ELFs_postflight_match": true,
+      "failure_scope": "First helper notice vector stops at Native command-name protocol refusal before intended notice; second vector unobserved; no Runtime/VM fix."
+    },
+    "next_current_replay": "Current captures preserved before source integration. Source-only cleared packets require actual successor build and execution; no positive acceptance inferred.",
+    "jetbrains": "OriginalSDK extraction ENOSPC before Kotlin/tests remains unpassed; no fake SDK or host acceptance.",
+    "required_gates": "Owner/proof/generated/global/portable/rust-check/prep-pr not all green; no PR/merge/issue closure.",
+    "current_source_standard930": {
+      "status": "All930 rows complete; actual wrapper and canonical exit120 retained",
+      "passed": 744,
+      "failed": 184,
+      "timed_out": 2,
+      "harness_errors": 0,
+      "retained902_passed": 728,
+      "retained_gains": 3,
+      "prior_pass_regressions": 0,
+      "new28_passed": 16,
+      "new28_failed": 12,
+      "all39030_inputs_five_ELFs_original_providers_postflight_match": true
+    },
+    "current_source_extra9": {
+      "status": "COMPLETE; actual wrapper exit1",
+      "passed": 7,
+      "failed": 2,
+      "timed_out": 0,
+      "all39030_inputs_eight_ELFs_original_providers_postflight_match": true,
+      "xtask_controls_owed": 3
+    },
+    "current_xtask": "Actual BIN build failed E0609 Syn3 Receiver API; no xtask artifact/tests. Independently reviewed repair queued outside main."
+  },
+  "latest_push": "c3dd6083d6c1f65fec6e42a19d53c21832ba964f",
+  "queued_source_work": [
+    "Studio whole producerV2/clientV22 source-clear; execution pending",
+    "Code action724, lambda691V3, minifier569, closed-source705, Tk601 source-clear; execution pending",
+    "ValidationV4 and previewV2 source-only; independent successor review proceeding",
+    "703 whole rewrite-wire association source packet awaiting independent peer",
+    "619/623 bounded refusal repair retains original positive assertions; independent peer pending"
+  ],
+  "scope": "AllLSP and necessarysharedCompiler/DB/Registry; Runtime/VM andBIGIP migrations/dedicatedsuites deferred. UncoveredBIGIP Tcl8.4 working assumption remains separate from measured evidence.",
+  "missed_scheduled_report": "01:07UTC was missed across execution-context clock jump; late actual chat report delivered01:38UTC. No invented01:07 delivery."
+}

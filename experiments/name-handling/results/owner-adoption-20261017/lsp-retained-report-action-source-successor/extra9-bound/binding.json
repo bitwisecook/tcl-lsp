@@ -1,0 +1,137 @@
+{
+  "status": "ACTUAL_LIBRARY9_BOUND_XTASK3_BLOCKED",
+  "selected": 9,
+  "package_manifest": {
+    "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/manifest.json",
+    "sha256": "8592f1527b871fc18d6534d6f28b4f6b8c028adfa57b1d2bee3175f5845eb0dd"
+  },
+  "standard930_admission": {
+    "path": "/workspace/naming-validation/report-action930-replay-v2/admission.json",
+    "sha256": "e56b30e8b3905fada4d962d3a70db694161de81028367647f87ddcc6173768cb"
+  },
+  "standard_actual_build": {
+    "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/source-binding.json",
+    "sha256": "fea3032ec747c89a76210cf9fc53e415dd75f81812fd4098317cb1a8ed1e4cc6"
+  },
+  "full39030_inputs": {
+    "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/input-before.json",
+    "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12"
+  },
+  "standard_five_artifacts": {
+    "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/artifacts.json",
+    "sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e"
+  },
+  "prepared_plans": {
+    "path": "/workspace/naming-validation/report-action-extra-libraries9-v1/prepared-selections.json",
+    "sha256": "80ecce17d65c1af28b86c9aa77ee36c2f5cc59508e5637be3dac9074c6429c74"
+  },
+  "library_build": {
+    "status": "BOUND_ACTUAL_THREE_LIBRARY_BUILD_ONLY",
+    "build_dir": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs",
+    "files": {
+      "receipt": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/source-binding.json",
+        "sha256": "d8569ae73fe5ee973fe10fe7e48ec38164d033fd712093fc3da60962948f7948"
+      },
+      "before": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/input-before.json",
+        "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12"
+      },
+      "after": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/input-after.json",
+        "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12"
+      },
+      "artifacts": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/artifacts.json",
+        "sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b"
+      }
+    },
+    "artifacts": {
+      "tcl_lexer": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_lexer-f732dc7297a6f699",
+        "sha256": "6b7eda6a70b6ee152e2715a401f17d47bd74b0e98ade08e87679d0623a8926a7",
+        "bytes": 5324952,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_lexer-f732dc7297a6f699",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      },
+      "tcl_spectcl": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_spectcl-044bc5818fd04c5c",
+        "sha256": "0441910a8d4596f1b60d32bfd684cc419aeacb0f2cec237300e7b89215f7bc38",
+        "bytes": 182644088,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_spectcl-044bc5818fd04c5c",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      },
+      "tcl_syntax": {
+        "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-libs/frozen-binaries/tcl_syntax-ef1635272356f2b5",
+        "sha256": "db657339972e597b5630a57d6c9ca9f7e991121523bab25730d2fd8deb5414b7",
+        "bytes": 12470864,
+        "original_cargo_artifact": "/workspace/tcl-lsp/target/debug/deps/tcl_syntax-ef1635272356f2b5",
+        "actual_target_kind": "lib",
+        "storage": "Relocated exact originalartifact afterCargoexit; hash/sizeverified"
+      }
+    },
+    "actual_target_kind": "lib",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "tcl-lexer",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "tcl-spectcl",
+      "--lib",
+      "--no-run"
+    ],
+    "seconds": 130.236,
+    "parent_binding_sha256": "fea3032ec747c89a76210cf9fc53e415dd75f81812fd4098317cb1a8ed1e4cc6",
+    "parent_input_index_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+    "all39030_before_after_rows_equal_actual_parent": true
+  },
+  "exact_target_counts": {
+    "tcl_lexer": 6,
+    "tcl_syntax": 1,
+    "tcl_spectcl": 2
+  },
+  "xtask_controls_still_owed": [
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::file_route_tests::registry_public_facade_private_kernel_keeps_real_self_and_static_bounds",
+      "purpose": "inherited-provider-gate: actual new owner/adopter or preserved related regression from exact immutable packet; source-only, no efficacy claim."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_actual_plain_trait_consumer_bodies",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    },
+    {
+      "target": "xtask",
+      "selector": "owner_resolution::source_internal::tests::self_source_routes_keep_unbounded_result_parameters_without_result_donation",
+      "purpose": "Actual Root-inventoried typed self-route source control; requires distinct successful current xtask BIN artifact and exact singleton listing; no execution or gate acceptance from preparation."
+    }
+  ],
+  "failed_xtask_build": {
+    "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/extra-xtask/source-binding.json",
+    "sha256": "114f2a6eca589765e4f13d5631d820ed9db6745fa2285584ae1954eb97b56228"
+  },
+  "pre_post_binding": {
+    "standard": {
+      "count": 39030,
+      "source_inputs_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+      "five_artifacts_sha256": "3e5078785cd66cb1b466c7cb924241ffdae89f3e95d1085ce45f0d476389d58e",
+      "all_source_membership_bytes_five_ELFs_original_provider_and_support_pins_match": true,
+      "current_source_route_evidence_sha256": "1226e8efdcef276502c9ff57dce2b61206f17dfcecfa5d6dd9ec83dc5c783549"
+    },
+    "library_build_receipt_sha256": "d8569ae73fe5ee973fe10fe7e48ec38164d033fd712093fc3da60962948f7948",
+    "actual_combined_library_artifacts_sha256": "580d40e4a950eb5bf7eae59b5e5a1d27d71b5b69348712b436d8f618b827157b",
+    "all39030_source_inputs_five_standard_plus_three_extra_ELFs_and_provider_pins_match": true,
+    "selected_extra_controls": 9,
+    "xtask_controls_still_owed": 3
+  },
+  "listing_and_test_execution": false,
+  "ordinary_acceptance": false
+}

@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-17T00:46:25.121725+00:00",
+  "source_head": "c3dd6083d6c1f65fec6e42a19d53c21832ba964f",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "xtask",
+    "--bin",
+    "xtask",
+    "--no-run"
+  ],
+  "ordinary": true,
+  "instrumentation": false,
+  "single_job": true,
+  "test_debug": 0,
+  "input_count": 39030,
+  "status": "FAIL",
+  "parent_binding_sha256": "fea3032ec747c89a76210cf9fc53e415dd75f81812fd4098317cb1a8ed1e4cc6",
+  "parent_input_index_sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+  "scope": "Actual distinct extra test artifacts only; Lexer/Syntax/SpecTcl library units or real xtask binary unit. No tests executed, no Runtime/VM/BIGIP suite. Exact originalfullsource snapshot required.",
+  "exit_code": 101,
+  "seconds": 139.812,
+  "input_drift": [],
+  "input_drift_count": 0,
+  "completed_utc": "2026-10-17T00:48:44.936543+00:00"
+}

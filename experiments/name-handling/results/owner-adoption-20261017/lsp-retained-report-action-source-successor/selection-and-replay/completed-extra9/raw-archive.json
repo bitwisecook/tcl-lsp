@@ -1,0 +1,27 @@
+{
+  "sha256": "749aa071c0185257432b9cec70eb432646eb258f82f73e357b06b01ec6278752",
+  "bytes": 30455,
+  "members": {
+    "tcl_lexer/result.json": "ddf7cd07758812fc8c5229ca3b694048e82073a69356a266018975a8330279a3",
+    "tcl_lexer/tcl_lexer.list": "b937c91ba1db346ea8564c9b1bb9b422f6c149316f3824004b1a720d78fc68c6",
+    "tcl_lexer/test-001.log": "cf69e47ed0e05e6dd99c6cf20eea234001fc7ce2f8caebdd2119a0e2a4f46e3d",
+    "tcl_lexer/test-002.log": "d8e39a6e8913d8d1cd99b3ce8d9146b19ec92e3f0802ee0ba39a6d414fffcfac",
+    "tcl_lexer/test-003.log": "9918df675441678e8d69e7398158e05760b42b1c08e469bb630c35a7a48a7d0e",
+    "tcl_lexer/test-004.log": "940ff3f3cb97b4c92d87cd2168baea0c4fd2802908039a0d077d4c1acd638154",
+    "tcl_lexer/test-005.log": "7973c68802c62895bea0b2a4c1cc4e6b26c58a071e1bb70ebdc0a164725b73ed",
+    "tcl_lexer/test-006.log": "452cbbf7222a6ae6bef558fd26369846021b5de83fa17844b502b7d624baa396",
+    "tcl_lexer-selection.json": "c4aa0e2b0e43240a659200fbdfbc4d94ce3b270a9caf7d38fa032218d75650b5",
+    "tcl_lexer-wrapper.json": "a5eaeccd492ea950c5f5006369dcee1c9fc69dd6fa19d6f09f0b1ece93248de2",
+    "tcl_spectcl/result.json": "f2c4d90125bf4c454693cada9a7fe0fa05f0c1beaa7848031e2b945e996c32ac",
+    "tcl_spectcl/tcl_spectcl.list": "835f48c5d04b875a592c199dcd29ce6e9d4b47d05a5f3b93856a20b597690193",
+    "tcl_spectcl/test-001.log": "4b884bbaf4be292763d2770281ba50a4d1ef48581f98de0afb7e74b06505117d",
+    "tcl_spectcl/test-002.log": "2ea28a395b430bc760c72f1126b448249f4bd8f767ab2861b0d4948e2d66e28a",
+    "tcl_spectcl-selection.json": "b97c515c248950e75f349710713105f62a9d1c6296b9ee927fb5d895aa0dc0ac",
+    "tcl_spectcl-wrapper.json": "d08c40c06be28b2fa3d145e5d9ded73aecc859ea82748aac779371ed0c149b52",
+    "tcl_syntax/result.json": "11a6f6f224582642b4c076060e1a34fa678d2fb57d2244fc453447afe48aef79",
+    "tcl_syntax/tcl_syntax.list": "e76ab88eb7c52c14c5843f637f52407c455f11caaa66b91d7e01676ffe7409b5",
+    "tcl_syntax/test-001.log": "19f68ca7ee815730e3f26345c618d343a5d1c7972062fb8695d78db23256dee1",
+    "tcl_syntax-selection.json": "b748d411454cb7b3d4794abf4b5d93da77a7915d4d620d8ac7555498421e520d",
+    "tcl_syntax-wrapper.json": "aac50565322d940bf693d05ce9325a954c06a4c2dec004ecdf5c56677efe0406"
+  }
+}

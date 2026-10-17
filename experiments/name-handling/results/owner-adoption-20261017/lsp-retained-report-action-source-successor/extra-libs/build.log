@@ -1,0 +1,23 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `std::hash::Hash`
+   --> rust/tcl-compiler/src/optimiser/mod.rs:171:13
+    |
+171 |         use std::hash::Hash;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Finished `test` profile [unoptimized] target(s) in 2m 07s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_lexer-f732dc7297a6f699)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_spectcl-044bc5818fd04c5c)
+  Executable unittests src/lib.rs (target/debug/deps/tcl_syntax-ef1635272356f2b5)
