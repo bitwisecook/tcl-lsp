@@ -293,11 +293,17 @@ mod tests {
         let path = OsString::from_vec(b"/package-\xff/${OTHER}".to_vec());
         let context = HookContext::new(".").var("PKG_DIR", &path);
         let expanded = expand("prefix/${TCLPKG_PKG_DIR}/suffix", &context.vars);
-        assert_eq!(expanded.as_os_str().as_bytes(), b"prefix//package-\xff/${OTHER}/suffix");
+        assert_eq!(
+            expanded.as_os_str().as_bytes(),
+            b"prefix//package-\xff/${OTHER}/suffix"
+        );
         let profile = Profile::new("hook-os", PathBuf::from(&expanded), ".")
             .arg(expand("${TCLPKG_PKG_DIR}", &context.vars))
             .set_env("TCLPKG_PKG_DIR", &path);
-        assert_eq!(profile.program.as_os_str().as_bytes(), expanded.as_os_str().as_bytes());
+        assert_eq!(
+            profile.program.as_os_str().as_bytes(),
+            expanded.as_os_str().as_bytes()
+        );
         assert_eq!(profile.args[0], path);
         assert_eq!(profile.env_set, vec![("TCLPKG_PKG_DIR".into(), path)]);
     }

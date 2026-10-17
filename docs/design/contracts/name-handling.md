@@ -2611,3 +2611,36 @@ optimisation-equivalence assertion. Current source/input/selected-word and
 definition/read correspondence are rechecked when emitting it. Original fixtures,
 assertions, selectors and budgets are preserved; added fixed controls are not
 executed by source review.
+
+
+### AI command source/report operation ownership
+
+The generic source/diagnostic boundaries of `handleReview`, `handleDatagroup`
+and `handleFindLegacy` consume `DiagnosticSourceOperation` in the existing
+context-packing owner. It composes actual DocumentSourceSnapshot, full resource
+configuration, AnalysisContextSnapshot and acknowledged session override leases;
+it does not create another source validator, generation counter or semantic
+lookup kernel. Active-editor whole-source preference is retained. Attached
+locations/selected extents and non-Tcl attachments are explicitly analysed in
+a detached Tcl document, retaining original source-selection/settings currency
+as a dependency; that document's actual resolved input is not presented as the
+original document's resource/placement identity.
+
+The same completed CurrentDiagnosticsReport survives categorisation, prompt
+packing/model dispatch and buffered-response publication. The real read-only
+publication ledger is rejoined after async generation and before reporting or
+proposal publication. Unknown/suppressed/stale reports never become a clean
+empty result. There is no report TTL or diagnostic reissue during validation.
+Only an actual owned lease may advance the operation's override context, with
+unchanged original source/settings and the same issuing session. Cancellation
+retires the operation.
+
+Legacy-conversion topics and their descriptions come from the canonical shared
+diagnostic metadata, not a consumer-local code vocabulary. They are authored
+proposal topics, not edit authority or proof of a conversion's semantics. The
+existing agentic proposal analyser and one-use checked document-write receipt
+remain the only apply path; original source/settings are rejoined across an
+owned restore before emitting that action. Generic ownership work does not
+claim Native execution, effect/observer equivalence, or implementation of
+dedicated BIG-IP transformation semantics. Existing test fixtures/assertions
+and operation budgets remain unchanged; new fixed controls require execution.

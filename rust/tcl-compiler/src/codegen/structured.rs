@@ -101,12 +101,7 @@ impl<'a> WalkSource<'a> {
 
 /// Emit each statement of `script` in order, stopping after one diverges (its
 /// successors are dead code). `depth` is this script's structural nesting level.
-fn walk_script<E: Emit>(
-    emit: &mut E,
-    script: &Script,
-    source: WalkSource<'_>,
-    depth: u32,
-) {
+fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: WalkSource<'_>, depth: u32) {
     use crate::native_compilation_admission::{
         NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
     };
@@ -129,12 +124,7 @@ fn walk_script<E: Emit>(
     }
 }
 
-fn walk_stmt<E: Emit>(
-    emit: &mut E,
-    stmt: &Statement,
-    source: WalkSource<'_>,
-    depth: u32,
-) -> Flow {
+fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: WalkSource<'_>, depth: u32) -> Flow {
     // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc comment.
     // Past the cap, an `if`/`while`/`for` degrades to the
     // same whole-construct eval-fallback every other unstructured
@@ -277,14 +267,7 @@ fn emit_if<E: Emit>(
             emit.emit_command(source.command_text(full_span));
         } else {
             // Remaining `elseif` clauses become a nested `if` in the `else` arm.
-            emit_if(
-                emit,
-                rest,
-                else_body,
-                source,
-                depth + 1,
-                full_span,
-            );
+            emit_if(emit, rest, else_body, source, depth + 1, full_span);
         }
         emit.end_if();
     } else if let Some(eb) = else_body {
@@ -916,12 +899,14 @@ mod tests {
     #[test]
     fn shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor() {
         for name in ["break", "continue"] {
-            let source = format!(
-                "proc {name} {{}} {{return NORMAL}}; while {{1}} {{{name}; puts after}}"
-            );
+            let source =
+                format!("proc {name} {{}} {{return NORMAL}}; while {{1}} {{{name}; puts after}}");
             let emitted = events(&source);
             assert!(emitted.contains(&format!("cmd({name})")), "{emitted:?}");
-            assert!(emitted.contains(&"cmd(puts after)".to_owned()), "{emitted:?}");
+            assert!(
+                emitted.contains(&"cmd(puts after)".to_owned()),
+                "{emitted:?}"
+            );
             assert!(!emitted.iter().any(|event| event == name), "{emitted:?}");
         }
     }

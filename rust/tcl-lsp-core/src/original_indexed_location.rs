@@ -281,7 +281,7 @@ impl OriginalIndexedSourceLocation {
 
 /// An actual indexed Logical source declaration, independently of Native facts.
 /// This is conditional readonly declaration advice, never loading or dispatch.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalIndexedDeclarationLocation {
     uri: String,
     context: WorkspaceDiagnosticSourceContext,
@@ -289,7 +289,7 @@ pub struct LogicalIndexedDeclarationLocation {
     declaration: LogicalDeclaration,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum LogicalDeclaration {
     Procedure(Box<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>),
     Class(Box<tcl_compiler::analyser::types::LogicalSourceClassDeclaration>),

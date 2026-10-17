@@ -1,0 +1,24 @@
+{
+  "status": "REVIEWED_SOURCE_AND_GENERATED_PROJECTIONS_PENDING_REGRESSION_ACCEPTANCE",
+  "base": "fe7fe4d3a5d4e027defe7dc98ec73795393100d2",
+  "LSP_integrated": 289,
+  "LSP_required_original": 325,
+  "verified_complete": 0,
+  "validation": {
+    "vscode_types14": "PASS",
+    "typecheck14": "Seven old server fixture API errors resolved; FAIL2newtest Debug bounds; unit DiagnosticUnavailable derivesDebug now, recheck owed.",
+    "TextMate": "First strict generationFAIL after successful7m36build; genuine missing Registry object-target Name0 metadata independently repaired; generationPASS5m23. Actual VSCode/JetBrains JSON updated, subsequent current driftPASS.",
+    "Sublime_vocabulary": "Currentgen-editor-dialects --check PASS21environments.",
+    "JetBrains": "Priorhostcode testsPASS24s; resource changes require renewedhostvalidation.",
+    "proof_gate_preflight": "FAIL69745 before availability restoration;325521812B/9270exact missinglocalGitblobs SHAverifiedoutsideMain, not yet installed. No hashes waived.",
+    "ordinary_regressions": "No fresh test ELF since e739; historic Core519/664 remains latest, not current-source efficacy."
+  },
+  "formatter": "Required cargo fmt --all applied mechanical formatting across workspace including3Runtime source/test files; no Runtime/VM naming migrations.",
+  "limits": "No greenPR/merge/issueclosure. No source trees, providers, compilers or corpus payloads duplicated in this archive.",
+  "archive": {
+    "name": "source-receipts.tar.zst",
+    "bytes": 45969,
+    "sha256": "70199e9631e1981dde40dfdfd034a7a7579252fe72105b405e84ecc501aebad7",
+    "members": 15
+  }
+}

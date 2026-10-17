@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Jim's local detachment and incoming/old/assignment stages under one receipt.
 use super::*;
-use crate::interp::{OriginalJimLookupNamespace, native_arguments::OriginalArguments};
+use crate::interp::{native_arguments::OriginalArguments, OriginalJimLookupNamespace};
 use crate::obj::Owned;
 use crate::vars::{CapturedJimAliasTarget, PreparedJimAliasLocal};
 use std::rc::Weak;

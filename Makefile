@@ -245,7 +245,7 @@ check-vscode-test-partitions: ## Verify VS Code partition manifest and workflow 
 # Cleanup
 .PHONY: clean distclean
 # Dep-installer helpers
-.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-tcl90-reference ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
+.PHONY: ensure-test-deps install-test-deps ensure-tcllib-source ensure-tcl-deps ensure-tcl90-reference ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
@@ -1286,6 +1286,7 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		echo "       Set SKIP_TEST_RUST=1 to skip this target."; \
 		exit 1; \
 	fi; \
+	$(MAKE) ensure-tcllib-source; \
 	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
 	cd $(ROOT) && \
 	if command -v cargo-nextest >/dev/null 2>&1; then \
@@ -1597,6 +1598,9 @@ check-all: ## Full lint + typecheck: TypeScript (extension, report UI, spec stud
 
 ensure-test-deps: ## Install optional host test deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+ensure-tcllib-source: ## Provision and verify the fixed upstream Tcllib source required by ordinary Core tests
+	@bash $(ROOT)scripts/dev/ensure-test-deps.sh --tcllib-only
 
 install-test-deps: ## Install EVERYTHING the full test suite needs (system toolchain) on Debian/Ubuntu, Fedora/CentOS/RHEL, or macOS Homebrew
 	@echo "==> install-test-deps: installing system toolchain"

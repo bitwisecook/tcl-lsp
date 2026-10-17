@@ -518,6 +518,25 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
         Err(SourceUriPathUnavailable::ProviderUnavailable)
     }
 
+    /// Reborrow URI mappings and saved inputs in one provider continuation.
+    /// Open document selections need mapping currency without requiring their
+    /// unsaved bytes to equal disk. Saved providers additionally require the
+    /// exact consulted image. The callback has the same no-await/no-reentry
+    /// contract as the existing separate mapping and saved-source owners.
+    ///
+    /// # Errors
+    /// Missing provider capability or any foreign, withdrawn or changed input
+    /// refuses before invoking the continuation.
+    fn with_current_source_inputs(
+        &self,
+        _selected: &[&SourceUriPath],
+        _documents: &[(&SourceUriPath, &[u8])],
+        _paths: &[(&SourcePathOrigin, &[u8])],
+        _publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        Err(SourceUriPathUnavailable::ProviderUnavailable)
+    }
+
     /// Identify the source-census authority for this provider.
     fn workspace_source_inventory_provider(&self) -> WorkspaceSourceInventoryProvider {
         WorkspaceSourceInventoryProvider::Untracked
@@ -740,6 +759,19 @@ impl SourceStore for NativeStore {
         paths: &[(&SourcePathOrigin, &[u8])],
         publish: &mut dyn FnMut(),
     ) -> Result<(), SourceUriPathUnavailable> {
+        self.with_current_source_inputs(&[], documents, paths, publish)
+    }
+
+    fn with_current_source_inputs(
+        &self,
+        mappings: &[&SourceUriPath],
+        documents: &[(&SourceUriPath, &[u8])],
+        paths: &[(&SourcePathOrigin, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
+        for path in mappings {
+            self.validate_document_uri_path(path)?;
+        }
         for (path, expected) in documents {
             self.validate_document_uri_path(path)?;
             if self.read(path.path()).ok().as_deref() != Some(*expected) {
@@ -1149,9 +1181,20 @@ impl SourceStore for MemoryStore {
         paths: &[(&SourcePathOrigin, &[u8])],
         publish: &mut dyn FnMut(),
     ) -> Result<(), SourceUriPathUnavailable> {
+        self.with_current_source_inputs(&[], documents, paths, publish)
+    }
+
+    fn with_current_source_inputs(
+        &self,
+        mappings: &[&SourceUriPath],
+        documents: &[(&SourceUriPath, &[u8])],
+        paths: &[(&SourcePathOrigin, &[u8])],
+        publish: &mut dyn FnMut(),
+    ) -> Result<(), SourceUriPathUnavailable> {
         let aliases = Self::lock(&self.aliases);
         let selected = documents.iter().map(|(path, _)| *path).collect::<Vec<_>>();
         self.validate_locked_document_paths(&aliases, &selected)?;
+        self.validate_locked_document_paths(&aliases, mappings)?;
         for (path, _) in paths {
             self.validate_source_path_origin(path)?;
         }
@@ -1673,5 +1716,63 @@ mod mixed_saved_input_tests {
             Err(SourceUriPathUnavailable::ForeignProvider)
         );
         assert_eq!(published, 1);
+    }
+}
+
+#[cfg(test)]
+mod mixed_mapping_and_saved_source_tests {
+    use super::*;
+
+    #[test]
+    fn unsaved_document_mapping_and_saved_sibling_share_one_actual_provider_borrow() {
+        let store = MemoryStore::new();
+        store.upsert_uri(
+            "file:///caller.tcl",
+            "/caller.tcl",
+            b"saved caller".to_vec(),
+        );
+        store.upsert_uri(
+            "file:///sibling.tcl",
+            "/sibling.tcl",
+            b"proc helper {} {}".to_vec(),
+        );
+        let caller = store.document_uri_path("file:///caller.tcl").unwrap();
+        let sibling = store.document_uri_path("file:///sibling.tcl").unwrap();
+        let mut commits = 0;
+        store
+            .with_current_source_inputs(
+                &[&caller],
+                &[(&sibling, b"proc helper {} {}")],
+                &[],
+                &mut || {
+                    assert!(store.aliases.try_lock().is_err());
+                    assert!(store.files.try_lock().is_err());
+                    commits += 1;
+                },
+            )
+            .unwrap();
+        assert_eq!(commits, 1);
+        store.upsert("/sibling.tcl", b"proc replacement {} {}".to_vec());
+        assert_eq!(
+            store.with_current_source_inputs(
+                &[&caller],
+                &[(&sibling, b"proc helper {} {}")],
+                &[],
+                &mut || commits += 1
+            ),
+            Err(SourceUriPathUnavailable::SourceImageUnavailable)
+        );
+        assert_eq!(commits, 1);
+        store.upsert_uri(
+            "file:///caller.tcl",
+            "/different.tcl",
+            b"saved caller".to_vec(),
+        );
+        assert!(
+            store
+                .with_current_source_inputs(&[&caller], &[], &[], &mut || commits += 1)
+                .is_err()
+        );
+        assert_eq!(commits, 1);
     }
 }

@@ -914,10 +914,21 @@ impl<'a> CfgBuilder<'a> {
     fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
         self.record_caller_frame_barrier(&stmt);
         self.record_alias_observed(&stmt);
-        let original = matches!(&stmt, Statement::Call { foreach_groups: None, .. })
-            .then(|| self.original_tokens_for_statement(&stmt).cloned()).flatten();
+        let original = matches!(
+            &stmt,
+            Statement::Call {
+                foreach_groups: None,
+                ..
+            }
+        )
+        .then(|| self.original_tokens_for_statement(&stmt).cloned())
+        .flatten();
         let logical_call = matches!(&stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
-            && self.command_classes.metadata.source_analysis_input().is_some_and(|input| input.has_logical_source_name_context());
+            && self
+                .command_classes
+                .metadata
+                .source_analysis_input()
+                .is_some_and(|input| input.has_logical_source_name_context());
         let span = stmt.span();
         let mut produced = self.upvar_invalidated(stmt);
         let mut unknown_locations = logical_call;
@@ -932,7 +943,11 @@ impl<'a> CfgBuilder<'a> {
                 }
             }
         }
-        if unknown_locations && !produced.last().is_some_and(crate::ssa::is_unseen_call_marker) {
+        if unknown_locations
+            && !produced
+                .last()
+                .is_some_and(crate::ssa::is_unseen_call_marker)
+        {
             produced.push(Statement::unseen_call_marker(span));
         }
         produced
@@ -944,18 +959,31 @@ impl<'a> CfgBuilder<'a> {
         emitted: &Statement,
     ) -> Option<global_write_info::OriginalSourceCallMayWrites> {
         let module = self.procedure_summary_owners.module(self.registry)?;
-        let calls = self.procedure_summary_owners.may_calls(original, self.registry)?;
-        if calls.unknown_alternatives { return None; }
+        let calls = self
+            .procedure_summary_owners
+            .may_calls(original, self.registry)?;
+        if calls.unknown_alternatives {
+            return None;
+        }
         let mut writes = Vec::new();
         for body in &calls.bodies {
-            for place in self.global_write_procs.get(body)?.original_source_writes()? {
+            for place in self
+                .global_write_procs
+                .get(body)?
+                .original_source_writes()?
+            {
                 if !writes.iter().any(|held: &crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence| held.symbol() == place.symbol()) {
                     writes.push(place.clone());
                 }
             }
         }
         global_write_info::OriginalSourceCallMayWrites::for_emission(
-            module, self.registry, original, emitted, calls.bodies, writes,
+            module,
+            self.registry,
+            original,
+            emitted,
+            calls.bodies,
+            writes,
         )
     }
 

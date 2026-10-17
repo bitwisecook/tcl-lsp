@@ -160,8 +160,7 @@ pub(crate) fn matches_foreach_header(
     else {
         return false;
     };
-    let (Some(text), Some(word)) =
-        (tokens.argv_texts.first_mut(), tokens.word_exprs.first_mut())
+    let (Some(text), Some(word)) = (tokens.argv_texts.first_mut(), tokens.word_exprs.first_mut())
     else {
         return false;
     };

@@ -1881,9 +1881,12 @@ impl ExistenceRun {
             .filter_map(|(name, slot)| Some((name, Symbol(u32::try_from(slot).ok()?))))
             .collect();
         let mutable: Vec<bool> = names
-            .iter().enumerate()
+            .iter()
+            .enumerate()
             .map(|(slot, name)| {
-                u32::try_from(slot).ok().is_some_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
+                u32::try_from(slot)
+                    .ok()
+                    .is_some_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
                     || entry.dynamic_trace
                     || name.contains("::")
                     || escaping.contains(name.as_str())
@@ -3659,18 +3662,26 @@ fn sccp_process_statements(
                 driver.record_folded((symbol, version), None);
                 driver.record_preserved((symbol, version), None);
                 if let Some(at) = existence.as_deref_mut() {
-                    changed |= at.advance((symbol, version), crate::value_transfer::ExistenceStep::UNKNOWN, driver);
+                    changed |= at.advance(
+                        (symbol, version),
+                        crate::value_transfer::ExistenceStep::UNKNOWN,
+                        driver,
+                    );
                 }
             }
             if !ssa.source_may_clobber_is_current_at(block, index) {
                 // A changed CFG cannot retain a partial source footprint as
                 // permission to preserve the rest of the frame.
                 let keys: Vec<_> = values.keys().copied().collect();
-                for key in keys { changed |= set_value(values, key, &LatticeValue::Overdefined); }
+                for key in keys {
+                    changed |= set_value(values, key, &LatticeValue::Overdefined);
+                }
                 driver.forget_folded();
                 driver.existence_clobber(|_| Existence::MayBound);
             }
-            if let Some(at) = existence.as_deref_mut() { at.finish_statement(index, driver); }
+            if let Some(at) = existence.as_deref_mut() {
+                at.finish_statement(index, driver);
+            }
             continue;
         }
         // An opaque `catch` body the enumeration runs gives the names it
@@ -3992,57 +4003,56 @@ fn define_values(
         // or a joined definition states none. One whose outcome left its
         // place untouched names the version the place held.
         let mut preserved = None;
-        let (val, folded) =
-            if ssa.source_variable_symbol(var).is_some()
-                || is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
-                || element_write_base == Some(var)
-            {
-                (LatticeValue::Overdefined, None)
-            } else if keeps_all {
-                // The statement raised before it stored anything.
+        let (val, folded) = if ssa.source_variable_symbol(var).is_some()
+            || is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+            || element_write_base == Some(var)
+        {
+            (LatticeValue::Overdefined, None)
+        } else if keeps_all {
+            // The statement raised before it stored anything.
+            let prior = prior_version(ssa_block, index, var);
+            preserved = Some(prior);
+            (held_value(values, (var, prior)), None)
+        } else if stmt_ssa.may_defs.contains(&var) {
+            // A synthetic array-element may-def: the write may or may
+            // not have hit this element, so its value is the JOIN of
+            // the prior version (recorded as a use) and the written
+            // value — unless the statement's evaluated outcome names
+            // the element's place (`array set arr {k v}` writes
+            // `arr(k)`), which makes the write definite. The base
+            // refresh of an element write carries no prior use — the
+            // base holds no value of its own.
+            match stmt_ssa.uses.get(&var) {
+                Some(prev_ver) => {
+                    let (written, folded, stated, _, _) = value_of(values);
+                    if stated {
+                        (written, folded)
+                    } else {
+                        let prev = values
+                            .get(&(var, *prev_ver))
+                            .cloned()
+                            .unwrap_or(LatticeValue::Overdefined);
+                        (join(&prev, &written), None)
+                    }
+                }
+                None => (LatticeValue::Overdefined, None),
+            }
+        } else {
+            let (value, folded, _, kept, _) = value_of(values);
+            if kept {
                 let prior = prior_version(ssa_block, index, var);
                 preserved = Some(prior);
-                (held_value(values, (var, prior)), None)
-            } else if stmt_ssa.may_defs.contains(&var) {
-                // A synthetic array-element may-def: the write may or may
-                // not have hit this element, so its value is the JOIN of
-                // the prior version (recorded as a use) and the written
-                // value — unless the statement's evaluated outcome names
-                // the element's place (`array set arr {k v}` writes
-                // `arr(k)`), which makes the write definite. The base
-                // refresh of an element write carries no prior use — the
-                // base holds no value of its own.
-                match stmt_ssa.uses.get(&var) {
-                    Some(prev_ver) => {
-                        let (written, folded, stated, _, _) = value_of(values);
-                        if stated {
-                            (written, folded)
-                        } else {
-                            let prev = values
-                                .get(&(var, *prev_ver))
-                                .cloned()
-                                .unwrap_or(LatticeValue::Overdefined);
-                            (join(&prev, &written), None)
-                        }
-                    }
-                    None => (LatticeValue::Overdefined, None),
-                }
-            } else {
-                let (value, folded, _, kept, _) = value_of(values);
-                if kept {
-                    let prior = prior_version(ssa_block, index, var);
-                    preserved = Some(prior);
-                    // A statement that raised before it reached a place
-                    // left what the place held, whether or not it read it.
-                    if raised.is_some() {
-                        (held_value(values, (var, prior)), folded)
-                    } else {
-                        (value, folded)
-                    }
+                // A statement that raised before it reached a place
+                // left what the place held, whether or not it read it.
+                if raised.is_some() {
+                    (held_value(values, (var, prior)), folded)
                 } else {
                     (value, folded)
                 }
-            };
+            } else {
+                (value, folded)
+            }
+        };
         driver.record_folded((var, ver), folded);
         driver.record_preserved((var, ver), preserved);
         if set_value(values, (var, ver), &val) {

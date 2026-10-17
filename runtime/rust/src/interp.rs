@@ -2923,12 +2923,14 @@ impl Interp {
     /// its namespace components or recovering identity from a reporting name.
     pub(crate) fn has_visible_command_in_slot(&self, namespace: NsId, simple: &[u8]) -> bool {
         let namespaces = self.namespaces();
-        namespaces.command_in(namespace, simple).is_some_and(|command| {
-            self.command_visible_for_surface_at(
-                &command,
-                namespaces.command_generation(namespace, simple),
-            )
-        })
+        namespaces
+            .command_in(namespace, simple)
+            .is_some_and(|command| {
+                self.command_visible_for_surface_at(
+                    &command,
+                    namespaces.command_generation(namespace, simple),
+                )
+            })
     }
 
     /// Resolve `name` (from namespace `origin`) to a command handle, applying

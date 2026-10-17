@@ -19,7 +19,13 @@
 import * as vscode from "vscode";
 import type { Diagnostic as LspDiagnostic } from "vscode-languageclient";
 import { DiagnosticCategory } from "./types";
-import { CODE_TO_CATEGORY, CATEGORY_PREFIX_RULES, DEFAULT_CATEGORY } from "./canonicalDiagnostics";
+import {
+  CODE_TO_CATEGORY,
+  CATEGORY_PREFIX_RULES,
+  DEFAULT_CATEGORY,
+  CONVERTIBLE_CODES,
+  CONVERSION_MAP,
+} from "./canonicalDiagnostics";
 
 function diagnosticCode(d: vscode.Diagnostic): string {
   if (typeof d.code === "object" && d.code !== null && "value" in d.code) {
@@ -35,6 +41,19 @@ export function categorizeDiagnostic(code: string): DiagnosticCategory {
     if (code.startsWith(rule.prefix)) return rule.category as DiagnosticCategory;
   }
   return DEFAULT_CATEGORY as DiagnosticCategory;
+}
+
+/** Canonical authored conversion topics, never edit or Native authority. */
+export function diagnosticConversionTopics(
+  diagnostics: readonly vscode.Diagnostic[],
+): ReadonlyArray<{ diagnostic: vscode.Diagnostic; description: string }> {
+  return diagnostics.flatMap((diagnostic) => {
+    const code = diagnosticCode(diagnostic);
+    const description = CONVERSION_MAP[code];
+    return CONVERTIBLE_CODES.has(code) && typeof description === "string"
+      ? [{ diagnostic, description }]
+      : [];
+  });
 }
 
 export interface CategorisedDiagnostics {

@@ -107,11 +107,13 @@ pub fn detect_foreach(cfg: &CfgFunction) -> Option<HashMap<String, ForeachInfo>>
         let Some(block) = cfg.blocks.get(header) else {
             return None;
         };
-        let Some(terminator @ Terminator::Branch {
-            true_target,
-            false_target,
-            ..
-        }) = &block.terminator
+        let Some(
+            terminator @ Terminator::Branch {
+                true_target,
+                false_target,
+                ..
+            },
+        ) = &block.terminator
         else {
             return None;
         };
@@ -128,11 +130,7 @@ pub fn detect_foreach(cfg: &CfgFunction) -> Option<HashMap<String, ForeachInfo>>
             return None;
         };
         if cfg.statement_sources.get(&(*header, 0)) != Some(&owner.executed_source)
-            || !crate::cfg_builder::matches_foreach_header(
-                &owner.statement,
-                statement,
-                terminator,
-            )
+            || !crate::cfg_builder::matches_foreach_header(&owner.statement, statement, terminator)
         {
             return None;
         }
@@ -142,9 +140,18 @@ pub fn detect_foreach(cfg: &CfgFunction) -> Option<HashMap<String, ForeachInfo>>
             ForeachInfo {
                 body: cfg.block_name(*true_target).to_owned(),
                 end: cfg.block_name(*exit).to_owned(),
-                list_args: iterators.iter().map(|iterator| iterator.list_arg.clone()).collect(),
-                list_braced: iterators.iter().map(|iterator| iterator.list_braced).collect(),
-                var_groups: iterators.iter().map(|iterator| iterator.vars.clone()).collect(),
+                list_args: iterators
+                    .iter()
+                    .map(|iterator| iterator.list_arg.clone())
+                    .collect(),
+                list_braced: iterators
+                    .iter()
+                    .map(|iterator| iterator.list_braced)
+                    .collect(),
+                var_groups: iterators
+                    .iter()
+                    .map(|iterator| iterator.vars.clone())
+                    .collect(),
                 collect: *is_lmap,
             },
         );
@@ -152,10 +159,12 @@ pub fn detect_foreach(cfg: &CfgFunction) -> Option<HashMap<String, ForeachInfo>>
     for (block, contents) in &cfg.blocks {
         for (index, statement) in contents.statements.iter().enumerate() {
             if statement.tokens().is_some_and(|tokens| {
-                tokens.synthetic == Some(crate::ir::SyntheticMarker::IterationBindings(Some(
-                    tcl_registry::TclType::List,
-                )))
-            }) && !retained_headers.contains(&(*block, index)) {
+                tokens.synthetic
+                    == Some(crate::ir::SyntheticMarker::IterationBindings(Some(
+                        tcl_registry::TclType::List,
+                    )))
+            }) && !retained_headers.contains(&(*block, index))
+            {
                 return None;
             }
         }
@@ -249,7 +258,12 @@ mod tests {
                 |statement| matches!(statement, Statement::Call { tokens: Some(tokens), .. }
                     if matches!(tokens.synthetic, Some(crate::ir::SyntheticMarker::IterationBindings(_)))),
             ).unwrap();
-            let Statement::Call { command, tokens: Some(tokens), .. } = statement else {
+            let Statement::Call {
+                command,
+                tokens: Some(tokens),
+                ..
+            } = statement
+            else {
                 unreachable!("selected synthetic header");
             };
             *command = "unrelated reported command".to_owned();
@@ -257,8 +271,14 @@ mod tests {
             let selected = detect_foreach(&cfg).unwrap();
             assert_eq!(selected.len(), 1);
             assert_eq!(selected.values().next().unwrap().collect, collect);
-            assert_eq!(selected.values().next().unwrap().list_args, original.values().next().unwrap().list_args);
-            assert_eq!(selected.values().next().unwrap().var_groups, original.values().next().unwrap().var_groups);
+            assert_eq!(
+                selected.values().next().unwrap().list_args,
+                original.values().next().unwrap().list_args
+            );
+            assert_eq!(
+                selected.values().next().unwrap().var_groups,
+                original.values().next().unwrap().var_groups
+            );
         }
     }
 
@@ -277,7 +297,12 @@ mod tests {
         assert!(detect_foreach(&changed).is_none());
         let mut changed = cfg.clone();
         let extra = changed.blocks[&header].statements[index].clone();
-        changed.blocks.get_mut(&header).unwrap().statements.push(extra);
+        changed
+            .blocks
+            .get_mut(&header)
+            .unwrap()
+            .statements
+            .push(extra);
         assert!(detect_foreach(&changed).is_none());
         let mut changed = cfg.clone();
         changed.statement_sources.remove(&(header, index));
@@ -286,22 +311,32 @@ mod tests {
         changed.terminator_sources.remove(&header);
         assert!(detect_foreach(&changed).is_none());
         let mut changed = cfg.clone();
-        let Statement::Call { args, .. } = &mut changed.blocks.get_mut(&header).unwrap().statements[index] else {
+        let Statement::Call { args, .. } =
+            &mut changed.blocks.get_mut(&header).unwrap().statements[index]
+        else {
             unreachable!("selected synthetic header");
         };
         args[0] = "different list".to_owned();
         assert!(detect_foreach(&changed).is_none());
         let mut changed = cfg.clone();
-        let Statement::Call { tokens: Some(tokens), .. } = &mut changed.blocks.get_mut(&header).unwrap().statements[index] else {
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut changed.blocks.get_mut(&header).unwrap().statements[index]
+        else {
             unreachable!("selected synthetic header");
         };
         tokens.synthetic = None;
         assert!(detect_foreach(&changed).is_none());
         let mut changed = cfg;
-        let Some(Terminator::Branch { condition, .. }) = &mut changed.blocks.get_mut(&header).unwrap().terminator else {
+        let Some(Terminator::Branch { condition, .. }) =
+            &mut changed.blocks.get_mut(&header).unwrap().terminator
+        else {
             unreachable!("selected iterator condition");
         };
-        *condition = crate::expr_ast::ExprNode::Raw { text: "$condition".to_owned() };
+        *condition = crate::expr_ast::ExprNode::Raw {
+            text: "$condition".to_owned(),
+        };
         assert!(detect_foreach(&changed).is_none());
     }
 }

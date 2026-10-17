@@ -42,12 +42,27 @@ pub const TCLLIB_2_0_CHANNEL_CAT: FixedCorpusFixture = FixedCorpusFixture {
     release: "Tcllib 2.0 (tcllib-2-0)",
     origin: "https://github.com/tcltk/tcllib/blob/tcllib-2-0/modules/virtchannel_base/cat.tcl",
     relative_path: "modules/virtchannel_base/cat.tcl",
-    sha256: [
-        0xdd, 0xe4, 0x0e, 0x3a, 0xcb, 0x7b, 0x78, 0xe8, 0x9c, 0x6c, 0x46, 0x6c, 0x1f, 0x68, 0x4c,
-        0x8b, 0x3e, 0x1c, 0x38, 0x0f, 0xe5, 0x19, 0x83, 0x9d, 0x63, 0xbe, 0xad, 0x72, 0x66, 0x5d,
-        0x4d, 0x5a,
-    ],
+    sha256: fixed_sha256(include_str!("../data/tcllib-2.0-cat.sha256")),
 };
+
+// The bootstrap verifier and this typed fixture share one expected byte digest.
+const fn fixed_sha256(text: &str) -> [u8; 32] {
+    let bytes = text.as_bytes();
+    assert!(bytes.len() == 65 && bytes[64] == b'\n');
+    let mut digest = [0; 32];
+    let mut index = 0;
+    while index < 64 {
+        let byte = bytes[index];
+        let nibble = match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            _ => panic!("fixed fixture SHA-256 must be lowercase hexadecimal"),
+        };
+        digest[index / 2] = digest[index / 2] * 16 + nibble;
+        index += 1;
+    }
+    digest
+}
 
 /// A successfully read, byte-checked fixed input. Missing or different files
 /// are setup failures; neither can be reported as a passing semantic control.

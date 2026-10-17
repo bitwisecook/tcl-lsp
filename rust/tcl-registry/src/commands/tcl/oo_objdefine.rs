@@ -193,6 +193,10 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY,
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(2),
+        // Both forms first name the existing object being reconfigured.
+        // `Name` is symbolic source geometry, as on oo::define's class target;
+        // it does not declare/create that object or select a runtime identity.
+        arg_roles: &[(0, ArgRole::Name)],
         // `oo::objdefine` has the same body-shape rules as
         // `oo::define`; share the resolver.
         arg_role_resolver: Some(oo_define_arg_roles),
@@ -221,5 +225,33 @@ pub fn spec() -> CommandSpec {
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OoObjdefine),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod source_target_role_tests {
+    use super::*;
+
+    #[test]
+    fn object_target_name_preserves_both_definition_body_shapes() {
+        let descriptor = spec();
+        assert_eq!(descriptor.arg_roles, &[(0, ArgRole::Name)]);
+        let bodies = descriptor
+            .arg_role_resolver
+            .expect("shared definition body owner");
+        assert_eq!(
+            bodies(&["object target", "method greet {} {puts hello}"]),
+            vec![(1, ArgRole::Body)]
+        );
+        assert_eq!(
+            bodies(&["object target", "method", "greet", "{}", "puts hello"]),
+            vec![(4, ArgRole::Body)]
+        );
+        assert!(
+            crate::source_navigation::static_tcl_source_display(
+                &crate::CommandRegistry::build_default()
+            )
+            .is_some()
+        );
     }
 }

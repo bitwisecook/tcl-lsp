@@ -101,9 +101,16 @@ pub struct LogicalWorkspaceCommandCandidate {
     /// Optional descriptive signature summary.
     detail: Option<String>,
     procedure: Option<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>,
+    location: crate::original_indexed_location::LogicalIndexedDeclarationLocation,
 }
 
 impl LogicalWorkspaceCommandCandidate {
+    /// The actual selected immutable source image, without loaded-provider claims.
+    #[must_use]
+    pub fn source_image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+
     /// Genuine selected source header; class/nonprocedure candidates remain
     /// distinct occupants and cannot become a procedure via reporting ranges.
     #[must_use]
@@ -4986,6 +4993,27 @@ impl WorkspaceIndex {
             tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
         )>,
     > {
+        Some(
+            self.logical_math_source_cards(occurrence, caller_analysis, exclude_uri)?
+                .into_iter()
+                .filter_map(|candidate| {
+                    Some((
+                        candidate.uri.clone(),
+                        candidate.procedure_declaration()?.clone(),
+                    ))
+                })
+                .collect(),
+        )
+    }
+
+    /// Retain the same actual selected declaration owner for diagnostic provider dependencies.
+    #[must_use]
+    pub fn logical_math_source_cards(
+        &self,
+        occurrence: &tcl_compiler::command_binding::OriginalLogicalMathFunctionOccurrence,
+        caller_analysis: &tcl_compiler::analyser::AnalysisResult,
+        exclude_uri: &str,
+    ) -> Option<Vec<LogicalWorkspaceCommandCandidate>> {
         let image = occurrence.original_word().image();
         let source = image.try_text().ok()?;
         if caller_analysis
@@ -5011,7 +5039,7 @@ impl WorkspaceIndex {
                             })
                         && declaration.source_candidate_coordinate().as_ref() == Some(&coordinate)
                 })
-                .map(|(uri, declaration)| (uri.to_owned(), declaration.clone()))
+                .filter_map(|(uri, declaration)| self.logical_procedure_candidate(uri, declaration))
                 .collect::<Vec<_>>();
             if !candidates.is_empty() {
                 return Some(candidates);
@@ -6152,6 +6180,34 @@ impl WorkspaceIndex {
             .collect()
     }
 
+    fn logical_procedure_candidate(
+        &self,
+        uri: &str,
+        declaration: &tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
+    ) -> Option<LogicalWorkspaceCommandCandidate> {
+        let document = self.docs.get(*self.slots.get(uri)?)?;
+        let context = document.diagnostic_source.as_ref()?;
+        let input = document.original_source_input.as_ref()?;
+        let location =
+            crate::original_indexed_location::LogicalIndexedDeclarationLocation::procedure(
+                uri,
+                context,
+                input,
+                declaration,
+            )?;
+        let metadata = declaration.metadata();
+        Some(LogicalWorkspaceCommandCandidate {
+            revision: self.document_revision(uri)?,
+            image: context.image().clone(),
+            uri: uri.to_owned(),
+            qualified_name: metadata.qualified_name.clone(),
+            name_span: metadata.name_span,
+            detail: Some(format!("({} params)", metadata.params.len())),
+            procedure: Some(declaration.clone()),
+            location,
+        })
+    }
+
     /// Conditional Logical declarations at the first matching original source coordinate.
     /// Every duplicate remains a candidate; source cards grant no loaded command,
     /// reached implementation or writable reference. Native query owners are separate.
@@ -6171,21 +6227,9 @@ impl WorkspaceIndex {
                     && self.logical_request_matches_document_input(request, uri)
                     && declaration.source_candidate_coordinate().as_ref() == Some(coordinate)
                 {
-                    let Some(context) = self.diagnostic_source_context(uri) else {
-                        continue;
-                    };
-                    let metadata = declaration.metadata();
-                    candidates.push(LogicalWorkspaceCommandCandidate {
-                        revision: self
-                            .document_revision(uri)
-                            .expect("indexed declaration revision"),
-                        image: context.image().clone(),
-                        uri: uri.to_owned(),
-                        qualified_name: metadata.qualified_name.clone(),
-                        name_span: metadata.name_span,
-                        detail: Some(format!("({} params)", metadata.params.len())),
-                        procedure: Some(declaration.clone()),
-                    });
+                    if let Some(candidate) = self.logical_procedure_candidate(uri, declaration) {
+                        candidates.push(candidate);
+                    }
                 }
             }
             for class in self
@@ -6203,6 +6247,12 @@ impl WorkspaceIndex {
                         continue;
                     };
                     candidates.push(LogicalWorkspaceCommandCandidate {
+                        location: match class.logical_declaration.as_ref().and_then(|declaration| {
+                            let document = self.docs.get(*self.slots.get(&class.uri)?)?;
+                            crate::original_indexed_location::LogicalIndexedDeclarationLocation::class(
+                                &class.uri, context, document.original_source_input.as_ref()?, declaration,
+                            )
+                        }) { Some(location) => location, None => continue },
                         revision: self
                             .document_revision(&class.uri)
                             .expect("indexed declaration revision"),
@@ -6246,7 +6296,8 @@ impl WorkspaceIndex {
         &self,
         candidate: &LogicalWorkspaceCommandCandidate,
     ) -> bool {
-        self.document_revision(&candidate.uri) == Some(candidate.revision)
+        self.logical_declaration_location_is_retained(&candidate.location)
+            && self.document_revision(&candidate.uri) == Some(candidate.revision)
             && self
                 .diagnostic_source_context(&candidate.uri)
                 .is_some_and(|context| context.image() == &candidate.image)

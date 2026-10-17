@@ -51,9 +51,27 @@ fn report_calls(analysis: &AnalysisResult) -> CrossFileCalls {
         .expect("the actual original source contains this invocation");
     let key = (invocation.range.start(), invocation.range.end());
     CrossFileCalls {
+        // This deliberately fabricated reporting donation performs no index
+        // query and cannot mint an original settlement or source dependency.
+        command_queries: WorkspaceCommandQueries::NoRead,
+        source_candidates: Vec::new(),
         resolved: HashSet::from([key]),
         arity: HashMap::from([(key, vec![(3, Some(3))])]),
     }
+}
+
+/// Preserve the old adversarial display-input fixture surface while calling
+/// only the actual current refinement owner. Names/project-tier flags cannot
+/// supply a source candidate or query receipt. Logical positives below supply
+/// settlement issued by the genuine indexed caller/provider producer instead.
+fn refine_workspace_index_w123(
+    diagnostics: Vec<tcl_compiler::analyser::Diagnostic>,
+    analysis: &AnalysisResult,
+    _adversarial_reporting_names: Option<&HashSet<String>>,
+    calls: &CrossFileCalls,
+    _adversarial_project_tier: bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    super::refine_workspace_index_w123(diagnostics, analysis, calls)
 }
 
 fn original_diagnostic(analysis: &AnalysisResult) -> tcl_compiler::analyser::Diagnostic {
@@ -191,10 +209,18 @@ fn original_workspace_diagnostics_keep_current_source_advice_after_foreign_repor
 fn explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour() {
     // naming.consumer.original-workspace-diagnostic-refinement
     // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
-    let analysis = lexical_analysis("missing 1 2");
-    let index = report_index("proc missing {a b c} {return $a}");
-    let calls = report_calls(&analysis);
+    let source = "missing 1 2";
+    let analysis = lexical_analysis(source);
+    let provider = reporting_analysis_with_input(
+        "proc missing {a b c} {return $a}",
+        analysis.resolved_input.as_ref().unwrap(),
+    );
+    let index = core_workspace_index::WorkspaceIndex::from_documents([
+        ("file:///caller.tcl", &analysis),
+        ("file:///library.tcl", &provider),
+    ]);
     let registry = analysis.resolved_registry().unwrap();
+    let calls = settle_cross_file_calls(&index, &analysis, registry, "file:///caller.tcl");
     let settled = settle_call_against_workspace(
         &index,
         &analysis,

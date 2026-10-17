@@ -56,7 +56,7 @@
             "2": { "name": "meta.options.tcl", "patterns": [
               {
                 "name": "keyword.operator.option.tcl",
-                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start|command)\\b"
               },
               {
                 "name": "constant.numeric.tcl",
@@ -86,7 +86,7 @@
             "2": { "name": "meta.options.tcl", "patterns": [
               {
                 "name": "keyword.operator.option.tcl",
-                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start)\\b"
+                "match": "-(?:nocase|expanded|line|linestop|lineanchor|indices|all|inline|about|start|command)\\b"
               },
               {
                 "name": "constant.numeric.tcl",
@@ -277,7 +277,7 @@
         {
           "comment": "Braced variable: ${name with spaces}",
           "name": "variable.other.braced.tcl",
-          "match": "\\$\\{[^}]+\\}"
+          "match": "\\$\\{[^}]*\\}"
         },
         {
           "comment": "Namespace-qualified variable with optional array: $ns::var(idx)",

@@ -1,0 +1,215 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 287,
+    "semantic_integrated": 164,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 38,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 421,
+    "full_scope_pending": 358,
+    "partial": 63,
+    "without_integration": 1737
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 491,
+    "without_integration": 1738,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "utc": "2026-10-17T12:11:27.823011+00:00",
+  "scheduled_report_utc": "2026-10-17T12:09:49Z",
+  "count_freeze": "Root confirmed actual 287 at scheduled 12:09:49 UTC; chat delivered approximately 12:10:10 UTC.",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 6,
+    "semantic": 6,
+    "validation": 0,
+    "documentation": 0,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "11": {
+      "path": "/workspace/naming-work/integration-11/composition.json",
+      "sha256": "09196f097c44706c35f3cea2391d808b5741be90950a9093561ae134df4dde49",
+      "composed_patch_sha256": "480e80ab0c79bb27a58508bedf83d83d4201e6f430f1c24bdf100b8a5bd340eb",
+      "new_baseline_unit_ids": [
+        "lsp-refactor-selected-case-descriptor-transport",
+        "lsp-sublime-token-vocabulary"
+      ],
+      "applied_patches": [
+        {
+          "path": "/workspace/naming-work/sol-call-source-composed-v1/change.patch",
+          "sha256": "0dc1fb037c605a0319b692a79d0fc7a004f171325e0437ae7a918c9917a038c5"
+        },
+        {
+          "path": "/workspace/naming-work/luna-refactor-case-current/change.patch",
+          "sha256": "148841e576637131c832dc3f6bff0dfa65a5ceeea157c733f0a485e31b0ff23f"
+        },
+        {
+          "path": "/workspace/naming-work/luna-sublime-token-vocabulary-v3/change.patch",
+          "sha256": "ec57bf99e20b3c6aeef78b763a65efb74f1696ef8a80bfb3714647759666cc32"
+        }
+      ]
+    },
+    "12": {
+      "path": "/workspace/naming-work/integration-12/composition.json",
+      "sha256": "8c73a275d9e86a3c4fe38f11ea44cf3f60af3fa243468ffa6a46fa9a80b038bb",
+      "composed_patch_sha256": "b7d7aae4d54d1e0e1f6d6f34b4427cde23fcef5e4d5b445ec8bf4c128385d5b4",
+      "new_baseline_unit_ids": [
+        "lsp-inline-variable-logical-edit-admission"
+      ],
+      "applied_patches": [
+        {
+          "path": "/workspace/naming-work/sol-inline-variable/v2/repair.patch",
+          "sha256": "6a8c3f58ecf4d838e90fc084ad28115d317d0a5cc81db9488cb14760157225a4"
+        }
+      ]
+    },
+    "14": {
+      "path": "/workspace/naming-work/integration-14/composition.json",
+      "sha256": "58c931f19f50f4752f5396dc7024bc76526055a4a14fe82ba8de1f31d2d5a1ed",
+      "composed_patch_sha256": "f606b993c7c701511f8598605918c0d5f6b6cad3bccc17e4d513376864243ee5",
+      "new_baseline_unit_ids": [
+        "lsp-ai-datagroup-source-diagnostic-context",
+        "lsp-ai-review-source-diagnostic-context",
+        "lsp-ai-find-legacy-action-admission"
+      ],
+      "applied_patches": [
+        {
+          "patch": "/workspace/naming-work/sol-composition/legacy-server-v4/change.patch",
+          "sha256": "34a3a641c5b87d2955b1314d007b18cb77a9e9045f6425d8decf96e88de89523",
+          "output": "patching file docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md\n\npatching file rust/tcl-lsp-core/src/original_indexed_location.rs\n\npatching file rust/tcl-lsp-core/src/vfs.rs\n\npatching file rust/tcl-lsp-core/src/workspace_index.rs\n\npatching file rust/tcl-lsp-server/src/current_diagnostics.rs\n\npatching file rust/tcl-lsp-server/src/lib.rs\n\npatching file rust/tcl-lsp-server/src/workspace_diagnostic_sources.rs\n"
+        },
+        {
+          "patch": "/workspace/naming-work/sol-inline-variable-ancestry-v1/change.patch",
+          "sha256": "3f667e3d4917b43242e4e2ef5060d7937b7a2a04f138da63bf45e2481db88d6d",
+          "output": "patching file rust/tcl-lsp-core/src/refactor/inline_variable.rs\n"
+        },
+        {
+          "patch": "/workspace/naming-work/sol-composition/legacy-fixture-cfg-v2/change.patch",
+          "sha256": "a9f5053d1707a03b20e236df06837b68ad7e92df33888431ca9eac5e1a6cbe7a",
+          "output": "patching file rust/tcl-lsp-server/src/workspace_diagnostic_sources.rs\n\npatching file rust/tcl-lsp-server/src/lib.rs\nHunk #1 succeeded at 17217 (offset 212 lines).\nHunk #2 succeeded at 17345 (offset 212 lines).\nHunk #3 succeeded at 17356 (offset 212 lines).\nHunk #4 succeeded at 17434 (offset 212 lines).\nHunk #5 succeeded at 18990 (offset 212 lines).\n"
+        },
+        {
+          "patch": "/workspace/naming-work/sol-server-test-query-adapters/v1/change.patch",
+          "sha256": "cd981e1a4654f2d2e307b10a52b7ac1f4c187488f9766d10250227ac85b57d0b",
+          "output": "patching file rust/tcl-lsp-server/src/current_diagnostics.rs\nHunk #1 succeeded at 2607 (offset 78 lines).\n\npatching file rust/tcl-lsp-server/src/lib.rs\nHunk #1 succeeded at 40302 (offset 147 lines).\n\npatching file rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs\n"
+        },
+        {
+          "patch": "/workspace/naming-work/sol-server-test-query-adapters/v2-source-cards/change.patch",
+          "sha256": "ecf54fee06e21294f0d622f2b3204f5e2c7fb185ba26edfa0928d050461ac713",
+          "output": "patching file rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs\n"
+        },
+        {
+          "patch": "/workspace/naming-work/sol-chat-ai3/v1/change.patch",
+          "sha256": "806c02b0c9f8891126e121c20899e41e223a3a5816710b06ab13e6ea5e38e238",
+          "output": "patching file docs/design/contracts/name-handling.md\n\npatching file editors/vscode/src/chat/commands/datagroup.ts\n\npatching file editors/vscode/src/chat/commands/find-legacy.ts\n\npatching file editors/vscode/src/chat/commands/review.ts\n\npatching file editors/vscode/src/chat/contextPack.ts\n\npatching file editors/vscode/src/chat/diagnosticAccess.ts\n\npatching file editors/vscode/src/test/currentDiagnostics.test.ts\n"
+        },
+        {
+          "patch": "/workspace/naming-work/luna-upstream-2487-lsp-v1/candidate.patch",
+          "sha256": "790f33a9fa291bf687da1f3674f873e53e25eacbc8502a6261dad8413e9881fa",
+          "output": "patching file rust/tcl-lsp-server/src/lib.rs\nHunk #1 succeeded at 3386 (offset 2 lines).\nHunk #2 succeeded at 10123 (offset 212 lines).\nHunk #3 succeeded at 28075 (offset 144 lines).\nHunk #4 succeeded at 28405 (offset 144 lines).\n\npatching file rust/tcl-lsp-server/tests/e2e/document_symbols.rs\n"
+        }
+      ]
+    }
+  },
+  "validation_recorded_at_capture": {
+    "integration10_library_check": {
+      "status": "PASS",
+      "seconds": 97,
+      "scope": "Compiler/Core/Server libraries; one dead word_raw warning, no ordinary test/ELF acceptance.",
+      "stderr": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.stderr",
+        "sha256": "b30da1e2c4b507e1dc057195cb8305ee5d82ef3112965569a80b355588425a80"
+      },
+      "machine_stdout": {
+        "path": "/workspace/naming-work/logs/integration10-libcheck.jsonl",
+        "sha256": "2e9776c9670572dfaa282a95dfbc918073bb7d74db4e3841a0cf9fc77acba4f3"
+      }
+    },
+    "vscode_types10": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration10-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jetbrains_current_tests": {
+      "status": "PASS",
+      "seconds": 24,
+      "tasks": 14,
+      "path": "/workspace/naming-work/logs/jetbrains-current-tests.log",
+      "sha256": "7a68e1456015333ca8eecea8c216d7c4d0f1f4cf8dd9ba98d0047bcb3ff8aa8f"
+    },
+    "integration12_library_and_test_typecheck": {
+      "status": "FAIL_THEN_CAUSAL_REPAIRS_ADMITTED",
+      "cause": "Initial one case-field construction repaired; retry exposed seven old test API errors now repaired through genuine source-query fixture adapters. No ordinary acceptance.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration12-typecheck-repaired.jsonl",
+        "sha256": "48b6a926239ef5ae79c532758650bc14254ca2054005e95601207158a8f2867e"
+      }
+    },
+    "latest_regression_ELF": "No newer ordinary regression artifacts/capture than historical e739 Core664: 519 PASS/145 failures including one timeout; new35 29 PASS/6 FAIL; focused6 2 PASS/4 FAIL. Typechecks, source admissions and generated retries do not update those outcomes.",
+    "required_current_gates": "Fresh ordinary artifacts and preserved retained controls/full1024+additions, extra18, actual Native34/server integration, original Tcl providers, real Node/browser/JB hosts, owner/proof/generated checks, rust-check and prep-pr remain unaccepted. Original fixtures/assertions/selectors/180-second tests/30-second listings/source/provider/C5 guards retained.",
+    "integration14_library_and_test_typecheck": {
+      "status": "FAIL",
+      "errors": 2,
+      "cause": "Two new test Debug trait bounds; narrow Root derive(Debug) repair admitted. Seven prior old API errors no longer block compilation; fresh actual typecheck owed.",
+      "log": {
+        "path": "/workspace/naming-work/logs/integration14-typecheck.jsonl",
+        "sha256": "39d2db294bdf9f65afe1a394c1bb0b3a90bc4e794d0528e26ade815d87a38cf1"
+      },
+      "ordinary_acceptance": false
+    },
+    "vscode_types14": {
+      "status": "PASS",
+      "path": "/workspace/naming-work/logs/integration14-vscode-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "textmate_generation": {
+      "status": "RETRY_RUNNING_NOT_ACCEPTED",
+      "first_attempt": "FAIL: strict complete Registry source-display recipe unavailable because oo::objdefine lacked symbolic target Name0.",
+      "causal_metadata_repair": "Root admitted independent causal SOURCE CLEAR b88fdc061581d0eb7bcf65e0c57237efd932968976afe069316fe39d3c1dae31; no recipe weakening.",
+      "root_retry_session": 5350,
+      "retry_log": {
+        "path": "/workspace/naming-work/logs/textmate-generation-repaired.log",
+        "sha256": "ccb95fb9cb9fde1fd10c7c9caf5a1a938370c861d2e0d5781898fb76ddcbc3f9"
+      },
+      "unit_status": "Both TextMate units remain NONE pending actual successful generation and output review."
+    },
+    "proof_preflight": {
+      "status": "FAIL",
+      "structural_errors": 69745,
+      "missing_occurrences": 67641,
+      "missing_paths": 9270,
+      "existing_evidence_hash_drift": 1104,
+      "actual_census_digest_drift": 952,
+      "binding_or_documentation_errors": 48,
+      "log": {
+        "path": "/workspace/naming-work/logs/current-proof-preflight.log",
+        "sha256": "0f834f1c6812026435902684df0ef4366ad5bd9fdec77fb7eca86bc4f22af396"
+      },
+      "limits": "Occurrences and paths are distinct measures. Original checker/guards remain; restore real missing evidence and repair genuine drift. No counterfeit hashes, evidence refresh by assertion, or check waivers."
+    }
+  },
+  "remaining_classification_counts": {
+    "deferred_bigip_related": 35,
+    "generic_unintegrated": 3,
+    "source_diagnostic_boundary_scope_review": 0
+  },
+  "pending": "Method entry V1/V2 outside Main pending V3 genuine SelfSelector carrier repair. TextMate two units still NONE: actual generation is building, not PASS. Five additional generic xtask generator boundaries outside original325 pending whole review, not counted; V1 sealed replay authoritative, drifted afterimage excluded.",
+  "next_report_utc": "2026-10-17T12:39:49Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

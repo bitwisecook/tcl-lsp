@@ -229,7 +229,10 @@ fn original_jim_bootstrap_keys_have_first_native_owners_and_retire_with_their_en
         assert_eq!(unsafe { (*original).ref_count }, 1);
         assert!(obj::with_jim_variable_cache(original, |_| ()).is_some());
         let value = interp.get_obj_result();
-        assert_eq!(interp.assign_original_named_variable(original, value), Ok(()));
+        assert_eq!(
+            interp.assign_original_named_variable(original, value),
+            Ok(())
+        );
         assert_eq!(inventory.keys()[0].original().unwrap(), original);
         assert!(interp.var_unset(name));
         assert!(inventory.check().is_err());

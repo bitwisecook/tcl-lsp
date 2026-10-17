@@ -41,10 +41,7 @@ pub(super) fn checked_item_sigs_for_config(
     Some(item_sigs_for_config(db, file, config))
 }
 
-fn project_signatures(
-    db: &dyn TclDb,
-    project: Project,
-) -> Option<Vec<Arc<Vec<ItemSig>>>> {
+fn project_signatures(db: &dyn TclDb, project: Project) -> Option<Vec<Arc<Vec<ItemSig>>>> {
     project
         .files(db)
         .iter()

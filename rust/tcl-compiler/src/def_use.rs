@@ -208,8 +208,15 @@ pub struct DefUseFacts {
 
 impl PartialEq for DefUseFacts {
     fn eq(&self, other: &Self) -> bool {
-        self.result == other.result && self.cells == other.cells && self.sources.len() == other.sources.len()
-            && self.sources.iter().all(|(symbol, source)| other.sources.get(symbol).is_some_and(|other| source.same_owner(other)))
+        self.result == other.result
+            && self.cells == other.cells
+            && self.sources.len() == other.sources.len()
+            && self.sources.iter().all(|(symbol, source)| {
+                other
+                    .sources
+                    .get(symbol)
+                    .is_some_and(|other| source.same_owner(other))
+            })
     }
 }
 
@@ -279,11 +286,12 @@ impl DefUseFacts {
         &mut self,
         relocation: &crate::var_resolve::VariableProofRelocation,
     ) {
-        self.cells = Arc::new(self
-            .cells
-            .iter()
-            .map(|(&symbol, key)| (symbol, relocation.storage_key(key)))
-            .collect());
+        self.cells = Arc::new(
+            self.cells
+                .iter()
+                .map(|(&symbol, key)| (symbol, relocation.storage_key(key)))
+                .collect(),
+        );
     }
 }
 
@@ -354,7 +362,11 @@ pub fn build_def_use_chains(
                         statement_index: -1,
                         variable: phi_var,
                         phi_version: phi.version,
-                        class: if ssa.source_variable_symbol(phi_var).is_some() { UseClass::Quoted } else { UseClass::Substituted },
+                        class: if ssa.source_variable_symbol(phi_var).is_some() {
+                            UseClass::Quoted
+                        } else {
+                            UseClass::Substituted
+                        },
                     },
                 );
             }
@@ -402,8 +414,16 @@ pub fn build_def_use_chains(
 
     DefUseFacts {
         result: Arc::new(DefUseResult { chains }),
-        cells: Arc::new(ssa.cell_symbols().map(|(symbol, key)| (symbol, key.clone())).collect()),
-        sources: Arc::new(ssa.source_variable_symbols().filter_map(|(symbol, _)| Some((symbol, ssa.source_variable_snapshot(symbol)?))).collect()),
+        cells: Arc::new(
+            ssa.cell_symbols()
+                .map(|(symbol, key)| (symbol, key.clone()))
+                .collect(),
+        ),
+        sources: Arc::new(
+            ssa.source_variable_symbols()
+                .filter_map(|(symbol, _)| Some((symbol, ssa.source_variable_snapshot(symbol)?)))
+                .collect(),
+        ),
     }
 }
 
@@ -517,10 +537,19 @@ fn add_terminator_uses(
     };
     for (&symbol, &version) in &block.exit_versions {
         if version != 0 && ssa.source_variable_symbol(symbol).is_some() {
-            add_use(chains, entry_name, (symbol, version), UseSite {
-                block: block.name.clone(), kind: UseKind::Terminator, statement_index: -1,
-                variable: symbol, phi_version: 0, class: UseClass::Quoted,
-            });
+            add_use(
+                chains,
+                entry_name,
+                (symbol, version),
+                UseSite {
+                    block: block.name.clone(),
+                    kind: UseKind::Terminator,
+                    statement_index: -1,
+                    variable: symbol,
+                    phi_version: 0,
+                    class: UseClass::Quoted,
+                },
+            );
         }
     }
     let view = crate::ssa::SsaSourceView::at_terminator(ssa, block_id);
@@ -575,7 +604,9 @@ fn add_terminator_uses(
         let Some(symbol) = ssa.var_symbol_at_terminator(block_id, &var_name) else {
             continue;
         };
-        let Some(var_name) = ssa.cell_key(symbol).cloned() else { continue; };
+        let Some(var_name) = ssa.cell_key(symbol).cloned() else {
+            continue;
+        };
         let fanned: Vec<VariableCellKey> = ssa
             .cell_keys()
             .iter()
@@ -625,11 +656,38 @@ mod tests {
         let source = "proc p {} {global g; set g 1}\np";
         let (_, first) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
         let (_, second) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
-        let (symbol, identity) = first.top_level.ssa.source_variable_symbols().next().expect("authentic source MAY definition");
-        assert_eq!(second.top_level.ssa.source_variable_symbol(symbol), Some(identity));
-        assert!(first.top_level.def_use.source_variable_symbol(&first.top_level.ssa, symbol).is_some());
-        assert!(first.top_level.def_use.source_variable_symbol(&second.top_level.ssa, symbol).is_none(), "same coordinate and typed source key cannot donate an old source graph");
-        assert!(first.top_level.def_use.cell_key(&first.top_level.ssa, symbol).is_none());
+        let (symbol, identity) = first
+            .top_level
+            .ssa
+            .source_variable_symbols()
+            .next()
+            .expect("authentic source MAY definition");
+        assert_eq!(
+            second.top_level.ssa.source_variable_symbol(symbol),
+            Some(identity)
+        );
+        assert!(
+            first
+                .top_level
+                .def_use
+                .source_variable_symbol(&first.top_level.ssa, symbol)
+                .is_some()
+        );
+        assert!(
+            first
+                .top_level
+                .def_use
+                .source_variable_symbol(&second.top_level.ssa, symbol)
+                .is_none(),
+            "same coordinate and typed source key cannot donate an old source graph"
+        );
+        assert!(
+            first
+                .top_level
+                .def_use
+                .cell_key(&first.top_level.ssa, symbol)
+                .is_none()
+        );
     }
 
     #[test]
@@ -685,7 +743,11 @@ mod tests {
         assert!(facts.chain_for(second, 1).is_some());
         assert!(facts.cell_key(&ssa, first).is_none());
         assert!(facts.cell_key(&ssa, second).is_none());
-        assert!(facts.chain_for_cell(&ssa, ssa.cell_key(first).expect("original location"), 1).is_none());
+        assert!(
+            facts
+                .chain_for_cell(&ssa, ssa.cell_key(first).expect("original location"), 1)
+                .is_none()
+        );
     }
 
     #[test]
@@ -713,7 +775,11 @@ mod tests {
         assert!(facts.cell_key(&foreign, foreign_symbol).is_none());
         assert!(
             facts
-                .chain_for_cell(&foreign, foreign.cell_key(foreign_symbol).expect("foreign location"), 1)
+                .chain_for_cell(
+                    &foreign,
+                    foreign.cell_key(foreign_symbol).expect("foreign location"),
+                    1
+                )
                 .is_none()
         );
         let copied = facts.clone();

@@ -35,6 +35,8 @@
 /// through `tcl-lsp-core`.
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
+mod workspace_diagnostic_sources;
+use workspace_diagnostic_sources::WorkspaceDiagnosticSources;
 mod document_transform;
 mod package_source;
 mod proposal_diagnostics;
@@ -3385,6 +3387,13 @@ const SCAN_MERGE_BATCH_SIZE: usize = 200;
 /// wait is a relaxed atomic load.
 const INITIAL_WORKSPACE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// How long a workspace-wide query waits for the initial folder scan to
+/// *begin*, before [`INITIAL_WORKSPACE_SCAN_WAIT`] times the scan itself.
+/// `initialized` first pulls the config and registers file watchers, each
+/// bounded by [`CLIENT_REQUEST_TIMEOUT`], then loads the spec packs, so this
+/// covers both round-trips with the pack load to spare.
+const PRE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
 /// to [`DIAGNOSTICS_DEBOUNCE`]: many cold large documents finishing their
@@ -4445,6 +4454,17 @@ impl DiagnosticPublisher {
         diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
         publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
     ) -> R {
+        self.with_pack_notices_and_sources_during(context, diagnostics, None, publish)
+            .expect("empty required source set always admits base publication")
+    }
+
+    fn with_pack_notices_and_sources_during<R>(
+        &self,
+        context: PackNoticeContext<'_>,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        required: Option<&WorkspaceDiagnosticSources>,
+        publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
+    ) -> Option<R> {
         let PackNoticeContext {
             uri,
             source,
@@ -4453,6 +4473,10 @@ impl DiagnosticPublisher {
             registry,
             store,
         } = context;
+        let required = match required {
+            Some(required) => required.inputs(store).ok()?,
+            None => workspace_diagnostic_sources::WorkspaceDiagnosticSourceInputs::default(),
+        };
         let mut publish = Some(publish);
         let mut diagnostics = Some(diagnostics);
         let notices = self
@@ -4469,9 +4493,7 @@ impl DiagnosticPublisher {
                 .iter()
                 .any(|overlay| Arc::ptr_eq(overlay, registry))
         {
-            return publish.take().expect("publication callback is available")(
-                diagnostics.take().expect("base report is available"),
-            );
+            return required.publish_base(store, &mut publish, &mut diagnostics);
         }
         let matching: Vec<_> = notices
             .by_uri
@@ -4481,9 +4503,7 @@ impl DiagnosticPublisher {
             .filter(|notice| notice.source.as_ref() == source)
             .collect();
         if matching.is_empty() {
-            return publish.take().expect("publication callback is available")(
-                diagnostics.take().expect("base report is available"),
-            );
+            return required.publish_base(store, &mut publish, &mut diagnostics);
         }
         let saved_sources: Vec<_> = matching
             .iter()
@@ -4517,19 +4537,26 @@ impl DiagnosticPublisher {
                 assembled,
             ));
         };
-        if studio_inputs_available
-            && store
-                .with_current_saved_source_inputs(&studio_sources, &saved_sources, &mut commit)
-                .is_ok()
-        {
+        studio_sources.extend(required.saved.iter().copied());
+        let checked = if !studio_inputs_available {
+            Err(vfs::SourceUriPathUnavailable::ProviderUnavailable)
+        } else if required.mappings.is_empty() {
+            store.with_current_saved_source_inputs(&studio_sources, &saved_sources, &mut commit)
+        } else {
+            store.with_current_source_inputs(
+                &required.mappings,
+                &studio_sources,
+                &saved_sources,
+                &mut commit,
+            )
+        };
+        if studio_inputs_available && checked.is_ok() {
             if let Some(result) = result {
-                return result;
+                return Some(result);
             }
             unreachable!("a successful provider callback publishes exactly once");
         }
-        publish.take().expect("publication callback is available")(
-            diagnostics.take().expect("base report is available"),
-        )
+        required.publish_base(store, &mut publish, &mut diagnostics)
     }
 
     /// Replace the standing pack notices with a loader-backed publication and
@@ -4795,6 +4822,41 @@ impl DeliveryCtx<'_> {
         )
     }
 
+    fn publish_with_required_sources<R>(
+        &self,
+        published: Option<&PublishedPackSet>,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        required: &WorkspaceDiagnosticSources,
+        publish: impl FnOnce(Vec<tower_lsp_server::ls_types::Diagnostic>) -> R,
+    ) -> Option<R> {
+        if let (Some(published), Some(packs), Some(registry)) =
+            (published, self.pack_set, self.registry)
+            && published.seq == self.pack_seq
+            && Arc::ptr_eq(&published.packs, packs)
+        {
+            return self
+                .diagnostic_publisher
+                .with_pack_notices_and_sources_during(
+                    PackNoticeContext {
+                        uri: self.uri,
+                        source: self.source,
+                        pack_seq: self.pack_seq,
+                        packs,
+                        registry,
+                        store: self.store.as_ref(),
+                    },
+                    diagnostics,
+                    Some(required),
+                    publish,
+                );
+        }
+        required.inputs(self.store.as_ref()).ok()?.publish_base(
+            self.store.as_ref(),
+            &mut Some(publish),
+            &mut Some(diagnostics),
+        )
+    }
+
     /// Commit `diags` iff this run is still current for `uri`.
     ///
     /// The currency check, pull-cache update and mailbox deposit happen while
@@ -4878,6 +4940,20 @@ impl DeliveryCtx<'_> {
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> IssuedDiagnosticPublication {
+        self.cache_and_enqueue_with_sources(diags, None, None)
+            .await
+            .expect("no required source inputs cannot refuse base publication")
+    }
+
+    async fn cache_and_enqueue_with_sources(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        workspace_sources: Option<&Arc<WorkspaceDiagnosticSources>>,
+        source_context: Option<(
+            &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+            &HashMap<Uri, DocumentState>,
+        )>,
+    ) -> Option<IssuedDiagnosticPublication> {
         let published = match self.spec_packs {
             Some(spec_packs) => Some(spec_packs.lock().await),
             None => None,
@@ -4890,13 +4966,24 @@ impl DeliveryCtx<'_> {
         self.documents
             .retag_held("cache_and_enqueue: pull_diag_cache");
         let mut pull_cache = self.pull_diag_cache.lock().await;
-        let receipt = self.publish_with_pack_notices(published.as_deref(), diags, |diags| {
+        let _source_index = if let Some(sources) = workspace_sources {
+            let (index, documents) = source_context?;
+            let index = index.try_read().ok()?;
+            if !sources.matches(documents, &index) {
+                return None;
+            }
+            Some(index)
+        } else {
+            None
+        };
+        let commit = |diags: Vec<tower_lsp_server::ls_types::Diagnostic>| {
             pull_cache.insert(
                 self.uri.clone(),
                 PullDiagEntry {
-                    currency: self
-                        .diagnostic_pass
-                        .map(|pass| DiagnosticCacheReceipt::from_publisher(pass)),
+                    currency: self.diagnostic_pass.map(|pass| {
+                        DiagnosticCacheReceipt::from_publisher(pass)
+                            .with_workspace_sources(workspace_sources.cloned())
+                    }),
                     result_id: result_id.clone(),
                     revision: self.revision_for_cache(),
                     diagnostics: diags.clone(),
@@ -4909,10 +4996,16 @@ impl DeliveryCtx<'_> {
                 self.client_supports_pull,
                 true,
             )
-        });
+        };
+        let receipt = match workspace_sources {
+            Some(sources) => {
+                self.publish_with_required_sources(published.as_deref(), diags, sources, commit)?
+            }
+            None => self.publish_with_pack_notices(published.as_deref(), diags, commit),
+        };
         drop(pull_cache);
         drop(published);
-        IssuedDiagnosticPublication { result_id, receipt }
+        Some(IssuedDiagnosticPublication { result_id, receipt })
     }
 }
 
@@ -6966,6 +7059,7 @@ async fn run_deep_diagnostics(
 ) -> bool {
     let produced = match compute_deep_diagnostic_report(
         delivery.uri,
+        delivery.documents,
         salsa_ctx,
         lift_inputs,
         inputs,
@@ -6980,17 +7074,20 @@ async fn run_deep_diagnostics(
             return settled;
         }
     };
-    publish_diagnostics_result(
+    publish_diagnostics_result_with_sources(
         delivery,
         inputs.workspace_index,
         inputs.rehomed_source_seeds,
         inputs.rehoming_gate,
         &produced.analysis,
-        (
-            produced.provider_completion,
-            produced.result,
-            Some(produced.command_queries),
-        ),
+        DiagnosticPublicationSources {
+            result: (
+                produced.provider_completion,
+                produced.result,
+                Some(produced.command_queries),
+            ),
+            workspace_sources: Some(produced.workspace_sources),
+        },
         timing,
     )
     .await
@@ -6999,6 +7096,7 @@ async fn run_deep_diagnostics(
 /// One actual configured provider pass, before either push publication or a
 /// direct cache response. Availability remains separate from display fallback.
 struct ProducedDiagnosticReport {
+    workspace_sources: Arc<WorkspaceDiagnosticSources>,
     analysis: Arc<AnalysisResult>,
     command_queries: WorkspaceCommandQueries,
     provider_completion: Result<(), DiagnosticUnavailable>,
@@ -7008,6 +7106,7 @@ struct ProducedDiagnosticReport {
 
 async fn compute_deep_diagnostic_report(
     uri: &Uri,
+    documents: &Arc<DocumentStore>,
     salsa_ctx: &SalsaAnalysisCtx<'_>,
     lift_inputs: &LiftInputs<'_>,
     inputs: &AnalyserPathInputs<'_>,
@@ -7104,8 +7203,40 @@ async fn compute_deep_diagnostic_report(
                 .command_invocations
                 .iter()
                 .any(|invocation| invocation.is_mathfunc_call));
-    let (inheritance, settled_calls) = if needs_inheritance || needs_settling {
-        let index = inputs.workspace_index.read().await;
+    let (inheritance, settled_calls, workspace_sources) = if needs_inheritance || needs_settling {
+        let (docs, index) = loop {
+            let docs = documents.lock("workspace_diagnostic_source_query").await;
+            if let Ok(index) = inputs.workspace_index.try_read() {
+                break (docs, index);
+            }
+            drop(docs);
+            drop(inputs.workspace_index.read().await);
+        };
+        let settled_calls = if needs_settling {
+            settle_cross_file_calls(&index, &analysis, &inputs.registry, uri.as_str())
+        } else {
+            CrossFileCalls::default()
+        };
+        let published = inputs
+            .provider_capture
+            .source_path_admissions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let workspace_sources = match WorkspaceDiagnosticSources::capture(
+            &settled_calls.source_candidates,
+            &index,
+            &docs,
+            &published,
+            inputs.provider_capture.store.as_ref(),
+        ) {
+            Ok(sources) => sources,
+            Err(reason) => {
+                return ControlFlow::Break((
+                    !matches!(reason, DiagnosticUnavailable::Pending),
+                    reason,
+                ));
+            }
+        };
         (
             if needs_inheritance {
                 compute_source_inheritance(
@@ -7119,15 +7250,24 @@ async fn compute_deep_diagnostic_report(
             } else {
                 SourceInheritance::default()
             },
-            if needs_settling {
-                settle_cross_file_calls(&index, &analysis, &inputs.registry, uri.as_str())
-            } else {
-                CrossFileCalls::default()
-            },
+            settled_calls,
+            workspace_sources,
         )
     } else {
-        (SourceInheritance::default(), CrossFileCalls::default())
+        (
+            SourceInheritance::default(),
+            CrossFileCalls::default(),
+            WorkspaceDiagnosticSources::default(),
+        )
     };
+    let mut workspace_sources = workspace_sources;
+    if let Err(reason) = workspace_sources
+        .read_saved(inputs.provider_capture.store)
+        .await
+    {
+        return ControlFlow::Break((true, reason));
+    }
+    let workspace_sources = Arc::new(workspace_sources);
     let command_queries = project_command_queries.join(settled_calls.command_queries);
     let provider_sources = inputs
         .provider_capture
@@ -7150,6 +7290,7 @@ async fn compute_deep_diagnostic_report(
     .await;
 
     ControlFlow::Continue(ProducedDiagnosticReport {
+        workspace_sources,
         analysis,
         command_queries,
         provider_completion,
@@ -8413,6 +8554,16 @@ async fn add_entry_point_diagnostic_consumers(
 /// outside all global guards, and log timing. Always
 /// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
+struct DiagnosticPublicationSources {
+    result: (
+        Result<(), DiagnosticUnavailable>,
+        Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+        Option<WorkspaceCommandQueries>,
+    ),
+    workspace_sources: Option<Arc<WorkspaceDiagnosticSources>>,
+}
+
+#[cfg(test)]
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
@@ -8426,6 +8577,34 @@ async fn publish_diagnostics_result(
     ),
     timing: PublishTiming<'_>,
 ) -> bool {
+    publish_diagnostics_result_with_sources(
+        delivery,
+        workspace_index,
+        rehomed_source_seeds,
+        rehoming_gate,
+        analysis,
+        DiagnosticPublicationSources {
+            result,
+            workspace_sources: None,
+        },
+        timing,
+    )
+    .await
+}
+
+async fn publish_diagnostics_result_with_sources(
+    delivery: &DeliveryCtx<'_>,
+    workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+    rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
+    rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
+    analysis: &Arc<AnalysisResult>,
+    produced: DiagnosticPublicationSources,
+    timing: PublishTiming<'_>,
+) -> bool {
+    let DiagnosticPublicationSources {
+        result,
+        workspace_sources,
+    } = produced;
     let (provider_completion, result, command_queries) = result;
     let diags = match result {
         Ok(diags) => diags,
@@ -8451,6 +8630,20 @@ async fn publish_diagnostics_result(
                 })
                 .map(Arc::new)
         })
+    } else {
+        None
+    };
+    let _source_inputs = if workspace_sources
+        .as_ref()
+        .is_some_and(|sources| !sources.is_empty())
+    {
+        let Some(pass) = delivery.diagnostic_pass else {
+            return true;
+        };
+        let Some(guards) = pass.workspace_source_input_guards().await else {
+            return true;
+        };
+        Some(guards)
     } else {
         None
     };
@@ -8497,6 +8690,18 @@ async fn publish_diagnostics_result(
             drop(docs);
             drop(workspace_index.write().await);
         };
+        if workspace_sources
+            .as_ref()
+            .is_some_and(|sources| !sources.matches(&docs, &index))
+        {
+            drop(index);
+            drop(docs);
+            drop(rehoming_guard);
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                .await;
+            return true;
+        }
         if let Some(document) = docs.get_mut(delivery.uri) {
             // Missing/unavailable producers withdraw any older bounded roster.
             document.orphan_command_dependencies = command_dependencies.clone();
@@ -8579,12 +8784,26 @@ async fn publish_diagnostics_result(
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
         docs.retag("publish_diagnostics_result: cache_and_enqueue");
-        let publication = delivery.cache_and_enqueue(diags).await;
+        let Some(publication) = delivery
+            .cache_and_enqueue_with_sources(
+                diags,
+                workspace_sources.as_ref(),
+                Some((workspace_index, &docs)),
+            )
+            .await
+        else {
+            drop(docs);
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                .await;
+            return true;
+        };
         (peers, publication)
     };
     // Client backpressure is isolated in the persistent publisher. Waiting for
     // the authoritative delivery preserves the timing-marker contract, but the
     // global documents map and rehoming gate have both been released first.
+    drop(_source_inputs);
     match publication.receipt.await {
         Ok(DiagnosticPublishOutcome::Delivered) => {}
         Ok(DiagnosticPublishOutcome::Superseded) => {
@@ -9904,36 +10123,68 @@ impl Drop for EditTurn<'_> {
 /// flight" both wait.
 #[derive(Debug, Default)]
 struct WorkspaceScanReadiness {
-    complete: std::sync::atomic::AtomicBool,
-    completed: tokio::sync::Notify,
+    started: OneShotSignal,
+    complete: OneShotSignal,
 }
 
 impl WorkspaceScanReadiness {
+    /// Record that a scan pass has begun and wake every waiter.
+    fn mark_started(&self) {
+        self.started.raise();
+    }
+
     /// Record that a scan pass has finished and wake every waiter.
     fn mark_complete(&self) {
-        self.complete
-            .store(true, std::sync::atomic::Ordering::Release);
-        self.completed.notify_waiters();
+        self.complete.raise();
     }
 
     fn is_complete(&self) -> bool {
-        self.complete.load(std::sync::atomic::Ordering::Acquire)
+        self.complete.is_raised()
+    }
+
+    /// Wait until the first scan pass has begun: what `initialized` does
+    /// before it scans is bounded on its own, so this always ends.
+    async fn wait_started(&self) {
+        self.started.wait().await;
     }
 
     /// Wait until the first scan pass has completed.  Callers bound this with
     /// their own timeout — a workspace scan is disk-bound and a request must
     /// degrade to a stale answer rather than hang.
     async fn wait(&self) {
+        self.complete.wait().await;
+    }
+}
+
+/// A flag raised once, which tasks can wait for.
+#[derive(Debug, Default)]
+struct OneShotSignal {
+    raised: std::sync::atomic::AtomicBool,
+    notify: tokio::sync::Notify,
+}
+
+impl OneShotSignal {
+    fn raise(&self) {
+        self.raised
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.notify.notify_waiters();
+    }
+
+    fn is_raised(&self) -> bool {
+        self.raised.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    async fn wait(&self) {
         loop {
-            let completed = self.completed.notified();
-            tokio::pin!(completed);
-            // Register before re-reading, so a completion landing between the
+            let raised = self.notify.notified();
+            tokio::pin!(raised);
+            // Register before re-reading, so a raise landing between the
             // check and the await cannot be missed.
-            completed.as_mut().enable();
-            if self.is_complete() {
+            raised.as_mut().enable();
+            if self.is_raised() {
                 return;
             }
-            completed.await;
+            raised.await;
         }
     }
 }
@@ -17005,47 +17256,6 @@ impl Backend {
         .map_err(Into::into)
     }
 
-    /// Merge the library file(s) the auto-load / package database says define
-    /// `word` into the shared workspace index: references,
-    /// rename, and definition then reach library definitions through the same
-    /// index queries that serve workspace files.
-    ///
-    /// Returns the qualified name the command auto-loads under once it is
-    /// indexed.  Idempotent — when any auto-qualified candidate already
-    /// resolves in the index (a previous merge, or a real workspace
-    /// definition), it answers from the index without touching the disk, so a
-    /// workspace definition always wins over a same-named library one and
-    /// repeated queries stay cheap.  The merged URIs are remembered so a
-    /// package-database rebuild can drop them (see
-    /// [`Self::scan_workspace_folders`]).
-    ///
-    /// Waits out an in-flight [`Self::scan_workspace_folders`] first (see
-    /// `workspace_scan_gate`'s field doc) — otherwise a request landing
-    /// shortly after startup, a workspace-folder change, or a config change
-    /// could read `package_resolver` before that scan has (re)built it and
-    /// wrongly conclude the command isn't auto-loadable at all.
-    ///
-    /// Both library tiers in priority order: the `tclIndex` auto-load index
-    /// ([`Self::ensure_autoload_indexed`]) first, since it names the command
-    /// directly, then the document's own `package require`s
-    /// ([`Self::ensure_required_packages_indexed`]).  The one entry point the
-    /// definition / hover / workspace-symbol fallbacks share, so they cannot
-    /// resolve different sets of library commands.
-    async fn ensure_library_indexed(
-        &self,
-        uri: &Uri,
-        analysis: &AnalysisResult,
-        word: &str,
-        namespace: &str,
-    ) -> DocumentSourceResult<Option<String>> {
-        if let Some(hit) = self.ensure_autoload_indexed(word, namespace).await? {
-            return Ok(Some(hit));
-        }
-        Ok(self
-            .ensure_required_packages_indexed(uri, analysis, word, namespace)
-            .await?)
-    }
-
     /// Index library providers only after the checked Logical source owner has
     /// supplied ordered external header coordinates. The resolver receives
     /// those typed slots directly; rendered names are returned only after a
@@ -17174,6 +17384,7 @@ impl Backend {
         )))
     }
 
+    #[cfg(test)]
     async fn ensure_autoload_indexed(
         &self,
         word: &str,
@@ -17184,35 +17395,6 @@ impl Backend {
             let resolver = self.package_resolver.read().await;
             resolver.resolve_auto_command(word, namespace)
         };
-        Ok(self.merge_library_files(word, namespace, files).await?)
-    }
-
-    /// Package tier: the library files the document's own `package require`s
-    /// bring in, merged into the workspace index so a command one of them
-    /// defines resolves like any other workspace definition.
-    ///
-    /// The `tclIndex` tier ([`Self::ensure_autoload_indexed`]) answers only for
-    /// commands an `auto_index` names.  A repo-local package declared by a
-    /// `pkgIndex.tcl` has no `tclIndex` at all — its commands become reachable
-    /// by `package require` evaluating the `ifneeded` script — so nothing
-    /// would reach them unless the file happened to sit under a configured
-    /// workspace root and get swept up by the blunt recursive scan.  With
-    /// `auto_path` fed from the document's own mutations (see
-    /// [`extend_resolver_with_document_auto_paths`]) the resolver knows the
-    /// package even when the root does not enclose it.
-    ///
-    /// Bounded by **this document's** `package require` list, not the
-    /// workspace's: a handful of packages, each contributing the files its own
-    /// `ifneeded` script sources.  Only fires on a genuine miss, and the merged
-    /// analyses are memoised, so a repeat query costs an index lookup.
-    async fn ensure_required_packages_indexed(
-        &self,
-        uri: &Uri,
-        analysis: &AnalysisResult,
-        word: &str,
-        namespace: &str,
-    ) -> DocumentSourceResult<Option<String>> {
-        let files = self.required_library_files(uri, analysis).await;
         Ok(self.merge_library_files(word, namespace, files).await?)
     }
 
@@ -17289,10 +17471,9 @@ impl Backend {
 
     /// Merge `files` (library / package implementation files) into the shared
     /// workspace index and report which auto-qualified candidate of
-    /// `word` in `namespace` they define, if any.  The shared tail of
-    /// [`Self::ensure_autoload_indexed`] and
-    /// [`Self::ensure_required_packages_indexed`] — the two differ only in
-    /// where the file list comes from.
+    /// `word` in `namespace` they define, if any. Used by the autoload
+    /// parser fixtures through [`Self::ensure_autoload_indexed`].
+    #[cfg(test)]
     async fn merge_library_files(
         &self,
         word: &str,
@@ -18846,7 +19027,7 @@ impl Backend {
 
     /// Resolve against the current index, then populate the autoload/package
     /// tier on a genuine miss. This function deliberately takes no source-site
-    /// transaction guard: [`Self::ensure_library_indexed`] may wait for
+    /// transaction guard: [`Self::ensure_source_queried_library_indexed`] may wait for
     /// `workspace_scan_gate`, and a workspace scan takes `rehoming_gate` while
     /// merging its results. Nesting those gates in the opposite order would
     /// deadlock a navigation request against an in-flight scan.
@@ -27892,6 +28073,9 @@ impl Backend {
         {
             return;
         }
+        // The budget is the scan's own: what runs before it is a machine's
+        // load away from fitting in it, and would leave the query no time.
+        let _ = crate::rt::timeout(PRE_SCAN_WAIT, self.workspace_scan_ready.wait_started()).await;
         let _ = crate::rt::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
             self.workspace_scan_ready.wait().await;
             drop(self.workspace_scan_gate.lock().await);
@@ -28219,6 +28403,7 @@ impl Backend {
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate`.
         let _scan_guard = self.workspace_scan_gate.lock().await;
+        self.workspace_scan_ready.mark_started();
         self.workspace_index
             .write()
             .await
@@ -36423,6 +36608,7 @@ type ProcArityUnion = Vec<ProcArityRange>;
 
 #[derive(Debug, Default)]
 struct CrossFileCalls {
+    source_candidates: Vec<core_workspace_index::LogicalWorkspaceCommandCandidate>,
     /// Actual workspace source-header queries, never runtime script coverage.
     command_queries: WorkspaceCommandQueries,
     resolved: HashSet<(u32, u32)>,
@@ -36463,12 +36649,13 @@ fn settle_cross_file_calls(
             else {
                 continue;
             };
-            let Some(candidates) = index.logical_math_source_candidates(&occurrence, analysis, uri)
+            let Some(candidates) = index.logical_math_source_cards(&occurrence, analysis, uri)
             else {
                 continue;
             };
             if !candidates.is_empty() {
                 out.resolved.insert(key);
+                out.source_candidates.extend(candidates);
             }
             continue;
         }
@@ -36496,6 +36683,7 @@ fn settle_cross_file_calls(
             continue;
         }
         out.resolved.insert(key);
+        out.source_candidates.extend(candidates.iter().cloned());
         if candidates
             .iter()
             .all(|candidate| candidate.procedure_declaration().is_some())
@@ -40155,13 +40343,10 @@ info exists ::N::v\uD800";
         let settlement = settle_cross_file_calls(&index, &analysis, registry, uri.as_str());
         // This actual default producer configuration has no Project callback
         // pass. It still runs the same source-authenticated settlement producer.
-        let queries = if needs_workspace_command_names(&analysis.diagnostics, &analysis, false) {
-            let _names = index.command_names();
-            WorkspaceCommandQueries::Broad
-        } else {
-            WorkspaceCommandQueries::NoRead
-        }
-        .join(settlement.command_queries);
+        // No Project provider ran in this actual default fixture. Its only
+        // command-header dependency is the genuine settlement producer's
+        // retained query receipt, just as in the production no-Project path.
+        let queries = WorkspaceCommandQueries::NoRead.join(settlement.command_queries);
         assert!(
             tcl_compiler::source_graph::current_analysis(
                 &tcl_lexer::normalise_lone_cr(&document.text),

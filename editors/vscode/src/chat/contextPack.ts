@@ -21,6 +21,9 @@ import * as vscode from "vscode";
 import { isTclLanguage } from "../extension";
 import {
   resolveIruleCode,
+  resolveIruleSource,
+  ensureDocumentOpen,
+  type DocumentSourceSnapshot,
   snapshotDocumentSource,
   isDocumentSourceSnapshotCurrent,
 } from "./codeUtils";
@@ -32,6 +35,7 @@ import {
   validateCurrentDiagnosticsPublication,
   waitForDiagnosticsReport,
   type CurrentDiagnosticsReport,
+  type SessionDialectOverrideLease,
 } from "./diagnosticAccess";
 import { buildPrompt } from "./promptLoader";
 import { CommandContext } from "./types";
@@ -73,6 +77,188 @@ export interface PromptContextOptions {
   maxDiagnostics?: number;
   maxSymbols?: number;
   maxEvents?: number;
+}
+
+/** Retained source/report composition for a user-invoked analysis operation.
+ * Reporting and canonical proposal topics issue no source-write authority.
+ */
+export class DiagnosticSourceOperation {
+  private report: CurrentDiagnosticsReport | undefined;
+
+  private constructor(
+    private snapshot: DocumentSourceSnapshot,
+    private readonly configuration: string,
+    private readonly origin: DocumentSourceSnapshot | undefined,
+    private readonly originConfiguration: string | undefined,
+    private readonly token: vscode.CancellationToken,
+  ) {
+    this.snapshot = Object.freeze({ ...snapshot });
+  }
+
+  get sourceSnapshot(): DocumentSourceSnapshot {
+    return this.snapshot;
+  }
+
+  /** Preserve the handlers' active-full-document preference and attached extent.
+   * A selected/inline source is analysed as an explicit detached document while
+   * its authentic original selection remains a current dependency.
+   */
+  static async resolve(ctx: CommandContext): Promise<DiagnosticSourceOperation | undefined> {
+    const initialContext = captureAnalysisContext();
+    if (!isAnalysisContextCurrent(initialContext)) {
+      throw new Error("No current analysis session is available for this operation");
+    }
+    const editor = vscode.window.activeTextEditor;
+    const resolved =
+      editor && isTclLanguage(editor.document.languageId)
+        ? { source: editor.document.getText(), snapshot: snapshotDocumentSource(editor.document) }
+        : await resolveIruleSource(ctx);
+    if (!isAnalysisContextCurrent(initialContext)) {
+      throw new Error("Analysis session changed while source was resolved");
+    }
+    if (!resolved?.source) return undefined;
+    const origin = resolved.snapshot;
+    const originConfiguration = origin ? resourceConfiguration(origin.document) : undefined;
+    if (origin && (!isDocumentSourceSnapshotCurrent(origin) || originConfiguration === undefined)) {
+      throw new Error("The original source or resource configuration is unavailable");
+    }
+    const document =
+      origin &&
+      isTclLanguage(origin.document.languageId) &&
+      origin.source === origin.fullSource &&
+      !origin.selection
+        ? origin.document
+        : await ensureDocumentOpen(resolved.source);
+    if (
+      !isAnalysisContextCurrent(initialContext) ||
+      (origin &&
+        (!isDocumentSourceSnapshotCurrent(origin) ||
+          resourceConfiguration(origin.document) !== originConfiguration))
+    ) {
+      throw new Error("The original source changed while its analysis document was opened");
+    }
+    const snapshot =
+      origin && origin.document === document ? origin : snapshotDocumentSource(document);
+    const configuration = resourceConfiguration(document);
+    if (configuration === undefined || snapshot.fullSource !== resolved.source) {
+      throw new Error("The analysis document does not retain the requested full source/input");
+    }
+    const operation = new DiagnosticSourceOperation(
+      snapshot,
+      configuration,
+      origin,
+      originConfiguration,
+      ctx.token,
+    );
+    if (!operation.isCurrent()) throw new Error("The analysis source is no longer current");
+    return operation;
+  }
+
+  /** Only an actual acknowledged lease may advance this operation's override.
+   * Original source/resource/session identity must survive its own async await.
+   */
+  adoptOverride(lease: SessionDialectOverrideLease): void {
+    const before = this.sourceSnapshot.analysisContext;
+    if (
+      this.report ||
+      !before ||
+      !this.sourceUnchanged() ||
+      !isAnalysisContextCurrent(lease.analysisContext) ||
+      before.transport.sessionIdentity !== lease.analysisContext.transport.sessionIdentity
+    ) {
+      throw new Error("The source operation cannot adopt this analysis override");
+    }
+    this.snapshot = Object.freeze({
+      ...this.sourceSnapshot,
+      analysisContext: lease.analysisContext,
+      requestedAnalysisDialect: lease.dialect,
+    });
+  }
+
+  /** Pure original-source/settings check, also used across an owned restore. */
+  sourceUnchanged(): boolean {
+    return (
+      isDocumentSourceSnapshotCurrent(this.sourceSnapshot) &&
+      resourceConfiguration(this.sourceSnapshot.document) === this.configuration &&
+      (!this.origin ||
+        (isDocumentSourceSnapshotCurrent(this.origin) &&
+          resourceConfiguration(this.origin.document) === this.originConfiguration))
+    );
+  }
+
+  isCurrent(): boolean {
+    const snapshot = this.sourceSnapshot;
+    return (
+      !this.token.isCancellationRequested &&
+      this.sourceUnchanged() &&
+      isAnalysisContextCurrent(snapshot.analysisContext) &&
+      (!this.report ||
+        currentDiagnosticsReportMatches(this.report, {
+          document: snapshot.document,
+          uri: snapshot.uri,
+          version: snapshot.version,
+          source: snapshot.fullSource,
+        }))
+    );
+  }
+
+  async readReport(timeout = 5000): Promise<CurrentDiagnosticsReport> {
+    if (this.report || !this.isCurrent()) throw new Error("The analysis operation is not current");
+    const snapshot = this.sourceSnapshot;
+    const report = await waitForDiagnosticsReport(snapshot.uri, {
+      timeout,
+      expectedSource: snapshot.fullSource,
+    });
+    if (
+      !this.isCurrent() ||
+      report.analysisContext.overrideGeneration !== snapshot.analysisContext?.overrideGeneration ||
+      report.sessionIdentity !== snapshot.analysisContext?.transport.sessionIdentity ||
+      !currentDiagnosticsReportMatches(report, {
+        document: snapshot.document,
+        uri: snapshot.uri,
+        version: snapshot.version,
+        source: snapshot.fullSource,
+      })
+    ) {
+      throw new Error("The completed report does not belong to this original source operation");
+    }
+    this.report = report;
+    return report;
+  }
+
+  async assertPublished(): Promise<void> {
+    const snapshot = this.sourceSnapshot;
+    if (
+      !this.isCurrent() ||
+      !this.report ||
+      !(await validateCurrentDiagnosticsPublication(this.report, {
+        document: snapshot.document,
+        uri: snapshot.uri,
+        version: snapshot.version,
+        source: snapshot.fullSource,
+      })) ||
+      !this.isCurrent()
+    ) {
+      throw new Error("The source operation's completed publication is no longer current");
+    }
+  }
+
+  promptOptions(): PromptContextOptions {
+    if (!this.report || !this.isCurrent()) throw new Error("No current completed source report");
+    return {
+      code: this.sourceSnapshot.fullSource,
+      document: this.sourceSnapshot.document,
+      completedDiagnosticsReport: this.report,
+      isSourceCurrent: () => this.isCurrent(),
+      allowAmbientContext: false,
+      ...(this.origin && this.origin.document !== this.sourceSnapshot.document
+        ? {
+            sourceContextLabel:
+              "Original attached extent analysed as an explicit detached source document",
+          }
+        : {}),
+    };
+  }
 }
 
 function diagnosticCode(diagnostic: vscode.Diagnostic): string {

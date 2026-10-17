@@ -115,3 +115,12 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The exact linked Rust selectors state source-input and consumer assertions. Independent execution receipts belong in the validation ledger. No native C, Jim or appliance run answers this implementation question.
+
+
+## Consulted sibling source publication
+
+The existing Logical workspace diagnostic refinement retains the actual selected indexed declaration owner, complete input and immutable source image. A coherent document/index query captures open target revision and URI admission before asynchronous work; Pending target publications are unavailable rather than renewed by equal text. Saved siblings retain their authentic published path admission and the exact raw bytes whose shared decode agrees with the selected source image. No source census or runtime command loading follows.
+
+The real push cache/mailbox commit, direct cached-report reborrow and proposed-source final projection retain these consulted inputs. Actual open revisions, full inputs, declaration allocation membership and selected saved bytes are rejoined at the synchronous publication boundary. MemoryStore borrows URI mappings and saved images together; Native/WASI immediately reobserve selected paths/images and do not exclude external filesystem writers. Optional stale pack notices can be omitted, but stale required sibling sources cannot yield a completed report. The same actual input/factory producers guard the publication; no synthetic identity, counter or Native/equivalence/edit grant is added.
+
+Fixed source controls `unsaved_document_mapping_and_saved_sibling_share_one_actual_provider_borrow` and `actual_selected_source_revision_and_header_allocation_are_not_renewed` cover the mixed provider callback and retained revision/allocation boundaries. They are unexecuted source bindings until Root records actual validation. Conditional source declaration advice remains separate from runtime dispatch and any complete workspace declaration inventory.

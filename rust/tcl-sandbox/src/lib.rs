@@ -106,12 +106,14 @@ pub fn is_sensitive_env(name: &str) -> bool {
 
 fn sensitive_env_units(name: &[u8]) -> bool {
     SENSITIVE_FRAGMENTS.iter().any(|fragment| {
-        name.windows(fragment.len()).any(|units| units.eq_ignore_ascii_case(fragment.as_bytes()))
+        name.windows(fragment.len())
+            .any(|units| units.eq_ignore_ascii_case(fragment.as_bytes()))
     })
 }
 
 fn env_name_matches(name: &OsStr, configured: &str) -> bool {
-    name.as_encoded_bytes().eq_ignore_ascii_case(configured.as_bytes())
+    name.as_encoded_bytes()
+        .eq_ignore_ascii_case(configured.as_bytes())
 }
 
 /// The confinement actually achieved for a given execution.
@@ -478,7 +480,11 @@ fn full_env_with(
 ) -> Vec<(OsString, OsString)> {
     let mut out = Vec::new();
     for (key, value) in variables {
-        if policy.deny_env.iter().any(|denied| env_name_matches(&key, denied)) {
+        if policy
+            .deny_env
+            .iter()
+            .any(|denied| env_name_matches(&key, denied))
+        {
             continue;
         }
         if profile.scrub_env && sensitive_env_units(key.as_encoded_bytes()) {
@@ -743,32 +749,65 @@ mod tests {
         let second = OsString::from_vec(b"opaque-\xfe".to_vec());
         let value = OsString::from_vec(b"value-\xfd".to_vec());
         if std::env::var_os(CHILD).as_deref() == Some(OsStr::new("1")) {
-            let policy = SandboxPolicy { deny_env: vec!["blocked".into()], ..SandboxPolicy::default() };
-            let profile = Profile::new("inherited-os", tool("true"), "/").user_code()
+            let policy = SandboxPolicy {
+                deny_env: vec!["blocked".into()],
+                ..SandboxPolicy::default()
+            };
+            let profile = Profile::new("inherited-os", tool("true"), "/")
+                .user_code()
                 .set_env("ORDERED", "explicit");
             let inherited = effective_env(&profile, &policy);
             assert!(inherited.contains(&(first.clone(), value.clone())));
             assert!(inherited.contains(&(second, value.clone())));
             assert!(inherited.contains(&(OsString::from("TCL_SB_TEST_TOKEN"), value.clone())));
-            assert!(!inherited.iter().any(|(key, _)| env_name_matches(key, "blocked")));
-            assert_eq!(inherited.iter().filter(|(key, _)| env_name_matches(key, "ordered")).collect::<Vec<_>>(),
-                vec![&(OsString::from("ORDERED"), OsString::from("explicit"))]);
-            let allowlisted = effective_env_with(&Profile::new("allowed-os", tool("true"), "/").pass_env("DATA"), &policy,
-                |name| (name == "DATA").then(|| value.clone()));
+            assert!(
+                !inherited
+                    .iter()
+                    .any(|(key, _)| env_name_matches(key, "blocked"))
+            );
+            assert_eq!(
+                inherited
+                    .iter()
+                    .filter(|(key, _)| env_name_matches(key, "ordered"))
+                    .collect::<Vec<_>>(),
+                vec![&(OsString::from("ORDERED"), OsString::from("explicit"))]
+            );
+            let allowlisted = effective_env_with(
+                &Profile::new("allowed-os", tool("true"), "/").pass_env("DATA"),
+                &policy,
+                |name| (name == "DATA").then(|| value.clone()),
+            );
             assert!(allowlisted.contains(&(OsString::from("DATA"), value.clone())));
             let sensitive = OsString::from_vec(b"opaque-\xff_TOKEN".to_vec());
-            let scrubbed = full_env_with(&Profile::new("scrubbed-os", tool("true"), "/"), &policy,
-                [(first.clone(), value.clone()), (sensitive.clone(), value)]);
+            let scrubbed = full_env_with(
+                &Profile::new("scrubbed-os", tool("true"), "/"),
+                &policy,
+                [(first.clone(), value.clone()), (sensitive.clone(), value)],
+            );
             assert!(scrubbed.iter().any(|(key, _)| key == &first));
             assert!(!scrubbed.iter().any(|(key, _)| key == &sensitive));
             return;
         }
         let child = Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "tests::full_environment_retains_actual_os_entries_and_policy_order", "--nocapture"])
-            .env(CHILD, "1").env(first, &value).env(second, &value)
-            .env("TCL_SB_TEST_TOKEN", &value).env("BLOCKED", "deny").env("ordered", "inherited")
-            .output().unwrap();
-        assert!(child.status.success(), "{}\n{}", String::from_utf8_lossy(&child.stdout), String::from_utf8_lossy(&child.stderr));
+            .args([
+                "--exact",
+                "tests::full_environment_retains_actual_os_entries_and_policy_order",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env(first, &value)
+            .env(second, &value)
+            .env("TCL_SB_TEST_TOKEN", &value)
+            .env("BLOCKED", "deny")
+            .env("ordered", "inherited")
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
     }
 
     #[test]

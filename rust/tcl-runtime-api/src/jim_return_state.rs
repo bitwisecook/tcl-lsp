@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Jim private return state, independent of the latest command completion.
 
-use crate::{completion_options::OptionValue, Code};
+use crate::{Code, completion_options::OptionValue};
 
 /// Interpreter-local counters written by Jim's return command.
 /// Ordinary commands and catch/try settlement leave these counters unchanged.

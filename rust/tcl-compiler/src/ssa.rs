@@ -586,7 +586,12 @@ struct SourceCfgBlockSnapshot {
 #[derive(Debug, Clone)]
 pub(crate) struct SourceVariableSsaSnapshot {
     identity: crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
-    definitions: Vec<(BlockId, usize, Version, crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites)>,
+    definitions: Vec<(
+        BlockId,
+        usize,
+        Version,
+        crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites,
+    )>,
     graph: Vec<SourceVariableBlockSnapshot>,
     topology: HashMap<BlockId, SourceCfgBlockSnapshot>,
     entry: BlockId,
@@ -618,13 +623,24 @@ struct SourceVariableStatementSnapshot {
 
 impl SourceVariableSsaSnapshot {
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
-        self.identity == other.identity && self.graph == other.graph && self.topology == other.topology
-            && self.entry == other.entry && self.idom == other.idom
-            && self.dominance_frontier == other.dominance_frontier && self.dominator_tree == other.dominator_tree
+        self.identity == other.identity
+            && self.graph == other.graph
+            && self.topology == other.topology
+            && self.entry == other.entry
+            && self.idom == other.idom
+            && self.dominance_frontier == other.dominance_frontier
+            && self.dominator_tree == other.dominator_tree
             && self.definitions.len() == other.definitions.len()
-            && self.definitions.iter().zip(&other.definitions).all(|(left, right)| {
-                left.0 == right.0 && left.1 == right.1 && left.2 == right.2 && left.3.same_owner(&right.3)
-            })
+            && self
+                .definitions
+                .iter()
+                .zip(&other.definitions)
+                .all(|(left, right)| {
+                    left.0 == right.0
+                        && left.1 == right.1
+                        && left.2 == right.2
+                        && left.3.same_owner(&right.3)
+                })
     }
 }
 
@@ -663,7 +679,8 @@ pub struct SsaFunction {
     cell_names: Vec<String>,
     cell_keys: Vec<VariableCellKey>,
     cell_indices: Vec<Option<usize>>,
-    source_variables: FxHashMap<Symbol, crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol>,
+    source_variables:
+        FxHashMap<Symbol, crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol>,
     source_may_effects: HashMap<(BlockId, usize), SourceMaySsaCall>,
     source_topology: HashMap<BlockId, SourceCfgBlockSnapshot>,
     /// Reverse interner index: variable name → its [`Symbol`].
@@ -1676,7 +1693,8 @@ impl<'a> SsaSourceView<'a> {
         let key = self.ssa.cell_key(symbol)?;
         if self.ssa.has_opaque_native_accesses()
             || dynamic_trace
-            || key.authored_spelling()
+            || key
+                .authored_spelling()
                 .is_some_and(|name| names.contains(name))
         {
             return Some(true);
@@ -1720,7 +1738,9 @@ impl<'a> SsaSourceView<'a> {
         symbol: Symbol,
         registry: &CommandRegistry,
     ) -> bool {
-        let Some(key) = self.ssa.cell_key(symbol) else { return false; };
+        let Some(key) = self.ssa.cell_key(symbol) else {
+            return false;
+        };
         let Some((block, index)) = self.point else {
             return false;
         };
@@ -1805,9 +1825,8 @@ impl<'a> SsaSourceView<'a> {
         let points = self.ssa.point_contexts.as_ref()?;
         let store = points.conditional_logical_scalar_store_at(block, index, registry)?;
         let place = store.definition_place(registry)?;
-        (crate::var_resolve::canonical_binding_value_key(&place).as_ref()
-            == Some(key))
-        .then(|| store.value().to_owned())
+        (crate::var_resolve::canonical_binding_value_key(&place).as_ref() == Some(key))
+            .then(|| store.value().to_owned())
     }
 
     /// Resolve a source spelling using the selected proof context.
@@ -2493,8 +2512,7 @@ impl<'a> SsaSourceView<'a> {
                     && place.cell.as_ref().is_some_and(|cell| {
                         cell.generation != crate::place::CellGeneration::Unknown
                     })
-                    && crate::var_resolve::canonical_binding_value_key(&place).as_ref()
-                        == Some(key)
+                    && crate::var_resolve::canonical_binding_value_key(&place).as_ref() == Some(key)
             })
             .then_some(reference)
     }
@@ -2556,7 +2574,9 @@ impl<'a> SsaSourceView<'a> {
         else {
             return SsaReadRepresentationAdvice::default();
         };
-        let Some(key) = self.ssa.cell_key(symbol) else { return SsaReadRepresentationAdvice::default(); };
+        let Some(key) = self.ssa.cell_key(symbol) else {
+            return SsaReadRepresentationAdvice::default();
+        };
         captured_read_representations(
             reads
                 .native_reads
@@ -2972,20 +2992,37 @@ fn original_source_may_call(
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     registry: &CommandRegistry,
 ) -> Option<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites> {
-    original_source_may_call_from_inventory(&function.source_may_calls, statement, metadata, registry)
+    original_source_may_call_from_inventory(
+        &function.source_may_calls,
+        statement,
+        metadata,
+        registry,
+    )
 }
 
 fn original_source_may_call_from_inventory(
-    inventory: &HashMap<(usize, u32), Vec<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites>>,
+    inventory: &HashMap<
+        (usize, u32),
+        Vec<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites>,
+    >,
     statement: &Statement,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     registry: &CommandRegistry,
 ) -> Option<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites> {
-    let site = statement.tokens()?.source_binding.as_ref()?.invocation_site()?;
-    let candidates = inventory.get(&(std::sync::Arc::as_ptr(&site.source) as usize, site.offset))?;
-    let mut matching = candidates.iter().filter(|receipt| receipt.matches_statement(statement, metadata, registry));
+    let site = statement
+        .tokens()?
+        .source_binding
+        .as_ref()?
+        .invocation_site()?;
+    let candidates =
+        inventory.get(&(std::sync::Arc::as_ptr(&site.source) as usize, site.offset))?;
+    let mut matching = candidates
+        .iter()
+        .filter(|receipt| receipt.matches_statement(statement, metadata, registry));
     let first = matching.next()?;
-    matching.all(|next| first.same_owner(next)).then(|| first.clone())
+    matching
+        .all(|next| first.same_owner(next))
+        .then(|| first.clone())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3003,8 +3040,10 @@ struct VarInterner {
     names: Vec<String>,
     keys: Vec<VariableCellKey>,
     cell_indices: Vec<Option<usize>>,
-    source_variables: FxHashMap<Symbol, crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol>,
-    source_to_symbol: FxHashMap<crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol, Symbol>,
+    source_variables:
+        FxHashMap<Symbol, crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol>,
+    source_to_symbol:
+        FxHashMap<crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol, Symbol>,
     to_symbol: FxHashMap<VariableCellKey, Symbol>,
     source_symbols: FxHashMap<String, Symbol>,
 }
@@ -3029,9 +3068,17 @@ impl VarInterner {
         match identity {
             SsaVariableIdentity::Location(key) => self.intern(key),
             SsaVariableIdentity::Source(source) => {
-                if let Some(&symbol) = self.source_to_symbol.get(source) { return symbol; }
-                let symbol = Symbol(u32::try_from(self.names.len()).expect("SSA variable count fits in u32"));
-                self.names.push(source.checked_c_namespace_key().unwrap_or_else(|| "source variable".to_owned()));
+                if let Some(&symbol) = self.source_to_symbol.get(source) {
+                    return symbol;
+                }
+                let symbol = Symbol(
+                    u32::try_from(self.names.len()).expect("SSA variable count fits in u32"),
+                );
+                self.names.push(
+                    source
+                        .checked_c_namespace_key()
+                        .unwrap_or_else(|| "source variable".to_owned()),
+                );
                 self.cell_indices.push(None);
                 self.source_variables.insert(symbol, source.clone());
                 self.source_to_symbol.insert(source.clone(), symbol);
@@ -3041,9 +3088,13 @@ impl VarInterner {
     }
 
     fn cell_key(&self, symbol: Symbol) -> Option<&VariableCellKey> {
-        self.keys.get(self.cell_indices.get(symbol.0 as usize).copied().flatten()?)
+        self.keys.get(
+            self.cell_indices
+                .get(symbol.0 as usize)
+                .copied()
+                .flatten()?,
+        )
     }
-
 }
 
 fn register_unique_source_names(
@@ -3245,14 +3296,26 @@ impl SsaFunction {
     /// Display label of this symbol's location, without currentness or Native permission.
     #[must_use]
     pub fn cell_name(&self, symbol: Symbol) -> Option<&str> {
-        self.cell_names.get(self.cell_indices.get(symbol.0 as usize).copied().flatten()?).map(String::as_str)
+        self.cell_names
+            .get(
+                self.cell_indices
+                    .get(symbol.0 as usize)
+                    .copied()
+                    .flatten()?,
+            )
+            .map(String::as_str)
     }
 
     /// Location identity represented by this symbol, including conditional authored locations.
     /// Source-only variable geometry supplies no such projection.
     #[must_use]
     pub fn cell_key(&self, symbol: Symbol) -> Option<&VariableCellKey> {
-        self.cell_keys.get(self.cell_indices.get(symbol.0 as usize).copied().flatten()?)
+        self.cell_keys.get(
+            self.cell_indices
+                .get(symbol.0 as usize)
+                .copied()
+                .flatten()?,
+        )
     }
 
     /// Dense location inventory, independent of source-only symbols and display labels.
@@ -3265,64 +3328,122 @@ impl SsaFunction {
     /// Actual SSA symbols paired with their location identity.
     #[must_use]
     pub fn cell_symbols(&self) -> impl Iterator<Item = (Symbol, &VariableCellKey)> {
-        self.cell_indices.iter().enumerate().filter_map(|(symbol, index)| {
-            let symbol = Symbol(u32::try_from(symbol).ok()?);
-            Some((symbol, self.cell_keys.get((*index)?)?))
-        })
+        self.cell_indices
+            .iter()
+            .enumerate()
+            .filter_map(|(symbol, index)| {
+                let symbol = Symbol(u32::try_from(symbol).ok()?);
+                Some((symbol, self.cell_keys.get((*index)?)?))
+            })
     }
 
     /// Exact source identity, without a location, successful read or Normal completion.
     #[must_use]
-    pub fn source_variable_symbol(&self, symbol: Symbol) -> Option<&crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol> {
+    pub fn source_variable_symbol(
+        &self,
+        symbol: Symbol,
+    ) -> Option<&crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol> {
         self.source_variables.get(&symbol)
     }
 
     /// Original source-only variable identities paired with their own SSA symbols.
     #[must_use]
-    pub fn source_variable_symbols(&self) -> impl Iterator<Item = (Symbol, &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol)> {
-        self.source_variables.iter().map(|(&symbol, variable)| (symbol, variable))
+    pub fn source_variable_symbols(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Symbol,
+            &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+        ),
+    > {
+        self.source_variables
+            .iter()
+            .map(|(&symbol, variable)| (symbol, variable))
     }
 
     fn current_source_may_call(&self, block: BlockId, index: usize) -> Option<&SourceMaySsaCall> {
         let effect = self.source_may_effects.get(&(block, index))?;
         let statement = self.blocks.get(&block)?.statements.get(index)?;
         let original = effect.original.as_ref()?;
-        let input = self.point_contexts.as_ref()?.source_metadata_owner().source_analysis_input();
-        if statement.statement != effect.statement || !original.matches_source_statement(&statement.statement, input)
+        let input = self
+            .point_contexts
+            .as_ref()?
+            .source_metadata_owner()
+            .source_analysis_input();
+        if statement.statement != effect.statement
+            || !original.matches_source_statement(&statement.statement, input)
             || effect.definitions.len() != original.writes().len()
-            || effect.definitions.iter().zip(original.writes()).any(|(&(symbol, version), place)| {
-                statement.defs.get(&symbol) != Some(&version)
-                    || !statement.may_defs.contains(&symbol)
-                    || self.source_variable_symbol(symbol) != Some(place.symbol())
-            })
-        { return None; }
+            || effect.definitions.iter().zip(original.writes()).any(
+                |(&(symbol, version), place)| {
+                    statement.defs.get(&symbol) != Some(&version)
+                        || !statement.may_defs.contains(&symbol)
+                        || self.source_variable_symbol(symbol) != Some(place.symbol())
+                },
+            )
+        {
+            return None;
+        }
         Some(effect)
     }
 
     /// Hidden source MAY effects cannot issue a call outcome or a location relation.
     pub(crate) fn source_may_requires_unknown_at(&self, block: BlockId, index: usize) -> bool {
-        let logical = self.point_contexts.as_ref().and_then(|points| points.source_metadata_owner().source_analysis_input())
+        let logical = self
+            .point_contexts
+            .as_ref()
+            .and_then(|points| points.source_metadata_owner().source_analysis_input())
             .is_some_and(|input| input.has_logical_source_name_context());
         let applicable = self.blocks.get(&block).and_then(|body| body.statements.get(index)).is_some_and(|statement| {
             matches!(&statement.statement, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
         });
-        logical && applicable && self.current_source_may_call(block, index).is_none_or(|effect| {
-            effect.original.as_ref().is_none_or(|original| !original.writes().is_empty())
-        })
+        logical
+            && applicable
+            && self
+                .current_source_may_call(block, index)
+                .is_none_or(|effect| {
+                    effect
+                        .original
+                        .as_ref()
+                        .is_none_or(|original| !original.writes().is_empty())
+                })
     }
 
     fn seal_source_may_clobbers(&mut self) {
-        if self.source_may_effects.is_empty() { return; }
-        let locations = std::sync::Arc::new(self.cell_symbols().map(|(symbol, key)| (symbol, key.clone())).collect::<Vec<_>>());
+        if self.source_may_effects.is_empty() {
+            return;
+        }
+        let locations = std::sync::Arc::new(
+            self.cell_symbols()
+                .map(|(symbol, key)| (symbol, key.clone()))
+                .collect::<Vec<_>>(),
+        );
         for (&(block, index), effect) in &mut self.source_may_effects {
-            let Some(body) = self.blocks.get(&block) else { continue; };
-            let Some((marker_index, marker)) = body.statements.iter().enumerate().skip(index + 1)
+            let Some(body) = self.blocks.get(&block) else {
+                continue;
+            };
+            let Some((marker_index, marker)) = body
+                .statements
+                .iter()
+                .enumerate()
+                .skip(index + 1)
                 .take_while(|(_, statement)| statement.statement.synthetic_marker().is_some())
-                .find(|(_, statement)| is_unseen_call_marker(&statement.statement)) else { continue; };
-            let Some(versions) = self.value_clobbers.get(&block).and_then(|markers| markers.get(&marker_index))
-                .filter(|versions| !versions.is_empty()) else { continue; };
+                .find(|(_, statement)| is_unseen_call_marker(&statement.statement))
+            else {
+                continue;
+            };
+            let Some(versions) = self
+                .value_clobbers
+                .get(&block)
+                .and_then(|markers| markers.get(&marker_index))
+                .filter(|versions| !versions.is_empty())
+            else {
+                continue;
+            };
             effect.clobber = Some(SourceMayClobber {
-                marker_index, marker: marker.statement.clone(), versions: versions.clone(), locations: std::sync::Arc::clone(&locations),
+                marker_index,
+                marker: marker.statement.clone(),
+                versions: versions.clone(),
+                locations: std::sync::Arc::clone(&locations),
             });
         }
     }
@@ -3330,19 +3451,46 @@ impl SsaFunction {
     /// Reuse only the marker and location clobbers emitted by this SSA producer.
     /// Missing correspondence supplies no closed effect coverage.
     pub(crate) fn source_may_clobber_is_current_at(&self, block: BlockId, index: usize) -> bool {
-        let Some(effect) = self.source_may_effects.get(&(block, index)) else { return false; };
-        let Some(held) = effect.clobber.as_ref() else { return false; };
-        let Some(body) = self.blocks.get(&block) else { return false; };
-        body.statements.get(index).is_some_and(|statement| statement.statement == effect.statement)
-            && body.statements.get(held.marker_index).is_some_and(|statement| statement.statement == held.marker)
-            && body.statements.get(index + 1..held.marker_index).is_some_and(|statements| statements.iter().all(|statement| statement.statement.synthetic_marker().is_some()))
-            && self.value_clobbers.get(&block).and_then(|markers| markers.get(&held.marker_index)) == Some(&held.versions)
-            && self.cell_symbols().eq(held.locations.iter().map(|(symbol, key)| (*symbol, key)))
+        let Some(effect) = self.source_may_effects.get(&(block, index)) else {
+            return false;
+        };
+        let Some(held) = effect.clobber.as_ref() else {
+            return false;
+        };
+        let Some(body) = self.blocks.get(&block) else {
+            return false;
+        };
+        body.statements
+            .get(index)
+            .is_some_and(|statement| statement.statement == effect.statement)
+            && body
+                .statements
+                .get(held.marker_index)
+                .is_some_and(|statement| statement.statement == held.marker)
+            && body
+                .statements
+                .get(index + 1..held.marker_index)
+                .is_some_and(|statements| {
+                    statements
+                        .iter()
+                        .all(|statement| statement.statement.synthetic_marker().is_some())
+                })
+            && self
+                .value_clobbers
+                .get(&block)
+                .and_then(|markers| markers.get(&held.marker_index))
+                == Some(&held.versions)
+            && self
+                .cell_symbols()
+                .eq(held.locations.iter().map(|(symbol, key)| (*symbol, key)))
     }
 
     /// Correspondence to the graph held by this SSA owner. A current external
     /// FunctionUnit/CFG still requires its independent owner checks.
-    pub(crate) fn source_variable_snapshot(&self, symbol: Symbol) -> Option<SourceVariableSsaSnapshot> {
+    pub(crate) fn source_variable_snapshot(
+        &self,
+        symbol: Symbol,
+    ) -> Option<SourceVariableSsaSnapshot> {
         let identity = self.source_variable_symbol(symbol)?.clone();
         let mut definitions = Vec::new();
         for (&(block, index), effect) in &self.source_may_effects {
@@ -3353,28 +3501,60 @@ impl SsaFunction {
                 }
             }
         }
-        if definitions.is_empty() { return None; }
+        if definitions.is_empty() {
+            return None;
+        }
         definitions.sort_by_key(|(block, index, version, _)| (*block, *index, *version));
         let mut graph = Vec::new();
         for (&block, body) in &self.blocks {
-            let phis: Vec<_> = body.phis.iter().filter(|phi| phi.name == symbol).cloned().collect();
-            let statements: Vec<_> = body.statements.iter().enumerate().filter_map(|(index, statement)| {
-                let used = statement.uses.get(&symbol).copied();
-                let defined = statement.defs.get(&symbol).copied();
-                (used.is_some() || defined.is_some()).then(|| SourceVariableStatementSnapshot {
-                    index, statement: statement.statement.clone(), used, defined,
-                    may: statement.may_defs.contains(&symbol), quoted: statement.quoted_uses.contains(&symbol),
-                    name_only: statement.name_only_uses.contains(&symbol), destroyed: statement.destruction_defs.contains(&symbol),
+            let phis: Vec<_> = body
+                .phis
+                .iter()
+                .filter(|phi| phi.name == symbol)
+                .cloned()
+                .collect();
+            let statements: Vec<_> = body
+                .statements
+                .iter()
+                .enumerate()
+                .filter_map(|(index, statement)| {
+                    let used = statement.uses.get(&symbol).copied();
+                    let defined = statement.defs.get(&symbol).copied();
+                    (used.is_some() || defined.is_some()).then(|| SourceVariableStatementSnapshot {
+                        index,
+                        statement: statement.statement.clone(),
+                        used,
+                        defined,
+                        may: statement.may_defs.contains(&symbol),
+                        quoted: statement.quoted_uses.contains(&symbol),
+                        name_only: statement.name_only_uses.contains(&symbol),
+                        destroyed: statement.destruction_defs.contains(&symbol),
+                    })
                 })
-            }).collect();
+                .collect();
             let entry = body.entry_versions.get(&symbol).copied();
             let exit = body.exit_versions.get(&symbol).copied();
             if !phis.is_empty() || !statements.is_empty() || entry.is_some() || exit.is_some() {
-                graph.push(SourceVariableBlockSnapshot { block, phis, entry, exit, statements });
+                graph.push(SourceVariableBlockSnapshot {
+                    block,
+                    phis,
+                    entry,
+                    exit,
+                    statements,
+                });
             }
         }
         graph.sort_by_key(|block| block.block);
-        Some(SourceVariableSsaSnapshot { identity, definitions, graph, topology: self.source_topology.clone(), entry: self.entry, idom: self.idom.clone(), dominance_frontier: self.dominance_frontier.clone(), dominator_tree: self.dominator_tree.clone() })
+        Some(SourceVariableSsaSnapshot {
+            identity,
+            definitions,
+            graph,
+            topology: self.source_topology.clone(),
+            entry: self.entry,
+            idom: self.idom.clone(),
+            dominance_frontier: self.dominance_frontier.clone(),
+            dominator_tree: self.dominator_tree.clone(),
+        })
     }
 
     /// Dense location labels, in [`Self::cell_keys`] inventory order, never identity.
@@ -3468,7 +3648,12 @@ impl SsaFunction {
                 .iter()
                 .enumerate()
                 .filter(|(index, display)| {
-                    *display == name && self.cell_key(Symbol(u32::try_from(*index).expect("SSA variable count fits in u32"))).is_some_and(|key| key.authored_spelling().is_some())
+                    *display == name
+                        && self
+                            .cell_key(Symbol(
+                                u32::try_from(*index).expect("SSA variable count fits in u32"),
+                            ))
+                            .is_some_and(|key| key.authored_spelling().is_some())
                 });
             let (index, _) = matches.next()?;
             matches
@@ -3490,7 +3675,8 @@ impl SsaFunction {
     /// Every symbol in this function's actual interner, independent of identity domain.
     #[must_use]
     pub fn variable_symbols(&self) -> impl Iterator<Item = Symbol> {
-        (0..self.var_names.len()).map(|index| Symbol(u32::try_from(index).expect("SSA variable count fits in u32")))
+        (0..self.var_names.len())
+            .map(|index| Symbol(u32::try_from(index).expect("SSA variable count fits in u32")))
     }
 
     /// The interned variable names, indexed by [`Symbol`]`.0` (first-seen order).
@@ -4482,9 +4668,21 @@ pub(crate) fn compute_phi_vars(
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
         &build_point_resolve_contexts(func, &func.name, registry),
         &HashMap::new(),
-    ).into_iter().map(|(block, identities)| (block, identities.into_iter().filter_map(|identity| match identity {
-        SsaVariableIdentity::Location(key) => Some(key), SsaVariableIdentity::Source(_) => None,
-    }).collect())).collect()
+    )
+    .into_iter()
+    .map(|(block, identities)| {
+        (
+            block,
+            identities
+                .into_iter()
+                .filter_map(|identity| match identity {
+                    SsaVariableIdentity::Location(key) => Some(key),
+                    SsaVariableIdentity::Source(_) => None,
+                })
+                .collect(),
+        )
+    })
+    .collect()
 }
 
 /// [`compute_phi_vars`] under the exact lexical policy that produced `func`.
@@ -4502,7 +4700,10 @@ fn compute_phi_vars_with_config(
         nonlocal_names_and_defsites(func, &reachable, selection, elems, config, points);
     for (block, markers) in clobbers {
         for name in markers.values().flatten() {
-            all_defsites.entry(SsaVariableIdentity::Location(name.clone())).or_default().insert(*block);
+            all_defsites
+                .entry(SsaVariableIdentity::Location(name.clone()))
+                .or_default()
+                .insert(*block);
         }
     }
 
@@ -4749,7 +4950,9 @@ fn nonlocal_names_and_defsites(
                 defsites.entry(var.clone()).or_default().insert(*bn);
                 defined_here.insert(var);
             }
-            if let Some(receipt) = original_source_may_call(func, stmt, selection.metadata, registry) {
+            if let Some(receipt) =
+                original_source_may_call(func, stmt, selection.metadata, registry)
+            {
                 for place in receipt.writes() {
                     let identity = SsaVariableIdentity::Source(place.symbol().clone());
                     // Source effects may be observed without a successful
@@ -7320,11 +7523,12 @@ fn assemble_ssa_blocks(
 
         // Intern the entry / exit version maps (built identity-keyed during the
         // walk) onto the persisted [`Symbol`]-keyed block.
-        let intern_versions = |interner: &mut VarInterner, m: HashMap<SsaVariableIdentity, Version>| {
-            m.into_iter()
-                .map(|(name, ver)| (interner.intern_identity(&name), ver))
-                .collect::<HashMap<Symbol, Version>>()
-        };
+        let intern_versions =
+            |interner: &mut VarInterner, m: HashMap<SsaVariableIdentity, Version>| {
+                m.into_iter()
+                    .map(|(name, ver)| (interner.intern_identity(&name), ver))
+                    .collect::<HashMap<Symbol, Version>>()
+            };
         let entry_v = intern_versions(interner, out.entry_versions.remove(bn).unwrap_or_default());
         let exit_v = intern_versions(interner, out.exit_versions.remove(bn).unwrap_or_default());
 
@@ -7349,7 +7553,10 @@ struct RenameWalk<'a> {
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     version_counter: HashMap<SsaVariableIdentity, Version>,
     stacks: HashMap<SsaVariableIdentity, Vec<Version>>,
-    source_may_calls: HashMap<(usize, u32), Vec<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites>>,
+    source_may_calls: HashMap<
+        (usize, u32),
+        Vec<crate::cfg_builder::global_write_info::OriginalSourceCallMayWrites>,
+    >,
     scanner: VarReferenceScanner,
     interner: VarInterner,
     out: RenameOutputs,
@@ -7400,7 +7607,10 @@ impl<'a> RenameWalk<'a> {
 
     /// Top version in the same rename engine, independently of identity domain.
     fn top_identity(&self, var: &SsaVariableIdentity) -> Version {
-        self.stacks.get(var).and_then(|stack| stack.last().copied()).unwrap_or(0)
+        self.stacks
+            .get(var)
+            .and_then(|stack| stack.last().copied())
+            .unwrap_or(0)
     }
 
     fn top(&self, var: &VariableCellKey) -> Version {
@@ -7421,10 +7631,13 @@ impl<'a> RenameWalk<'a> {
     fn visible_versions(&self, block: BlockId) -> HashMap<SsaVariableIdentity, Version> {
         let mut visible: HashSet<_> = self.stacks.keys().cloned().collect();
         visible.extend(self.out.phi_versions[&block].keys().cloned());
-        visible.into_iter().filter_map(|identity| {
-            let version = self.top_identity(&identity);
-            (version > 0).then_some((identity, version))
-        }).collect()
+        visible
+            .into_iter()
+            .filter_map(|identity| {
+                let version = self.top_identity(&identity);
+                (version > 0).then_some((identity, version))
+            })
+            .collect()
     }
 
     fn preserve_unknown_read_liveness(
@@ -7442,7 +7655,14 @@ impl<'a> RenameWalk<'a> {
         {
             // An unresolved read may consume any reaching current-frame value.
             // Preserve liveness without claiming a definite uninitialised read.
-            let mut visible: Vec<_> = self.stacks.keys().filter_map(|identity| match identity { SsaVariableIdentity::Location(key) => Some(key.clone()), SsaVariableIdentity::Source(_) => None }).collect();
+            let mut visible: Vec<_> = self
+                .stacks
+                .keys()
+                .filter_map(|identity| match identity {
+                    SsaVariableIdentity::Location(key) => Some(key.clone()),
+                    SsaVariableIdentity::Source(_) => None,
+                })
+                .collect();
             visible.sort_by_cached_key(|key| format!("{key:?}"));
             for name in visible {
                 if !classified.iter().any(|(bound, _)| bound == &name) {
@@ -7859,7 +8079,9 @@ impl<'a> RenameWalk<'a> {
                 );
             }
             let ver = self.push_new(&var);
-            frame.pushed_vars.push(SsaVariableIdentity::Location(var.clone()));
+            frame
+                .pushed_vars
+                .push(SsaVariableIdentity::Location(var.clone()));
             let sym = self.interner.intern(&var);
             defs_map.insert(sym, ver);
             if destruction.is_some() {
@@ -7872,10 +8094,18 @@ impl<'a> RenameWalk<'a> {
             }
         }
 
-        if self.metadata.and_then(|metadata| metadata.source_analysis_input()).is_some_and(|input| input.has_logical_source_name_context())
+        if self
+            .metadata
+            .and_then(|metadata| metadata.source_analysis_input())
+            .is_some_and(|input| input.has_logical_source_name_context())
             && matches!(stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
         {
-            let original = original_source_may_call_from_inventory(&self.source_may_calls, stmt, self.metadata, registry);
+            let original = original_source_may_call_from_inventory(
+                &self.source_may_calls,
+                stmt,
+                self.metadata,
+                registry,
+            );
             let mut definitions = Vec::new();
             if let Some(receipt) = &original {
                 for place in receipt.writes() {
@@ -7891,9 +8121,15 @@ impl<'a> RenameWalk<'a> {
                     definitions.push((symbol, version));
                 }
             }
-            self.out.source_may_effects.insert((frame.block, index), SourceMaySsaCall {
-                statement: stmt.clone(), original, definitions, clobber: None,
-            });
+            self.out.source_may_effects.insert(
+                (frame.block, index),
+                SourceMaySsaCall {
+                    statement: stmt.clone(),
+                    original,
+                    definitions,
+                    clobber: None,
+                },
+            );
         }
 
         SsaStatement {
@@ -7966,7 +8202,9 @@ impl<'a> RenameWalk<'a> {
                     for name in names {
                         let prior = self.top(name);
                         let fresh = self.push_new(name);
-                        frame.pushed_vars.push(SsaVariableIdentity::Location(name.clone()));
+                        frame
+                            .pushed_vars
+                            .push(SsaVariableIdentity::Location(name.clone()));
                         versions.insert(self.interner.intern(name), (prior, fresh));
                     }
                     self.value_clobbers
@@ -8083,7 +8321,9 @@ fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
         // Presentation is stable when several written aliases select one cell.
         names.sort_by_key(|name| (name.contains("::"), name.len(), *name));
         let source = names[0];
-        let Some(key) = walk.interner.cell_key(symbol) else { continue; };
+        let Some(key) = walk.interner.cell_key(symbol) else {
+            continue;
+        };
         let authored = matches!(key, VariableCellKey::Authored(_));
         let display = &mut walk.interner.names[symbol.0 as usize];
         if !authored
@@ -8129,7 +8369,9 @@ fn array_root_refresh_metadata(
             for (&symbol, &version) in &statement.defs {
                 if roots.contains(&symbol)
                     && statement.may_defs.contains(&symbol)
-                    && interner.cell_key(symbol).is_none_or(|key| !direct.contains(key))
+                    && interner
+                        .cell_key(symbol)
+                        .is_none_or(|key| !direct.contains(key))
                 {
                     metadata.versions.insert((symbol, version));
                     metadata.symbols.insert(symbol);
@@ -8333,7 +8575,10 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
                                 .unwrap_or(0);
                             preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
                                 && bound.as_ref().is_none_or(|bindings| {
-                                    version != 0 || initial.cell_key(*symbol).is_some_and(|key| bindings.contains(key))
+                                    version != 0
+                                        || initial
+                                            .cell_key(*symbol)
+                                            .is_some_and(|key| bindings.contains(key))
                                 })
                         })
                         .filter_map(|symbol| initial.cell_key(symbol).cloned())
@@ -8430,7 +8675,12 @@ fn build_ssa_inner(
         &walk.points,
         SsaInvocationContext::supplied(registry, metadata),
     );
-    let cell_names = walk.interner.keys.iter().map(VariableCellKey::compatibility_name).collect();
+    let cell_names = walk
+        .interner
+        .keys
+        .iter()
+        .map(VariableCellKey::compatibility_name)
+        .collect();
     let cell_keys = walk.interner.keys.clone();
     let cell_to_symbol = walk.interner.to_symbol.clone();
     project_ssa_source_names(&mut walk, func);
@@ -8439,10 +8689,21 @@ fn build_ssa_inner(
         .into_iter()
         .map(|(name, version)| (walk.interner.intern_identity(&name), version))
         .collect();
-    let source_topology = if walk.interner.source_variables.is_empty() { HashMap::new() } else {
-        func.blocks.iter().map(|(&block, body)| (block, SourceCfgBlockSnapshot {
-            terminator: body.terminator.clone(), successors: func.block_successors(block),
-        })).collect()
+    let source_topology = if walk.interner.source_variables.is_empty() {
+        HashMap::new()
+    } else {
+        func.blocks
+            .iter()
+            .map(|(&block, body)| {
+                (
+                    block,
+                    SourceCfgBlockSnapshot {
+                        terminator: body.terminator.clone(),
+                        successors: func.block_successors(block),
+                    },
+                )
+            })
+            .collect()
     };
     let mut result = SsaFunction {
         name: func.name.clone(),
@@ -10620,18 +10881,30 @@ mod tests {
     #[test]
     fn original_source_may_definitions_keep_source_identity_separate_from_locations() {
         let (_, unit) = crate::interprocedural::logical_completion_unit(
-            "proc p {} {global g; set g 1}\np", "tcl8.6",
+            "proc p {} {global g; set g 1}\np",
+            "tcl8.6",
         );
         let function = &unit.top_level;
         let sources: Vec<_> = function.ssa.source_variable_symbols().collect();
-        assert!(!sources.is_empty(), "actual retained hidden write must issue source geometry");
-        assert_eq!(function.ssa.cell_keys().len() + sources.len(), function.ssa.var_names().len());
+        assert!(
+            !sources.is_empty(),
+            "actual retained hidden write must issue source geometry"
+        );
+        assert_eq!(
+            function.ssa.cell_keys().len() + sources.len(),
+            function.ssa.var_names().len()
+        );
         for (symbol, source) in sources {
             assert!(function.ssa.cell_key(symbol).is_none());
             assert!(function.ssa.cell_name(symbol).is_none());
             assert!(function.ssa.variable_symbols().any(|held| held == symbol));
             assert!(function.ssa.cell_symbols().all(|(held, _)| held != symbol));
-            assert_eq!(function.def_use.source_variable_symbol(&function.ssa, symbol), Some(source));
+            assert_eq!(
+                function
+                    .def_use
+                    .source_variable_symbol(&function.ssa, symbol),
+                Some(source)
+            );
             assert!(function.ssa.source_variable_snapshot(symbol).is_some());
             let mut reached = false;
             for (&block, body) in &function.ssa.blocks {
@@ -10640,139 +10913,299 @@ mod tests {
                         reached = true;
                         assert!(statement.may_defs.contains(&symbol));
                         assert!(function.ssa.source_may_requires_unknown_at(block, index));
-                        assert_eq!(function.sccp.values.get(&(symbol, version)), Some(&crate::analyses::LatticeValue::Overdefined));
-                        assert_eq!(function.sccp.existence.get(&(symbol, version)), Some(&tcl_registry::value_transfer::Existence::MayBound));
+                        assert_eq!(
+                            function.sccp.values.get(&(symbol, version)),
+                            Some(&crate::analyses::LatticeValue::Overdefined)
+                        );
+                        assert_eq!(
+                            function.sccp.existence.get(&(symbol, version)),
+                            Some(&tcl_registry::value_transfer::Existence::MayBound)
+                        );
                         let mut stale = function.ssa.clone();
-                        let statement = &mut stale.blocks.get_mut(&block).unwrap().statements[index].statement;
-                        let Statement::Call { command, .. } = statement else { panic!("actual original call"); };
+                        let statement =
+                            &mut stale.blocks.get_mut(&block).unwrap().statements[index].statement;
+                        let Statement::Call { command, .. } = statement else {
+                            panic!("actual original call");
+                        };
                         command.push_str("-report-changed");
                         assert!(stale.source_variable_snapshot(symbol).is_none());
-                        assert!(function.def_use.source_variable_symbol(&stale, symbol).is_none());
+                        assert!(
+                            function
+                                .def_use
+                                .source_variable_symbol(&stale, symbol)
+                                .is_none()
+                        );
                         assert!(stale.source_may_requires_unknown_at(block, index));
                     }
                 }
             }
-            assert!(reached, "source identity must retain its actual definition point/version");
+            assert!(
+                reached,
+                "source identity must retain its actual definition point/version"
+            );
         }
     }
 
     #[test]
     fn original_source_may_clobber_receipts_refuse_removed_or_changed_maps() {
         let (_, unit) = crate::interprocedural::logical_completion_unit(
-            "proc p {} {global g; set g 1}\nset local before\np\nreturn [unknown_read]", "tcl8.6",
+            "proc p {} {global g; set g 1}\nset local before\np\nreturn [unknown_read]",
+            "tcl8.6",
         );
         let ssa = &unit.top_level.ssa;
         let mut reached = false;
         for (&(block, index), effect) in &ssa.source_may_effects {
-            if effect.original.as_ref().is_none_or(|original| original.writes().is_empty()) { continue; }
+            if effect
+                .original
+                .as_ref()
+                .is_none_or(|original| original.writes().is_empty())
+            {
+                continue;
+            }
             reached = true;
-            assert!(ssa.source_may_clobber_is_current_at(block, index), "actual live location must have a producer-issued marker/clobber relation");
+            assert!(
+                ssa.source_may_clobber_is_current_at(block, index),
+                "actual live location must have a producer-issued marker/clobber relation"
+            );
             let held = effect.clobber.as_ref().unwrap();
             assert!(!held.versions.is_empty());
-            assert!(is_unseen_call_marker(&ssa.blocks[&block].statements[held.marker_index].statement));
+            assert!(is_unseen_call_marker(
+                &ssa.blocks[&block].statements[held.marker_index].statement
+            ));
             let mut stale = ssa.clone();
-            stale.value_clobbers.get_mut(&block).unwrap().remove(&held.marker_index);
-            assert!(is_unseen_call_marker(&stale.blocks[&block].statements[held.marker_index].statement));
+            stale
+                .value_clobbers
+                .get_mut(&block)
+                .unwrap()
+                .remove(&held.marker_index);
+            assert!(is_unseen_call_marker(
+                &stale.blocks[&block].statements[held.marker_index].statement
+            ));
             assert!(!stale.source_may_clobber_is_current_at(block, index));
             assert!(stale.source_may_requires_unknown_at(block, index));
             let mut stale = ssa.clone();
-            stale.value_clobbers.get_mut(&block).unwrap().get_mut(&held.marker_index).unwrap().clear();
-            assert!(!stale.source_may_clobber_is_current_at(block, index), "empty clobber inventory is not closed coverage");
+            stale
+                .value_clobbers
+                .get_mut(&block)
+                .unwrap()
+                .get_mut(&held.marker_index)
+                .unwrap()
+                .clear();
+            assert!(
+                !stale.source_may_clobber_is_current_at(block, index),
+                "empty clobber inventory is not closed coverage"
+            );
             let mut stale = ssa.clone();
-            let versions = stale.value_clobbers.get_mut(&block).unwrap().get_mut(&held.marker_index).unwrap();
+            let versions = stale
+                .value_clobbers
+                .get_mut(&block)
+                .unwrap()
+                .get_mut(&held.marker_index)
+                .unwrap();
             let (&symbol, &pair) = versions.iter().next().unwrap();
             versions.insert(symbol, (pair.0, pair.1 + 1));
             assert!(!stale.source_may_clobber_is_current_at(block, index));
         }
-        assert!(reached, "genuine call source-MAY producer must be exercised");
+        assert!(
+            reached,
+            "genuine call source-MAY producer must be exercised"
+        );
     }
 
     fn assert_original_source_may_joins(source: &str, minimum_calls: usize, has_loop: bool) {
         let (_, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
         let function = &unit.top_level;
         let sources: Vec<_> = function.ssa.source_variable_symbols().collect();
-        assert!(!sources.is_empty(), "actual hidden writes must issue source identities");
+        assert!(
+            !sources.is_empty(),
+            "actual hidden writes must issue source identities"
+        );
         let mut cyclic = false;
         for &start in function.cfg.blocks.keys() {
             let mut pending = function.cfg.block_successors(start);
             let mut seen = HashSet::new();
             while let Some(next) = pending.pop() {
-                if next == start { cyclic = true; break; }
-                if seen.insert(next) { pending.extend(function.cfg.block_successors(next)); }
+                if next == start {
+                    cyclic = true;
+                    break;
+                }
+                if seen.insert(next) {
+                    pending.extend(function.cfg.block_successors(next));
+                }
             }
         }
-        assert_eq!(cyclic, has_loop, "control must retain its actual CFG branch/backedge geometry");
+        assert_eq!(
+            cyclic, has_loop,
+            "control must retain its actual CFG branch/backedge geometry"
+        );
         for (symbol, variable) in sources {
             assert!(function.ssa.cell_key(symbol).is_none());
-            assert_eq!(function.def_use.source_variable_symbol(&function.ssa, symbol), Some(variable));
-            let definitions: HashSet<_> = function.ssa.blocks.values().flat_map(|body| {
-                body.statements.iter().filter_map(|statement| statement.defs.get(&symbol).copied())
-            }).collect();
-            assert!(definitions.len() >= minimum_calls, "each genuine call point must retain its own source MAY version");
+            assert_eq!(
+                function
+                    .def_use
+                    .source_variable_symbol(&function.ssa, symbol),
+                Some(variable)
+            );
+            let definitions: HashSet<_> = function
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|body| {
+                    body.statements
+                        .iter()
+                        .filter_map(|statement| statement.defs.get(&symbol).copied())
+                })
+                .collect();
+            assert!(
+                definitions.len() >= minimum_calls,
+                "each genuine call point must retain its own source MAY version"
+            );
             let mut phis = HashMap::new();
             for (&block, body) in &function.ssa.blocks {
                 for phi in body.phis.iter().filter(|phi| phi.name == symbol) {
                     assert!(!phi.incoming.is_empty());
                     for (&predecessor, &version) in &phi.incoming {
                         assert!(function.cfg.block_successors(predecessor).contains(&block));
-                        assert!(function.def_use.uses_of(symbol, version).iter().any(|use_site| {
-                            use_site.kind == crate::def_use::UseKind::PhiIncoming
-                                && use_site.phi_version == phi.version && use_site.class == UseClass::Quoted
-                        }));
+                        assert!(
+                            function
+                                .def_use
+                                .uses_of(symbol, version)
+                                .iter()
+                                .any(|use_site| {
+                                    use_site.kind == crate::def_use::UseKind::PhiIncoming
+                                        && use_site.phi_version == phi.version
+                                        && use_site.class == UseClass::Quoted
+                                })
+                        );
                     }
                     phis.insert(phi.version, (block, phi));
                 }
             }
-            assert!(!phis.is_empty(), "source definitions must use the existing SSA join algorithm");
+            assert!(
+                !phis.is_empty(),
+                "source definitions must use the existing SSA join algorithm"
+            );
             let mut observed = false;
             for (&block, body) in &function.ssa.blocks {
-                if !matches!(&function.cfg.blocks[&block].terminator, Some(cfg::Terminator::Return { .. })) { continue; }
-                let Some(&exit) = body.exit_versions.get(&symbol) else { continue; };
-                if exit == 0 { continue; }
+                if !matches!(
+                    &function.cfg.blocks[&block].terminator,
+                    Some(cfg::Terminator::Return { .. })
+                ) {
+                    continue;
+                }
+                let Some(&exit) = body.exit_versions.get(&symbol) else {
+                    continue;
+                };
+                if exit == 0 {
+                    continue;
+                }
                 let mut pending = vec![exit];
                 let mut reaching = HashSet::new();
                 while let Some(version) = pending.pop() {
-                    if !reaching.insert(version) { continue; }
-                    if let Some((_, phi)) = phis.get(&version) { pending.extend(phi.incoming.values().copied()); }
+                    if !reaching.insert(version) {
+                        continue;
+                    }
+                    if let Some((_, phi)) = phis.get(&version) {
+                        pending.extend(phi.incoming.values().copied());
+                    }
                 }
-                if !definitions.is_subset(&reaching) { continue; }
+                if !definitions.is_subset(&reaching) {
+                    continue;
+                }
                 observed = true;
-                assert!(function.def_use.uses_of(symbol, exit).iter().any(|use_site| {
-                    use_site.kind == crate::def_use::UseKind::Terminator
-                        && use_site.block == body.name && use_site.class == UseClass::Quoted
-                }));
+                assert!(
+                    function
+                        .def_use
+                        .uses_of(symbol, exit)
+                        .iter()
+                        .any(|use_site| {
+                            use_site.kind == crate::def_use::UseKind::Terminator
+                                && use_site.block == body.name
+                                && use_site.class == UseClass::Quoted
+                        })
+                );
             }
-            assert!(observed, "the actual post-join observer must retain every reaching source definition");
+            assert!(
+                observed,
+                "the actual post-join observer must retain every reaching source definition"
+            );
             let (&version, &(block, _)) = phis.iter().next().unwrap();
             let mut stale = function.ssa.clone();
-            let phi = stale.blocks.get_mut(&block).unwrap().phis.iter_mut().find(|phi| phi.name == symbol && phi.version == version).unwrap();
+            let phi = stale
+                .blocks
+                .get_mut(&block)
+                .unwrap()
+                .phis
+                .iter_mut()
+                .find(|phi| phi.name == symbol && phi.version == version)
+                .unwrap();
             phi.incoming.clear();
-            assert!(function.def_use.source_variable_symbol(&stale, symbol).is_none(), "same-source changed phi graph cannot reuse old chains");
+            assert!(
+                function
+                    .def_use
+                    .source_variable_symbol(&stale, symbol)
+                    .is_none(),
+                "same-source changed phi graph cannot reuse old chains"
+            );
             let mut stale = function.ssa.clone();
-            let (_, body) = stale.blocks.iter_mut().find(|(_, body)| body.statements.iter().any(|statement| statement.uses.contains_key(&symbol))).unwrap();
-            let statement = body.statements.iter_mut().find(|statement| statement.uses.contains_key(&symbol)).unwrap();
+            let (_, body) = stale
+                .blocks
+                .iter_mut()
+                .find(|(_, body)| {
+                    body.statements
+                        .iter()
+                        .any(|statement| statement.uses.contains_key(&symbol))
+                })
+                .unwrap();
+            let statement = body
+                .statements
+                .iter_mut()
+                .find(|statement| statement.uses.contains_key(&symbol))
+                .unwrap();
             statement.uses.remove(&symbol);
-            assert!(function.def_use.source_variable_symbol(&stale, symbol).is_none(), "same-source changed source use cannot reuse old chains");
+            assert!(
+                function
+                    .def_use
+                    .source_variable_symbol(&stale, symbol)
+                    .is_none(),
+                "same-source changed source use cannot reuse old chains"
+            );
             let mut stale = function.ssa.clone();
             stale.source_topology.get_mut(&block).unwrap().terminator = None;
-            assert!(function.def_use.source_variable_symbol(&stale, symbol).is_none(), "changed retained source topology cannot reuse old chains");
+            assert!(
+                function
+                    .def_use
+                    .source_variable_symbol(&stale, symbol)
+                    .is_none(),
+                "changed retained source topology cannot reuse old chains"
+            );
             let mut stale = function.ssa.clone();
             stale.idom.clear();
-            assert!(function.def_use.source_variable_symbol(&stale, symbol).is_none(), "changed SSA topology cannot reuse old chains");
+            assert!(
+                function
+                    .def_use
+                    .source_variable_symbol(&stale, symbol)
+                    .is_none(),
+                "changed SSA topology cannot reuse old chains"
+            );
         }
     }
 
     #[test]
     fn original_source_may_branch_versions_reach_post_join_observers() {
         assert_original_source_may_joins(
-            "proc p {} {global g; set g 1}\nif {$condition} {p} else {p}\nreturn [unknown_read]", 2, false,
+            "proc p {} {global g; set g 1}\nif {$condition} {p} else {p}\nreturn [unknown_read]",
+            2,
+            false,
         );
     }
 
     #[test]
     fn original_source_may_loop_versions_reach_post_join_observers() {
         assert_original_source_may_joins(
-            "proc p {} {global g; set g 1}\nwhile {$condition} {p}\nreturn [unknown_read]", 1, true,
+            "proc p {} {global g; set g 1}\nwhile {$condition} {p}\nreturn [unknown_read]",
+            1,
+            true,
         );
     }
 
@@ -14434,7 +14867,10 @@ mod external_mutability_tests {
                 assert_eq!(
                     source.externally_mutable_by(
                         symbol,
-                        &HashSet::from([ssa.cell_name(symbol).expect("original location symbol").to_owned()]),
+                        &HashSet::from([ssa
+                            .cell_name(symbol)
+                            .expect("original location symbol")
+                            .to_owned()]),
                         false,
                         registry
                     ),

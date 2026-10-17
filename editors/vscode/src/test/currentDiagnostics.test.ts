@@ -21,6 +21,7 @@ import * as vscode from "vscode";
 import type { Diagnostic as LspDiagnostic } from "vscode-languageclient";
 import {
   CurrentDiagnosticsSuppressedError,
+  diagnosticConversionTopics,
   CurrentDiagnosticsUnavailableError,
   acquireSessionDialectOverride,
   captureAnalysisContext,
@@ -37,9 +38,10 @@ import {
   waitForProposalDiagnostics,
   proposalDiagnosticsReportMatches,
   type CurrentDiagnosticsTransport,
+  type SessionDialectOverrideLease,
 } from "../chat/diagnosticAccess";
 import { activate, getDocUri } from "./helper";
-import { buildPromptContextBlock } from "../chat/contextPack";
+import { DiagnosticSourceOperation, buildPromptContextBlock } from "../chat/contextPack";
 import type { CommandContext } from "../chat/types";
 
 interface Snapshot {
@@ -1137,6 +1139,103 @@ suite("Chat current diagnostic publication adapter", () => {
       );
     } finally {
       lease.dispose();
+    }
+  });
+  test("canonical conversion metadata supplies proposal topics without a local code list", () => {
+    const known = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "known");
+    known.code = { value: "W100", target: vscode.Uri.parse("https://example.invalid/W100") };
+    const unknown = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "unknown");
+    unknown.code = "UNKNOWN_CONVERSION";
+    const topics = diagnosticConversionTopics([known, unknown]);
+    assert.strictEqual(topics.length, 1);
+    assert.strictEqual(topics[0].diagnostic, known);
+    assert.strictEqual(topics[0].description, "Unbraced expr -> braced expr");
+  });
+
+  test("source operation keeps one completed publication and refuses its retirement", async () => {
+    const cancellation = new vscode.CancellationTokenSource();
+    const document = await openFixture("set operationPublication 1");
+    await vscode.window.showTextDocument(document);
+    let requests = 0;
+    const publisher = transport(async (request) => {
+      requests += 1;
+      return complete(request, []);
+    });
+    const lease = setCurrentDiagnosticsTransportProvider(() => publisher);
+    try {
+      const operation = await DiagnosticSourceOperation.resolve({
+        request: { references: [] },
+        token: cancellation.token,
+      } as unknown as CommandContext);
+      assert.ok(operation);
+      const report = await operation.readReport(1000);
+      assert.strictEqual(operation.promptOptions().completedDiagnosticsReport, report);
+      await operation.assertPublished();
+      assert.strictEqual(requests, 1);
+      publisher.validatePublication = async () => ({ status: "unavailable" });
+      await assert.rejects(operation.assertPublished(), /publication is no longer current/);
+      assert.strictEqual(requests, 1, "retirement check never reissues the analysis report");
+    } finally {
+      lease.dispose();
+      cancellation.dispose();
+    }
+  });
+
+  test("source operation does not retag a retired analysis generation", async () => {
+    const cancellation = new vscode.CancellationTokenSource();
+    const document = await openFixture("set operationGeneration 1");
+    await vscode.window.showTextDocument(document);
+    const publisher = transport(async (request) => complete(request, []));
+    const lease = setCurrentDiagnosticsTransportProvider(() => publisher);
+    try {
+      const operation = await DiagnosticSourceOperation.resolve({
+        request: { references: [] },
+        token: cancellation.token,
+      } as unknown as CommandContext);
+      assert.ok(operation);
+      await operation.readReport(1000);
+      invalidateAnalysisContext();
+      assert.strictEqual(operation.isCurrent(), false);
+      await assert.rejects(operation.assertPublished(), /publication is no longer current/);
+    } finally {
+      lease.dispose();
+      cancellation.dispose();
+    }
+  });
+  test("source operation adopts only its actual acknowledged override lease", async () => {
+    const cancellation = new vscode.CancellationTokenSource();
+    const document = await openFixture("set operationOwnedOverride 1");
+    await vscode.window.showTextDocument(document);
+    let acknowledgements = 0;
+    const publisher = transport(async (request) => complete(request, []));
+    publisher.setSessionDialectOverride = async () => {
+      acknowledgements += 1;
+    };
+    const transportLease = setCurrentDiagnosticsTransportProvider(() => publisher);
+    let override: SessionDialectOverrideLease | undefined;
+    try {
+      const operation = await DiagnosticSourceOperation.resolve({
+        request: { references: [] },
+        token: cancellation.token,
+      } as unknown as CommandContext);
+      assert.ok(operation);
+      override = await acquireSessionDialectOverride("f5-irules");
+      operation.adoptOverride(override);
+      const report = await operation.readReport(1000);
+      assert.strictEqual(acknowledgements, 1);
+      assert.strictEqual(
+        report.analysisContext.overrideGeneration,
+        override.analysisContext.overrideGeneration,
+      );
+      await operation.assertPublished();
+      assert.ok(await override.restore());
+      override = undefined;
+      assert.strictEqual(operation.sourceUnchanged(), true);
+      assert.strictEqual(operation.isCurrent(), false, "restoration does not retag the old report");
+    } finally {
+      if (override) await override.restore();
+      transportLease.dispose();
+      cancellation.dispose();
     }
   });
 });

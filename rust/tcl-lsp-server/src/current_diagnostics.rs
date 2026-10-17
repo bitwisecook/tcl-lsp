@@ -40,7 +40,7 @@ pub(super) struct DiagnosticPass {
     registry: tcl_registry::RegistrySnapshot,
 }
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) enum DiagnosticUnavailable {
     Pending,
@@ -914,6 +914,7 @@ impl Backend {
             .then_some(projection.project);
         let produced = match compute_deep_diagnostic_report(
             &expected.uri,
+            &self.documents,
             &salsa_ctx,
             &lift,
             &path_inputs,
@@ -976,6 +977,7 @@ impl Backend {
             &currentness,
             &inputs,
             &produced.provider_sources,
+            &produced.workspace_sources,
             diagnostics,
             result_id,
         )
@@ -987,6 +989,7 @@ impl Backend {
         currentness: &ProposalCurrentness<'_>,
         inputs: &DiagInputs,
         provider_sources: &provider_source::ConfiguredProviderSourceReport,
+        workspace_sources: &WorkspaceDiagnosticSources,
         diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
         result_id: String,
     ) -> Result<ProposalDiagnostics, DiagnosticUnavailable> {
@@ -1089,35 +1092,43 @@ impl Backend {
             }
             admissions.push(admission.as_ref());
         }
+        if !workspace_sources.matches(&documents, &index) {
+            return Err(DiagnosticUnavailable::Stale);
+        }
         let mut diagnostics = Some(diagnostics);
         let mut outcome = None;
-        let check = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
-            if self.diag_inputs_epoch() != currentness.inputs_epoch
-                || tcl_registry::pack_hooks::evaluator_epoch() != currentness.evaluator_epoch
-                || tcl_registry::overlay_epoch() != currentness.overlay_epoch
-                || !provider_sources.proposal_is_current(&resolver, &*db, &files, &*published)
-            {
-                return Err(DiagnosticUnavailable::Stale);
-            }
-            outcome = Some(ProposalDiagnostics::Complete {
-                uri: currentness.expected.uri.clone(),
-                version: currentness.expected.version,
-                source: currentness.expected.source.clone(),
-                proposal: currentness.expected.proposal.clone(),
-                // This outcome is built inside the same final store-currentness
-                // closure as the diagnostics and their input epoch.
-                dialect_id: currentness.dialect.to_owned(),
-                revision: format!(
-                    "{:?}:{}",
-                    currentness.database_revision, currentness.document_revision
-                ),
-                inputs_epoch: currentness.inputs_epoch.to_string(),
-                workspace_index_generation: currentness.index_generation.to_string(),
-                result_id: result_id.clone(),
-                diagnostics: diagnostics.take().ok_or(DiagnosticUnavailable::Context)?,
-            });
-            Ok(())
-        })
+        let check = WorkspaceDiagnosticSources::with_current_batch(
+            &[workspace_sources],
+            &admissions,
+            self.store.as_ref(),
+            || {
+                if self.diag_inputs_epoch() != currentness.inputs_epoch
+                    || tcl_registry::pack_hooks::evaluator_epoch() != currentness.evaluator_epoch
+                    || tcl_registry::overlay_epoch() != currentness.overlay_epoch
+                    || !provider_sources.proposal_is_current(&resolver, &*db, &files, &*published)
+                {
+                    return Err(DiagnosticUnavailable::Stale);
+                }
+                outcome = Some(ProposalDiagnostics::Complete {
+                    uri: currentness.expected.uri.clone(),
+                    version: currentness.expected.version,
+                    source: currentness.expected.source.clone(),
+                    proposal: currentness.expected.proposal.clone(),
+                    // This outcome is built inside the same final store-currentness
+                    // closure as the diagnostics and their input epoch.
+                    dialect_id: currentness.dialect.to_owned(),
+                    revision: format!(
+                        "{:?}:{}",
+                        currentness.database_revision, currentness.document_revision
+                    ),
+                    inputs_epoch: currentness.inputs_epoch.to_string(),
+                    workspace_index_generation: currentness.index_generation.to_string(),
+                    result_id: result_id.clone(),
+                    diagnostics: diagnostics.take().ok_or(DiagnosticUnavailable::Context)?,
+                });
+                Ok(())
+            },
+        )
         .map_err(|_| DiagnosticUnavailable::Context)?;
         check?;
         outcome.ok_or(DiagnosticUnavailable::Context)
@@ -1313,6 +1324,7 @@ impl Backend {
         let ledger = self.diagnostic_publisher.completion.lock().await;
         let mut cache = self.pull_diag_cache.lock().await;
         let mut reports = Vec::with_capacity(expected.len());
+        let mut workspace_sources = Vec::new();
         let mut checked_inputs = Vec::new();
         let mut checked_configurations = Vec::with_capacity(expected.len());
         for (((source, admission), current), configuration) in expected
@@ -1345,6 +1357,10 @@ impl Backend {
                 return Ok(Err(DiagnosticUnavailable::Stale));
             };
             let pass = &receipt.source;
+            if let Some(sources) = receipt.workspace_sources.as_ref() {
+                workspace_sources.push(Arc::clone(sources));
+            }
+
             let suppression = match receipt.origin {
                 DiagnosticCacheOrigin::Publisher => {
                     let Some(entry) = ledger.get(&source.uri) else {
@@ -1452,17 +1468,41 @@ impl Backend {
             drop(published);
             Some((db, files))
         };
-        let admissions = admissions.iter().map(AsRef::as_ref).collect::<Vec<_>>();
-        let mut reports = Some(reports);
-        let result = DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
-            let Some(reports) = reports.take() else {
-                return Err(DiagnosticUnavailable::Stale);
+        let _workspace_source_index = if workspace_sources.iter().any(|sources| !sources.is_empty())
+        {
+            let Ok(index) = self.workspace_index.try_read() else {
+                return Ok(Err(DiagnosticUnavailable::Pending));
             };
-            if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
-                cache.insert(expected[0].uri.clone(), candidate.clone());
+            if workspace_sources
+                .iter()
+                .any(|sources| !sources.matches(&docs, &index))
+            {
+                return Ok(Err(DiagnosticUnavailable::Stale));
             }
-            Ok(reports)
-        })?;
+            Some(index)
+        } else {
+            None
+        };
+        let admissions = admissions.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+        let workspace_sources = workspace_sources
+            .iter()
+            .map(Arc::as_ref)
+            .collect::<Vec<_>>();
+        let mut reports = Some(reports);
+        let result = WorkspaceDiagnosticSources::with_current_batch(
+            &workspace_sources,
+            &admissions,
+            self.store.as_ref(),
+            || {
+                let Some(reports) = reports.take() else {
+                    return Err(DiagnosticUnavailable::Stale);
+                };
+                if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
+                    cache.insert(expected[0].uri.clone(), candidate.clone());
+                }
+                Ok(reports)
+            },
+        )?;
         drop(guards);
         Ok(result)
     }
@@ -1514,6 +1554,7 @@ enum DiagnosticCacheQuery<'a> {
 
 #[derive(Clone)]
 pub(super) struct DiagnosticCacheReceipt {
+    workspace_sources: Option<Arc<WorkspaceDiagnosticSources>>,
     source: Arc<DiagnosticPass>,
     origin: DiagnosticCacheOrigin,
 }
@@ -1529,9 +1570,17 @@ enum DiagnosticCacheOrigin {
 impl DiagnosticCacheReceipt {
     pub(super) fn from_publisher(source: &Arc<DiagnosticPass>) -> Self {
         Self {
+            workspace_sources: None,
             source: Arc::clone(source),
             origin: DiagnosticCacheOrigin::Publisher,
         }
+    }
+    pub(super) fn with_workspace_sources(
+        mut self,
+        sources: Option<Arc<WorkspaceDiagnosticSources>>,
+    ) -> Self {
+        self.workspace_sources = sources;
+        self
     }
 }
 
@@ -1541,6 +1590,25 @@ struct ProducedDirectDiagnosticReport {
 }
 
 impl DiagnosticPass {
+    pub(super) async fn workspace_source_input_guards(
+        &self,
+    ) -> Option<(
+        tokio::sync::RwLockReadGuard<'_, ()>,
+        tokio::sync::RwLockReadGuard<'_, u64>,
+    )> {
+        let inputs = self.source_inputs_gate.read().await;
+        let factory = self.source_factory_generation.read().await;
+        if self
+            .source_inputs_epoch
+            .load(std::sync::atomic::Ordering::Acquire)
+            != self.inputs_epoch
+            || *factory != self.class_factory_generation
+        {
+            return None;
+        }
+        Some((inputs, factory))
+    }
+
     fn matches_current_source(
         &self,
         source: &str,
@@ -1630,6 +1698,7 @@ impl Backend {
         } else {
             None
         };
+        let mut workspace_sources = None;
         let diagnostics = if policy.is_some() {
             Vec::new()
         } else {
@@ -1705,13 +1774,20 @@ impl Backend {
             } else {
                 None
             };
-            let produced =
-                match compute_deep_diagnostic_report(uri, &salsa_ctx, &lift, &path, project, base)
-                    .await
-                {
-                    ControlFlow::Continue(produced) => produced,
-                    ControlFlow::Break((_, reason)) => return Err(reason),
-                };
+            let produced = match compute_deep_diagnostic_report(
+                uri,
+                &self.documents,
+                &salsa_ctx,
+                &lift,
+                &path,
+                project,
+                base,
+            )
+            .await
+            {
+                ControlFlow::Continue(produced) => produced,
+                ControlFlow::Break((_, reason)) => return Err(reason),
+            };
             produced.provider_completion?;
             if !produced
                 .provider_sources
@@ -1722,12 +1798,14 @@ impl Backend {
             if !source.matches_completed_analysis(&produced.analysis) {
                 return Err(DiagnosticUnavailable::Context);
             }
+            workspace_sources = Some(Arc::clone(&produced.workspace_sources));
             produced
                 .result
                 .map_err(|_| DiagnosticUnavailable::ProviderError)?
         };
         Ok(ProducedDirectDiagnosticReport {
             receipt: DiagnosticCacheReceipt {
+                workspace_sources,
                 source: Arc::clone(source),
                 origin: DiagnosticCacheOrigin::Direct { policy },
             },
@@ -2529,6 +2607,32 @@ mod tests {
             version: job.version,
             client_supports_pull: false,
         };
+        // Preserve the original failed-worker assertion surface. This adapter
+        // delegates to the current publication owner; a failed worker produced
+        // no command-query receipt and cannot enter dependency admission.
+        async fn publish_diagnostics_result(
+            delivery: &DeliveryCtx<'_>,
+            workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+            rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
+            rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
+            analysis: &Arc<AnalysisResult>,
+            result: (
+                Result<(), DiagnosticUnavailable>,
+                Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+            ),
+            timing: PublishTiming<'_>,
+        ) -> bool {
+            crate::publish_diagnostics_result(
+                delivery,
+                workspace_index,
+                rehomed_source_seeds,
+                rehoming_gate,
+                analysis,
+                (result.0, result.1, None),
+                timing,
+            )
+            .await
+        }
         let failed =
             crate::rt::spawn_blocking(|| -> Vec<tower_lsp_server::ls_types::Diagnostic> {
                 panic!("actual diagnostic lift worker failure control")

@@ -16,36 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import { CommandContext } from "../types";
-import { resolveIruleCode, ensureDocumentOpen } from "../codeUtils";
-import { sendContextualRequest } from "../contextPack";
+import { DiagnosticSourceOperation, sendContextualRequest } from "../contextPack";
 import {
   acquireSessionDialectOverride,
-  captureAnalysisContext,
-  isAnalysisContextCurrent,
-  waitForDiagnostics,
   SessionDialectOverrideLease,
   categoriseDiagnostics,
   formatDiagnosticsForLLM,
   renderDiagnosticSection,
 } from "../diagnosticAccess";
-import { getActiveDialect, isTclLanguage } from "../../extension";
 
 export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResult> {
-  // Try active editor first, then resolve from references
-  let doc: vscode.TextDocument | undefined;
-  let code: string | undefined;
+  const operation = await DiagnosticSourceOperation.resolve(ctx);
+  const doc = operation?.sourceSnapshot.document;
+  const code = operation?.sourceSnapshot.fullSource;
 
-  const editor = vscode.window.activeTextEditor;
-  if (editor && isTclLanguage(editor.document.languageId)) {
-    doc = editor.document;
-    code = doc.getText();
-  } else {
-    code = await resolveIruleCode(ctx);
-  }
-
-  if (!code) {
+  if (!operation || !doc || !code) {
     ctx.response.markdown("Open an iRule file or attach one with `#file` for security review.");
     return {};
   }
@@ -57,23 +44,17 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
   // re-applied away by the next `workspace/configuration` pull, which can
   // land at any time, so a push's effect would last an unpredictable length
   // of time.
-  const pinnedDialect = getActiveDialect() !== "f5-irules";
+  // This command explicitly requests an iRule analysis operation. An ambient
+  // display dialect cannot stand in for its acknowledged source/session lease.
   let overrideLease: SessionDialectOverrideLease | undefined;
-  if (pinnedDialect) overrideLease = await acquireSessionDialectOverride("f5-irules");
+  if (!operation.isCurrent()) throw new Error("The source changed before analysis started");
+  overrideLease = await acquireSessionDialectOverride("f5-irules");
 
   try {
-    if (!doc) {
-      doc = await ensureDocumentOpen(code);
-    }
-    const analysisContext = overrideLease?.analysisContext ?? captureAnalysisContext();
-    if (!isAnalysisContextCurrent(analysisContext)) {
-      throw new Error("Analysis context changed before the iRule analysis started");
-    }
-
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
-    if (!isAnalysisContextCurrent(analysisContext)) {
-      throw new Error("Analysis context changed while the iRule analysis was running");
-    }
+    if (overrideLease) operation.adoptOverride(overrideLease);
+    const report = await operation.readReport(5000);
+    const diagnostics = [...report.diagnostics];
+    await operation.assertPublished();
     const categorised = categoriseDiagnostics(diagnostics);
 
     const securityDiags = [
@@ -118,13 +99,11 @@ export async function handleReview(ctx: CommandContext): Promise<vscode.ChatResu
         `- Open redirect vulnerabilities\n` +
         `- Session handling issues\n\n` +
         `\`\`\`tcl\n${code}\n\`\`\``,
-      { code, document: doc },
+      operation.promptOptions(),
     );
     let responseText = "";
     for await (const chunk of llmResponse.text) responseText += chunk;
-    if (!isAnalysisContextCurrent(analysisContext)) {
-      throw new Error("Analysis context changed while the iRule review was running");
-    }
+    await operation.assertPublished();
     ctx.response.markdown(responseText);
 
     return { metadata: { command: "review", securityCount: securityDiags.length } };

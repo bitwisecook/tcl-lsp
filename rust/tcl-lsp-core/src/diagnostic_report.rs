@@ -416,26 +416,27 @@ pub fn optimise_under_policy(
             iterations: 0,
         };
     };
-    let (text, applied, iterations) = optimise_source_multipass_admitting_standalone_with_analysis_input(
-        source,
-        registry,
-        Some(input),
-        max_iterations,
-        |current, candidates| {
-            let current_analysis = Analyser::new()
-                .with_resolved_input(input.clone())
-                .analyse(current, input.analyser_profile().name);
-            let mut pass_policy = policy.clone();
-            pass_policy.directives = Directives::from_analysis(&current_analysis, current);
-            let report = apply(
-                candidates.iter().cloned().map(Finding::from).collect(),
-                &pass_policy,
-            );
-            // A group applies whole or not at all: a directive over one
-            // member of an O127 pair keeps the other off too (#2149).
-            report.applicable_items(candidates)
-        },
-    );
+    let (text, applied, iterations) =
+        optimise_source_multipass_admitting_standalone_with_analysis_input(
+            source,
+            registry,
+            Some(input),
+            max_iterations,
+            |current, candidates| {
+                let current_analysis = Analyser::new()
+                    .with_resolved_input(input.clone())
+                    .analyse(current, input.analyser_profile().name);
+                let mut pass_policy = policy.clone();
+                pass_policy.directives = Directives::from_analysis(&current_analysis, current);
+                let report = apply(
+                    candidates.iter().cloned().map(Finding::from).collect(),
+                    &pass_policy,
+                );
+                // A group applies whole or not at all: a directive over one
+                // member of an O127 pair keeps the other off too (#2149).
+                report.applicable_items(candidates)
+            },
+        );
     OptimisedSource {
         text,
         applied,

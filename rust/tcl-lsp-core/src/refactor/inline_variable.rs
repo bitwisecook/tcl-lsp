@@ -237,20 +237,7 @@ impl LogicalVariableInliningRecipe {
         // The actual original region/word owners supply both inventories.
         let read_command = super::find_original_command_at(source, reference.start(), analysis)?;
         let (read_start, _) = walk.command_span_offsets(source, &read_command)?;
-        let (_, setter_end) = walk.command_span_offsets(source, command)?;
-        if read_start < setter_end {
-            return None;
-        }
-        let between = tcl_lexer::native_script_words_in_with_purpose(
-            image.clone(),
-            Span::new(setter_end, read_start),
-            current.config(),
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        )
-        .ok()?;
-        if between.fatal_tail.is_some() || !between.commands.is_empty() {
-            return None;
-        }
+        source_read_follows_setter(source, analysis, &walk, command, &read_command)?;
         let read_words = walk.native_words(source, &read_command)?;
         let receiver_index = read_words.iter().position(|word| word == receiver)?;
         if read_words.iter().take(receiver_index).any(|word| {
@@ -403,6 +390,88 @@ impl LogicalVariableInliningRecipe {
         }
         // Consumption is ONLY by this conditional source-authoring sink.
         Some(self.action)
+    }
+}
+
+/// Reborrow the actual script and substitution chain, rather than parsing an
+/// unfinished prefix ending inside a bracket. This is source ordering only;
+/// it does not discharge the recipe's retained runtime motion obligations.
+fn source_read_follows_setter(
+    source: &str,
+    analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
+    setter: &SegmentedCommand,
+    read: &SegmentedCommand,
+) -> Option<()> {
+    let coverage = crate::SourceSyntaxCoverage::capture(source, analysis)?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = analysis.body_lexer_config?;
+    let setter_words = walk.native_words(source, setter)?;
+    let read_words = walk.native_words(source, read)?;
+    let setter_start = setter_words.first()?.span().start();
+    let read_end = read_words.last()?.span().end();
+    let mut regions = coverage.script_regions(source, analysis)?.to_vec();
+    regions.sort_by_key(|(region, _)| region.end() - region.start());
+    let region = regions.into_iter().find_map(|(region, _)| {
+        if region.start() > setter_start || region.end() < read_end {
+            return None;
+        }
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            region,
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        plan.commands
+            .iter()
+            .any(|command| command.words == setter_words)
+            .then_some(plan)
+    })?;
+    let setter_index = region
+        .commands
+        .iter()
+        .position(|command| command.words == setter_words)?;
+    let next = region.commands.get(setter_index.checked_add(1)?)?;
+    let mut words = next.words.clone();
+    let mut plan = region;
+    loop {
+        if words == read_words {
+            return Some(());
+        }
+        // Every outer invocation must reach this exact child through static
+        // earlier operands. An earlier substitution or variable read is not
+        // silently crossed by descending to the inner read.
+        let read_start = read_words.first()?.span().start();
+        let (index, word) = words
+            .iter()
+            .enumerate()
+            .find(|(_, word)| word.span().start() <= read_start && read_end <= word.span().end())?;
+        if words[..index].iter().any(|word| {
+            word.group().expand
+                || tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none()
+        }) || word.group().expand
+        {
+            return None;
+        }
+        let mut child = None;
+        for part in word.executable_parts().all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::Command { body }
+                    if body.start() <= read_start && read_end <= body.end() =>
+                {
+                    child = Some(body);
+                    break;
+                }
+                tcl_lexer::ExecutablePart::Text(_) => {}
+                _ => return None,
+            }
+        }
+        let child = plan.reborrow_command_substitution_plan(word, child?).ok()?;
+        // The inner read cannot borrow a later command after an intervening
+        // statement in this substitution. Repeated descent retains each owner.
+        words = child.commands.first()?.words.clone();
+        plan = child;
     }
 }
 
@@ -1270,5 +1339,54 @@ mod logical_inline_source_intent_tests {
     fn source_intent_does_not_cross_statements_or_earlier_dynamic_operands() {
         assert!(authored("set held ${other}\nset other CHANGED\nputs $held").is_none());
         assert!(authored("set held ${other}\nputs [set other CHANGED] $held").is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_inline_substitution_ancestry_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn conditional_inline_reborrows_nested_substitution_ancestry() {
+        for source in [
+            "set n 2\nputs [format %d [string repeat x $n]]",
+            "proc p {} {set n 2; puts [format %d [string repeat x $n]]}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let cursor = u32::try_from(source.find("set n").unwrap()).unwrap();
+            let action = inline_variable(
+                source,
+                cursor,
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                &LineIndex::new(source),
+            )
+            .expect("conditional source intent retains genuine nested ancestry");
+            assert!(action.apply(source).contains("[string repeat x 2]"));
+        }
+    }
+
+    #[test]
+    fn substitution_ancestry_cannot_cross_prior_commands_or_dynamic_operands() {
+        for source in [
+            "set n 2; puts [puts before; list $n]",
+            "set n 2; puts $other [list $n]",
+            "set n 2; puts [list $other] [list $n]",
+            "set n 2; puts [format %d [puts before; list $n]]",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(
+                inline_variable(
+                    source,
+                    0,
+                    &analysis,
+                    analysis.resolved_registry().unwrap(),
+                    &LineIndex::new(source)
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
     }
 }

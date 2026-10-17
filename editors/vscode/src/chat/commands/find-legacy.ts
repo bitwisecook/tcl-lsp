@@ -16,61 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import { CommandContext } from "../types";
-import {
-  documentWriteReceipt,
-  resolveIruleCode,
-  ensureDocumentOpen,
-  extractCodeBlock,
-  snapshotDocumentSource,
-  DocumentSourceSnapshot,
-} from "../codeUtils";
-import { sendContextualRequest } from "../contextPack";
+import { documentWriteReceipt, extractCodeBlock } from "../codeUtils";
+import { DiagnosticSourceOperation, sendContextualRequest } from "../contextPack";
 import {
   acquireSessionDialectOverride,
   isAnalysisContextCurrent,
-  waitForDiagnostics,
+  diagnosticConversionTopics,
   formatDiagnosticsForLLM,
   renderDiagnosticSection,
   SessionDialectOverrideLease,
 } from "../diagnosticAccess";
 import { proposalReportEvidence, runAgenticLoop } from "../agenticLoop";
-import { getActiveDialect, isTclLanguage } from "../../extension";
-
-/** Diagnostic codes that represent convertible legacy patterns. */
-const CONVERTIBLE_CODES = new Set([
-  "W100", // unbraced expr
-  "W104", // string concat for list building
-  "W110", // == for strings instead of eq/ne
-  "W304", // missing option terminator --
-  "IRULE2001", // deprecated matchclass
-  "IRULE5001", // ungated log in hot event
-]);
-
-function diagnosticCode(d: vscode.Diagnostic): string {
-  if (typeof d.code === "object" && d.code !== null && "value" in d.code) {
-    return String(d.code.value);
-  }
-  return String(d.code ?? "");
-}
 
 export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.ChatResult> {
-  // Try active editor first, then resolve from references
-  let doc: vscode.TextDocument | undefined;
-  let code: string | undefined;
-  let sourceSnapshot: DocumentSourceSnapshot | undefined;
+  const operation = await DiagnosticSourceOperation.resolve(ctx);
+  const doc = operation?.sourceSnapshot.document;
+  const code = operation?.sourceSnapshot.fullSource;
 
-  const editor = vscode.window.activeTextEditor;
-  if (editor && isTclLanguage(editor.document.languageId)) {
-    doc = editor.document;
-    sourceSnapshot = snapshotDocumentSource(doc);
-    code = sourceSnapshot.fullSource;
-  } else {
-    code = await resolveIruleCode(ctx);
-  }
-
-  if (!code) {
+  if (!operation || !doc || !code) {
     ctx.response.markdown("Open an iRule file or attach one with `#file` to modernise.");
     return {};
   }
@@ -82,39 +47,23 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
   // re-applied away by the next `workspace/configuration` pull, which can
   // land at any time, so a push's effect would last an unpredictable length
   // of time.
-  const pinnedDialect = getActiveDialect() !== "f5-irules";
+  // This command explicitly requests an iRule analysis operation. An ambient
+  // display dialect cannot stand in for its acknowledged source/session lease.
   let overrideLease: SessionDialectOverrideLease | undefined;
-  if (pinnedDialect) overrideLease = await acquireSessionDialectOverride("f5-irules");
+  if (!operation.isCurrent()) throw new Error("The source changed before legacy scanning");
+  overrideLease = await acquireSessionDialectOverride("f5-irules");
 
   try {
-    if (!doc) {
-      doc = await ensureDocumentOpen(code);
-      if (doc.getText() !== code) throw new Error("Source document changed before scanning");
-      sourceSnapshot = snapshotDocumentSource(doc);
-    }
-    if (overrideLease && sourceSnapshot) {
-      sourceSnapshot = {
-        ...sourceSnapshot,
-        analysisContext: overrideLease.analysisContext,
-        requestedAnalysisDialect: overrideLease.dialect,
-      };
-    }
-    let operationContext = overrideLease?.analysisContext ?? sourceSnapshot?.analysisContext;
-    if (!isAnalysisContextCurrent(operationContext)) {
-      throw new Error("Analysis context changed before legacy scanning started");
-    }
-
-    // Get diagnostics and filter to convertible patterns
-    const diagnostics = await waitForDiagnostics(doc.uri, { timeout: 5000, expectedSource: code });
-    if (!isAnalysisContextCurrent(operationContext)) {
-      throw new Error("Analysis context changed during legacy scanning");
-    }
-    const convertible = diagnostics.filter((d) => CONVERTIBLE_CODES.has(diagnosticCode(d)));
+    if (overrideLease) operation.adoptOverride(overrideLease);
+    const report = await operation.readReport(5000);
+    await operation.assertPublished();
+    // Canonical metadata selects authored proposal topics, never edit authority.
+    const topics = diagnosticConversionTopics(report.diagnostics);
+    const convertible = topics.map((topic) => topic.diagnostic);
+    const sourceSnapshot = operation.sourceSnapshot;
 
     if (convertible.length === 0) {
-      ctx.response.markdown(
-        "No legacy patterns detected. The iRule already follows current best practices.",
-      );
+      ctx.response.markdown("No canonical legacy-conversion topics were reported for this source.");
       return { metadata: { command: "find-legacy", count: 0 } };
     }
 
@@ -128,23 +77,19 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
       `Modernise this iRule by converting all legacy patterns identified below.\n\n` +
         `Current code:\n\`\`\`tcl\n${code}\n\`\`\`\n\n` +
         `Legacy patterns found by static analysis:\n${diagnosticReport}\n\n` +
-        `Apply these conversions:\n` +
-        `- matchclass → class match (IRULE2001)\n` +
-        `- Unbraced expr → braced expr (W100)\n` +
-        `- String concat for lists → lappend (W104)\n` +
-        `- == / != for strings → eq / ne (W110)\n` +
-        `- Missing -- option terminator → add -- (W304)\n` +
-        `- Ungated log → add CLIENT_ACCEPTED { set debug 0 } and wrap with if {$debug} (IRULE5001)\n\n` +
+        `Consider these canonical conversion topics (proposals, not automatic edits):\n` +
+        [...new Set(topics.map((topic) => topic.description))]
+          .map((description) => `- ${description}`)
+          .join("\n") +
+        "\n\n" +
         `Return ONLY the complete modernised iRule in a single \`\`\`tcl code block.`,
-      { code, document: doc },
+      operation.promptOptions(),
     );
     let responseText = "";
     for await (const chunk of llmResponse.text) {
       responseText += chunk;
     }
-    if (!isAnalysisContextCurrent(operationContext)) {
-      throw new Error("Analysis context changed while legacy code was being modernised");
-    }
+    await operation.assertPublished();
 
     const modernised = extractCodeBlock(responseText);
     if (!modernised) {
@@ -154,13 +99,18 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
       return {};
     }
 
+    // The existing checked proposal path validates authored text; diagnostic
+    // topic membership itself grants neither edits nor successful execution.
     // Run agentic loop to validate
     const result = await runAgenticLoop(ctx, modernised, doc, {
-      targetDialect: "f5-irules",
+      // Reuse the operation's actual owned lease; never start a second
+      // override merely from the ambient display dialect.
+      targetDialect: overrideLease?.dialect,
       sourceSnapshot,
       sessionOverrideLease: overrideLease,
     });
 
+    await operation.assertPublished();
     ctx.response.markdown(`## Modernised iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
 
     if (result.proposalReport) {
@@ -171,11 +121,11 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
     }
     if (result.clean) {
       ctx.response.markdown(
-        `\nConverted ${convertible.length} legacy pattern(s). Validated clean in ${result.iterations} iteration(s).`,
+        `\nProposed updates for ${convertible.length} legacy topic(s). No proposal diagnostics were reported after ${result.iterations} iteration(s).`,
       );
     } else {
       ctx.response.markdown(
-        `\nConverted ${convertible.length} legacy pattern(s). After ${result.iterations} iteration(s), ${result.remainingDiagnostics.length} issue(s) remain:\n`,
+        `\nProposed updates for ${convertible.length} legacy topic(s). After ${result.iterations} iteration(s), ${result.remainingDiagnostics.length} issue(s) remain:\n`,
       );
       renderDiagnosticSection(
         ctx.response,
@@ -187,16 +137,19 @@ export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.Chat
 
     if (!result.documentSnapshot)
       throw new Error("Modernisation result has no current document snapshot");
-    operationContext = result.documentSnapshot.analysisContext;
+    const operationContext = result.documentSnapshot.analysisContext;
     if (!isAnalysisContextCurrent(operationContext)) {
       throw new Error("Analysis context changed before the modernisation result was ready");
     }
     if (overrideLease) {
       const writeContext = await overrideLease.restore();
-      if (!writeContext) throw new Error("The modernisation dialect override was superseded");
+      if (!writeContext || !isAnalysisContextCurrent(writeContext) || !operation.sourceUnchanged())
+        throw new Error("The modernisation source or dialect override was superseded");
       result.documentSnapshot = { ...result.documentSnapshot, analysisContext: writeContext };
       overrideLease = undefined;
     }
+    if (ctx.token.isCancellationRequested || !operation.sourceUnchanged())
+      throw new Error("The modernisation source changed before its action was published");
     const writeReceipt = documentWriteReceipt(result.documentSnapshot);
     ctx.response.button({
       command: "tclLsp.applyFix",
