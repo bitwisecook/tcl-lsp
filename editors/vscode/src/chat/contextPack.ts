@@ -20,9 +20,15 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { isTclLanguage } from "../extension";
 import { resolveIruleCode } from "./codeUtils";
-import { waitForDiagnostics } from "./diagnosticAccess";
+import {
+  currentDiagnosticsReportMatches,
+  currentDiagnosticsReportIsStillPublished,
+  waitForDiagnosticsReport,
+  type CurrentDiagnosticsReport,
+} from "./diagnosticAccess";
 import { DEFAULT_DIALECT } from "./dialectCatalog";
 import { LANGUAGE_ID_DIALECTS } from "../languageIds";
+import { buildPrompt } from "./promptLoader";
 import { CommandContext } from "./types";
 
 const DEFAULT_DIAGNOSTIC_TIMEOUT_MS = 2500;
@@ -50,6 +56,8 @@ export interface PromptContextOptions {
   document?: vscode.TextDocument;
   /** Captured source language/version label; this is descriptive, not a dialect authority. */
   sourceContextLabel?: string;
+  /** A completed report already obtained for this exact document and source. */
+  completedDiagnosticsReport?: CurrentDiagnosticsReport;
   /** Recheck the exact source snapshot after awaits and before each model request. */
   isSourceCurrent?: () => boolean;
   allowAmbientContext?: boolean;
@@ -281,18 +289,19 @@ async function buildDiagnosticsSection(
   expectedSource: string | undefined,
   maxDiagnostics: number,
   timeoutMs: number,
-): Promise<string> {
+): Promise<{ text: string; report?: CurrentDiagnosticsReport }> {
   if (!document) {
-    return "Diagnostics: unavailable (no open Tcl document URI).";
+    return { text: "Diagnostics: unavailable (no open Tcl document URI)." };
   }
   if (expectedSource === undefined) {
-    return "Diagnostics: unavailable (no resolved source snapshot).";
+    return { text: "Diagnostics: unavailable (no resolved source snapshot)." };
   }
 
-  const diagnostics = await waitForDiagnostics(document.uri, {
+  const report = await waitForDiagnosticsReport(document.uri, {
     timeout: timeoutMs,
     expectedSource,
   });
+  const diagnostics = [...report.diagnostics];
 
   const actionable = diagnostics
     .filter((diagnostic) => diagnostic.severity <= vscode.DiagnosticSeverity.Warning)
@@ -305,7 +314,10 @@ async function buildDiagnosticsSection(
     });
 
   if (actionable.length === 0) {
-    return "Diagnostics: no errors/warnings.";
+    return {
+      text: `Diagnostics: no errors/warnings (completed ${report.response.dialectId} report for source version ${report.response.version}).`,
+      report,
+    };
   }
 
   const visible = actionable.slice(0, maxDiagnostics);
@@ -321,7 +333,13 @@ async function buildDiagnosticsSection(
     lines.push(`- ... and ${actionable.length - visible.length} more issue(s).`);
   }
 
-  return [`Diagnostics (${actionable.length}):`, ...lines].join("\n");
+  return {
+    text: [
+      `Diagnostics (${actionable.length}; completed ${report.response.dialectId} report, source version ${report.response.version}):`,
+      ...lines,
+    ].join("\n"),
+    report,
+  };
 }
 
 function buildSymbolSection(symbols: readonly SourceSymbolDefinition[] | undefined): string {
@@ -367,10 +385,10 @@ function buildEventSection(
   return [`iRules event metadata (${events.length}):`, ...lines].join("\n");
 }
 
-export async function buildPromptContextBlock(
+async function buildPromptContextWithReport(
   ctx: CommandContext,
   options: PromptContextOptions = {},
-): Promise<string> {
+): Promise<{ block: string; diagnosticsReport?: CurrentDiagnosticsReport }> {
   const allowAmbientContext = options.allowAmbientContext ?? true;
   const includeDiagnostics = options.includeDiagnostics ?? true;
   const includeSymbolDefinitions = options.includeSymbolDefinitions ?? true;
@@ -379,14 +397,43 @@ export async function buildPromptContextBlock(
   const document = await resolveContextDocument(ctx, options.document, allowAmbientContext);
   const code = await resolveContextCode(ctx, options.code, document, allowAmbientContext);
   if (!document && !code) {
-    return "";
+    return { block: "" };
+  }
+
+  let diagnosticsReport = options.completedDiagnosticsReport;
+  let diagnosticsText: string | undefined;
+  if (diagnosticsReport) {
+    if (
+      !document ||
+      code === undefined ||
+      !currentDiagnosticsReportMatches(diagnosticsReport, {
+        document,
+        uri: document.uri,
+        version: document.version,
+        source: code,
+      })
+    ) {
+      throw new Error("The supplied completed diagnostics report does not match this source");
+    }
+  }
+  if (includeDiagnostics && !diagnosticsReport) {
+    const diagnosticSection = await buildDiagnosticsSection(
+      document,
+      code,
+      options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
+      options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
+    );
+    diagnosticsReport = diagnosticSection.report;
+    diagnosticsText = diagnosticSection.text;
   }
 
   const summary: string[] = ["Deterministic context (Tcl LSP):"];
   summary.push(
-    options.sourceContextLabel
-      ? `- Captured source: ${options.sourceContextLabel}`
-      : `- Dialect: ${activeDialect()}`,
+    diagnosticsReport
+      ? `- Completed resource analysis: ${diagnosticsReport.response.dialectId} (source version ${diagnosticsReport.response.version})`
+      : options.sourceContextLabel
+        ? `- Captured source: ${options.sourceContextLabel}`
+        : `- Selected session dialect hint: ${activeDialect()}`,
   );
   if (document) {
     summary.push(`- File: ${formatDocumentLabel(document)}`);
@@ -397,15 +444,40 @@ export async function buildPromptContextBlock(
 
   const sections: string[] = [summary.join("\n")];
 
-  if (includeDiagnostics) {
-    sections.push(
-      await buildDiagnosticsSection(
-        document,
-        code,
-        options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS,
-        options.diagnosticsTimeoutMs ?? DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
-      ),
-    );
+  if (includeDiagnostics && diagnosticsReport) {
+    if (diagnosticsText !== undefined) {
+      sections.push(diagnosticsText);
+    } else {
+      const diagnostics = [...diagnosticsReport.diagnostics];
+      const actionable = diagnostics
+        .filter((diagnostic) => diagnostic.severity <= vscode.DiagnosticSeverity.Warning)
+        .sort((left, right) => {
+          const lineDiff = left.range.start.line - right.range.start.line;
+          return lineDiff !== 0
+            ? lineDiff
+            : left.range.start.character - right.range.start.character;
+        });
+      if (actionable.length === 0) {
+        sections.push(
+          `Diagnostics: no errors/warnings (completed ${diagnosticsReport.response.dialectId} report for source version ${diagnosticsReport.response.version}).`,
+        );
+      } else {
+        const visible = actionable.slice(0, options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS);
+        const lines = visible.map((diagnostic) => {
+          const code = diagnosticCode(diagnostic) || "unknown";
+          return (
+            `- [${code}] line ${diagnostic.range.start.line + 1} (${diagnosticSeverity(diagnostic.severity)}): ` +
+            diagnostic.message.replace(/\s+/g, " ").trim()
+          );
+        });
+        if (actionable.length > visible.length) {
+          lines.push(`- ... and ${actionable.length - visible.length} more issue(s).`);
+        }
+        sections.push([`Diagnostics (${actionable.length} actionable):`, ...lines].join("\n"));
+      }
+    }
+  } else if (includeDiagnostics && diagnosticsText !== undefined) {
+    sections.push(diagnosticsText);
   }
 
   const sourceSymbols =
@@ -429,10 +501,42 @@ export async function buildPromptContextBlock(
     }
   }
 
-  return [
-    "Use this deterministic project/editor context when generating the answer:",
-    ...sections,
-  ].join("\n\n");
+  return {
+    block: [
+      "Use this deterministic project/editor context when generating the answer:",
+      ...sections,
+    ].join("\n\n"),
+    diagnosticsReport,
+  };
+}
+
+export async function buildPromptContextBlock(
+  ctx: CommandContext,
+  options: PromptContextOptions = {},
+): Promise<string> {
+  return (await buildPromptContextWithReport(ctx, options)).block;
+}
+
+async function buildContextualMessagesWithReport(
+  ctx: CommandContext,
+  prompt: string,
+  options: PromptContextOptions = {},
+): Promise<{
+  messages: vscode.LanguageModelChatMessage[];
+  diagnosticsReport?: CurrentDiagnosticsReport;
+}> {
+  const packed = await buildPromptContextWithReport(ctx, options);
+  const userPrompt = packed.block ? `${prompt.trimEnd()}\n\n${packed.block}` : prompt;
+  const systemPrompt = packed.diagnosticsReport
+    ? buildPrompt(packed.diagnosticsReport.response.dialectId)
+    : ctx.systemPrompt;
+  return {
+    messages: [
+      vscode.LanguageModelChatMessage.User(systemPrompt),
+      vscode.LanguageModelChatMessage.User(userPrompt),
+    ],
+    diagnosticsReport: packed.diagnosticsReport,
+  };
 }
 
 export async function buildContextualMessages(
@@ -440,13 +544,7 @@ export async function buildContextualMessages(
   prompt: string,
   options: PromptContextOptions = {},
 ): Promise<vscode.LanguageModelChatMessage[]> {
-  const packedContext = await buildPromptContextBlock(ctx, options);
-  const userPrompt = packedContext ? `${prompt.trimEnd()}\n\n${packedContext}` : prompt;
-
-  return [
-    vscode.LanguageModelChatMessage.User(ctx.systemPrompt),
-    vscode.LanguageModelChatMessage.User(userPrompt),
-  ];
+  return (await buildContextualMessagesWithReport(ctx, prompt, options)).messages;
 }
 
 /**
@@ -491,23 +589,40 @@ export async function sendContextualRequest(
   prompt: string,
   options: PromptContextOptions = {},
 ): Promise<vscode.LanguageModelChatResponse> {
-  const messages = await buildContextualMessages(ctx, prompt, options);
-  const assertSourceCurrent = () => {
+  const built = await buildContextualMessagesWithReport(ctx, prompt, options);
+  const messages = built.messages;
+  const assertSourceCurrent = async () => {
     if (options.isSourceCurrent && !options.isSourceCurrent()) {
       throw new Error("The captured source changed before the model request could be sent");
     }
+    const report = built.diagnosticsReport;
+    if (
+      report &&
+      !(await currentDiagnosticsReportIsStillPublished(report, {
+        document: report.document,
+        uri: report.document.uri,
+        version: report.response.version,
+        source: report.response.source,
+      }))
+    ) {
+      throw new Error(
+        "The completed diagnostics report is no longer current for its source/session",
+      );
+    }
   };
-  assertSourceCurrent();
+  await assertSourceCurrent();
   const sendOpts = {
     justification:
       "The iRule Assistant uses the language model to generate, explain, and analyse iRule code.",
   };
 
   const model = await resolveModel(ctx.request.model);
-  assertSourceCurrent();
+  await assertSourceCurrent();
 
   try {
-    return await model.sendRequest(messages, sendOpts, ctx.token);
+    const response = await model.sendRequest(messages, sendOpts, ctx.token);
+    await assertSourceCurrent();
+    return response;
   } catch (firstErr) {
     if (ctx.token.isCancellationRequested) {
       throw firstErr;
@@ -516,10 +631,13 @@ export async function sendContextualRequest(
     const models = await vscode.lm.selectChatModels();
     for (const candidate of models) {
       if (candidate.id === model.id) continue;
-      assertSourceCurrent();
+      await assertSourceCurrent();
       try {
-        return await candidate.sendRequest(messages, sendOpts, ctx.token);
+        const response = await candidate.sendRequest(messages, sendOpts, ctx.token);
+        await assertSourceCurrent();
+        return response;
       } catch {
+        await assertSourceCurrent();
         continue;
       }
     }

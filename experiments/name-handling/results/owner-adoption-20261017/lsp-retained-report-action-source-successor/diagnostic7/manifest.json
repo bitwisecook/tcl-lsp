@@ -1,0 +1,81 @@
+{
+  "version": 9,
+  "status": "immutable current-main successor; no tests, typecheck, or builds run",
+  "purpose": "Carry the actual completed diagnostic pass through generic AI/Tk and Tcl validation decisions, bound to the original source, client session, full per-resource tclLsp configuration, and the same completed publisher-ledger entry at post-await use points.",
+  "supersedes_candidate": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v8/manifest.json",
+  "patch": {
+    "path": "/workspace/naming-validation/agent-work/lsp-current-diagnostic-report-v9/repair.patch",
+    "sha256": "3d100f6e1d8e1773674599ca423f7fe0c3480b21f2ec553008d8066ee4dd5072"
+  },
+  "source_files": [
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "49c26a17ad9edf1fa35536c4bbe3b7b75874d01f87be23ace9b8ad82818c8953",
+      "after_sha256": "6c2717d6930fe4eeb7ee51085445254126f468ef0cf3525dc5309bdb6394b15a",
+      "change": "Serialize dialectId from the actual completed DiagnosticPass; retain its non-default producer control."
+    },
+    {
+      "path": "editors/vscode/src/chat/diagnosticAccess.ts",
+      "before_sha256": "f0e025769ff156bdaec9b62f3fc724ce83c3f42c535927f5c92586cd2de6f7cb",
+      "after_sha256": "61ecfce4e90d23415b75753fdf874d20abb6d2f0f09168acdca0b06078f06f82",
+      "change": "Retain the full report, original source/session/resource configuration, and add a read-only current-publisher rejoin that requires identical dialect/revision/input epoch/result ID. A newer complete report or unavailable/suppressed state refuses use; it never replaces the retained result."
+    },
+    {
+      "path": "editors/vscode/src/chat/contextPack.ts",
+      "before_sha256": "a53970befc989acd05f62bcf181ba15fc36d86cf7e06d4aaf3492ffd5c6aabd2",
+      "after_sha256": "68840e9cc5710591ea858bf57b9e29ed8bfdb68435ee77e87d8bbef7d9759648",
+      "change": "Use the report dialect in prompts and rejoin the same publisher receipt before model dispatch, after model selection, and after model response; report/resource/session mismatch refuses the result."
+    },
+    {
+      "path": "editors/vscode/src/chat/agenticLoop.ts",
+      "before_sha256": "bc7fbe8b17fa848b5d6dd504c5acbf9ebb44458ab6581c5a845b5a247f56b6bf",
+      "after_sha256": "bc7c93786c4346e5aec430b16a9b14c885a96fb6a74094815e793210a45aa368",
+      "change": "Retain full reports for iteration and final decisions; rejoin the original publisher report before clean outcomes, after model stream completion, and after final reporting. Proposal reporting remains separate."
+    },
+    {
+      "path": "editors/vscode/src/chat/tclParticipant.ts",
+      "before_sha256": "c9e971b565919be824ead1ab0238a91b6a56c2636ee088c8bfa6a2bbe3cf1c0b",
+      "after_sha256": "2111b3c89f733b1e8a44663d1040daef2a44d1122e97aadc59bb643891fbabfc",
+      "change": "Rebased validation adopter over the actual current main containing the separate Chatopt optimise handler; preserves that handler/imports while switching generic validate to typed publisher-report rejoin."
+    },
+    {
+      "path": "editors/vscode/src/test/currentDiagnostics.test.ts",
+      "before_sha256": "fe2f90bda3940dfd976020a25aa0c91cce7da169e5e93a17bea6c9131c1796aa",
+      "after_sha256": "a556351c6b823efa6d4bba0b30d4769a5501d176ded917e97c1d22a91dc6caf9",
+      "change": "Preserve original assertions and earlier controls; add per-resource fingerprint change control, in-flight resource change control, and same-session newer-publisher-epoch refusal."
+    },
+    {
+      "path": "editors/vscode/src/documentTransform.ts",
+      "before_sha256": "416cc496184db6eed6d894a506b6a724971ba02386c4cbaa6f517f35d034143d",
+      "after_sha256": "b9a94c4c06a13f6a498ed44eedf3d964a69f5f0d20b5d5f269f509ab4077bd4d",
+      "change": "Reuse the extracted shared resourceConfiguration owner; remove the duplicate private implementation."
+    }
+  ],
+  "new_test_selectors": [
+    "current_diagnostics::tests::current_diagnostics_serializes_dialect_from_the_completed_publisher_pass",
+    "Chat current diagnostic publication adapter: a resource setting change invalidates a report even when source and session stay current",
+    "Chat current diagnostic publication adapter: a resource setting change during publication refuses the pinned report",
+    "Chat current diagnostic publication adapter: a retained report refuses a newer publisher epoch for the same source and session"
+  ],
+  "preserved_existing_selectors": [
+    "Chat current diagnostic publication adapter: pending is retried and a completed empty publication remains empty",
+    "Chat current diagnostic publication adapter: a delivered disabled receipt remains typed suppression, not clean empty",
+    "Chat current diagnostic publication adapter: a server restart discards an old client's response and converter",
+    "Chat current diagnostic publication adapter: proposal diagnostics bind complete results to one original source and proposal"
+  ],
+  "validation": {
+    "prettier": "PASS on changed TypeScript candidate files using repository config",
+    "rustfmt": "not rerun; Rust source is byte-identical to reviewed V5",
+    "typecheck": "not run",
+    "tests": "not run",
+    "cargo": "not run",
+    "independent_review": "pending exact V9 current-main packet review"
+  },
+  "limits": [
+    "Every rejoin uses the original retained transport and exact URI/version/full source; it requires the exact prior publisher revision, inputsEpoch, resultId, and dialectId. It never adopts the new response as a replacement report.",
+    "Unavailable, pending, stale, malformed, timeout, and suppressed rejoin responses all refuse the prior report; none become an empty clean result.",
+    "The report and rejoin grant no edit authority. Existing checked source-write owners remain separate.",
+    "The shared report proves client source/session, full VS Code per-resource tclLsp settings, and equality with the currently published server ledger at each joined use point."
+  ],
+  "source_base_note": "V9 is generated against current main after ChatoptV3 integration. Its tclParticipant afterimage retains the actual already-integrated optimise handler and only adds the disjoint generic validate report consumer; V5-V8 remain immutable."
+}

@@ -35,6 +35,39 @@ struct ReadonlySourceDocument {
     database_revision: salsa::Revision,
 }
 
+/// One request's checked analysis for an actual workspace-symbol URI. A
+/// missing database SourceFile is not missing source or missing declarations.
+pub(super) struct WorkspaceSymbolSourceAnalysis {
+    kind: WorkspaceSymbolAnalysisKind,
+}
+
+enum WorkspaceSymbolAnalysisKind {
+    Database(Box<OriginalReadonlyReferenceDocument>),
+    Fresh(Box<WorkspaceSymbolFreshInput>),
+}
+
+struct WorkspaceSymbolFreshInput {
+    uri: Uri,
+    snapshot: super::DocumentState,
+    was_open: bool,
+    seed: super::FreshAnalysisSeed,
+    input: Arc<ResolvedAnalysisInput>,
+    config: tcl_lsp_db::AnalyserConfig,
+    configuration: tcl_lsp_db::DiagnosticConfigurationSnapshot,
+    database_revision: salsa::Revision,
+    uri_generation: u64,
+}
+
+/// References into the actual held final publication transaction. This is
+/// source/input currency only; it supplies no source semantics or absence.
+struct ReadonlySourceState<'a> {
+    open: &'a std::collections::HashMap<Uri, super::DocumentState>,
+    db: &'a tcl_lsp_db::TclDatabase,
+    files: &'a std::collections::HashMap<Uri, tcl_lsp_db::SourceFile>,
+    published: &'a std::collections::HashMap<Uri, super::PublishedSourcePath>,
+    uri_generations: &'a std::collections::HashMap<Uri, u64>,
+}
+
 pub(super) struct OriginalReadonlyReferenceReport {
     pub(super) locations: Vec<Location>,
     pub(super) coverage: ReadonlyReferenceCoverage,
@@ -347,6 +380,201 @@ impl Backend {
         Ok(current.matches_original_input().then_some(current))
     }
 
+    /// Preserve the source snapshot's own semantic input. Published database
+    /// documents use the existing genuine readonly owner; Pending and genuine
+    /// no-handle sources retain their actual fresh driver/seed instead.
+    pub(super) async fn capture_workspace_symbol_analysis(
+        &self,
+        uri: &Uri,
+        snapshot: &super::DocumentState,
+    ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
+        let snapshot = if snapshot.dialect.is_empty() {
+            let Some(current) = self.read_document(uri).await? else {
+                return Ok(None);
+            };
+            if current.clone().normalised_for_analysis().text != snapshot.text {
+                return Ok(None);
+            }
+            current.normalised_for_analysis()
+        } else {
+            snapshot.clone().normalised_for_analysis()
+        };
+        if snapshot.publication == super::DocumentPublication::Indexed
+            && self.db_files.lock().await.contains_key(uri)
+        {
+            let Some(document) = self
+                .capture_readonly_reference_document(uri.as_str(), Arc::clone(&snapshot.text))
+                .await?
+            else {
+                return Ok(None);
+            };
+            return Ok((document.publication.document.raw() == snapshot.raw()
+                && document.publication.document.dialect == snapshot.dialect)
+                .then_some(WorkspaceSymbolSourceAnalysis {
+                    kind: WorkspaceSymbolAnalysisKind::Database(Box::new(document)),
+                }));
+        }
+
+        let config = self.resolved_db_config(uri).await;
+        let (configuration, database_revision) = {
+            let db = self.db.lock().await;
+            (
+                config.diagnostic_report_configuration(&*db),
+                tcl_lsp_db::database_revision(&db),
+            )
+        };
+        let was_open = self
+            .documents
+            .lock("workspace_symbol_source_capture")
+            .await
+            .contains_key(uri);
+        let uri_generation = self.live_publication_uri_generation(uri);
+        let seed = self
+            .fresh_analysis_seed(uri, Arc::clone(&snapshot.text), snapshot.dialect.clone())
+            .await?;
+        let Some(input) = seed.analysis.resolved_input.as_ref().cloned().map(Arc::new) else {
+            return Ok(None);
+        };
+        if !original_readonly_analysis_matches_input(&snapshot.text, &seed.analysis, &input) {
+            return Ok(None);
+        }
+        Ok(Some(WorkspaceSymbolSourceAnalysis {
+            kind: WorkspaceSymbolAnalysisKind::Fresh(Box::new(WorkspaceSymbolFreshInput {
+                uri: uri.clone(),
+                snapshot,
+                was_open,
+                seed,
+                input,
+                config,
+                configuration,
+                database_revision,
+                uri_generation,
+            })),
+        }))
+    }
+
+    /// Project once while the actual full input/configuration, source/provider,
+    /// publication and per-document index revision remain held together. This
+    /// retains possible symbol advice, not a complete workspace absence census.
+    pub(super) async fn finish_workspace_symbol_response(
+        &self,
+        analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: &[(
+            tower_lsp_server::ls_types::SymbolInformation,
+            Uri,
+            super::DocumentState,
+            Option<u64>,
+        )],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<Option<tower_lsp_server::ls_types::WorkspaceSymbolResponse>> {
+        let owners = rows
+            .iter()
+            .map(|(_, uri, _, _)| uri.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        let Some(selected) = owners
+            .iter()
+            .map(|uri| analyses.get(*uri)?.as_ref())
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        let mut admissions = selected
+            .iter()
+            .map(|analysis| WorkspaceSymbolSourceAnalysis::admission(analysis))
+            .collect::<Vec<_>>();
+        // The analysis seed cannot renew an independently captured source-read
+        // mapping. Retain both actual receipts through the same final lease;
+        // equal URI/path/text never substitutes for the original allocation.
+        for (_, uri, snapshot, _) in rows {
+            if let Some(admission) = snapshot.path_admission.as_deref() {
+                if admission.uri() != uri {
+                    return Ok(None);
+                }
+                admissions.push(admission);
+            } else if self.store.workspace_source_inventory_provider()
+                == super::vfs::WorkspaceSourceInventoryProvider::HostReported
+                && uri.scheme().as_str() == "file"
+            {
+                // Preserve the original host-file source-receipt refusal.
+                // Native and pathless/in-memory purposes remain independent.
+                return Ok(None);
+            }
+        }
+        self.with_current_readonly_source_state(
+            inputs_epoch,
+            factory_generation,
+            &admissions,
+            |state| {
+                // One full-input query per selected URI. The transaction continues
+                // to hold those actual input/DB/open guards through publication.
+                Some(
+                    owners
+                        .iter()
+                        .copied()
+                        .filter(|uri| {
+                            analyses
+                                .get(*uri)
+                                .and_then(Option::as_ref)
+                                .is_some_and(|analysis| {
+                                    WorkspaceSymbolSourceAnalysis::matches_current_state(
+                                        analysis,
+                                        state,
+                                        inputs_epoch,
+                                        factory_generation,
+                                    )
+                                })
+                        })
+                        .collect::<std::collections::HashSet<_>>(),
+                )
+            },
+            |state, current_inputs| {
+                // The established writer order is documents -> index. Never await
+                // an index guard while holding the DB/publication/provider lease.
+                let Ok(index) = self.workspace_index.try_read() else {
+                    return None;
+                };
+                let mut current = Vec::with_capacity(rows.len());
+                for (symbol, uri, snapshot, indexed_revision) in rows {
+                    if !current_inputs.contains(uri.as_str())
+                        || !WorkspaceSymbolSourceAnalysis::matches_snapshot(
+                            analyses.get(uri.as_str())?.as_ref()?,
+                            uri,
+                            snapshot,
+                        )
+                    {
+                        continue;
+                    }
+                    if let Some(live) = state.open.get(uri) {
+                        if live.backing_file_deleted
+                            || live.revision != snapshot.revision
+                            || live.version != snapshot.version
+                            || live.raw() != snapshot.raw()
+                            || live.dialect != snapshot.dialect
+                            || live.path_admission != snapshot.path_admission
+                        {
+                            continue;
+                        }
+                    } else if snapshot.version.is_some() {
+                        continue;
+                    }
+                    match indexed_revision {
+                        Some(revision)
+                            if index.document_revision(uri.as_str()) == Some(*revision) => {}
+                        Some(_) => continue,
+                        None if index.contains_document(uri.as_str()) => continue,
+                        None => {}
+                    }
+                    current.push(symbol.clone());
+                }
+                (!current.is_empty()).then_some(
+                    tower_lsp_server::ls_types::WorkspaceSymbolResponse::Flat(current),
+                )
+            },
+        )
+        .await
+    }
+
     async fn finish_readonly_reference_report(
         &self,
         documents: &[OriginalReadonlyReferenceDocument],
@@ -373,6 +601,41 @@ impl Backend {
         factory_generation: u64,
         mut publish: impl FnMut() -> Option<T>,
     ) -> DocumentSourceResult<Option<T>> {
+        let admissions = documents
+            .iter()
+            .map(|document| document.admission.as_ref())
+            .collect::<Vec<_>>();
+        self.with_current_readonly_source_state(
+            inputs_epoch,
+            factory_generation,
+            &admissions,
+            |state| {
+                if documents.iter().any(|document| {
+                    !document.matches_current_snapshot(
+                        state.uri_generations,
+                        state.open,
+                        state.db,
+                        state.files,
+                        state.published,
+                    )
+                }) {
+                    return None;
+                }
+                Some(())
+            },
+            |_, ()| publish(),
+        )
+        .await
+    }
+
+    async fn with_current_readonly_source_state<T, Checked>(
+        &self,
+        inputs_epoch: u64,
+        factory_generation: u64,
+        admissions: &[&DocumentPathAdmission],
+        mut check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
+        mut publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
+    ) -> DocumentSourceResult<Option<T>> {
         let _inputs = self.analyser_inputs_gate.read().await;
         let generation = self.class_factory_generation.read().await;
         let open = self
@@ -393,19 +656,22 @@ impl Backend {
             .live_publication_uri_generations
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if self.diag_inputs_epoch() != inputs_epoch
-            || *generation != factory_generation
-            || documents.iter().any(|document| {
-                !document.matches_current_snapshot(&uri_generations, &open, &db, &files, &published)
-            })
-        {
+        if self.diag_inputs_epoch() != inputs_epoch || *generation != factory_generation {
             return Ok(None);
         }
-        let admissions = documents
-            .iter()
-            .map(|document| document.admission.as_ref())
-            .collect::<Vec<_>>();
-        DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), &mut publish)
+        let state = ReadonlySourceState {
+            open: &open,
+            db: &db,
+            files: &files,
+            published: &published,
+            uri_generations: &uri_generations,
+        };
+        let Some(checked) = check(&state) else {
+            return Ok(None);
+        };
+        DocumentPathAdmission::with_current(admissions, self.store.as_ref(), || {
+            publish(&state, &checked)
+        })
     }
 
     /// Project namespace relationships only under their original input/index
@@ -1247,18 +1513,107 @@ impl OriginalReadonlyReferenceDocument {
     }
 
     fn matches_original_input(&self) -> bool {
-        let config = self.input.lexer_config();
-        self.analysis.resolved_input.as_ref() == Some(self.input.as_ref())
-            && self.analysis.analysis_context_unavailable.is_none()
-            && self.analysis.body_lexer_config == Some(config)
-            && self.analysis.matches_original_source_image(
-                &tcl_lexer::SourceImage::document(&self.source),
-                config,
-            )
-            && self
-                .analysis
-                .retained_command_realm()
-                .is_some_and(|realm| realm.matches_resolved_analysis_input(self.input.as_ref()))
+        original_readonly_analysis_matches_input(&self.source, &self.analysis, &self.input)
+    }
+}
+
+fn original_readonly_analysis_matches_input(
+    source: &str,
+    analysis: &AnalysisResult,
+    input: &ResolvedAnalysisInput,
+) -> bool {
+    let config = input.lexer_config();
+    analysis.resolved_input.as_ref() == Some(input)
+        && analysis.analysis_context_unavailable.is_none()
+        && analysis.body_lexer_config == Some(config)
+        && analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        && analysis
+            .retained_command_realm()
+            .is_some_and(|realm| realm.matches_resolved_analysis_input(input))
+}
+
+impl WorkspaceSymbolSourceAnalysis {
+    pub(super) fn analysis(&self) -> &AnalysisResult {
+        match &self.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => &document.analysis,
+            WorkspaceSymbolAnalysisKind::Fresh(document) => &document.seed.analysis,
+        }
+    }
+
+    fn matches_snapshot(&self, uri: &Uri, snapshot: &super::DocumentState) -> bool {
+        match &self.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => {
+                &document.uri == uri
+                    && document.source == snapshot.text
+                    && document.publication.document.raw() == snapshot.raw()
+            }
+            WorkspaceSymbolAnalysisKind::Fresh(document) => {
+                &document.uri == uri
+                    && document.snapshot.text == snapshot.text
+                    && document.snapshot.raw() == snapshot.raw()
+            }
+        }
+    }
+
+    fn admission(&self) -> &DocumentPathAdmission {
+        match &self.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => &document.admission,
+            WorkspaceSymbolAnalysisKind::Fresh(document) => &document.seed.path_admission,
+        }
+    }
+
+    fn matches_current_state(
+        &self,
+        state: &ReadonlySourceState<'_>,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> bool {
+        match &self.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => document.matches_current_snapshot(
+                state.uri_generations,
+                state.open,
+                state.db,
+                state.files,
+                state.published,
+            ),
+            WorkspaceSymbolAnalysisKind::Fresh(document) => {
+                let open_matches = match state.open.get(&document.uri) {
+                    Some(current) if document.was_open => {
+                        !current.backing_file_deleted
+                            && current.revision == document.snapshot.revision
+                            && current.version == document.snapshot.version
+                            && current.raw() == document.snapshot.raw()
+                            && current.dialect == document.snapshot.dialect
+                            && current.publication == document.snapshot.publication
+                            && current.path_admission == document.snapshot.path_admission
+                            && current.dialect_resolution_generation
+                                == document.snapshot.dialect_resolution_generation
+                            && current.resolved_dialect_generation
+                                == document.snapshot.resolved_dialect_generation
+                    }
+                    None => !document.was_open,
+                    Some(_) => false,
+                };
+                open_matches
+                    && document.seed.analyser_inputs_epoch == inputs_epoch
+                    && document.seed.class_factory_generation == factory_generation
+                    && document.uri_generation
+                        == state
+                            .uri_generations
+                            .get(&document.uri)
+                            .copied()
+                            .unwrap_or_default()
+                    && tcl_lsp_db::database_revision(state.db) == document.database_revision
+                    && document.config.diagnostic_report_configuration(state.db)
+                        == document.configuration
+                    && document.seed.path_admission.uri() == &document.uri
+                    && original_readonly_analysis_matches_input(
+                        &document.snapshot.text,
+                        &document.seed.analysis,
+                        &document.input,
+                    )
+            }
+        }
     }
 }
 
@@ -2376,5 +2731,486 @@ mod logical_call_backend_session_tests {
         assert!(second.incoming_calls(params).await.unwrap().is_none());
         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
         assert!(second.outgoing_calls(params).await.unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod workspace_symbol_input_lease_tests {
+    use super::*;
+    use crate::DocumentState;
+    use std::collections::HashMap;
+    use tower_lsp_server::LanguageServer;
+    use tower_lsp_server::ls_types::{
+        SymbolInformation, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    };
+
+    const SOURCE: &str = "proc first_symbol {} {}\nproc second_symbol {} {}\n";
+
+    async fn register(backend: &Backend, uri: &Uri, database: bool) {
+        backend
+            .documents
+            .lock("workspace symbol input test")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(SOURCE.to_owned(), "tcl8.6".to_owned()),
+            );
+        if database {
+            backend
+                .db_set_source(uri, SOURCE, "tcl8.6".to_owned())
+                .await
+                .unwrap();
+        }
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    async fn symbols(backend: &Backend, query: &str) -> Vec<SymbolInformation> {
+        let response = backend
+            .symbol(WorkspaceSymbolParams {
+                query: query.to_owned(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .unwrap();
+        let Some(WorkspaceSymbolResponse::Flat(symbols)) = response else {
+            panic!("expected genuine current symbols, got {response:?}");
+        };
+        symbols
+    }
+
+    struct Prepared {
+        analyses: HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)>,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    }
+
+    async fn prepare(backend: &Backend, uri: &Uri) -> Prepared {
+        // Presentation rows come from the actual guarded endpoint, not from
+        // fabricated names, geometry or declaration/Native identities.
+        let found = symbols(backend, "symbol").await;
+        assert_eq!(found.len(), 2);
+        let inputs_epoch = backend.diag_inputs_epoch();
+        let factory_generation = *backend.class_factory_generation.read().await;
+        let snapshot = backend
+            .documents
+            .lock("workspace symbol proof source")
+            .await
+            .get(uri)
+            .unwrap()
+            .clone()
+            .normalised_for_analysis();
+        let analysis = backend
+            .capture_workspace_symbol_analysis(uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        let revision = {
+            let _documents = backend.documents.lock("workspace symbol proof index").await;
+            backend
+                .workspace_index
+                .read()
+                .await
+                .document_revision(uri.as_str())
+        };
+        let rows = found
+            .into_iter()
+            .map(|symbol| (symbol, uri.clone(), snapshot.clone(), revision))
+            .collect();
+        Prepared {
+            analyses: HashMap::from([(uri.as_str().to_owned(), Some(analysis))]),
+            rows,
+            inputs_epoch,
+            factory_generation,
+        }
+    }
+
+    async fn finish(backend: &Backend, prepared: &Prepared) -> Option<WorkspaceSymbolResponse> {
+        backend
+            .finish_workspace_symbol_response(
+                &prepared.analyses,
+                &prepared.rows,
+                prepared.inputs_epoch,
+                prepared.factory_generation,
+            )
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn native_indexed_and_pending_pathless_symbols_keep_genuine_no_database_inputs() {
+        let backend = crate::tests::test_backend();
+        let native: Uri = "file:///tmp/workspace-symbol-native-no-db.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &native, false).await;
+        assert!(!backend.db_files.lock().await.contains_key(&native));
+        let native_rows = symbols(&backend, "symbol").await;
+        assert_eq!(native_rows.len(), 2);
+        assert!(
+            native_rows
+                .iter()
+                .all(|symbol| symbol.location.uri == native)
+        );
+
+        let pending: Uri = "untitled:workspace-symbol-unicode-pending".parse().unwrap();
+        backend
+            .documents
+            .lock("workspace symbol pending test")
+            .await
+            .insert(
+                pending.clone(),
+                DocumentState::with_version(
+                    "proc 茶 {} {}\rproc 雪 {} {}\r".to_owned(),
+                    "tcl8.6".to_owned(),
+                    1,
+                )
+                .with_publication_pending(),
+            );
+        assert!(!backend.db_files.lock().await.contains_key(&pending));
+        let pending_rows = symbols(&backend, "雪").await;
+        assert_eq!(pending_rows.len(), 1);
+        assert_eq!(pending_rows[0].location.uri, pending);
+        assert_eq!(pending_rows[0].location.range.start, Position::new(1, 5));
+        assert_eq!(pending_rows[0].location.range.end, Position::new(1, 6));
+    }
+
+    #[tokio::test]
+    async fn fresh_symbol_analysis_cannot_survive_equal_source_configuration_mutation() {
+        use salsa::Setter as _;
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-fresh-config.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let prepared = prepare(&backend, &uri).await;
+        assert!(matches!(
+            &prepared.analyses[uri.as_str()].as_ref().unwrap().kind,
+            WorkspaceSymbolAnalysisKind::Fresh(_)
+        ));
+        assert!(finish(&backend, &prepared).await.is_some());
+        let revision = backend
+            .workspace_index
+            .read()
+            .await
+            .document_revision(uri.as_str());
+        let config = backend.resolved_db_config(&uri).await;
+        {
+            let mut db = backend.db.lock().await;
+            config
+                .set_extra_commands(&mut *db)
+                .to(vec!["new_configuration_command".to_owned()]);
+        }
+        assert_eq!(
+            backend.diag_inputs_epoch(),
+            prepared.inputs_epoch,
+            "isolate actual full configuration/DB currency from the epoch guard"
+        );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .document_revision(uri.as_str()),
+            revision
+        );
+        assert_eq!(
+            backend
+                .documents
+                .lock("workspace symbol unchanged source")
+                .await[&uri]
+                .text
+                .as_ref(),
+            SOURCE
+        );
+        assert!(finish(&backend, &prepared).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn database_symbol_analysis_keeps_its_actual_full_input_and_publication_owner() {
+        use salsa::Setter as _;
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-database-config.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, true).await;
+        let prepared = prepare(&backend, &uri).await;
+        assert!(matches!(
+            &prepared.analyses[uri.as_str()].as_ref().unwrap().kind,
+            WorkspaceSymbolAnalysisKind::Database(_)
+        ));
+        assert!(finish(&backend, &prepared).await.is_some());
+        let config = backend.resolved_db_config(&uri).await;
+        {
+            let mut db = backend.db.lock().await;
+            config
+                .set_extra_commands(&mut *db)
+                .to(vec!["database_configuration_command".to_owned()]);
+        }
+        assert!(finish(&backend, &prepared).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn symbol_final_joint_lease_retains_real_index_input_epoch_and_open_source_guards() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-joint-lease.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let prepared = prepare(&backend, &uri).await;
+        assert!(finish(&backend, &prepared).await.is_some());
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        assert!(
+            finish(&backend, &prepared).await.is_none(),
+            "equal source reindex cannot renew this request's captured index revision"
+        );
+
+        let prepared = prepare(&backend, &uri).await;
+        backend.invalidate_diag_inputs();
+        assert!(finish(&backend, &prepared).await.is_none());
+
+        let prepared = prepare(&backend, &uri).await;
+        backend
+            .documents
+            .lock("workspace symbol real source replacement")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new("proc other {} {}\n".to_owned(), "tcl8.6".to_owned()),
+            );
+        assert!(finish(&backend, &prepared).await.is_none());
+    }
+}
+
+#[cfg(test)]
+mod workspace_symbol_original_admission_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use tower_lsp_server::LanguageServer;
+    use tower_lsp_server::ls_types::{
+        SymbolInformation, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    };
+
+    const SOURCE: &str = "proc first_symbol {} {}\nproc second_symbol {} {}\n";
+
+    async fn actual_symbols(backend: &Backend) -> Vec<SymbolInformation> {
+        let response = backend
+            .symbol(WorkspaceSymbolParams {
+                query: "symbol".to_owned(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .unwrap();
+        let Some(WorkspaceSymbolResponse::Flat(symbols)) = response else {
+            panic!("expected genuine current symbols, got {response:?}");
+        };
+        assert_eq!(symbols.len(), 2);
+        symbols
+    }
+
+    #[tokio::test]
+    async fn original_closed_source_mapping_cannot_borrow_equal_bytes_from_a_new_alias_allocation()
+    {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///workspace-symbol-original-alias.tcl"
+            .parse()
+            .unwrap();
+        let alias = "file:///workspace-symbol-service-alias.tcl";
+        let path = "/same/workspace-symbol-original-alias.tcl";
+        store.upsert_uri_aliases(&[uri.as_str(), alias], path, SOURCE.as_bytes().to_vec());
+        backend.store = store.clone();
+        let original = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &original);
+        assert!(
+            !backend
+                .documents
+                .lock("original alias no open row")
+                .await
+                .contains_key(&uri)
+        );
+        assert!(!backend.db_files.lock().await.contains_key(&uri));
+        let symbols = actual_symbols(&backend).await;
+        let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
+        let retained = snapshot.path_admission.as_ref().unwrap().clone();
+        let revision = backend
+            .workspace_index
+            .read()
+            .await
+            .document_revision(uri.as_str());
+        let inputs_epoch = backend.diag_inputs_epoch();
+        let factory_generation = *backend.class_factory_generation.read().await;
+        let rows = symbols
+            .iter()
+            .cloned()
+            .map(|symbol| (symbol, uri.clone(), snapshot.clone(), revision))
+            .collect::<Vec<_>>();
+        let selected = backend
+            .capture_workspace_symbol_analysis(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        let analyses = HashMap::from([(uri.as_str().to_owned(), Some(selected))]);
+        assert!(
+            backend
+                .finish_workspace_symbol_response(
+                    &analyses,
+                    &rows,
+                    inputs_epoch,
+                    factory_generation
+                )
+                .await
+                .unwrap()
+                .is_some()
+        );
+
+        assert!(store.remove_uri(alias));
+        store.upsert_uri_aliases(&[uri.as_str(), alias], path, SOURCE.as_bytes().to_vec());
+        let selected = backend
+            .capture_workspace_symbol_analysis(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(
+            WorkspaceSymbolSourceAnalysis::admission(&selected),
+            retained.as_ref()
+        );
+        WorkspaceSymbolSourceAnalysis::admission(&selected)
+            .check_for(&uri, store.as_ref())
+            .unwrap();
+        assert_eq!(snapshot.text.as_ref(), SOURCE);
+        assert_eq!(
+            retained.path(),
+            WorkspaceSymbolSourceAnalysis::admission(&selected).path()
+        );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .document_revision(uri.as_str()),
+            revision
+        );
+        assert_eq!(backend.diag_inputs_epoch(), inputs_epoch);
+        assert_eq!(
+            *backend.class_factory_generation.read().await,
+            factory_generation
+        );
+        let analyses = HashMap::from([(uri.as_str().to_owned(), Some(selected))]);
+        assert!(matches!(
+            backend
+                .finish_workspace_symbol_response(
+                    &analyses,
+                    &rows,
+                    inputs_epoch,
+                    factory_generation
+                )
+                .await,
+            Err(super::super::DocumentSourceUnavailable::Store {
+                cause: crate::vfs::SourceUriPathUnavailable::WithdrawnMapping,
+                ..
+            })
+        ));
+
+        // A new genuine source read may use the replacement allocation. The
+        // refusal above is currency of the old source issuer, not path absence.
+        let current = backend.read_document(&uri).await.unwrap().unwrap();
+        assert_eq!(current.text, snapshot.text);
+        assert_eq!(current.revision, snapshot.revision);
+        assert_eq!(current.version, snapshot.version);
+        let selected = backend
+            .capture_workspace_symbol_analysis(&uri, &current)
+            .await
+            .unwrap()
+            .unwrap();
+        let analyses = HashMap::from([(uri.as_str().to_owned(), Some(selected))]);
+        let current_rows = symbols
+            .into_iter()
+            .map(|symbol| (symbol, uri.clone(), current.clone(), revision))
+            .collect::<Vec<_>>();
+        assert!(
+            backend
+                .finish_workspace_symbol_response(
+                    &analyses,
+                    &current_rows,
+                    inputs_epoch,
+                    factory_generation
+                )
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn host_reported_file_requires_its_original_source_read_admission() {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///workspace-symbol-missing-original-admission.tcl"
+            .parse()
+            .unwrap();
+        store.upsert_uri(
+            uri.as_str(),
+            "/actual/workspace-symbol-missing-original-admission.tcl",
+            SOURCE.as_bytes().to_vec(),
+        );
+        backend.store = store;
+        let original = tcl_compiler::analyser::Analyser::new().analyse(SOURCE, "tcl8.6");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &original);
+        let symbols = actual_symbols(&backend).await;
+        let without_receipt =
+            super::super::DocumentState::new(SOURCE.to_owned(), "tcl8.6".to_owned());
+        assert!(without_receipt.path_admission.is_none());
+        // A genuine independently current analysis is not the missing source
+        // read receipt. It must not repair that publication boundary.
+        let selected = backend
+            .capture_workspace_symbol_analysis(&uri, &without_receipt)
+            .await
+            .unwrap()
+            .unwrap();
+        let analyses = HashMap::from([(uri.as_str().to_owned(), Some(selected))]);
+        let revision = backend
+            .workspace_index
+            .read()
+            .await
+            .document_revision(uri.as_str());
+        let rows = symbols
+            .into_iter()
+            .map(|symbol| (symbol, uri.clone(), without_receipt.clone(), revision))
+            .collect::<Vec<_>>();
+        let inputs_epoch = backend.diag_inputs_epoch();
+        let factory_generation = *backend.class_factory_generation.read().await;
+        assert!(
+            backend
+                .finish_workspace_symbol_response(
+                    &analyses,
+                    &rows,
+                    inputs_epoch,
+                    factory_generation,
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

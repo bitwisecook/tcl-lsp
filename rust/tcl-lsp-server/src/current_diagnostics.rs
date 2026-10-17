@@ -155,6 +155,7 @@ pub(super) struct PublishedDiagnosticReport {
     pub(super) uri: Uri,
     pub(super) version: Option<i32>,
     source: Arc<str>,
+    dialect: String,
     revision: u64,
     inputs_epoch: u64,
     pub(super) result_id: String,
@@ -253,6 +254,8 @@ struct CurrentDiagnosticReport {
     uri: Uri,
     version: i32,
     source: String,
+    #[serde(rename = "dialectId")]
+    dialect_id: String,
     revision: String,
     #[serde(rename = "inputsEpoch")]
     inputs_epoch: String,
@@ -1331,6 +1334,7 @@ impl Backend {
                 uri: source.uri.clone(),
                 version: pass.version,
                 source: Arc::clone(&pass.source),
+                dialect: pass.dialect.clone(),
                 revision: pass.revision,
                 inputs_epoch: epoch,
                 result_id: report.result_id.clone(),
@@ -1410,6 +1414,7 @@ impl Backend {
                     uri: report.uri,
                     version: expected.version,
                     source: report.source.to_string(),
+                    dialect_id: report.dialect.clone(),
                     revision: report.revision.to_string(),
                     inputs_epoch: report.inputs_epoch.to_string(),
                     result_id: report.result_id,
@@ -1666,6 +1671,48 @@ mod tests {
             "fixture retains an actual source input"
         );
         assert!(run_diagnostics_core(inputs, uri, job).await);
+    }
+
+    #[tokio::test]
+    async fn current_diagnostics_serializes_dialect_from_the_completed_publisher_pass() {
+        let backend = crate::tests::test_backend();
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_str("file:///diagnostic-published-dialect.tcl").unwrap(),
+            version: 1,
+            source: "set x 1".into(),
+        };
+        let dialect = "tcl9.0";
+        backend
+            .documents
+            .lock("diagnostic_completed_dialect")
+            .await
+            .insert(
+                expected.uri.clone(),
+                DocumentState::with_version(
+                    expected.source.clone(),
+                    dialect.into(),
+                    expected.version,
+                ),
+            );
+        backend
+            .db_set_source(&expected.uri, &expected.source, dialect.into())
+            .await
+            .unwrap();
+        let inputs = backend
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect(dialect))
+            .await;
+        let job = inputs.capture_job(&expected.uri).await.unwrap();
+        assert!(job.diagnostic_pass.is_some());
+        assert!(run_diagnostics_core(inputs, &expected.uri, job).await);
+        let response =
+            serde_json::to_value(backend.current_diagnostics(&expected).await.unwrap()).unwrap();
+        assert_eq!(response["status"], "complete");
+        assert_eq!(response["uri"], expected.uri.to_string());
+        assert_eq!(response["version"], expected.version);
+        assert_eq!(response["source"], expected.source);
+        assert_eq!(response["dialectId"], dialect);
+        assert!(response["resultId"].is_string());
+        assert!(response["inputsEpoch"].is_string());
     }
 
     #[tokio::test]

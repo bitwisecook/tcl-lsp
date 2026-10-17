@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-17T00:25:11.688720+00:00",
+  "patch_sha256": "3d100f6e1d8e1773674599ca423f7fe0c3480b21f2ec553008d8066ee4dd5072",
+  "independent_source_review_sha256": "e265aa5a0a677ac55db41436513f9b1bb0e3518fca0b3286f1c1c8b844bbd23f",
+  "all7_actual_before_after_match": true,
+  "fresh_apply_no_offset_or_fuzz": true,
+  "tests_typecheck_builds": "Pending; source integration only."
+}

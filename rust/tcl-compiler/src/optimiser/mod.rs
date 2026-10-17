@@ -66,12 +66,12 @@ pub mod unused_procs;
 
 pub use elimination::DeadStore;
 pub use manager::{
-    apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
-    optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
-    optimise_source_multipass_admitting,
+    apply_optimisations, finalise_optimisations, finalise_original_optimiser_report,
+    find_dead_stores, optimise, optimise_by_pass, optimise_raw, optimise_raw_for_profile,
+    optimise_source_multipass, optimise_source_multipass_admitting,
     optimise_source_multipass_admitting_standalone_with_analysis_input,
     optimise_source_multipass_admitting_with_analysis_input, optimise_source_multipass_filtered,
-    optimise_unit, optimise_unit_raw, optimise_with_dialect,
+    optimise_unit, optimise_unit_raw, optimise_unit_raw_report, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -109,7 +109,7 @@ use tcl_registry::CommandRegistry;
 // Optimisation diagnostic
 
 /// A suggested source rewrite.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Optimisation {
     /// Diagnostic code (`"O100"` … `"O127"`).
     pub code: DiagCode,
@@ -124,6 +124,7 @@ pub struct Optimisation {
     pub group: Option<u32>,
     /// Hint-only (informational) rather than actionable.
     pub hint_only: bool,
+    issued_rewrite: Option<std::sync::Arc<OriginalOptimiserRewriteBatch>>,
 }
 
 impl Optimisation {
@@ -143,7 +144,37 @@ impl Optimisation {
             replacement: replacement.into(),
             group: None,
             hint_only: false,
+            issued_rewrite: None,
         }
+    }
+}
+
+mod original_report;
+pub use original_report::{
+    OriginalBodyOptimiserReport, OriginalOptimiserAssembly, OriginalOptimiserRewriteBatch,
+    OriginalRawOptimiserReport,
+};
+
+impl PartialEq for Optimisation {
+    fn eq(&self, other: &Self) -> bool {
+        self.code == other.code
+            && self.message == other.message
+            && self.span == other.span
+            && self.replacement == other.replacement
+            && self.group == other.group
+            && self.hint_only == other.hint_only
+    }
+}
+impl Eq for Optimisation {}
+impl std::hash::Hash for Optimisation {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.code.hash(state);
+        self.message.hash(state);
+        self.span.hash(state);
+        self.replacement.hash(state);
+        self.group.hash(state);
+        self.hint_only.hash(state);
     }
 }
 

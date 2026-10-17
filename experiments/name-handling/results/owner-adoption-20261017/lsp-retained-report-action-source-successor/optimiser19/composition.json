@@ -1,0 +1,1075 @@
+[
+  {
+    "path": "docs/design/analysis/name-resolution-proofs/compiler-original-function-lattice-mutation-identity.md",
+    "replacements": [
+      {
+        "start_line0": 87,
+        "end_line0": 87,
+        "origin": "reviewed_ingredient",
+        "sha256": "06d017a181eaf8ac76548be8bfa760fc844844b7c1258c58ca2a9785dbfe22b6"
+      }
+    ]
+  },
+  {
+    "path": "docs/design/contracts/name-handling.md",
+    "replacements": [
+      {
+        "start_line0": 285,
+        "end_line0": 285,
+        "origin": "reviewed_ingredient",
+        "sha256": "4121eaf00fa8fb4734c7e1607375ba201b8a290b7ab34da9d8799d8bd5852c0c"
+      },
+      {
+        "start_line0": 2036,
+        "end_line0": 2036,
+        "origin": "current_integrated_main",
+        "sha256": "c52a95eeb77b13b5cceb2bec5d60fdf708c0256ccecbc60c61bd40a377851275"
+      },
+      {
+        "start_line0": 2036,
+        "end_line0": 2036,
+        "origin": "reviewed_ingredient",
+        "sha256": "c55b8ecfa5fbd64f8e0c030c8605668ce8c6a285d70daf2f3cd6e2ea315f06aa"
+      }
+    ]
+  },
+  {
+    "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+    "replacements": [
+      {
+        "start_line0": 113,
+        "end_line0": 114,
+        "origin": "reviewed_ingredient",
+        "sha256": "3ef91c34f96e00a50b17ed26281210479912478242c8bf6d1865372fe208c85d"
+      },
+      {
+        "start_line0": 626,
+        "end_line0": 626,
+        "origin": "current_integrated_main",
+        "sha256": "e514df04fe34bd56fb243cacf579b38a4addb4d52f3343b59012d3c8f469294c"
+      },
+      {
+        "start_line0": 626,
+        "end_line0": 626,
+        "origin": "reviewed_ingredient",
+        "sha256": "bd433dbb3e719e9cdad80d2f8219d9bedff26280f4f7f43aef7bc3c00ce610e7"
+      },
+      {
+        "start_line0": 657,
+        "end_line0": 657,
+        "origin": "current_integrated_main",
+        "sha256": "9a9940f5f24ef3c502680231e6a743ffdcc3eac9fa0238951499fd263c5f604e"
+      },
+      {
+        "start_line0": 1327,
+        "end_line0": 1327,
+        "origin": "current_integrated_main",
+        "sha256": "e2c86c3d4d2d4b16dfceb46dfb612b4640e1adfe0206d805cb5d58c19e17506e"
+      },
+      {
+        "start_line0": 1327,
+        "end_line0": 1327,
+        "origin": "reviewed_ingredient",
+        "sha256": "1c9b3f07f96b77459df920c0bdd06a813ed3e2d995786b3aef442192f3603175"
+      },
+      {
+        "start_line0": 2732,
+        "end_line0": 2737,
+        "origin": "current_integrated_main",
+        "sha256": "5cb6209c6f95405d2d1d66fd9b70b76f64b982ea86f09726afeb0c8c1dfa9127"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+    "replacements": [
+      {
+        "start_line0": 512,
+        "end_line0": 512,
+        "origin": "reviewed_ingredient",
+        "sha256": "42fc3709ed215a232ad18baed766b51cd3da32195797f034b129f940c7cf02b8"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/analyser/types.rs",
+    "replacements": [
+      {
+        "start_line0": 2399,
+        "end_line0": 2399,
+        "origin": "reviewed_ingredient",
+        "sha256": "73b0d08a2e694cce972a229f1a81e568b3c712adc6e43bdfbd93b2001aea01ff"
+      },
+      {
+        "start_line0": 2893,
+        "end_line0": 2893,
+        "origin": "reviewed_ingredient",
+        "sha256": "b31fee9c435db169ffab61c420ef7299d4343aa1e95210d55d3cae5950190c55"
+      },
+      {
+        "start_line0": 2982,
+        "end_line0": 2983,
+        "origin": "reviewed_ingredient",
+        "sha256": "cda3e2c9a8979fe6f7e575c221b17751917855514405a8ab973a48ce7e010a74"
+      },
+      {
+        "start_line0": 3518,
+        "end_line0": 3518,
+        "origin": "reviewed_ingredient",
+        "sha256": "d7d23c7a230c3137a6c8566b2ad398cba38e74bec74564c8d3589d0a00556f10"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+    "replacements": [
+      {
+        "start_line0": 224,
+        "end_line0": 226,
+        "origin": "reviewed_ingredient",
+        "sha256": "c902c9d9c0abe0cbabd87a52954d7d4815a8b09a39093c9145f85d53300da9cf"
+      },
+      {
+        "start_line0": 232,
+        "end_line0": 255,
+        "origin": "reviewed_ingredient",
+        "sha256": "45298caafef32399de9341a2b8f2429b102aeb6b5bc0a1f901a4a7049f6d0985"
+      },
+      {
+        "start_line0": 621,
+        "end_line0": 621,
+        "origin": "reviewed_ingredient",
+        "sha256": "d8e8e3a1e16f7f7865b811d08080b98fb5b86c0cf31e6bb220de09bafcc4df96"
+      },
+      {
+        "start_line0": 656,
+        "end_line0": 656,
+        "origin": "reviewed_ingredient",
+        "sha256": "07e59ef959d1fdee34d790c2dc90d7318799611979877c8228a12718d70803a8"
+      },
+      {
+        "start_line0": 667,
+        "end_line0": 667,
+        "origin": "reviewed_ingredient",
+        "sha256": "ede0fd751ed3266697e47ed3890ac74473acf91817c60a5b1633bf1fafa89934"
+      },
+      {
+        "start_line0": 788,
+        "end_line0": 788,
+        "origin": "reviewed_ingredient",
+        "sha256": "07e59ef959d1fdee34d790c2dc90d7318799611979877c8228a12718d70803a8"
+      },
+      {
+        "start_line0": 863,
+        "end_line0": 863,
+        "origin": "reviewed_ingredient",
+        "sha256": "07e59ef959d1fdee34d790c2dc90d7318799611979877c8228a12718d70803a8"
+      },
+      {
+        "start_line0": 969,
+        "end_line0": 969,
+        "origin": "reviewed_ingredient",
+        "sha256": "a94dc5c12a21e95808e80ce32557564c400f6f5e8e06c4459d85211cb44f025a"
+      },
+      {
+        "start_line0": 973,
+        "end_line0": 975,
+        "origin": "reviewed_ingredient",
+        "sha256": "0e90b150ed7d8e7cbb220229f2aa5ca2f33f5d3d744cb4c3755b0af81f4fb169"
+      },
+      {
+        "start_line0": 982,
+        "end_line0": 982,
+        "origin": "reviewed_ingredient",
+        "sha256": "ebe9da3bf50655e7913d2a5d143082f548acad1fe164c16c76398b0c1b616f66"
+      },
+      {
+        "start_line0": 985,
+        "end_line0": 985,
+        "origin": "reviewed_ingredient",
+        "sha256": "cf6bf2ed3aa809b3952a4af7a065c23747369ea88185d69892e219faa5591a52"
+      },
+      {
+        "start_line0": 2059,
+        "end_line0": 2059,
+        "origin": "reviewed_ingredient",
+        "sha256": "d8106e61d18d81586728dce938eac7802162df4d1093bd512d49ca46575634ba"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "replacements": [
+      {
+        "start_line0": 82,
+        "end_line0": 82,
+        "origin": "reviewed_ingredient",
+        "sha256": "7f89df6ca6a1e6d0030a2931c3dd564050c4072928d3fa19635bd05d4c4b0f7d"
+      },
+      {
+        "start_line0": 385,
+        "end_line0": 385,
+        "origin": "reviewed_ingredient",
+        "sha256": "57316c80a9be90384ff11f8a7628b872db2bfba78cd7344043a91202d3e2e73b"
+      },
+      {
+        "start_line0": 471,
+        "end_line0": 472,
+        "origin": "reviewed_ingredient",
+        "sha256": "f07de73c2662ccf2ae546a77f7f22496e70be3b93529d645f3726c235152f35c"
+      },
+      {
+        "start_line0": 473,
+        "end_line0": 473,
+        "origin": "reviewed_ingredient",
+        "sha256": "d989b276dc3977a9002135cb4f68928daf123634c9eccd6e31f92cdba1126ffb"
+      },
+      {
+        "start_line0": 585,
+        "end_line0": 585,
+        "origin": "reviewed_ingredient",
+        "sha256": "31633a313adce3b9cc23c6527ac297f02c6f1afec833c45fb49ff8d3d17f1e61"
+      },
+      {
+        "start_line0": 606,
+        "end_line0": 606,
+        "origin": "reviewed_ingredient",
+        "sha256": "c26e505987849a2be9c0a73ee9e6bc0cb31b055853c443f6020b980699e4351c"
+      },
+      {
+        "start_line0": 635,
+        "end_line0": 635,
+        "origin": "reviewed_ingredient",
+        "sha256": "e4c799164b8028e8c9469ef0a884ef8cd5da7390d89f84e977a1e798115e658b"
+      },
+      {
+        "start_line0": 2024,
+        "end_line0": 2024,
+        "origin": "reviewed_ingredient",
+        "sha256": "a69e2cf389d33600b1203fb4bbe3bbab433b1b7c45a032a6a6bcbfc8c0691880"
+      },
+      {
+        "start_line0": 2058,
+        "end_line0": 2058,
+        "origin": "reviewed_ingredient",
+        "sha256": "a69e2cf389d33600b1203fb4bbe3bbab433b1b7c45a032a6a6bcbfc8c0691880"
+      },
+      {
+        "start_line0": 2419,
+        "end_line0": 2420,
+        "origin": "reviewed_ingredient",
+        "sha256": "f07de73c2662ccf2ae546a77f7f22496e70be3b93529d645f3726c235152f35c"
+      },
+      {
+        "start_line0": 2421,
+        "end_line0": 2421,
+        "origin": "reviewed_ingredient",
+        "sha256": "08570c97626e3468a7bbb1f827d98ec996d4876ef10e46dfcb25ed12bde8a4f9"
+      },
+      {
+        "start_line0": 2469,
+        "end_line0": 2469,
+        "origin": "reviewed_ingredient",
+        "sha256": "456666de80fb57c49255f649737654a909472d5222fccd8ca393e7a2a61ea22d"
+      },
+      {
+        "start_line0": 2618,
+        "end_line0": 2618,
+        "origin": "reviewed_ingredient",
+        "sha256": "25cf5fc23f2a6d23c3ea51e72f5e896c7555fbaa05cd5b1ea182bf9618a8e81b"
+      },
+      {
+        "start_line0": 2623,
+        "end_line0": 2623,
+        "origin": "reviewed_ingredient",
+        "sha256": "f5e81fc9e133087c0ddcacc72be5f0f41e0ee8342615eea56c5b702274648b54"
+      },
+      {
+        "start_line0": 2684,
+        "end_line0": 2685,
+        "origin": "reviewed_ingredient",
+        "sha256": "5365b35c4cb4d6c79c78494e8761264e72c91ee492122cfbc8098e4fba17b161"
+      },
+      {
+        "start_line0": 2687,
+        "end_line0": 2688,
+        "origin": "reviewed_ingredient",
+        "sha256": "1dfd7188d653ed1fe3c33caf360396397d7cfba6d3717594d0dee3b2db13ce71"
+      },
+      {
+        "start_line0": 2985,
+        "end_line0": 2985,
+        "origin": "reviewed_ingredient",
+        "sha256": "bd7fb8c462fcbfab8d2125e14131835907df183b62af57adac3249447a9f6da2"
+      },
+      {
+        "start_line0": 3089,
+        "end_line0": 3090,
+        "origin": "reviewed_ingredient",
+        "sha256": "cda885607111ace97897cb3d8544be638b859bd84cf07c5b5536edeca0d32d08"
+      },
+      {
+        "start_line0": 3115,
+        "end_line0": 3116,
+        "origin": "reviewed_ingredient",
+        "sha256": "f6c7df37651b3c618ea663781e6ed68af7a27c3ebd86503ed4dc0b94628344ad"
+      },
+      {
+        "start_line0": 3185,
+        "end_line0": 3185,
+        "origin": "reviewed_ingredient",
+        "sha256": "a9a536e6a7466ef7b23bbe54245b7af9d80d58b2a63cf40cdf5b32754196ed1e"
+      },
+      {
+        "start_line0": 3276,
+        "end_line0": 3276,
+        "origin": "reviewed_ingredient",
+        "sha256": "0102678b953c6761ab695eb0c2a603ed7558a50bc2a5dbd5da38e6a4b8331c23"
+      },
+      {
+        "start_line0": 3502,
+        "end_line0": 3503,
+        "origin": "reviewed_ingredient",
+        "sha256": "ce4ccaa816baecb57c0ebb1d5cc66e454fe423acb4673390895895c974ce78c1"
+      },
+      {
+        "start_line0": 3578,
+        "end_line0": 3579,
+        "origin": "reviewed_ingredient",
+        "sha256": "20a38c25f888ed574a1f29b37a9d295da0629cb52869334c8c8b6bb808f74df6"
+      },
+      {
+        "start_line0": 3608,
+        "end_line0": 3609,
+        "origin": "reviewed_ingredient",
+        "sha256": "23e04179b2294c0928e5ba29abaf7aeec0b1808ed7b51542b24e26e3e4f88c9e"
+      },
+      {
+        "start_line0": 3616,
+        "end_line0": 3617,
+        "origin": "reviewed_ingredient",
+        "sha256": "297a134f58cd8d2962e8baf8e3526d4088a360d6439af2811ac04fba987b5291"
+      },
+      {
+        "start_line0": 3623,
+        "end_line0": 3623,
+        "origin": "reviewed_ingredient",
+        "sha256": "52a185f0c16a45494b1e04800c2db33a51fd93ef474529802e2f9bfceab94922"
+      },
+      {
+        "start_line0": 3631,
+        "end_line0": 3632,
+        "origin": "reviewed_ingredient",
+        "sha256": "c9a9877861a557685f962b7ae9ae5ff5c7ad8d5eca0e5f21c253614b266d1d1e"
+      },
+      {
+        "start_line0": 3634,
+        "end_line0": 3636,
+        "origin": "reviewed_ingredient",
+        "sha256": "63937fe3ff7abfc36e2410aabd401b7e3ed1b3ebdcf126e08b16d2fbbaf1b533"
+      },
+      {
+        "start_line0": 3795,
+        "end_line0": 3796,
+        "origin": "reviewed_ingredient",
+        "sha256": "d8eb640bb705ed90c4bde7d3e1549a83fdaa00bb82b9f5c678c13188760d7ba0"
+      },
+      {
+        "start_line0": 3817,
+        "end_line0": 3817,
+        "origin": "reviewed_ingredient",
+        "sha256": "c6dedec2b02641ba1664c1e8b92b5c83e584d744a20e8df86c8595e34ff1a8e8"
+      },
+      {
+        "start_line0": 3818,
+        "end_line0": 3818,
+        "origin": "reviewed_ingredient",
+        "sha256": "072534a7fe14d5a071f42ca586a8c1075d386fc901af0878efb147f7b35fea38"
+      },
+      {
+        "start_line0": 3974,
+        "end_line0": 3974,
+        "origin": "reviewed_ingredient",
+        "sha256": "24a49d9fb3b27c1dc430e596a34ae77dafd126a59299fd1e139f8eb97b441ba0"
+      },
+      {
+        "start_line0": 4066,
+        "end_line0": 4067,
+        "origin": "reviewed_ingredient",
+        "sha256": "c4909544a1a5e1b1759a00cdd9d513cc152d1c9362e293cd314dd30a5bbae0e3"
+      },
+      {
+        "start_line0": 4092,
+        "end_line0": 4093,
+        "origin": "reviewed_ingredient",
+        "sha256": "2dacb9bbbdb4dedb683002a9d0ee41556a5eed3ce6cbce17e4869f609d69369b"
+      },
+      {
+        "start_line0": 4217,
+        "end_line0": 4217,
+        "origin": "reviewed_ingredient",
+        "sha256": "a99ae896e7a162eeb84b96eb302ccff0002a043482dcd60f3a89da04129f88c5"
+      },
+      {
+        "start_line0": 4314,
+        "end_line0": 4314,
+        "origin": "reviewed_ingredient",
+        "sha256": "20eeff43513cfcca4ae46c7f4c7ec4f5b4ed5e1aaf2ebddfa410bad4b1352519"
+      },
+      {
+        "start_line0": 4333,
+        "end_line0": 4334,
+        "origin": "reviewed_ingredient",
+        "sha256": "b5a8e4329e4101b4b49c6d2f8732627496457b36554d41da26f250ec3ca8b0ec"
+      },
+      {
+        "start_line0": 4338,
+        "end_line0": 4338,
+        "origin": "reviewed_ingredient",
+        "sha256": "5040c492432ab1d0834e31a0bfb0010af49054fce448a15a34fee7193f25e7b9"
+      },
+      {
+        "start_line0": 4367,
+        "end_line0": 4367,
+        "origin": "reviewed_ingredient",
+        "sha256": "e0cdfe3c1a0504f82a79b92b460faf995634a77ded05609bd0c019d545846932"
+      },
+      {
+        "start_line0": 4376,
+        "end_line0": 4377,
+        "origin": "reviewed_ingredient",
+        "sha256": "6be097b527231b336a20abe2760e1e646c8630edd53b984ebfee98daa63ace82"
+      },
+      {
+        "start_line0": 4381,
+        "end_line0": 4382,
+        "origin": "reviewed_ingredient",
+        "sha256": "2ac2bc75b7a1b87d0f1e22c0c245fbc936b6edc02c266489c139bac162a22077"
+      },
+      {
+        "start_line0": 4393,
+        "end_line0": 4393,
+        "origin": "reviewed_ingredient",
+        "sha256": "249e792e4099b33b7fec22b45f0494600e7d466fb2dd87914d2bef2e9cb0669a"
+      },
+      {
+        "start_line0": 4414,
+        "end_line0": 4414,
+        "origin": "reviewed_ingredient",
+        "sha256": "4b7591b23c011df09e66c5940f6762b7ed710b30afdfffa91ad09d82fbf3189b"
+      },
+      {
+        "start_line0": 4421,
+        "end_line0": 4421,
+        "origin": "reviewed_ingredient",
+        "sha256": "7328e539bf09e94248c098e261a01c1e5a05fdb93776bb9153e5bc301a28e523"
+      },
+      {
+        "start_line0": 4430,
+        "end_line0": 4430,
+        "origin": "reviewed_ingredient",
+        "sha256": "4b7591b23c011df09e66c5940f6762b7ed710b30afdfffa91ad09d82fbf3189b"
+      },
+      {
+        "start_line0": 4469,
+        "end_line0": 4469,
+        "origin": "reviewed_ingredient",
+        "sha256": "20eeff43513cfcca4ae46c7f4c7ec4f5b4ed5e1aaf2ebddfa410bad4b1352519"
+      },
+      {
+        "start_line0": 4486,
+        "end_line0": 4486,
+        "origin": "reviewed_ingredient",
+        "sha256": "6729d82247fc09a157739b3a2abb5742e8e32b592186e7fb6060fa23a3b488f6"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+    "replacements": [
+      {
+        "start_line0": 0,
+        "end_line0": 0,
+        "origin": "reviewed_ingredient",
+        "sha256": "331a5ecc013884a68d8c82f30a5de1dcba63c80ff06dc63eaa4ad3d38734d1c3"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+    "replacements": [
+      {
+        "start_line0": 0,
+        "end_line0": 0,
+        "origin": "reviewed_ingredient",
+        "sha256": "d913c9f36af26e7f7a0ee453c6e7644ed4525fdf69c4d17815a5654a625c8803"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering/mod.rs",
+    "replacements": [
+      {
+        "start_line0": 952,
+        "end_line0": 952,
+        "origin": "reviewed_ingredient",
+        "sha256": "41443b0bf855cc6d2122f8caf80773dc7a6e9c06717c1777bb8bc5507c5269d4"
+      },
+      {
+        "start_line0": 1204,
+        "end_line0": 1204,
+        "origin": "reviewed_ingredient",
+        "sha256": "434298134aab7bf9050ddca01e4a407404c03832107d1140a1492fd48f86852c"
+      },
+      {
+        "start_line0": 1391,
+        "end_line0": 1391,
+        "origin": "reviewed_ingredient",
+        "sha256": "561cf8c87a2859f434d5a21315a7c2e4d4d2b029dceb16299ac5bc70280a422b"
+      },
+      {
+        "start_line0": 1398,
+        "end_line0": 1398,
+        "origin": "reviewed_ingredient",
+        "sha256": "2465b54f9ee19d50a435ff7ba8cff7a9f63d0216449cf5c41450b9f9aad98e79"
+      },
+      {
+        "start_line0": 4288,
+        "end_line0": 4289,
+        "origin": "reviewed_ingredient",
+        "sha256": "d60eb7baaab7a3abf4bd57ae2fc80feb8b02f51620650979020900fddc993584"
+      },
+      {
+        "start_line0": 4303,
+        "end_line0": 4304,
+        "origin": "reviewed_ingredient",
+        "sha256": "795010ab8fa8c7fe4b12890a4d43e28faea374551d0444d326b357ef5b240208"
+      },
+      {
+        "start_line0": 4305,
+        "end_line0": 4306,
+        "origin": "reviewed_ingredient",
+        "sha256": "8d19deeaaa7e4a1277a7eaa8deffeb026fd973334b91ff01e817bfa771e65f37"
+      },
+      {
+        "start_line0": 4312,
+        "end_line0": 4312,
+        "origin": "reviewed_ingredient",
+        "sha256": "e3f5cb60be8d6bc607b6be1a9d2f66ada775ae559bac5e2c95629b1616170faf"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+    "replacements": [
+      {
+        "start_line0": 87,
+        "end_line0": 89,
+        "origin": "reviewed_ingredient",
+        "sha256": "c61080574d00f2a91393f552de630e618b524822db82c8937f3c4aaf70193c9f"
+      },
+      {
+        "start_line0": 220,
+        "end_line0": 220,
+        "origin": "reviewed_ingredient",
+        "sha256": "c995c45cd9da45c09e0dfb5e01a70e700690eef7dac57ef353396fd99ac81e49"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+    "replacements": [
+      {
+        "start_line0": 68,
+        "end_line0": 71,
+        "origin": "reviewed_ingredient",
+        "sha256": "a17c4b98b025211ed4b706e103634fca319772a9caed6f23d893fbf777d05496"
+      },
+      {
+        "start_line0": 73,
+        "end_line0": 74,
+        "origin": "reviewed_ingredient",
+        "sha256": "4c0727e2f4b5e701c6fbece28339d864fce5ad7d7c4f436fcfd78d394380d119"
+      },
+      {
+        "start_line0": 111,
+        "end_line0": 112,
+        "origin": "reviewed_ingredient",
+        "sha256": "f07de73c2662ccf2ae546a77f7f22496e70be3b93529d645f3726c235152f35c"
+      },
+      {
+        "start_line0": 126,
+        "end_line0": 126,
+        "origin": "reviewed_ingredient",
+        "sha256": "f5d223080db7a62daa3c8c3c0abafad3e3179079a465476d78d8e6b6a9e82bbc"
+      },
+      {
+        "start_line0": 145,
+        "end_line0": 145,
+        "origin": "reviewed_ingredient",
+        "sha256": "e56eb53b3d039824fc7b2744622946986c32d5025869e70fe28cfd7b937ebedc"
+      },
+      {
+        "start_line0": 146,
+        "end_line0": 146,
+        "origin": "reviewed_ingredient",
+        "sha256": "5bd434d5c4c066fb8eaca28ef8c82380bc1b970aa267193bf71e98fc95155eac"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+    "replacements": [
+      {
+        "start_line0": 0,
+        "end_line0": 0,
+        "origin": "reviewed_ingredient",
+        "sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-explorer/src/coverage.rs",
+    "replacements": [
+      {
+        "start_line0": 23,
+        "end_line0": 23,
+        "origin": "reviewed_ingredient",
+        "sha256": "3d35b22f957db5c6865f8fdaf4c0db9a8bcfebc5863c408e294333c604e183a6"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/code_actions.rs",
+    "replacements": [
+      {
+        "start_line0": 90,
+        "end_line0": 91,
+        "origin": "reviewed_ingredient",
+        "sha256": "19bbcdd8f58771400c036160a2a6b66caff58f6142ff920aff22da7353a71dd9"
+      },
+      {
+        "start_line0": 335,
+        "end_line0": 335,
+        "origin": "reviewed_ingredient",
+        "sha256": "037ceee57950860eb42e13b781a34324bcc8dce30f7db2881bb79873fa3480bb"
+      },
+      {
+        "start_line0": 350,
+        "end_line0": 350,
+        "origin": "reviewed_ingredient",
+        "sha256": "022445c05b1fb2266137abce43ef1de4c9704e4a785381af5fe3fa6f15ea68ca"
+      },
+      {
+        "start_line0": 360,
+        "end_line0": 368,
+        "origin": "reviewed_ingredient",
+        "sha256": "597b58f409e6d7577f66ce850d0d47bc40951aa8b806343e897d627b1ccf787a"
+      },
+      {
+        "start_line0": 510,
+        "end_line0": 511,
+        "origin": "reviewed_ingredient",
+        "sha256": "18417f886b1a7349782c0859cc16272f95c07ee4913e14b133884999bbfac1f7"
+      },
+      {
+        "start_line0": 2127,
+        "end_line0": 2128,
+        "origin": "current_integrated_main",
+        "sha256": "b8985d163ab0670de53bbde21d5ee4bfb3ed648864eec7b9c20f6edb2ac0169e"
+      },
+      {
+        "start_line0": 2129,
+        "end_line0": 2135,
+        "origin": "current_integrated_main",
+        "sha256": "07f4e7d95e296e5a6e8ace1a9da6d32dc17d5557557ddcadb772c374afa777f0"
+      },
+      {
+        "start_line0": 5197,
+        "end_line0": 5197,
+        "origin": "reviewed_ingredient",
+        "sha256": "be7f3ba9a5d370c76043f0c49290a45bdc39e829847b4ad9e8a5370fba77f655"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs",
+    "replacements": [
+      {
+        "start_line0": 78,
+        "end_line0": 78,
+        "origin": "reviewed_ingredient",
+        "sha256": "82cf1488f76a567b27841d40036514902189c391a3dbd812654544a823637634"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/diagnostic_policy.rs",
+    "replacements": [
+      {
+        "start_line0": 135,
+        "end_line0": 136,
+        "origin": "reviewed_ingredient",
+        "sha256": "8006c2cf758d567f29e0ac99075d585f202c30fddbcac91aa8e6037c361529bf"
+      },
+      {
+        "start_line0": 221,
+        "end_line0": 221,
+        "origin": "reviewed_ingredient",
+        "sha256": "d29ef1f8a5a51821dfb927a7157409a912c3e27480e2c6b167d1e77e0c91c637"
+      },
+      {
+        "start_line0": 227,
+        "end_line0": 231,
+        "origin": "reviewed_ingredient",
+        "sha256": "3c83699fcc728f3d761bcee9fb7d27073a19e546c34032a9c993d2284f063624"
+      },
+      {
+        "start_line0": 238,
+        "end_line0": 238,
+        "origin": "reviewed_ingredient",
+        "sha256": "61c4ac010861fb63b9ee8de4a79bc56ff271586feddb9516204d3446e8bb3dbf"
+      },
+      {
+        "start_line0": 481,
+        "end_line0": 485,
+        "origin": "reviewed_ingredient",
+        "sha256": "2fcbd61b52e1e524e18353353983fee21605f7751d4641d47af9d10ea8ae92cc"
+      },
+      {
+        "start_line0": 744,
+        "end_line0": 750,
+        "origin": "reviewed_ingredient",
+        "sha256": "af38d6d1884614c68ca87e90972e8438a4a1e61b7dfeb6f74a5c80a42685b7c3"
+      },
+      {
+        "start_line0": 764,
+        "end_line0": 766,
+        "origin": "reviewed_ingredient",
+        "sha256": "b739807a5b881d06323a710e37b3e947c3fb513db408b64299748fb22c97eff2"
+      },
+      {
+        "start_line0": 768,
+        "end_line0": 769,
+        "origin": "reviewed_ingredient",
+        "sha256": "a18c5c1b8381f3f34173ffeb1982153d1078085707088748d8d22e486870d187"
+      },
+      {
+        "start_line0": 770,
+        "end_line0": 771,
+        "origin": "reviewed_ingredient",
+        "sha256": "b8fc162b4d01081472d95ff61cd23b33bb5932f5a0dfc3aad79711a4302f4893"
+      },
+      {
+        "start_line0": 808,
+        "end_line0": 814,
+        "origin": "reviewed_ingredient",
+        "sha256": "8d0f78d035cb13fe8bd03e15b4796711bf0ace84fa566d05eb98944d0570584d"
+      },
+      {
+        "start_line0": 816,
+        "end_line0": 817,
+        "origin": "reviewed_ingredient",
+        "sha256": "40c4b92c63a0dfa9c3f285ac41dab805dd24ed91191332431ea2d0314fd0e456"
+      },
+      {
+        "start_line0": 818,
+        "end_line0": 820,
+        "origin": "reviewed_ingredient",
+        "sha256": "e1e3f31fd8833a0a42accb5758d5c854d2e76ae2862392d82983c57ad9e510c2"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-lsp-db/src/lib.rs",
+    "replacements": [
+      {
+        "start_line0": 2783,
+        "end_line0": 2783,
+        "origin": "reviewed_ingredient",
+        "sha256": "76696c13c23957cce8fd28b5e321726dd7eaa947cb8b261a991c09d0994c3341"
+      },
+      {
+        "start_line0": 2907,
+        "end_line0": 2907,
+        "origin": "reviewed_ingredient",
+        "sha256": "d3514d4e6f8d10b5e356d3937b062ac020f386a1ea938ccd76c980ec78c10ed4"
+      },
+      {
+        "start_line0": 2909,
+        "end_line0": 2911,
+        "origin": "reviewed_ingredient",
+        "sha256": "59fa84fd234a88c73d57a454147d3f8ac2c204da8c4252697695807416d7533e"
+      },
+      {
+        "start_line0": 2914,
+        "end_line0": 2915,
+        "origin": "reviewed_ingredient",
+        "sha256": "23dfcf64f1a337b0e380abff2684a6929125ffea135f401f956efc761a9a525a"
+      },
+      {
+        "start_line0": 2916,
+        "end_line0": 2917,
+        "origin": "reviewed_ingredient",
+        "sha256": "30c1f188f142ed7a824680b207172c5519bc614a48fda7cf167edb8ddf79956c"
+      },
+      {
+        "start_line0": 3061,
+        "end_line0": 3078,
+        "origin": "reviewed_ingredient",
+        "sha256": "1d0662ef64b44bdaaa890bf4c049e03d9f59f1c9d583aeb9720ec35e7637ecae"
+      },
+      {
+        "start_line0": 3084,
+        "end_line0": 3085,
+        "origin": "reviewed_ingredient",
+        "sha256": "57af613e5aecfc1e3b6ed0f75e8a16c7d49a42b14f4c41c39afa5d0ec8e5ef06"
+      },
+      {
+        "start_line0": 3090,
+        "end_line0": 3091,
+        "origin": "reviewed_ingredient",
+        "sha256": "848f7faf64aabe979542658126529fd3934120e9318e4784c83dfa182c258f72"
+      },
+      {
+        "start_line0": 3095,
+        "end_line0": 3101,
+        "origin": "reviewed_ingredient",
+        "sha256": "ff211a03944c44c6e858a0ccd51ee01cc1fa909c4a1087473c86396c358c4e84"
+      },
+      {
+        "start_line0": 3140,
+        "end_line0": 3141,
+        "origin": "reviewed_ingredient",
+        "sha256": "f7583b2691fb59742b3a9f01ceac2a33f9d838c8c4ba71b71b2ca5dcc721de55"
+      },
+      {
+        "start_line0": 3166,
+        "end_line0": 3167,
+        "origin": "reviewed_ingredient",
+        "sha256": "b33c5540df8ad8e4273397c954116f5a4997211599521fa4122805e196b9f954"
+      },
+      {
+        "start_line0": 3178,
+        "end_line0": 3179,
+        "origin": "reviewed_ingredient",
+        "sha256": "72e0863f4baae6fdfc1dea0e35cfee254e6220e538f1f1429640041ca0f45bc6"
+      },
+      {
+        "start_line0": 3184,
+        "end_line0": 3185,
+        "origin": "reviewed_ingredient",
+        "sha256": "b9798ec6c411593ac255d65ae0d6cf14ed80411a8902d1ad1f2c981bf2799303"
+      },
+      {
+        "start_line0": 3202,
+        "end_line0": 3208,
+        "origin": "reviewed_ingredient",
+        "sha256": "6c7bffe4fa87ed1360e9caee7a594762c77541cedd5c7a9d9abcec7a5ff5960d"
+      },
+      {
+        "start_line0": 3210,
+        "end_line0": 3213,
+        "origin": "reviewed_ingredient",
+        "sha256": "855afa326d5898016fc9a06a8226fda3957e8a3ead0baac1327e84ae658f10e0"
+      },
+      {
+        "start_line0": 3214,
+        "end_line0": 3230,
+        "origin": "reviewed_ingredient",
+        "sha256": "5f662b450142541f3f29aca5c5150c7a50e91d6728620bd0045879f5815aeb55"
+      },
+      {
+        "start_line0": 3309,
+        "end_line0": 3309,
+        "origin": "reviewed_ingredient",
+        "sha256": "53ccbf2e2c544ed1605589d45c81651dd100017a35e690fb0e37874da03d3567"
+      },
+      {
+        "start_line0": 3382,
+        "end_line0": 3383,
+        "origin": "reviewed_ingredient",
+        "sha256": "b906cafbd378356d6e255bb0a85ccac233306f2406eb7d033524a4798c9034c2"
+      },
+      {
+        "start_line0": 3396,
+        "end_line0": 3396,
+        "origin": "reviewed_ingredient",
+        "sha256": "0ba5dd3b7c2a2ef41daa2ea377b20e4b7b0742a768254066d12a09e3a69b62bf"
+      },
+      {
+        "start_line0": 3696,
+        "end_line0": 3696,
+        "origin": "reviewed_ingredient",
+        "sha256": "07b013b18199c9eea3f310010862a4956d7346b09716d957884ebf88580e130c"
+      },
+      {
+        "start_line0": 3702,
+        "end_line0": 3703,
+        "origin": "reviewed_ingredient",
+        "sha256": "b8f7b3a50af4a3b1753f499b3a90c35a384c4b6c968bcf62d97aa31305b3c000"
+      },
+      {
+        "start_line0": 3705,
+        "end_line0": 3708,
+        "origin": "reviewed_ingredient",
+        "sha256": "0093bb7f7b1e0fa663aed3b734c6c525c2ae2e6a1dc6efb21ee249d42eace121"
+      },
+      {
+        "start_line0": 3808,
+        "end_line0": 3819,
+        "origin": "reviewed_ingredient",
+        "sha256": "e19e0bde3328805f3cb61da0bf4907619339a71c424ff22f48d6d6fe330450db"
+      },
+      {
+        "start_line0": 3820,
+        "end_line0": 3821,
+        "origin": "reviewed_ingredient",
+        "sha256": "f3bd0771965cdbf93bcbfbbb09ef0ca205520db4abbadf7f3e1aa409fa39b53b"
+      },
+      {
+        "start_line0": 3823,
+        "end_line0": 3842,
+        "origin": "reviewed_ingredient",
+        "sha256": "a34b5f50cbbe4a72431dfe657af070a5807c4c59b005513e37fc195b8d938aa0"
+      },
+      {
+        "start_line0": 3844,
+        "end_line0": 3857,
+        "origin": "reviewed_ingredient",
+        "sha256": "028cddef92b3f2a2cb5d57a13bec376650444d1edea3c268e12947ad09978577"
+      },
+      {
+        "start_line0": 3859,
+        "end_line0": 3865,
+        "origin": "reviewed_ingredient",
+        "sha256": "c077d3a670dce5f590f66a193400c9725ee1b789931c67567a5c55e51408082e"
+      },
+      {
+        "start_line0": 3866,
+        "end_line0": 3868,
+        "origin": "reviewed_ingredient",
+        "sha256": "e7821d69f7a24b081c6d5dc5b14f1e2dd669f27239d4173e98aa0abf15de2a46"
+      },
+      {
+        "start_line0": 3869,
+        "end_line0": 3876,
+        "origin": "reviewed_ingredient",
+        "sha256": "3265905731deb9c5316b8e8412cffa27c3c582ebcecb40e59c2b015d0bf96184"
+      },
+      {
+        "start_line0": 4252,
+        "end_line0": 4253,
+        "origin": "reviewed_ingredient",
+        "sha256": "b906cafbd378356d6e255bb0a85ccac233306f2406eb7d033524a4798c9034c2"
+      },
+      {
+        "start_line0": 4262,
+        "end_line0": 4262,
+        "origin": "reviewed_ingredient",
+        "sha256": "f113730da380eab9454b7269fe473d89cfc7f55eda781dcf01c1221ae9790f36"
+      },
+      {
+        "start_line0": 4447,
+        "end_line0": 4447,
+        "origin": "reviewed_ingredient",
+        "sha256": "e33f3f512b5793ea99f1193de1e977934c7411b8261008d517bac11c3b9b8006"
+      },
+      {
+        "start_line0": 11777,
+        "end_line0": 11777,
+        "origin": "reviewed_ingredient",
+        "sha256": "bd9d550f1dfbc0635d1129a42340ae9f434795474d9bd95f8c987d5479e7d01a"
+      }
+    ]
+  },
+  {
+    "path": "rust/tcl-lsp-server/src/lib.rs",
+    "replacements": [
+      {
+        "start_line0": 914,
+        "end_line0": 914,
+        "origin": "current_integrated_main",
+        "sha256": "5aa26bb411e25cae76894ddcfe76acaf83549a04c9623ba3660cdd06c235a03e"
+      },
+      {
+        "start_line0": 7074,
+        "end_line0": 7076,
+        "origin": "reviewed_ingredient",
+        "sha256": "521871d597804e40bc82652c622f1e02e273da551cb9fb92db89dd7fdc10f6f3"
+      },
+      {
+        "start_line0": 25995,
+        "end_line0": 25999,
+        "origin": "current_integrated_main",
+        "sha256": "45001969244e5ce5aa5382595c2198bd7cdb531df264cbe86707504908fef54d"
+      },
+      {
+        "start_line0": 26013,
+        "end_line0": 26016,
+        "origin": "current_integrated_main",
+        "sha256": "9ccf540009bb456555e13a072de2585bb765b25d4cc5d35349cc5a6434a25ae3"
+      },
+      {
+        "start_line0": 26095,
+        "end_line0": 26095,
+        "origin": "current_integrated_main",
+        "sha256": "ee3afdb57365f525bae4bd4714a95cedc12f2c0c985d96bd4ccfae19bd0db50c"
+      },
+      {
+        "start_line0": 26105,
+        "end_line0": 26115,
+        "origin": "current_integrated_main",
+        "sha256": "9f9c32096bea753ba54e4ad98383c4c297aea511a21515eb9d7f13273877d91e"
+      },
+      {
+        "start_line0": 26116,
+        "end_line0": 26117,
+        "origin": "current_integrated_main",
+        "sha256": "1ea5c1e68f426823e130a69d83cd69378ff11b707d6a62e8e28ed22c310755d4"
+      },
+      {
+        "start_line0": 26169,
+        "end_line0": 26169,
+        "origin": "current_integrated_main",
+        "sha256": "9898ac09539accbad0c3ff7f0e3620bd59d75c7e272a8e98f8a2714b0a234581"
+      },
+      {
+        "start_line0": 29867,
+        "end_line0": 29867,
+        "origin": "current_integrated_main",
+        "sha256": "6624194cf9ccb9a36465ccaa68be4f18a9174936523e342dab698af70327a3c4"
+      },
+      {
+        "start_line0": 29881,
+        "end_line0": 29881,
+        "origin": "current_integrated_main",
+        "sha256": "656c2aeced50005551f007b66906410c4879f08d48ed50261e0076638d39e1f5"
+      },
+      {
+        "start_line0": 29910,
+        "end_line0": 29910,
+        "origin": "current_integrated_main",
+        "sha256": "24af27eb4641aba1a36734b254404f9733e1b1b8791dabceb2a36e9a54edf7e7"
+      },
+      {
+        "start_line0": 29911,
+        "end_line0": 29914,
+        "origin": "current_integrated_main",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "start_line0": 29915,
+        "end_line0": 29916,
+        "origin": "current_integrated_main",
+        "sha256": "62b2c590833fe699655977a51f406a467adb50a1d4f8df2386ea5b2918ec8bec"
+      },
+      {
+        "start_line0": 29986,
+        "end_line0": 30041,
+        "origin": "current_integrated_main",
+        "sha256": "59aeb5bdd77d02b5e1a249f9cce8603dcc12d7c23bcc209e89b946a7b29edf92"
+      }
+    ]
+  }
+]

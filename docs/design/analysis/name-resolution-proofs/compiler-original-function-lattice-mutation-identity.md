@@ -85,3 +85,31 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The exact selectors bind the current implementation contract; no execution receipt is attached. Independent CFG equality and complete producer identity remain acceptance obligations. All seven native providers are not-tested for this Rust memo question.
+
+## Original source worker results
+
+The private source callback loops seal the actual full request and Module,
+prepared caller/parameter/outer-write/binding/summary context, complete input and
+lexer configuration, optional profile and dialect spelling, seeds, class/trace
+facts and value-transfer context. OriginalFunctionLatticeInputs is a data view,
+not a constructor of authority. BodyLatticeInputs checks it against that retained
+recipe before invoking the existing single CFG/FU/semantic worker pipeline.
+Its private result snapshot separately checks actual semantic-value owner
+availability alongside every original function field. Public field mutation or
+a merely equal CFG cannot retain the original callback admission.
+
+The actual native-template and neutral body correspondence owners retain their
+original projections and exact proof restoration. Rebinding preserves ordinary
+reporting results; unsupported worker receipts remain unavailable. The cache
+purpose separates legacy and original-worker inputs without adding full source
+or allocation salts to same-purpose canonical body/certificate equality.
+The private source-CU producer independently requires every accepted callback to
+have its genuine result receipt. Body-lowering provenance, completed whole raw
+optimiser inventory and final current-report/action checks remain separate.
+No execution, Native cell, entered body, Normal, equivalence or edit permission
+is issued by this lattice receipt alone.
+
+- [rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs](../../../../rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs), `BodyLatticeInputs::original_function_lattice`: Rejoin every actual worker input before the existing single analysis pipeline.
+- [rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs](../../../../rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs), `OriginalFunctionLatticeTemplate::rebind_cached`: Restore the actual original native template and retain current request correspondence only for an unchanged genuine worker result.
+- [rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs](../../../../rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs), `compilation_unit::original_lattice_worker::tests::original_lattice_worker_keeps_actual_recipe_and_refuses_changed_key_or_request` (linked): Genuine callback/worker transport retains exact key fields and separates a legacy-first cache purpose; changed request, profile or literal seeds refuse. Source control only, unexecuted.
+- [rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs](../../../../rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs), `compilation_unit::original_lattice_worker::tests::original_lattice_worker_refuses_public_result_changes_without_changing_report_acceptance` (linked): A CFG-equal public analysis mutation remains reportable but cannot retain original worker admission. Source control only, unexecuted.

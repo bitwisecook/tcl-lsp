@@ -1,0 +1,147 @@
+{
+  "status": "ROOT_COMPOSITION_PENDING_FINAL_REVIEW",
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/compiler-original-function-lattice-mutation-identity.md",
+      "before_sha256": "98d92120ca77e703ae877d97f1ae58a88472eb6d40593d631ecdfe35e84f11be",
+      "after_sha256": "b9a9aac69eec8f17cad0b0d44655df4ba558a488528a4bccfce7e7599c665221",
+      "ingredient_before_sha256": "98d92120ca77e703ae877d97f1ae58a88472eb6d40593d631ecdfe35e84f11be",
+      "ingredient_after_sha256": "b9a9aac69eec8f17cad0b0d44655df4ba558a488528a4bccfce7e7599c665221"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "6e8e94c55f8adefb745c6fce6de562aa6ef692bad116c478ff081c2a6bf4d50f",
+      "after_sha256": "d6312be56ab1f9544827e84c9f2f6fa469885bdef680ff1eb806a46fb80c00a8",
+      "ingredient_before_sha256": "ca7c19cf6049661f697f83e4940cb2b4784428de6e1a340d8d94af6d3ea58f94",
+      "ingredient_after_sha256": "79226845ad015fc3996b12b8e24cd0e33c3b6eca650a47376b1e2686a62517e8"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "131ec5a530377e181b94561688f035f96ad2fc223c194fb637cf705398f0565a",
+      "after_sha256": "bddd0591378ff02ca13b11697a25fcdfe1eb5d1cc19c8f67c23fafad376d5041",
+      "ingredient_before_sha256": "6b53746f1489f77dbc5cd22cf752e26349878203283790cc0784473730740c73",
+      "ingredient_after_sha256": "879515e4f2df5169ea2a4e75cba497de7c532c36c85020f34f5c208dc120caae"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "before_sha256": "9cf0c38cf351645ab6e45a23c33d708b140a54d50b7e24a397e2d9761cd7e7cf",
+      "after_sha256": "d02b5769cc875f8b6fd8dec5ed4cd492df54ddc96c75839c7bbac4991497aa26",
+      "ingredient_before_sha256": "9cf0c38cf351645ab6e45a23c33d708b140a54d50b7e24a397e2d9761cd7e7cf",
+      "ingredient_after_sha256": "d02b5769cc875f8b6fd8dec5ed4cd492df54ddc96c75839c7bbac4991497aa26"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "4d3d705806259212f32cc52ca3fd7c8e126c116b8789e780d43099e732e337e7",
+      "after_sha256": "5a63f59dbff976765b660eb3bb085f3a4cc15022f8eac0ae2fa36e0901d646cc",
+      "ingredient_before_sha256": "4d3d705806259212f32cc52ca3fd7c8e126c116b8789e780d43099e732e337e7",
+      "ingredient_after_sha256": "5a63f59dbff976765b660eb3bb085f3a4cc15022f8eac0ae2fa36e0901d646cc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": "acd319c5030b15ca8a147849c182d92d2b4381690dfc72f705571b34604157d9",
+      "after_sha256": "6f9d8a14315bd1d97c0a9acee70f1820a8e6ce6d19e86d78bb284b5f95168c7b",
+      "ingredient_before_sha256": "acd319c5030b15ca8a147849c182d92d2b4381690dfc72f705571b34604157d9",
+      "ingredient_after_sha256": "6f9d8a14315bd1d97c0a9acee70f1820a8e6ce6d19e86d78bb284b5f95168c7b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "41028158a72d8b5d4a94605bac74cfc4b2df9454498ac700e0fe04e6a02aeb62",
+      "after_sha256": "4bd4a61ed8d8506c574226c6ad53aa724d4f572a1339fb28f9931c8bb3b35605",
+      "ingredient_before_sha256": "41028158a72d8b5d4a94605bac74cfc4b2df9454498ac700e0fe04e6a02aeb62",
+      "ingredient_after_sha256": "4bd4a61ed8d8506c574226c6ad53aa724d4f572a1339fb28f9931c8bb3b35605"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "331a5ecc013884a68d8c82f30a5de1dcba63c80ff06dc63eaa4ad3d38734d1c3",
+      "ingredient_before_sha256": null,
+      "ingredient_after_sha256": "331a5ecc013884a68d8c82f30a5de1dcba63c80ff06dc63eaa4ad3d38734d1c3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "d913c9f36af26e7f7a0ee453c6e7644ed4525fdf69c4d17815a5654a625c8803",
+      "ingredient_before_sha256": null,
+      "ingredient_after_sha256": "d913c9f36af26e7f7a0ee453c6e7644ed4525fdf69c4d17815a5654a625c8803"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "8194b09095567a66dfdc581baa3c8c089d5e77af8ff1423f671772726a64e0d7",
+      "after_sha256": "eb9874eb99f81979af566e918d4fd2cfaacf24de96381d671c9daa8526e5b272",
+      "ingredient_before_sha256": "8194b09095567a66dfdc581baa3c8c089d5e77af8ff1423f671772726a64e0d7",
+      "ingredient_after_sha256": "eb9874eb99f81979af566e918d4fd2cfaacf24de96381d671c9daa8526e5b272"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+      "before_sha256": "9952f3760594a90b5eca40251f84aec8043c27701bf37e3a4aaf70b75a42a04a",
+      "after_sha256": "a456dbcdb66ce336f54c10733e711ca5a6f36ceeedd906d279eb7493e2e870e9",
+      "ingredient_before_sha256": "9952f3760594a90b5eca40251f84aec8043c27701bf37e3a4aaf70b75a42a04a",
+      "ingredient_after_sha256": "a456dbcdb66ce336f54c10733e711ca5a6f36ceeedd906d279eb7493e2e870e9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+      "before_sha256": "8d1e279a4b290017333f06eb512f57092f715088b803b6fe4f15fb144fe18f92",
+      "after_sha256": "1e9dc6eba123df30b491eb5f7c1e153c057523d12bef9b6e9b9201d271cc6456",
+      "ingredient_before_sha256": "8d1e279a4b290017333f06eb512f57092f715088b803b6fe4f15fb144fe18f92",
+      "ingredient_after_sha256": "1e9dc6eba123df30b491eb5f7c1e153c057523d12bef9b6e9b9201d271cc6456"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec",
+      "ingredient_before_sha256": null,
+      "ingredient_after_sha256": "9c66cf4eb5ebbce208197c07600f2253c82273762cdb002cd41916436db5ecec"
+    },
+    {
+      "path": "rust/tcl-explorer/src/coverage.rs",
+      "before_sha256": "76342b6e9343ac6dbb64e15e46aed72cefb6955be61c79b0facadbca7829a4ed",
+      "after_sha256": "5c5572ca0fed47bb7d1348c99664eb5c8edf84670b6916349dbb9175d252ca7d",
+      "ingredient_before_sha256": "76342b6e9343ac6dbb64e15e46aed72cefb6955be61c79b0facadbca7829a4ed",
+      "ingredient_after_sha256": "5c5572ca0fed47bb7d1348c99664eb5c8edf84670b6916349dbb9175d252ca7d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "before_sha256": "6ebc026d39aa62461812aff875066b390ff5ed22109edaad699013a8c31d1c12",
+      "after_sha256": "0a6d7ae97a9790f6ef52be6d9b77519fc5444b7e1369202b22574e404661af88",
+      "ingredient_before_sha256": "3af50e86bf3c8763afebc7ac302b0d405a33b8a340a28ef5a5882407cfd81568",
+      "ingredient_after_sha256": "b42814f9b2d5a139dbe9dbf4c3a79a1721888055cc4fe5142162200ec10935eb"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs",
+      "before_sha256": "0ea4003c990f9b5c2471080f920156fdd3836d61d1fc0bca6812aac9dce8b26c",
+      "after_sha256": "7195c855c6d05150b525e97a1e691c05f18df59108e1f59af78fa0d20cd926e2",
+      "ingredient_before_sha256": "0ea4003c990f9b5c2471080f920156fdd3836d61d1fc0bca6812aac9dce8b26c",
+      "ingredient_after_sha256": "7195c855c6d05150b525e97a1e691c05f18df59108e1f59af78fa0d20cd926e2"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_policy.rs",
+      "before_sha256": "af94133aa926b6461ccfe1ad82593b03a00b84b22e177656da7a4c7c2c5a96b8",
+      "after_sha256": "32c60eb6d383791de7991702d54073900a5c52e47f64bed028e70506319b5170",
+      "ingredient_before_sha256": "af94133aa926b6461ccfe1ad82593b03a00b84b22e177656da7a4c7c2c5a96b8",
+      "ingredient_after_sha256": "32c60eb6d383791de7991702d54073900a5c52e47f64bed028e70506319b5170"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "7b289648390702927a9dfdf45e300c29b0a988d3fc6dcbeb71b55d9a2605cc4c",
+      "after_sha256": "2d7735c7ea4c95358a7f576b5b8856252744187004c791eadeaf346b9222c0ae",
+      "ingredient_before_sha256": "7b289648390702927a9dfdf45e300c29b0a988d3fc6dcbeb71b55d9a2605cc4c",
+      "ingredient_after_sha256": "2d7735c7ea4c95358a7f576b5b8856252744187004c791eadeaf346b9222c0ae"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "0922e8fd77b7f02fb8b5c61aec55c4b17363504ed5e2d0b0604b6d9a1fd96ab7",
+      "after_sha256": "e99608f3f902b1dfa686b729bc975a0544665655c6c6eb9a783791f99c44a314",
+      "ingredient_before_sha256": "a4a7a4c77c62836af785638f14bea21f12ad55d3ae503dcf33e53051ff6473cc",
+      "ingredient_after_sha256": "d08d23a69c82c34270a059442346dc9fe8b71d0caa2b31f6fc84b85dd3625247"
+    }
+  ],
+  "patch_sha256": "34b16c11b04cd24e15d4a03fb21048c95af4b79dc15e1fa3532ed4f740494436",
+  "ingredients": [
+    {
+      "directory": "/workspace/naming-validation/agent-work/optimiser-rewrite-current-report-v3",
+      "manifest_sha256": "acee6301c90231a15e618692d3fd00c421cf38c628f51e599a8ed2ae0e365f61",
+      "patch_sha256": "40e76814f1595aac21561a08605718788613395f2b3bc2be73dda1b72c36997f"
+    }
+  ],
+  "execution": false
+}

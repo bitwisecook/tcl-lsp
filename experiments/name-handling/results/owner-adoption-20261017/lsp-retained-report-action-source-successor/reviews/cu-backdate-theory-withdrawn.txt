@@ -1,0 +1,9 @@
+Correction: withdraw speculative tracked-CU backdating HOLD
+Reviewer sol_compiler; 2026-10-17 UTC.
+Supersedes ONLY independent-cu-backdate-addendum-HOLD.txt SHA5c9e8cd74bb65e61b256e064065c10741a97e0322f6a7277205fa1bbf2d214cb; historical file unchanged.
+
+My earlier proposed empty/literal equal-CU recomputation missed actual Module identity. Independently read actual source lifecycle: private lower_and_build_cfg_with_original_caches constructs a new Lowerer for every actual source build; Lowerer::with_config creates Module::default (lowering/mod.rs1338), including ProcedureIdIssuer::default. The default issuer allocates a fresh NEXT_SCOPE id even with no body allocations, and its PartialEq compares that id (tcl-core-types/src/body_identity.rs54-74). Module derives PartialEq including procedure_ids (ir.rs2808,2912). CompilationUnit's unchanged fifteen-field semantic projection includes ir_module. Source body/isolated body caches restore Script values and do not replace the whole Module issuer. Explicit/default Standalone constructors also construct through with_config. Therefore the actual tracked compilation_unit_for_config source rebuild is not demonstrated to produce an equal old CU merely because its visible analyses are unchanged; fresh Module issuer already prevents that equality.
+
+The hypothetical same-Module clone/enricher comparison is not this actual DB recomputation path. No extra CU wrapper/no_eq/epoch layer or manufactured epoch test is warranted from this finding. This correction does not withdraw the real two NEW report-key issuance-purpose discriminators or actual omitted AnalysisContextKey/evaluator context in neutral capsule reuse; those remain separate accepted source review obligations. It also does not self-clear the Compiler kernel.
+
+No execution, main/Cargo/Git mutation, typecheck, migration/count or acceptance claim. Root/Var/DB notified. Immutable successor review will bind the actual bounded report-key/context repair.

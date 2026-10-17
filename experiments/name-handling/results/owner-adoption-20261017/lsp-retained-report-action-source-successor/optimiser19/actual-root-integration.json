@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-17T00:23:52.732128+00:00",
+  "patch_sha256": "34b16c11b04cd24e15d4a03fb21048c95af4b79dc15e1fa3532ed4f740494436",
+  "all19_before_after_match": true,
+  "fresh_forward_apply_check": true,
+  "whole_independent_peer": "ed47906e51fbf38fbed1b6b08cb1279ac8ce0d62e3550244c87ae5bd3d80f917",
+  "kernel_independent_peer": "7be0e2f8ec0f1824bb59f6cea60003f42ebf49c3a1923761f72f5cb0c34f056f",
+  "rust_ast_and_scoped_format": 16,
+  "actual_tests_builds": "Unexecuted on this integration; no efficacy or verified claim."
+}

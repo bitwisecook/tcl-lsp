@@ -1,0 +1,9 @@
+
+> tcl-lsp@0.0.0-dev bundle:browser
+> esbuild ./src/extensionBrowser.ts --bundle --platform=browser --target=es2020 --format=cjs --external:vscode --outfile=out/extension.browser.js --sourcemap --minify --tree-shaking=true --loader:.md=text
+
+
+  out/extension.browser.js      499.2kb
+  out/extension.browser.js.map    1.9mb
+
+⚡ Done in 52ms

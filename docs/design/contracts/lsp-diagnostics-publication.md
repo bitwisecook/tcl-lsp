@@ -52,7 +52,8 @@ for an open, client-versioned document. It neither schedules a pass nor changes
 the diagnostic delivery model.
 
 A `complete` response retains the exact URI, client version and whole source,
-server revision, input epoch, actual final report ID and raw published findings.
+the effective dialect retained by the completed pass, server revision, input epoch,
+actual final report ID and raw published findings.
 The cache/mailbox producer transports its own freshly issued report ID together
 with that exact publication acknowledgement; later mutable cache reads cannot
 issue publication identity. The query independently requires the cached report
@@ -323,3 +324,32 @@ restart or double-scale the budget. This read-only validation route creates no
 new endpoint, schedules no analysis and treats notification delivery as distinct
 from complete configured diagnostic evidence. Legacy pull helpers remain separate
 and supply no completion through a missing-items empty fallback on this route.
+
+
+### Retained reports in editor requests
+
+`waitForDiagnosticsReport` captures one original open document, whole source,
+version and client analysis session. It retains the completed publisher response,
+including its actual dialect, revision, input epoch and report ID, separately
+from converted display diagnostics. The same complete per-resource `tclLsp`
+configuration fingerprint is used by retained diagnostic reports and document
+transforms. Unsupported settings cannot establish equality. A source, resource
+configuration or session change refuses the original request rather than
+recapturing a later context.
+
+Shared contextual model requests, current-report iteration and generic Tcl
+validation retain this report through their asynchronous work. Before consuming
+it after an await, `currentDiagnosticsReportIsStillPublished` queries the existing
+read-only publisher ledger using the original transport and exact original
+URI/version/source. Only the same completed dialect, revision, input epoch and
+report ID is accepted, with local source/session/settings checked again after
+the reply. A newer report does not replace the retained result. Pending, stale,
+suppressed, unavailable, malformed and timed-out replies refuse its use.
+
+The report's dialect selects analysis-specific prompt vocabulary. Display-only
+diff suppression continues to affect presentation independently; its empty
+collection is never used as completed analysis evidence. The array compatibility
+adapter preserves its existing retry behavior, while proposal diagnostics keep
+their separate hypothetical-source owner. A completed report and its rejoin
+supply no permission to edit; source actions still require their existing
+checked write or transform owner.

@@ -80,6 +80,8 @@ type CfgContext = crate::cfg_builder::CfgContext;
 /// parameter list, the module-wide upvar / proc-param context (so the rebuilt
 /// CFG is identical to the whole-module build's), and the analysis dialect.
 pub struct LatticeRequest<'a> {
+    pub(crate) original_worker_request:
+        Option<&'a original_lattice_worker::OriginalLatticeRequestSeal>,
     /// Genuine lowered Module that issued this source body coordinate.
     pub module: &'a crate::ir::Module,
     /// Exact current body for memo-result joins; neutral cached facts need no ID key.
@@ -383,6 +385,20 @@ pub type TaintCascadeCallback<'a> = dyn FnMut(
     ) -> Option<Arc<HashMap<ValueKey, TaintLattice>>>
     + 'a;
 
+/// Callback for genuine original body taint memo results. The request owns
+/// the actual internally computed summary and current source body roster.
+pub type OriginalTaintCascadeCallback<'a> = dyn FnMut(
+        &OriginalInterproceduralTaintRequest,
+        crate::ir::ProcedureId,
+        &str,
+    ) -> Option<crate::body_analysis_capsule::OriginalInterproceduralTaintReport>
+    + 'a;
+
+enum OriginalTaintCallback<'borrow, 'data> {
+    Legacy(&'borrow mut TaintCascadeCallback<'data>),
+    Original(&'borrow mut OriginalTaintCascadeCallback<'data>),
+}
+
 // Per-function analysis bundle
 
 /// The single method-body view of `TclOO` instance state, built **once** per
@@ -469,8 +485,10 @@ impl MethodBodyFacts {
 /// [`function_lattice`](../../tcl_lsp_db/fn.function_lattice.html) query rebuilds
 /// a procedure whose interned body changed but whose lattice came out identical,
 /// the equal comparison lets dependents skip re-execution.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct FunctionUnit {
+    original_lattice_worker: Option<Arc<original_lattice_worker::OriginalFunctionLatticeResult>>,
+    original_lattice_callback_admission: Option<bool>,
     /// Complete immutable metadata generation retained by the actual build.
     pub(crate) source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     /// Exact source lexer configuration, including body-coordinate policy.
@@ -583,6 +601,34 @@ pub struct FunctionUnit {
     pub semantic_facts: SemanticAnalysisBundle,
 }
 
+impl PartialEq for FunctionUnit {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_metadata_input == other.source_metadata_input
+            && self.source_config == other.source_config
+            && self.name == other.name
+            && self.body_id == other.body_id
+            && self.cfg == other.cfg
+            && self.ssa == other.ssa
+            && self.def_use == other.def_use
+            && self.sccp == other.sccp
+            && self.semantic_value_projection == other.semantic_value_projection
+            && self.retained_semantic_value_owner == other.retained_semantic_value_owner
+            && self.types == other.types
+            && self.return_type == other.return_type
+            && self.taints == other.taints
+            && self.rendered_props == other.rendered_props
+            && self.memory_ssa == other.memory_ssa
+            && self.dynamic_names == other.dynamic_names
+            && self.complexity_guarded == other.complexity_guarded
+            && self.tier == other.tier
+            && self.base_offset == other.base_offset
+            && self.method_facts == other.method_facts
+            && self.irules_event_body == other.irules_event_body
+            && self.original_hosted_procedure_body == other.original_hosted_procedure_body
+            && self.semantic_facts == other.semantic_facts
+    }
+}
+
 // The inventory witness lives with the types so all private fields can be
 // enumerated exhaustively without exposing their values to reflection clients.
 pub(crate) mod durable_field_inventory {
@@ -604,6 +650,8 @@ pub(crate) mod durable_field_inventory {
         witness_function_unit,
         FUNCTION_UNIT_FIELDS,
         FunctionUnit,
+        original_lattice_worker,
+        original_lattice_callback_admission,
         source_metadata_input,
         source_config,
         name,
@@ -633,6 +681,7 @@ pub(crate) mod durable_field_inventory {
         witness_compilation_unit,
         COMPILATION_UNIT_FIELDS,
         CompilationUnit,
+        optimiser_source_owner,
         source,
         ir_module,
         cfg_module,
@@ -2022,6 +2071,8 @@ impl FunctionUnit {
         cfg.retain_math_invocations(&sccp.required_math_invocations);
         cfg.retain_expression_preparations(&sccp.required_expression_preparations);
         Self {
+            original_lattice_worker: None,
+            original_lattice_callback_admission: None,
             source_metadata_input: source_metadata_input.cloned(),
             source_config: config,
             name: name.into(),
@@ -2056,6 +2107,8 @@ impl FunctionUnit {
     pub fn trivial_guarded(name: impl Into<String>, cfg: CfgFunction) -> Self {
         let ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         Self {
+            original_lattice_worker: None,
+            original_lattice_callback_admission: None,
             source_metadata_input: None,
             source_config: tcl_lexer::LexerConfig::default(),
             name: name.into(),
@@ -2417,8 +2470,9 @@ impl FunctionUnit {
 /// `tcl-lsp-db`) to return `Arc<CompilationUnit>` — both diagnostics consumers
 /// share one build per edit — using salsa's equality-backed memoisation, exactly
 /// as `FunctionUnit` does for [`function_lattice`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct CompilationUnit {
+    optimiser_source_owner: Option<optimiser_source_owner::OriginalOptimiserPreparedUnit>,
     /// Source text (kept so downstream passes that need raw
     /// lexing can re-scan ranges without reparsing).
     pub source: String,
@@ -2467,6 +2521,35 @@ pub struct CompilationUnit {
     /// caller's places.
     pub transfers: crate::interprocedural::TransferSummaries,
 }
+// Preserve the existing semantic/cache equality projection exactly. The new
+// producer receipt is validated independently, never a new Salsa dependency.
+impl PartialEq for CompilationUnit {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.ir_module == other.ir_module
+            && self.cfg_module == other.cfg_module
+            && self.command_mutations == other.command_mutations
+            && self.source_class_facts == other.source_class_facts
+            && self.top_level == other.top_level
+            && self.procedures == other.procedures
+            && self.methods == other.methods
+            && self.body_units == other.body_units
+            && self.source_body_cfgs == other.source_body_cfgs
+            && self.interproc == other.interproc
+            && self.connection_scope == other.connection_scope
+            && self.caller_scope == other.caller_scope
+            && self.declared_commands == other.declared_commands
+            && self.transfers == other.transfers
+    }
+}
+
+pub(crate) mod original_lattice_worker;
+pub use original_lattice_worker::{OriginalFunctionLatticeInputs, OriginalFunctionLatticeTemplate};
+mod optimiser_source_owner;
+pub(crate) use optimiser_source_owner::OriginalOptimiserPreparedUnit;
+pub use optimiser_source_owner::{
+    OriginalInterproceduralTaintRequest, OriginalOptimiserSourceOrigin,
+};
 
 /// The unit-scope facts a build resolved, kept on the finished
 /// [`CompilationUnit`] so the explorer — and anyone debugging a missing or
@@ -2616,11 +2699,55 @@ impl ModuleWideFacts {
 /// Lower `source` to IR, run the module-level pre-CFG passes, and build the
 /// module CFG — the front half of a [`CompilationUnit`] build, shared by every
 /// entry point.
+#[cfg(test)]
 fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
     body_cache: Option<&BodyLoweringCache<'_>>,
     source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+    source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+    context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+) -> (
+    IrModule,
+    CfgModule,
+    HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    PreparedCfgContext,
+) {
+    let integrity = std::cell::Cell::new(true);
+    lower_and_build_cfg_with_original_caches(
+        source,
+        options,
+        OriginalLoweringCaches {
+            legacy: body_cache,
+            source: source_body_cache,
+            original: None,
+            integrity: &integrity,
+        },
+        source_entry,
+        context,
+        input,
+        standalone,
+    )
+}
+
+struct OriginalBodyCacheInputs<'a> {
+    legacy: Option<&'a BodyLoweringCache<'a>>,
+    original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
+}
+
+struct OriginalLoweringCaches<'a> {
+    legacy: Option<&'a BodyLoweringCache<'a>>,
+    source: Option<&'a crate::lowering::SourceBodySyntaxCache<'a>>,
+    original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
+    integrity: &'a std::cell::Cell<bool>,
+}
+
+fn lower_and_build_cfg_with_original_caches(
+    source: &str,
+    options: UnitBuildOptions<'_>,
+    caches: OriginalLoweringCaches<'_>,
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<&crate::analyser::ResolvedAnalysisInput>,
@@ -2682,10 +2809,11 @@ fn lower_and_build_cfg(
     if let Some(entry) = source_entry.or(supplied_entry.as_ref()) {
         lowerer.set_source_analysis_options(entry.options());
     }
-    if let Some(cache) = source_body_cache {
+    lowerer = lowerer.with_original_optimiser_lowering(caches.original, caches.integrity);
+    if let Some(cache) = caches.source {
         lowerer = lowerer.with_source_body_syntax_cache(cache);
     }
-    let mut ir_module = match body_cache {
+    let mut ir_module = match caches.legacy {
         Some(bc) => crate::lowering::lower_to_ir_with(lowerer.with_body_cache(bc), source),
         None => crate::lowering::lower_to_ir_with(lowerer, source),
     };
@@ -2983,6 +3111,9 @@ fn build_procedure_units(
     mut cache: Option<&mut ProcLatticeCache<'_>>,
     config: tcl_lexer::LexerConfig,
 ) -> BuiltProcedureUnits {
+    let original_request_scope = cache.as_ref().and(ctx.cfg_context).map(|context| {
+        original_lattice_worker::OriginalLatticeRequestScope::capture(ctx.ir_module, context)
+    });
     // Procedure memo bodies are relocated to offset zero. Preserve the exact
     // lexical policy while stripping only source-coordinate bookkeeping so a
     // moved but unchanged body keeps the same cache identity.
@@ -3087,7 +3218,8 @@ fn build_procedure_units(
                 // procedure produces an identical request (memo hit).
                 let mut body = proc.body.clone();
                 crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
-                let mut fu = memo(&LatticeRequest {
+                let mut request = LatticeRequest {
+                    original_worker_request: None,
                     module: ctx.ir_module,
                     body_id: *id,
                     qname,
@@ -3113,7 +3245,19 @@ fn build_procedure_units(
                     traced_variables: ctx.traced_variable_names,
                     analysis_context: ctx.analysis_context,
                     has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
-                });
+                };
+                let original_request = original_lattice_worker::OriginalLatticeRequestSeal::capture(
+                    &request,
+                    original_request_scope
+                        .as_ref()
+                        .expect("actual memo context"),
+                    ctx.registry,
+                );
+                request.original_worker_request = Some(&original_request);
+                let mut fu = memo(&request);
+                fu.original_lattice_callback_admission = Some(
+                    LatticeRequest::accepts_original_worker_result(&request, &fu, ctx.registry),
+                );
                 // Rebase the offset-0 memo result to the procedure's real
                 // position so every consumer sees **absolute** spans without
                 // needing offset-awareness — robust against new/upstream
@@ -3183,6 +3327,14 @@ struct BuiltProcedureUnits {
 }
 
 impl CompilationUnit {
+    pub(crate) fn original_lattice_callbacks_are_current(&self) -> bool {
+        std::iter::once(&self.top_level)
+            .chain(self.procedures.values())
+            .chain(self.methods.values())
+            .chain(self.body_units.values())
+            .all(|function| function.original_lattice_callback_admission != Some(false))
+    }
+
     /// Re-run one actual body's taints with its complete current source owner.
     /// Missing metadata or a foreign body ID cannot borrow a function-only context.
     #[must_use]
@@ -3274,6 +3426,7 @@ impl CompilationUnit {
             caller_scope: crate::compilation_unit::UnitCallerScope::default(),
             declared_commands: tcl_registry::model::DeclaredSurface::new(),
             transfers: crate::interprocedural::TransferSummaries::default(),
+            optimiser_source_owner: None,
         }
     }
 
@@ -3500,7 +3653,38 @@ impl CompilationUnit {
             source,
             options,
             Some(cache),
-            Some(body_cache),
+            OriginalBodyCacheInputs {
+                legacy: Some(body_cache),
+                original: None,
+            },
+            entry,
+            None,
+            input,
+            Some(source_body_cache),
+            None,
+        )
+    }
+
+    /// Memoise original procedure lowering and lattices under the driver's
+    /// complete actual source input. Legacy script callbacks remain separate.
+    #[must_use]
+    pub fn build_memoized_with_original_body_lowering(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
+        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            Some(cache),
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: Some(body_cache),
+            },
             entry,
             None,
             input,
@@ -3576,7 +3760,10 @@ impl CompilationUnit {
             source,
             options,
             None,
-            None,
+            OriginalBodyCacheInputs {
+                legacy: None,
+                original: None,
+            },
             None,
             None,
             Some(input),
@@ -3606,7 +3793,18 @@ impl CompilationUnit {
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
         Self::build_with_retained_entry_and_source_syntax(
-            source, options, cache, body_cache, entry, context, input, None, None,
+            source,
+            options,
+            cache,
+            OriginalBodyCacheInputs {
+                legacy: body_cache,
+                original: None,
+            },
+            entry,
+            context,
+            input,
+            None,
+            None,
         )
     }
 
@@ -3614,13 +3812,29 @@ impl CompilationUnit {
         source: &str,
         options: UnitBuildOptions<'_>,
         mut cache: Option<&mut ProcLatticeCache<'_>>,
-        body_cache: Option<&BodyLoweringCache<'_>>,
+        body_caches: OriginalBodyCacheInputs<'_>,
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
         source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
         standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
     ) -> Self {
+        // Optional callback/cache outputs need their own authentic analysis
+        // receipts before this source-action producer can reborrow them.
+        // Report construction and all existing analysis remain unchanged.
+        let OriginalBodyCacheInputs {
+            legacy: body_cache,
+            original: original_body_cache,
+        } = body_caches;
+        let lowering_integrity = std::cell::Cell::new(true);
+        let original_source_ingress = if standalone.is_some() {
+            optimiser_source_owner::OriginalSourceBuildIngress::ExplicitStandalone
+        } else if entry.is_none() && context.is_none() && input.is_none() {
+            optimiser_source_owner::OriginalSourceBuildIngress::DefaultAuthoring
+        } else {
+            optimiser_source_owner::OriginalSourceBuildIngress::RetainedEntry
+        };
+
         let UnitBuildOptions {
             registry, dialect, ..
         } = options;
@@ -3629,11 +3843,15 @@ impl CompilationUnit {
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("initial");
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
-            lower_and_build_cfg(
+            lower_and_build_cfg_with_original_caches(
                 source,
                 options,
-                body_cache,
-                source_body_cache,
+                OriginalLoweringCaches {
+                    legacy: body_cache,
+                    source: source_body_cache,
+                    original: original_body_cache,
+                    integrity: &lowering_integrity,
+                },
                 entry,
                 context,
                 input,
@@ -3793,7 +4011,8 @@ impl CompilationUnit {
         );
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("connection-scope");
-        Self {
+        let mut unit = Self {
+            optimiser_source_owner: None,
             source: source.to_owned(),
             ir_module,
             cfg_module,
@@ -3815,7 +4034,15 @@ impl CompilationUnit {
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
             transfers,
+        };
+        if lowering_integrity.get() && unit.original_lattice_callbacks_are_current() {
+            unit.retain_original_optimiser_source_origin(
+                options,
+                &analysis_context,
+                original_source_ingress,
+            );
         }
+        unit
     }
 
     /// Lower `TclOO` method bodies (populated in `ir_module.methods` by
@@ -3972,6 +4199,9 @@ impl CompilationUnit {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
+        let original_request_scope = cache.as_ref().and(memo_context.prepared).map(|context| {
+            original_lattice_worker::OriginalLatticeRequestScope::capture(ir_module, context)
+        });
         let no_extra_escaping = HashSet::new();
         ir_module
             .body_units
@@ -4064,7 +4294,8 @@ impl CompilationUnit {
                             &mut body,
                             -i64::from(proc.span.start()),
                         );
-                        let mut unit = memo(&LatticeRequest {
+                        let mut request = LatticeRequest {
+                            original_worker_request: None,
                             module: ir_module,
                             body_id: *id,
                             qname,
@@ -4090,7 +4321,21 @@ impl CompilationUnit {
                             traced_variables: memo_context.traced_variables,
                             analysis_context: memo_context.analysis_context,
                             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
-                        });
+                        };
+                        let original_request =
+                            original_lattice_worker::OriginalLatticeRequestSeal::capture(
+                                &request,
+                                original_request_scope
+                                    .as_ref()
+                                    .expect("actual memo context"),
+                                registry,
+                            );
+                        request.original_worker_request = Some(&original_request);
+                        let mut unit = memo(&request);
+                        unit.original_lattice_callback_admission =
+                            Some(LatticeRequest::accepts_original_worker_result(
+                                &request, &unit, registry,
+                            ));
                         crate::lattice_rebase::rebase_function_unit(
                             &mut unit,
                             i64::from(proc.span.start()),
@@ -4215,6 +4460,13 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
+        let original_owner = self.optimiser_source_owner.clone().filter(|owner| {
+            owner.matches_unit(&self)
+                && owner.matches_registry(registry)
+                && owner.matches_dialect(dialect)
+        });
+        self.optimiser_source_owner = None;
+
         #[cfg(any(test, debug_assertions))]
         let mut phase_trace = SourcePipelineTrace::new("interprocedural", self.source.len());
         #[cfg(any(test, debug_assertions))]
@@ -4312,6 +4564,9 @@ impl CompilationUnit {
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("procedure-taints");
         self.interproc = Some(interproc);
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
@@ -4331,11 +4586,44 @@ impl CompilationUnit {
     /// `compiler_check` corpus differential and the taint-cascade edit tests.
     #[must_use]
     pub fn with_interprocedural_memoized(
-        mut self,
+        self,
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
+        self.with_interprocedural_callback(
+            registry,
+            dialect,
+            &mut OriginalTaintCallback::Legacy(taint_cb),
+        )
+    }
+
+    /// Memoise actual body taint reports under the private computed summary
+    /// request. A legacy or foreign callback result remains reporting-only.
+    #[must_use]
+    pub fn with_original_interprocedural_memoized(
+        self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        taint_cb: &mut OriginalTaintCascadeCallback<'_>,
+    ) -> Self {
+        self.with_interprocedural_callback(
+            registry,
+            dialect,
+            &mut OriginalTaintCallback::Original(taint_cb),
+        )
+    }
+
+    fn with_interprocedural_callback(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        taint_cb: &mut OriginalTaintCallback<'_, '_>,
+    ) -> Self {
+        let original_owner = self.original_optimiser_prepared_unit(registry, dialect);
+        self.optimiser_source_owner = None;
+        let mut original_callbacks = true;
+
         let Some(identities) =
             crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
         else {
@@ -4365,6 +4653,13 @@ impl CompilationUnit {
             });
         self.top_level.taints = Arc::new(top_taints);
 
+        let request = OriginalInterproceduralTaintRequest::from_computed_summary(
+            &self,
+            &interproc,
+            original_owner.as_ref(),
+            dialect,
+        );
+
         // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
         // miss) before mutating, so the immutable `&self.procedures` borrow the
         // fallback needs doesn't overlap the write-back.
@@ -4374,12 +4669,25 @@ impl CompilationUnit {
             if self.original_procedure_for_body(*qname).is_none() {
                 continue;
             }
-            let taints = taint_cb(*qname, &fu.name, &interproc).unwrap_or_else(|| {
+            let returned = match taint_cb {
+                OriginalTaintCallback::Legacy(callback) => {
+                    callback(*qname, &fu.name, &interproc).map(|taints| (taints, false))
+                }
+                OriginalTaintCallback::Original(callback) => callback(&request, *qname, &fu.name)
+                    .map(|report| {
+                        let current = request.accepts(*qname, registry, &report);
+                        (Arc::clone(report.taints()), current)
+                    }),
+            };
+            let taints = if let Some((taints, issued)) = returned {
+                original_callbacks &= issued;
+                taints
+            } else {
                 Arc::new(
                     self.original_interproc_taints_for_body(Some(*qname), registry, &interproc)
                         .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect)),
                 )
-            });
+            };
             new_taints.push((qname.clone(), taints));
         }
         for (qname, taints) in new_taints {
@@ -4391,6 +4699,9 @@ impl CompilationUnit {
         }
 
         self.interproc = Some(interproc);
+        if original_callbacks && let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
@@ -4412,6 +4723,12 @@ impl CompilationUnit {
     /// opaque variable-memory obligations instead of borrowing a profile.
     #[must_use]
     pub fn with_retained_memory_ssa(mut self, registry: &CommandRegistry) -> Self {
+        let original_owner = self
+            .optimiser_source_owner
+            .clone()
+            .filter(|owner| owner.matches_unit(&self) && owner.matches_registry(registry));
+        self.optimiser_source_owner = None;
+
         let context = self
             .top_level
             .invocation_metadata_context_for_module(registry, &self.ir_module);
@@ -4419,6 +4736,9 @@ impl CompilationUnit {
         for unit in self.procedures.values_mut() {
             let context = unit.invocation_metadata_context_for_module(registry, &self.ir_module);
             unit.memory_ssa = Some(unit.memory_ssa_for_metadata(registry, context));
+        }
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
         }
         self
     }
@@ -4428,6 +4748,12 @@ impl CompilationUnit {
     /// no default metadata context is reconstructed for deep inspection.
     #[must_use]
     pub fn with_retained_deep_semantic_analysis(mut self, registry: &CommandRegistry) -> Self {
+        let original_owner = self
+            .optimiser_source_owner
+            .clone()
+            .filter(|owner| owner.matches_unit(&self) && owner.matches_registry(registry));
+        self.optimiser_source_owner = None;
+
         use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
             registry,
@@ -4467,6 +4793,9 @@ impl CompilationUnit {
                 RetainedSemanticDepth::Full,
             );
         }
+        if let Some(owner) = original_owner {
+            self.retain_enriched_original_optimiser_owner(owner);
+        }
         self
     }
 
@@ -4484,6 +4813,8 @@ impl CompilationUnit {
         registry: &tcl_registry::CommandRegistry,
         context: Option<SemanticContext>,
     ) -> Self {
+        self.optimiser_source_owner = None;
+
         use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = SemanticAnalysisBundle::build(
             registry,

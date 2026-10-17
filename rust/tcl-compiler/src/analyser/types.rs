@@ -2397,6 +2397,8 @@ impl ScopedBodyRegion {
 /// in the shape so a consumer can serialise the complete result.
 #[derive(Debug, Clone, Default)]
 pub struct AnalysisResult {
+    pub(super) optimiser_source_origin:
+        Option<crate::compilation_unit::OriginalOptimiserSourceOrigin>,
     /// The requested command generation is unavailable. No source walk was
     /// performed; an empty diagnostic set therefore does not indicate success.
     pub analysis_context_unavailable: Option<tcl_registry::model::OverlayMiss>,
@@ -2891,6 +2893,7 @@ pub struct AnalysisResult {
 impl PartialEq for AnalysisResult {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            optimiser_source_origin,
             analysis_context_unavailable,
             command_realm,
             original_command_world,
@@ -2980,7 +2983,8 @@ impl PartialEq for AnalysisResult {
             body_lexer_config,
             library_versions,
         } = self;
-        analysis_context_unavailable == &other.analysis_context_unavailable
+        optimiser_source_origin == &other.optimiser_source_origin
+            && analysis_context_unavailable == &other.analysis_context_unavailable
             && command_realm == &other.command_realm
             && original_command_world == &other.original_command_world
             && lexical_declaration_advice == &other.lexical_declaration_advice
@@ -3516,6 +3520,38 @@ impl AnalysisResult {
         offset: u32,
     ) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
         super::scope::original_namespace_scope_at(&self.global_scope, offset)
+    }
+
+    /// Rejoin the actual source-build request retained by the diagnostic producer.
+    /// This does not grant worker, final group, edit or runtime authority.
+    #[must_use]
+    pub fn matches_optimiser_source_origin(
+        &self,
+        origin: &crate::compilation_unit::OriginalOptimiserSourceOrigin,
+    ) -> bool {
+        self.optimiser_source_origin.as_ref() == Some(origin)
+            && origin.is_current_analysis_context()
+    }
+
+    /// Rebuild the actual retained source request once for an uncached report.
+    /// The source/config/Registry and independently requested external evidence
+    /// must still match. This supplies no Native entry or edit permission;
+    /// optimiser findings need their own complete worker and final group.
+    #[must_use]
+    pub fn original_optimiser_source_unit(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> Option<crate::compilation_unit::CompilationUnit> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        self.optimiser_source_origin
+            .as_ref()?
+            .rebuild_for_current_analysis(source, registry, input, external)
     }
 
     /// Exact temporal source world used by this analysis. Missing evidence

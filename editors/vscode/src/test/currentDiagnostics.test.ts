@@ -29,11 +29,17 @@ import {
   setCurrentDiagnosticsTransportProvider,
   setUnleasedSessionDialectOverride,
   waitForDiagnostics,
+  waitForDiagnosticsReport,
+  currentDiagnosticsReportMatches,
+  currentDiagnosticsReportIsStillPublished,
+  resourceConfiguration,
   waitForProposalDiagnostics,
   proposalDiagnosticsReportMatches,
   type CurrentDiagnosticsTransport,
 } from "../chat/diagnosticAccess";
 import { activate, getDocUri } from "./helper";
+import { buildPromptContextBlock } from "../chat/contextPack";
+import type { CommandContext } from "../chat/types";
 
 interface Snapshot {
   uri: string;
@@ -45,6 +51,7 @@ function complete(snapshot: Snapshot, diagnostics: LspDiagnostic[]) {
   return {
     status: "complete",
     ...snapshot,
+    dialectId: "tcl8.6",
     revision: "1",
     inputsEpoch: "1",
     resultId: "result-1",
@@ -280,6 +287,25 @@ suite("Chat current diagnostic publication adapter", () => {
     }
   });
 
+  test("a complete empty report remains distinct from display suppression", async () => {
+    const document = await openFixture("set adapterCompleteEmpty 1");
+    const lease = setCurrentDiagnosticsTransportProvider(() =>
+      transport(async (request) => complete(request, [])),
+    );
+    try {
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      assert.strictEqual(report.response.status, "complete");
+      assert.deepStrictEqual(report.diagnostics, []);
+      assert.strictEqual(report.response.diagnostics.length, 0);
+      assert.strictEqual(report.response.source, document.getText());
+    } finally {
+      lease.dispose();
+    }
+  });
+
   test("a source edit during the request fails as stale instead of rebasing", async () => {
     const document = await openFixture("set adapterStale 1");
     let calls = 0;
@@ -311,6 +337,272 @@ suite("Chat current diagnostic publication adapter", () => {
     }
   });
 
+  test("a current report retains the producer dialect and exact report/session receipt", async () => {
+    const document = await openFixture("set adapterReport 1");
+    let requests = 0;
+    const activeTransport = transport(async (request) => {
+      requests += 1;
+      return complete(request, [diagnostic("REPORT")]);
+    });
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      assert.strictEqual(report.response.dialectId, "tcl8.6");
+      assert.strictEqual(report.response.revision, "1");
+      assert.strictEqual(report.response.inputsEpoch, "1");
+      assert.strictEqual(report.response.resultId, "result-1");
+      assert.strictEqual(report.response.source, document.getText());
+      assert.strictEqual(report.sessionIdentity, testSessionIdentity);
+      assert.strictEqual(report.diagnostics.length, 1);
+      const promptContext = await buildPromptContextBlock(
+        { request: { references: [] } } as unknown as CommandContext,
+        {
+          document,
+          code: document.getText(),
+          includeDiagnostics: false,
+          includeSymbolDefinitions: false,
+          includeEventMetadata: false,
+          completedDiagnosticsReport: report,
+        },
+      );
+      assert.match(promptContext, /Completed resource analysis: tcl8\.6/);
+      assert.strictEqual(
+        requests,
+        1,
+        "the caller reuses the full completed report, not a fresh query",
+      );
+      assert.strictEqual(
+        currentDiagnosticsReportMatches(report, {
+          document,
+          uri: document.uri,
+          version: document.version,
+          source: document.getText(),
+        }),
+        true,
+      );
+      invalidateAnalysisContext();
+      assert.strictEqual(
+        currentDiagnosticsReportMatches(report, {
+          document,
+          uri: document.uri,
+          version: document.version,
+          source: document.getText(),
+        }),
+        false,
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("a resource setting change invalidates a report even when source and session stay current", async () => {
+    const document = await openFixture("set adapterResourceContext 1");
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    assert.ok(folder, "the resource setting control needs its actual workspace folder");
+    const configuration = vscode.workspace.getConfiguration("tclLsp", document.uri);
+    const priorDialect = configuration.get<string>("dialect");
+    const lease = setCurrentDiagnosticsTransportProvider(() =>
+      transport(async (request) => complete(request, [])),
+    );
+    try {
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      const originalResourceConfiguration = report.resourceConfiguration;
+      assert.ok(originalResourceConfiguration);
+      assert.strictEqual(
+        await configuration.update("dialect", "tcl9.0", vscode.ConfigurationTarget.WorkspaceFolder),
+        undefined,
+      );
+      assert.notStrictEqual(
+        resourceConfiguration(document),
+        originalResourceConfiguration,
+        "the shared owner observes the actual per-resource configuration change",
+      );
+      assert.strictEqual(
+        currentDiagnosticsReportMatches(report, {
+          document,
+          uri: document.uri,
+          version: document.version,
+          source: document.getText(),
+        }),
+        false,
+        "the captured publisher dialect cannot be carried across a changed resource profile",
+      );
+    } finally {
+      await configuration.update(
+        "dialect",
+        priorDialect,
+        vscode.ConfigurationTarget.WorkspaceFolder,
+      );
+      lease.dispose();
+    }
+  });
+
+  test("a resource setting change during publication refuses the pinned report", async () => {
+    const document = await openFixture("set adapterResourcePending 1");
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    assert.ok(folder, "the resource setting control needs its actual workspace folder");
+    const configuration = vscode.workspace.getConfiguration("tclLsp", document.uri);
+    const priorDialect = configuration.get<string>("dialect");
+    let resolveReport!: () => void;
+    const lease = setCurrentDiagnosticsTransportProvider(() =>
+      transport(
+        (request) =>
+          new Promise((resolve) => (resolveReport = () => resolve(complete(request, [])))),
+      ),
+    );
+    try {
+      const pending = waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await configuration.update("dialect", "tcl9.0", vscode.ConfigurationTarget.WorkspaceFolder);
+      resolveReport();
+      await assert.rejects(
+        pending,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+    } finally {
+      await configuration.update(
+        "dialect",
+        priorDialect,
+        vscode.ConfigurationTarget.WorkspaceFolder,
+      );
+      lease.dispose();
+    }
+  });
+
+  test("a retained report refuses a newer publisher epoch for the same source and session", async () => {
+    const document = await openFixture("set adapterPublisherEpoch 1");
+    let requests = 0;
+    const activeTransport = transport(async (request) => {
+      requests += 1;
+      return requests === 1
+        ? complete(request, [])
+        : {
+            ...complete(request, []),
+            revision: "2",
+            inputsEpoch: "2",
+            resultId: "result-2",
+          };
+    });
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const report = await waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      assert.strictEqual(
+        await currentDiagnosticsReportIsStillPublished(report, {
+          document,
+          uri: document.uri,
+          version: document.version,
+          source: document.getText(),
+        }),
+        false,
+        "a newer complete publication cannot replace the report retained by the caller",
+      );
+      assert.strictEqual(requests, 2, "the exact original report is joined once to the ledger");
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("a current report refuses to recapture after its original session changes", async () => {
+    const document = await openFixture("set adapterReportRestart 1");
+    let resolveOld!: (value: unknown) => void;
+    let current: CurrentDiagnosticsTransport | undefined;
+    let newCalls = 0;
+    const oldTransport: CurrentDiagnosticsTransport = {
+      sessionIdentity: {},
+      request: () => new Promise((resolve) => (resolveOld = resolve)),
+      convert: async () => [],
+      isCurrent: () => current === oldTransport,
+    };
+    const newTransport = transport(async (request) => {
+      newCalls += 1;
+      return complete(request, []);
+    });
+    current = oldTransport;
+    const lease = setCurrentDiagnosticsTransportProvider(() => current);
+    try {
+      const pending = waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: document.getText(),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      current = newTransport;
+      resolveOld(
+        complete(
+          { uri: document.uri.toString(), version: document.version, source: document.getText() },
+          [],
+        ),
+      );
+      await assert.rejects(
+        pending,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      assert.strictEqual(
+        newCalls,
+        0,
+        "a later session must not replace the original report session",
+      );
+    } finally {
+      lease.dispose();
+    }
+  });
+
+  test("a report request refuses a changed source instead of rebasing its pinned session", async () => {
+    const original = "set adapterReportSource 1";
+    const document = await openFixture(original);
+    const originalVersion = document.version;
+    let resolveOriginal!: (value: unknown) => void;
+    let calls = 0;
+    const activeTransport = transport(
+      (request) => {
+        calls += 1;
+        return new Promise((resolve) => {
+          resolveOriginal = () => resolve(complete(request, []));
+        });
+      },
+      () => true,
+    );
+    const lease = setCurrentDiagnosticsTransportProvider(() => activeTransport);
+    try {
+      const pending = waitForDiagnosticsReport(document.uri, {
+        timeout: 1_000,
+        expectedSource: original,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(
+        document.uri,
+        new vscode.Range(0, 0, 0, original.length),
+        "set adapterReportSource 2",
+      );
+      assert.strictEqual(await vscode.workspace.applyEdit(edit), true);
+      resolveOriginal(
+        complete({ uri: document.uri.toString(), version: originalVersion, source: original }, []),
+      );
+      await assert.rejects(
+        pending,
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
+      );
+      assert.strictEqual(calls, 1, "a changed report source must not trigger a new request");
+    } finally {
+      lease.dispose();
+    }
+  });
+
   test("a delivered disabled receipt remains typed suppression, not clean empty", async () => {
     const document = await openFixture("set adapterSuppressed 1");
     const lease = setCurrentDiagnosticsTransportProvider(() =>
@@ -320,6 +612,7 @@ suite("Chat current diagnostic publication adapter", () => {
         uri: request.uri,
         version: request.version,
         source: request.source,
+        dialectId: "tcl8.6",
         revision: "2",
         inputsEpoch: "2",
         resultId: "result-disabled",
@@ -336,6 +629,16 @@ suite("Chat current diagnostic publication adapter", () => {
           error instanceof CurrentDiagnosticsSuppressedError &&
           error.reason === "disabled" &&
           error.receipt.source === document.getText(),
+      );
+      await assert.rejects(
+        waitForDiagnosticsReport(document.uri, {
+          timeout: 1_000,
+          expectedSource: document.getText(),
+        }),
+        (error: unknown) =>
+          error instanceof CurrentDiagnosticsSuppressedError &&
+          error.reason === "disabled" &&
+          error.receipt.dialectId === "tcl8.6",
       );
     } finally {
       lease.dispose();

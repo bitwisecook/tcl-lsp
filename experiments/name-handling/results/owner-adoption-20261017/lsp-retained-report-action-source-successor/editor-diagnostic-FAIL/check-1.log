@@ -1,0 +1,4 @@
+Checking formatting...
+[warn] src/chat/diagnosticAccess.ts
+[warn] src/test/currentDiagnostics.test.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.

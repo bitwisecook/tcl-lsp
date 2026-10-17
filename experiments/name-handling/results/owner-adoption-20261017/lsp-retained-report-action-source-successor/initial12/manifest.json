@@ -1,0 +1,100 @@
+{
+  "status": "COMPOSED_SOURCE_ONLY_PENDING_ROOT_ADMISSION",
+  "ingredients": [
+    {
+      "directory": "/tmp/lsp-workspace-symbol-current-union-v2",
+      "manifest_sha256": "650541b4c032c94ff0c5cb97a49337fa86185f4532686f4ea542ee7d6ffb0f02",
+      "patch": "repair.patch",
+      "patch_sha256": "8656c06c88310204ccc4a058a7d54ca9b5ef5ff5410d16c57de3366ab9d71718"
+    },
+    {
+      "directory": "/tmp/lsp-definition-grammar-cursor-v3",
+      "manifest_sha256": "b33a3e152748bed546d8cb8eaa8a04218e6da03488de83201c3478c964ca469e",
+      "patch": "definition-grammar-cursor.251402974d857135c1736639dd69d26d27e04893d141700c3fb1f437c89533c5.patch",
+      "patch_sha256": "251402974d857135c1736639dd69d26d27e04893d141700c3fb1f437c89533c5"
+    },
+    {
+      "directory": "/workspace/naming-validation/agent-work/source-owner-self-route-v4",
+      "manifest_sha256": "0d1942bcd9e120971c261e955f8ac53177fdad3d7feb035d6da6b4a402953cd6",
+      "patch": "repair.patch",
+      "patch_sha256": "6830a591b6cbb9b7941eba5814f1e27ce7089fa02c6d6bc186146aa00c6222e5"
+    },
+    {
+      "directory": "/tmp/luna-optimise-apply-v3",
+      "manifest_sha256": "4085c8ba5cafc11bef3af74bb732544b4f3599896b02d978158869612f95df7f",
+      "patch": "repair.patch",
+      "patch_sha256": "ca029a2aba8f81ad590cc7f5ff7f61e1d280f7d710b25a0f2fac372a11a4432d"
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "808cac23cf14ecf878e9f99670c1d32d83289c46b6dd953667a6dab0804efac6"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "ca7c19cf6049661f697f83e4940cb2b4784428de6e1a340d8d94af6d3ea58f94",
+      "after_sha256": "6e8e94c55f8adefb745c6fce6de562aa6ef692bad116c478ff081c2a6bf4d50f"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "6b53746f1489f77dbc5cd22cf752e26349878203283790cc0784473730740c73",
+      "after_sha256": "131ec5a530377e181b94561688f035f96ad2fc223c194fb637cf705398f0565a"
+    },
+    {
+      "path": "editors/vscode/src/chat/commands/optimise.ts",
+      "before_sha256": "61142e82f1c414486cfa759a8d1ceae0ac27746e1af44332f0bc9c5ed875f6e5",
+      "after_sha256": "59360a846ea194325a3b048349c07a250a007653eaed844d2cbcc8ef96852530",
+      "unformatted_after_sha256": "59360a846ea194325a3b048349c07a250a007653eaed844d2cbcc8ef96852530"
+    },
+    {
+      "path": "editors/vscode/src/chat/tclParticipant.ts",
+      "before_sha256": "d2ce3e30a0b57fbe806723ba81d48004b1df20d36d6c99ff5fe6341da5af7882",
+      "after_sha256": "c9e971b565919be824ead1ab0238a91b6a56c2636ee088c8bfa6a2bbe3cf1c0b",
+      "unformatted_after_sha256": "e93f24a27b10a8254d5635d033d9f93c4124cebe351181f7204229ca9a8f78e4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "before_sha256": "3af50e86bf3c8763afebc7ac302b0d405a33b8a340a28ef5a5882407cfd81568",
+      "after_sha256": "6ebc026d39aa62461812aff875066b390ff5ed22109edaad699013a8c31d1c12"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "before_sha256": "8dc7caf16206b494f56a14d9af3917bf22c061dace8a9d5c3b0ddad596c688a4",
+      "after_sha256": "56d4bf79fb6e4b49fe05f38e7ae751df876f50115ffb234deca74870a028de05"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/oo_body.rs",
+      "before_sha256": "98596b4bd60b6030ed252bda630ede17e568d962f367f60d9377ff5ea19a1497",
+      "after_sha256": "27a35acdee6fd094fffee71b8607dba12faa599f159c1953ef374e14848f71e9"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "2fdc317c2232d792f1ddca50e7876e9eb5521b5196527ef6cbb14338b257f983",
+      "after_sha256": "2ba1161c8383d1414376627d76a753d3a1da03b1d0f06ab7ee576dff24c7b139"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "a4a7a4c77c62836af785638f14bea21f12ad55d3ae503dcf33e53051ff6473cc",
+      "after_sha256": "0922e8fd77b7f02fb8b5c61aec55c4b17363504ed5e2d0b0604b6d9a1fd96ab7"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "2d5aed94d9a942716f3d297faeca2153c91f6b23910dd5eae1fa2b8c2382ff87",
+      "after_sha256": "cf027427ed3e7888c96d0bb46c17c153a37a2552759948a52e9b0ab09245e7b7"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "before_sha256": "9a213439cf7c60d0fd69a7596defb88514d2d2e0de809fb8e2367708ec333322",
+      "after_sha256": "efb4075d57d48d2fae4ba350970cb11ce9053ec2c72c0bd2795edc8af53fc92b"
+    }
+  ],
+  "patch_sha256": "35767749a8dba05a7cb1ce60e9d47fc2fb4d46c14cf5215949f95bca1379cf5f",
+  "test_or_build_execution": false,
+  "supersedes_composition": {
+    "path": "/workspace/naming-validation/lsp-next-source-owner-batch-v1",
+    "patch_sha256": "1ff1b1d8c1267b2678856180bad04d5b1c61b74af697ab04a2fe47f0fd5c8916",
+    "difference": "Scoped TypeScript Prettier using actual editor configuration; previous wrong configuration invocation failed before formatting, retained."
+  }
+}

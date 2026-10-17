@@ -11,6 +11,7 @@ Existing command/variable/namespace vectors live in
 
 | Path | Meaning |
 | --- | --- |
+| [Retained report and action source validation](results/owner-adoption-20261017/lsp-retained-report-action-source-successor/README.md) | Original source/worker/full report collection, current diagnostic publisher rejoin and actual LSP adapters; exact source reviews, retained editor failure and passing repair; real five-library build running, no test acceptance. |
 | [Original Jim variable construction](oracles/jim-variable-construction-20261016/evidence.json) | Canonical/Tail/Create versus root assignment, array-element distinction and CString formatter outputs; exact original scripts/provider hashes, independent of migratedRuntime acceptance. |
 | [Original C Import preload](oracles/c-import-preload-20261016/auto-import-shadow.json) | Actual C8.4 selected global direct helper versus C8.5+ current-namespace ordinary evaluation; global/local shadow and trace controls across all five releases. |
 | [Original C compiled-stack body](oracles/c-compiled-stack-body-20261016/results.json) | Dynamic Catch and For-start controls on all five original C releases, with same-header List→Bytecode observations where supported and exact original source entry slices; Rust controls unexecuted at capture. |

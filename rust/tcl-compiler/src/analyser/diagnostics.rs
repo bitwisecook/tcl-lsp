@@ -510,6 +510,8 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        self.result.optimiser_source_origin = cu.original_optimiser_source_origin().cloned();
+
         self.result
             .retain_logical_class_body_sources(&cu.ir_module, registry);
         let mut facts =

@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/naming-validation/lsp-retained-report-action-source-successor/input-before.json",
+  "sha256": "90147b2aa3e64563cdb4a2589a358a60ae95bf0838414d103ed7e3fc36012e12",
+  "count": 39030,
+  "actual_membership": "Exact previous39019 paths + reviewed85 admission paths + tracked native scanner; no arbitrary filesystem expansion.",
+  "status": "Build running, final postflight/artifacts pending."
+}

@@ -12,7 +12,7 @@ import {
   replaceDocumentFromSnapshot,
   snapshotDocumentSource,
 } from "./chat/codeUtils";
-import { isAnalysisContextCurrent } from "./chat/diagnosticAccess";
+import { isAnalysisContextCurrent, resourceConfiguration } from "./chat/diagnosticAccess";
 
 export type DocumentTransformCommand =
   "tcl-lsp.optimiseDocument" | "tcl-lsp.minifyDocument" | "tcl-lsp.fixAllSafeIssues";
@@ -37,31 +37,6 @@ export interface DocumentTransformSnapshot {
 export interface DocumentTransformResult {
   source: string;
   editReceipt: DocumentTransformReceipt;
-}
-
-// Read the complete actual resource settings, rather than a list of settings
-// guessed by this consumer. Unsupported representations cannot prove equality.
-function resourceConfiguration(document: vscode.TextDocument): string | undefined {
-  const value = vscode.workspace.getConfiguration(undefined, document.uri).get<unknown>("tclLsp");
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const canonical = (entry: unknown): unknown => {
-    if (entry === null || typeof entry === "string" || typeof entry === "boolean") return entry;
-    if (typeof entry === "number" && Number.isFinite(entry)) return entry;
-    if (Array.isArray(entry)) return entry.map(canonical);
-    if (typeof entry === "object" && entry !== null) {
-      return Object.fromEntries(
-        Object.keys(entry)
-          .sort()
-          .map((key) => [key, canonical((entry as Record<string, unknown>)[key])]),
-      );
-    }
-    throw new Error("Unavailable resource configuration");
-  };
-  try {
-    return JSON.stringify(canonical(value));
-  } catch {
-    return undefined;
-  }
 }
 
 export function captureDocumentTransform(

@@ -1,0 +1,75 @@
+{
+  "utc": "2026-10-17T00:27:02.406409+00:00",
+  "source_head": "08b062bc5d2ed398221af52199e8fee814634abb",
+  "input_count": 408,
+  "checks": [
+    {
+      "argv": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 3.335,
+      "log": "check-0.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npx",
+        "prettier",
+        "--check",
+        "src/chat/agenticLoop.ts",
+        "src/chat/commands/optimise.ts",
+        "src/chat/contextPack.ts",
+        "src/chat/diagnosticAccess.ts",
+        "src/chat/tclParticipant.ts",
+        "src/documentTransform.ts",
+        "src/test/currentDiagnostics.test.ts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.821,
+      "log": "check-1.log",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "../../rust/tcl-lsp-server-wasm/worker.js"
+      ],
+      "exit_code": 0,
+      "seconds": 0.025,
+      "log": "check-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle"
+      ],
+      "exit_code": 0,
+      "seconds": 0.309,
+      "log": "check-3.log",
+      "log_sha256": "722d218bd28225f7660e2e271fdb85b7756344be24975b8645c3e8b8f00fa123"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "bundle:browser"
+      ],
+      "exit_code": 0,
+      "seconds": 0.307,
+      "log": "check-4.log",
+      "log_sha256": "03f65e4cd76742201b27653f526251e57893093f360b7b1fb24fb96deeb8aeed"
+    }
+  ],
+  "status": "PASS",
+  "input_drift": [],
+  "completed_utc": "2026-10-17T00:27:07.216291+00:00",
+  "host_execution": "ActualTS/format/worker/bundles only; editorhost unexecuted"
+}

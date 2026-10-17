@@ -133,7 +133,9 @@ pub enum FindingData {
     Analyser(Box<analyser::Diagnostic>),
     /// The original compiler issuer, including whole-source/config provenance.
     CompilerCheck(Box<compiler_checks::Diagnostic>),
-    /// An optimiser rewrite.
+    /// An actual finalized optimiser member with its sealed worker batch.
+    IssuedOptimiser(Box<Optimisation>),
+    /// An optimiser rewrite. Manual payloads have no source edit authority.
     Rewrite {
         /// The text that replaces the finding's span.
         replacement: String,
@@ -219,16 +221,23 @@ impl From<Optimisation> for Finding {
     /// [`FindingData::Rewrite`] rather than on `fixes`, because whether it
     /// may be applied is the adapter's reading of `hint_only`.
     fn from(o: Optimisation) -> Self {
+        let original = o
+            .original_rewrite_batch()
+            .is_some()
+            .then(|| Box::new(o.clone()));
         Self {
             code: o.code,
             span: o.span,
             severity: Severity::Hint,
             message: o.message,
             fixes: Vec::new(),
-            data: Some(FindingData::Rewrite {
-                replacement: o.replacement,
-                group: o.group,
-                hint_only: o.hint_only,
+            data: Some(match original {
+                Some(original) => FindingData::IssuedOptimiser(original),
+                None => FindingData::Rewrite {
+                    replacement: o.replacement,
+                    group: o.group,
+                    hint_only: o.hint_only,
+                },
             }),
             producer: Producer::Optimiser,
         }
@@ -236,6 +245,31 @@ impl From<Optimisation> for Finding {
 }
 
 impl Finding {
+    /// Reporting payload shared by issued and manual optimiser findings.
+    /// This view alone supplies no source correspondence or edit permission.
+    #[must_use]
+    pub fn rewrite_payload(&self) -> Option<(&str, Option<u32>, bool)> {
+        match self.data.as_ref()? {
+            FindingData::Rewrite {
+                replacement,
+                group,
+                hint_only,
+            } => Some((replacement, *group, *hint_only)),
+            FindingData::IssuedOptimiser(original) => {
+                Some((&original.replacement, original.group, original.hint_only))
+            }
+            _ => None,
+        }
+    }
+    /// Actual finalized worker member, never reconstructed from report fields.
+    #[must_use]
+    pub fn original_optimiser_rewrite(&self) -> Option<&Optimisation> {
+        match self.data.as_ref()? {
+            FindingData::IssuedOptimiser(original) => Some(original),
+            _ => None,
+        }
+    }
+
     /// Structured original analyser issuer; reporting text is never parsed.
     #[must_use]
     pub fn original_analyser_diagnostic(&self) -> Option<&analyser::Diagnostic> {
@@ -479,10 +513,7 @@ pub struct ApplicableRewrite<'a> {
 
 /// The optimisation group `finding`'s rewrite belongs to, if any.
 fn rewrite_group(finding: &Finding) -> Option<u32> {
-    match &finding.data {
-        Some(FindingData::Rewrite { group, .. }) => *group,
-        _ => None,
-    }
+    finding.rewrite_payload().and_then(|(_, group, _)| group)
 }
 
 /// A producer a surface did not run, and the codes only it emits that the
@@ -742,12 +773,7 @@ impl Report {
         let mut out: Vec<ApplicableRewrite<'_>> = Vec::new();
         let mut group_at: BTreeMap<u32, usize> = BTreeMap::new();
         for (finding, outcome) in &self.outcomes {
-            let Some(FindingData::Rewrite {
-                replacement,
-                group,
-                hint_only,
-            }) = &finding.data
-            else {
+            let Some((replacement, group, hint_only)) = finding.rewrite_payload() else {
                 continue;
             };
             match group {
@@ -762,13 +788,13 @@ impl Report {
                         });
                     }
                 }
-                Some(g) if whole.contains(g) => {
-                    if let Some(&at) = group_at.get(g) {
+                Some(g) if whole.contains(&g) => {
+                    if let Some(&at) = group_at.get(&g) {
                         out[at].members.push(finding);
                     } else {
-                        group_at.insert(*g, out.len());
+                        group_at.insert(g, out.len());
                         out.push(ApplicableRewrite {
-                            group: Some(*g),
+                            group: Some(g),
                             members: vec![finding],
                         });
                     }
@@ -806,18 +832,13 @@ impl Report {
         let mut seen: BTreeSet<u32> = BTreeSet::new();
         let mut broken: BTreeSet<u32> = BTreeSet::new();
         for (finding, outcome) in &self.outcomes {
-            let Some(FindingData::Rewrite {
-                group: Some(g),
-                hint_only,
-                ..
-            }) = &finding.data
-            else {
+            let Some((_, Some(g), hint_only)) = finding.rewrite_payload() else {
                 continue;
             };
-            seen.insert(*g);
+            seen.insert(g);
             let shows = matches!(outcome, Outcome::Shown { .. });
-            if !shows || (members == GroupMembers::Actionable && *hint_only) {
-                broken.insert(*g);
+            if !shows || (members == GroupMembers::Actionable && hint_only) {
+                broken.insert(g);
             }
         }
         seen.difference(&broken).copied().collect()

@@ -1,0 +1,7 @@
+SOURCE CLEAR — self-route checker V4 actual API correction
+
+Patch SHA2566830a591b6cbb9b7941eba5814f1e27ce7089fa02c6d6bc186146aa00c6222e5. Exact current before9a213439cf7c60d0fd69a7596defb88514d2d2e0de809fb8e2367708ec333322; afterefb4075d57d48d2fae4ba350970cb11ce9053ec2c72c0bd2795edc8af53fc92b. Independently verified current basis, fresh zero-fuzz/no-offset apply, both Rust syntax trees, original tests prefix and complete file_route_tests preservation.
+
+Narrow V3→V4 production delta uses the actual locked syn3.0.6 ItemImpl fields from registry source item.rs244–252: trait_ is Option<(Path,for)>, modifiers and unsafety are separate. Safe trait consumer branch now requires no modifiers, no unsafety, supported lifetime-only trait path and the existing plain implementation/body attributes. Negative/unsafe trait implementation controls are additive in the genuine fixture module. Inherent owner declarations/result inference remain trait-free and strict; actual concrete self type, owner visibility, ambiguity, shadowing and all previous self-route source guards remain unchanged. V3 wrong API remains historical and superseded, not integration-ready.
+
+No gate/typecheck/tests/build/Cargo/Git/main execution or actual three-route failure-resolution claim. Root owns ordinary compiled verification.

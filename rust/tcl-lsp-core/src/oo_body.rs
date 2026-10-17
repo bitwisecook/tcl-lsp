@@ -184,6 +184,10 @@ pub fn member_body_indices_in(
     grammar.member_body_indices_in(command, args, dialect)
 }
 
+/// Explicit standalone vocabulary utility over caller-supplied source metadata.
+/// This compatibility projection does not select current commands or bodies.
+/// Actual editor consumers use `definition_grammar_from_analysis` and retain
+/// typed unavailable child traversal separately from ordinary script positions.
 /// The innermost definition-body grammar in force at `offset`, or `None` when
 /// the position is an ordinary open command position.
 ///
@@ -234,10 +238,9 @@ pub fn definition_grammar_at(
         depth: u32,
         cur: Option<&'static DefinitionBodyGrammar>,
     ) -> Option<&'static DefinitionBodyGrammar> {
-        // The same bound the folding and token walks carry: a pathological
-        // nest answers with the grammar it had rather than recursing forever.
+        // An unexamined child cannot borrow the previous vocabulary.
         if depth > 32 {
-            return cur;
+            return None;
         }
         for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
             slice,
@@ -299,6 +302,17 @@ pub fn definition_grammar_at(
         dialect,
     };
     walk(&ctx, source, 0, 0, registry.document_grammar())
+}
+
+/// Current selected source grammar from the shared original body inventory.
+/// Standalone root authoring, ordinary script positions and unavailable nested
+/// traversal remain different purposes; no rendered head reselects a handler.
+pub(crate) fn definition_grammar_from_analysis(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    offset: u32,
+) -> crate::source_structure::SourceDefinitionGrammar {
+    crate::source_structure::SourceStructure::definition_grammar_at(source, analysis, offset)
 }
 
 /// Braced-block argument indices for a member call under `grammar` — the
@@ -830,5 +844,299 @@ mod tests {
             !is_wrapper_block_form(&TCLOO_GRAMMAR, "method", &["{b}"]),
             "method is not a wrapper-block member",
         );
+    }
+}
+
+#[cfg(test)]
+mod original_definition_grammar_cursor_tests {
+    use super::definition_grammar_from_analysis;
+    use crate::source_structure::{DefinitionGrammarUnavailable, SourceDefinitionGrammar};
+    use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+
+    fn at(source: &str, analysis: &AnalysisResult, needle: &str) -> SourceDefinitionGrammar {
+        definition_grammar_from_analysis(
+            source,
+            analysis,
+            u32::try_from(source.find(needle).unwrap()).unwrap(),
+        )
+    }
+
+    fn keywords(
+        selection: &SourceDefinitionGrammar,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Vec<&'static str> {
+        selection
+            .for_selected_source(source, analysis)
+            .map(|grammar| {
+                grammar
+                    .members
+                    .iter()
+                    .map(|member| member.keyword)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn original_cursor_joins_nested_member_parents_and_drops_method_script_context() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "oo::class create C {\n if {1} {\n  self {\n   method m {} {set ordinary 1}\n  }\n }\n}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let selected = at(source, &analysis, "method m");
+        assert!(matches!(&selected, SourceDefinitionGrammar::Selected(_)));
+        assert!(keywords(&selected, source, &analysis).contains(&"method"));
+        assert!(matches!(
+            at(source, &analysis, "set ordinary"),
+            SourceDefinitionGrammar::OrdinaryScript
+        ));
+        let ordinary = "set plain value";
+        let ordinary_analysis = Analyser::new().analyse(ordinary, "tcl");
+        assert!(matches!(
+            at(ordinary, &ordinary_analysis, "set"),
+            SourceDefinitionGrammar::OrdinaryScript
+        ));
+    }
+
+    #[test]
+    fn original_cursor_uses_actual_authored_child_schema_and_parent_vocabulary() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "speclib demo 1 {\n command demo::x {\n  arty 1\n }\n}";
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let selected = at(source, &analysis, "arty");
+        assert!(matches!(&selected, SourceDefinitionGrammar::Selected(_)));
+        let candidates = keywords(&selected, source, &analysis);
+        assert!(candidates.contains(&"arity"), "{candidates:?}");
+        assert!(!candidates.contains(&"speclib"));
+        let misplaced = "command demo::x {\n arty 1\n}";
+        let misplaced_analysis = Analyser::new().analyse(misplaced, "spectcl");
+        let refused = at(misplaced, &misplaced_analysis, "arty");
+        assert!(matches!(
+            &refused,
+            SourceDefinitionGrammar::StandaloneRoot {
+                nested_unavailable: Some(DefinitionGrammarUnavailable::UnrepresentedInterior),
+                ..
+            }
+        ));
+        assert!(
+            refused
+                .for_selected_source(misplaced, &misplaced_analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_cursor_withdraws_shadowed_dynamic_and_equal_spelled_data_bodies() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        for source in [
+            "proc oo::class args {}; oo::class create C {method fake {} {}}",
+            "$maker create C {method fake {} {}}",
+            "set data {oo::class create C {method fake {} {}}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let selection = at(source, &analysis, "method fake");
+            assert!(
+                matches!(
+                    selection,
+                    SourceDefinitionGrammar::Unavailable(
+                        DefinitionGrammarUnavailable::UnrepresentedInterior
+                    )
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_root_authoring_retains_unavailable_child_without_donating_edit_grammar() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "\u{feff}endpoint www {\n hsts {\n max\n }\n}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let selection = at(source, &analysis, "max");
+        assert!(matches!(
+            &selection,
+            SourceDefinitionGrammar::StandaloneRoot {
+                nested_unavailable: Some(DefinitionGrammarUnavailable::UnrepresentedInterior),
+                ..
+            }
+        ));
+        assert!(
+            selection
+                .for_authoring(source, &analysis)
+                .unwrap()
+                .members
+                .iter()
+                .any(|member| member.keyword == "endpoint")
+        );
+        assert!(selection.for_selected_source(source, &analysis).is_none());
+    }
+
+    #[test]
+    fn original_cursor_reborrows_full_input_image_and_configuration() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "oo::class create C {method m {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let selection = at(source, &analysis, "method m");
+        assert!(selection.for_selected_source(source, &analysis).is_some());
+        analysis.dialect = "presentation label".into();
+        assert!(selection.for_selected_source(source, &analysis).is_some());
+        assert!(
+            selection
+                .for_selected_source(&source.replace("C", "D"), &analysis)
+                .is_none()
+        );
+        let input = analysis.resolved_input.take().unwrap();
+        analysis.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            },
+        ));
+        assert!(selection.for_selected_source(source, &analysis).is_none());
+        assert!(matches!(
+            at(source, &analysis, "method m"),
+            SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource)
+        ));
+    }
+
+    #[test]
+    fn original_cursor_depth_limit_and_malformed_regions_never_reuse_prior_grammar() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = format!(
+            "oo::class create C {{{}method deep {{}} {{}}{}}}",
+            "if {1} {".repeat(33),
+            "}".repeat(33)
+        );
+        let analysis = Analyser::new().analyse(&source, "tcl");
+        assert!(matches!(
+            at(&source, &analysis, "method deep"),
+            SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::DepthLimit)
+        ));
+        let malformed = "oo::class create C {method m {} {";
+        let malformed_analysis = Analyser::new().analyse(malformed, "tcl");
+        let selection = definition_grammar_from_analysis(
+            malformed,
+            &malformed_analysis,
+            u32::try_from(malformed.len()).unwrap(),
+        );
+        assert!(matches!(selection, SourceDefinitionGrammar::Unavailable(_)));
+    }
+
+    #[test]
+    fn original_cursor_uses_the_actual_overlay_body_grammar_and_rejects_foreign_reborrow() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "endpoint www {\n max\n}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+        let overlay =
+            tcl_registry::registry_for_profile_with_overlay(profile, 0xC075_0725, |registry| {
+                let mut endpoint = registry.get("endpoint").unwrap().clone();
+                endpoint.definition_body = Some(&tcl_registry::definer::SSLICTCL_HSTS_GRAMMAR);
+                registry.insert(endpoint);
+            });
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let analysis =
+            crate::source_structure::analyse_document(source, profile, overlay.as_ref(), config);
+        let selection = at(source, &analysis, "max");
+        assert!(matches!(&selection, SourceDefinitionGrammar::Selected(_)));
+        assert!(keywords(&selection, source, &analysis).contains(&"max-age"));
+        let ordinary = Analyser::new().analyse(source, "sslictcl");
+        assert!(selection.for_selected_source(source, &ordinary).is_none());
+        let labels = crate::completion::completions(source, 1, 4, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "max-age"), "{labels:?}");
+    }
+
+    #[test]
+    fn original_cursor_completion_preserves_unicode_utf16_and_selected_store() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        let source = "# 😀\nendpoint www {\n hsts {\n  max\n }\n}";
+        let analysis = Analyser::new().analyse(source, "sslictcl");
+        let profile = analysis.resolved_profile().unwrap();
+        let labels = crate::completion::completions(source, 3, 5, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "max-age"), "{labels:?}");
+        assert!(!labels.iter().any(|label| label == "endpoint"));
+        assert!(
+            crate::original_context::CurrentSourcePosition::capture(source, &analysis, 0, 3)
+                .is_none()
+        );
+        assert!(
+            definition_grammar_from_analysis(source, &analysis, 3)
+                .unavailable()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn original_cursor_quick_fix_requires_selected_parent_even_for_real_typed_subject() {
+        // naming.core.original-definition-grammar-cursor
+        // docs/design/analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md
+        use crate::code_actions::{
+            ContextDiagnostic, ContextDiagnosticData, SPEC_PACK_DIAGNOSTIC_CODE,
+            SpecPackNoticeKind, SpecPackNoticeSubject,
+        };
+        for (source, line, expected) in [
+            ("speclib demo 1 {\n command demo::x {\n arty 1\n }\n}", 3, 1),
+            (
+                "$builder demo 1 {\n command demo::x {\n arty 1\n }\n}",
+                3,
+                0,
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "spectcl");
+            // This compatibility notice does not donate a selected parent;
+            // the production candidate vocabulary must obtain that separately.
+            let subject = SpecPackNoticeSubject::from_loader(
+                source,
+                analysis.body_lexer_config.unwrap(),
+                line,
+                "arty",
+                SpecPackNoticeKind::Property,
+            )
+            .unwrap();
+            let diagnostic = ContextDiagnostic {
+                data: ContextDiagnosticData::from_spec_pack_notice(&subject, &analysis),
+                code: SPEC_PACK_DIAGNOSTIC_CODE.into(),
+                message: "independent prose".into(),
+                range: crate::definition::LspRange {
+                    start_line: line - 1,
+                    end_line: line - 1,
+                    start_character: 0,
+                    end_character: 7,
+                },
+            };
+            let actions =
+                crate::code_actions::spec_pack_quick_fixes(source, &analysis, &[diagnostic]);
+            assert_eq!(actions.len(), expected, "{source}");
+            if expected == 1 {
+                assert_eq!(actions[0].edits[0].new_text, "arity");
+            }
+        }
     }
 }

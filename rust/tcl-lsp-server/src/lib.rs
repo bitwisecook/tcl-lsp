@@ -912,6 +912,7 @@ struct WorkspaceSymbolCandidates {
     indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
     indexed_revisions: HashMap<String, u64>,
     sources: HashMap<String, Option<DocumentState>>,
+    analyses: HashMap<String, Option<readonly_reference_reports::WorkspaceSymbolSourceAnalysis>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7072,8 +7073,8 @@ fn lift_report(
 fn rewrite_payloads(
     report: &core_policy::Report,
 ) -> std::collections::HashMap<*const core_policy::Finding, serde_json::Value> {
-    let edit = |finding: &core_policy::Finding| match &finding.data {
-        Some(core_policy::FindingData::Rewrite { replacement, .. }) => serde_json::json!({
+    let edit = |finding: &core_policy::Finding| match finding.rewrite_payload() {
+        Some((replacement, _, _)) => serde_json::json!({
             "replacement": replacement,
             "startOffset": finding.span.start(),
             "endOffset": finding.span.end(),
@@ -25993,10 +25994,10 @@ impl Backend {
     /// (or a test) searches for something they just opened.  A new
     /// untitled buffer has the same gap until its first publish.
     ///
-    /// Bounded by the open-document set and empty in steady state. Once Salsa
-    /// names the live revision, analysis normally comes from its memo. A
-    /// publication-pending open deliberately analyses its captured buffer
-    /// afresh because Salsa may still memoise the pre-open disk source.
+    /// Bounded by the open-document set and empty in steady state. Each
+    /// captured source retains one independently checked analysis/input owner
+    /// for this request. A publication-pending open retains its fresh seed
+    /// because Salsa may still memoise the pre-open disk source.
     ///
     /// A **cancelled** memo read must not be read as "this document has no
     /// symbols".  [`Self::cached_analysis`] answers `None` for two unrelated
@@ -26011,9 +26012,9 @@ impl Backend {
     /// picker would intermittently answer *nothing* for the file the user had
     /// just opened.  So a URI that **has** an input falls back to analysis of its
     /// own buffer, which no concurrent write can cancel. Before live Salsa
-    /// publication it uses [`Self::fresh_analysis_for`] directly; afterwards
-    /// [`Self::analysis_for`] provides the same off-database fallback on a
-    /// cancelled memo read.
+    /// publication it retains the actual [`FreshAnalysisSeed`]. Afterwards
+    /// the existing readonly source/input capture reissues supplied ownership;
+    /// unavailable ownership cannot be read as semantic absence.
     ///
     /// An orphan contributes nothing, deliberately, even after a later edit
     /// restores the Salsa handle its local providers need. Resurrecting it
@@ -26093,6 +26094,7 @@ impl Backend {
 
             let mut pending = new_workspace_index();
             let mut fallback_sources = HashMap::new();
+            let mut analyses = HashMap::new();
             for (uri, doc) in unindexed {
                 // A published document with no input is a deliberately retired
                 // orphan (see the doc comment), but a pending brand-new/untitled
@@ -26103,18 +26105,18 @@ impl Backend {
                 {
                     continue;
                 }
-                // Before the Salsa boundary, a cache hit still describes the
-                // pre-open disk source. Analyse the captured authoritative buffer
-                // directly; once Salsa is ready, the memoised path is current and
-                // remains the cheaper fallback for a cancelled read.
-                let analysis = if doc.publication == DocumentPublication::Pending {
-                    self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await?
-                } else {
-                    self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await?
+                // Retain the checked source/input owner alongside fallback
+                // symbols. Pending buffers keep their genuine fresh seed;
+                // published database inputs retain the existing readonly owner.
+                let Some(analysis) = self.capture_workspace_symbol_analysis(&uri, &doc).await?
+                else {
+                    continue;
                 };
-                pending.add_document(uri.as_str(), &analysis);
+                pending.add_document(
+                    uri.as_str(),
+                    readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(&analysis),
+                );
+                analyses.insert(uri.as_str().to_owned(), Some(analysis));
                 fallback_sources
                     .insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
             }
@@ -26167,6 +26169,7 @@ impl Backend {
                 indexed_hits,
                 indexed_revisions,
                 sources,
+                analyses,
             });
         }
         unreachable!("the bounded source-snapshot loop always returns")
@@ -29865,6 +29868,8 @@ impl LanguageServer for Backend {
         self.edits_settled().await;
         self.wait_for_workspace_scan().await;
         let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
         // Open buffers the index does not currently hold, filled in from their
         // own analysis.  `did_open` drops a document's index entry (its
         // on-disk records stop being authoritative the moment a buffer exists)
@@ -29879,6 +29884,7 @@ impl LanguageServer for Backend {
             indexed_hits,
             indexed_revisions,
             mut sources,
+            mut analyses,
         } = self
             .open_but_unindexed_symbols(&params.query, limit)
             .await?;
@@ -29908,12 +29914,21 @@ impl LanguageServer for Backend {
             else {
                 continue;
             };
+            if !analyses.contains_key(&hit.uri) {
+                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
+                analyses.insert(hit.uri.clone(), current);
+            }
+            let Some(Some(current)) = analyses.get(&hit.uri) else {
+                continue;
+            };
             if let Some(owner) = hit.original_location.as_ref() {
-                let current = self
-                    .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-                    .await?;
                 if owner.uri() != hit.uri
-                    || owner.validated_span(&doc.text, &current) != Some(hit.name_span)
+                    || owner.validated_span(
+                        &doc.text,
+                        readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(
+                            current,
+                        ),
+                    ) != Some(hit.name_span)
                 {
                     continue;
                 }
@@ -29984,61 +29999,12 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
-        // Close the request over the exact open snapshot, index revision and
-        // selected provider mapping used above. The synchronous continuation
-        // performs the final URI-range projection without yielding while those
-        // owners remain current. This is a readonly report boundary; it grants
-        // no rename/edit or project-absence authority.
-        let mut admissions = Vec::with_capacity(all.len());
-        for (_, uri, snapshot, _) in &all {
-            if let Some(admission) = snapshot.path_admission.as_deref() {
-                if admission.uri() != uri {
-                    return Ok(None);
-                }
-                admissions.push(admission);
-            } else if self.store.workspace_source_inventory_provider()
-                == vfs::WorkspaceSourceInventoryProvider::HostReported
-                && uri.scheme().as_str() == "file"
-            {
-                // Host-backed file rows need their actual selected-path lease.
-                // In-memory URIs and the Native provider keep their existing
-                // document-snapshot/index-revision currency path.
-                return Ok(None);
-            }
-        }
-        let documents = self.documents.lock("workspace_symbol_publish").await;
-        let index = self.workspace_index.read().await;
-        let response =
-            DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
-                let mut current = Vec::with_capacity(all.len());
-                for (symbol, uri, snapshot, indexed_revision) in &all {
-                    if let Some(live) = documents.get(uri) {
-                        if live.backing_file_deleted
-                            || live.revision != snapshot.revision
-                            || live.version != snapshot.version
-                            || live.raw() != snapshot.raw()
-                            || live.dialect != snapshot.dialect
-                            || live.path_admission != snapshot.path_admission
-                        {
-                            continue;
-                        }
-                    } else if snapshot.version.is_some() {
-                        // An open document captured for this response has
-                        // closed since its source snapshot was taken.
-                        continue;
-                    }
-                    match indexed_revision {
-                        Some(revision)
-                            if index.document_revision(uri.as_str()) == Some(*revision) => {}
-                        Some(_) => continue,
-                        None if index.contains_document(uri.as_str()) => continue,
-                        None => {}
-                    }
-                    current.push(symbol.clone());
-                }
-                (!current.is_empty()).then_some(WorkspaceSymbolResponse::Flat(current))
-            })?;
-        Ok(response)
+        // Reuse each actual checked URI input without weakening its final
+        // source/configuration/provider/index currency. No await separates the
+        // final joint owner checks from response projection.
+        self.finish_workspace_symbol_response(&analyses, &all, inputs_epoch, factory_generation)
+            .await
+            .map_err(Into::into)
     }
 
     async fn document_link(

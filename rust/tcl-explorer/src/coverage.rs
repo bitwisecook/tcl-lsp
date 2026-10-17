@@ -22,6 +22,27 @@ pub struct ArtifactCoverage {
 /// Field-to-view map reviewed with the compiler pipeline inventory.
 pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
     ArtifactCoverage {
+        artifact: "CompilationUnit::optimiser_source_owner",
+        view: None,
+        exclusion: Some(
+            "private exact source-build and prepared-pass issuer; consumed by current optimiser collection and edit guards, never a serialisable analysis or editable permission",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_lattice_worker",
+        view: None,
+        exclusion: Some(
+            "private original lattice request/result correspondence; public function analyses keep their existing views, and this issuer cannot be serialised or reconstructed from them",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_lattice_callback_admission",
+        view: None,
+        exclusion: Some(
+            "private source-loop admission disposition for actual cached worker results; not an execution, completeness, runtime entry or user-editable analysis fact",
+        ),
+    },
+    ArtifactCoverage {
         artifact: "CompilationUnit::source",
         view: Some("sourceMap"),
         exclusion: None,

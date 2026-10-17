@@ -558,7 +558,12 @@ impl CrateModules {
         let Some(owner_module) = self.modules.get(&row.module) else {
             return false;
         };
-        let Some(owner) = declaration(&owner_module.file, &row.entry) else {
+        let owner = declaration(&owner_module.file, &row.entry).or_else(|| {
+            (row.route == "self")
+                .then(|| declaration_for_self_method(&owner_module.file, &row.entry))
+                .flatten()
+        });
+        let Some(owner) = owner else {
             return false;
         };
         if visibility_name(owner.visibility) != row.visibility
@@ -597,17 +602,15 @@ impl CrateModules {
         if !super::file_attrs_preserve_routes(&consumer_module.file.attrs) {
             return false;
         }
-        let consumer = declaration(&consumer_module.file, &row.consumer_entry).or_else(|| {
-            (row.route == "static")
-                .then(|| {
-                    declaration_with_static_generics(
-                        &consumer_module.file,
-                        &row.consumer_entry,
-                        true,
-                    )
-                })
-                .flatten()
-        });
+        // A trait implementation is a real source consumer body, but cannot
+        // become an inherent owner declaration or a result-type producer.
+        let consumer = declaration_in_mode(
+            &consumer_module.file,
+            &row.consumer_entry,
+            row.route == "static",
+            row.route == "self",
+            row.route == "self",
+        );
         let Some(consumer) = consumer else {
             return false;
         };
@@ -888,10 +891,51 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
     declaration_with_static_generics(file, entry, false)
 }
 
+// An unbounded result parameter does not change a concrete `&self` owner.
+// This is only declaration/source-call evidence: generic result producers keep
+// using `declaration`, whose lifetime-only contract is unchanged.
+fn supported_self_method_generics(signature: &syn::Signature, owner: &syn::Path) -> bool {
+    signature
+        .receiver()
+        .is_some_and(|receiver| receiver.reference.is_some() && receiver.colon_token.is_none())
+        && signature.generics.where_clause.is_none()
+        && signature
+            .generics
+            .params
+            .iter()
+            .all(|parameter| match parameter {
+                syn::GenericParam::Lifetime(_) => true,
+                syn::GenericParam::Type(parameter) => {
+                    super::route_attrs_are_plain(&parameter.attrs)
+                        && parameter.bounds.is_empty()
+                        && parameter.default.is_none()
+                        && owner
+                            .segments
+                            .last()
+                            .is_some_and(|segment| segment.ident != parameter.ident)
+                }
+                syn::GenericParam::Const(_) => false,
+            })
+}
+
+fn declaration_for_self_method<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> {
+    declaration_in_mode(file, entry, false, false, true)
+}
+
 fn declaration_with_static_generics<'a>(
     file: &'a syn::File,
     entry: &str,
     static_consumer: bool,
+) -> Option<Declaration<'a>> {
+    declaration_in_mode(file, entry, static_consumer, false, false)
+}
+
+fn declaration_in_mode<'a>(
+    file: &'a syn::File,
+    entry: &str,
+    static_consumer: bool,
+    trait_self_consumer: bool,
+    generic_self_owner: bool,
 ) -> Option<Declaration<'a>> {
     let (owner, name) = entry
         .split_once("::")
@@ -944,7 +988,13 @@ fn declaration_with_static_generics<'a>(
                 });
             }
             syn::Item::Impl(implementation)
-                if implementation.trait_.is_none()
+                if (implementation.trait_.is_none()
+                    || (trait_self_consumer
+                        && implementation.trait_.as_ref().is_some_and(|(path, _)| {
+                            implementation.modifiers.require_empty().is_ok()
+                                && implementation.unsafety.is_none()
+                                && supported_path_arguments(path)
+                        })))
                     && source_attrs_preserve_routes(&implementation.attrs) =>
             {
                 let syn::Type::Path(ty) = implementation.self_ty.as_ref() else {
@@ -966,7 +1016,9 @@ fn declaration_with_static_generics<'a>(
                         && source_attrs_preserve_routes(&item.attrs)
                         && (supported_generics(&item.sig.generics)
                             || (static_consumer
-                                && supported_static_function_generics(&item.sig.generics)))
+                                && supported_static_function_generics(&item.sig.generics))
+                            || (generic_self_owner
+                                && supported_self_method_generics(&item.sig, &ty.path)))
                         && supported_generics(&implementation.generics)
                     {
                         found.push(Declaration {
@@ -3323,6 +3375,69 @@ mod tests {
             "static",
         );
         assert!(!modules.check_row(&row));
+    }
+
+    #[test]
+    fn self_source_routes_keep_actual_plain_trait_consumer_bodies() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&self) {} }";
+        let consumer = "use super::owner::Ledger; trait Reader { fn consume(&self); } impl Reader for Ledger { fn consume(&self) { self.revision(); } }";
+        let (modules, mut row) = fixture(owner, consumer, "Ledger::revision", "self");
+        row.consumer_entry = "Ledger::consume".into();
+        assert!(modules.check_row(&row));
+        for changed in [
+            consumer.replace(
+                "impl Reader for Ledger",
+                "#[rewrite] impl Reader for Ledger",
+            ),
+            consumer.replace("fn consume(&self) {", "#[cfg(test)] fn consume(&self) {"),
+            consumer.replace("self.revision();", "other.revision();"),
+            consumer.replace("impl Reader for Ledger", "impl !Reader for Ledger"),
+            consumer.replace("impl Reader for Ledger", "unsafe impl Reader for Ledger"),
+            format!("{consumer} impl Ledger {{ fn consume(&self) {{ self.revision(); }} }}"),
+        ] {
+            let (modules, mut row) = fixture(owner, &changed, "Ledger::revision", "self");
+            row.consumer_entry = "Ledger::consume".into();
+            assert!(!modules.check_row(&row), "{changed}");
+        }
+        let (modules, mut row) = fixture(
+            "pub(super) struct Ledger; pub(super) trait Reader { fn consume(&self); } impl Reader for Ledger { fn consume(&self) {} }",
+            "use super::owner::{Ledger, Reader}; fn consume(ledger: &Ledger) { ledger.consume(); }",
+            "Ledger::consume",
+            "parameter:ledger",
+        );
+        row.visibility = "private".into();
+        assert!(
+            !modules.check_row(&row),
+            "a trait consumer cannot become an inherent owner"
+        );
+    }
+
+    #[test]
+    fn self_source_routes_keep_unbounded_result_parameters_without_result_donation() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn selected<T>(&self, mut publish: impl FnMut() -> Option<T>) -> Option<T> { publish() } }";
+        let consumer = "use super::owner::Ledger; impl Ledger { fn consume(&self) { self.selected(|| Some(1)); } }";
+        let (modules, mut row) = fixture(owner, consumer, "Ledger::selected", "self");
+        row.consumer_entry = "Ledger::consume".into();
+        assert!(modules.check_row(&row));
+        let file = syn::parse_file(owner).unwrap();
+        assert!(
+            declaration(&file, "Ledger::selected").is_none(),
+            "generic return inference keeps the original strict barrier"
+        );
+        for changed in [
+            owner.replace("selected<T>", "selected<Ledger>"),
+            owner.replace("selected<T>", "selected<const N: usize>"),
+            owner.replace("selected<T>", "selected<T: Fake>"),
+            owner.replace("&self,", "self: std::sync::Arc<Self>,"),
+            owner.replace(
+                "pub(super) fn selected",
+                "#[rewrite] pub(super) fn selected",
+            ),
+        ] {
+            let (modules, mut row) = fixture(&changed, consumer, "Ledger::selected", "self");
+            row.consumer_entry = "Ledger::consume".into();
+            assert!(!modules.check_row(&row), "{changed}");
+        }
     }
 }
 

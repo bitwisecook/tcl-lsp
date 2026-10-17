@@ -96,6 +96,32 @@ export function categoriseDiagnostics(diagnostics: vscode.Diagnostic[]): Categor
   return result;
 }
 
+// Shared actual resource-settings fingerprint. Consumers that retain analysis
+// evidence use the complete per-URI tclLsp object instead of maintaining a
+// guessed subset of settings. Unsupported values cannot prove equality.
+export function resourceConfiguration(document: vscode.TextDocument): string | undefined {
+  const value = vscode.workspace.getConfiguration(undefined, document.uri).get<unknown>("tclLsp");
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const canonical = (entry: unknown): unknown => {
+    if (entry === null || typeof entry === "string" || typeof entry === "boolean") return entry;
+    if (typeof entry === "number" && Number.isFinite(entry)) return entry;
+    if (Array.isArray(entry)) return entry.map(canonical);
+    if (typeof entry === "object" && entry !== null) {
+      return Object.fromEntries(
+        Object.keys(entry)
+          .sort()
+          .map((key) => [key, canonical((entry as Record<string, unknown>)[key])]),
+      );
+    }
+    throw new Error("Unavailable resource configuration");
+  };
+  try {
+    return JSON.stringify(canonical(value));
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Format diagnostics for inclusion in an LLM prompt, with source context.
  */
@@ -188,6 +214,7 @@ export class CurrentDiagnosticsSuppressedError extends Error {
       revision: string;
       inputsEpoch: string;
       resultId: string;
+      dialectId: string;
     },
   ) {
     super(`Current diagnostics were published as suppressed: ${reason}`);
@@ -558,10 +585,94 @@ function validDiagnostics(value: unknown): value is LspDiagnostic[] {
  * pending/stale states are retried within the caller's original budget; a local
  * document change and all terminal unavailable states remain explicit errors.
  */
-export async function waitForDiagnostics(
+export interface CurrentDiagnosticsResponse {
+  readonly status: "complete";
+  readonly uri: string;
+  readonly version: number;
+  readonly source: string;
+  /** Effective resource dialect retained by the actual published diagnostic pass. */
+  readonly dialectId: string;
+  readonly revision: string;
+  readonly inputsEpoch: string;
+  readonly resultId: string;
+  readonly diagnostics: readonly LspDiagnostic[];
+}
+
+/** A current completed publication joined to its exact open document and session context. */
+export interface CurrentDiagnosticsReport {
+  readonly response: CurrentDiagnosticsResponse;
+  readonly diagnostics: readonly vscode.Diagnostic[];
+  readonly sessionIdentity: object;
+  readonly document: vscode.TextDocument;
+  readonly analysisContext: AnalysisContextSnapshot;
+  /** Exact per-resource tclLsp settings captured with the original source. */
+  readonly resourceConfiguration?: string;
+}
+
+export function currentDiagnosticsReportMatches(
+  report: CurrentDiagnosticsReport,
+  expected: { document: vscode.TextDocument; uri: vscode.Uri; version: number; source: string },
+): boolean {
+  const transport = currentDiagnosticsTransportProvider?.();
+  return (
+    !!transport &&
+    transport.isCurrent() &&
+    transport.sessionIdentity === report.sessionIdentity &&
+    isAnalysisContextCurrent(report.analysisContext) &&
+    report.analysisContext.transport.sessionIdentity === report.sessionIdentity &&
+    report.document === expected.document &&
+    openedDocument(expected.uri) === expected.document &&
+    report.response.uri === expected.uri.toString() &&
+    report.response.version === expected.version &&
+    report.response.source === expected.source &&
+    report.resourceConfiguration !== undefined &&
+    resourceConfiguration(expected.document) === report.resourceConfiguration &&
+    snapshotMatches(expected.uri, expected.document, expected.version, expected.source)
+  );
+}
+
+/** Rejoin a retained report with the read-only current publisher ledger. */
+export async function currentDiagnosticsReportIsStillPublished(
+  report: CurrentDiagnosticsReport,
+  expected: { document: vscode.TextDocument; uri: vscode.Uri; version: number; source: string },
+  timeout = 5_000,
+): Promise<boolean> {
+  if (!currentDiagnosticsReportMatches(report, expected)) return false;
+  const transport = report.analysisContext.transport;
+  const deadline = Date.now() + timeout;
+  let raw: unknown;
+  try {
+    raw = await withinDeadline(
+      transport.request({
+        uri: report.response.uri,
+        version: report.response.version,
+        source: report.response.source,
+      }),
+      deadline,
+    );
+  } catch {
+    return false;
+  }
+  return (
+    currentDiagnosticsReportMatches(report, expected) &&
+    isRecord(raw) &&
+    raw.status === "complete" &&
+    raw.uri === report.response.uri &&
+    raw.version === report.response.version &&
+    raw.source === report.response.source &&
+    raw.dialectId === report.response.dialectId &&
+    raw.revision === report.response.revision &&
+    raw.inputsEpoch === report.response.inputsEpoch &&
+    raw.resultId === report.response.resultId &&
+    validDiagnostics(raw.diagnostics)
+  );
+}
+
+async function readCurrentDiagnosticsReport(
   uri: vscode.Uri,
-  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
-): Promise<vscode.Diagnostic[]> {
+  opts: { timeout?: number; minCount?: number; expectedSource?: string } | undefined,
+  pinInitialSession: boolean,
+): Promise<CurrentDiagnosticsReport> {
   const timeout = opts?.timeout ?? 5000;
   const minCount = opts?.minCount ?? 0;
   const deadline = Date.now() + timeout;
@@ -578,16 +689,36 @@ export async function waitForDiagnostics(
     version: document.version,
     source,
   };
+  const initialResourceConfiguration = pinInitialSession
+    ? resourceConfiguration(document)
+    : undefined;
+  if (pinInitialSession && initialResourceConfiguration === undefined) {
+    throw new CurrentDiagnosticsUnavailableError("context");
+  }
+  const initialContext = pinInitialSession ? captureAnalysisContext() : undefined;
+  if (pinInitialSession && !initialContext) {
+    throw new CurrentDiagnosticsUnavailableError("context");
+  }
 
   while (Date.now() < deadline) {
     if (!snapshotMatches(uri, document, request.version, request.source)) {
       throw new CurrentDiagnosticsUnavailableError("stale");
     }
-    const transport = currentDiagnosticsTransportProvider?.();
+    if (
+      initialResourceConfiguration !== undefined &&
+      resourceConfiguration(document) !== initialResourceConfiguration
+    ) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    if (initialContext && !isAnalysisContextCurrent(initialContext)) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
+    }
+    const transport = initialContext?.transport ?? currentDiagnosticsTransportProvider?.();
     if (!transport) {
       throw new CurrentDiagnosticsUnavailableError("clientUnavailable");
     }
     if (!transport.isCurrent()) {
+      if (pinInitialSession) throw new CurrentDiagnosticsUnavailableError("stale");
       await delay(Math.min(20, Math.max(1, deadline - Date.now())));
       continue;
     }
@@ -599,12 +730,20 @@ export async function waitForDiagnostics(
       if (error instanceof CurrentDiagnosticsUnavailableError) throw error;
       throw new CurrentDiagnosticsUnavailableError("providerError");
     }
-    if (!transport.isCurrent()) {
+    if (!transport.isCurrent() || (initialContext && !isAnalysisContextCurrent(initialContext))) {
+      if (pinInitialSession) throw new CurrentDiagnosticsUnavailableError("stale");
       continue;
+    }
+    if (
+      initialResourceConfiguration !== undefined &&
+      resourceConfiguration(document) !== initialResourceConfiguration
+    ) {
+      throw new CurrentDiagnosticsUnavailableError("stale");
     }
 
     // A response for an older editor snapshot is never returned or displayed.
     if (!snapshotMatches(uri, document, request.version, request.source)) {
+      if (pinInitialSession) throw new CurrentDiagnosticsUnavailableError("stale");
       continue;
     }
     if (!isRecord(raw)) {
@@ -621,6 +760,8 @@ export async function waitForDiagnostics(
         !isRevision(raw.revision) ||
         !isRevision(raw.inputsEpoch) ||
         typeof raw.resultId !== "string" ||
+        typeof raw.dialectId !== "string" ||
+        raw.dialectId.length === 0 ||
         !validDiagnostics(raw.diagnostics)
       ) {
         throw new CurrentDiagnosticsUnavailableError("malformedResponse");
@@ -635,6 +776,7 @@ export async function waitForDiagnostics(
         revision: raw.revision,
         inputsEpoch: raw.inputsEpoch,
         resultId: raw.resultId,
+        dialectId: raw.dialectId,
       });
     }
 
@@ -668,6 +810,8 @@ export async function waitForDiagnostics(
       !isRevision(raw.revision) ||
       !isRevision(raw.inputsEpoch) ||
       typeof raw.resultId !== "string" ||
+      typeof raw.dialectId !== "string" ||
+      raw.dialectId.length === 0 ||
       !validDiagnostics(raw.diagnostics)
     ) {
       throw new CurrentDiagnosticsUnavailableError("malformedResponse");
@@ -690,12 +834,40 @@ export async function waitForDiagnostics(
     }
     if (
       !transport.isCurrent() ||
+      (initialContext && !isAnalysisContextCurrent(initialContext)) ||
+      (initialResourceConfiguration !== undefined &&
+        resourceConfiguration(document) !== initialResourceConfiguration) ||
       !snapshotMatches(uri, document, request.version, request.source)
     ) {
+      if (pinInitialSession) throw new CurrentDiagnosticsUnavailableError("stale");
       continue;
     }
     if (diagnostics.length >= minCount) {
-      return diagnostics;
+      const analysisContext = initialContext ?? {
+        transport,
+        overrideGeneration: analysisOverrideGeneration,
+      };
+      const response: CurrentDiagnosticsResponse = Object.freeze({
+        status: "complete",
+        uri: raw.uri,
+        version: raw.version,
+        source: raw.source,
+        dialectId: raw.dialectId,
+        revision: raw.revision,
+        inputsEpoch: raw.inputsEpoch,
+        resultId: raw.resultId,
+        diagnostics: Object.freeze([...raw.diagnostics]) as readonly LspDiagnostic[],
+      });
+      return Object.freeze({
+        response,
+        diagnostics: Object.freeze([...diagnostics]),
+        sessionIdentity: transport.sessionIdentity,
+        document,
+        analysisContext,
+        ...(initialResourceConfiguration === undefined
+          ? {}
+          : { resourceConfiguration: initialResourceConfiguration }),
+      });
     }
 
     // minCount keeps its existing meaning, but only completed results can
@@ -704,6 +876,23 @@ export async function waitForDiagnostics(
   }
 
   throw new CurrentDiagnosticsUnavailableError("timeout");
+}
+
+/** Read and retain the completed report for one original document and session. */
+export async function waitForDiagnosticsReport(
+  uri: vscode.Uri,
+  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
+): Promise<CurrentDiagnosticsReport> {
+  return readCurrentDiagnosticsReport(uri, opts, true);
+}
+
+/** Compatibility projection for callers that need only LSP diagnostic values. */
+export async function waitForDiagnostics(
+  uri: vscode.Uri,
+  opts?: { timeout?: number; minCount?: number; expectedSource?: string },
+): Promise<vscode.Diagnostic[]> {
+  const report = await readCurrentDiagnosticsReport(uri, opts, false);
+  return [...report.diagnostics];
 }
 
 /**

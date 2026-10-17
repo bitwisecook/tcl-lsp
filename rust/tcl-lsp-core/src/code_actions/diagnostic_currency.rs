@@ -78,6 +78,46 @@ impl<'a> DiagnosticEditSource<'a> {
         ) && self.contains_span(finding.span)
     }
 
+    /// Exact worker-issued rewrite group and original source inputs. Policy
+    /// visibility is checked separately by Report::applicable_rewrites.
+    #[must_use]
+    pub fn matches_optimiser_rewrite_group(
+        &self,
+        members: &[&crate::diagnostic_policy::Finding],
+    ) -> bool {
+        let Some(originals) = members
+            .iter()
+            .map(|finding| finding.original_optimiser_rewrite())
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        if !tcl_compiler::optimiser::Optimisation::is_original_rewrite_group(&originals) {
+            return false;
+        }
+        members.iter().zip(&originals).all(|(finding, original)| {
+            let Some(issuer) = original.original_rewrite_batch() else {
+                return false;
+            };
+            finding.producer == crate::diagnostic_policy::Producer::Optimiser
+                && finding.code == original.code
+                && finding.span == original.span
+                && finding.fixes.is_empty()
+                && self.contains_span(original.span)
+                && self
+                    .analysis
+                    .retained_command_realm()
+                    .is_some_and(|realm| issuer.matches_source_realm(realm))
+                && self
+                    .analysis
+                    .matches_optimiser_source_origin(issuer.source_origin())
+                && issuer.image() == self.context.image()
+                && issuer.analysis_input().lexer_config() == self.context.config()
+                && issuer.registry().semantic_key() == self.registry
+                && self.analysis.resolved_input.as_ref() == Some(issuer.analysis_input())
+        })
+    }
+
     /// A published fix must occur independently in the current analyser set.
     /// Diagnostic titles and messages are presentation and may differ.
     #[must_use]

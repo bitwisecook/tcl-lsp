@@ -46,6 +46,218 @@ pub(crate) struct SourceStructure {
     definition_members:
         Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
     package_census: Option<PackageCensusState>,
+    definition_cursor_regions: Vec<DefinitionCursorRegion>,
+    definition_cursor_unavailable: Vec<Span>,
+}
+
+struct DefinitionCursorRegion {
+    span: Span,
+    depth: u32,
+    parent: Option<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    members: Option<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
+    plan: Option<tcl_lexer::NativeScriptWordsPlan>,
+}
+
+impl DefinitionCursorRegion {
+    fn vocabulary(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+        current: &crate::original_context::CurrentSourceContext<'_>,
+    ) -> SourceDefinitionGrammar {
+        use DefinitionGrammarUnavailable as Unavailable;
+        use SourceDefinitionGrammar as Selection;
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return Selection::Unavailable(Unavailable::CurrentSource);
+        };
+        let contains = |span: Span| span.start() <= cursor && cursor <= span.end();
+        let Some(plan) = &self.plan else {
+            return Selection::Unavailable(Unavailable::MalformedRegion);
+        };
+        if plan
+            .fatal_tail
+            .is_some_and(|tail| cursor >= tail.command_start)
+        {
+            return Selection::Unavailable(Unavailable::MalformedRegion);
+        }
+        let image = SourceImage::document(source);
+        let root = |nested_unavailable| {
+            let grammar = current.registry().document_grammar()?;
+            Some(Selection::StandaloneRoot {
+                vocabulary: SourceDefinitionVocabulary {
+                    grammar,
+                    image: image.clone(),
+                    input: input.clone(),
+                    parent: None,
+                    members: None,
+                },
+                nested_unavailable,
+            })
+        };
+        // An operand interior is not a nested script unless the genuine body
+        // issuer already queued it. Root authoring is a separate purpose and
+        // retains this unavailable-child debt instead of selecting prior scope.
+        let unrepresented = plan
+            .commands
+            .iter()
+            .flat_map(|command| &command.words)
+            .any(|word| {
+                matches!(word.group().kind, WordKind::Braced | WordKind::Quoted)
+                    && word.content_span().ok().is_some_and(contains)
+            });
+        if unrepresented {
+            return if self.depth == 0 {
+                root(Some(Unavailable::UnrepresentedInterior))
+                    .unwrap_or(Selection::Unavailable(Unavailable::UnrepresentedInterior))
+            } else {
+                Selection::Unavailable(Unavailable::UnrepresentedInterior)
+            };
+        }
+        let Some(parent) = &self.parent else {
+            return if self.depth == 0 {
+                root(None).unwrap_or(Selection::OrdinaryScript)
+            } else {
+                Selection::OrdinaryScript
+            };
+        };
+        let context = current.context();
+        if !parent.matches_source(&image, current.config()) || !parent.matches_context(&context) {
+            return Selection::Unavailable(Unavailable::ParentCorrespondence);
+        }
+        let Some(members) = &self.members else {
+            return Selection::Unavailable(Unavailable::ParentCorrespondence);
+        };
+        let Some(grammar) = parent
+            .source_words()
+            .with_source_schema(&context, |schema| {
+                schema.authored_source_definition_body_grammar()
+            })
+            .flatten()
+        else {
+            return Selection::Unavailable(Unavailable::ParentCorrespondence);
+        };
+        Selection::Selected(SourceDefinitionVocabulary {
+            grammar,
+            image,
+            input: input.clone(),
+            parent: Some(parent.clone()),
+            members: Some(members.clone()),
+        })
+    }
+}
+
+/// Why current source cannot select a nested definition vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DefinitionGrammarUnavailable {
+    CurrentSource,
+    DepthLimit,
+    AmbiguousRegion,
+    ParentCorrespondence,
+    MalformedRegion,
+    UnrepresentedInterior,
+}
+
+/// Genuine selected source vocabulary, separate from an entered definition frame.
+/// A standalone document root has no fabricated body or parent declaration.
+pub(crate) struct SourceDefinitionVocabulary {
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    image: SourceImage,
+    input: ResolvedAnalysisInput,
+    parent: Option<tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    members: Option<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
+}
+
+impl SourceDefinitionVocabulary {
+    pub(crate) fn grammar(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        if self.image != SourceImage::document(source)
+            || analysis.resolved_input.as_ref() != Some(&self.input)
+        {
+            return None;
+        }
+        let context = current.context();
+        let actual = if let Some(parent) = &self.parent {
+            if !parent.matches_source(&self.image, current.config())
+                || !parent.matches_context(&context)
+                || self.members.is_none()
+            {
+                return None;
+            }
+            parent
+                .source_words()
+                .with_source_schema(&context, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })??
+        } else {
+            current.registry().document_grammar()?
+        };
+        std::ptr::eq(actual, self.grammar).then_some(actual)
+    }
+}
+
+/// Cursor vocabulary purpose and unavailable nested ownership stay distinct.
+pub(crate) enum SourceDefinitionGrammar {
+    Selected(SourceDefinitionVocabulary),
+    /// Root authoring suggestions remain valid for a declaration document even
+    /// when a written operand is not a selected child script. The debt cannot
+    /// supply that child's grammar or edit candidates.
+    StandaloneRoot {
+        vocabulary: SourceDefinitionVocabulary,
+        nested_unavailable: Option<DefinitionGrammarUnavailable>,
+    },
+    OrdinaryScript,
+    Unavailable(DefinitionGrammarUnavailable),
+}
+
+impl SourceDefinitionGrammar {
+    pub(crate) const fn unavailable(&self) -> Option<DefinitionGrammarUnavailable> {
+        match self {
+            Self::Unavailable(reason) => Some(*reason),
+            _ => None,
+        }
+    }
+
+    /// Candidate edits require a selected nested vocabulary or an unobstructed
+    /// actual standalone root, independently of the caller's edit authority.
+    pub(crate) fn for_selected_source(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        match self {
+            Self::Selected(vocabulary)
+            | Self::StandaloneRoot {
+                vocabulary,
+                nested_unavailable: None,
+            } => SourceDefinitionVocabulary::grammar(vocabulary, source, analysis),
+            _ => None,
+        }
+    }
+
+    /// Explicit declaration-document authoring projection only. In particular,
+    /// a root suggestion with nested debt does not select a child grammar.
+    pub(crate) fn for_authoring(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        match self {
+            Self::Selected(vocabulary) | Self::StandaloneRoot { vocabulary, .. } => {
+                SourceDefinitionVocabulary::grammar(vocabulary, source, analysis)
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Self::OrdinaryScript | Self::Unavailable(_))
+    }
 }
 
 #[derive(Default)]
@@ -649,6 +861,7 @@ enum CapturePurpose {
     Readonly,
     SyntaxCompaction,
     CheckedSyntax,
+    DefinitionCursor,
 }
 
 type PendingSourceRegion = (
@@ -723,6 +936,8 @@ impl SourceStructure {
             scripts: Vec::new(),
             caller_context_unavailable_bodies: Vec::new(),
             definition_members: Vec::new(),
+            definition_cursor_regions: Vec::new(),
+            definition_cursor_unavailable: Vec::new(),
             package_census: (purpose == CapturePurpose::CheckedSyntax)
                 .then(PackageCensusState::default),
         };
@@ -760,6 +975,10 @@ impl SourceStructure {
             let parent_span = definition_parent
                 .as_ref()
                 .map(|parent| (parent.content_span().start(), parent.content_span().end()));
+            if purpose == CapturePurpose::DefinitionCursor && depth > 32 {
+                structure.definition_cursor_unavailable.push(region);
+                continue;
+            }
             if depth > 256 {
                 if let Some(census) = &mut structure.package_census {
                     census.unavailable.push(region);
@@ -820,6 +1039,19 @@ impl SourceStructure {
                 census.unavailable.push(region);
             }
         }
+        if purpose == CapturePurpose::DefinitionCursor {
+            let members = analysis.and_then(|analysis| {
+                let input = analysis.resolved_input.as_ref()?;
+                definition_parent?.definition_member_region(&input.context_registry(), region)
+            });
+            self.definition_cursor_regions.push(DefinitionCursorRegion {
+                span: region,
+                depth,
+                parent: definition_parent.cloned(),
+                members,
+                plan: original_plan.as_ref().ok().cloned(),
+            });
+        }
         if let Ok(plan) = original_plan {
             for command in &plan.commands {
                 for word in &command.words {
@@ -860,6 +1092,56 @@ impl SourceStructure {
         Some(())
     }
 
+    /// One purpose-specific cursor query over the existing genuine body walk.
+    /// No display head, detached body or report scope selects a vocabulary.
+    pub(crate) fn definition_grammar_at(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+    ) -> SourceDefinitionGrammar {
+        use DefinitionGrammarUnavailable as Unavailable;
+        use SourceDefinitionGrammar as Selection;
+        let Some(current) =
+            crate::original_context::CurrentSourceContext::capture(source, analysis)
+        else {
+            return Selection::Unavailable(Unavailable::CurrentSource);
+        };
+        let Some(structure) = Self::capture_with_purpose(
+            source,
+            Some(analysis),
+            current.config(),
+            CapturePurpose::DefinitionCursor,
+        ) else {
+            return Selection::Unavailable(Unavailable::CurrentSource);
+        };
+        if !source.is_char_boundary(cursor as usize) {
+            return Selection::Unavailable(Unavailable::CurrentSource);
+        }
+        let contains = |span: Span| span.start() <= cursor && cursor <= span.end();
+        if structure
+            .definition_cursor_unavailable
+            .iter()
+            .copied()
+            .any(contains)
+        {
+            return Selection::Unavailable(Unavailable::DepthLimit);
+        }
+        let Some(region) = structure
+            .definition_cursor_regions
+            .iter()
+            .filter(|region| contains(region.span))
+            .max_by_key(|region| region.depth)
+        else {
+            return Selection::Unavailable(Unavailable::CurrentSource);
+        };
+        if structure.definition_cursor_regions.iter().any(|other| {
+            contains(other.span) && other.depth == region.depth && !std::ptr::eq(other, region)
+        }) {
+            return Selection::Unavailable(Unavailable::AmbiguousRegion);
+        }
+        DefinitionCursorRegion::vocabulary(region, source, analysis, cursor, &current)
+    }
+
     pub(crate) fn command_at(&self, cursor: u32) -> Option<Span> {
         self.commands
             .iter()
@@ -882,8 +1164,10 @@ impl SourceStructure {
             definition_members,
             ..
         } = *script;
-        if purpose == CapturePurpose::Readonly
-            && let Some(members) = definition_members
+        if matches!(
+            purpose,
+            CapturePurpose::Readonly | CapturePurpose::DefinitionCursor
+        ) && let Some(members) = definition_members
             && let Some(words) = command
                 .argv
                 .first()
@@ -902,11 +1186,13 @@ impl SourceStructure {
             }
             return true;
         }
-        if purpose == CapturePurpose::Readonly
-            && let Some(declared) =
-                tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
-                    source, analysis, command,
-                )
+        if matches!(
+            purpose,
+            CapturePurpose::Readonly | CapturePurpose::DefinitionCursor
+        ) && let Some(declared) =
+            tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
+                source, analysis, command,
+            )
         {
             for body in declared.source_script_bodies_for(
                 tcl_compiler::registry_invocation::OriginalSourceScriptPurpose::Syntax,
@@ -919,6 +1205,77 @@ impl SourceStructure {
             return true;
         }
         false
+    }
+
+    fn definition_cursor_document_bodies(
+        &mut self,
+        source: &str,
+        command: &SegmentedCommand,
+        script: &SourceScriptContext<'_>,
+        queue: &mut VecDeque<PendingSourceRegion>,
+    ) -> bool {
+        if script.purpose != CapturePurpose::DefinitionCursor {
+            return false;
+        }
+        let Some(input) = script.analysis.resolved_input.as_ref() else {
+            return false;
+        };
+        let context = input.context_registry();
+        let registry = context.commands();
+        let Some(document) = registry.document_grammar() else {
+            return false;
+        };
+        let current = if let Some(parent) = script.definition_parent {
+            parent
+                .source_words()
+                .with_source_schema(&context, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })
+                .flatten()
+        } else if script.depth == 0 {
+            Some(document)
+        } else {
+            None
+        };
+        let Some(current) = current.filter(|grammar| grammar.family == document.family) else {
+            return false;
+        };
+        let Some(words) =
+            crate::original_invocation::source_registry_words(source, script.analysis, command)
+        else {
+            return true;
+        };
+        let Some(head) = words.head_source().and_then(|head| head.word()) else {
+            return true;
+        };
+        let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(head) else {
+            return true;
+        };
+        let Ok(keyword) = std::str::from_utf8(&value) else {
+            return true;
+        };
+        let Some(expected) = registry.authored_document_member_grammar(current, keyword) else {
+            // Non-block members may own an ordinary retained script (a hook),
+            // but a command outside this actual closed vocabulary may not.
+            return !current.is_member(keyword);
+        };
+        let selected = words
+            .with_source_schema(&context, |schema| {
+                schema.authored_source_definition_body_grammar()
+            })
+            .flatten();
+        if !selected.is_some_and(|grammar| std::ptr::eq(grammar, expected)) {
+            return true;
+        }
+        for body in words.source_script_bodies(&context) {
+            let Some(parent) = body.definition_parent_for(&context, script.definition_parent)
+            else {
+                continue;
+            };
+            self.bodies.push(body.extent_span());
+            queue.push_back((body.content_span(), script.depth + 1, Some(parent)));
+        }
+        true
     }
 
     fn command_bodies(
@@ -942,7 +1299,9 @@ impl SourceStructure {
             self.census_command_bodies(source, command, script, queue);
             return;
         }
-        if self.readonly_command_bodies(source, command, script, queue) {
+        if self.definition_cursor_document_bodies(source, command, script, queue)
+            || self.readonly_command_bodies(source, command, script, queue)
+        {
             return;
         }
         let Some(words) =
@@ -969,9 +1328,12 @@ impl SourceStructure {
                 self.caller_context_unavailable_bodies
                     .push(body.content_span());
             }
-            let parent = (purpose == CapturePurpose::Readonly)
-                .then(|| body.definition_parent_for(&context, definition_parent))
-                .flatten();
+            let parent = matches!(
+                purpose,
+                CapturePurpose::Readonly | CapturePurpose::DefinitionCursor
+            )
+            .then(|| body.definition_parent_for(&context, definition_parent))
+            .flatten();
             queue.push_back((body.content_span(), depth + 1, parent));
         }
         let list_argument = words

@@ -1,0 +1,7 @@
+patching file rust/tcl-lsp-server/src/current_diagnostics.rs
+patching file editors/vscode/src/chat/diagnosticAccess.ts
+patching file editors/vscode/src/chat/contextPack.ts
+patching file editors/vscode/src/chat/agenticLoop.ts
+patching file editors/vscode/src/chat/tclParticipant.ts
+patching file editors/vscode/src/test/currentDiagnostics.test.ts
+patching file editors/vscode/src/documentTransform.ts

@@ -30,12 +30,15 @@ import { sendContextualRequest } from "./contextPack";
 import { buildPrompt } from "./promptLoader";
 import {
   acquireSessionDialectOverride,
+  currentDiagnosticsReportMatches,
+  currentDiagnosticsReportIsStillPublished,
   isAnalysisContextCurrent,
-  waitForDiagnostics,
+  waitForDiagnosticsReport,
   waitForProposalDiagnostics,
   proposalDiagnosticsReportMatches,
   formatDiagnosticsForLLM,
   SessionDialectOverrideLease,
+  CurrentDiagnosticsReport,
   ProposalDiagnosticsReport,
 } from "./diagnosticAccess";
 
@@ -48,6 +51,7 @@ export interface AgenticResult {
   remainingDiagnostics: vscode.Diagnostic[];
   clean: boolean;
   documentSnapshot?: DocumentSourceSnapshot;
+  finalDiagnosticsReport?: CurrentDiagnosticsReport;
   proposalReport?: ProposalDiagnosticsReport & {
     readonly sourceSnapshot: DocumentSourceSnapshot;
   };
@@ -197,6 +201,7 @@ export async function runAgenticLoop(
           `Iteration ${iteration + 1}/${MAX_ITERATIONS}: analysing with LSP...`,
         );
         let diagnostics: readonly vscode.Diagnostic[];
+        let completedReport: CurrentDiagnosticsReport | undefined;
         if (analyzeAsProposal) {
           if (!documentSnapshot) throw new Error("Proposal analysis has no source snapshot");
           const report =
@@ -219,10 +224,24 @@ export async function runAgenticLoop(
           proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
           diagnostics = report.diagnostics;
         } else {
-          diagnostics = await waitForDiagnostics(doc.uri, {
+          completedReport = await waitForDiagnosticsReport(doc.uri, {
             timeout: DIAGNOSTIC_WAIT_MS,
             expectedSource: currentCode,
           });
+          if (
+            !documentSnapshot ||
+            !currentDiagnosticsReportMatches(completedReport, {
+              document: doc,
+              uri: doc.uri,
+              version: documentSnapshot.version,
+              source: currentCode,
+            })
+          ) {
+            throw new Error(
+              "The completed diagnostics report no longer matches the source snapshot",
+            );
+          }
+          diagnostics = completedReport.diagnostics;
         }
         assertCurrent();
         const actionable = diagnostics.filter(
@@ -230,6 +249,18 @@ export async function runAgenticLoop(
         );
 
         if (actionable.length === 0) {
+          if (
+            completedReport &&
+            documentSnapshot &&
+            !(await currentDiagnosticsReportIsStillPublished(completedReport, {
+              document: doc,
+              uri: doc.uri,
+              version: documentSnapshot.version,
+              source: currentCode,
+            }))
+          ) {
+            throw new Error("The clean result is no longer the current completed publication");
+          }
           ctx.response.progress("Clean -- no errors or warnings.");
           return {
             finalCode: currentCode,
@@ -237,6 +268,7 @@ export async function runAgenticLoop(
             remainingDiagnostics: [],
             clean: true,
             documentSnapshot,
+            finalDiagnosticsReport: completedReport,
             proposalReport,
           };
         }
@@ -248,12 +280,15 @@ export async function runAgenticLoop(
 
         ctx.response.progress(`Found ${actionable.length} issue(s). Asking LLM to fix...`);
         const diagnosticReport = formatDiagnosticsForLLM(actionable, currentCode);
-        const selectedDialect = proposalReport?.response.dialectId;
+        const selectedDialect =
+          proposalReport?.response.dialectId ?? completedReport?.response.dialectId;
         if (analyzeAsProposal && !selectedDialect) {
           throw new Error("The server did not provide the selected resource dialect");
         }
         const llmResponse = await sendContextualRequest(
-          loopContext,
+          selectedDialect
+            ? { ...loopContext, systemPrompt: buildPrompt(selectedDialect) }
+            : loopContext,
           `The language server selected resource dialect ${selectedDialect ?? "Tcl"}.\n` +
             `Here is the current Tcl code:
 \`\`\`tcl\n${currentCode}\n\`\`\`\n\n` +
@@ -264,6 +299,33 @@ export async function runAgenticLoop(
             code: currentCode,
             document: doc,
             includeDiagnostics: false,
+            completedDiagnosticsReport: completedReport,
+            isSourceCurrent: () => {
+              try {
+                assertCurrent();
+                if (!doc || !documentSnapshot) return false;
+                if (analyzeAsProposal && proposalReport) {
+                  return proposalDiagnosticsReportMatches(proposalReport, {
+                    document: doc,
+                    uri: documentSnapshot.uri,
+                    version: documentSnapshot.version,
+                    source: documentSnapshot.fullSource,
+                    proposal: currentCode,
+                  });
+                }
+                if (completedReport) {
+                  return currentDiagnosticsReportMatches(completedReport, {
+                    document: doc,
+                    uri: doc.uri,
+                    version: documentSnapshot.version,
+                    source: currentCode,
+                  });
+                }
+                return false;
+              } catch {
+                return false;
+              }
+            },
           },
         );
         assertCurrent();
@@ -271,6 +333,18 @@ export async function runAgenticLoop(
         let responseText = "";
         for await (const chunk of llmResponse.text) responseText += chunk;
         assertCurrent();
+        if (
+          completedReport &&
+          documentSnapshot &&
+          !(await currentDiagnosticsReportIsStillPublished(completedReport, {
+            document: doc,
+            uri: doc.uri,
+            version: documentSnapshot.version,
+            source: currentCode,
+          }))
+        ) {
+          throw new Error("The diagnostic publication changed while the model was responding");
+        }
         const extractedCode = extractCodeBlock(responseText);
         if (!extractedCode) {
           ctx.response.progress("LLM did not return a code block. Stopping.");
@@ -288,6 +362,7 @@ export async function runAgenticLoop(
           doc = updated.document;
         }
         let finalDiags: readonly vscode.Diagnostic[];
+        let finalDiagnosticsReport: CurrentDiagnosticsReport | undefined;
         if (analyzeAsProposal) {
           const report = await waitForProposalDiagnostics(doc.uri, currentCode, {
             timeout: DIAGNOSTIC_WAIT_MS,
@@ -303,10 +378,31 @@ export async function runAgenticLoop(
           proposalReport = Object.freeze({ ...report, sourceSnapshot: documentSnapshot });
           finalDiags = report.diagnostics;
         } else {
-          finalDiags = await waitForDiagnostics(doc.uri, {
+          finalDiagnosticsReport = await waitForDiagnosticsReport(doc.uri, {
             timeout: DIAGNOSTIC_WAIT_MS,
             expectedSource: currentCode,
           });
+          if (
+            !currentDiagnosticsReportMatches(finalDiagnosticsReport, {
+              document: doc,
+              uri: doc.uri,
+              version: documentSnapshot.version,
+              source: currentCode,
+            })
+          ) {
+            throw new Error("The final completed report no longer matches the updated source");
+          }
+          if (
+            !(await currentDiagnosticsReportIsStillPublished(finalDiagnosticsReport, {
+              document: doc,
+              uri: doc.uri,
+              version: documentSnapshot.version,
+              source: currentCode,
+            }))
+          ) {
+            throw new Error("The final completed report is no longer the current publication");
+          }
+          finalDiags = finalDiagnosticsReport.diagnostics;
         }
         assertCurrent();
         const remaining = finalDiags.filter((d) => d.severity <= vscode.DiagnosticSeverity.Warning);
@@ -316,6 +412,7 @@ export async function runAgenticLoop(
           remainingDiagnostics: remaining,
           clean: remaining.length === 0,
           documentSnapshot,
+          finalDiagnosticsReport,
           proposalReport,
         };
       }

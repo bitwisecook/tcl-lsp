@@ -1,0 +1,24 @@
+[
+  {
+    "argv": [
+      "/workspace/tcl-lsp/editors/vscode/node_modules/.bin/prettier",
+      "--write",
+      "/workspace/naming-validation/lsp-next-source-owner-batch-v2/after/editors/vscode/src/chat/commands/optimise.ts",
+      "--config",
+      "/workspace/tcl-lsp/editors/vscode/.prettierrc.json"
+    ],
+    "exit_code": 0,
+    "output": "../naming-validation/lsp-next-source-owner-batch-v2/after/editors/vscode/src/chat/commands/optimise.ts 81ms (unchanged)\n"
+  },
+  {
+    "argv": [
+      "/workspace/tcl-lsp/editors/vscode/node_modules/.bin/prettier",
+      "--write",
+      "/workspace/naming-validation/lsp-next-source-owner-batch-v2/after/editors/vscode/src/chat/tclParticipant.ts",
+      "--config",
+      "/workspace/tcl-lsp/editors/vscode/.prettierrc.json"
+    ],
+    "exit_code": 0,
+    "output": "../naming-validation/lsp-next-source-owner-batch-v2/after/editors/vscode/src/chat/tclParticipant.ts 103ms\n"
+  }
+]

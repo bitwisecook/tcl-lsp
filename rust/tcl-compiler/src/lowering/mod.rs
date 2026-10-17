@@ -950,6 +950,60 @@ fn invalidate_const_map_for(
 /// namespace) → offset-0 body [`Script`]`.  See [`Lowerer::with_body_cache`].
 type BodyCacheFn<'a> = dyn Fn(&str, &str) -> Script + 'a;
 
+/// Actual isolated-body worker output and complete lowering recipe. The body is
+/// private; independently supplied script values cannot create this template.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OriginalBodyLoweringTemplate {
+    text: String,
+    namespace: String,
+    registry: tcl_registry::RegistrySnapshot,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    body: Script,
+}
+impl OriginalBodyLoweringTemplate {
+    /// Run the existing isolated lowerer once with the exact requested inputs.
+    #[must_use]
+    pub fn lower(
+        text: &str,
+        namespace: &str,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> Self {
+        let body = lower_proc_body_isolated(text, namespace, registry, config, dialect);
+        Self {
+            text: text.to_owned(),
+            namespace: namespace.to_owned(),
+            registry: registry.snapshot(),
+            config,
+            dialect,
+            body,
+        }
+    }
+    /// Reporting projection, without source-build or execution admission.
+    #[must_use]
+    pub fn body(&self) -> &Script {
+        &self.body
+    }
+    fn matches(
+        &self,
+        text: &str,
+        namespace: &str,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> bool {
+        self.text == text
+            && self.namespace == namespace
+            && self.registry == registry.snapshot()
+            && self.config == config
+            && self.dialect == dialect
+    }
+}
+/// Memo callback returning an actual immutable isolated-body worker artifact.
+pub type OriginalBodyLoweringCache<'a> = dyn Fn(&str, &str) -> OriginalBodyLoweringTemplate + 'a;
+
 /// Which lowering pass a [`Lowerer`] performs.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum CompileTarget {
@@ -1202,6 +1256,8 @@ pub struct Lowerer<'r> {
     /// `None` ⇒ the normal whole-file lowering.  See [`lower_to_ir_with_body_cache`].
     body_cache: Option<&'r BodyCacheFn<'r>>,
     source_body_syntax_cache: Option<&'r SourceBodySyntaxCache<'r>>,
+    original_body_cache: Option<&'r OriginalBodyLoweringCache<'r>>,
+    optimiser_lowering_integrity: Option<&'r std::cell::Cell<bool>>,
     #[cfg(test)]
     verify_source_body_syntax_cache: bool,
     /// Current `lower_script` / `lower_body` recursion depth, bounded by
@@ -1389,6 +1445,8 @@ impl<'r> Lowerer<'r> {
             metadata_origin: LoweringMetadataOrigin::Standalone,
             target: CompileTarget::Analysis,
             body_cache: None,
+            original_body_cache: None,
+            optimiser_lowering_integrity: None,
             source_body_syntax_cache: None,
             #[cfg(test)]
             verify_source_body_syntax_cache: false,
@@ -1396,6 +1454,16 @@ impl<'r> Lowerer<'r> {
             source: String::new(),
             word_space: WordSpace::new("", 0, tcl_lexer::SourceChannel::Document),
         }
+    }
+
+    pub(crate) fn with_original_optimiser_lowering(
+        mut self,
+        cache: Option<&'r OriginalBodyLoweringCache<'r>>,
+        integrity: &'r std::cell::Cell<bool>,
+    ) -> Self {
+        self.original_body_cache = cache;
+        self.optimiser_lowering_integrity = Some(integrity);
+        self
     }
 
     /// Install the document's own command declarations (see
@@ -4286,7 +4354,7 @@ impl<'r> Lowerer<'r> {
                 // The resolved body value is dynamic; retain the runtime call but
                 // do not compile the literal `$body` spelling as Tcl source.
                 Script::default()
-            } else if let Some(cache) = lowerer.body_cache.filter(|_| {
+            } else if (lowerer.body_cache.is_some() || lowerer.original_body_cache.is_some()) && {
                 lowerer.proc_depth == 1
                     && !lowerer
                         .registry
@@ -4301,15 +4369,36 @@ impl<'r> Lowerer<'r> {
                             lowerer.registry,
                         )
                     })
-            }) {
+            } {
                 // Only context-free Tcl bodies can use the offset-zero body cache.
-                let mut script = cache(body_text, body_namespace);
+                let (mut script, issued) = if let Some(cache) = lowerer.original_body_cache {
+                    let template = cache(body_text, body_namespace);
+                    let issued = template.matches(
+                        body_text,
+                        body_namespace,
+                        lowerer.registry,
+                        lowerer.config,
+                        lowerer.dialect,
+                    );
+                    (template.body, issued)
+                } else {
+                    (
+                        (lowerer.body_cache.expect("selected body cache"))(
+                            body_text,
+                            body_namespace,
+                        ),
+                        false,
+                    )
+                };
                 crate::lattice_rebase::rebase_script(&mut script, i64::from(body_offset));
                 if lowerer
                     .source_bindings
                     .as_ref()
                     .is_some_and(|bindings| bindings.restore_script_bindings(&mut script))
                 {
+                    if !issued && let Some(integrity) = lowerer.optimiser_lowering_integrity {
+                        integrity.set(false);
+                    }
                     script
                 } else {
                     lowerer.lower_body_in_irules_context(

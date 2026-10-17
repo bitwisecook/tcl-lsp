@@ -1264,6 +1264,37 @@
         "verified_complete": false
       },
       "implementation_scope": "Exact source/contract and composition peerCLEAR, actual Root integration; build/test/host/gates pending, no execution/absence/edit/Normal authority."
+    },
+    {
+      "id": "compiler.owner.original-optimiser-rewrite-report-collection",
+      "kind": "shared_owner_extension",
+      "baseline_unit_ids": [
+        "lsp-code-actions-optimiser-rewrite-current-report"
+      ],
+      "site_anchors": [
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+          "symbol": "Original source build and whole prepared worker ownership"
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+          "symbol": "Authentic complete original worker recipe/result"
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+          "symbol": "Complete raw/body/top/final collection and current-root reborrow"
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "symbol": "Actual typed memo purpose/context and whole-body assembly"
+        }
+      ],
+      "rationale": "One demonstrated missing whole optimiser producer/report collection owner. Existing explicit Standalone source-input facet owns ingress only; existing neutral capsule identity owns reuse only, neither authentic full worker-result issuance nor complete final collection. Actual source build, full callback recipe/result, current prepared worker context and complete raw/body/top/final group are retained together. DB memo/key/rebind helpers and controls are part of this grouped purpose, not separate counts. Existing Core692 caller is counted separately; unchanged helper/API/test/dependency multiplicity adds zero. Independent Compiler count reconciliation confirms no existing baseline/annex duplicate.",
+      "implementation": {
+        "status": "implemented_pending_validation",
+        "verified_complete": false
+      },
+      "implementation_scope": "WholeV3/source contracts and independent kernel/whole reviews CLEAR; actual integration all19 hashes exact,16Rust parse/formatPASS. No Native/execution/effect/absence/Normal grant. Actual build/tests/gates unexecuted."
     }
   ],
   "unverified_or_open": [
@@ -1277,26 +1308,26 @@
   "status": "accepted_additional_obligations_unverified",
   "utc": "2026-10-16T22:00:47.293633+00:00",
   "accepted_delta": {
-    "semantic_code_changes": 58,
+    "semantic_code_changes": 59,
     "validation_code_repairs": 1,
     "authored_documentation": 0,
-    "all_required_changes": 59,
+    "all_required_changes": 60,
     "by_kind": {
       "shared_owner_repair": 9,
-      "shared_owner_extension": 32,
+      "shared_owner_extension": 33,
       "caller_migration": 16,
       "metadata_or_target_schema": 1,
       "validation_code_repair": 1
     }
   },
   "effective_counts": {
-    "semantic_code_changes": 1857,
+    "semantic_code_changes": 1858,
     "validation_code_repairs": 306,
     "authored_documentation": 54,
-    "all_required_changes": 2217
+    "all_required_changes": 2218
   },
   "implementation_progress": {
-    "implemented_pending_validation": 58,
+    "implemented_pending_validation": 59,
     "not_integrated": 1,
     "verified_complete": 0
   }

@@ -222,37 +222,48 @@ impl BodyAnalysisCapsule {
             .expect("retained capsule function")
     }
 
-    /// Select body-local source edits from the genuine whole-unit analysis.
-    /// A group crossing the body's source boundary is retained by neither memo.
+    /// Actual retained worker context for this current source-prepared capsule.
+    /// This memo-purpose dependency cannot issue a result or an edit; result
+    /// reborrows independently authenticate the same context.
+    #[must_use]
+    pub fn original_optimiser_analysis_context(
+        &self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> Option<crate::value_transfer::AnalysisContextKey> {
+        if self.registry != registry.snapshot() {
+            return None;
+        }
+        self.unit
+            .original_optimiser_prepared_unit(registry, dialect)
+            .map(|owner| owner.origin().analysis_context().clone())
+    }
+
+    /// Body-local reporting payload from one actual whole-unit worker run.
+    /// This compatibility projection carries no collection or edit permission.
     #[must_use]
     pub fn original_body_optimisations(
         &self,
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Vec<Optimisation> {
-        let span = self.procedure().span;
-        let raw = crate::optimiser::optimise_unit_raw(self.unit(), registry, dialect);
-        let outside_groups: std::collections::HashSet<_> = raw
-            .iter()
-            .filter(|edit| edit.span.start() < span.start() || span.end() < edit.span.end())
-            .filter_map(|edit| edit.group)
-            .collect();
-        raw.into_iter()
-            .filter(|edit| {
-                span.start() <= edit.span.start()
-                    && edit.span.end() <= span.end()
-                    && edit
-                        .group
-                        .is_none_or(|group| !outside_groups.contains(&group))
-            })
-            .map(|mut edit| {
-                edit.span = tcl_lexer::Span::new(
-                    edit.span.start() - span.start(),
-                    edit.span.end() - span.start(),
-                );
-                edit
-            })
-            .collect()
+        self.original_body_optimiser_report(registry, dialect)
+            .members()
+            .to_vec()
+    }
+
+    /// Complete body projection, including an empty projection, from one actual
+    /// raw worker run. Missing issuance never discards or reruns report output.
+    #[must_use]
+    pub fn original_body_optimiser_report(
+        &self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> crate::optimiser::OriginalBodyOptimiserReport {
+        let raw = crate::optimiser::optimise_unit_raw_report(self.unit(), registry, dialect);
+        crate::optimiser::OriginalBodyOptimiserReport::from_body_worker(
+            self, raw, registry, dialect,
+        )
     }
 }
 
@@ -619,6 +630,8 @@ fn analytical_closed_projection(
 /// Genuine source body inputs; the private certificate changes no executable IR.
 #[derive(Debug, Clone)]
 pub struct BodyLatticeInputs {
+    pub(crate) original_worker_recipe:
+        Option<Arc<crate::compilation_unit::original_lattice_worker::OriginalLatticeWorkerRecipe>>,
     body: crate::ir::Script,
     bindings: Option<crate::command_binding::ModuleCommandBindings>,
     certificate: Option<Arc<BodyLatticeCertificate>>,
@@ -654,6 +667,7 @@ impl Hash for BodyLatticeCertificate {
 impl From<crate::ir::Script> for BodyLatticeInputs {
     fn from(body: crate::ir::Script) -> Self {
         Self {
+            original_worker_recipe: None,
             body,
             bindings: None,
             certificate: None,
@@ -665,6 +679,16 @@ impl BodyLatticeInputs {
     /// Retain an authentic current body and independently available neutral correspondence.
     #[must_use]
     pub fn retain(
+        request: &crate::compilation_unit::LatticeRequest<'_>,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let mut retained = Self::retain_correspondence(request, registry)?;
+        let neutral = retained.command_bindings().is_some();
+        BodyLatticeInputs::retain_original_worker_recipe(&mut retained, request, registry, neutral);
+        Some(retained)
+    }
+
+    fn retain_correspondence(
         request: &crate::compilation_unit::LatticeRequest<'_>,
         registry: &CommandRegistry,
     ) -> Option<Self> {
@@ -786,6 +810,7 @@ impl BodyLatticeInputs {
             }
         };
         Some(Self {
+            original_worker_recipe: None,
             body: request.body.clone(),
             bindings: Some(request.command_bindings.clone()),
             certificate: Some(Arc::new(BodyLatticeCertificate {
@@ -861,6 +886,7 @@ impl BodyLatticeInputs {
                 registry,
             )?;
         Some(Self {
+            original_worker_recipe: None,
             body: request.body.clone(),
             bindings: Some(request.command_bindings.clone()),
             certificate: Some(Arc::new(BodyLatticeCertificate {
@@ -967,12 +993,15 @@ impl BodyLatticeInputs {
         {
             rebound.body_id = Some(current.body);
         }
+        if !BodyLatticeInputs::rebind_original_worker_result(self, original, cached, &mut rebound) {
+            rebound.clear_original_lattice_worker();
+        }
         Some(rebound)
     }
 }
 
-impl PartialEq for BodyLatticeInputs {
-    fn eq(&self, other: &Self) -> bool {
+impl BodyLatticeInputs {
+    pub(crate) fn original_worker_body_matches(&self, other: &Self) -> bool {
         match (&self.certificate, &other.certificate) {
             (Some(left), Some(right)) => left == right,
             (None, None) => self.body == other.body,
@@ -980,9 +1009,18 @@ impl PartialEq for BodyLatticeInputs {
         }
     }
 }
+impl PartialEq for BodyLatticeInputs {
+    fn eq(&self, other: &Self) -> bool {
+        self.original_worker_recipe.is_some() == other.original_worker_recipe.is_some()
+            && self.original_worker_body_matches(other)
+    }
+}
 impl Eq for BodyLatticeInputs {}
 impl Hash for BodyLatticeInputs {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.original_worker_recipe.is_some() {
+            true.hash(state);
+        }
         self.certificate.is_some().hash(state);
         if let Some(certificate) = &self.certificate {
             certificate.hash(state);
@@ -2055,5 +2093,79 @@ mod native_source_lattice_tests {
         assert_eq!(a_computations, 1);
         assert_eq!(a_ids.len(), 2);
         assert_ne!(a_ids[0], a_ids[1]);
+    }
+}
+
+/// One actual body taint-worker result and its complete capsule dependency.
+/// Reporting output remains available independently of source issuance.
+#[derive(Debug, Clone)]
+pub struct OriginalInterproceduralTaintReport {
+    capsule: BodyAnalysisCapsule,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    taints: Arc<std::collections::HashMap<crate::ssa::ValueKey, crate::taint::TaintLattice>>,
+    issued: bool,
+    analysis_context: Option<crate::value_transfer::AnalysisContextKey>,
+}
+impl PartialEq for OriginalInterproceduralTaintReport {
+    fn eq(&self, other: &Self) -> bool {
+        self.capsule == other.capsule
+            && self.dialect == other.dialect
+            && self.taints == other.taints
+            && self.issued == other.issued
+            && self.analysis_context == other.analysis_context
+    }
+}
+impl OriginalInterproceduralTaintReport {
+    /// Actual immutable worker output; this projection supplies no edit grant.
+    #[must_use]
+    pub fn taints(
+        &self,
+    ) -> &Arc<std::collections::HashMap<crate::ssa::ValueKey, crate::taint::TaintLattice>> {
+        &self.taints
+    }
+    pub(crate) fn matches_current(
+        &self,
+        capsule: &BodyAnalysisCapsule,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> bool {
+        self.issued
+            && self.dialect == dialect
+            && self.capsule == *capsule
+            && self.analysis_context.is_some()
+            && self.analysis_context
+                == capsule.original_optimiser_analysis_context(registry, dialect)
+    }
+}
+impl BodyAnalysisCapsule {
+    /// Run the existing body taint worker once with its actual retained summary.
+    /// Missing summary/source keeps the legacy baseline reporting projection
+    /// unavailable for source issuance; it is never repaired by a current map.
+    #[must_use]
+    pub fn original_interproc_taint_report(
+        &self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> OriginalInterproceduralTaintReport {
+        let computed = self.unit.interproc.as_ref().and_then(|analysis| {
+            self.unit
+                .original_interproc_taints_for_body(Some(self.body), registry, analysis)
+        });
+        let analysis_context = self.original_optimiser_analysis_context(registry, dialect);
+        let issued = analysis_context.is_some()
+            && computed.is_some()
+            && self.registry == registry.snapshot()
+            && self
+                .unit
+                .original_optimiser_prepared_unit(registry, dialect)
+                .is_some();
+        let taints = Arc::new(computed.unwrap_or_else(|| (*self.function().taints).clone()));
+        OriginalInterproceduralTaintReport {
+            capsule: self.clone(),
+            dialect,
+            taints,
+            issued,
+            analysis_context,
+        }
     }
 }

@@ -2781,6 +2781,35 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
+    let original_inputs = tcl_compiler::compilation_unit::OriginalFunctionLatticeInputs {
+        qname: key.qname(db),
+        params: key.params(db),
+        upvar_procs: &upvar,
+        proc_params: &proc_params,
+        global_write_procs: &global_write_procs,
+        command_bindings: context.command_bindings(db),
+        procedure_summary_owners: context.procedure_summary_owners(db),
+        lexer_config: config,
+        profile: key.snapshot(db).profile,
+        dialect: key.dialect(db),
+        param_constants: key.param_constants(db),
+        known_classes: &key.module_facts(db).known_classes,
+        traced_variables: &key.module_facts(db).traced_variables,
+        has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
+        original_declaration_body: key.entry(db).original_declaration_body,
+        plain_command_dispatch: key.entry(db).plain_command_dispatch,
+        metadata_context: &key.entry(db).metadata_context,
+        source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+        event_body: key.entry(db).irules_event_body.as_ref(),
+        command_trust: &key.entry(db).command_trust,
+        analysis_context: key.analysis_context(db).key(db),
+    };
+    if let Some(unit) = key
+        .body(db)
+        .original_function_lattice(&original_inputs, registry)
+    {
+        return Arc::new(unit);
+    }
     let prepared = PreparedCfgContext::from_metadata_input(
         (
             upvar,
@@ -2905,16 +2934,25 @@ pub struct ProcBodyKey<'db> {
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
+    Arc::new(original_lower_proc_body(db, key).body().clone())
+}
+
+/// One actual isolated lowering pass, retaining its complete worker recipe.
+/// The compatibility Script query above projects this same immutable result.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn original_lower_proc_body<'db>(
+    db: &'db dyn TclDb,
+    key: ProcBodyKey<'db>,
+) -> tcl_compiler::lowering::OriginalBodyLoweringTemplate {
     let registry = key.snapshot(db).registry.registry();
     let profile = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
-    let config = key.lexer_config(db);
-    Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
+    tcl_compiler::lowering::OriginalBodyLoweringTemplate::lower(
         key.body_text(db),
         key.namespace(db),
         &registry,
-        config,
+        key.lexer_config(db),
         profile,
-    ))
+    )
 }
 
 /// Dependency-certified original source syntax request.
@@ -3059,46 +3097,25 @@ fn build_unit_with_keys_and_input<'db>(
                 req.procedure_summary_owners.clone(),
             )
         });
-        let metadata_context = req.original_metadata_context(registry);
-        let template = req.body_source.and_then(|body_source| {
-            req.command_bindings.prepare_native_body_template(
-                req.body,
-                tcl_compiler::command_binding::BodyProofScope {
-                    source: req.source,
-                    body_source,
-                    original_body_offset: req.original_body_offset,
-                    executable_body_offset: req.executable_body_offset,
-                    metadata: tcl_compiler::registry_invocation::InvocationMetadataInput::Retained(
-                        &metadata_context,
-                    ),
-                    config: req.lexer_config,
-                },
-                registry,
-            )
-        });
+        let template = BodyLatticeInputs::retain_original_worker_template(req, registry);
         if let Some(template) = template {
             let template_context = CfgContext::new(
                 db,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
-                BodyLatticeCommandBindings::from(template.command_bindings),
+                template.command_bindings(),
                 OriginalProcedureSummaryOwners::default(),
             );
             let key = lattice_request_key(
                 db,
                 req,
-                BodyLatticeInputs::from(template.body),
+                template.body().clone(),
                 template_context,
                 &registry_snapshot,
                 epoch,
             );
-            let proofs = tcl_compiler::command_binding::BodySourceProofs::from_body(req.body);
-            let unit = template
-                .variable_relocation
-                .inverse()
-                .and_then(|inverse| function_lattice(db, key).relocated_variable_proofs(&inverse))
-                .and_then(|unit| unit.restored_source_proofs(&proofs));
+            let unit = template.rebind_cached(&function_lattice(db, key));
             if let Some(unit) = unit {
                 lattice_keys.insert(req.body_id, key);
                 returned_candidates.insert(req.body_id, unit.clone());
@@ -3138,7 +3155,8 @@ fn build_unit_with_keys_and_input<'db>(
         let key = lattice_request_key(
             db,
             req,
-            BodyLatticeInputs::from(req.body.clone()),
+            BodyLatticeInputs::retain_original_worker_request(req, registry)
+                .unwrap_or_else(|| BodyLatticeInputs::from(req.body.clone())),
             context,
             &registry_snapshot,
             epoch,
@@ -3164,7 +3182,7 @@ fn build_unit_with_keys_and_input<'db>(
         // The isolated-body caller positions this owned baseline Script and
         // restores current binding proofs. Source-only syntax uses its separate
         // genuine pre-lowering request below.
-        let body_memo = |body_text: &str, namespace: &str| -> Script {
+        let body_memo = |body_text: &str, namespace: &str| {
             let key = ProcBodyKey::new(
                 db,
                 body_text.to_owned(),
@@ -3176,13 +3194,13 @@ fn build_unit_with_keys_and_input<'db>(
                 },
                 body_config,
             );
-            (*lower_proc_body(db, key)).clone()
+            original_lower_proc_body(db, key)
         };
         let source_body_memo = |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
             let key = SourceProcBodyKey::new(db, request.clone());
             lower_proc_body_source(db, key)
         };
-        CompilationUnit::build_memoized_with_source_body_syntax_cache(
+        CompilationUnit::build_memoized_with_original_body_lowering(
             source,
             options,
             &mut lattice_memo,
@@ -3200,34 +3218,25 @@ fn build_unit_with_keys_and_input<'db>(
         })
     });
     drop(returned_candidates);
-    // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
-    // The whole-module summary is still rebuilt here (it is the memo's input);
-    // only unchanged procedures' `propagate_taints` is skipped.
-    let retained = Arc::new(cu.clone());
-    let mut interprocedural_owner = None;
-    let unit = cu.with_interprocedural_memoized(
+    // The private summary producer owns this request. Memoisation retains the
+    // actual body report, not a publicly cloned CU with a substituted summary.
+    let unit = cu.with_original_interprocedural_memoized(
         registry,
         dialect_opt,
-        &mut |body_id: tcl_compiler::ir::ProcedureId,
-              _display: &str,
-              ia: &InterproceduralAnalysis| {
+        &mut |request: &tcl_compiler::compilation_unit::OriginalInterproceduralTaintRequest,
+              body_id: tcl_compiler::ir::ProcedureId,
+              _display: &str| {
             memo_key(db, &lattice_keys, Some(body_id))?;
-            let actual = interprocedural_owner.get_or_insert_with(|| {
-                let mut actual = (*retained).clone();
-                actual.interproc = Some(ia.clone());
-                Arc::new(actual)
-            });
-            let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
-                Arc::clone(actual),
-                body_id,
-                registry,
-            )?;
-            let summary_key = TaintSummaryKey::new(db, capsule);
-            // A hit returns the memoised map by refcount: `FunctionUnit::taints`
-            // is span-free (the offset rebase never touches it), so the unit can
-            // share the cached lattice rather than deep-copying it per procedure
-            // per build.
-            Some(taint_cascade(db, summary_key))
+            let capsule = request.body_capsule(body_id, registry)?;
+            let original_context =
+                capsule.original_optimiser_analysis_context(registry, dialect_opt);
+            let key = OriginalTaintSummaryKey::new(
+                db,
+                capsule,
+                dialect_opt.map(tcl_dialect::DialectProfile::cache_key),
+                original_context,
+            );
+            Some((*original_taint_cascade(db, key)).clone())
         },
     );
     (unit, lattice_keys)
@@ -3307,6 +3316,33 @@ pub fn taint_cascade<'db>(
     Arc::new(taints)
 }
 
+/// Actual body taint request, retaining its effective dialect independently of
+/// the source module's optional reporting profile. The legacy map memo above
+/// remains available to its original callers without issuing source ownership.
+#[salsa::interned]
+pub struct OriginalTaintSummaryKey<'db> {
+    #[returns(ref)]
+    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+    #[returns(copy)]
+    pub effective_dialect: Option<tcl_dialect::DialectProfileKey>,
+    /// Actual prepared worker context; None is a reporting-only purpose.
+    #[returns(ref)]
+    pub original_context: Option<tcl_compiler::value_transfer::AnalysisContextKey>,
+}
+
+/// One real taint worker pass and its sealed request correspondence. Missing
+/// issuance keeps its reporting map and never reruns the worker to gain it.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn original_taint_cascade<'db>(
+    db: &'db dyn TclDb,
+    key: OriginalTaintSummaryKey<'db>,
+) -> Arc<tcl_compiler::body_analysis_capsule::OriginalInterproceduralTaintReport> {
+    let capsule = key.capsule(db);
+    let registry = capsule.registry_snapshot().shared_registry();
+    let dialect = key.effective_dialect(db).map(|profile| profile.profile());
+    Arc::new(capsule.original_interproc_taint_report(&registry, dialect))
+}
+
 /// Original fixpoint inputs with independently certified body correspondence.
 #[salsa::interned]
 pub struct SummaryDepsKey<'db> {
@@ -3380,7 +3416,7 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
 /// result **and** the rebased per-procedure non-taint checks, both
 /// gathered from a single re-derived [`build_unit_with_keys`] so the duplicate
 /// build is paid once for both halves.  `PartialEq` for salsa early-cutoff.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct CheckSolve {
     /// Actual immutable compilation whose Module-issued IDs key this solve.
     unit: Arc<CompilationUnit>,
@@ -3394,6 +3430,16 @@ pub struct CheckSolve {
     /// tail (or the whole-module `optimise_unit` fallback).  Byte-identical to a
     /// bare `optimise_unit`.
     pub optimisations: Vec<Optimisation>,
+}
+
+impl PartialEq for CheckSolve {
+    fn eq(&self, other: &Self) -> bool {
+        self.unit == other.unit
+            && self.taints == other.taints
+            && self.fn_checks == other.fn_checks
+            && self.optimisations == other.optimisations
+            && same_optimisation_provenance(&self.optimisations, &other.optimisations)
+    }
 }
 
 /// The checks-path memoised solve for one document.
@@ -3694,18 +3740,23 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
 pub struct OptDepsKey<'db> {
     #[returns(ref)]
     pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+    /// The actual worker argument; None cannot be replaced by a module label.
+    #[returns(copy)]
+    pub effective_dialect: Option<tcl_dialect::DialectProfileKey>,
+    /// Actual prepared worker context; None is a reporting-only purpose.
+    #[returns(ref)]
+    pub original_context: Option<tcl_compiler::value_transfer::AnalysisContextKey>,
 }
 
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
     deps: OptDepsKey<'db>,
-) -> Arc<Vec<Optimisation>> {
+) -> Arc<tcl_compiler::optimiser::OriginalBodyOptimiserReport> {
     let capsule = deps.capsule(db);
     let registry = capsule.registry_snapshot().shared_registry();
-    Arc::new(
-        capsule.original_body_optimisations(&registry, capsule.unit().ir_module.dialect_profile),
-    )
+    let dialect = deps.effective_dialect(db).map(|profile| profile.profile());
+    Arc::new(capsule.original_body_optimiser_report(&registry, dialect))
 }
 
 /// Whether `module` carries any whole-module trace fact (execution *or*
@@ -3806,74 +3857,51 @@ fn solve_optimisations<'db>(
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
     }
-    let redefined = &cu.ir_module.redefined_procedures;
-    let mut raw = Vec::new();
-    // Each per-proc `optimise_unit_raw` allocates group ids from 0, so the procs'
-    // raw sets carry **colliding** group ids; offset each proc's groups into a
-    // disjoint range so the assembled set has unique ids (the whole-module build's
-    // invariant). The final group numbers are then identical: `renumber_groups`
-    // reassigns by sorted first-appearance, which only depends on the (unchanged)
-    // span order and the preserved per-proc grouping — not the offset values.
-    let mut group_base: u32 = 0;
-
-    // Per-procedure memoised raw optimisations, rebased to absolute spans.
+    let body_capsules: Vec<_> = source_bodies
+        .iter()
+        .map(|id| capsules[id].clone())
+        .collect();
+    let mut assembly = tcl_compiler::optimiser::OriginalOptimiserAssembly::for_body_partition(
+        cu,
+        registry,
+        dialect_opt,
+        &body_capsules,
+    );
+    // Each entire memo report (including complete-empty) is consumed once.
+    // Actual capsule correspondence owns span/group rebasing; callers do not
+    // reconstruct a batch from mutable members or infer missing-body absence.
     for body_id in &source_bodies {
-        if !lattice_keys.contains_key(body_id) {
+        if !lattice_keys.contains_key(body_id) || cu.original_procedure_for_body(*body_id).is_none()
+        {
             continue;
         }
-        let Some(proc) = cu.original_procedure_for_body(*body_id) else {
-            continue;
-        };
-        let body_offset = proc.span.start();
-        let deps = OptDepsKey::new(db, capsules[body_id].clone());
-        let mut max_group: Option<u32> = None;
-        for opt in function_optimisations(db, deps).iter() {
-            let mut opt = opt.clone();
-            opt.span =
-                tcl_lexer::Span::new(opt.span.start() + body_offset, opt.span.end() + body_offset);
-            if let Some(g) = opt.group {
-                opt.group = Some(group_base + g);
-                max_group = Some(max_group.map_or(g, |m| m.max(g)));
-            }
-            raw.push(opt);
-        }
-        if let Some(m) = max_group {
-            group_base += m + 1;
-        }
+        let capsule = &capsules[body_id];
+        let deps = OptDepsKey::new(
+            db,
+            capsule.clone(),
+            dialect_opt.map(tcl_dialect::DialectProfile::cache_key),
+            capsule.original_optimiser_analysis_context(registry, dialect_opt),
+        );
+        let report = function_optimisations(db, deps);
+        assembly.append_body(capsule, report.as_ref());
     }
 
-    // Top-level body: not per-proc memoised (it changes on top-level edits), but it
-    // is usually tiny.  Run the passes on a top-level-only unit — `procedures`
-    // empty so only the top-level is optimised, `interproc` retained so the
-    // top-level's O103 calls resolve — producing absolute-span raw optimisations.
-    let top_unit = top_level_only_unit(cu, redefined);
-    for mut opt in tcl_compiler::optimiser::optimise_unit_raw(&top_unit, registry, dialect_opt) {
-        if let Some(g) = opt.group {
-            opt.group = Some(group_base + g);
-        }
-        raw.push(opt);
-    }
-
-    tcl_compiler::optimiser::finalise_optimisations(&raw, cu, registry, dialect_opt)
+    // This parent-derived top view retains the actual current root witness.
+    // The same single raw worker and unchanged whole-module tail are reused.
+    let top_unit = top_level_only_unit(&assembly);
+    let top_report =
+        tcl_compiler::optimiser::optimise_unit_raw_report(&top_unit, registry, dialect_opt);
+    assembly.append_top_level(&top_report);
+    assembly.finish_report()
 }
 
-/// The top-level-only [`CompilationUnit`] [`solve_optimisations`] runs the
-/// passes over: `procedures` empty so only the top-level is optimised,
-/// `interproc` / `caller_scope` retained so the top-level's O103 calls
-/// resolve against the same boundary / cross-file facts the whole-module
-/// build resolved. Actual trace and deferred-write facts remain copied into
-/// this view from the complete current module.
+/// The source producer derives the existing top-level-only analysis view.
+/// Its actual root owns the complete body roster, full prepared analyses and
+/// effective dialect; a public clone-and-clear cannot supply that receipt.
 fn top_level_only_unit(
-    cu: &CompilationUnit,
-    redefined: &std::collections::HashSet<String>,
+    assembly: &tcl_compiler::optimiser::OriginalOptimiserAssembly,
 ) -> CompilationUnit {
-    let mut selected = cu.clone();
-    selected.procedures.clear();
-    selected.methods.clear();
-    selected.body_units.clear();
-    selected.cfg_module.procedures.clear();
-    selected.ir_module.redefined_procedures = redefined.clone();
-    selected
+    assembly.top_level_unit()
 }
 
 /// Interned complete-document lexer policy for the resolved environment.
@@ -4250,7 +4278,7 @@ pub fn file_analysis_incremental(
 /// converts these to findings, and the policy step decides what shows.
 /// Kept independent of the runtime gate so the query caches across config
 /// toggles.  `Clone + PartialEq` for salsa early-cutoff.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct CompilerDiagnostics {
     /// `run_all_checks` output (GVN / shimmer / thunking / taint / iRules-flow /
     /// SCCP), severities preserved.
@@ -4260,6 +4288,25 @@ pub struct CompilerDiagnostics {
     /// Command-head replay availability for compiler checks, independent of warning count.
     /// Stored callbacks belong to the separate whole-unit taint report.
     pub taint_replays: tcl_compiler::taint::TaintReplayAnalysis,
+}
+
+impl PartialEq for CompilerDiagnostics {
+    fn eq(&self, other: &Self) -> bool {
+        self.checks == other.checks
+            && self.optimisations == other.optimisations
+            && self.taint_replays == other.taint_replays
+            && same_optimisation_provenance(&self.optimisations, &other.optimisations)
+    }
+}
+
+// Salsa must not retain an old source-action receipt when report text agrees.
+// Optimisation's public payload equality remains independent of that currency.
+fn same_optimisation_provenance(left: &[Optimisation], right: &[Optimisation]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.same_original_rewrite_provenance(right))
 }
 
 /// Run the compiler-checks + optimiser passes over a built unit.  Shared by the
@@ -4445,6 +4492,10 @@ pub fn compilation_unit_uncached_from_analysis(
         config,
         Some(input.unit_profile()),
     )?;
+    if let Some(unit) = analysis.original_optimiser_source_unit(text, registry, external_call_sites)
+    {
+        return Some(unit);
+    }
     let declared = tcl_compiler::analyser::utils::document_declared_surface(
         text,
         None,
@@ -11773,5 +11824,400 @@ mod readonly_source_optimisation_owner_tests {
             assert!(function.cfg.executed_source.is_none());
             assert!(function.cfg.native_compilation_admission.is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod original_optimiser_memo_transport_tests {
+    use super::*;
+
+    #[test]
+    fn isolated_body_report_and_legacy_projection_share_the_actual_lowering_pass() {
+        let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&log);
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    sink.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }))),
+        };
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = tcl_lsp_core::stated_profile_for_dialect("tcl8.6").unwrap();
+        let key = ProcBodyKey::new(
+            &db,
+            "set value 1; return $value".to_owned(),
+            "::".to_owned(),
+            profile.name.to_owned(),
+            CompilerMemoSnapshot {
+                profile: Some(profile.cache_key()),
+                registry: registry.snapshot(),
+            },
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        let original = original_lower_proc_body(&db, key);
+        let legacy = lower_proc_body(&db, key);
+        assert!(*legacy == *original.body());
+        let repeated = original_lower_proc_body(&db, key);
+        assert!(original == repeated);
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|query| query.contains("original_lower_proc_body"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn body_optimiser_memo_retains_the_actual_optional_worker_dialect() {
+        let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&log);
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(move |event: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                    sink.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }))),
+        };
+        let file = SourceFile::new(
+            &db,
+            "proc sample {} {puts VALUE}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let config = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+        let unit = document_compilation_unit_for(&db, file, config).unwrap();
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let body_id = *unit
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            Arc::clone(&unit),
+            body_id,
+            registry,
+        )
+        .unwrap();
+        let none = OptDepsKey::new(
+            &db,
+            capsule.clone(),
+            None,
+            capsule.original_optimiser_analysis_context(registry, None),
+        );
+        let selected = OptDepsKey::new(
+            &db,
+            capsule.clone(),
+            Some(input.unit_profile().cache_key()),
+            capsule.original_optimiser_analysis_context(registry, Some(input.unit_profile())),
+        );
+        assert!(none != selected);
+        log.lock().unwrap().clear();
+        let none_report = function_optimisations(&db, none);
+        let selected_report = function_optimisations(&db, selected);
+        assert!(Arc::ptr_eq(
+            &none_report,
+            &function_optimisations(&db, none)
+        ));
+        assert!(Arc::ptr_eq(
+            &selected_report,
+            &function_optimisations(&db, selected)
+        ));
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|query| query.contains("function_optimisations"))
+                .count(),
+            2
+        );
+        assert_eq!(
+            none_report.members(),
+            capsule.original_body_optimisations(registry, None)
+        );
+        assert_eq!(
+            selected_report.members(),
+            capsule.original_body_optimisations(registry, Some(input.unit_profile()))
+        );
+    }
+    #[test]
+    fn a_legacy_lattice_key_cannot_replace_a_later_original_worker_request() {
+        let db = TclDatabase::default();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = tcl_lsp_core::stated_profile_for_dialect("tcl8.6").unwrap();
+        let mut checked = 0;
+        let mut memo = |request: &LatticeRequest<'_>| {
+            let mut upvar: Vec<_> = request
+                .upvar_procs
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            let mut params: Vec<_> = request
+                .proc_params
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            let mut writes: Vec<_> = request
+                .global_write_procs
+                .iter()
+                .map(|(k, v)| (*k, v.clone()))
+                .collect();
+            upvar.sort_by_key(|(id, _)| *id);
+            params.sort_by_key(|(id, _)| *id);
+            writes.sort_by_key(|(id, _)| *id);
+            let context = CfgContext::new(
+                &db,
+                upvar,
+                params,
+                writes,
+                BodyLatticeCommandBindings::from(request.command_bindings.clone()),
+                request.procedure_summary_owners.clone(),
+            );
+            let snapshot = registry.snapshot();
+            let legacy = lattice_request_key(
+                &db,
+                request,
+                BodyLatticeInputs::from(request.body.clone()),
+                context,
+                &snapshot,
+                evaluator_epoch(&db),
+            );
+            let legacy_report = function_lattice(&db, legacy);
+            let actual_body = BodyLatticeInputs::retain_original_worker_request(request, registry)
+                .expect("the real private source callback retains its own request");
+            let original = lattice_request_key(
+                &db,
+                request,
+                actual_body,
+                context,
+                &snapshot,
+                evaluator_epoch(&db),
+            );
+            assert!(legacy != original);
+            let original_report = function_lattice(&db, original);
+            assert!(!Arc::ptr_eq(&legacy_report, &original_report));
+            assert!(*legacy_report == *original_report);
+            assert!(Arc::ptr_eq(
+                &original_report,
+                &function_lattice(&db, original)
+            ));
+            checked += 1;
+            (*original_report).clone()
+        };
+        let unit = CompilationUnit::build_for_memoized(
+            "proc sample {value} {puts $value}\n",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &mut memo,
+        );
+        assert_eq!(checked, 1);
+        assert_eq!(unit.procedures.len() + unit.body_units.len(), 1);
+    }
+    #[test]
+    fn legacy_equal_capsules_cannot_occupy_original_report_memo_keys() {
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let profile = input.unit_profile();
+        let base = CompilationUnit::build_standalone_with_analysis_input(
+            "proc sample {value} {set length [llength $value]; puts $length}\n",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &input,
+        )
+        .unwrap();
+        let current = Arc::new(base.clone().with_interprocedural(registry, Some(profile)));
+        let mut legacy_calls = 0;
+        let legacy = Arc::new(base.clone().with_interprocedural_memoized(
+            registry,
+            Some(profile),
+            &mut |body_id, _, summary| {
+                legacy_calls += 1;
+                base.original_interproc_taints_for_body(Some(body_id), registry, summary)
+                    .map(Arc::new)
+            },
+        ));
+        assert_eq!(legacy_calls, 1);
+        assert!(*legacy == *current);
+        let body_id = current
+            .all_body_function_units()
+            .find_map(|function| function.body_id)
+            .unwrap();
+        let legacy = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            legacy, body_id, registry,
+        )
+        .unwrap();
+        let current = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+            current, body_id, registry,
+        )
+        .unwrap();
+        assert!(legacy == current);
+        let dialect = Some(profile);
+        let legacy_context = legacy.original_optimiser_analysis_context(registry, dialect);
+        let current_context = current.original_optimiser_analysis_context(registry, dialect);
+        assert!(legacy_context.is_none());
+        assert!(current_context.is_some());
+        let db = TclDatabase::default();
+        let key_profile = Some(profile.cache_key());
+        let legacy_taint =
+            OriginalTaintSummaryKey::new(&db, legacy.clone(), key_profile, legacy_context.clone());
+        let legacy_taint_report = original_taint_cascade(&db, legacy_taint);
+        let current_taint = OriginalTaintSummaryKey::new(
+            &db,
+            current.clone(),
+            key_profile,
+            current_context.clone(),
+        );
+        assert!(legacy_taint != current_taint);
+        let current_taint_report = original_taint_cascade(&db, current_taint);
+        assert_eq!(legacy_taint_report.taints(), current_taint_report.taints());
+        assert!(*legacy_taint_report != *current_taint_report);
+        assert!(Arc::ptr_eq(
+            &current_taint_report,
+            &original_taint_cascade(&db, current_taint)
+        ));
+        let legacy_opts = OptDepsKey::new(&db, legacy, key_profile, legacy_context);
+        let legacy_opt_report = function_optimisations(&db, legacy_opts);
+        let current_opts = OptDepsKey::new(&db, current, key_profile, current_context);
+        assert!(legacy_opts != current_opts);
+        let current_opt_report = function_optimisations(&db, current_opts);
+        assert_eq!(legacy_opt_report.members(), current_opt_report.members());
+        assert!(*legacy_opt_report != *current_opt_report);
+        assert!(Arc::ptr_eq(
+            &current_opt_report,
+            &function_optimisations(&db, current_opts)
+        ));
+    }
+    #[test]
+    fn original_report_keys_keep_actual_evaluator_context_across_neutral_capsules() {
+        std::thread::spawn(|| {
+            use tcl_registry::pack_hooks::{
+                HookAnswer, HookCall, HookSlot, PackHookHost, clear_host, install_host,
+            };
+            struct AbstainHost;
+            impl PackHookHost for AbstainHost {
+                fn invoke(&self, _slot: HookSlot, _call: &HookCall<'_>) -> HookAnswer {
+                    HookAnswer::Abstain
+                }
+            }
+            struct ClearHost;
+            impl Drop for ClearHost {
+                fn drop(&mut self) {
+                    clear_host();
+                }
+            }
+            let _clear = ClearHost;
+            install_host(std::rc::Rc::new(AbstainHost));
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let profile = input.unit_profile();
+            let dialect = Some(profile);
+            let build = || {
+                let unit = Arc::new(
+                    CompilationUnit::build_standalone_with_analysis_input(
+                        "proc sample {value} {set length [llength $value]; puts $length}\n",
+                        UnitBuildOptions {
+                            registry,
+                            defer_top_level: false,
+                            config: input.lexer_config(),
+                            dialect,
+                            external_call_sites: None,
+                            declared_commands: None,
+                        },
+                        &input,
+                    )
+                    .unwrap()
+                    .with_interprocedural(registry, dialect),
+                );
+                let body_id = unit
+                    .all_body_function_units()
+                    .find_map(|function| function.body_id)
+                    .unwrap();
+                tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
+                    unit, body_id, registry,
+                )
+                .unwrap()
+            };
+            let db = TclDatabase::default();
+            let first = build();
+            let first_context = first
+                .original_optimiser_analysis_context(registry, dialect)
+                .unwrap();
+            let profile_key = Some(profile.cache_key());
+            let first_opts =
+                OptDepsKey::new(&db, first.clone(), profile_key, Some(first_context.clone()));
+            let first_opt_report = function_optimisations(&db, first_opts);
+            let first_taint = OriginalTaintSummaryKey::new(
+                &db,
+                first.clone(),
+                profile_key,
+                Some(first_context.clone()),
+            );
+            let first_taint_report = original_taint_cascade(&db, first_taint);
+            install_host(std::rc::Rc::new(AbstainHost));
+            let second = build();
+            let second_context = second
+                .original_optimiser_analysis_context(registry, dialect)
+                .unwrap();
+            assert_ne!(
+                first_context.evaluator_revision,
+                second_context.evaluator_revision
+            );
+            assert!(first == second);
+            let second_opts = OptDepsKey::new(
+                &db,
+                second.clone(),
+                profile_key,
+                Some(second_context.clone()),
+            );
+            let second_taint =
+                OriginalTaintSummaryKey::new(&db, second, profile_key, Some(second_context));
+            assert!(first_opts != second_opts);
+            assert!(first_taint != second_taint);
+            let second_opt_report = function_optimisations(&db, second_opts);
+            let second_taint_report = original_taint_cascade(&db, second_taint);
+            assert_eq!(first_opt_report.members(), second_opt_report.members());
+            assert_eq!(first_taint_report.taints(), second_taint_report.taints());
+            assert!(*first_opt_report != *second_opt_report);
+            assert!(*first_taint_report != *second_taint_report);
+            assert!(Arc::ptr_eq(
+                &second_opt_report,
+                &function_optimisations(&db, second_opts)
+            ));
+            assert!(Arc::ptr_eq(
+                &second_taint_report,
+                &original_taint_cascade(&db, second_taint)
+            ));
+        })
+        .join()
+        .unwrap();
     }
 }

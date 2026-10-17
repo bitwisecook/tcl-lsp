@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-17T00:19:55.065796+00:00",
+  "source_paths": 12,
+  "patch_sha256": "35767749a8dba05a7cb1ce60e9d47fc2fb4d46c14cf5215949f95bca1379cf5f",
+  "all_before_after_match": true,
+  "fresh_apply_no_offset_or_fuzz": true,
+  "previous902_final_postflight_pass": true,
+  "execution": "Pending actual TypeScript/Cargo/tests; source integration only."
+}

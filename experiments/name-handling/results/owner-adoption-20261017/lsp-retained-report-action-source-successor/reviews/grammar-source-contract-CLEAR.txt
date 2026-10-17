@@ -1,0 +1,10 @@
+Independent whole source/contract review: CLEAR (source-only)
+Reviewer sol_compiler; 2026-10-17 UTC.
+Final V3 patch 251402974d857135c1736639dd69d26d27e04893d141700c3fb1f437c89533c5
+Manifest b33a3e152748bed546d8cb8eaa8a04218e6da03488de83201c3478c964ca469e
+
+This binds the complete V2 source review recorded in independent-review-HOLD.txt (SHA1f7deb46d07082a949b3ffb6ac20fa0f0b4321abf994897bc01f62defd1811e1) to the immutable V3 successor. Independently confirmed all four Rust afterimages byte-identical to V2. Sole shared-contract delta replaces falsely public Core APIs with actual public Compiler body/member and Registry authored parent/member owners; accurate private Core internal routes/narrative remain. Existing source methods and source files confirm those public visibilities. No visibility/checker/guard change.
+
+Full source axis: actual CurrentSourceContext/full input/config/image, retained original body/member region/full argv and selected schema govern nested grammar. Registry authored parent/member correspondence is explicit. Ordinary scripts, unknown/unrepresented/cooked regions, malformed/ambiguous ownership and depth cutoff do not donate a selected prior vocabulary. Explicit standalone root authoring may retain nested-unavailable debt; selected candidate-edit projection refuses that debt and all existing independent notice/currentness/edit guards remain. No Native, actual frame, closed lookup, Normal, execution or edit permission follows from vocabulary alone.
+
+Independent V3 evidence: exact patch and manifest hashes, all seven before/after hashes, fresh TMP patch --fuzz=0 forward/inverse with exact restored hashes, four Rust AST parses, all29 old complete modules/254 old tests byte-identical. Nine new controls remain unexecuted. No Cargo/build/test/list/trace/gate/main/Git execution or mutation. Compilation/type/API acceptance, actual efficacy/performance, migration/count and owner-gate results remain Root-owned.

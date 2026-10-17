@@ -1,0 +1,18 @@
+{
+  "files": [
+    {
+      "path": "editors/vscode/src/chat/diagnosticAccess.ts",
+      "before_sha256": "61ecfce4e90d23415b75753fdf874d20abb6d2f0f09168acdca0b06078f06f82",
+      "after_sha256": "7b0bc4f193742e476666e2e1e237ccd9bba1587930183cdfa37695639fec0b31"
+    },
+    {
+      "path": "editors/vscode/src/test/currentDiagnostics.test.ts",
+      "before_sha256": "a556351c6b823efa6d4bba0b30d4769a5501d176ded917e97c1d22a91dc6caf9",
+      "after_sha256": "7d39a03208ca42c15a8694320e85fa1becd024c8b966ab258160d52e08e53433"
+    }
+  ],
+  "patch_sha256": "58f8afa703d17c8968bcb2f93a1cd8009df72b7548d08047f2b924d3a1487916",
+  "reason": "Actual tsc failure TS2554 at new pending-resource control invokes zero-argument closure. Declare the same actual zero-argument retained resolver closure type; assertions/fixtures/guards unchanged. Both affected files receive actual scoped Prettier.",
+  "actual_failed_editor_capture": "/workspace/naming-validation/lsp-next-source-owner-editor-batch2",
+  "actual_followup_execution": false
+}

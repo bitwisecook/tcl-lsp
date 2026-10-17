@@ -1,0 +1,9 @@
+Independent source review: CLEAR
+
+Patch: /workspace/naming-validation/current-diagnostics-editor-api-repair1/repair.patch
+Patch SHA-256: 58f8afa703d17c8968bcb2f93a1cd8009df72b7548d08047f2b924d3a1487916
+Manifest: /workspace/naming-validation/current-diagnostics-editor-api-repair1/manifest.json
+
+The exact before hashes in the manifest match the current files. A fresh patch application to an isolated copy succeeded and produced both declared after hashes. The test change corrects the callback type to the actual zero-argument closure assigned and invoked by the resource-change control. The request, await, configuration mutation, assertion, and cleanup remain unchanged. The remaining edits are scoped Prettier formatting in those same two files; no guards, budgets, fixtures, selectors, or assertions changed.
+
+No tests or build were run in this review.

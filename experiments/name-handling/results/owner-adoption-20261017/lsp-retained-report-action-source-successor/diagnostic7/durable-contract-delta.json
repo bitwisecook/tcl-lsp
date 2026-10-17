@@ -1,0 +1,6 @@
+{
+  "path": "docs/design/contracts/lsp-diagnostics-publication.md",
+  "before_sha256": "2ae3ab4aac00b90584af3e9e5c33af0774697676a5e275ae17a7224b616e336b",
+  "after_sha256": "0142ef7e96373acec3427c774e2a5d1c0ced97712f2fefa7b7fc1ebf9ab35806",
+  "basis": "Exact public current-report fields and actual retained request/rejoin consumers; no new semantic authority."
+}

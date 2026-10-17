@@ -404,9 +404,9 @@
     "utc": "2026-10-16T22:00:47.293633+00:00",
     "audit_baseline_counts_unchanged": true,
     "total_required_units": 2158,
-    "implemented_pending_validation": 309,
+    "implemented_pending_validation": 313,
     "verified_complete": 0,
-    "not_started": 1849,
+    "not_started": 1845,
     "remaining_unverified_or_unimplemented": 2158,
     "additional_work_not_counted_as_catalogue_completion": [
       "Native variable-expression read/cell/trace/child-body observer producer remains open; pure expression gap receipt grants no such authority.",
@@ -566,7 +566,7 @@
     "withheld_drafts": [
       "Minifier command/argument alias construction: missing genuine source action/insertion owner; original unknown-command controls remain unchanged."
     ],
-    "owner_facet_reconciliation": "59annex purposes:58integrated pendingvalidation,1blocked; new Logicalmath target owner and two distinct actual Server TYPE/implementation callers. Existing shared leases and workspace-symbol source wrapper not recounted.",
+    "owner_facet_reconciliation": "60 annex purposes:59 integrated pending validation,1blocked. One grouped original optimiser source/worker/full report collection owner added once; DB memo/context/rebind helpers are part of that same purpose. Existing Core692 caller separate; definition grammar cursor reuses existing selected member/body owners.",
     "runtime_build": {
       "status": "PASS",
       "seconds": 57.46,
@@ -659,13 +659,13 @@
     },
     "additional_owner_annex": {
       "path": "docs/work/name-handling/implementation-owner-annex.json",
-      "required": 59,
-      "implemented_pending_validation": 58,
+      "required": 60,
+      "implemented_pending_validation": 59,
       "not_integrated": 1,
       "verified_complete": 0
     },
-    "effective_required_units": 2217,
-    "effective_implemented_pending_validation": 367,
+    "effective_required_units": 2218,
+    "effective_implemented_pending_validation": 372,
     "effective_verified_complete": 0,
     "incoming_remote": {
       "checked_utc": "2026-10-16T18:51:00Z",
@@ -835,7 +835,7 @@
       "scope": "Selected controls only. Completed99tests are65PASS34FAIL. Preview failure retained separately; no whole-group or gate acceptance.",
       "capture": "experiments/name-handling/results/owner-adoption-20261016/cli-mcp-server-889"
     },
-    "fully_implemented_pending_validation": 289,
+    "fully_implemented_pending_validation": 293,
     "partially_implemented_pending_validation": 20,
     "runtime_report_adoptions": {
       "baseline_units": [
@@ -2386,6 +2386,96 @@
       "ordinary_acceptance": false,
       "completed_utc": "2026-10-17T00:17:48.795911+00:00",
       "limits": "Selected replay only; failures/timeouts preserved. Required full gates and editor hosts are not established."
+    },
+    "lsp_next_source_owner_batch": {
+      "utc": "2026-10-17T00:19:55.065796+00:00",
+      "source_paths": 12,
+      "patch_sha256": "35767749a8dba05a7cb1ce60e9d47fc2fb4d46c14cf5215949f95bca1379cf5f",
+      "all_before_after_match": true,
+      "fresh_apply_no_offset_or_fuzz": true,
+      "previous902_final_postflight_pass": true,
+      "execution": "Pending actual TypeScript/Cargo/tests; source integration only.",
+      "new_baseline_units": [
+        "lsp-definition-grammar-cursor-source-owner",
+        "lsp-ai-optimise-apply-currency"
+      ],
+      "baseline_delta": 2,
+      "new_annex": 0,
+      "effective_integrated": 369,
+      "LSP_integrated": 179,
+      "LSP_semantic_integrated": 85,
+      "LSP_validation_integrated": 92,
+      "LSP_documentation_integrated": 2,
+      "LSP_without_integration": 146,
+      "existing_purpose_repairs": [
+        "Workspace-symbol dual original/fresh provider request-owned analysis",
+        "Actual self/trait/generic source checker routes",
+        "Generic Tcl chat optimise handler in existing partial action unit"
+      ],
+      "verified": 0
+    },
+    "optimiser_original_report_v3": {
+      "utc": "2026-10-17T00:23:52.732128+00:00",
+      "patch_sha256": "34b16c11b04cd24e15d4a03fb21048c95af4b79dc15e1fa3532ed4f740494436",
+      "all19_before_after_match": true,
+      "fresh_forward_apply_check": true,
+      "whole_independent_peer": "ed47906e51fbf38fbed1b6b08cb1279ac8ce0d62e3550244c87ae5bd3d80f917",
+      "kernel_independent_peer": "7be0e2f8ec0f1824bb59f6cea60003f42ebf49c3a1923761f72f5cb0c34f056f",
+      "rust_ast_and_scoped_format": 16,
+      "actual_tests_builds": "Unexecuted on this integration; no efficacy or verified claim.",
+      "baseline_units": [
+        "lsp-code-actions-optimiser-rewrite-current-report"
+      ],
+      "baseline_delta": 1,
+      "new_owner_annex": [
+        "compiler.owner.original-optimiser-rewrite-report-collection"
+      ],
+      "new_owner_delta": 1,
+      "effective_required": 2218,
+      "effective_integrated": 371,
+      "LSP_integrated": 180,
+      "LSP_semantic_integrated": 86,
+      "LSP_validation_integrated": 92,
+      "LSP_documentation_integrated": 2,
+      "LSP_without_integration": 145,
+      "verified": 0,
+      "withdrawn_theory": "Earlier CU-backdate concern withdrawn: fresh Module ProcedureIdIssuer participates in existing Eq; no speculative wrapper/epoch added. Real report purpose and full-context gaps repaired."
+    },
+    "current_diagnostic_report_v9": {
+      "utc": "2026-10-17T00:25:11.688720+00:00",
+      "patch_sha256": "3d100f6e1d8e1773674599ca423f7fe0c3480b21f2ec553008d8066ee4dd5072",
+      "independent_source_review_sha256": "e265aa5a0a677ac55db41436513f9b1bb0e3518fca0b3286f1c1c8b844bbd23f",
+      "all7_actual_before_after_match": true,
+      "fresh_apply_no_offset_or_fuzz": true,
+      "tests_typecheck_builds": "Pending; source integration only.",
+      "baseline_units_new": [
+        "lsp-editor-diagnostic-display-vs-analysis"
+      ],
+      "baseline_delta": 1,
+      "annex_delta": 0,
+      "already_partial_extended": [
+        "lsp-editor-diagnostic-generation",
+        "lsp-editor-ai-iterate-currency",
+        "lsp-ai-tcl-actions-currency"
+      ],
+      "existing_owner_annex": "lsp.owner.completed-source-diagnostic-publication",
+      "count_reconciliation": "Display/analysis is a distinct existing baseline actual adapter purpose; its raw publisher route was introduced with the existing owner and retained/admitted through V9. No per-helper or per-handler recount. Broader proposal and legacy AI callers remain partial.",
+      "LSP_integrated": 181,
+      "LSP_semantic_integrated": 87,
+      "LSP_validation_integrated": 92,
+      "LSP_documentation_integrated": 2,
+      "LSP_without_integration": 144,
+      "effective_integrated": 372,
+      "effective_required": 2218,
+      "verified": 0
+    },
+    "retained_report_action_validation": {
+      "capsule": "experiments/name-handling/results/owner-adoption-20261017/lsp-retained-report-action-source-successor",
+      "ordinary_build": "RUNNING00:28:13UTC39030inputs/admission85; final build/source/artifacts pending.",
+      "editor": "First12PASS408; diagnosticFAIL408TS2554/format, exactnarrowreviewedrepair thenPASS408 TS/format/worker/Node+browserbundles; all0drift; actualhosts unexecuted.",
+      "source_reviews": "Independent exactsource/contract CLEAR only; no efficacy claim.",
+      "counts": "181/325LSP87semantic92validation2docs; baseline313/2158(293full20partial);annex59/60;effective372/2218;0verified.",
+      "next_source_work": "Studio saved-image publication V2/clientV19 underreview; code-action source/version intent and decoded-lambda phase carriers in TMP; BIGIP-specific Sublime spelling packet deferred."
     }
   }
 }

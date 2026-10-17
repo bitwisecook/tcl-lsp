@@ -512,22 +512,38 @@ pub fn completions(
 
     // Definition bodies and document grammars have a closed member vocabulary;
     // the selected Registry owns both nesting and the permitted heads.
-    if let Some(registry) = registry
-        && let Some(grammar) =
-            definition_grammar_at_position(source, line, character, &line_index, analysis, registry)
-    {
-        return original_word_completion_edits(
+    if let Some(registry) = registry {
+        let vocabulary = definition_grammar_at_position(
             source,
             line,
-            &prefix,
-            grammar_member_completions(
-                grammar,
-                &partial,
-                registry,
-                current.config(),
-                current.context().context(),
-            ),
+            character,
+            &line_index,
+            analysis,
+            registry,
         );
+        if crate::source_structure::SourceDefinitionGrammar::unavailable(&vocabulary).is_some() {
+            return Vec::new();
+        }
+        // A standalone root authoring projection may retain unavailable child
+        // traversal. It is not a selected nested body or an edit vocabulary.
+        if let Some(grammar) = crate::source_structure::SourceDefinitionGrammar::for_authoring(
+            &vocabulary,
+            source,
+            analysis,
+        ) {
+            return original_word_completion_edits(
+                source,
+                line,
+                &prefix,
+                grammar_member_completions(
+                    grammar,
+                    &partial,
+                    registry,
+                    current.config(),
+                    current.context().context(),
+                ),
+            );
+        }
     }
 
     let usage = document_usage_counts(analysis);
@@ -2020,43 +2036,33 @@ fn scoped_env_at(
         .map(|r| r.env)
 }
 
-/// The definition-body grammar whose members are the **whole** answer at the
-/// cursor's command position, or `None` when the position also admits
-/// ordinary commands.
-///
-/// Registry data decides every part of it. Whether the document has closed
-/// bodies at all is [`CommandRegistry::document_grammar`]: a dialect whose
-/// *file* is itself a declaration body declares one, and nothing in such a
-/// document is ever evaluated, so a block inside it admits its grammar's
-/// members and nothing else. A document with no document grammar is a script,
-/// and a definition body in a script is still executable Tcl — `oo::class
-/// create C { if {…} { method m {} {…} } }` is legal and runs — so its bodies
-/// stay open and completion there is unchanged. Below the root it is the same
-/// nesting rule the folding and semantic-token walks apply
-/// ([`crate::oo_body::definition_grammar_at`]). No dialect or declaration name
-/// appears here.
+/// Current authored vocabulary at a strict original source position.
+/// Ordinary Tcl definition scripts keep their open command completion purpose.
+/// A declaration document separately retains selected nested grammar, explicit
+/// root authoring vocabulary/debt, ordinary script context or unavailable source.
 fn definition_grammar_at_position(
     source: &str,
     line: u32,
     character: u32,
-    line_index: &tcl_lexer::LineIndex,
+    _line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
-) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
-    registry.document_grammar()?;
-    let config = analysis.body_lexer_config?;
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return None;
+) -> crate::source_structure::SourceDefinitionGrammar {
+    use crate::source_structure::{DefinitionGrammarUnavailable, SourceDefinitionGrammar};
+    // Ordinary Tcl definition scripts remain open completion positions. This
+    // consumer closes only explicit standalone authoring vocabularies.
+    if registry.document_grammar().is_none() {
+        return SourceDefinitionGrammar::OrdinaryScript;
     }
-    let context = analysis.resolved_input.as_ref()?.context_registry();
-    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    crate::oo_body::definition_grammar_at(
-        source,
-        offset,
-        registry,
-        config,
-        Some(context.context().authoring_query()),
-    )
+    let Some(position) =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+    else {
+        return SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource);
+    };
+    if !std::ptr::eq(position.context().registry(), registry) {
+        return SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource);
+    }
+    crate::oo_body::definition_grammar_from_analysis(source, analysis, position.offset())
 }
 
 /// Completion items for the member words of a definition-body grammar — the

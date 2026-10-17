@@ -85,8 +85,8 @@ pub fn optimise_unit(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
-    let raw = optimise_unit_raw(cu, registry, dialect);
-    finalise_optimisations(&raw, cu, registry, dialect)
+    let raw = optimise_unit_raw_report(cu, registry, dialect);
+    finalise_original_optimiser_report(&raw, cu, registry, dialect)
 }
 
 /// The total ordering key used to canonicalise the optimisation set before
@@ -218,6 +218,46 @@ pub fn finalise_optimisations(
     // `CompilationUnit`. Also keeps `output_is_sorted_by_span_start`.
     sort_optimisations(&mut selected);
     renumber_groups(&mut selected);
+    // Bind only final worker results: raw/procedure memo output is not an
+    // actionable whole-source group, and current analysis cannot donate this.
+    // Public callers can supply arbitrary raw vectors; only actual raw worker
+    // receipts can survive into an actionable final batch.
+    for member in &mut selected {
+        member.issued_rewrite = None;
+    }
+    selected
+}
+
+/// Run the ordinary raw worker once, retaining a complete collection receipt
+/// only when the exact supplied unit came from the original source producer.
+#[must_use]
+pub fn optimise_unit_raw_report(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> super::OriginalRawOptimiserReport {
+    let owner = cu.original_optimiser_prepared_unit(registry, dialect);
+    let members = optimise_unit_raw(cu, registry, dialect);
+    super::OriginalRawOptimiserReport::from_worker(members, owner)
+}
+
+/// Finalise one complete original raw collection. Arbitrary vectors remain
+/// report-only through `finalise_optimisations`; no current unit donates issuance.
+#[must_use]
+pub fn finalise_original_optimiser_report(
+    raw: &super::OriginalRawOptimiserReport,
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Vec<Optimisation> {
+    let owner = raw
+        .current_owner(cu, registry, dialect)
+        .filter(|owner| owner.is_whole_source_unit())
+        .cloned();
+    let mut selected = finalise_optimisations(raw.members(), cu, registry, dialect);
+    if let Some(owner) = owner {
+        super::original_report::issue_final(&mut selected, &owner, cu, registry, dialect);
+    }
     selected
 }
 

@@ -1,0 +1,25 @@
+{
+  "source_clear": true,
+  "independent_whole_review": "ed47906e51fbf38fbed1b6b08cb1279ac8ce0d62e3550244c87ae5bd3d80f917",
+  "independent_kernel_review": "7be0e2f8ec0f1824bb59f6cea60003f42ebf49c3a1923761f72f5cb0c34f056f",
+  "joint_current_main_composition": "No overlapping source replacements; retains both prior workspace provider admissions and Core grammar cursor changes. Shared contract insertions retain all ingredient rows.",
+  "rust_ast_and_scoped_format_pass": [
+    "rust/tcl-compiler/src/analyser/diagnostics.rs",
+    "rust/tcl-compiler/src/analyser/types.rs",
+    "rust/tcl-compiler/src/body_analysis_capsule.rs",
+    "rust/tcl-compiler/src/compilation_unit.rs",
+    "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+    "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+    "rust/tcl-compiler/src/lowering/mod.rs",
+    "rust/tcl-compiler/src/optimiser/manager.rs",
+    "rust/tcl-compiler/src/optimiser/mod.rs",
+    "rust/tcl-compiler/src/optimiser/original_report.rs",
+    "rust/tcl-explorer/src/coverage.rs",
+    "rust/tcl-lsp-core/src/code_actions.rs",
+    "rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs",
+    "rust/tcl-lsp-core/src/diagnostic_policy.rs",
+    "rust/tcl-lsp-db/src/lib.rs",
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "test_or_build_execution": false
+}

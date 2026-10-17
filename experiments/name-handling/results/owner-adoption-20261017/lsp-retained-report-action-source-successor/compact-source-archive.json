@@ -1,0 +1,22 @@
+{
+  "initial12": {
+    "original_sha256": "35767749a8dba05a7cb1ce60e9d47fc2fb4d46c14cf5215949f95bca1379cf5f",
+    "compressed_sha256": "bec182c714c589a8c9ccad807e4a514987b27d1c2dcefd8be362455ee9b1e88c",
+    "bytes": 27140
+  },
+  "optimiser19": {
+    "original_sha256": "34b16c11b04cd24e15d4a03fb21048c95af4b79dc15e1fa3532ed4f740494436",
+    "compressed_sha256": "f1960751ffc9e4cc5fcf41d6e96b4d8da44830a1ebc37b54ab30fd84b4a3e78d",
+    "bytes": 45876
+  },
+  "diagnostic7": {
+    "original_sha256": "3d100f6e1d8e1773674599ca423f7fe0c3480b21f2ec553008d8066ee4dd5072",
+    "compressed_sha256": "7b25d6cfa717f13f5c6903685826efbd5eb6d0e9b0882eab87de98e55a922ae3",
+    "bytes": 10675
+  },
+  "editor-api-repair": {
+    "original_sha256": "58f8afa703d17c8968bcb2f93a1cd8009df72b7548d08047f2b924d3a1487916",
+    "compressed_sha256": "220a4a6afe902dd4d9ac6fdf20930cf6f213a2645c5bba5c4ea5b19f3e90ca26",
+    "bytes": 680
+  }
+}

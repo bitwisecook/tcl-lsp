@@ -284,6 +284,21 @@ reusing a closed analytical correspondence. Missing correspondence retains exact
 inputs or recomputes. Cache reuse grants no Native entry or selected-command
 authority.
 
+Original source lattice callbacks additionally retain the exact source-issued
+request, full prepared CFG context, optional profile and complete worker inputs.
+A data-only memo descriptor must match that recipe before the existing CFG,
+function and semantic workers run. The returned private receipt compares every
+original FunctionUnit field and its actual semantic-value owner availability;
+matching CFG alone cannot authenticate altered seeds, traces, transfer context
+or mutable analysis results. Genuine template and neutral correspondence owners
+restore only their original proof/variable relocation and reissue the current
+request receipt. Unsupported callbacks keep existing reporting and CFG fallback
+behaviour, with no original worker receipt. Issued-worker and legacy cache keys
+have distinct purposes; same-purpose body/certificate equality and neutral memo
+reuse remain unchanged, and neither a purpose bit nor an equal source label
+supplies original worker, transform, runtime, cell or Normal authority.
+
+
 Closed body capsule equality retains each complete original semantic bundle. A private source transport requires two independently authenticated equal body correspondences and injective variable relocations before moving an exact original lowered statement and its same-site complete tokens to the peer's genuine source. Operation descriptors, effects, completion identities, structural nodes, world-state SSA, metadata and availability remain fully compared. Unsupported executable shapes and Native admissions retain exact bundle equality. The rebound bundle serves equality alone and cannot supply executable facts or Native authority.
 
 A memoised taint check retains its genuine immutable compilation producer alongside the solved Module-issued body IDs. Warning projection and diagnostic source-context selection use that same unit; a separately built unit with equal source and display names cannot select the solved body maps. The independent configured source, grammar and Registry ingress checks remain required.
@@ -2034,3 +2049,155 @@ unchanged. Shared new source facets are counted by their demonstrated owner
 purpose, never once per helper, test or call site.
 
 Logical math syntax may reborrow the actual root traversal's whole original Document words independently of command candidate coordinates. The geometry receipt retains full input, original source origin and exact word vector; it cannot come from a declared/body scope. Unknown namespace paths still make command/function coordinates and source declaration inventories unavailable. Original alias lineage and earlier-unknown mutation obligations remain attached; Registry builtin metadata remains conditional documentation, never an installed function or execution/edit/absence grant.
+
+
+### Workspace-symbol request input currency
+
+The actual workspace/symbol handler retains one checked source analysis/input
+per URI for its single request. Every indexed original location still passes
+its unchanged URI and genuine validated_span selector against that analysis;
+Logical report candidates retain their separate original image/index revision
+owner, without a report-name inverse or Native identity grant. Fallback source
+analyses are retained alongside their emitted hits instead of being discarded
+and recreated per symbol. The query/cap remain presentation limits.
+
+Indexed published database documents borrow the existing
+OriginalReadonlyReferenceDocument owner: actual SourceFile, source/input/config,
+path/provider admission, DB revision and library publication. Genuine Pending,
+Salsa or no-handle source paths instead retain their actual FreshAnalysisSeed,
+full current ResolvedAnalysisInput/Realm, complete selected diagnostic config,
+actual global DB revision, input/factory epochs, URI publication generation,
+source snapshot and independently captured path admission. A missing SourceFile
+is never manufactured and does not turn genuine pending, pathless, in-memory
+or Native source into absence. The pre-existing published orphan exclusion
+remains independent. Geometry-only closed reads resolve their genuine current
+document input before semantic validation; changed source cannot be repaired
+by the later read.
+
+The existing readonly final source transaction is shared rather than copied.
+Its original reference/hierarchy wrapper retains every old original-document
+predicate. Input/factory/open/DB/publication guards remain held from the
+full-input checks through the selected SourceStore path/provider lease and the
+final synchronous response projection. DB input and full Fresh configuration
+checks happen once per selected URI before entering the provider callback,
+without releasing those guards. The symbol continuation takes a nonblocking
+index read under the established documents-to-index order and validates each
+captured actual document revision. Missing/busy/stale ownership is unavailable,
+not an empty workspace or declaration-absence certificate. The existing SourceStore path/provider
+contract does not invent a physical Native file-content lock. No runtime table,
+lookup, body/frame entry, Native, Normal or edit permission follows.
+
+This is a bounded successor for existing workspace-symbol source-snapshot
+purpose and validation row724. It advances no baseline counts and preserves
+all original selectors, fixtures, assertions, cap and budgets. The timeout log
+reports only one running test and identifies no measured hotspot; source-level
+removal of repeated analysis capture is a candidate repair, not performance or
+efficacy evidence. New fixed source controls remain unexecuted until Root binds
+and executes an actual frozen successor.
+
+
+Workspace-symbol source-read admission and current-analysis admission remain
+independent receipts. The final transaction leases both the original
+DocumentState mapping and the real DB/fresh analysis mapping. A newly allocated
+alias with equal URI/path/source cannot renew the old source-read issuer. Each
+supplied source admission must own the row URI; HostReported file rows without
+the original source-read receipt remain refused, preserving the prior boundary.
+Native and pathless/in-memory purposes retain their existing admissible paths.
+
+
+### Definition grammar cursor source purpose
+
+Completion and SpecPack property-word candidate edits select their current definition vocabulary
+through the existing genuine source/body inventory, not a rendered command head.
+The original whole argv, selected body and member-parent receipt, complete input,
+configuration and actual Registry context remain attached to a selected nested
+vocabulary. Missing correspondence and unexamined depth are typed unavailable;
+ordinary script positions are separate. A configured declaration document may
+supply its explicit root authoring vocabulary while retaining unavailable-child
+debt. Those root suggestions cannot claim nested selection or supply an edit
+vocabulary. Typed loader subject/currentness and independent edit guards remain
+mandatory. See [the cursor source contract](../analysis/name-resolution-proofs/core-original-definition-grammar-cursor.md).
+
+
+### Original optimiser rewrite producer and current action group
+
+The LSP rewrite adapter consumes worker-issued final findings, not a current
+source stamp attached to an arbitrary Report. The original private source
+pipeline retains its complete source image, full analysis input and entry,
+Registry, declaration/sidecar surface, external call-site evidence, actual
+analysis context (including evaluator revision, overlay, tier and deferred
+facts), and exact optional effective dialect. Its prepared witness retains all
+actual compilation and function analyses. Public CU/FunctionUnit fields remain
+report-compatible; changing any pass input cannot inherit the old witness.
+
+Memo callbacks have independent genuine producer obligations. The actual
+source-loop lattice request and exact actual worker result must rejoin; a
+publicly modified request, key or function never acquires that correspondence
+from CFG equality alone. Isolated body lowering uses the existing lowerer with
+an immutable exact body/namespace/Registry/config/dialect artifact. The existing
+neutral source-syntax cache keeps its original full shape/current-owner checks.
+Accepted legacy Script/lattice callbacks retain reporting output but withhold
+whole-CU issuance. Interprocedural taint memo requests originate after the real
+private summary worker; their capsule owns the actual summary dependency and
+current source correspondence. Caller-assigned summary maps cannot mint them.
+
+The raw optimiser report is an entire ordered immutable collection, including
+an empty result. Public raw vectors and public arbitrary-vector finalisation
+remain reporting-only. The body memo keeps every actual projected member and
+complete empty body result under its existing genuine capsule dependency and
+exact optional worker dialect. A current whole-unit assembler requires its
+entire actual body roster, no duplicates or omissions, and the genuine
+parent-derived top-level view before the unchanged final overlap/coupling/
+resurrected-reference/group tail can issue final members. Top-level-only views
+cannot independently acquire whole-source finalisation permission. Existing
+neutral body correspondence permits equivalent memo reuse across unrelated
+root edits; the final whole-source origin is always the actual current root.
+
+Ordinary optimisation payload Eq/Hash stays unchanged. Tracked aggregate report
+equality independently compares authenticated final provenance, so identical
+visible text cannot retain an old receipt. Uncached code-action reports rebuild
+once from the current analysis's retained original request, including its
+actual declaration/sidecar and external evidence, rather than donating a
+pathless reconstructed surface. Missing source ownership preserves the
+existing reporting path; it supplies no new action permission.
+
+Policy conversion retains each original final member. Actual code actions
+require one complete same-batch group, current original source-build inputs,
+original Realm, full source/input/config/Registry, and exact worker payload.
+Changed, missing, duplicated, foreign and partially suppressed groups refuse;
+hint-only, policy visibility, FixSafety and actual pass eligibility remain
+independent. Manual Rewrite data stays reporting-only. Source context or
+geometry supplies no equivalence, runtime/Native entry, absence, Normal,
+unattended-safe classification or permission to execute a replacement.
+
+
+The actual DB adapters use `original_lower_proc_body`, `original_taint_cascade`
+and `function_optimisations` under the existing tracked keys. Their private
+`build_unit_with_keys_and_input` and `solve_optimisations` implementations
+transport complete original collections and current capsules rather than
+editing public member vectors. `compiler_check_diagnostics_if_available` and
+`compilation_unit_uncached_from_analysis` retain the genuine current request.
+`CheckSolve` and `CompilerDiagnostics` preserve every old payload comparison
+and separately compare authenticated final rewrite provenance for Salsa
+currency; the private comparator supplies no public issuer or cross-crate
+source route. Missing issuance is retained independently of complete empty
+reporting output and never triggers another optimiser run.
+
+
+The new typed taint and body-optimiser memo keys retain the optional actual
+`AnalysisContextKey` from the current capsule's private prepared-source issuer
+for the exact Registry and optional effective dialect. `None` keeps legacy
+report-only requests distinct; `Some` retains evaluator revision, overlay,
+tier and other actual worker assumptions even when neutral capsule payloads
+agree. Both immutable worker reports also retain this actual context and
+independently compare it against the current source owner before rebind; a
+caller-created memo key supplies no authority. Existing capsule equality/hash
+and neutral reuse with the same worker context are unchanged. No full source
+or allocation ID is added to body memo keys, and no additional worker pass is
+introduced.
+
+The source origin records which private source ingress actually ran: default
+authoring, explicit Standalone with retained input, or retained-entry analysis.
+The uncached analysis reborrow selects that same existing producer and requires
+its rebuilt origin to match before exposing the unit. A retained source entry
+alone cannot convert Standalone authoring into supplied-document analysis.
