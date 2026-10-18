@@ -1,0 +1,41 @@
+diff --git a/rust/tcl-lsp-core/src/original_oo/instance_completion.rs b/rust/tcl-lsp-core/src/original_oo/instance_completion.rs
+index b91d41646..e105bb220 100644
+--- a/rust/tcl-lsp-core/src/original_oo/instance_completion.rs
++++ b/rust/tcl-lsp-core/src/original_oo/instance_completion.rs
+@@ -216,6 +216,9 @@ pub(crate) fn instance_method_completion_record<'a>(
+ 
+ /// Original intra-command separators use the selected grammar and shared
+ /// continuation owner. A bare newline, separator or comment is another site.
++/// Bytes are read the way the parser reads the document
++/// ([`tcl_lexer::SourceChannel::script_byte`]), so a lone CR that the
++/// dialect's `source` translates ends the command here as it does there.
+ pub(crate) fn completion_gap(source: &str, start: u32, cursor: u32, config: LexerConfig) -> bool {
+     let Some(gap) = source.get(start as usize..cursor as usize) else {
+         return false;
+@@ -223,16 +226,20 @@ pub(crate) fn completion_gap(source: &str, start: u32, cursor: u32, config: Lexe
+     if gap.is_empty() {
+         return false;
+     }
++    let channel = tcl_lexer::SourceChannel::Document;
+     let bytes = gap.as_bytes();
+     let mut at = 0;
+     while at < bytes.len() {
+-        if config.word_separators.is_separator(bytes[at]) {
++        if channel
++            .script_byte(
++                config.source_line_endings,
++                source.as_bytes(),
++                start as usize + at,
++            )
++            .is_some_and(|byte| config.word_separators.is_separator(byte))
++        {
+             at += 1;
+-        } else if let Some(end) = tcl_lexer::source_backslash_continuation_end(
+-            bytes,
+-            at,
+-            tcl_lexer::SourceChannel::Document,
+-        ) {
++        } else if let Some(end) = tcl_lexer::source_backslash_continuation_end(bytes, at, channel) {
+             at = end;
+         } else {
+             return false;
