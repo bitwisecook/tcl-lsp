@@ -275,6 +275,9 @@ pub struct LexerGrammar {
     pub quote_termination: QuoteTermination,  // "abc"def — Strict vs Concatenating
     pub var_syntax: VarSyntax,             // $(...), nested index parens, high bytes
     pub list_parse: ListParse,             // malformed list text — Strict vs Lenient
+
+    // ---- the script-file reader (Jim differs here too) ----
+    pub source_line_endings: SourceLineEndings, // `source` reads lone CR as LF? TranslateAuto vs Preserve
 }
 
 /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
@@ -303,6 +306,15 @@ built from the upstream tags 0.76–0.84 against tclsh 8.6 / 9.0:
 * `list_parse` — malformed list text never errors: an unterminated `{`/`"`
   runs to the end of the string, and junk after a closing delimiter begins
   the next element. `tcl_syntax::list::split_list_jim` implements it.
+
+A sixth Jim difference describes the file reader rather than the parser.
+`source_line_endings`: C Tcl's `source` opens the file with
+`-translation auto`, so a lone CR in a Document ends a command or comment.
+This was measured on tclsh 8.4.20–9.1.0, and `eval` of the same bytes keeps
+the CR as a word separator. Jim's `Jim_EvalFile` translates nothing: on
+jimsh 0.84, `#\r{\nputs reached\n` prints `reached`. The lexer applies the
+axis through `SourceChannel::script_byte`, and only to Document input. The
+F5 trunk inherits `TranslateAuto` from its 8.4 base; no oracle decides it.
 
 `brace_backslash_newline` moves real bindings: `proc p {a b\<newline>c}`
 binds three parameters under Tcl and **two** under Jim (the second element

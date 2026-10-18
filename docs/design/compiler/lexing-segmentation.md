@@ -66,6 +66,11 @@ break in the incremental counter (but not the index) made the token *after* it
 report `start` one line below its own `end` — a backwards range. Any new
 position-tracking path must keep the two mechanisms in lock-step.
 
+Command structure follows a different rule from positions. In a Document whose
+grammar's `source_line_endings` is `TranslateAuto` (C Tcl's `source`), a lone
+CR is an `Eol`, read through `SourceChannel::script_byte`. Positions still
+break only on `\n`.
+
 ### Stage 2 — Segmentation
 
 `segment_script_image_with_offset_and_config` returns a checked `SegmentedScript`:

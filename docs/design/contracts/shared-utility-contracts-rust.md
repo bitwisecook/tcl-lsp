@@ -3761,6 +3761,38 @@ using the independently issued source-string protocol. `source_literal_bytes`
 and `source_braced_word_bytes` select Document translation and braced folding
 without replacing the original image. Document CR/CRLF becomes value LF;
 NativeValue retains raw CR/CRLF and recognises only backslash-LF continuation.
+The lexer reads every structural byte through `SourceChannel::script_byte`.
+That function reads a lone CR as LF only for a Document whose grammar's
+`source_line_endings` is `TranslateAuto`. That covers C Tcl 8.4–9.1, and the
+F5 trunk by inheritance, which no oracle decides. The CR then ends a command
+or comment, as in tclsh `source`. A Jim Document (`Preserve`) and every
+NativeValue keep the CR as a word separator. The rewrite is byte for byte, so
+original offsets, `LineIndex` lines and UTF-16 positions do not move. The CR
+of a CRLF stays a word separator before its LF.
+
+The rule covers the lexer and the consumers of its tokens: the CST builder,
+the segmenter's command split, `group_commands_bytes`, parse cuts and word
+cursors. Current limitation: the following raw-byte scanners have no channel.
+They are correct only on text already normalised at the boundary with
+`normalise_lone_cr`, as the server, CLI and MCP do:
+
+- `structural_index` (`BracketIndex`, `BraceIndex`)
+- `ranges::command_substitution_end`
+- `word_parts::command_subst_close`
+- the blank-line count in `Grouper::close`
+- segmenter recovery (`find_recovery_offset`) and `single_newline_gap`
+- the E201 line heuristics
+- the line filter of `comment_line_starts`
+- the line-keyed suppressions
+
+Three further current limitations:
+
+- `source`'s `^Z` end of file is not modelled.
+- Normalisation is not chosen per dialect by the issuer. The boundaries still
+  normalise a lone CR for Jim documents.
+- Backslash-CR and backslash-CRLF continuations are not gated on this axis,
+  so they also apply to Jim Documents.
+
 C Tcl's default `source` file channel translates CRLF; current Jim `source`
 preserves it. A source issuer retains the actual channel, rather than inferring
 it from byte contents or the physical compiler point. Escaped NUL uses the
