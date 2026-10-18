@@ -1,0 +1,13 @@
+{
+ "recorded_utc": "2026-10-18T16:00Z",
+ "source": "User answers in chat (AskUserQuestion)",
+ "decisions": {
+  "DB921": "Merged unit design: one analysis unit per evaluated proc carrying both the readonly authored and Installed lowerings; admission requires measured runs across coverage, interprocedural, object_types, source_graph, SSA and DB tests.",
+  "package_survey_logical": "Option (a): survey-scoped Logical conditional source control that walks first-match bodies as C Tcl does, plus registry form data for one-argument `package provide` and a decoded-child advice path; survey test assertions kept; Logical contract amended for that scope only.",
+  "forced_import_sibling_offsets": "Move query offsets of the sibling import-lifecycle tests in definition.rs onto the call head word; fixtures and expected values unchanged unless tclsh contradicts them; recorded as test-input corrections.",
+  "test_only_lexical_helpers": "Delete the test-only helpers in package reachability (original_data_word, script_of, command_source, bracketed_body, parse_vsatisfies, is_tcl_version_subject, is_requirement_word, cfg(test) Guard::TclSatisfies) with their only-caller assertions in reachability/tests.rs 489-527 and 567-587.",
+  "Server102_103": "Snapshot consistency: answer from one captured snapshot revision per request (#1854); drop only if the snapshot itself is invalidated.",
+  "Server108": "Reuse cached per-document analysis keyed on input revision; re-analyse only changed documents; 180 s budget unchanged."
+ },
+ "still_open": []
+}
