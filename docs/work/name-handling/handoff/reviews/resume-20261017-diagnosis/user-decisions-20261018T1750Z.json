@@ -1,0 +1,13 @@
+{
+ "recorded_utc": "2026-10-18T17:50Z",
+ "source": "User answers in chat (AskUserQuestion)",
+ "decisions": {
+  "forced_import_export_input": "Add whole-program export facts to the definition route so the three PARTLY_OBSERVABLE forced-import tests can answer as tclsh does for the whole program; tests stay as written.",
+  "forced_import_prelude": "Add `rename auto_import savedPrelude; ` to the forced-import fixtures (same fixture fix as 2026-10-18T09:15Z; tclsh 8.4-9.1 output identical).",
+  "server108_fixture": "Publish the Server108 fixture documents through Salsa (like register_current) so the fixture reaches the production cache path; assertions and the 180 s budget unchanged."
+ },
+ "coordinator_applications": {
+  "forced_import_onto_existing": "Implement `namespace import -force` onto an existing command per C Tcl (the follow-C-Tcl rule of 11:55Z).",
+  "two_unsupported_expectations": "holds_no_export_for_the_source (None) and cannot_see_still_shadows (abstention) stay: an abstention is fail-closed, not a contradiction of tclsh."
+ }
+}
