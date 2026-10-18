@@ -1,0 +1,17 @@
+{
+ "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+ "archive": "capture-lsp46.tar.gz",
+ "sha256": "a8a09902b6df8b41421f861e2e17e4e987159d202e13773bd7b76f7ba111c435",
+ "members_index_sha256": "72cde67afc0400b83102de16633d527f5fc3a770ca9e210cf64badc1f790e820",
+ "members": 1119,
+ "source_head": "106babc99 (integration44 incl. amendment)",
+ "source_snapshot_sha256": "0fc5631ba545ff8030285cdeef2224b729271f6d81ab8d7929bae88eaed76407",
+ "artifacts_sha256": "a6406b98c4750cdea0b3a1b2d0b4a4db7a2fc82419929a2864b74885b4843551",
+ "completed": 1085,
+ "passed": 865,
+ "failed": 220,
+ "timeouts_in_failed": 2,
+ "comparison_to_capture43": "Zero pass->fail across all 1085 selectors; five gains: logical_lambda_namespace_is_its_own_original_source_owner (additive), original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice, linked_spelling_rejects_surrogate_interior_cursor_and_same_named_data, signature_cursor_unicode_cr_and_utf16_positions_do_not_clamp (513), signature_keeps_real_namespace_frame_and_declines_unowned_equal_spelling.",
+ "extra5_pin_drift": "Recorded under the separate label; three pinned control sources changed since pinning.",
+ "scope": "Direct LSP selections; not compiler/integration/server-process/host acceptance."
+}

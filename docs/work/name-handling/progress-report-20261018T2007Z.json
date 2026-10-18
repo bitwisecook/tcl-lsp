@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T20:07:32.684488+00:00",
+  "scheduled_report_utc": "2026-10-18T20:06:27Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "integration44": {
+      "commits": [
+        "d23563657",
+        "0c3d7732e",
+        "106babc99"
+      ],
+      "evidence": "experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-13/capture.json",
+      "capture46": "1085/1085 executed, 865 pass / 220 fail (2 timeouts), all source/provider/ELF guards pass",
+      "against_capture43": "zero pass->fail; 5 fail->pass (signature 513 lone-CR, call-hierarchy lone-CR geometry, linked-editing surrogate cursor, signature namespace frame, logical lambda namespace owner)",
+      "unit_mapping": "verification progress only; audit-unit closure needs the partial-row obligations mapped (not yet done)"
+    }
+  },
+  "reviews_since_previous_report": {
+    "forced-import": "Luna-28 rounds v2-v4 REVISE (definition-route gate holes CE1-CE9); v5 with compiler presence query under review; option A (export facts into the compiler's own seal) proposed to restore precision"
+  },
+  "next": [
+    "compose integration45: survey v2 + helper deletion, DB921 v2, Server102/103 v2, measured runs owed by reviews",
+    "Server108 fixture timing run",
+    "forced-import v5 after review"
+  ],
+  "next_report_utc": "2026-10-18T20:37:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
