@@ -1,0 +1,87 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T11:17:41.883271+00:00",
+  "scheduled_report_utc": "2026-10-18T11:17:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {
+    "integrations_41_42": {
+      "status": "ADMITTED as verification progress",
+      "regression_gate": "capture43 zero pass->fail vs capture41; +1 (test 404)",
+      "receipt": "experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-12/capture.json",
+      "unit_delta": "0 pending mapping (fixture/test-correction and precision repairs; no partial row newly closed)"
+    }
+  },
+  "validation_recorded_at_capture": {
+    "capture43_final": {
+      "completed": 1085,
+      "passed": 860,
+      "failed": 225,
+      "timeouts": 2,
+      "guards": "PASS",
+      "progression": "838 -> 848 -> 859 -> 860"
+    },
+    "integration43_candidate": {
+      "commit": "21a199ad8",
+      "pieces": [
+        "row14 Logical call receipts v2",
+        "typed receiver collections v2",
+        "package survey A+B+R+dead code",
+        "package survey ordered conditions and possible occupants v4"
+      ],
+      "build44": "running"
+    }
+  },
+  "disk": "Freed ~3 GB of archived scratch data and stale test ELFs; 6.5 GB free",
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "confirm applied scope of auto_import fixture decision",
+    "exception to delete test-only lexical helpers in package reachability tests"
+  ],
+  "next_report_utc": "2026-10-18T11:48:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
