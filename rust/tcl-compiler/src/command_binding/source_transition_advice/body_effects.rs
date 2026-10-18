@@ -1294,7 +1294,23 @@ impl BodyWalk<'_, '_> {
                 .regions(graph, &advice, &schema, depth.checked_add(1)?)
                 .is_none()
         {
-            graph.widen(&native.words);
+            // A `TclOO` definition script runs in a new frame in its definer's
+            // namespace (`::oo::define`, `::oo::objdefine` or a configurable
+            // support namespace), and the definition-member inventory owns its
+            // members. Its remaining reach into this walk — `uplevel`/`upvar`
+            // to the caller frame and absolute names — is that of an
+            // unresolved command, so it records the same uncertainty instead
+            // of withdrawing every namespace's path and export advice.
+            if schema
+                .authored_source_definition_body_grammar()
+                .is_some_and(|grammar| {
+                    grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                })
+            {
+                graph.record_uncertainty(&native.words);
+            } else {
+                graph.widen(&native.words);
+            }
         }
         Some(())
     }

@@ -153,7 +153,11 @@ Immediate child mutation coverage reuses that exact body/frame owner and the
 selected naming policy's source argument roles. Sequential selected-frame
 operations retain their independently selected coordinates. Possible child
 binding changes and unknown namespace path/export effects still withdraw
-subsequent source advice.
+subsequent source advice. An unentered `TclOO` definition body (a
+`DefinerFamily::TclOo` definition-body grammar) runs in a new frame in its
+definer's namespace, so it records the unresolved-command uncertainty instead;
+its `uplevel`/`upvar` and absolute-name reach keeps `UnknownEarlierMutation` on
+later advice (tclsh 8.6.18, 9.0.4 and 9.1.0).
 
 The existing source transition tape retains ordinary selected Registry-schema
 arity debts at each authentic whole-command prefix. The root, original-body
@@ -202,7 +206,8 @@ command-binding and namespace-resolution changes still withdraw affected
 lookups. Variable and observer effects with complete source role layouts retain
 their separate uncertainty instead of erasing unrelated source namespace
 coordinates. Immediate script bodies and incomplete role layouts keep their
-existing effect projection. This distinction supplies descriptive source schemas,
+existing effect projection, except the unentered `TclOO` definition body above,
+which records uncertainty. This distinction supplies descriptive source schemas,
 without proving a quiet physical cell or callback absence.
 
 

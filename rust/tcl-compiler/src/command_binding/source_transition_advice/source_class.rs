@@ -1026,6 +1026,48 @@ mod tests {
     }
 
     #[test]
+    fn c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation() {
+        // naming.source.original-class-constructor-call
+        // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
+        // An unentered non-empty `TclOO` definition body leaves the
+        // unresolved-command uncertainty: the later relative factory head in
+        // the same namespace is still a source class, with that obligation.
+        // `uplevel 1 {namespace path ::P}` in the body reaches the caller
+        // frame (tclsh 8.6.18 / 9.0.4 / 9.1.0 then dispatch the later
+        // `oo::class` to `::P::oo::class`), so the obligation must remain.
+        use super::super::SourceCommandTransitionObligation;
+        use crate::registry_invocation::source_structure::source_class_declaration_at;
+        for body in ["method m {} {}", "uplevel 1 {namespace path ::P}"] {
+            let source = format!(
+                "namespace eval ::P {{}}\nnamespace eval outer {{oo::class create A {{{body}}}; \
+                 oo::class create B {{}}}}\n"
+            );
+            let offset = u32::try_from(source.rfind("oo::class create").unwrap()).unwrap();
+            for dialect in ["tcl8.6", "tcl9.0"] {
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let declaration = source_class_declaration_at(&source, &analysis, offset)
+                    .unwrap_or_else(|| panic!("{dialect}: {source}"));
+                assert_eq!(
+                    declaration
+                        .source_class(&analysis)
+                        .expect("canonical source class card")
+                        .metadata()
+                        .qualified_name,
+                    "::outer::B",
+                    "{dialect}: {source}"
+                );
+                assert!(
+                    declaration
+                        .factory
+                        .obligations()
+                        .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn c_source_namespace_class_declarations_retain_original_body_and_conditional_scope() {
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
