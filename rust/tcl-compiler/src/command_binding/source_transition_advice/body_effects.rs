@@ -902,6 +902,14 @@ impl BodyWalk<'_, '_> {
                 }
             }
         }
+        // A command first created by a possible branch is not installed, but
+        // a later lookup may no longer fall through its coordinate.
+        for key in branch.cells.keys() {
+            if !original.cells.contains_key(key) {
+                graph.possible_occupants.insert(key.clone());
+            }
+        }
+        graph.possible_occupants.extend(branch.possible_occupants);
         for namespace in original
             .namespace_paths
             .keys()
@@ -1032,10 +1040,25 @@ impl BodyWalk<'_, '_> {
                     .map_or(0, |parts| parts.commands.len()),
             );
             let substitutions = substitutions?;
-            if !substitutions.variables.is_empty() || !substitutions.commands.is_empty() {
+            // A condition of a selected first-match chain runs once, before any
+            // clause body, so its command children are ordered by threading each
+            // one's possible effects into the next. Variable reads (traces),
+            // unwalked math-function calls and repeated or fixture-timed
+            // conditions still leave the parent operation itself uncertain.
+            let ordered = schema.semantics.clause_grammar.is_some_and(
+                tcl_registry::ClauseGrammarSpec::evaluates_conditions_once_before_bodies,
+            ) && tcl_syntax::expr::OriginalSourceExpression::capture(
+                source,
+                &context,
+                self.context.config,
+            )
+            .is_some_and(|expression| expression.function_calls().is_empty());
+            if !substitutions.variables.is_empty()
+                || (!ordered && !substitutions.commands.is_empty())
+            {
                 graph.record_uncertainty(advice.original_words());
             }
-            let original = graph.clone();
+            let original = (!ordered).then(|| graph.clone());
             for command in substitutions.commands {
                 // The shared expression owner supplies whole brackets. Lazy
                 // branches are lexical possibilities, never entered scripts.
@@ -1047,7 +1070,15 @@ impl BodyWalk<'_, '_> {
                     .start()
                     .checked_add(command.end())?
                     .checked_sub(1)?;
-                let mut branch = original.clone();
+                let threaded;
+                let base = match &original {
+                    Some(original) => original,
+                    None => {
+                        threaded = graph.clone();
+                        &threaded
+                    }
+                };
+                let mut branch = base.clone();
                 let parent_catalogue = self.catalogue_body.clone();
                 if catalogue {
                     let owner = OriginalSourceExpressionCommand {
@@ -1076,7 +1107,7 @@ impl BodyWalk<'_, '_> {
                     (end - start) as usize,
                 );
                 walked?;
-                Self::retain_possible_effects(graph, &original, branch, advice.original_words());
+                Self::retain_possible_effects(graph, base, branch, advice.original_words());
             }
         }
         Some(())
@@ -1207,6 +1238,10 @@ impl BodyWalk<'_, '_> {
             graph.record_uncertainty(&native.words);
             return Some(());
         };
+        // A walk retaining Logical source-word recipes, as
+        // `retain_logical_navigation` above does, records every call capture.
+        // Other walks record one only where they hold a recipe at its head.
+        let owns_logical_recipe = self.inventory.is_some() && self.logical_scope.is_some();
         // Syntax ownership survives unavailable handler/effect inventory.
         let tape = self
             .inventory
@@ -1222,11 +1257,15 @@ impl BodyWalk<'_, '_> {
             graph.record_uncertainty(&native.words);
             return Some(());
         };
-        OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(
-            tape,
-            graph,
-            &native.words,
-        );
+        if owns_logical_recipe {
+            OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(
+                tape,
+                graph,
+                &native.words,
+            );
+        } else {
+            tape.retain_recipe_logical_procedure_call(graph, &native.words);
+        }
         let Some((command, mut arguments, lineage)) =
             original_selection.or_else(|| graph.resolve(&head))
         else {
@@ -2229,5 +2268,108 @@ mod original_expression_catalogue_tests {
             );
             assert!(source_registry_words(source, &analysis, &selected).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod ordered_condition_uncertainty_tests {
+    use crate::registry_invocation::source_structure::{
+        OriginalRegistrySource, OriginalSourceRegistryContext,
+    };
+
+    /// Whether the clause body's `set y 1` inherits an unknown earlier mutation.
+    fn body_inherits_unknown_mutation(source: &str) -> bool {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let syntax = OriginalSourceRegistryContext::capture(source, input.clone());
+        let body = "set y 1";
+        let start = source.find(body).unwrap();
+        let children = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start..start + body.len()],
+            u32::try_from(start).unwrap(),
+            input.lexer_config().nested(),
+        );
+        let [child] = children.as_slice() else {
+            panic!("one original body command: {source}")
+        };
+        let words = syntax.words(child).expect(source);
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("original transition advice: {source}")
+        };
+        advice
+            .obligations()
+            .contains(&super::SourceCommandTransitionObligation::UnknownEarlierMutation)
+    }
+
+    #[test]
+    fn selected_condition_children_leave_no_parent_debt_unless_unwalked_phases_remain() {
+        // Effect-free children of a selected first-match condition run once,
+        // before the body, and are threaded rather than marked.
+        assert!(!body_inherits_unknown_mutation(
+            "if {[package vsatisfies 8.6 8.5]} {set y 1}"
+        ));
+        // A math function may be a user `tcl::mathfunc` command the walk does
+        // not enter, a variable read may fire a trace, and a loop condition
+        // runs again after its body: each keeps the parent operation uncertain.
+        for source in [
+            "if {[package vsatisfies 8.6 8.5] && abs(1)} {set y 1}",
+            "if {[package vsatisfies 8.6 8.5] && $x} {set y 1}",
+            "while {[package vsatisfies 8.6 8.5]} {set y 1}",
+        ] {
+            assert!(body_inherits_unknown_mutation(source), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod possible_occupant_lookup_tests {
+    use crate::registry_invocation::source_structure::{
+        OriginalRegistrySource, source_registry_words,
+    };
+
+    /// Whether the `package ifneeded q5` body command keeps definite Native
+    /// source advice, without earlier mutation debt.
+    fn definite_package_advice(source: &str) -> bool {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let config = analysis.body_lexer_config.unwrap();
+        let command = "package ifneeded q5 1.0 {}";
+        let start = source.find(command).unwrap();
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start..start + command.len()],
+            u32::try_from(start).unwrap(),
+            config.nested(),
+        );
+        let [segment] = segments.as_slice() else {
+            panic!("one original body command: {source}")
+        };
+        source_registry_words(source, &analysis, segment).is_some_and(|words| {
+            matches!(
+                words.source(),
+                OriginalRegistrySource::SourceTransitions(advice)
+                    if !advice.obligations().contains(
+                        &super::SourceCommandTransitionObligation::UnknownEarlierMutation
+                    )
+            )
+        })
+    }
+
+    #[test]
+    fn c_source_lookup_refuses_fall_through_past_condition_created_command() {
+        // tclsh 8.6 / 9.0: the condition defines `::ns5::package`, so the later
+        // body's `package` is the shadow and nothing is registered.
+        assert!(!definite_package_advice(
+            "if {[namespace eval ::ns5 {proc package args {return shadow}}; package vsatisfies 8.6 8.5]} {}\nnamespace eval ::ns5 {package ifneeded q5 1.0 {}}"
+        ));
+        // Without the shadow the same body keeps its definite selection.
+        assert!(definite_package_advice(
+            "if {[package vsatisfies 8.6 8.5]} {}\nnamespace eval ::ns5 {package ifneeded q5 1.0 {}}"
+        ));
     }
 }

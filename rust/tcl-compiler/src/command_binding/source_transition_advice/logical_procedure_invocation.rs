@@ -193,6 +193,33 @@ impl OriginalSourceTransitionAdviceTape {
             call,
         );
     }
+    /// Record this walk's capture, including a withdrawal, only where the walk
+    /// holds a Named or Absolute source recipe at this head. Without either, a
+    /// failed capture is absence, never evidence against another walk's receipt.
+    pub(super) fn retain_recipe_logical_procedure_call(
+        &mut self,
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+    ) {
+        let Some(head) = original.first() else {
+            return;
+        };
+        let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+            return;
+        };
+        if self
+            .original_logical_source_word_context(input, original)
+            .is_none()
+            && self
+                .logical_absolute_navigation
+                .get(&head.span().start())
+                .and_then(Option::as_ref)
+                .is_none()
+        {
+            return;
+        }
+        self.retain_logical_procedure_call(graph, original);
+    }
     fn capture_logical_procedure_call(
         &self,
         graph: &AdviceGraph,
@@ -356,6 +383,28 @@ mod tests {
         );
     }
     #[test]
+    fn condition_created_local_command_refuses_the_global_fall_through() {
+        // tclsh 8.6 / 9.0 print `local`: the condition always runs and defines
+        // `::A::helper`, which the later call selects over `::helper`.
+        let call = |source: &str| {
+            let analysis = analyse(source);
+            source_logical_procedure_call_at(
+                source,
+                &analysis,
+                u32::try_from(source.rfind("helper}").unwrap()).unwrap(),
+            )
+        };
+        assert!(
+            call("proc ::helper {} {return global}\nnamespace eval A {if {[proc helper {} {return local}; list 0]} {}; helper}\n")
+                .is_none_or(|call| call.has_unresolved_applicability())
+        );
+        // Without the condition-created command the global proc is selected.
+        assert!(
+            call("proc ::helper {} {return global}\nnamespace eval A {if {[list 0]} {}; helper}\n")
+                .is_some()
+        );
+    }
+    #[test]
     fn logical_header_join_rejects_missing_source_input_config_and_foreign_word_data() {
         let source = "proc helper {value} {}\nhelper data\nset data helper\n";
         let analysis = analyse(source);
@@ -383,5 +432,32 @@ mod tests {
         let mut stale = analysis.clone();
         stale.resolved_input = None;
         assert!(call.declaration(&stale).is_none());
+    }
+    #[test]
+    fn logical_body_calls_keep_recipe_evidence_without_recipe_free_withdrawal() {
+        for (source, needle) in [
+            ("proc recur {} {recur}\n", "recur}"),
+            ("proc p {} {puts p; p}\n", "p}"),
+        ] {
+            let analysis = analyse(source);
+            let offset = u32::try_from(source.rfind(needle).unwrap()).unwrap();
+            let call = source_logical_procedure_call_at(source, &analysis, offset)
+                .expect("own-body self-call keeps its recipe-owning receipt");
+            assert!(call.declaration(&analysis).is_some(), "{source}");
+        }
+        // tclsh: invalid command name "::foo"; wrong # args: should be
+        // "::foo a b"; invalid command name "::p".
+        for source in [
+            "proc foo {} {}\nif {[rename ::foo {}] eq \"\"} { ::foo }\n",
+            "proc foo {} {}\nif {[proc ::foo {a b} {}] eq \"\"} { ::foo }\n",
+            "namespace eval N { proc p {} {}; ::p }\n",
+        ] {
+            let analysis = analyse(source);
+            let offset = u32::try_from(source.rfind("::").unwrap()).unwrap();
+            assert!(
+                source_logical_procedure_call_at(source, &analysis, offset).is_none(),
+                "{source}"
+            );
+        }
     }
 }

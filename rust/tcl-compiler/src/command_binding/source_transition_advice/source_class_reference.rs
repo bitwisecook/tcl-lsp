@@ -150,7 +150,7 @@ impl AdviceGraph {
         input: &SignatureSourceNameInput,
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
         (self.policy.native()? == input.policy()).then_some(())?;
-        let key = self.lookup_head_key(input.bytes())?;
+        let key = self.selected_head_key(input.bytes())?;
         // A command alias is callable syntax, not the class object held by a
         // readonly class-name operand. Only genuine source-class cells join.
         match self.cells.get(&key)? {

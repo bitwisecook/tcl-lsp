@@ -475,6 +475,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "provide",
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::ProvidedVersion),
         state_transitions: Some(package_descriptor(provide_transitions)),
+        // Reads, and in the setter form writes, only the package database;
+        // `Tcl_PkgProvideEx` runs no script or handler.
+        world_effects: Some(PACKAGE_REGISTRATION_EFFECTS),
         arity: Arity::new(1, 2),
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
         synopsis: "package provide package ?version?",
@@ -584,6 +587,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if version satisfies at least one of the given requirements, 0 otherwise. From Tcl 8.5 (TIP 268) each requirement may be a bare min (min, or a later release with the same major version), min- (min or later, unbounded), or min-max (min inclusive, max exclusive); before 8.5 vsatisfies took exactly one plain version to compare against, under the same \"later, same major version\" rule.",
         synopsis: "package vsatisfies version requirement ?requirement ...?",
         pure: true,
+        // Compares its operands only; no interpreter state or callback.
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
         return_type: Some(TclType::Boolean),
         subcommand_forms: VSATISFIES_FORMS,
         semantics: SemanticsDeclaration::Declared(

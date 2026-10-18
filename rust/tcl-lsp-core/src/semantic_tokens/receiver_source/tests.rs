@@ -7,6 +7,9 @@ use std::sync::Arc;
 use tcl_compiler::{
     analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput},
     compilation_unit::{CompilationUnit, UnitBuildOptions},
+    registry_invocation::source_structure::{
+        OriginalProjectClassCards, original_project_receiver_class_in_unit,
+    },
 };
 
 fn analyse(source: &str, environment: &str) -> AnalysisResult {
@@ -128,6 +131,71 @@ fn original_registry_and_collection_receivers_keep_selected_child_operands() {
         None,
         "ping"
     ));
+}
+
+#[test]
+fn project_collection_receiver_refusal_is_not_recovered_without_providers() {
+    let source = "oo::class create C {method ping {} {}}; dict set items key [C new]; [dict get $items key] ping";
+    let analysis = Analyser::new().analyse(source, "tcl");
+    let input = analysis.resolved_input.as_ref().unwrap();
+    let unit = CompilationUnit::build_with_analysis_input(
+        source,
+        UnitBuildOptions {
+            registry: analysis.resolved_registry().unwrap(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        input,
+    );
+    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .pop()
+    .unwrap();
+    let foreign = Analyser::new().analyse("oo::class create C {method ping {} {}}", "tcl");
+    let providers = [OriginalProjectClassCards::capture(&foreign).unwrap()];
+    // The same owner selects the local element class without providers, and
+    // refuses it once an independent equal-name provider is present.
+    assert!(
+        original_project_receiver_class_in_unit(source, &analysis, &command, &[], Some(&unit))
+            .is_some_and(|class| class.collection_source().is_some())
+    );
+    assert!(
+        original_project_receiver_class_in_unit(
+            source,
+            &analysis,
+            &command,
+            &providers,
+            Some(&unit)
+        )
+        .is_none()
+    );
+    let tokens = decode_semantic(&super::super::full_with_cu_and_facts(
+        source,
+        analysis.resolved_profile().unwrap(),
+        analysis.resolved_registry().unwrap(),
+        Some(&unit),
+        super::super::WorkspaceTokenFacts {
+            classes: Some(analysis.class_hierarchy()),
+            proc_roles: None,
+            named_instances: None,
+            project_classes: Some(&providers),
+            analysis: Some(&analysis),
+        },
+    ));
+    let offset = u32::try_from(source.rfind("ping").unwrap()).unwrap();
+    let position = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
+    assert!(!tokens.iter().any(|&(line, column, _, kind, _)| {
+        line == position.line
+            && column == position.character.get()
+            && kind == TokenKind::Method as u32
+    }));
 }
 
 #[test]

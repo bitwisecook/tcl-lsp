@@ -313,7 +313,7 @@ impl AdviceInvocationContext<'_> {
                 &query.request.input,
             )?;
             (selected_lookup == query.request.lookup).then_some(())?;
-            let slot = graph.lookup_head_key(query.request.input.bytes())?;
+            let slot = graph.selected_head_key(query.request.input.bytes())?;
             let provider = self.class_relation_provider_at(graph, &slot)?;
             Some(OriginalSourceClassRelationProvider {
                 body: query.request.body.clone(),
@@ -556,7 +556,7 @@ impl AdviceInvocationContext<'_> {
                 return None;
             }
             let namespace = graph.logical_namespace.clone()?;
-            let slot = graph.lookup_head_key(&query.request.value)?;
+            let slot = graph.selected_head_key(&query.request.value)?;
             let provider = self.class_relation_provider_at(graph, &slot)?;
             let receiver = self.source_class_declaration(graph, invocation, schema)?;
             Some(LogicalSourceClassRelationProvider {
@@ -734,8 +734,9 @@ impl AdviceInvocationContext<'_> {
                 return None;
             }
             let namespace = graph.logical_namespace.clone()?;
-            let slot = graph.lookup_head_key(&query.request.value)?;
-            let provider = self.class_relation_provider_at(graph, &slot);
+            let provider = graph
+                .selected_head_key(&query.request.value)
+                .and_then(|slot| self.class_relation_provider_at(graph, &slot));
             let external = if provider.is_none() {
                 let coordinates = super::logical_navigation::logical_coordinates(
                     graph,

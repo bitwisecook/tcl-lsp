@@ -164,18 +164,10 @@ impl Eq for SourceAdvertisement {}
 /// One condition that must hold for a `package ifneeded` to be reached.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
-    /// Authentic selected source-query dependency for the explicit target survey.
+    /// Authentic selected source-query dependency for the explicit target
+    /// survey: `package vsatisfies [package provide Tcl] REQ …` must take the
+    /// receipt's expected value under the caller's hypothetical release.
     SourceTarget(SourceTargetCondition),
-    /// `package vsatisfies [package provide Tcl] REQ …` must evaluate to
-    /// `expect`.  `requirements` are the requirement words as written
-    /// (`"8.5"`, `"9-"`, `"8.5-9.0"`).
-    TclSatisfies {
-        /// The requirement words; the test passes when the running release
-        /// satisfies **any** of them, as `package vsatisfies` does.
-        requirements: Vec<String>,
-        /// The value the test must take for the registration to be reached.
-        expect: bool,
-    },
     /// The guard is real but this scan cannot evaluate it.
     Undecidable,
     /// The registration is unreachable on every Tcl release — it sits after
@@ -197,28 +189,22 @@ impl Condition {
                 if !condition.receipt.subject_is_interpreter_release_in(target) {
                     return Ternary::Inert;
                 }
+                // A requirement the target's grammar rejects makes the query
+                // raise instead of answering; that path is not modelled here.
+                if condition.receipt.requirements().iter().any(|requirement| {
+                    tcl_dialect::validate_requirement_for(requirement, target).is_err()
+                }) {
+                    return Ternary::Inert;
+                }
+                // A patch-level requirement (`9.0.1`, `9.0.1-`) the release
+                // line disagrees about stays `Inert`, so a real 9.0.4 never
+                // fails its own guard and draws a false W123.
                 match target.satisfies_any_ternary(condition.receipt.requirements()) {
                     Ternary::Yes => Ternary::from(condition.expect),
                     Ternary::No => Ternary::from(!condition.expect),
                     Ternary::Inert => Ternary::Inert,
                 }
             }
-            Self::TclSatisfies {
-                requirements,
-                expect,
-            } => match target {
-                // A requirement naming a patch level (`9.0.1`, `9.0.1-`)
-                // cannot be evaluated against the two-component release model
-                // and comes back `Inert` — the one direction that would
-                // otherwise make a real 9.0.4 look like it fails its own
-                // guard, and so fire a false W123 on the package's commands.
-                Some(v) => match v.satisfies_any_ternary(requirements) {
-                    Ternary::Yes => Ternary::from(*expect),
-                    Ternary::No => Ternary::from(!*expect),
-                    Ternary::Inert => Ternary::Inert,
-                },
-                None => Ternary::Inert,
-            },
             Self::Undecidable => Ternary::Inert,
             Self::Impossible => Ternary::No,
         }
@@ -233,13 +219,6 @@ impl Condition {
                 receipt: std::sync::Arc::clone(&condition.receipt),
                 expect: !condition.expect,
             })),
-            Self::TclSatisfies {
-                requirements,
-                expect,
-            } => Some(Self::TclSatisfies {
-                requirements: requirements.clone(),
-                expect: !*expect,
-            }),
             // "Cannot decide" negates to "cannot decide".
             Self::Undecidable => Some(Self::Undecidable),
             // "Never" negates to "always" — no condition at all.
@@ -580,14 +559,9 @@ impl Guard {
                 expect: expect != condition.receipt.negated(),
             })),
             Self::Constant(value) => (*value != expect).then_some(Condition::Impossible),
+            // A lexical probe result carries no source-query receipt.
             #[cfg(test)]
-            Self::TclSatisfies {
-                requirements,
-                negated,
-            } => Some(Condition::TclSatisfies {
-                requirements: requirements.clone(),
-                expect: expect != *negated,
-            }),
+            Self::TclSatisfies { .. } => Some(Condition::Undecidable),
             Self::Unknown => Some(Condition::Undecidable),
         }
     }
@@ -922,6 +896,36 @@ mod source_lambda_namespace_tests {
         assert_eq!(
             shadowed, 0,
             "explicit lambda scope retains its known package shadow"
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_possible_occupant_tests {
+    use super::*;
+    #[test]
+    fn definitions_from_entered_conditions_and_bodies_keep_namespace_shadows() {
+        let registry = CommandRegistry::build_default();
+        // tclsh 8.6 / 9.0: the condition's namespace eval defines
+        // `::ns2::package`, so the body registers nothing.
+        let mut shadowed = 0;
+        scan(
+            "if {[namespace eval ::ns2 {proc package args {}}; list 1]} {namespace eval ::ns2 {package ifneeded viacond 1.0 {}}}",
+            &registry,
+            &mut |_| shadowed += 1,
+        );
+        assert_eq!(shadowed, 0, "condition-created shadow");
+        // An unrelated possible occupant does not block the builtin.
+        let mut found = Vec::new();
+        scan(
+            "namespace eval ::ns {proc other args {}}; apply {{} {package ifneeded kept 1.0 {}} ::ns}",
+            &registry,
+            &mut |reached| found.push(reached.conditions),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].availability(Some(TclVersion::V9_0)),
+            Availability::Conditional
         );
     }
 }

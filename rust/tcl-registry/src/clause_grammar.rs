@@ -612,6 +612,22 @@ impl ClauseRow {
 }
 
 impl ClauseGrammarSpec {
+    /// Whether each condition is evaluated at most once and before any clause
+    /// body: first-match selection whose every row runs only when selected
+    /// (`if` / `elseif` / `else`). Loops, fixtures and protected bodies do not.
+    #[must_use]
+    pub fn evaluates_conditions_once_before_bodies(&self) -> bool {
+        self.selection == ClauseSelection::FirstMatch
+            && self.head.timing == ClauseTiming::Selected
+            && self
+                .rows
+                .iter()
+                .all(|row| row.timing == ClauseTiming::Selected)
+            && self
+                .tail
+                .is_none_or(|row| row.timing == ClauseTiming::Selected)
+    }
+
     /// Whether the whole grammar is available at `dialect` (`None`: every
     /// release).
     #[must_use]
@@ -1985,5 +2001,30 @@ mod tests {
             .map(|keyword| keyword.word)
             .collect();
         assert_eq!(noise, ["then"]);
+    }
+
+    #[test]
+    fn only_selected_first_match_grammars_evaluate_conditions_once_before_bodies() {
+        const AGAIN_SLOTS: &[ClauseSlot] = &[ClauseSlot::of(Expr), ClauseSlot::of(Body)];
+        const AGAIN: &[ClauseRow] = &[ClauseRow::repeated(
+            "again",
+            AGAIN_SLOTS,
+            ClauseTiming::PerIteration,
+        )];
+        assert!(shipped("if").evaluates_conditions_once_before_bodies());
+        for name in ["while", "for", "foreach", "try", "catch"] {
+            assert!(
+                !shipped(name).evaluates_conditions_once_before_bodies(),
+                "`{name}`"
+            );
+        }
+        // A first-match grammar is not enough: a loop-timed row re-evaluates
+        // its condition after a body has run.
+        let looping = ClauseGrammarSpec {
+            rows: AGAIN,
+            ..*shipped("if")
+        };
+        assert_eq!(looping.selection, ClauseSelection::FirstMatch);
+        assert!(!looping.evaluates_conditions_once_before_bodies());
     }
 }

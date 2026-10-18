@@ -84,7 +84,7 @@ impl AdviceGraph {
             (AdviceNamingPolicy::Logical(_), SourceAdviceNameInput::Logical(_)) => (),
             _ => return None,
         }
-        let key = self.lookup_head_key(input.bytes())?;
+        let key = self.selected_head_key(input.bytes())?;
         // Configuration names a class object, so callable aliases to the class
         // cannot stand in for its own source declaration.
         match self.cells.get(&key)? {

@@ -768,14 +768,14 @@ impl super::AdviceInvocationContext<'_> {
                     appended,
                     baked: elements.len().checked_sub(1)?,
                     source_class: graph
-                        .lookup_logical_head_key(namespace, head.value().as_bytes())
+                        .selected_logical_head_key(namespace, head.value().as_bytes())
                         .and_then(|slot| graph.resolve_source_cell_at_slot(slot))
                         .and_then(|selected| match selected.cell {
                             super::AdviceCell::SourceClass(class) => Some(Arc::clone(class)),
                             _ => None,
                         }),
                     source_procedure: graph
-                        .lookup_logical_head_key(namespace, head.value().as_bytes())
+                        .selected_logical_head_key(namespace, head.value().as_bytes())
                         .and_then(|slot| graph.resolve_source_cell_at_slot(slot))
                         .and_then(|selected| match selected.cell {
                             super::AdviceCell::LogicalSourceProcedure { definition, .. } => {
@@ -1403,6 +1403,21 @@ mod tests {
                 "{source}"
             );
         }
+    }
+
+    #[test]
+    fn possible_branch_definitions_keep_external_header_candidates() {
+        // A proc created inside an entered body is a possible occupant of its
+        // coordinate, never a selected cell that would withdraw the header.
+        let source =
+            "namespace eval A {proc helper {} {}}; namespace eval A {proc caller {} {helper ONE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let candidate = query(source, &analysis, "helper ONE").unwrap();
+        assert_eq!(candidate.coordinates().len(), 2);
+        assert_eq!(
+            candidate.external_header_coordinates().map(<[_]>::len),
+            Some(2)
+        );
     }
 
     #[test]

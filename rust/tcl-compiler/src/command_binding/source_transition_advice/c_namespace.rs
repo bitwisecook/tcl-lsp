@@ -49,6 +49,33 @@ impl AdviceGraph {
     }
 
     pub(super) fn c_source_head_key(&self, bytes: &[u8]) -> Option<ByteCommandSlot> {
+        let candidates = self.c_source_head_candidates(bytes)?;
+        let occupied = |slot: &ByteCommandSlot| {
+            self.cells
+                .get(slot)
+                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+        };
+        let (local, fallback) = candidates.split_first()?;
+        if fallback.is_empty() || occupied(local) {
+            return Some(local.clone());
+        }
+        if self
+            .unknown_paths
+            .contains(self.c_source_namespace.as_ref()?)
+        {
+            return None;
+        }
+        fallback
+            .iter()
+            .find(|slot| occupied(*slot))
+            .or(fallback.last())
+            .cloned()
+    }
+
+    /// The coordinates [`Self::c_source_head_key`] tries, in its order: the
+    /// local slot alone for an absolute name, otherwise the local slot, each
+    /// `namespace path` entry and the root.
+    pub(super) fn c_source_head_candidates(&self, bytes: &[u8]) -> Option<Vec<ByteCommandSlot>> {
         let policy = self.c_source_policy()?;
         let current = self.c_source_namespace.as_ref()?;
         let recipe = policy.recipe();
@@ -58,31 +85,25 @@ impl AdviceGraph {
             .ok()?
             .qualification()
             == NativeNameQualification::Absolute;
-        let local = recipe.command_lookup_slot(context, bytes).ok()?;
-        let occupied = |slot: &ByteCommandSlot| {
-            self.cells
-                .get(slot)
-                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
-        };
-        if absolute || occupied(&local) {
-            return Some(local);
-        }
-        if self.unknown_paths.contains(current) {
-            return None;
+        let mut candidates = vec![recipe.command_lookup_slot(context, bytes).ok()?];
+        if absolute {
+            return Some(candidates);
         }
         if let Some(path) = self.namespace_paths.get(current) {
             for namespace in path {
-                let candidate = recipe
-                    .command_lookup_slot(NativeNameContext::new(namespace), bytes)
-                    .ok()?;
-                if occupied(&candidate) {
-                    return Some(candidate);
-                }
+                candidates.push(
+                    recipe
+                        .command_lookup_slot(NativeNameContext::new(namespace), bytes)
+                        .ok()?,
+                );
             }
         }
-        recipe
-            .command_lookup_slot(NativeNameContext::root(), bytes)
-            .ok()
+        candidates.push(
+            recipe
+                .command_lookup_slot(NativeNameContext::root(), bytes)
+                .ok()?,
+        );
+        Some(candidates)
     }
 
     pub(super) fn c_source_publication_key(

@@ -1928,12 +1928,12 @@ fn insert_object_method_overrides(
     };
     // Candidate receiver classes implied by the head's shape: a `$var` object
     // handle, a direct `[Class new] …` constructor, a `[dict get $coll $k]`
-    // / `[lindex $coll $i]` retrieval from an object collection,
-    // or a bareword instance-command name bound by a positional create call
-    // (`ttk::treeview .t` / a registry naming factory; `object_classes`
-    // is name-keyed regardless of whether the name came from a `set` LHS or a
-    // bareword factory, so the same map already carries these — see
-    // `object_types::harvest_unit`'s `Statement::Call` arm).
+    // / `[lindex $coll $i]` retrieval resolved through the retained original
+    // collection occurrences, or a bareword instance-command name bound by a
+    // positional create call (`ttk::treeview .t` / a registry naming factory;
+    // `object_classes` is name-keyed regardless of whether the name came from a
+    // `set` LHS or a bareword factory, so the same map already carries these —
+    // see `object_types::harvest_unit`'s `Statement::Call` arm).
     let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(ctx.full_source),
         ctx.config,
@@ -1958,6 +1958,10 @@ fn insert_object_method_overrides(
                 Ok(receiver_source::ReceiverSourceCandidates::ClassNames(classes)) => classes,
                 Ok(receiver_source::ReceiverSourceCandidates::LogicalClass(class)) => {
                     class.insert_method(ctx, seg, classes, overrides);
+                    return;
+                }
+                Ok(receiver_source::ReceiverSourceCandidates::CollectionElement) => {
+                    receiver_source::insert_collection_method(ctx, seg, overrides);
                     return;
                 }
                 Err(_) => Vec::new(),
@@ -3128,10 +3132,6 @@ struct ScriptCtx<'a> {
     /// [`CompilationUnit`] is available or the document creates no tracked
     /// object handles.
     object_classes: &'a ObjectClassMap,
-    /// Object-*collection* variable → element class, so a `[dict get $coll $k]`
-    /// / `[lindex $coll $i]` retrieval used as a command head resolves the
-    /// element's method.  Empty without a [`CompilationUnit`].
-    object_collections: &'a ObjectClassMap,
     /// Class hierarchy, when available — the MRO + `ClassDef`s (methods +
     /// `oo::configurable` properties) used to resolve a dispatched method
     /// against a *user* class, not just a registry-modelled one.  This is the
@@ -3145,6 +3145,9 @@ struct ScriptCtx<'a> {
     /// The local analysis when this request has one, used only for document
     /// package floors on lifecycle-gated registry methods.
     analysis: Option<&'a AnalysisResult>,
+    /// Original collection insertion/extraction occurrences of the same
+    /// compilation unit, keyed by source occurrence rather than variable text.
+    /// `None` without a [`CompilationUnit`] or a source-receiver consumer.
     original_collections: Option<&'a tcl_compiler::object_types::OriginalObjectCollectionSources>,
     original_roles: &'a original::OriginalTokenRoles,
     proc_roles: Option<&'a VarNameArgRoles>,
@@ -4916,11 +4919,13 @@ fn collect_entries(
 
     // Walk every segmented command (recursing into braced bodies, braced
     // expressions, and `[…]` command substitutions) and classify each token.
-    let original_collections = project_classes.and_then(|_| cu).and_then(|unit| {
-        tcl_compiler::object_types::OriginalObjectCollectionSources::capture(
-            source, analysis?, unit,
-        )
-    });
+    let original_collections = cu
+        .filter(|_| lexical || project_classes.is_some())
+        .and_then(|unit| {
+            tcl_compiler::object_types::OriginalObjectCollectionSources::capture(
+                source, analysis?, unit,
+            )
+        });
     let original_roles = original::OriginalTokenRoles::capture(source, analysis);
     let ctx = ScriptCtx {
         full_source: source,
@@ -4950,7 +4955,6 @@ fn collect_entries(
         scoped_env: None,
         regex_sources: &regex_sources,
         object_classes: &object_classes,
-        object_collections: &object_collections,
         classes,
         project_classes,
         analysis,

@@ -511,7 +511,7 @@ impl AdviceGraph {
         (policy == prefix.name_input().policy()).then_some(())?;
         match prefix.scope() {
             Some(ScriptLookupScope::InvokingFrame) => {
-                self.lookup_head_key(prefix.name_input().bytes())
+                self.selected_head_key(prefix.name_input().bytes())
             }
             Some(ScriptLookupScope::GlobalFrame) => {
                 super::lookup_key(&self.policy, prefix.name_input().bytes())

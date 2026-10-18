@@ -246,7 +246,7 @@ impl AdviceGraph {
         &self,
         input: &SourceAdviceNameInput,
     ) -> Option<(Arc<OriginalSourceClassInstance>, Vec<SourceAdviceWord>)> {
-        let mut key = self.lookup_head_key(input.bytes())?;
+        let mut key = self.selected_head_key(input.bytes())?;
         let mut seen = Vec::new();
         let mut arguments = Vec::new();
         let mut lineage = Vec::new();

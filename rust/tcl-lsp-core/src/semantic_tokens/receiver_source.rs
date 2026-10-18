@@ -11,7 +11,6 @@ use tcl_compiler::{
     registry_invocation::source_structure::{self, OriginalRegistryWords},
     segmenter::SegmentedCommand,
 };
-use tcl_lexer::{ExecutablePart, NativeWord};
 use tcl_registry::definer::{BuiltinMethodReceiver, DefinitionBodyGrammar, MethodReach};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +25,9 @@ pub(super) enum ReceiverSourceUnavailable {
 pub(super) enum ReceiverSourceCandidates<'a> {
     ClassNames(Vec<String>),
     LogicalClass(OriginalLogicalReceiverClass<'a>),
+    /// A whole selected element extraction. Its element classes come only from
+    /// the retained original insertion/extraction occurrences, never a name map.
+    CollectionElement,
 }
 
 /// A canonical same-source class metadata join and its actual selected grammar.
@@ -141,9 +143,11 @@ pub(super) fn candidates<'a>(
         {
             return Ok(ReceiverSourceCandidates::ClassNames(vec![class.to_owned()]));
         }
-        return Ok(ReceiverSourceCandidates::ClassNames(
-            collection_classes(ctx, &words).unwrap_or_default(),
-        ));
+        return Ok(if element_extraction(ctx, &words) {
+            ReceiverSourceCandidates::CollectionElement
+        } else {
+            ReceiverSourceCandidates::ClassNames(Vec::new())
+        });
     }
     let call =
         source_structure::source_constructor_call_at(ctx.full_source, analysis, child_offset)
@@ -169,35 +173,60 @@ pub(super) fn candidates<'a>(
     ))
 }
 
-fn collection_classes(ctx: ScriptCtx<'_>, words: &OriginalRegistryWords) -> Option<Vec<String>> {
-    let ordinal = words.with_source_schema(ctx.generation, |schema| {
-        let tcl_registry::types::ReturnElements::ElementOf { container_arg } =
-            schema.semantics.return_elements?
-        else {
-            return None;
-        };
-        let ordinal = schema.semantics.argument_offset + usize::from(container_arg);
-        // Multiple indices can select an inner collection rather than one element.
-        (schema.words.arguments().exact_argv_len() == Some(ordinal + 2)).then_some(ordinal)
-    })??;
-    let container = scalar_reference_name(words.original_argument_word(ordinal)?)?;
-    ctx.object_collections
-        .get(container)
-        .map(|classes| classes.iter().cloned().collect())
+fn element_extraction(ctx: ScriptCtx<'_>, words: &OriginalRegistryWords) -> bool {
+    words
+        .with_source_schema(ctx.generation, |schema| {
+            let tcl_registry::types::ReturnElements::ElementOf { container_arg } =
+                schema.semantics.return_elements?
+            else {
+                return None;
+            };
+            let ordinal = schema.semantics.argument_offset + usize::from(container_arg);
+            // Multiple indices can select an inner collection rather than one element.
+            (schema.words.arguments().exact_argv_len() == Some(ordinal + 2)).then_some(())
+        })
+        .flatten()
+        .is_some()
 }
 
-fn scalar_reference_name(word: &NativeWord) -> Option<&str> {
-    if word.group().expand {
-        return None;
+/// Element receiver class from the document's retained original collection
+/// sources at this exact receiver occurrence. A missing compilation unit or an
+/// unselected association supplies no element class. Project mode has already
+/// asked the same owner with its foreign providers; that answer is terminal.
+pub(super) fn insert_collection_method(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if ctx.project_classes.is_some() {
+        return;
     }
-    let arena = word.executable_parts();
-    let [part] = arena.list(arena.root()) else {
-        return None;
+    let (Some(analysis), Some(sources)) = (ctx.analysis, ctx.original_collections) else {
+        return;
     };
-    let ExecutablePart::Variable { name, index: None } = part.part else {
-        return None;
+    let Some(class) = source_structure::original_project_receiver_class_with_sources(
+        ctx.full_source,
+        analysis,
+        command,
+        &[],
+        Some(sources),
+    ) else {
+        return;
     };
-    std::str::from_utf8(arena.bytes(name)?).ok()
+    if class.collection_source().is_none() || !class.provides_method() {
+        return;
+    }
+    super::mark_method_word(command, overrides);
+    if let Some(method) = command.texts.get(1) {
+        super::insert_user_configure_options(
+            command,
+            class.hierarchy(),
+            ctx.registry,
+            &class.metadata().qualified_name,
+            method,
+            overrides,
+        );
+    }
 }
 
 #[cfg(test)]

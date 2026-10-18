@@ -597,12 +597,22 @@ impl CommandBindingRealm {
     }
 
     /// Exact evaluated body carrier retained by the shared source interpreter.
+    /// The interpreter keys an entered word by its whole written extent; a
+    /// segmented argv token keeps the lexer's inner-end extent, so a quoted
+    /// or compound word is also tried through the shared lexer widening.
     #[must_use]
     pub fn executed_script_for_word(
         &self,
         span: tcl_lexer::Span,
     ) -> Option<&crate::command_binding::ExecutedScriptSource> {
-        self.bindings.executed_script_for_word(span)
+        self.bindings.executed_script_for_word(span).or_else(|| {
+            let image = self.bindings.source_origin()?.source_image();
+            let whole = tcl_lexer::word_span_at(image.bytes(), span);
+            if whole == span {
+                return None;
+            }
+            self.bindings.executed_script_for_word(whole)
+        })
     }
 
     pub(crate) fn retained_list_element_source_realm(

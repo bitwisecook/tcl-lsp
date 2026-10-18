@@ -1461,6 +1461,9 @@ struct AdviceGraph {
     c_source_namespace: Option<ByteNamespacePath>,
     dialect: InvocationDialect,
     uncertain_operations: Vec<Arc<[NativeWord]>>,
+    /// Coordinates a possible branch created but did not install. A lookup
+    /// may not fall through one of them; they are never cells or headers.
+    possible_occupants: BTreeSet<ByteCommandSlot>,
     arity_debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     procedure_declarations: Vec<Arc<source_procedure::OriginalSourceProcedureBody>>,
@@ -1541,6 +1544,7 @@ impl AdviceGraph {
             .then(ByteNamespacePath::root),
             dialect,
             uncertain_operations: Vec::new(),
+            possible_occupants: BTreeSet::new(),
             arity_debts: Vec::new(),
             handles: Vec::new(),
             class_handles: Vec::new(),
@@ -1640,13 +1644,7 @@ impl AdviceGraph {
         {
             return None;
         }
-        let candidates = tcl_syntax::naming::authored_source_command_candidates(
-            namespace,
-            self.namespace_paths
-                .get(namespace)
-                .map_or(&[], Vec::as_slice),
-            bytes,
-        )?;
+        let candidates = self.logical_head_candidates(namespace, bytes)?;
         candidates
             .iter()
             .find(|key| {
@@ -1656,6 +1654,84 @@ impl AdviceGraph {
             })
             .cloned()
             .or_else(|| candidates.last().cloned())
+    }
+
+    fn logical_head_candidates(
+        &self,
+        namespace: &ByteNamespacePath,
+        bytes: &[u8],
+    ) -> Option<Vec<ByteCommandSlot>> {
+        tcl_syntax::naming::authored_source_command_candidates(
+            namespace,
+            self.namespace_paths
+                .get(namespace)
+                .map_or(&[], Vec::as_slice),
+            bytes,
+        )
+    }
+
+    /// Every coordinate [`Self::lookup_head_key`] may try, in its order.
+    fn head_lookup_candidates(&self, bytes: &[u8]) -> Option<Vec<ByteCommandSlot>> {
+        if self.c_source_namespace.is_some()
+            && !self.native_baseline
+            && self.procedure_namespace.is_none()
+        {
+            return self.c_source_head_candidates(bytes);
+        }
+        if let Some(namespace) = &self.procedure_namespace {
+            let local = self
+                .policy
+                .native()?
+                .recipe()
+                .command_lookup_slot(NativeNameContext::new(namespace), bytes)
+                .ok()?;
+            return Some(vec![local, lookup_key(&self.policy, bytes)?]);
+        }
+        let Some(namespace) = &self.logical_namespace else {
+            return Some(vec![lookup_key(&self.policy, bytes)?]);
+        };
+        self.logical_head_candidates(namespace, bytes)
+    }
+
+    /// Whether `selected` was reached past a coordinate a possible branch
+    /// may have occupied, so the actual lookup may stop earlier.
+    fn passes_possible_occupant(
+        &self,
+        candidates: Option<Vec<ByteCommandSlot>>,
+        selected: &ByteCommandSlot,
+    ) -> bool {
+        candidates.is_some_and(|candidates| {
+            candidates
+                .iter()
+                .take_while(|key| *key != selected)
+                .any(|key| self.possible_occupants.contains(key))
+        })
+    }
+
+    /// The coordinate a command lookup selects, refused when it falls through
+    /// a possible occupant. Raw [`Self::lookup_head_key`] remains only for
+    /// coordinate and header enumeration and for publication.
+    fn selected_head_key(&self, bytes: &[u8]) -> Option<ByteCommandSlot> {
+        let selected = self.lookup_head_key(bytes)?;
+        if self.possible_occupants.is_empty() {
+            return Some(selected);
+        }
+        (!self.passes_possible_occupant(self.head_lookup_candidates(bytes), &selected))
+            .then_some(selected)
+    }
+
+    /// [`Self::selected_head_key`] for an explicitly selected Logical namespace.
+    fn selected_logical_head_key(
+        &self,
+        namespace: &ByteNamespacePath,
+        bytes: &[u8],
+    ) -> Option<ByteCommandSlot> {
+        let selected = self.lookup_logical_head_key(namespace, bytes)?;
+        if self.possible_occupants.is_empty() {
+            return Some(selected);
+        }
+        (!self.passes_possible_occupant(self.logical_head_candidates(namespace, bytes), &selected))
+            .then_some(selected)
     }
 
     fn publication_key(
@@ -1692,7 +1768,7 @@ impl AdviceGraph {
     ) -> Option<ByteCommandSlot> {
         match lookup {
             AliasTargetLookup::Global => lookup_key(&self.policy, target.bytes()),
-            AliasTargetLookup::CallerNamespace => self.lookup_head_key(target.bytes()),
+            AliasTargetLookup::CallerNamespace => self.selected_head_key(target.bytes()),
         }
     }
 
@@ -1704,7 +1780,7 @@ impl AdviceGraph {
     ) -> Option<super::DeclaredSourceSelection> {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
-        let key = self.lookup_head_key(head.bytes())?;
+        let key = self.selected_head_key(head.bytes())?;
         let AdviceCell::Declared(declaration) = self.cells.get(&key)? else {
             return None;
         };
@@ -1752,10 +1828,21 @@ impl AdviceGraph {
         let Some(start) = self.lookup_head_key(input.bytes()) else {
             return false;
         };
+        if !self.possible_occupants.is_empty()
+            && self.passes_possible_occupant(self.head_lookup_candidates(input.bytes()), &start)
+        {
+            return true;
+        }
         let mut blocked = false;
         let cycle = tcl_syntax::naming::alias_chain_loops(start, |key| match self.cells.get(key) {
             Some(AdviceCell::Alias { target, lookup, .. }) => {
-                Ok::<_, ()>(self.alias_target_key(target, *lookup))
+                let key = self.alias_target_key(target, *lookup);
+                // A caller-namespace target refused past a possible occupant
+                // keeps the barrier the raw target would have recorded.
+                if key.is_none() && matches!(lookup, AliasTargetLookup::CallerNamespace) {
+                    blocked = true;
+                }
+                Ok::<_, ()>(key)
             }
             Some(
                 AdviceCell::Shadowed
@@ -1831,7 +1918,7 @@ impl AdviceGraph {
         &self,
         input: &SourceAdviceNameInput,
     ) -> Option<SourceAliasCellSelection<'_>> {
-        let start = self.lookup_head_key(input.bytes())?;
+        let start = self.selected_head_key(input.bytes())?;
         self.resolve_source_cell_at_slot(start)
     }
 
@@ -1948,7 +2035,7 @@ impl AdviceGraph {
         to: &TransitionSubject,
     ) -> Option<()> {
         let from = self.policy.rename_source(receipt.input(from)?.bytes())?;
-        let from_key = self.lookup_head_key(&from)?;
+        let from_key = self.selected_head_key(&from)?;
         let cell = self.cells.get(&from_key)?.clone();
         let destination = receipt.input(to)?;
         let selected = self.policy.rename_destination(destination.bytes())?;
@@ -2062,7 +2149,7 @@ impl AdviceGraph {
                 {
                     return None;
                 }
-                let key = self.lookup_head_key(input(name)?.bytes())?;
+                let key = self.selected_head_key(input(name)?.bytes())?;
                 self.remove_namespace_import_origin(&key);
                 self.namespace_imports.remove(&key);
                 self.cells.insert(key, AdviceCell::Deleted);
@@ -4202,5 +4289,66 @@ mod tests {
         assert!(!selected.is_empty());
         let _ = equal.original_analysis_owner().unwrap().derived_memo();
         assert!(memo_lifetime.upgrade().is_none());
+    }
+}
+
+#[cfg(test)]
+mod possible_occupant_alias_tests {
+    use super::*;
+
+    #[test]
+    fn caller_namespace_alias_refused_past_a_possible_occupant_keeps_the_registry_barrier() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let policy = AdviceNamingPolicy::Logical(input.clone());
+        let source = "run helper";
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            input.lexer_config(),
+        )
+        .unwrap();
+        let written = original_words(&plan.commands[0].words, &policy).unwrap();
+        let run = written[0].input.clone().unwrap();
+        let helper = written[1].input.clone().unwrap();
+        let mut graph = AdviceGraph::new(
+            &context,
+            &policy,
+            InvocationDialect::of_profile(input.unit_profile()),
+        )
+        .unwrap();
+        let namespace = ByteNamespacePath::root().with_child("A");
+        graph.logical_namespace = Some(namespace.clone());
+        let slot = |bytes: &[u8]| {
+            tcl_syntax::naming::authored_source_command_slot(&namespace, bytes).unwrap()
+        };
+        // `::A::run` is a caller-namespace alias to `helper`; `::helper` is a
+        // user command, which the raw target lookup reaches and blocks on.
+        graph.cells.insert(
+            slot(b"run"),
+            AdviceCell::Alias {
+                target: Box::new(helper),
+                prefix: Vec::new(),
+                lookup: AliasTargetLookup::CallerNamespace,
+                lineage: Vec::new(),
+            },
+        );
+        graph.cells.insert(
+            AdviceNamingPolicy::logical_slot(b"::helper").unwrap(),
+            AdviceCell::Shadowed,
+        );
+        assert!(graph.blocks_registry_source(&run));
+        // A possible `::A::helper` refuses the target selection; the barrier
+        // the raw target recorded must remain.
+        graph.possible_occupants.insert(slot(b"helper"));
+        assert!(graph.resolve(&run).is_none());
+        assert!(graph.blocks_registry_source(&run));
     }
 }
