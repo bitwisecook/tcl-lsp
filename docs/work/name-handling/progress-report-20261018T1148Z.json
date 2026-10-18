@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T11:48:59.049484+00:00",
+  "scheduled_report_utc": "2026-10-18T11:48:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "integration43_candidate": {
+      "commit": "21a199ad8",
+      "build44": "PASS, zero warnings, artifacts 5059fd27\u2026",
+      "targeted": {
+        "passed": 26,
+        "of": 56,
+        "receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/targeted-44a-result.json"
+      },
+      "baseline_comparison": "Same selectors run on a rebuilt pre-integration43 baseline: zero pass->fail; one gain (linked_spelling_rejects_surrogate_interior_cursor_and_same_named_data); five new tests pass",
+      "new_tests_failing": {
+        "definitions_from_entered_conditions_and_bodies_keep_namespace_shadows": "possible-occupant shadow not effective on the Logical survey path",
+        "c_source_lookup_refuses_fall_through_past_condition_created_command": "positive control false: Native body-region path never issues definite advice, so the shadow assertion was vacuous",
+        "project_collection_receiver_refusal_is_not_recovered_without_providers": "premise fails: the never-executed reborrow step, the suspected shared upstream fault behind the six receiver_source failures"
+      },
+      "pre_existing_family": "package_resolver::reachability::tests and compiler package_target_survey retained_body/control/guard tests fail before and after integration43 (shared earlier cause); the admissible package fixes did not flip them"
+    }
+  },
+  "method_change": "Static drafting reached its limit for these rows; one agent at a time now has exclusive use of the working tree and cargo to iterate with real builds and test runs (no concurrent capture).",
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "confirm applied scope of auto_import fixture decision",
+    "exception to delete test-only lexical helpers in package reachability tests"
+  ],
+  "next_report_utc": "2026-10-18T12:19:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
