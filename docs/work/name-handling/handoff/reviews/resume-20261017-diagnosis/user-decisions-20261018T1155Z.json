@@ -1,0 +1,14 @@
+{
+ "recorded_utc": "2026-10-18T11:55Z",
+ "source": "User in chat: \"Do the thing that gets us to being as close to C Tcl as possible\"",
+ "standing_rule": "Where an open decision or trade-off has an answer in C Tcl's observed behaviour (tclsh 8.4-9.1 and the C sources), follow C Tcl. Assertions that contradict tclsh may be corrected (extends the 2026-10-17 correct-to-tclsh policy). Soundness rules (no absence-as-completeness, fail-closed where C Tcl's outcome depends on runtime state the document does not determine) still apply.",
+ "applications": {
+  "DB921": "One proc declaration is one command in C Tcl: authored readonly declaration body and Installed body are one identity. Admit DB921 duplicate-suppression with the reviewer's source-origin and executed-source equality checks.",
+  "Compiler221": "Resolve the contradictory same-input Some/None expectations by tclsh probe; correct the assertion that contradicts C Tcl.",
+  "lone_CR_document_text": "C Tcl `source` reads files with -translation auto, so a lone CR terminates a command. Analysis of document text applies the same translation; fixtures stay unchanged.",
+  "a_forced_import_before_the_call_does_not_shadow_a_later_call_site": "Correct to tclsh: invalid command name.",
+  "package_vsatisfies_8_4": "Tcl 8.4 vsatisfies takes exactly one requirement; two-requirement guards are errors there.",
+  "auto_import_fixture_scope": "Confirmed by C Tcl equivalence: the prelude changes no command table (tclsh 8.6/9.0 receipts)."
+ },
+ "not_decided_by_C_Tcl": ["Server102/103 freshness vs snapshot (LSP consistency policy)", "Server108 (cost)", "deleting test-only lexical helpers (test hygiene)"]
+}
