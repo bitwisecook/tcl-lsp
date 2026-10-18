@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T16:32:02.038933+00:00",
+  "scheduled_report_utc": "2026-10-18T16:31:46Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "candidates": {
+    "integration44": {
+      "commits": [
+        "d23563657",
+        "0c3d7732e"
+      ],
+      "pieces": [
+        "Sol-17 i43 fix (Luna-24 ADMIT-WITH-CONDITIONS)",
+        "compiler221-v2",
+        "vsatisfies-84-v2",
+        "forced-import-assertion-v2 (Luna-20/22)",
+        "lone-CR v3 (Luna-21/23)"
+      ],
+      "record": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/integration-44/COMPOSITION.md",
+      "build45": "passed, 0 warnings, source/provider guards pass, 9 test ELFs",
+      "targeted_45a": "running: 1338 selectors one per process, 1025 passed / 44 failed so far"
+    }
+  },
+  "drafts_in_review": {
+    "DB921 merged unit (Sol-22)": "36 files; under independent review by Luna-25"
+  },
+  "in_progress": {
+    "Sol-20": "forced-import sibling offsets and test-helper deletion",
+    "Sol-21": "Server102/103 snapshot consistency and Server108 cached analysis",
+    "Sol-23": "survey-scoped Logical conditional source control"
+  },
+  "user_decisions_still_open": [],
+  "next_report_utc": "2026-10-18T17:02:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
