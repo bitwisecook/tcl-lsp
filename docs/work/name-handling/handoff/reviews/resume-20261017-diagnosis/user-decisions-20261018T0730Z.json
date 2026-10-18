@@ -1,0 +1,9 @@
+{
+ "recorded_utc": "2026-10-18T07:35Z",
+ "source": "User answers in chat",
+ "decisions": {
+  "clippy_scope": {"answer": "Defer to PR stage", "effect": "LSP verification proceeds with the clippy gate recorded red. Lexer/syntax/registry/command-core cleanup (5a8dfde48) stays. tcl-compiler clippy is cleaned in the compiler phase; tcl-vm when VM work resumes."},
+  "runtime_api_too_many_arguments": {"answer": "Defer with VM", "effect": "NativeLiteralWorld::register_using and NativeLocalNameTable::create_using stay as they are until VM/runtime work resumes; the gate stays red on them."},
+  "same_document_controls": {"answer": "All three 1b45c540e controls may change for the same-document shape", "recorded_late": "decided 2026-10-17 ~22:35Z"}
+ }
+}

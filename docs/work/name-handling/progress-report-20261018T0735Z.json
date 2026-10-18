@@ -1,0 +1,85 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T07:35:26.218333+00:00",
+  "scheduled_report_utc": "2026-10-18T00:12:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "late_note": "Reports due 00:12 onward were missed: the session container restarted overnight and scheduled reminders were lost. Filesystem state and all commits survived.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "clippy_cleanup_candidate": {
+      "commit": "5a8dfde48",
+      "clean": [
+        "tcl-lexer",
+        "tcl-syntax",
+        "tcl-registry",
+        "tcl-cmd-core",
+        "tcl-host-c-abi",
+        "tcl-test-support"
+      ],
+      "remaining": {
+        "tcl-runtime-api": "2 too_many_arguments (public API; deferred with VM)",
+        "tcl-compiler": "736 (deferred to compiler phase / PR stage)",
+        "tcl-vm": "349 (deferred with VM)"
+      },
+      "build_sanity": "tcl-lsp-core + tcl-lsp-server lib build exit 0",
+      "tests": "not yet run on this commit"
+    }
+  },
+  "user_decisions_since_previous_report": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261018T0730Z.json",
+  "pending": {
+    "same_document_order_v6": "Sol-5 found three causes (namespace-body execution-unknown blocks Selected; source-horizon path never consulted the sequence; guard END fixture); independent review running",
+    "namespaced_definition_body_v2": "ready for integration40",
+    "integration40": "build + targeted + full capture next"
+  },
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "H2: does an unpositioned link query mean end-of-load (an_exact_import_link_dies_on_a_same_file_forget)"
+  ],
+  "next_report_utc": "2026-10-18T08:06:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
