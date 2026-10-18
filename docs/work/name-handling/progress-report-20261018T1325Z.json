@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T13:25:23.106081+00:00",
+  "scheduled_report_utc": "2026-10-18T13:24:21Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "events": [
+    "Container restart at about 13:22 UTC stopped Sol-17 mid-task; resumed from its transcript. Its uncommitted tree edits survived; any in-flight cargo run is not counted."
+  ],
+  "reviews_since_previous_report": {
+    "Luna-22 on Sol-18 v2": {
+      "compiler221_v2": "ADMIT-WITH-CONDITIONS: no proof-doc byte gate; execute the test and make check-name-resolution-proofs",
+      "vsatisfies_8_4_v2": "ADMIT-WITH-CONDITIONS: three-state arity holds; run reachability, package_ registry and package_target_survey tests; recommended: decline forms with literal_argument_prefix or options",
+      "forced_import_assertion_v2": "ADMIT-WITH-CONDITIONS: tclsh 8.4-9.1 agree; the old query offset selected nothing (vacuous); moving it onto the call is a narrow test-input correction recorded separately; sibling import-lifecycle tests share the offset defect",
+      "db921": "No v3: one analysis unit cannot carry both the readonly authored and the Installed lowering. C Tcl decides one command per evaluated proc, not the analysis unit count. User decision requested."
+    },
+    "Luna-21 on Sol-19 v1": "ADMIT-WITH-CONDITIONS: dialect gate required (Jim keeps lone CR as whitespace), assertion corrections confirmed against tclsh, contract narrowed",
+    "Sol-19 v2": "dialect axis SourceLineEndings (Tcl TranslateAuto, Jim Preserve, F5 inherits with no-oracle note), Jim regression test, corrections folded; under delta review by Luna-23"
+  },
+  "in_progress": {
+    "Sol-17": "exclusive tree: integration43 failures (resumed after restart)",
+    "Luna-23": "delta review of the lone-CR v2 patch",
+    "integration43": "candidate 21a199ad8; build44 and full guarded capture after Sol-17"
+  },
+  "user_decisions_still_open": [
+    "DB921 unit-count test vs one-identity ruling (new)",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "exception to delete test-only lexical helpers in package reachability tests"
+  ],
+  "next_report_utc": "2026-10-18T13:54:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
