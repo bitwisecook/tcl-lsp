@@ -338,6 +338,11 @@ pub struct LexerGrammar {
     pub var_syntax: VarSyntax,
     /// Whether malformed list text is an error — see [`ListParse`].
     pub list_parse: ListParse,
+    /// How the dialect's `source` reads a script file's line endings — see
+    /// [`SourceLineEndings`]. Like [`Self::script_skips_leading_bom`], this
+    /// describes the file reader, so it applies only to Document input
+    /// (`tcl_lexer::SourceChannel::Document`), never to a native value.
+    pub source_line_endings: SourceLineEndings,
     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
     pub numbers: NumberSyntax,
     /// Which backslash-escape grammar the release decodes — see
@@ -865,6 +870,39 @@ pub enum ListParse {
     Lenient,
 }
 
+/// How a dialect's `source` command reads a script file's line endings
+/// before its parser sees the text.
+///
+/// C Tcl opens the file with `-translation auto`, and its `TranslateInputEOL`
+/// turns CR and CRLF into LF. A lone CR in a sourced file therefore ends a
+/// command or a comment, exactly as LF does, while `eval` of the same bytes
+/// keeps the CR as a word separator. This was measured on tclsh 8.4.20,
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0, with identical results.
+/// `JimTcl`'s `Jim_EvalFile` reads the file with `fopen(…, "rt")` and
+/// `fread` and translates nothing (`jim.c:12130` at 0.84). On jimsh 0.84,
+/// `proc t {a b} {…}\rt x value\r` is one `proc` command ("wrong # args"),
+/// and `#\r{\nputs reached\n` prints `reached`, because the comment runs
+/// to the LF.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum SourceLineEndings {
+    /// `-translation auto`: a lone CR reads as LF. The CR of a CRLF pair
+    /// stays a word separator before the pair's LF, which gives the same
+    /// command structure as one translated LF. Every C Tcl release.
+    #[default]
+    TranslateAuto,
+    /// The file's bytes reach the parser unchanged, so a lone CR stays a
+    /// word separator — `JimTcl`.
+    Preserve,
+}
+
+impl SourceLineEndings {
+    /// Whether a lone CR in a sourced file reads as LF.
+    #[must_use]
+    pub const fn translates(self) -> bool {
+        matches!(self, Self::TranslateAuto)
+    }
+}
+
 impl Default for LexerGrammar {
     /// The modern-Tcl (9.x / unversioned) grammar — matches
     /// `LexerConfig::default()`.
@@ -884,6 +922,7 @@ impl Default for LexerGrammar {
             quote_termination: QuoteTermination::Strict,
             var_syntax: VarSyntax::Tcl,
             list_parse: ListParse::Strict,
+            source_line_endings: SourceLineEndings::TranslateAuto,
         }
     }
 }
@@ -1036,6 +1075,7 @@ mod grammar_of_dialect_name_tests {
         assert_eq!(jim.word_separators, WordSeparators::Jim);
         assert_eq!(jim.list_parse, ListParse::Lenient);
         assert_eq!(jim.brace_backslash_newline, BraceBackslashNewline::Literal);
+        assert_eq!(jim.source_line_endings, SourceLineEndings::Preserve);
         assert_ne!(
             jim,
             LexerGrammar::default(),

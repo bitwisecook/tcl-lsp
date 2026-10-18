@@ -44,8 +44,51 @@ use crate::tokens::{ByteCol, SourcePosition, Token, TokenType};
 pub enum SourceChannel {
     /// An original Tcl value passed to evaluation. CR is not translated.
     NativeValue,
-    /// Document text whose source-channel continuations include CR and CRLF.
+    /// Document text, read the way the dialect's `source` reads a script
+    /// file. Under C Tcl's `-translation auto`
+    /// ([`tcl_dialect::SourceLineEndings::TranslateAuto`]) a lone CR ends a
+    /// command or comment ([`Self::script_byte`]). Backslash-CR and
+    /// backslash-CRLF continuations currently apply to every Document; gating
+    /// them on the same axis for `JimTcl` is a tracked follow-up.
     Document,
+}
+
+impl SourceChannel {
+    /// The byte the Tcl parser reads at original offset `at`, or `None` past
+    /// the end of `bytes`.
+    ///
+    /// A `Document` whose dialect's `source` translates line endings
+    /// (`line_endings.translates()`) reads a lone CR (one that no LF follows)
+    /// as LF. That is `TranslateInputEOL` under `-translation auto`,
+    /// observed on tclsh 8.4.20 to 9.1.0: a lone CR ends a command and a
+    /// comment exactly as LF does, while `eval` of the same bytes keeps it as
+    /// a word separator. The substitution is one byte for one byte, so every
+    /// original offset, span, line index and UTF-16 position is unchanged.
+    /// The CR of a CRLF pair is left as it is. It stays a word separator
+    /// before the pair's LF, which ends the line, so the command structure is
+    /// the same as for one translated LF. Values fold CR and CRLF separately,
+    /// through `tcl_syntax::backslash::source_literal_bytes`.
+    ///
+    /// A `NativeValue`, and a Document under
+    /// [`tcl_dialect::SourceLineEndings::Preserve`] (`JimTcl`, whose
+    /// `Jim_EvalFile` translates nothing), read their bytes unchanged.
+    #[must_use]
+    pub fn script_byte(
+        self,
+        line_endings: tcl_dialect::SourceLineEndings,
+        bytes: &[u8],
+        at: usize,
+    ) -> Option<u8> {
+        let byte = *bytes.get(at)?;
+        let lone_cr = byte == b'\r' && bytes.get(at + 1) != Some(&b'\n');
+        Some(
+            if self == Self::Document && line_endings.translates() && lone_cr {
+                b'\n'
+            } else {
+                byte
+            },
+        )
+    }
 }
 
 /// Immutable original script bytes and their input-channel semantics.
@@ -814,6 +857,73 @@ mod native_byte_tests {
             .unwrap();
         assert_eq!(group_commands_bytes(&n, bytes, config).len(), 2);
         assert_eq!(group_commands_bytes(&d, bytes, config).len(), 1);
+    }
+
+    #[test]
+    fn document_script_bytes_read_a_lone_cr_as_lf_without_moving_offsets() {
+        use tcl_dialect::SourceLineEndings;
+        let bytes = b"a\rb\r\nc\r";
+        let read = |channel: SourceChannel, line_endings: SourceLineEndings| {
+            (0..=bytes.len())
+                .map(|at| channel.script_byte(line_endings, bytes, at))
+                .collect::<Vec<_>>()
+        };
+        let unchanged = bytes
+            .iter()
+            .copied()
+            .map(Some)
+            .chain([None])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            read(SourceChannel::Document, SourceLineEndings::TranslateAuto),
+            b"a\nb\r\nc\n"
+                .iter()
+                .copied()
+                .map(Some)
+                .chain([None])
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            read(SourceChannel::Document, SourceLineEndings::Preserve),
+            unchanged
+        );
+        for line_endings in [
+            SourceLineEndings::TranslateAuto,
+            SourceLineEndings::Preserve,
+        ] {
+            assert_eq!(read(SourceChannel::NativeValue, line_endings), unchanged);
+        }
+    }
+
+    #[test]
+    fn native_value_and_document_lone_cr_have_distinct_command_boundaries() {
+        // tclsh 8.4.20 to 9.1.0: `source` of these bytes ends the comment at
+        // the first CR, then runs `proc` and the call. `eval` of the same
+        // bytes is one comment that runs to the end, so nothing runs and the
+        // return code is 0.
+        let bytes = b"# c\rproc t {a b} {}\rt x value\r";
+        let native = SourceImage::native(bytes.as_slice());
+        let document = SourceImage::document(std::str::from_utf8(bytes).unwrap());
+        let config = LexerConfig::default();
+        let n = Lexer::with_source_image(&native, config)
+            .tokenise_all()
+            .unwrap();
+        let d = Lexer::with_source_image(&document, config)
+            .tokenise_all()
+            .unwrap();
+        assert!(group_commands_bytes(&n, bytes, config).is_empty());
+        let commands = group_commands_bytes(&d, bytes, config);
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].span.start(), 4);
+        assert_eq!(commands[1].span, Span::new(20, 29));
+        assert_eq!(commands[0].words.len(), 4);
+        assert_eq!(commands[1].words.len(), 3);
+        assert_eq!(
+            d.iter()
+                .find(|token| token.kind == TokenType::Comment)
+                .map(|token| token.span),
+            Some(Span::new(0, 3))
+        );
     }
 
     #[test]

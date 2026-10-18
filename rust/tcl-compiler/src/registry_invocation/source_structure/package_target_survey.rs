@@ -102,6 +102,7 @@ impl OriginalPackageIndexRetainedBody {
 #[derive(Debug)]
 pub struct OriginalPackageIndexTargetGuard {
     requirements: Vec<String>,
+    release_arity: Vec<(tcl_dialect::TclVersion, bool)>,
     negated: bool,
     subject: String,
     _models: Vec<crate::command_binding::OriginalPackageIndexSourceModel>,
@@ -113,6 +114,16 @@ impl OriginalPackageIndexTargetGuard {
     #[must_use]
     pub fn requirements(&self) -> &[String] {
         &self.requirements
+    }
+    /// Whether `target`'s own Registry form for the selected query accepts
+    /// its original argv count. `Some(false)`: the query raises instead of
+    /// answering (Tcl 8.4's `package vsatisfies` takes exactly one
+    /// requirement). `None`: the Registry left the count undecided.
+    #[must_use]
+    pub fn argv_accepted_in(&self, target: tcl_dialect::TclVersion) -> Option<bool> {
+        self.release_arity
+            .iter()
+            .find_map(|&(release, accepted)| (release == target).then_some(accepted))
     }
     /// Whether the complete original expression negates the selected query.
     #[must_use]
@@ -443,8 +454,21 @@ impl OriginalPackageIndexSourceSurvey {
             return None;
         };
         let outer_words = self.command_words(outer)?;
-        let outer_query = outer_words
-            .with_source_schema(&context, |schema| schema.authored_source_package_query())??;
+        let (outer_query, release_arity) =
+            outer_words.with_source_schema(&context, |schema| {
+                let decided = tcl_dialect::TclVersion::ALL
+                    .into_iter()
+                    .filter_map(|release| {
+                        tcl_registry::InvocationDialect::for_version(release)
+                            .authoring_query()
+                            .and_then(|query| schema.arity_accepts_under(&query))
+                            .map(|accepted| (release, accepted))
+                    })
+                    .collect::<Vec<_>>();
+                schema
+                    .authored_source_package_query()
+                    .map(|query| (query, decided))
+            })??;
         if outer_query.query != SourcePackageQuery::VersionSatisfies {
             return None;
         }
@@ -506,6 +530,7 @@ impl OriginalPackageIndexSourceSurvey {
         }
         Some(OriginalPackageIndexTargetGuard {
             requirements,
+            release_arity,
             negated,
             subject,
             _models: models,
@@ -538,7 +563,23 @@ mod tests {
         assert!(receipt.negated());
         assert_eq!(receipt.requirements(), &["8.5".to_owned(), "9".to_owned()]);
         assert!(receipt.subject_is_interpreter_release_in(tcl_dialect::TclVersion::V8_6));
+        assert_eq!(
+            receipt.argv_accepted_in(tcl_dialect::TclVersion::V8_4),
+            Some(false)
+        );
+        assert_eq!(
+            receipt.argv_accepted_in(tcl_dialect::TclVersion::V8_5),
+            Some(true)
+        );
+        assert_eq!(
+            receipt.argv_accepted_in(tcl_dialect::TclVersion::V9_1),
+            Some(true)
+        );
         let lower = guard("if {[package vsatisfies [package provide tcl] 9.0-]} {return}").unwrap();
+        assert_eq!(
+            lower.argv_accepted_in(tcl_dialect::TclVersion::V8_4),
+            Some(true)
+        );
         assert!(!lower.subject_is_interpreter_release_in(tcl_dialect::TclVersion::V8_6));
         assert!(lower.subject_is_interpreter_release_in(tcl_dialect::TclVersion::V9_0));
     }

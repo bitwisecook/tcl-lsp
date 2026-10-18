@@ -23,7 +23,11 @@
 //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
 //!   source does not already end with an EOL token.
 //! - **SEP** — runs of horizontal whitespace (`' '`, `\t`, `\r`, VT, FF).
-//!   `\r` is horizontal whitespace in Tcl, not an EOL.
+//!   A native value's `\r` is horizontal whitespace, not an EOL. A
+//!   Document whose dialect's `source` uses `-translation auto` (every C
+//!   Tcl release; [`LexerConfig::source_line_endings`]) reads a lone `\r`
+//!   as LF ([`crate::SourceChannel::script_byte`]), so there a lone CR ends
+//!   the command. The CR of a CRLF pair stays horizontal whitespace.
 //! - **EOL** — runs of EOL characters (`\n`, `;`) interleaved with
 //!   horizontal whitespace.
 //! - **COMMENT** — `#` at command start, scanned to the next `\n`
@@ -218,6 +222,13 @@ pub struct LexerConfig {
     /// helpers) can read the document's answer from the same place they read
     /// every other lexical axis, instead of defaulting to `Strict`.
     pub list_parse: tcl_dialect::ListParse,
+    /// How the dialect's `source` reads a script file's line endings — see
+    /// [`tcl_dialect::SourceLineEndings`]. It applies only to a
+    /// [`SourceChannel::Document`](crate::SourceChannel::Document) buffer:
+    /// under `TranslateAuto` a lone CR ends a command or comment, as in C Tcl,
+    /// and under `Preserve` (`JimTcl`) it stays a word separator. A native
+    /// value is never translated.
+    pub source_line_endings: tcl_dialect::SourceLineEndings,
 }
 
 /// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
@@ -262,6 +273,7 @@ impl Default for LexerConfig {
             var_syntax: tcl_dialect::VarSyntax::Tcl,
             brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Folds,
             list_parse: tcl_dialect::ListParse::Strict,
+            source_line_endings: tcl_dialect::SourceLineEndings::TranslateAuto,
         }
     }
 }
@@ -319,6 +331,7 @@ impl LexerConfig {
             var_syntax: self.var_syntax,
             brace_backslash_newline: self.brace_backslash_newline,
             list_parse: self.list_parse,
+            source_line_endings: self.source_line_endings,
             ..base
         }
     }
@@ -341,6 +354,7 @@ impl LexerConfig {
             var_syntax: grammar.var_syntax,
             brace_backslash_newline: grammar.brace_backslash_newline,
             list_parse: grammar.list_parse,
+            source_line_endings: grammar.source_line_endings,
             ..Self::default()
         }
     }
@@ -924,7 +938,19 @@ impl<'src> Lexer<'src> {
         if let Some(g) = self.ghost_at(self.pos) {
             return Some(g);
         }
-        self.source().get(self.pos as usize).copied()
+        self.script_byte(self.pos as usize)
+    }
+
+    /// The byte the parser reads at original offset `at` under this
+    /// source's channel and the dialect's `source` line-ending rule. Every
+    /// structural decision reads source bytes through here, so a translated
+    /// Document's lone CR ends a command or comment everywhere LF does, and
+    /// no offset moves.
+    #[inline]
+    fn script_byte(&self, at: usize) -> Option<u8> {
+        self.source_map
+            .channel()
+            .script_byte(self.config.source_line_endings, self.source(), at)
     }
 
     /// Return the character starting at `self.pos`, or `None` at EOF.
@@ -995,9 +1021,8 @@ impl<'src> Lexer<'src> {
             return false;
         }
         debug_assert_eq!(self.current_byte(), Some(b'\n'));
-        let bytes = self.source();
         let mut index = self.pos as usize + 1;
-        while let Some(&byte) = bytes.get(index) {
+        while let Some(byte) = self.script_byte(index) {
             if is_horizontal_whitespace_byte(byte, self.config.word_separators) {
                 index += 1;
             } else {
@@ -1367,10 +1392,10 @@ impl<'src> Lexer<'src> {
         Ok(())
     }
 
-    /// Return the byte at `self.pos + offset`, if any.
+    /// Return the parser's byte at `self.pos + offset`, if any.
     #[inline]
     fn peek_byte(&self, offset: u32) -> Option<u8> {
-        self.source().get((self.pos + offset) as usize).copied()
+        self.script_byte((self.pos + offset) as usize)
     }
 
     /// Parse a quoted-string `ESC` token.
@@ -2263,13 +2288,32 @@ mod tests {
 
     #[test]
     fn cr_is_separator_not_eol() {
-        // `\r` is a separator char, not an end-of-line char.
-        let lexed = Lexed::run("foo\rbar");
+        // Under `eval` (a native value) `\r` is a separator char, not an
+        // end-of-line char. tclsh 8.4-9.1 `source` reads a Document's lone
+        // `\r` as LF, so there it ends the command.
+        let source = "foo\rbar";
+        let kinds = |lexer: Lexer<'_>| {
+            lexer
+                .tokenise_all()
+                .unwrap()
+                .into_iter()
+                .map(|token| token.kind)
+                .collect::<Vec<_>>()
+        };
         assert_eq!(
-            lexed.kinds(),
+            kinds(Lexer::with_bytes(source.as_bytes(), LexerConfig::default())),
             vec![
                 TokenType::Esc,
                 TokenType::Sep,
+                TokenType::Esc,
+                TokenType::Eol,
+            ]
+        );
+        assert_eq!(
+            kinds(Lexer::new(source)),
+            vec![
+                TokenType::Esc,
+                TokenType::Eol,
                 TokenType::Esc,
                 TokenType::Eol,
             ]
@@ -4182,8 +4226,8 @@ mod jim_divergence_tests {
             kinds("set x a\u{0B}b", tcl()).contains(&(TokenType::Sep, "\u{0B}".into())),
             "tcl splits on the vertical tab"
         );
-        // The four shared separators behave identically either way.
-        for ws in [" ", "\t", "\r", "\u{0C}"] {
+        // The three shared separators behave identically either way.
+        for ws in [" ", "\t", "\u{0C}"] {
             for config in [jim(), tcl()] {
                 assert!(
                     kinds(&format!("set x a{ws}b"), config)
@@ -4193,6 +4237,17 @@ mod jim_divergence_tests {
                 );
             }
         }
+        // A Document's lone CR does not. C Tcl's `source` reads it as LF
+        // (`-translation auto`), so it ends the command. Jim's `source` reads
+        // the bytes unchanged, so it stays a word separator.
+        assert!(
+            kinds("set x a\rb", jim()).contains(&(TokenType::Sep, "\r".into())),
+            "jim keeps the lone CR as a separator"
+        );
+        assert!(
+            kinds("set x a\rb", tcl()).contains(&(TokenType::Eol, "\r".into())),
+            "tcl ends the command at the lone CR"
+        );
     }
 
     /// `puts "abc"def` is one word in Jim and a parse error in C Tcl. The
@@ -4244,6 +4299,7 @@ mod grammar_carriage_tests {
         assert_eq!(c.var_syntax, g.var_syntax);
         assert_eq!(c.brace_backslash_newline, g.brace_backslash_newline);
         assert_eq!(c.list_parse, g.list_parse);
+        assert_eq!(c.source_line_endings, g.source_line_endings);
     }
 
     #[test]
@@ -4302,5 +4358,6 @@ mod grammar_carriage_tests {
             from_default.brace_backslash_newline,
             plain.brace_backslash_newline
         );
+        assert_eq!(from_default.source_line_endings, plain.source_line_endings);
     }
 }

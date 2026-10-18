@@ -1,0 +1,5 @@
+99074508bac1c25af494d6c7b7d75f18a63d272bd30d1d854eb995f3f2544953  compiler221-v2.patch
+5f614a8a8a3f1e63148317dbe396ec393738ce0eccb9a9a881903d8dceb247a7  forced-import-assertion-v2.patch
+10cbc25851dc3ba4fed4c99b082cbdd5c10319aa3e95fca1a6be086db542bbd8  i43-fix.patch
+2e361898644039aa8fcea94efd45b2cc4adf7edbbf025c59023a18717356bb15  lone-cr-document-channel-v3.patch
+de94db820c27baf841f6a3cefd6a99a33e62ed21b2c1d611bcdee3a2502b066d  vsatisfies-84-v2.patch

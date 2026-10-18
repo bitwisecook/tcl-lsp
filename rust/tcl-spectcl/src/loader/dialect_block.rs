@@ -60,7 +60,8 @@
 use tcl_dialect::model::{BuildProfileId, Family, Release, grammar};
 use tcl_dialect::{
     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
-    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
+    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax,
+    WordSeparators,
 };
 
 use super::{Log, Stmt, block, next_text};
@@ -135,6 +136,13 @@ const AXES: &[Axis] = &[
     Axis {
         name: "list_parse",
         values: &["strict", "lenient"],
+    },
+    // How the family's `source` reads a script file's line endings: C Tcl's
+    // `-translation auto` reads a lone CR as LF, and Jim reads the bytes
+    // unchanged.
+    Axis {
+        name: "source_line_endings",
+        values: &["translate-auto", "preserve"],
     },
 ];
 
@@ -255,6 +263,11 @@ impl PackDialect {
             Some("lenient") => ListParse::Lenient,
             Some(_) => return None,
         };
+        let source_line_endings = match self.axis("source_line_endings") {
+            Some("translate-auto") | None => SourceLineEndings::TranslateAuto,
+            Some("preserve") => SourceLineEndings::Preserve,
+            Some(_) => return None,
+        };
         Some(LexerGrammar {
             expand_syntax: flag("expand_syntax", true)?,
             irules_brace_separator: flag("irules_brace_separator", false)?,
@@ -274,6 +287,7 @@ impl PackDialect {
             quote_termination,
             var_syntax,
             list_parse,
+            source_line_endings,
         })
     }
 
@@ -629,6 +643,7 @@ mod tests {
             ("quote_termination", "concatenating"),
             ("var_syntax", "jim"),
             ("list_parse", "lenient"),
+            ("source_line_endings", "preserve"),
         ];
 
         assert_eq!(

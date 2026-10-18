@@ -1,0 +1,63 @@
+{
+  "reviewer": "Luna-22",
+  "head": "bfa47846e (source == 9cc6b4089)",
+  "static_only": true,
+  "apply_check": {"worktree": "ok", "cached": "ok", "rustfmt_2024": "clean"},
+  "oracles": "luna-22/probes/{fi,c221,vs}.{tcl,out}; tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0",
+  "patches": [
+    {
+      "patch": "compiler221-v2.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "hash_gate_covers_doc": false,
+      "regeneration_required": "none",
+      "findings": [
+        "Only live gate is make check-name-resolution-proofs: substring checks of manifest problem_statement/question/conclusion/scope/provider answers/ID in the doc plus test-body comments; no doc hash. Emulated on HEAD and patched doc: 0 errors (luna-22/c221/check.py).",
+        "corpus-inventory.json hashes only rust/*/tests/data/{native,authored}* and the BIG-IP appliance dir.",
+        "Path/hash mentions in rust-validation/*.json, storage225 jsonl, archive inventory, and experiments/.../combined-manifest.json (after_sha256 == current doc sha) are historical provenance read by no gate; do not edit.",
+        "Edited paragraphs are hand-maintained beyond update-name-resolution-proof-index.py render(); a future --render would drop them (pre-existing)."
+      ],
+      "conditions": ["Execute the test; a later failing assertion is a separate defect, not a revert.", "Run make check-name-resolution-proofs in the gated tree."]
+    },
+    {
+      "patch": "vsatisfies-84-v2.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "three_state": true,
+      "owner_alignment": "authored_source_arity()? (unresolved selector, STRUCTURALLY_CHECKED_ARITY, count None) -> None; non-empty arity_windows -> None; per-form authored_source_count_for_arity, indeterminate -> None; common arity when no form admitted",
+      "existing_assertions_unchanged": true,
+      "conditions": [
+        "Run reachability::tests, registry package_ tests, package_target_survey tests.",
+        "Recommended (non-blocking): return None when an admitted form has literal_argument_prefix or its own options (pick_form honours both; helper recounts with selected semantics.options), or document the scope."
+      ],
+      "out_of_scope": ["package_.rs:576-585 comment says at_least(2) but code is Arity::exact(2)", "working-tree debug eprintln!/zz_probe test in source_structure/package_target_survey.rs must not ship"]
+    },
+    {
+      "patch": "forced-import-assertion-v2.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "claim_a_dead_tail": "verified: types.rs:3134-3136 delegates exactly; resolve_called_proc returns at definition.rs:3926-3933 or 3934-3937; 3938-4010 unreachable (helpers live elsewhere: references.rs:388, definition.rs:3302)",
+      "claim_b_vacuous": "verified with mechanism correction: byte 269 is the final '}'; no command_invocations range (head/name-word spans) or declaration name span contains it, so select() returns ControlFlow::Continue (original_declaration.rs:753-758), mapped to None. It does not pick the namespace eval invocation. after_last-2 = byte 267 = 'p' head [267,268).",
+      "offset_move_judgment": "legitimate narrow correction: selector (test path), fixture bytes and is_none() unchanged; coordinate moved to the call the test name/variable denote and production callers pass; required by no-absence-as-completeness",
+      "conditions": [
+        "Execute the test.",
+        "Record the offset move as a test-input correction in tracking/commit.",
+        "Non-vacuity still depends on a passing same-route positive control (6350), which has the same defect."
+      ],
+      "siblings_past_the_call": [
+        {"test": "a_forced_import_shadows_the_local_command", "fn_line": 6350, "offset_line": 6360, "query_line": 6361, "expects": "Some(::src::p)", "baseline": "FAILED"},
+        {"test": "a_forced_import_shadows_when_this_file_holds_no_export_for_the_source", "fn_line": 6583, "offset_line": 6593, "query_line": 6600, "expects": "is_none", "baseline": "vacuous pass"},
+        {"test": "a_forced_import_does_not_shadow_when_this_file_holds_the_export_list", "fn_line": 6606, "offset_line": 6614, "query_line": 6618, "expects": "Some(::app::helper)", "baseline": "FAILED"},
+        {"test": "partly_observable_target (helper)", "fn_line": 6673, "offset_line": 6675, "query_line": 6681, "used_by": [
+          {"test": "a_forced_import_shadows_when_another_file_holds_the_covering_export", "fn_line": 6692, "expects": "Some(::src::helper)", "baseline": "FAILED"},
+          {"test": "a_forced_import_does_not_shadow_when_the_whole_program_exports_nothing", "fn_line": 6707, "expects": "Some(::app::helper)", "baseline": "FAILED"},
+          {"test": "a_forced_import_from_a_namespace_the_program_cannot_see_still_shadows", "fn_line": 6722, "expects": "None", "baseline": "vacuous pass"}]},
+        {"test": "the_same_document_without_an_oracle_keeps_the_document_only_answer", "fn_line": 6733, "offset_line": 6739, "query_line": 6743, "expects": "Some(::app::helper)", "baseline": "FAILED"}
+      ],
+      "siblings_no_call_site_horizon_queries": [
+        {"test": "an_unforced_import_onto_an_existing_command_installs_nothing", "fn_line": 6369, "query_line": 6381, "offset": "u32::MAX"},
+        {"test": "a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias", "fn_line": 6389, "offset_line": 6412, "query_line": 6417},
+        {"test": "a_redefinition_ends_a_forced_import_shadow", "fn_line": 6425, "query_lines": [6435, 6441]}
+      ],
+      "not_affected": "the_real_oracle_does_not_resurrect_an_export_written_after_the_import (6767) uses proc_visible_via_wildcard_import (horizon); its FAILED cause unexamined",
+      "user_ruling_needed": "sibling coordinate sweep (Group A) and fixture changes (Group B)"
+    }
+  ]
+}

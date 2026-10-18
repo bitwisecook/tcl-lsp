@@ -189,6 +189,15 @@ impl Condition {
                 if !condition.receipt.subject_is_interpreter_release_in(target) {
                     return Ternary::Inert;
                 }
+                // An argv count the target's own Registry form rejects raises
+                // `wrong # args` before any requirement is read, and
+                // `tclPkgUnknown` abandons the index: nothing this guard
+                // gates runs, in either sense. An undecided count stays so.
+                match condition.receipt.argv_accepted_in(target) {
+                    Some(true) => {}
+                    Some(false) => return Ternary::No,
+                    None => return Ternary::Inert,
+                }
                 // A requirement the target's grammar rejects makes the query
                 // raise instead of answering; that path is not modelled here.
                 if condition.receipt.requirements().iter().any(|requirement| {

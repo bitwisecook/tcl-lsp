@@ -358,4 +358,22 @@ mod tests {
             Ok(true)
         );
     }
+
+    #[test]
+    fn a_lone_cr_ends_a_document_comment_only_where_source_translates_it() {
+        // jimsh 0.84 `source` of these bytes prints `reached`. Jim reads the
+        // file untranslated, so the comment runs to the LF. tclsh 8.6 and 9.0
+        // `source` fail with "missing close-brace": the CR ends the comment,
+        // and `{` opens a word that never closes. `info complete` of the same
+        // string is 1 on both, which is the native-value answer.
+        let source = "#\r{\nputs reached\n";
+        let document = SourceImage::document(source);
+        let native = SourceImage::native(source.as_bytes());
+        let jim = LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
+        let tcl = LexerConfig::from_grammar(grammar(Family::Tcl, Release::TCL_8_6));
+        assert_eq!(script_image_is_complete(&document, jim), Ok(true));
+        assert_eq!(script_image_is_complete(&native, jim), Ok(true));
+        assert_eq!(script_image_is_complete(&document, tcl), Ok(false));
+        assert_eq!(script_image_is_complete(&native, tcl), Ok(true));
+    }
 }

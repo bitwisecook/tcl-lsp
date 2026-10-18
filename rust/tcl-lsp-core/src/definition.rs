@@ -6564,16 +6564,20 @@ c\uD800";
 
     #[test]
     fn a_forced_import_before_the_call_does_not_shadow_a_later_call_site() {
-        // FP guard on the `-force` shortcut: it outranks the local lookup
-        // only where a live import edge really covers the word. With the
-        // forced import forgotten again, the local definition wins back.
+        // The forced import replaces the local `::dst::p`, and forgetting it
+        // removes the only `::dst::p` left, so the local definition does not
+        // come back. Oracle (tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0):
+        // the forced import makes `namespace origin ::dst::p` `::src::p`, the
+        // forget leaves no `::dst::p`, and the call raises
+        // `invalid command name "p"`. The query sits on the call's own head
+        // word, which is what the original declaration selection reads.
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = after_last(src, "    p\n") - 2;
         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
         assert!(
-            hit.is_some_and(|p| p.qualified_name == "::dst::p"),
-            "after the forget the local definition is what the call reaches: {hit:?}"
+            hit.is_none(),
+            "after the forget no `p` is left for the call to reach: {hit:?}"
         );
     }
 

@@ -1,0 +1,108 @@
+{
+  "reviewer": "Luna-21",
+  "subject": "Sol-19 lone-cr-document-channel.patch",
+  "repository": "/home/user/tcl-lsp",
+  "branch": "work",
+  "head": "9cc6b4089",
+  "patch_applies_to_head": true,
+  "cargo_run": false,
+  "repository_modified": false,
+  "verdict": "ADMIT-WITH-CONDITIONS",
+  "conditions": [
+    {
+      "id": 1,
+      "title": "Grammar-data gate for Jim in the same admission (lexer half of Sol-19 step 4)",
+      "detail": "Lexer::script_byte translates a lone CR only when the selected LexerGrammar's source-channel axis is TranslateAuto. Values: GRAMMAR_TCL84 and its 8.5-9.1 heirs TranslateAuto. GRAMMAR_JIM Preserve. The F5 trunk inherits TranslateAuto, documented as not decided by any oracle. Carry the axis through LexerConfig (from_grammar, with_grammar, grammar_over). Mirror it in the SpecTcl dialect_block vocabulary and the studio form, or add a GAPS entry. Add a jimsh-pinned Jim regression test.",
+      "failing_scenario_without_it": "Jim grammar, Document bytes '#\\r{\\nputs reached\\n'. jimsh 0.84 source succeeds and prints 'reached'. HEAD jim_script_syntax_tokens gives missing=None. Patched it gives missing=Some(b'{'), so script_image_is_complete flips true to false and the command_binding Jim WholeScript Direct parse records the source as Error.",
+      "evidence": "probe/jim_regression.out, probe/jim_control.out"
+    },
+    {
+      "id": 2,
+      "title": "Apply assertion-corrections.patch",
+      "detail": "Three narrow, documented corrections. Each is a genuine contradiction of tclsh source for C Tcl document fixtures."
+    },
+    {
+      "id": 3,
+      "title": "Contract text must name the channel-less auxiliary scanners as a tracked gap (or land step 2)",
+      "detail": "These scanners have no channel and agree with the lexer only on boundary-normalised text: structural_index BracketIndex/BraceIndex, ranges::command_subst_close, word_parts::command_subst_close, the Grouper::close blank-line count, segmenter recovery and single_newline_gap, the E201 heuristics, the comment_line_starts line filter, and the line-keyed suppressions."
+    },
+    {
+      "id": 4,
+      "title": "Owed validation",
+      "detail": "cargo test -p tcl-lexer; the tcl-lsp-core, tcl-compiler and tcl-lsp-server suites; make rust-check. None has been executed."
+    }
+  ],
+  "probe_confirmation": {
+    "tclsh_versions": ["8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0"],
+    "source_column_identical_across_versions": true,
+    "lone_cr_ends_command_under_source": true,
+    "lone_cr_ends_comment_under_source": true,
+    "lone_cr_ends_command_inside_brackets": true,
+    "crlf_equivalent_to_lf": true,
+    "cr_cr_lf_two_line_ends": true,
+    "backslash_cr_and_backslash_crlf_continuation": true,
+    "ctrl_z_eof_including_open_words": true,
+    "jim_keeps_lone_cr_as_whitespace": true,
+    "jim_no_ctrl_z_eof": true,
+    "jim_backslash_cr_not_continuation": true,
+    "files": ["probe/luna_probe.tcl", "probe/out8.4.txt", "probe/out8.5.txt", "probe/out8.6.txt", "probe/out9.0.txt", "probe/out9.1.txt", "probe/jim_control.out", "probe/fixture_probe.tcl", "probe/fixture_probe.out", "probe/jim_regression.out"]
+  },
+  "lexer_soundness": {
+    "offsets_spans_line_index_utf16_unchanged": true,
+    "peek_current_consistent": true,
+    "crlf_token_stream_unchanged": true,
+    "continuation_logic_consistent": true,
+    "raw_structural_reads_remaining_in_lexer": [],
+    "residual_hazards": [
+      "native_script_words::local_region_tokens slices the bytes, so a region ending between the CR and LF of a CRLF reads that CR as lone and gives a trailing EOL. Command structure is unchanged; EOL-presence predicates fail closed. Non-blocking.",
+      "JimNative parse_sep and parse_comment now stop at a lone CR on Document images (the Jim regression, condition 1).",
+      "Pre-existing: compiled Document script fragments moved to runtime eval (has_command_separator then EVAL_STK) are not CR-translated."
+    ]
+  },
+  "jim": {
+    "lexer_can_know_dialect": "yes, via LexerConfig built from the per-dialect LexerGrammar; no source-channel axis exists yet",
+    "regresses_existing_jim_tests": false,
+    "regresses_jim_fidelity": true,
+    "scope_of_regression": "Core raw-text entry points: jim_script_syntax_tokens, jim_script_is_complete/script_image_is_complete, and Analyser on raw Jim text. The server, CLI and MCP boundaries already normalise every dialect (pre-existing).",
+    "step4_in_same_admission": "the lexer-side grammar gate: yes; the issuer-side part can follow"
+  },
+  "assertion_decisions": [
+    {
+      "test": "tcl-lexer lexer::tests::cr_is_separator_not_eol",
+      "contradicts_tclsh": "for the Document channel it uses (Lexer::new); the assertion is the eval rule",
+      "correction": "Route the existing assertion to Lexer::with_bytes (NativeValue), keeping it, and add the Document expectation [Esc, Eol, Esc, Eol]."
+    },
+    {
+      "test": "tcl-lsp-core completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar",
+      "row": "(\"\\r\", Some(1))",
+      "contradicts_tclsh": true,
+      "correction": "(\"\\r\", None)"
+    },
+    {
+      "test": "tcl-lsp-core original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations",
+      "row": "(\"\\t\\r\", true)",
+      "contradicts_tclsh": true,
+      "correction": "(\"\\t\\r\", false)"
+    }
+  ],
+  "correction_patch": {
+    "path": "assertion-corrections.patch",
+    "git_apply_check_head": true,
+    "git_apply_check_on_top_of_sol19": true
+  },
+  "expected_test_flips": {
+    "pass_to_fail_without_corrections": [
+      "tcl_lexer lexer::tests::cr_is_separator_not_eol",
+      "tcl_lsp_core completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar",
+      "tcl_lsp_core original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations"
+    ],
+    "fail_to_pass_predicted_unexecuted": [
+      "tcl_lsp_core signature_help::...::signature_cursor_unicode_cr_and_utf16_positions_do_not_clamp",
+      "tcl_lsp_core call_hierarchy::logical_source::...::original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice"
+    ],
+    "additional_flips_found_beyond_sol19": [],
+    "vacuous_after_patch": [
+      "tcl_lexer lexer::tests::vertical_tab_is_a_separator_only_in_tcl: the \"\\r\" iteration passes only because of other spaces; tighten it to check the ws token kind"
+    ]
+  }
+}

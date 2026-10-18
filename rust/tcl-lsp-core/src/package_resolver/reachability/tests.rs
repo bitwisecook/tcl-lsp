@@ -72,7 +72,8 @@ fn a_vsatisfies_early_return_gates_the_declaration_1017() {
 ///
 /// Oracle: `package vsatisfies [package provide Tcl] 8.5 9` is 1 on both
 /// 8.6.14 and 9.0.4, so the `return` never fires on either and the package
-/// loads; it does fire on 8.4.
+/// loads. On 8.4.20 the two-requirement query raises `wrong # args`, so the
+/// index is abandoned and the package does not load.
 #[test]
 fn the_tcllib_head_guard_admits_both_supported_releases() {
     let src = "if {![package vsatisfies [package provide Tcl] 8.5 9]} {return}\n\
@@ -80,6 +81,46 @@ fn the_tcllib_head_guard_admits_both_supported_releases() {
     assert_eq!(only(src, V86), Availability::Available);
     assert_eq!(only(src, V90), Availability::Available);
     assert_eq!(only(src, Some(TclVersion::V8_4)), Availability::Unavailable);
+}
+
+/// Tcl 8.4's `package vsatisfies` compares exactly one requirement (the
+/// Registry's per-release form). A longer list raises before it is read, so
+/// on 8.4 nothing the guard gates registers, in either sense — even where
+/// the first requirement alone would be satisfied.
+///
+/// Oracle (`tclsh8.4.20`): "error reading package index file …: wrong # args:
+/// should be "package vsatisfies version1 version2"", then `package require`
+/// of `b1pkg`, `thenpkg` and `elsepkg` each fails with "can't find package".
+/// `tclsh8.5.19` / `8.6.18` load `b1pkg` and `thenpkg`; `tclsh9.0.4` loads
+/// only `elsepkg`.
+#[test]
+fn a_multi_requirement_vsatisfies_raises_on_tcl_8_4() {
+    let v84 = Some(TclVersion::V8_4);
+    let early = "if {![package vsatisfies [package provide Tcl] 8.4 8.5]} {return}\n\
+                 package ifneeded b1pkg 1.0 [list package provide b1pkg 1.0]\n";
+    assert_eq!(only(early, v84), Availability::Unavailable);
+    assert_eq!(only(early, Some(TclVersion::V8_5)), Availability::Available);
+    assert_eq!(only(early, V86), Availability::Available);
+    assert_eq!(only(early, V90), Availability::Unavailable);
+    let branch = "if {[package vsatisfies [package provide Tcl] 8.4 8.5]} {\n\
+                  \x20   package ifneeded thenpkg 1.0 [list package provide thenpkg 1.0]\n\
+                  } else {\n\
+                  \x20   package ifneeded elsepkg 1.0 [list package provide elsepkg 1.0]\n\
+                  }\n";
+    for (target, then, otherwise) in [
+        (v84, Availability::Unavailable, Availability::Unavailable),
+        (V86, Availability::Available, Availability::Unavailable),
+        (V90, Availability::Unavailable, Availability::Available),
+    ] {
+        assert_eq!(
+            availabilities(branch, target),
+            vec![
+                ("thenpkg".to_owned(), then),
+                ("elsepkg".to_owned(), otherwise),
+            ],
+            "{target:?}",
+        );
+    }
 }
 
 /// The trivial control: unreachable under *every* release,

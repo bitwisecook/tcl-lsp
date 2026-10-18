@@ -605,7 +605,8 @@ mod selected_completion_gap_tests {
     fn original_class_selector_gaps_use_configured_separators_and_continuations() {
         for (gap, expected) in [
             (" ", true),
-            ("\t\r", true),
+            // tclsh 8.4-9.1 `source`: a lone CR ends the command, as LF does.
+            ("\t\r", false),
             (" \\\n\t", true),
             ("\n", false),
             ("; ", false),

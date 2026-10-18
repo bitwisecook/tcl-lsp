@@ -515,7 +515,8 @@ mod selected_argument_gap_tests {
     fn original_registry_argument_slots_use_selected_separator_and_continuation_grammar() {
         for (gap, expected_active) in [
             (" ", Some(1)),
-            ("\r", Some(1)),
+            // tclsh 8.4-9.1 `source`: a lone CR ends the command, as LF does.
+            ("\r", None),
             (" \\\n\t", Some(1)),
             ("\n", None),
             ("; ", None),

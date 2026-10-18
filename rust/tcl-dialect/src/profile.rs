@@ -31,7 +31,8 @@
 
 use crate::grammar::{
     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
-    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
+    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax,
+    WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::model::{CorePoints, Family, PackageFloor, SpecProvider, SurfaceLayer, SurfaceQuery};
@@ -90,6 +91,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// The Tcl 8.5 lexing grammar (plain 8.5, iApps, tmsh, the 8.5-based EDA
@@ -110,6 +112,7 @@ const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// The Tcl 8.6 lexing grammar (plain 8.6, Expect, the 8.6-based EDA shells):
@@ -137,6 +140,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// The `f5-tcl` **trunk** lexing grammar: a Tcl 8.4 base (no `{*}`, no
@@ -148,7 +152,8 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
 /// TMM iRules, `IAppImplementation`, and tmsh `cli script` all reproduce
 /// the R-rules, the N-rules, and the inert `{*}`, so this one grammar
 /// serves `f5-irules`, `f5-iapps`, and `f5-tmsh` alike — the iRules
-/// offshoot overrides no lexical axis.
+/// offshoot overrides no lexical axis. `source_line_endings` keeps the 8.4
+/// base's `-translation auto` reading; no oracle decides it for BIG-IP.
 const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: true,
@@ -164,6 +169,7 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// What stands behind a profile's evaluation semantics: the evidence gate a

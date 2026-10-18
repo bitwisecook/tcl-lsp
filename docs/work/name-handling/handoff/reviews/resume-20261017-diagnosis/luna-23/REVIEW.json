@@ -1,0 +1,36 @@
+{
+  "reviewer": "Luna-23",
+  "subject": "scratchpad/agents/sol-19/lone-cr-document-channel-v2.patch",
+  "head": "bfa47846e",
+  "verdict": "ADMIT-WITH-CONDITIONS",
+  "luna21_conditions": {"1_grammar_gate": "met", "2_assertion_corrections": "met (31/31 lines verbatim)", "3_narrowed_contract": "met", "4_validation": "still owed"},
+  "mechanics": {
+    "git_apply_check_temp_index": "rc=0 (14 files, +328/-24); main index untouched",
+    "rustfmt_2024": "clean on all 12 .rs files",
+    "new_allow": false,
+    "cargo_run": false
+  },
+  "checks": {
+    "axis_values": "TCL84/85/86/9X TranslateAuto; F5 inherits with no-oracle note in family.rs and profile.rs; JIM/0.80/0.81 Preserve; defaults TranslateAuto",
+    "lexerconfig_carriage": "Default, from_grammar, grammar_over explicit; with_grammar and normalized via struct update; for_* route through from_grammar",
+    "construction_sites": "202 files scanned; only full literals are the 7 grammar constants, to_grammar and two Default impls, all patched; all other sites are struct updates; no serde, no Debug snapshots, Eq/Hash derived",
+    "issue_2070_gates": "15 reads == 15 AXES; vocabulary, distinctness, Jim classification (with preserve row), hover documentation all pass by inspection",
+    "studio_gaps": "not required: no studio form for dialect blocks, parity rule covers CommandSpec fields, no existing dialect axis has a GAPS row",
+    "oracle": "tclsh 8.4-9.1 and jimsh 0.84 re-probed; new Jim/Tcl completeness test and folded corrections match"
+  },
+  "conditions": [
+    "Fix source_map.rs native_value_and_document_lone_cr_have_distinct_command_boundaries comment: eval of '# c\\rproc t {a b} {}\\rt x value\\r' is one comment (rc 0, nothing runs), not a seven-word proc command",
+    "Add source_line_endings to the closed-vocabulary list in docs/design/registry/dialect-and-package-registry-redesign.md:856",
+    "dialect-profile-model.md struct sketch: new field sits under the 'five JimTcl lexical axes' header; regroup or relabel",
+    "lexer.rs vertical_tab_is_a_separator_only_in_tcl: comment 'behave identically either way' is now false for Document \\r; drop \\r from the loop and assert the CR token kind per config (Jim Sep, Tcl Document Eol)",
+    "Contract 'tracked obligation' paragraph: name the tracking location (issue or active coordination doc) and record the obligations there, or phrase as current limitation",
+    "Run the owed validation: cargo test -p tcl-dialect -p tcl-lexer -p tcl-spectcl, tcl-registry spectcl tests, tcl-lsp-core, tcl-compiler, tcl-lsp-server suites, make rust-check"
+  ],
+  "optional": ["One sentence in docs/design/compiler/lexing-segmentation.md on Document lone CR as Eol under TranslateAuto"],
+  "evidence": {
+    "probes": "scratchpad/agents/luna-23/probe/{tcl.out,jim.out,drive.tcl,drive2.tcl,*.tcl}",
+    "patched_copies": "scratchpad/agents/luna-23/b/",
+    "literal_scan": "scratchpad/agents/luna-23/tools/literals2.py",
+    "lone_cr_corpus_scan": "scratchpad/agents/luna-23/tools/lonecr.py (samples, tests, tmp/tcl*, tmp/tk*: zero lone CR)"
+  }
+}

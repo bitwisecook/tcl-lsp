@@ -1,0 +1,764 @@
+diff -ruN a/docs/design/compiler/lexing-segmentation.md b/docs/design/compiler/lexing-segmentation.md
+--- a/docs/design/compiler/lexing-segmentation.md	2026-10-18 16:03:09.771857624 +0000
++++ b/docs/design/compiler/lexing-segmentation.md	2026-10-18 16:03:32.980615255 +0000
+@@ -66,6 +66,11 @@
+ report `start` one line below its own `end` — a backwards range. Any new
+ position-tracking path must keep the two mechanisms in lock-step.
+ 
++Command structure follows a different rule from positions. In a Document whose
++grammar's `source_line_endings` is `TranslateAuto` (C Tcl's `source`), a lone
++CR is an `Eol`, read through `SourceChannel::script_byte`. Positions still
++break only on `\n`.
++
+ ### Stage 2 — Segmentation
+ 
+ `segment_script_image_with_offset_and_config` returns a checked `SegmentedScript`:
+diff -ruN a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+--- a/docs/design/contracts/shared-utility-contracts-rust.md	2026-10-18 12:21:03.000000000 +0000
++++ b/docs/design/contracts/shared-utility-contracts-rust.md	2026-10-18 16:03:32.974903981 +0000
+@@ -3761,6 +3761,38 @@
+ and `source_braced_word_bytes` select Document translation and braced folding
+ without replacing the original image. Document CR/CRLF becomes value LF;
+ NativeValue retains raw CR/CRLF and recognises only backslash-LF continuation.
++The lexer reads every structural byte through `SourceChannel::script_byte`.
++That function reads a lone CR as LF only for a Document whose grammar's
++`source_line_endings` is `TranslateAuto`. That covers C Tcl 8.4–9.1, and the
++F5 trunk by inheritance, which no oracle decides. The CR then ends a command
++or comment, as in tclsh `source`. A Jim Document (`Preserve`) and every
++NativeValue keep the CR as a word separator. The rewrite is byte for byte, so
++original offsets, `LineIndex` lines and UTF-16 positions do not move. The CR
++of a CRLF stays a word separator before its LF.
++
++The rule covers the lexer and the consumers of its tokens: the CST builder,
++the segmenter's command split, `group_commands_bytes`, parse cuts and word
++cursors. Current limitation: the following raw-byte scanners have no channel.
++They are correct only on text already normalised at the boundary with
++`normalise_lone_cr`, as the server, CLI and MCP do:
++
++- `structural_index` (`BracketIndex`, `BraceIndex`)
++- `ranges::command_substitution_end`
++- `word_parts::command_subst_close`
++- the blank-line count in `Grouper::close`
++- segmenter recovery (`find_recovery_offset`) and `single_newline_gap`
++- the E201 line heuristics
++- the line filter of `comment_line_starts`
++- the line-keyed suppressions
++
++Three further current limitations:
++
++- `source`'s `^Z` end of file is not modelled.
++- Normalisation is not chosen per dialect by the issuer. The boundaries still
++  normalise a lone CR for Jim documents.
++- Backslash-CR and backslash-CRLF continuations are not gated on this axis,
++  so they also apply to Jim Documents.
++
+ C Tcl's default `source` file channel translates CRLF; current Jim `source`
+ preserves it. A source issuer retains the actual channel, rather than inferring
+ it from byte contents or the physical compiler point. Escaped NUL uses the
+diff -ruN a/docs/design/registry/dialect-and-package-registry-redesign.md b/docs/design/registry/dialect-and-package-registry-redesign.md
+--- a/docs/design/registry/dialect-and-package-registry-redesign.md	2026-10-18 16:03:09.091857583 +0000
++++ b/docs/design/registry/dialect-and-package-registry-redesign.md	2026-10-18 16:03:32.549735433 +0000
+@@ -853,7 +853,7 @@
+ | `environment NAME { … }` (pack level) | an environment definition — `core`, `ambient` / `hosted` placements (`Pinned` / `tracks-base` / `keyed KEY` / requirement sets), `alias`, `editor_identity` and `selecting_identity` (from the **fixed contributed set**, never minting an id), `file_extension` / `filename` / `signature`, `display_name`, `policy`, `help_terms`, `version_ceiling`. Converted at the declaring tier's `Provenance` and registered through the one publish point (`bundled::set_active` → `registration::publish_pack_set`), so a pack's environments resolve through the ordinary ingress, route documents by claimed extension, and retire when the pack leaves the workspace. Compiled canonical names and aliases are reserved. The block body is an evaluated scope: a version several environments share is one variable. `environment NAME -extend { … }` adds detection facts and placements to an environment declared elsewhere |
+ | `co_provides` | parsed and carried as data (Tk 9's predicated `tk`/`Tk` relation); the loader-alias mechanics that consume it are not built |
+ | `dynamic_surface` / `unknown_members` | the honesty escape hatch: a provider whose member set is runtime-extensible declares so (`allow_unknown_subcommands` on commands, `allow_unknown_methods` on `object_class`) |
+-| `dialect NAME { … }` (pack level) | a language family: `release R ?-build P?` ladder rows and `axis NAME VALUE` rows against a closed axis vocabulary (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`). An unknown axis or value rejects the whole block, naming the axis; a block whose axes reproduce a compiled family release is rejected naming the environment it should have been. A validated block becomes a `tcl_dialect::model::DynamicFamily` (namespaced `PACK/DIALECT` id, one `LexerGrammar` per release, the declaring tier's provenance), and an `environment … { core DIALECT RELEASE }` row registers a `DynamicCore` binding whose grammar `dynamic_core_grammar` answers with. Grammar declarations sit at the top of the §6.4 trust lattice. **Nothing on the analysis path lexes with it yet** (§11 D5) |
++| `dialect NAME { … }` (pack level) | a language family: `release R ?-build P?` ladder rows and `axis NAME VALUE` rows against a closed axis vocabulary (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`, `source_line_endings`). An unknown axis or value rejects the whole block, naming the axis; a block whose axes reproduce a compiled family release is rejected naming the environment it should have been. A validated block becomes a `tcl_dialect::model::DynamicFamily` (namespaced `PACK/DIALECT` id, one `LexerGrammar` per release, the declaring tier's provenance), and an `environment … { core DIALECT RELEASE }` row registers a `DynamicCore` binding whose grammar `dynamic_core_grammar` answers with. Grammar declarations sit at the top of the §6.4 trust lattice. **Nothing on the analysis path lexes with it yet** (§11 D5) |
+ | `refine NAME { … }` at command and subcommand scope | the invocation refinement — the declarative replacement for `command_forms` / `subcommand_forms`; Tk's form sites round-trip through it |
+ | `include from SOURCE into TARGET ?-available {WINDOW}? {names…}` | the roster of ancestor command names a *reimplementing* family actually has, with the window on the **target's** own ladder. An unrostered pair fails **open**; only a trusted tier may narrow a compiled family. Jim's roster is the one user |
+ | `result_stability`, `event_requirement_form` (with a nested `event_requires` block), `data_collection -native ID`, `body_scope`, `side_switch_target`, `event_handler_priority` | loader readers at the shared row-reader seam, riding the export gates |
+diff -ruN a/docs/design/registry/dialect-profile-model.md b/docs/design/registry/dialect-profile-model.md
+--- a/docs/design/registry/dialect-profile-model.md	2026-10-18 12:21:03.000000000 +0000
++++ b/docs/design/registry/dialect-profile-model.md	2026-10-18 16:03:32.602566112 +0000
+@@ -275,6 +275,9 @@
+     pub quote_termination: QuoteTermination,  // "abc"def — Strict vs Concatenating
+     pub var_syntax: VarSyntax,             // $(...), nested index parens, high bytes
+     pub list_parse: ListParse,             // malformed list text — Strict vs Lenient
++
++    // ---- the script-file reader (Jim differs here too) ----
++    pub source_line_endings: SourceLineEndings, // `source` reads lone CR as LF? TranslateAuto vs Preserve
+ }
+ 
+ /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
+@@ -304,6 +307,15 @@
+   runs to the end of the string, and junk after a closing delimiter begins
+   the next element. `tcl_syntax::list::split_list_jim` implements it.
+ 
++A sixth Jim difference describes the file reader rather than the parser.
++`source_line_endings`: C Tcl's `source` opens the file with
++`-translation auto`, so a lone CR in a Document ends a command or comment.
++This was measured on tclsh 8.4.20–9.1.0, and `eval` of the same bytes keeps
++the CR as a word separator. Jim's `Jim_EvalFile` translates nothing: on
++jimsh 0.84, `#\r{\nputs reached\n` prints `reached`. The lexer applies the
++axis through `SourceChannel::script_byte`, and only to Document input. The
++F5 trunk inherits `TranslateAuto` from its 8.4 base; no oracle decides it.
++
+ `brace_backslash_newline` moves real bindings: `proc p {a b\<newline>c}`
+ binds three parameters under Tcl and **two** under Jim (the second element
+ is the specifier `b c`, so the parameter is `b` defaulting to `c`), while
+diff -ruN a/rust/tcl-dialect/src/grammar.rs b/rust/tcl-dialect/src/grammar.rs
+--- a/rust/tcl-dialect/src/grammar.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-dialect/src/grammar.rs	2026-10-18 12:59:26.532636662 +0000
+@@ -338,6 +338,11 @@
+     pub var_syntax: VarSyntax,
+     /// Whether malformed list text is an error — see [`ListParse`].
+     pub list_parse: ListParse,
++    /// How the dialect's `source` reads a script file's line endings — see
++    /// [`SourceLineEndings`]. Like [`Self::script_skips_leading_bom`], this
++    /// describes the file reader, so it applies only to Document input
++    /// (`tcl_lexer::SourceChannel::Document`), never to a native value.
++    pub source_line_endings: SourceLineEndings,
+     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
+     pub numbers: NumberSyntax,
+     /// Which backslash-escape grammar the release decodes — see
+@@ -865,6 +870,39 @@
+     Lenient,
+ }
+ 
++/// How a dialect's `source` command reads a script file's line endings
++/// before its parser sees the text.
++///
++/// C Tcl opens the file with `-translation auto`, and its `TranslateInputEOL`
++/// turns CR and CRLF into LF. A lone CR in a sourced file therefore ends a
++/// command or a comment, exactly as LF does, while `eval` of the same bytes
++/// keeps the CR as a word separator. This was measured on tclsh 8.4.20,
++/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0, with identical results.
++/// `JimTcl`'s `Jim_EvalFile` reads the file with `fopen(…, "rt")` and
++/// `fread` and translates nothing (`jim.c:12130` at 0.84). On jimsh 0.84,
++/// `proc t {a b} {…}\rt x value\r` is one `proc` command ("wrong # args"),
++/// and `#\r{\nputs reached\n` prints `reached`, because the comment runs
++/// to the LF.
++#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
++pub enum SourceLineEndings {
++    /// `-translation auto`: a lone CR reads as LF. The CR of a CRLF pair
++    /// stays a word separator before the pair's LF, which gives the same
++    /// command structure as one translated LF. Every C Tcl release.
++    #[default]
++    TranslateAuto,
++    /// The file's bytes reach the parser unchanged, so a lone CR stays a
++    /// word separator — `JimTcl`.
++    Preserve,
++}
++
++impl SourceLineEndings {
++    /// Whether a lone CR in a sourced file reads as LF.
++    #[must_use]
++    pub const fn translates(self) -> bool {
++        matches!(self, Self::TranslateAuto)
++    }
++}
++
+ impl Default for LexerGrammar {
+     /// The modern-Tcl (9.x / unversioned) grammar — matches
+     /// `LexerConfig::default()`.
+@@ -884,6 +922,7 @@
+             quote_termination: QuoteTermination::Strict,
+             var_syntax: VarSyntax::Tcl,
+             list_parse: ListParse::Strict,
++            source_line_endings: SourceLineEndings::TranslateAuto,
+         }
+     }
+ }
+@@ -1036,6 +1075,7 @@
+         assert_eq!(jim.word_separators, WordSeparators::Jim);
+         assert_eq!(jim.list_parse, ListParse::Lenient);
+         assert_eq!(jim.brace_backslash_newline, BraceBackslashNewline::Literal);
++        assert_eq!(jim.source_line_endings, SourceLineEndings::Preserve);
+         assert_ne!(
+             jim,
+             LexerGrammar::default(),
+diff -ruN a/rust/tcl-dialect/src/lib.rs b/rust/tcl-dialect/src/lib.rs
+--- a/rust/tcl-dialect/src/lib.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-dialect/src/lib.rs	2026-10-18 12:59:43.218297106 +0000
+@@ -65,8 +65,8 @@
+ pub use grammar::{
+     ArrayIndexSyntax, BraceBackslashNewline, BraceLineContinuation, BracedVarStyle,
+     EXPR_WORD_OPERATORS, EscapeSyntax, ExprCommentStyle, LexerGrammar, ListParse, NumberSyntax,
+-    QuoteTermination, VarSyntax, WordSeparators, expr_word_operator_since, grammar_of_dialect_name,
+-    is_expr_word_operator,
++    QuoteTermination, SourceLineEndings, VarSyntax, WordSeparators, expr_word_operator_since,
++    grammar_of_dialect_name, is_expr_word_operator,
+ };
+ pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
+ pub use profile::{DialectFileExtension, DialectProfile, DialectProfileKey, EvaluationEvidence};
+diff -ruN a/rust/tcl-dialect/src/model/family.rs b/rust/tcl-dialect/src/model/family.rs
+--- a/rust/tcl-dialect/src/model/family.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-dialect/src/model/family.rs	2026-10-18 13:00:00.156563141 +0000
+@@ -37,7 +37,7 @@
+ use crate::LexerGrammar;
+ use crate::grammar::{
+     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+-    ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
++    ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax, WordSeparators,
+ };
+ use crate::model::expr_grammar::{self, ExprGrammar};
+ use crate::version::StringCharacterModel;
+@@ -490,6 +490,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
+@@ -518,6 +519,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ /// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
+@@ -529,6 +531,12 @@
+ /// which together with the separator makes `{*}` **inert** — a literal
+ /// `*` word plus the following word, never expansion, never an error
+ /// (measurements §1, §3 row 6).
++///
++/// `source_line_endings` is inherited from the 8.4 base as
++/// [`SourceLineEndings::TranslateAuto`]. No oracle decides it: the
++/// BIG-IP measurements cover no lone-CR input, and iRules are not read
++/// through `source`. The inheritance agrees with the LSP boundary, which
++/// already normalises a lone CR for every dialect.
+ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
+     irules_brace_separator: true,
+     brace_line_continuation: BraceLineContinuation::Continues,
+@@ -609,6 +617,11 @@
+     var_syntax: VarSyntax::Jim,
+     // `llength "a {b"` is 2: Jim's list parser has no error path.
+     list_parse: ListParse::Lenient,
++    // `Jim_EvalFile` reads with `fopen(…, "rt")` and `fread` (jim.c:12130
++    // at 0.84) and translates no line ending, so a lone CR in a sourced
++    // file stays a word separator. Measured on jimsh 0.84. The earlier
++    // rungs use the same reader but were not measured separately.
++    source_line_endings: SourceLineEndings::Preserve,
+ };
+ 
+ /// Jim from 0.80: the `0d` decimal radix prefix arrives, alongside the
+diff -ruN a/rust/tcl-dialect/src/profile.rs b/rust/tcl-dialect/src/profile.rs
+--- a/rust/tcl-dialect/src/profile.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-dialect/src/profile.rs	2026-10-18 13:00:00.158019460 +0000
+@@ -31,7 +31,8 @@
+ 
+ use crate::grammar::{
+     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+-    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
++    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax,
++    WordSeparators,
+ };
+ use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
+ use crate::model::{CorePoints, Family, PackageFloor, SpecProvider, SurfaceLayer, SurfaceQuery};
+@@ -90,6 +91,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ /// The Tcl 8.5 lexing grammar (plain 8.5, iApps, tmsh, the 8.5-based EDA
+@@ -110,6 +112,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ /// The Tcl 8.6 lexing grammar (plain 8.6, Expect, the 8.6-based EDA shells):
+@@ -137,6 +140,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ /// The `f5-tcl` **trunk** lexing grammar: a Tcl 8.4 base (no `{*}`, no
+@@ -148,7 +152,8 @@
+ /// TMM iRules, `IAppImplementation`, and tmsh `cli script` all reproduce
+ /// the R-rules, the N-rules, and the inert `{*}`, so this one grammar
+ /// serves `f5-irules`, `f5-iapps`, and `f5-tmsh` alike — the iRules
+-/// offshoot overrides no lexical axis.
++/// offshoot overrides no lexical axis. `source_line_endings` keeps the 8.4
++/// base's `-translation auto` reading; no oracle decides it for BIG-IP.
+ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
+     expand_syntax: false,
+     irules_brace_separator: true,
+@@ -164,6 +169,7 @@
+     quote_termination: QuoteTermination::Strict,
+     var_syntax: VarSyntax::Tcl,
+     list_parse: ListParse::Strict,
++    source_line_endings: SourceLineEndings::TranslateAuto,
+ };
+ 
+ /// What stands behind a profile's evaluation semantics: the evidence gate a
+diff -ruN a/rust/tcl-lexer/src/lexer.rs b/rust/tcl-lexer/src/lexer.rs
+--- a/rust/tcl-lexer/src/lexer.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lexer/src/lexer.rs	2026-10-18 16:03:51.335128430 +0000
+@@ -23,7 +23,11 @@
+ //! - **EOF handling** — emits a trailing ghost `EOL` (once) when the
+ //!   source does not already end with an EOL token.
+ //! - **SEP** — runs of horizontal whitespace (`' '`, `\t`, `\r`, VT, FF).
+-//!   `\r` is horizontal whitespace in Tcl, not an EOL.
++//!   A native value's `\r` is horizontal whitespace, not an EOL. A
++//!   Document whose dialect's `source` uses `-translation auto` (every C
++//!   Tcl release; [`LexerConfig::source_line_endings`]) reads a lone `\r`
++//!   as LF ([`crate::SourceChannel::script_byte`]), so there a lone CR ends
++//!   the command. The CR of a CRLF pair stays horizontal whitespace.
+ //! - **EOL** — runs of EOL characters (`\n`, `;`) interleaved with
+ //!   horizontal whitespace.
+ //! - **COMMENT** — `#` at command start, scanned to the next `\n`
+@@ -218,6 +222,13 @@
+     /// helpers) can read the document's answer from the same place they read
+     /// every other lexical axis, instead of defaulting to `Strict`.
+     pub list_parse: tcl_dialect::ListParse,
++    /// How the dialect's `source` reads a script file's line endings — see
++    /// [`tcl_dialect::SourceLineEndings`]. It applies only to a
++    /// [`SourceChannel::Document`](crate::SourceChannel::Document) buffer:
++    /// under `TranslateAuto` a lone CR ends a command or comment, as in C Tcl,
++    /// and under `Preserve` (`JimTcl`) it stays a word separator. A native
++    /// value is never translated.
++    pub source_line_endings: tcl_dialect::SourceLineEndings,
+ }
+ 
+ /// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
+@@ -262,6 +273,7 @@
+             var_syntax: tcl_dialect::VarSyntax::Tcl,
+             brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Folds,
+             list_parse: tcl_dialect::ListParse::Strict,
++            source_line_endings: tcl_dialect::SourceLineEndings::TranslateAuto,
+         }
+     }
+ }
+@@ -319,6 +331,7 @@
+             var_syntax: self.var_syntax,
+             brace_backslash_newline: self.brace_backslash_newline,
+             list_parse: self.list_parse,
++            source_line_endings: self.source_line_endings,
+             ..base
+         }
+     }
+@@ -341,6 +354,7 @@
+             var_syntax: grammar.var_syntax,
+             brace_backslash_newline: grammar.brace_backslash_newline,
+             list_parse: grammar.list_parse,
++            source_line_endings: grammar.source_line_endings,
+             ..Self::default()
+         }
+     }
+@@ -924,7 +938,19 @@
+         if let Some(g) = self.ghost_at(self.pos) {
+             return Some(g);
+         }
+-        self.source().get(self.pos as usize).copied()
++        self.script_byte(self.pos as usize)
++    }
++
++    /// The byte the parser reads at original offset `at` under this
++    /// source's channel and the dialect's `source` line-ending rule. Every
++    /// structural decision reads source bytes through here, so a translated
++    /// Document's lone CR ends a command or comment everywhere LF does, and
++    /// no offset moves.
++    #[inline]
++    fn script_byte(&self, at: usize) -> Option<u8> {
++        self.source_map
++            .channel()
++            .script_byte(self.config.source_line_endings, self.source(), at)
+     }
+ 
+     /// Return the character starting at `self.pos`, or `None` at EOF.
+@@ -995,9 +1021,8 @@
+             return false;
+         }
+         debug_assert_eq!(self.current_byte(), Some(b'\n'));
+-        let bytes = self.source();
+         let mut index = self.pos as usize + 1;
+-        while let Some(&byte) = bytes.get(index) {
++        while let Some(byte) = self.script_byte(index) {
+             if is_horizontal_whitespace_byte(byte, self.config.word_separators) {
+                 index += 1;
+             } else {
+@@ -1367,10 +1392,10 @@
+         Ok(())
+     }
+ 
+-    /// Return the byte at `self.pos + offset`, if any.
++    /// Return the parser's byte at `self.pos + offset`, if any.
+     #[inline]
+     fn peek_byte(&self, offset: u32) -> Option<u8> {
+-        self.source().get((self.pos + offset) as usize).copied()
++        self.script_byte((self.pos + offset) as usize)
+     }
+ 
+     /// Parse a quoted-string `ESC` token.
+@@ -2263,10 +2288,20 @@
+ 
+     #[test]
+     fn cr_is_separator_not_eol() {
+-        // `\r` is a separator char, not an end-of-line char.
+-        let lexed = Lexed::run("foo\rbar");
++        // Under `eval` (a native value) `\r` is a separator char, not an
++        // end-of-line char. tclsh 8.4-9.1 `source` reads a Document's lone
++        // `\r` as LF, so there it ends the command.
++        let source = "foo\rbar";
++        let kinds = |lexer: Lexer<'_>| {
++            lexer
++                .tokenise_all()
++                .unwrap()
++                .into_iter()
++                .map(|token| token.kind)
++                .collect::<Vec<_>>()
++        };
+         assert_eq!(
+-            lexed.kinds(),
++            kinds(Lexer::with_bytes(source.as_bytes(), LexerConfig::default())),
+             vec![
+                 TokenType::Esc,
+                 TokenType::Sep,
+@@ -2274,6 +2309,15 @@
+                 TokenType::Eol,
+             ]
+         );
++        assert_eq!(
++            kinds(Lexer::new(source)),
++            vec![
++                TokenType::Esc,
++                TokenType::Eol,
++                TokenType::Esc,
++                TokenType::Eol,
++            ]
++        );
+     }
+ 
+     #[test]
+@@ -4182,8 +4226,8 @@
+             kinds("set x a\u{0B}b", tcl()).contains(&(TokenType::Sep, "\u{0B}".into())),
+             "tcl splits on the vertical tab"
+         );
+-        // The four shared separators behave identically either way.
+-        for ws in [" ", "\t", "\r", "\u{0C}"] {
++        // The three shared separators behave identically either way.
++        for ws in [" ", "\t", "\u{0C}"] {
+             for config in [jim(), tcl()] {
+                 assert!(
+                     kinds(&format!("set x a{ws}b"), config)
+@@ -4193,6 +4237,17 @@
+                 );
+             }
+         }
++        // A Document's lone CR does not. C Tcl's `source` reads it as LF
++        // (`-translation auto`), so it ends the command. Jim's `source` reads
++        // the bytes unchanged, so it stays a word separator.
++        assert!(
++            kinds("set x a\rb", jim()).contains(&(TokenType::Sep, "\r".into())),
++            "jim keeps the lone CR as a separator"
++        );
++        assert!(
++            kinds("set x a\rb", tcl()).contains(&(TokenType::Eol, "\r".into())),
++            "tcl ends the command at the lone CR"
++        );
+     }
+ 
+     /// `puts "abc"def` is one word in Jim and a parse error in C Tcl. The
+@@ -4244,6 +4299,7 @@
+         assert_eq!(c.var_syntax, g.var_syntax);
+         assert_eq!(c.brace_backslash_newline, g.brace_backslash_newline);
+         assert_eq!(c.list_parse, g.list_parse);
++        assert_eq!(c.source_line_endings, g.source_line_endings);
+     }
+ 
+     #[test]
+@@ -4302,5 +4358,6 @@
+             from_default.brace_backslash_newline,
+             plain.brace_backslash_newline
+         );
++        assert_eq!(from_default.source_line_endings, plain.source_line_endings);
+     }
+ }
+diff -ruN a/rust/tcl-lexer/src/line_index.rs b/rust/tcl-lexer/src/line_index.rs
+--- a/rust/tcl-lexer/src/line_index.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lexer/src/line_index.rs	2026-10-18 13:02:02.711259345 +0000
+@@ -42,9 +42,16 @@
+ /// file before its parser ever sees it: `Tcl_OpenFileChannel` reads scripts
+ /// with `-translation auto`, whose `TranslateInputEOL` turns every `\r` into
+ /// `\n` (swallowing a following `\n`). A lone `\r` in a file on disk is
+-/// therefore a genuine **command terminator** in Tcl, not the horizontal
+-/// whitespace the lexer would otherwise make of it — treating it as whitespace
+-/// invents `E003`/`W210` diagnostics and hides real ones.
++/// therefore a genuine **command terminator** in Tcl, not horizontal
++/// whitespace — treating it as whitespace invents `E003`/`W210` diagnostics
++/// and hides real ones. The lexer reads a translated Document's lone CR
++/// that way itself ([`crate::SourceChannel::script_byte`]). This text
++/// rewrite is still needed for two things. It makes the `\n`-only line model
++/// below agree with the client's. It also feeds the raw-byte scanners that
++/// have no channel and are correct only on normalised text: the structural
++/// index, command-substitution close scans, `group_commands_bytes`'s
++/// blank-line count, segmenter recovery, E201 heuristics, `comment_line_starts`
++/// and line-keyed suppressions.
+ ///
+ /// Two properties make this safe to apply to *document* text on the way into
+ /// analysis, and they are what let the `\n`-only [`LineIndex::new`] the lexer
+@@ -112,8 +119,13 @@
+     ///
+     /// A line break is `\n` **only**: the byte immediately after each
+     /// `\n` begins the next line. A CRLF therefore breaks on its LF,
+-    /// and a *lone* CR is **not** a line break — in Tcl a bare `\r` is
+-    /// horizontal whitespace (a `Sep`), not an end-of-line.
++    /// and a *lone* CR is **not** a line break here, for every source
++    /// channel. A native value's bare `\r` is horizontal whitespace (a
++    /// `Sep`). A Document's lone `\r` ends a command when the dialect's
++    /// `source` translates line endings
++    /// ([`crate::SourceChannel::script_byte`]), but it never starts a line in
++    /// this index. Client lines come from [`Self::new_lsp`], or from this
++    /// index over [`normalise_lone_cr`] text.
+     ///
+     /// This `\n`-only rule matches the red CST overlay's own
+     /// `build_line_starts`. Keeping the rule identical across the
+diff -ruN a/rust/tcl-lexer/src/script_completeness.rs b/rust/tcl-lexer/src/script_completeness.rs
+--- a/rust/tcl-lexer/src/script_completeness.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lexer/src/script_completeness.rs	2026-10-18 13:01:06.426937199 +0000
+@@ -358,4 +358,22 @@
+             Ok(true)
+         );
+     }
++
++    #[test]
++    fn a_lone_cr_ends_a_document_comment_only_where_source_translates_it() {
++        // jimsh 0.84 `source` of these bytes prints `reached`. Jim reads the
++        // file untranslated, so the comment runs to the LF. tclsh 8.6 and 9.0
++        // `source` fail with "missing close-brace": the CR ends the comment,
++        // and `{` opens a word that never closes. `info complete` of the same
++        // string is 1 on both, which is the native-value answer.
++        let source = "#\r{\nputs reached\n";
++        let document = SourceImage::document(source);
++        let native = SourceImage::native(source.as_bytes());
++        let jim = LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
++        let tcl = LexerConfig::from_grammar(grammar(Family::Tcl, Release::TCL_8_6));
++        assert_eq!(script_image_is_complete(&document, jim), Ok(true));
++        assert_eq!(script_image_is_complete(&native, jim), Ok(true));
++        assert_eq!(script_image_is_complete(&document, tcl), Ok(false));
++        assert_eq!(script_image_is_complete(&native, tcl), Ok(true));
++    }
+ }
+diff -ruN a/rust/tcl-lexer/src/source_map.rs b/rust/tcl-lexer/src/source_map.rs
+--- a/rust/tcl-lexer/src/source_map.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lexer/src/source_map.rs	2026-10-18 16:03:32.547009785 +0000
+@@ -44,10 +44,53 @@
+ pub enum SourceChannel {
+     /// An original Tcl value passed to evaluation. CR is not translated.
+     NativeValue,
+-    /// Document text whose source-channel continuations include CR and CRLF.
++    /// Document text, read the way the dialect's `source` reads a script
++    /// file. Under C Tcl's `-translation auto`
++    /// ([`tcl_dialect::SourceLineEndings::TranslateAuto`]) a lone CR ends a
++    /// command or comment ([`Self::script_byte`]). Backslash-CR and
++    /// backslash-CRLF continuations currently apply to every Document; gating
++    /// them on the same axis for `JimTcl` is a tracked follow-up.
+     Document,
+ }
+ 
++impl SourceChannel {
++    /// The byte the Tcl parser reads at original offset `at`, or `None` past
++    /// the end of `bytes`.
++    ///
++    /// A `Document` whose dialect's `source` translates line endings
++    /// (`line_endings.translates()`) reads a lone CR (one that no LF follows)
++    /// as LF. That is `TranslateInputEOL` under `-translation auto`,
++    /// observed on tclsh 8.4.20 to 9.1.0: a lone CR ends a command and a
++    /// comment exactly as LF does, while `eval` of the same bytes keeps it as
++    /// a word separator. The substitution is one byte for one byte, so every
++    /// original offset, span, line index and UTF-16 position is unchanged.
++    /// The CR of a CRLF pair is left as it is. It stays a word separator
++    /// before the pair's LF, which ends the line, so the command structure is
++    /// the same as for one translated LF. Values fold CR and CRLF separately,
++    /// through `tcl_syntax::backslash::source_literal_bytes`.
++    ///
++    /// A `NativeValue`, and a Document under
++    /// [`tcl_dialect::SourceLineEndings::Preserve`] (`JimTcl`, whose
++    /// `Jim_EvalFile` translates nothing), read their bytes unchanged.
++    #[must_use]
++    pub fn script_byte(
++        self,
++        line_endings: tcl_dialect::SourceLineEndings,
++        bytes: &[u8],
++        at: usize,
++    ) -> Option<u8> {
++        let byte = *bytes.get(at)?;
++        let lone_cr = byte == b'\r' && bytes.get(at + 1) != Some(&b'\n');
++        Some(
++            if self == Self::Document && line_endings.translates() && lone_cr {
++                b'\n'
++            } else {
++                byte
++            },
++        )
++    }
++}
++
+ /// Immutable original script bytes and their input-channel semantics.
+ ///
+ /// Equality includes the channel. Grammar, interpreter identity and compilation
+@@ -817,6 +860,73 @@
+     }
+ 
+     #[test]
++    fn document_script_bytes_read_a_lone_cr_as_lf_without_moving_offsets() {
++        use tcl_dialect::SourceLineEndings;
++        let bytes = b"a\rb\r\nc\r";
++        let read = |channel: SourceChannel, line_endings: SourceLineEndings| {
++            (0..=bytes.len())
++                .map(|at| channel.script_byte(line_endings, bytes, at))
++                .collect::<Vec<_>>()
++        };
++        let unchanged = bytes
++            .iter()
++            .copied()
++            .map(Some)
++            .chain([None])
++            .collect::<Vec<_>>();
++        assert_eq!(
++            read(SourceChannel::Document, SourceLineEndings::TranslateAuto),
++            b"a\nb\r\nc\n"
++                .iter()
++                .copied()
++                .map(Some)
++                .chain([None])
++                .collect::<Vec<_>>()
++        );
++        assert_eq!(
++            read(SourceChannel::Document, SourceLineEndings::Preserve),
++            unchanged
++        );
++        for line_endings in [
++            SourceLineEndings::TranslateAuto,
++            SourceLineEndings::Preserve,
++        ] {
++            assert_eq!(read(SourceChannel::NativeValue, line_endings), unchanged);
++        }
++    }
++
++    #[test]
++    fn native_value_and_document_lone_cr_have_distinct_command_boundaries() {
++        // tclsh 8.4.20 to 9.1.0: `source` of these bytes ends the comment at
++        // the first CR, then runs `proc` and the call. `eval` of the same
++        // bytes is one comment that runs to the end, so nothing runs and the
++        // return code is 0.
++        let bytes = b"# c\rproc t {a b} {}\rt x value\r";
++        let native = SourceImage::native(bytes.as_slice());
++        let document = SourceImage::document(std::str::from_utf8(bytes).unwrap());
++        let config = LexerConfig::default();
++        let n = Lexer::with_source_image(&native, config)
++            .tokenise_all()
++            .unwrap();
++        let d = Lexer::with_source_image(&document, config)
++            .tokenise_all()
++            .unwrap();
++        assert!(group_commands_bytes(&n, bytes, config).is_empty());
++        let commands = group_commands_bytes(&d, bytes, config);
++        assert_eq!(commands.len(), 2);
++        assert_eq!(commands[0].span.start(), 4);
++        assert_eq!(commands[1].span, Span::new(20, 29));
++        assert_eq!(commands[0].words.len(), 4);
++        assert_eq!(commands[1].words.len(), 3);
++        assert_eq!(
++            d.iter()
++                .find(|token| token.kind == TokenType::Comment)
++                .map(|token| token.span),
++            Some(Span::new(0, 3))
++        );
++    }
++
++    #[test]
+     fn opaque_names_use_the_selected_variable_grammar_and_byte_positions() {
+         let bytes = b"set \xff V\nlist $\xff ${\xff}";
+         for name in ["tcl8.4", "tcl9.0", "jimtcl"] {
+diff -ruN a/rust/tcl-lsp-core/src/completion/original_context.rs b/rust/tcl-lsp-core/src/completion/original_context.rs
+--- a/rust/tcl-lsp-core/src/completion/original_context.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lsp-core/src/completion/original_context.rs	2026-10-18 12:59:07.091060237 +0000
+@@ -515,7 +515,8 @@
+     fn original_registry_argument_slots_use_selected_separator_and_continuation_grammar() {
+         for (gap, expected_active) in [
+             (" ", Some(1)),
+-            ("\r", Some(1)),
++            // tclsh 8.4-9.1 `source`: a lone CR ends the command, as LF does.
++            ("\r", None),
+             (" \\\n\t", Some(1)),
+             ("\n", None),
+             ("; ", None),
+diff -ruN a/rust/tcl-lsp-core/src/original_oo.rs b/rust/tcl-lsp-core/src/original_oo.rs
+--- a/rust/tcl-lsp-core/src/original_oo.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-lsp-core/src/original_oo.rs	2026-10-18 12:59:07.091171556 +0000
+@@ -605,7 +605,8 @@
+     fn original_class_selector_gaps_use_configured_separators_and_continuations() {
+         for (gap, expected) in [
+             (" ", true),
+-            ("\t\r", true),
++            // tclsh 8.4-9.1 `source`: a lone CR ends the command, as LF does.
++            ("\t\r", false),
+             (" \\\n\t", true),
+             ("\n", false),
+             ("; ", false),
+diff -ruN a/rust/tcl-registry/src/commands/spectcl/blocks.rs b/rust/tcl-registry/src/commands/spectcl/blocks.rs
+--- a/rust/tcl-registry/src/commands/spectcl/blocks.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-registry/src/commands/spectcl/blocks.rs	2026-10-18 13:01:21.178241824 +0000
+@@ -302,7 +302,7 @@
+         "dialect",
+         Arity::exact(2),
+         "Declare a language family and its grammar axes.",
+-        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
++        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`, `source_line_endings`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
+     )
+ }
+ 
+diff -ruN a/rust/tcl-spectcl/src/loader/dialect_block.rs b/rust/tcl-spectcl/src/loader/dialect_block.rs
+--- a/rust/tcl-spectcl/src/loader/dialect_block.rs	2026-10-18 12:21:03.000000000 +0000
++++ b/rust/tcl-spectcl/src/loader/dialect_block.rs	2026-10-18 13:01:21.177283786 +0000
+@@ -60,7 +60,8 @@
+ use tcl_dialect::model::{BuildProfileId, Family, Release, grammar};
+ use tcl_dialect::{
+     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+-    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
++    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax,
++    WordSeparators,
+ };
+ 
+ use super::{Log, Stmt, block, next_text};
+@@ -136,6 +137,13 @@
+         name: "list_parse",
+         values: &["strict", "lenient"],
+     },
++    // How the family's `source` reads a script file's line endings: C Tcl's
++    // `-translation auto` reads a lone CR as LF, and Jim reads the bytes
++    // unchanged.
++    Axis {
++        name: "source_line_endings",
++        values: &["translate-auto", "preserve"],
++    },
+ ];
+ 
+ /// One `axis NAME VALUE` row, resolved against [`AXES`].
+@@ -255,6 +263,11 @@
+             Some("lenient") => ListParse::Lenient,
+             Some(_) => return None,
+         };
++        let source_line_endings = match self.axis("source_line_endings") {
++            Some("translate-auto") | None => SourceLineEndings::TranslateAuto,
++            Some("preserve") => SourceLineEndings::Preserve,
++            Some(_) => return None,
++        };
+         Some(LexerGrammar {
+             expand_syntax: flag("expand_syntax", true)?,
+             irules_brace_separator: flag("irules_brace_separator", false)?,
+@@ -274,6 +287,7 @@
+             quote_termination,
+             var_syntax,
+             list_parse,
++            source_line_endings,
+         })
+     }
+ 
+@@ -629,6 +643,7 @@
+             ("quote_termination", "concatenating"),
+             ("var_syntax", "jim"),
+             ("list_parse", "lenient"),
++            ("source_line_endings", "preserve"),
+         ];
+ 
+         assert_eq!(

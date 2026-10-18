@@ -1,0 +1,45 @@
+{
+  "reviewer": "luna-24",
+  "subject": "sol-17 i43-fix.patch (body_effects.rs)",
+  "patch_sha256": "10cbc25851dc3ba4fed4c99b082cbdd5c10319aa3e95fca1a6be086db542bbd8",
+  "head": "6f01dc10c",
+  "verdict": "ADMIT-WITH-CONDITIONS",
+  "fix1_condition_walk": {
+    "verdict": "sound",
+    "basis": [
+      "mirrors BodyWalk::command_inner and apply_immediate_body_effects (expressions -> widen-if-incomplete -> bodies)",
+      "condition effects reach after_conditions only via retain_possible_effects (Shadowed/possible_occupants/unknowns/uncertainty): monotone toward refusal",
+      "after_conditions is a clone; each body walks its own clone; caller graph untouched; condition walk's authored_prefixes discarded",
+      "widen on incomplete walk is the house fail-closed operator; catalogue advice already carried UnknownEarlierMutation"
+    ],
+    "precision_loss": "E2: all conditions applied to all arms, so arm-1 body is refused though tclsh registers; conservative only; survey sets complete=false for any non-constant Expr guard, so no absence-as-completeness"
+  },
+  "fix2_test_rewrite": {
+    "verdict": "acceptable",
+    "provenance": "git log -S: only 21a199ad8 (Integration43 candidate, Sol-17's own CD-v4 V2-2 test); not an original-handoff test",
+    "oracle": "all three assertions match tclsh 8.4-9.1 (0/0/1)",
+    "caveat": "name says c_source but tests the Logical survey; V2-2 Native C-source refusal now has no test"
+  },
+  "oracle_runs": {
+    "probe_q5_verbatim_8.4_safe": "luna-24/probe-q5-84.tcl -> {} 0 / {} 0 / {} 1 on 8.4, 8.5, 8.6, 9.0, 9.1 (sol-17's original errors on 8.4: no `in` operator)",
+    "extended": "luna-24/probe-q5-portable.tcl: T1 0, T2 0, T3 1, E1 0, E2 1, E3 0, X1 0, X2 0, W1 0, F1 0 on all five versions"
+  },
+  "budget": "nested-wrapper path: ifneeded has no Expr role -> +1 graph clone + authored_roles only; elsewhere constant-factor (+1 condition walk, bounded by MAX_COMMANDS/MAX_DEPTH)",
+  "conditions": [
+    "C1: record V2-2 (Native C-source fall-through refusal past a possible occupant) as an explicit uncovered obligation; do not count this test as C-source coverage; preferably add a graph-level c_source_head_key test",
+    "C2: track follow-ups (pre-existing, not regressions): per-arm condition prefix (E2 precision); `for` start-script effects before condition/body (F1) and loop-carried body effects not threaded into body catalogue",
+    "C3: run make rust-check (clippy) and prep-pr; capture parse_pkg_index_survives_deeply_nested_source_wrapper timing"
+  ],
+  "optional": [
+    "skip clone/walk when schema has no Expr role or no body matches",
+    "widen drops lineage-bearing Descriptor cells (inherited house semantics; may re-expose registry schema for a renamed builtin in the incomplete-condition case; advice keeps UnknownEarlierMutation)",
+    "comment overgeneralises 'reached only after the invocation's own conditions' beyond if/while"
+  ],
+  "rules_check": {
+    "registry_source_of_truth": "no command names introduced",
+    "new_allow": "none",
+    "absence_as_completeness": "none",
+    "fail_closed_guards": "kept",
+    "source_to_native_identity_grant": "none"
+  }
+}

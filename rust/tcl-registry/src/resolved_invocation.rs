@@ -2339,6 +2339,49 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         )
     }
 
+    /// Whether the selected signature's own forms admitted by `query` accept
+    /// this argv, for an invocation whose cardinality varies by release.
+    /// Each form recounts the argv under its own arity
+    /// ([`Self::authored_source_count_for_arity`]); with no form admitted, the
+    /// common arity decides, as in form selection. `None` leaves it undecided:
+    /// wherever [`Self::authored_source_arity`] declines (unresolved selector,
+    /// structural arity checker), for package arity windows, and for an
+    /// indeterminate count.
+    #[must_use]
+    pub fn arity_accepts_under(&self, query: &SurfaceQuery<'_>) -> Option<bool> {
+        let source = self.authored_source_arity()?;
+        if !source.windows.is_empty() {
+            return None;
+        }
+        let accepts = |arity: Arity| {
+            let count = self.authored_source_count_for_arity(arity)?;
+            (!count.indeterminate).then_some(arity.accepts(count.minimum))
+        };
+        let (forms, arity) = source.subcommand.map_or(
+            (source.command.command_forms, source.command.arity),
+            |sub| (sub.subcommand_forms, sub.arity),
+        );
+        let admitted = forms
+            .iter()
+            .filter(|form| {
+                form.surface
+                    .is_none_or(|rows| tcl_dialect::model::surface_admits(rows, Some(query)))
+            })
+            .collect::<Vec<_>>();
+        if admitted.is_empty() {
+            return accepts(arity);
+        }
+        let mut decided = Some(false);
+        for form in admitted {
+            match accepts(form.arity) {
+                Some(true) => return Some(true),
+                Some(false) => {}
+                None => decided = None,
+            }
+        }
+        decided
+    }
+
     pub(crate) fn new(
         words: InvocationWords<'w>,
         spec: &'r CommandSpec,

@@ -1,0 +1,100 @@
+{
+  "reviewer": "Luna-20",
+  "subject": "Sol-18 patches (scratchpad/agents/sol-18)",
+  "repo": "/home/user/tcl-lsp",
+  "head": "9cc6b408980407312d3363b45296a4f3549fe89e",
+  "method": "static only; no cargo; tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 probes under luna-20/probes",
+  "apply": {
+    "individual_worktree": "all four pass git apply --check",
+    "individual_index": "all four pass git apply --check --cached",
+    "combined": "all four concatenated pass git apply --check",
+    "files_disjoint": true,
+    "semantic_interaction": "none found",
+    "note": "The working tree has another agent's uncommitted edits, including a debug eprintln in rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs (target_control). The vsatisfies patch still applies, because its hunks are elsewhere in the file. That eprintln must not ship."
+  },
+  "patches": [
+    {
+      "patch": "compiler221.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "oracle_confirmed": true,
+      "evidence": [
+        "Sol-18's probe and my re-probe (luna-20/probes/c221.out) agree on 8.6.18, 9.0.4 and 9.1.0: the fixture returns code 0 and creates ::outer::inner::Widget, which is a class with method m. Nothing is removed and the current namespace is restored to ::. One fixed world results.",
+        "The same input, dialects and constructor are already asserted Some by c_source_class_query_preserves_independently_completed_world, which passes at baseline. Recorded failure: experiments/.../lsp-readonly-cache-successor-repair2/results/test-221.log, at the is_none line. Of the two tests, only the Some one matches C Tcl.",
+        "Controls checked against tclsh. `namespace eval $unknown {...}` raises `can't read \"unknown\"`. `proc ::oo::class args {}` followed by the create call returns code 0 and creates no Widget. Both match the test's is_none refusals."
+      ],
+      "later_assertions": {
+        "class qualified_name ::outer::inner::Widget, c_source_body.is_some, logical_source_input.is_none": "already pass in the Some test on identical input",
+        "methods contains m": "matches tclsh (info class methods = m); likely holds",
+        "ConditionalCBodyApplicability": "pushed together with factory.c_source_body (source_class.rs:741-755); implied by c_source_body.is_some",
+        "ConditionalCNamespaceApplicability": "pushed by schema_advice under the same predicate (graph.c_source_namespace.is_some && !native_baseline, source_transition_advice.rs:2706) that gates c_source_body; likely holds",
+        "RegisteredFactoryApplicability": "pushed unconditionally (source_class.rs:758-760)",
+        "Gadget/foreign/$unknown/oo::class-shadow/Native-baseline refusals": "these are source-identity and policy controls. None contradicts tclsh, and the Native-baseline refusal follows the no-source-to-Native rule",
+        "contradicts_tclsh": "none found"
+      },
+      "conditions": [
+        "In the same change, update docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md. Line 140 describes this control as 'completed command worlds remain unavailable'. The last sentence of line 18 ('supply no completed command world') should say that the class cards do not supply the world, and that the independently completed world is retained.",
+        "Execute the test. If a later assertion fails, record it as a separate defect. Do not revert :1081."
+      ]
+    },
+    {
+      "patch": "db921-v2.patch",
+      "verdict": "HOLD",
+      "soundness": {
+        "merges_distinct_commands": "No. Merging requires all of the following to match: the same allocation site, First incarnation, the same origin, the same namespace key, the same joined formals, and an equal rebuilt contiguous executed source. Different sites, namespaces, later incarnations and non-literal bodies all stay separate.",
+        "fails_safe_on_mismatch": "Yes. A mismatch, or a None from ExecutedScriptSource::contiguous, keeps both units, as at HEAD.",
+        "already_named_refactor": "behaviour-identical"
+      },
+      "reasons": [
+        "It turns existing original assertions red. rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs builds two plain top-level procs on the same lowering path (build_with_options, tcl8.6, standalone). It asserts installed_procedure_body_units.len()==2 and body_units.len()==4, and that each installed unit is covered by a distinct authored unit through OriginalAuthoredProcedureBody::covers_installed_analysis_source. Those covers criteria are a superset of the patch's equality, so already_authored fires for both procs, the installed units drop to 0, and three tests fail. readonly_authored_coverage_preserves_both_actual_analysis_inventories fails its assert_eq on 2. readonly_authored_coverage_keeps_installed_function_input_and_unique_store panics on .iter().next().unwrap(). readonly_authored_coverage_refuses_missing_foreign_and_mismatched_owners panics on entries.next().unwrap(). This is the same same-input contradiction with the DB test (procedures+body_units==1) that Compiler221 had, and the patch does not address it. The interprocedural.rs:7572 installed loop also becomes vacuous.",
+        "It drops the executed-source identity instead of merging it. The surviving authored unit has body.executed_source == None (asserted at readonly_authored_coverage.rs:186). object_types::procedure_implementation_units (object_types.rs:984-1020) and source_graph's declaration-body selection (source_graph.rs:172-189) pair an implementation allocation with an analysis unit through executed_source. installed_procedure_cfg_for_body and RetainedSourceModuleBindings.installed_procedures (retained_source.rs:181) read installed_procedure_body_units. After the patch, none of these consumers reaches the proc's body. The already_named case is sound only because the kept named procedure carries the executed_source. The 11:55Z ruling makes the two one identity. It does not license losing the Installed links. current-state.md:44 lists 'erase Source SSA identity' as a forbidden fix.",
+        "It re-derives an existing owner. covers_installed_analysis_source already owns the authored/installed correspondence. After the patch, ReadonlyAuthoredCoverage.installed_sources can never be non-empty, which leaves that module dead."
+      ],
+      "path_to_admission": [
+        "Merge the identity into the surviving authored unit. Record the allocation and executed source for the authored id, or teach the executed_source pairing consumers to accept the covers relation, so the Installed links still resolve.",
+        "Decide on the readonly_authored_coverage assertions under the 11:55Z ruling and make a documented narrow correction, or retire ReadonlyAuthoredCoverage. Do not leave them red.",
+        "Use covers_installed_analysis_source as the merge predicate.",
+        "Measure the DB test, the readonly_authored_coverage tests, the interprocedural original_formal_reference_traits tests and the object_types/source_graph users together."
+      ]
+    },
+    {
+      "patch": "vsatisfies-84.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "oracle_confirmed": true,
+      "evidence": [
+        "tmp/tcl8.4.20/generic/tclPkg.c, non-TIP268 path: objc != 4 gives WrongNumArgs 'version1 version2'. library/package.tcl:503-510 catches the source error, calls tclLog 'error reading package index file' and abandons the rest of that index.",
+        "Re-probe (luna-20/probes/vs.out) uses the exact test fixtures plus a 'before' control. On 8.4.20, b1pkg, thenpkg, elsepkg and headpkg are not found, while a declaration written before the raising guard still loads. On 8.5.19 and 8.6.18, b1pkg and thenpkg load. On 9.0.4 and 9.1.0, only elsepkg loads, and headpkg loads. All of this matches the new test rows.",
+        "Returning No regardless of expect makes both senses and the negated after-chain gate Unavailable, which is correct for a raise. Declarations before the guard carry no such condition, which matches C.",
+        "Release knowledge comes only from the VSATISFIES_FORMS registry data, iterated generically over TclVersion::ALL. No version or command name is hardcoded in a consumer.",
+        "No existing assertion was removed or changed. One doc comment was corrected ('does fire on 8.4' becomes 'raises'). The receipt test only gains assertions.",
+        "Compile check by reading: SubCommandForm = CommandForm (forms.rs:282). TclVersion::ALL is an array. Arity::accepts(u16), surface_admits, InvocationDialect::for_version, SurfaceQuery::core and the imports used in the test all exist."
+      ],
+      "conditions": [
+        "Do not treat an unknown as a rejection. arity_accepts_under returns None for an unknown argv count, and authoring_query() can be None. The survey's '== Some(true)' turns both into 'not accepted', so Condition::holds returns a definite No, which is absence-as-completeness. Keep the result tri-state, for example by recording only releases with Some(false) as rejecting, or by refusing the guard when the count is unknown, and stay Inert otherwise. This is probably unreachable today because the requirements must be static words, but the guard must fail closed.",
+        "Make ResolvedInvocation::arity_accepts_under agree with its owner. Recount per form with authored_source_count_for_arity(form.arity), as that function's doc requires when a release selects a different axis. Decline, as authored_source_arity does, for arity_windows, STRUCTURALLY_CHECKED_ARITY and unresolved subcommands. Alternatively, narrow and document the helper's scope. For vsatisfies the answer is the same either way.",
+        "Compile and run reachability::tests, the package_ registry tests and the package_target_survey tests. Nothing has been executed."
+      ],
+      "residuals": [
+        "A raising guard in a non-terminating chain does not abandon the declarations after the chain on 8.4. This is pre-existing and not worsened.",
+        "The requirement-grammar raise still returns Inert. It is a candidate for the same No treatment once it has its own probes.",
+        "A subject other than the interpreter release returns Inert before the arity check, although C would raise on 8.4 anyway. This is conservative.",
+        "TCL_TIP268 builds of 8.4 (#ifdef in tclPkg.c) accept multiple requirements. The project oracle is the stock 8.4.20 build, so the patch follows the stock behaviour."
+      ]
+    },
+    {
+      "patch": "forced-import-assertion.patch",
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "oracle_confirmed": true,
+      "evidence": [
+        "Independent re-run (luna-20/probes/fi.out, plus the fixture run as a top-level script, with and without auto_import) gives the same result on 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. The script raises `invalid command name \"p\"` with info commands ::dst::* empty. Step by step: after -force, origin is ::src::p and the call returns SRC; after the forget, ::dst is empty. In the control, the unforced import fails with 'already exists' and the call returns LOCAL.",
+        "The fixture text is byte-identical to the test string.",
+        "is_none() is the exact oracle value. The positive control a_forced_import_shadows_the_local_command (definition.rs:6350) still pins ::src::p before the forget, so the suite is not vacuous."
+      ],
+      "conditions": [
+        "Execute it before landing. A static trace suggests it may be red at HEAD. After the forget, live_import_at drops the forced edge, forced_import_shadows becomes false, and proc_visible_from_namespace(::dst, p) can return the deleted local ::dst::p, unless the original-declaration path (allows_lexical_declaration_advice false) answers. sol-5/dbg/base_def.txt recorded the old assertion as FAILED at an earlier baseline, so the current result is unknown. If it is red, the implementation fix must land in the same change: a forced import deletes the local declaration, and a later forget does not resurrect it. xfails never ship. Do not revert the assertion."
+      ],
+      "notes": [
+        "The test name now contradicts the behaviour. Keeping it for selector continuity is acceptable. Rename it at final cleanup if the selectors are updated."
+      ]
+    }
+  ]
+}

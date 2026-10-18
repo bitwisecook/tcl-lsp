@@ -1078,7 +1078,10 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let analysis = Analyser::new().analyse(source, dialect);
             assert!(!analysis.allows_lexical_declaration_advice());
-            assert!(analysis.original_completed_command_world().is_none());
+            // tclsh 8.6.18 / 9.0.4 / 9.1.0 complete this script with code 0
+            // and one fixed command world (`::outer::inner::Widget` added,
+            // nothing removed), so the completed world is present.
+            assert!(analysis.original_completed_command_world().is_some());
             let declaration = source_class_declaration_at(source, &analysis, offset)
                 .expect("original namespace-body class declaration");
             let class = declaration

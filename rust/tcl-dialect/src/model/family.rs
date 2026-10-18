@@ -37,7 +37,7 @@
 use crate::LexerGrammar;
 use crate::grammar::{
     BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
-    ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
+    ListParse, NumberSyntax, QuoteTermination, SourceLineEndings, VarSyntax, WordSeparators,
 };
 use crate::model::expr_grammar::{self, ExprGrammar};
 use crate::version::StringCharacterModel;
@@ -490,6 +490,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
@@ -518,6 +519,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     quote_termination: QuoteTermination::Strict,
     var_syntax: VarSyntax::Tcl,
     list_parse: ListParse::Strict,
+    source_line_endings: SourceLineEndings::TranslateAuto,
 };
 
 /// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
@@ -529,6 +531,12 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
 /// which together with the separator makes `{*}` **inert** — a literal
 /// `*` word plus the following word, never expansion, never an error
 /// (measurements §1, §3 row 6).
+///
+/// `source_line_endings` is inherited from the 8.4 base as
+/// [`SourceLineEndings::TranslateAuto`]. No oracle decides it: the
+/// BIG-IP measurements cover no lone-CR input, and iRules are not read
+/// through `source`. The inheritance agrees with the LSP boundary, which
+/// already normalises a lone CR for every dialect.
 const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     irules_brace_separator: true,
     brace_line_continuation: BraceLineContinuation::Continues,
@@ -609,6 +617,11 @@ const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     var_syntax: VarSyntax::Jim,
     // `llength "a {b"` is 2: Jim's list parser has no error path.
     list_parse: ListParse::Lenient,
+    // `Jim_EvalFile` reads with `fopen(…, "rt")` and `fread` (jim.c:12130
+    // at 0.84) and translates no line ending, so a lone CR in a sourced
+    // file stays a word separator. Measured on jimsh 0.84. The earlier
+    // rungs use the same reader but were not measured separately.
+    source_line_endings: SourceLineEndings::Preserve,
 };
 
 /// Jim from 0.80: the `0d` decimal radix prefix arrives, alongside the

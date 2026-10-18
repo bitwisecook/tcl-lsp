@@ -788,6 +788,36 @@ mod tests {
         );
     }
 
+    /// tclsh8.4.20 `package vsatisfies 8.4 8.4 8.5` raises "wrong # args:
+    /// should be "package vsatisfies version1 version2""; 8.5.19 through
+    /// 9.1.0 answer it.
+    #[test]
+    fn vsatisfies_requirement_count_follows_each_release_form() {
+        use crate::{InvocationDialect, InvocationWords};
+        let registry = CommandRegistry::build_default();
+        let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (arguments, accepted_on_84) in [
+            (&["vsatisfies", "8.4", "8.5"][..], true),
+            (&["vsatisfies", "8.4", "8.4", "8.5"][..], false),
+        ] {
+            let selected = registry
+                .resolve_structured_invocation(
+                    InvocationWords::literals("package", arguments).with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("selected vsatisfies");
+            for release in tcl_dialect::TclVersion::ALL {
+                let query = SurfaceQuery::core(Family::Tcl, release.version_string());
+                assert_eq!(
+                    selected.arity_accepts_under(&query),
+                    Some(accepted_on_84 || release != tcl_dialect::TclVersion::V8_4),
+                    "{release:?} {arguments:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn package_ifneeded_stores_future_script_without_current_callback_effect() {
         // Implementation contract: naming.package.ifneeded-current-effect-contract

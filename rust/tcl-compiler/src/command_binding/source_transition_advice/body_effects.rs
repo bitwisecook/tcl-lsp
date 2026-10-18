@@ -409,6 +409,27 @@ impl AdviceInvocationContext<'_> {
         let Ok(source) = self.origin.source_image().try_text() else {
             return;
         };
+        // A body is reached only after the invocation's own conditions ran, so
+        // their possible effects (including possibly created commands) stay
+        // ahead of every body catalogue lookup.
+        let mut after_conditions = graph.clone();
+        let mut conditions = BodyWalk {
+            context: self,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+            logical_scope: None,
+            member_catalogue_body: None,
+            catalogue_body: None,
+        };
+        if conditions
+            .expressions(&mut after_conditions, &advice, schema, 0)
+            .is_none()
+        {
+            after_conditions.widen(invocation.native);
+        }
         let Some(words) =
             crate::registry_invocation::source_structure::source_transition_words_from_advice(
                 source,
@@ -427,7 +448,7 @@ impl AdviceInvocationContext<'_> {
             }
             self.retain_original_body_command_catalogue(
                 tape,
-                graph,
+                &after_conditions,
                 super::OriginalSourceCatalogueBody::Script(Arc::new(body)),
                 invocation.native,
             );
@@ -2330,45 +2351,50 @@ mod ordered_condition_uncertainty_tests {
 
 #[cfg(test)]
 mod possible_occupant_lookup_tests {
-    use crate::registry_invocation::source_structure::{
-        OriginalRegistrySource, source_registry_words,
-    };
+    use crate::registry_invocation::source_structure::OriginalPackageIndexSourceSurvey;
 
-    /// Whether the `package ifneeded q5` body command keeps definite Native
-    /// source advice, without earlier mutation debt.
-    fn definite_package_advice(source: &str) -> bool {
-        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
-        let config = analysis.body_lexer_config.unwrap();
-        let command = "package ifneeded q5 1.0 {}";
-        let start = source.find(command).unwrap();
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
-            &source[start..start + command.len()],
-            u32::try_from(start).unwrap(),
-            config.nested(),
+    /// Whether the Logical source survey still advertises the
+    /// `package ifneeded q5` body command. The Native (`tcl8.6`) body-region
+    /// path is not used here: it issues no definite source advice for an
+    /// entered body command at all, so a shadow assertion on it is vacuous.
+    fn advertised(source: &str) -> bool {
+        let config = tcl_lexer::LexerConfig::default();
+        let survey = OriginalPackageIndexSourceSurvey::capture(
+            source,
+            &tcl_registry::CommandRegistry::build_default(),
+            config,
         );
-        let [segment] = segments.as_slice() else {
+        let command = "package ifneeded q5 1.0 {}";
+        let start = u32::try_from(source.find(command).unwrap()).unwrap();
+        let end = start + u32::try_from(command.len()).unwrap();
+        let plan = tcl_lexer::native_script_words_in(
+            survey.source_image().clone(),
+            tcl_lexer::Span::new(start, end),
+            config,
+        )
+        .unwrap();
+        let [body_command] = plan.commands.as_slice() else {
             panic!("one original body command: {source}")
         };
-        source_registry_words(source, &analysis, segment).is_some_and(|words| {
-            matches!(
-                words.source(),
-                OriginalRegistrySource::SourceTransitions(advice)
-                    if !advice.obligations().contains(
-                        &super::SourceCommandTransitionObligation::UnknownEarlierMutation
-                    )
-            )
-        })
+        survey.advertisement(body_command).is_some()
     }
 
     #[test]
     fn c_source_lookup_refuses_fall_through_past_condition_created_command() {
         // tclsh 8.6 / 9.0: the condition defines `::ns5::package`, so the later
         // body's `package` is the shadow and nothing is registered.
-        assert!(!definite_package_advice(
+        assert!(!advertised(
             "if {[namespace eval ::ns5 {proc package args {return shadow}}; package vsatisfies 8.6 8.5]} {}\nnamespace eval ::ns5 {package ifneeded q5 1.0 {}}"
         ));
-        // Without the shadow the same body keeps its definite selection.
-        assert!(definite_package_advice(
+        // The same shadow created by the invocation's own condition stays
+        // ahead of that invocation's body catalogue (tclsh 8.6 / 9.0 register
+        // nothing).
+        assert!(!advertised(
+            "if {[namespace eval ::ns5 {proc package args {}}; list 1]} {namespace eval ::ns5 {package ifneeded q5 1.0 {}}}"
+        ));
+        // Positive control: without the shadow the same body command keeps
+        // its selected source advertisement (tclsh registers `q5 1.0`).
+        assert!(advertised(
             "if {[package vsatisfies 8.6 8.5]} {}\nnamespace eval ::ns5 {package ifneeded q5 1.0 {}}"
         ));
     }
