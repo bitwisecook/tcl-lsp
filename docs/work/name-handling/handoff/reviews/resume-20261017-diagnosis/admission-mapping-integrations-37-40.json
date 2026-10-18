@@ -1,0 +1,818 @@
+{
+ "prepared_by": "Luna-14 (audit-mapping clerk); proposal only, nothing in the repository was modified",
+ "prepared_utc": "2026-10-18T09:21:30.365017+00:00",
+ "repository": "/home/user/tcl-lsp",
+ "branch": "work",
+ "head_inspected": "c0437decfba1c7ee4004bdf82930e5f02a24f536",
+ "scope": {
+  "last_counted_admission": "integration35 at 2a3928bc6",
+  "mapped_commits": [
+   "60051c3c2",
+   "1433f2ffe",
+   "e46e88617",
+   "5a8dfde48",
+   "a6e91d0a6",
+   "d0cd9d73b"
+  ],
+  "regression_evidence": "capture41 on d0cd9d73b: 859 PASS / 226 FAIL / 2 timeouts of 1085; zero pass->fail versus capture36 (as relayed; not re-executed here)",
+  "out_of_scope": "c0437decf (integration41 candidate, named-ensemble selection) was committed after 3e9b3d049. It is source, not docs-only, and is outside capture41; it is not mapped here."
+ },
+ "inputs": {
+  "catalogue": {
+   "path": "docs/work/name-handling/repository-consumer-audit-final.json",
+   "sha256": "43d52fa8afb1c91e07ff54f0f15b20819ae2a8f3d861ca653b2a7c8c8617549b"
+  },
+  "annex": {
+   "path": "docs/work/name-handling/implementation-owner-annex.json",
+   "sha256": "bfe56c058ed1e5dba34ec41796aba40b060860a1f0d535a623b77dccefe13384"
+  },
+  "audit_status": {
+   "path": "docs/work/name-handling/audit-status.json",
+   "sha256": "ac73bc51aab9e2f757163ce5a29cd562f8aca4d38cd6ce1d0929cb8e762d5e4d"
+  }
+ },
+ "counting_rules_applied": [
+  "A unit counts only when its catalogue row required change is genuinely implemented by admitted source.",
+  "Only rows with no implementation record (NONE) can raise the integrated counts; a row already counted adds nothing again.",
+  "Partial stays partial unless every recorded remaining obligation of that row is closed; partial->full moves the full/partial split only, never the integrated total.",
+  "Helpers, causal repairs, test-only/fixture/parity transport, lint fixes and source copies add zero units.",
+  "Nothing becomes verified complete; the full gate set is not green.",
+  "Precedent applied: integration18 oo_objdefine_separate_unit_count 0; admission34 DB042 causal membership 0."
+ ],
+ "prior_counts_from_audit_status": {
+  "original_LSP": {
+   "required": 325,
+   "integrated": 290,
+   "semantic_integrated": 167,
+   "validation_integrated": 121,
+   "documentation_integrated": 2,
+   "without_integration": 35,
+   "verified_complete": 0
+  },
+  "baseline": {
+   "required": 2158,
+   "integrated": 570,
+   "full_scope_pending": 405,
+   "partial": 165,
+   "without_integration": 1588
+  },
+  "annex": {
+   "required": 71,
+   "integrated": 70,
+   "blocked": 1,
+   "verified_complete": 0
+  },
+  "effective": {
+   "required": 2229,
+   "integrated": 640,
+   "without_integration": 1589,
+   "verified_complete": 0
+  }
+ },
+ "prior_split_recomputed_from_catalogue": {
+  "original_LSP_full": 228,
+  "original_LSP_partial": 62,
+  "baseline_full": 405,
+  "baseline_partial": 165
+ },
+ "pieces": [
+  {
+   "piece": "37a db042 structural class factory",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-compiler/src/analyser/state.rs",
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+    "docs/design/contracts/name-handling.md (db042 section)"
+   ],
+   "piece_kind": "causal repair",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Splits retain_logical_class_body_sources so structure-only (DB) analysis also issues the class source factory coordinate, name word and relations that the existing project procedure-role owner (project_procedure_roles.rs) already required. Integration-36-Luna ADMIT notes it fixes the real cause of DB 35r2 test-001. It completes no catalogue required change. Precedent: admission 34 recorded \"DB042 causal allocation membership ... add zero\".",
+   "related_rows": [
+    {
+     "id": "db.unit.db.project-source-role-hints",
+     "catalogue": "baseline-2158",
+     "area": "db",
+     "report_work_kind": "shared_owner_extension",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Cross-file source parameter roles used by semantic token display; checked all-member source input does not itself produce actual selected procedure/formal call bindings.",
+     "catalogue_required_change": "Authentic cross-file source-role/formal owner and selected original call transport remain absent; report VarNameArgRoles maps cannot reconstruct role authority or Native frame/command identity.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-db/src/project_token_inputs.rs :: project_proc_var_index_for_inputs"
+     ],
+     "recorded_scope_or_remaining": "Actual original project positive after a default constructor remains blocked by existing selected-definition deferred-storage effect/observer coverage. Genuine source arity prefix debt repairs a separate Jim false-positive premise; no quiet/absence inference.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "This is the DB consumer the facet feeds. Its recorded remaining obligation (a project positive after a default constructor is blocked by selected-definition deferred-storage effect/observer coverage) is untouched, and an authentic cross-file source-role/formal owner is still absent."
+    },
+    {
+     "id": "db.unit.db.workspace-class-display-cards",
+     "catalogue": "baseline-2158",
+     "area": "db",
+     "report_work_kind": "shared_owner_extension",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Cross-file semantic token class/instance hints from source reports, stronger actual Core role/binding owner must validate before semantic retag.",
+     "catalogue_required_change": "Class/instance source owner identity is erased into qualified String maps and same-string created-instance membership; duplicate conflicts withdrawn but typed actual class/object source receipts not carried end-to-end. Audit Core consumer purpose independently; no map can reconstruct allocation/occupancy.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-db/src/lib.rs :: token_facts_from_analysis",
+      "rust/tcl-lsp-db/src/lib.rs :: merge_project_classes",
+      "rust/tcl-lsp-db/src/lib.rs :: merge_project_named_instances"
+     ],
+     "recorded_scope_or_remaining": "Reviewed original object/currentness or genuine typed class-source transport integrated; ordinary successor build stopped on two class compile errors now narrowly repaired, complete rerun pending. Foreign constructor collections remain open.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "Class/instance typed receipts are still not carried end to end; structural factory issuance does not change that."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "37b shipped-roster test setup",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-lsp-core/src/completion.rs (test module inherited_registry_roster_completion_tests only)",
+    "rust/tcl-lsp-core/Cargo.toml (dev-dependency tcl-spectcl)",
+    "Cargo.lock",
+    "docs/design/contracts/project-layout.md"
+   ],
+   "piece_kind": "test-only setup transport",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "One inserted line, tcl_spectcl::core_surfaces::ensure(), before an unchanged fixture, plus the dev-dependency and its layout note. Test setup adds zero units under the carried rules.",
+   "related_rows": [],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "37c inline oo::objdefine member configuration (analyser)",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-compiler/src/analyser/handlers.rs (Analyser::handle_oo_objdefine_at)"
+   ],
+   "piece_kind": "causal repair of an earlier admitted migration",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "When no selected script-operand body grammar exists, the handler now falls back to the selected descriptor definition_body grammar under a complete selected role layout with a member keyword at argv 1. Before this, the inline form returned early. Sol call-hierarchy diagnosis G2 classifies this as a regression from admissions 22-24 (ab88e9f0d). The selected objdefine layout was already counted once under db.unit.registry.tcloo-definition-source-body-layout; integration 18 recorded \"oo_objdefine_separate_unit_count\": 0 and \"oo_objdefine adopts the same combined existing TclOO source body unit, not a new counter\".",
+   "related_rows": [
+    {
+     "id": "db.unit.registry.tcloo-definition-source-body-layout",
+     "catalogue": "baseline-2158",
+     "area": "db",
+     "report_work_kind": "caller_migration",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Actual selected oo::define/oo::objdefine source-role callback returns Body ordinals used by shared source/body consumers; this is source layout, not installed member dispatch.",
+     "catalogue_required_change": "Local OO_DEFINE_SUBCOMMANDS and match roster duplicate central member vocabulary/layout; method bodies are selected by last argv rather than authentic selected role/optional form, and property helper scans every operand for -get/-set instead of consuming actual option/value pairs. Retain original selected definition-member/receiver and exact operand cardinality/value states through existing central layout owner, refusing unsupported/unknown shape rather than guessing from spelling. Keep nominal catalogue availability and actual Native worker/currentness separate.",
+     "catalogue_sites": [
+      "rust/tcl-registry/src/commands/tcl/oo_define.rs :: oo_define_arg_roles",
+      "rust/tcl-registry/src/commands/tcl/oo_define.rs :: collect_property_body_roles"
+     ],
+     "recorded_scope_or_remaining": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation (integration 18)",
+     "reason": "This repair restores the inline form of the layout this unit already counts."
+    }
+   ],
+   "rejected_candidates": [
+    {
+     "id": "compiler.source.selected-definition-member-body:6436:object-body",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "caller_migration",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "selected object definition body layout",
+     "catalogue_required_change": "Use the genuinely selected object-definition grammar/member body plan rather than selecting stock oo::objdefine grammar; preserve original class definition body/current receiver receipt.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/analyser/handlers.rs :: walk_oo_objdefine_form"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "By the integration 18 precedent, this purpose is folded into the counted DB unit (separate count 0). The row also names OriginalSourceDefinitionMemberRegion as the owner, but the inline path still parses the member through parse_oo_define_inline_in over argv strings with grammar.is_member keyword membership. It does not use the selected member-body plan."
+    },
+    {
+     "id": "compiler.source.selected-definition-member-body:6436:inline-definition",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "caller_migration",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "selected inline class definition member layout",
+     "catalogue_required_change": "Carry the genuine selected inline-vs-body definition/member plan into inline class definition handling instead of stock oo::define membership; retain parent/member/full argv correspondence.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/analyser/handlers.rs :: walk_oo_define_form",
+      "rust/tcl-compiler/src/analyser/handlers.rs :: selected inline definition form"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "This row targets walk_oo_define_form (oo::define), which this piece does not touch."
+    }
+   ]
+  },
+  {
+   "piece": "37d direct my call-hierarchy edges",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-lsp-core/src/original_call_hierarchy.rs (source_self_method_edges)"
+   ],
+   "piece_kind": "consumer coverage addition (positive edges)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Adds conditional my-selector edges from the compiler member-body catalogue. No catalogue row requires this edge producer. The adjacent hierarchy rows are already counted, and the debt this piece reduces stays open (foreign, inherited, anonymous and captured closure).",
+   "related_rows": [
+    {
+     "id": "lsp-server-logical-hierarchy-wire-currency",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "LSP follow-up on previously prepared Logical hierarchy item.",
+     "catalogue_required_change": "No original source/version/context token retained for Logical item; old selectionRange can reselect a different declaration at same current range. Carry genuine Logical source declaration/currentness handle across prepare→incoming/outgoing wire lifecycle, preserve actual current provider/source membership and readonly purpose. Do not use old display name as identity repair.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-server/src/lib.rs :: incoming_calls Logical legacy branch"
+     ],
+     "recorded_scope_or_remaining": "Foreign/inherited/anonymous/captured call closure remains explicit debt; source-positive wire lifecycle migrated.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "Its recorded remaining debt \"Foreign/inherited/anonymous/captured call closure remains explicit debt\" is not closed by direct same-document my edges."
+    },
+    {
+     "id": "lsp-original-call-hierarchy-geometric-fallback",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Readonly procedure target fallback when original invocation has no resolved reference.",
+     "catalogue_required_change": "matching_publications is explicitly only ordered geometry and grants no selected publication/liveness; ignores actual positioned snapshot/occupants/unknown source barriers. Existing matching_source_advice_publications(registry,header sites) purpose validates those and is already used original_declaration::select. Migrate this remaining caller through authentic graph-selected source facet, preserve stronger builtin/local/alias/deletion and unknowns; no header-only call edges from missing reference.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/original_call_hierarchy.rs :: procedure_target"
+     ],
+     "recorded_scope_or_remaining": "Actual original procedure advice uses positioned source publication facet and full current command/token/source reborrow; geometry alone does not select publication.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "This row covers procedure_target, a different function in the same file."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "37e unknown-command debt on procedure call edges",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-lsp-core/src/original_call_hierarchy.rs (source_procedure_edges)"
+   ],
+   "piece_kind": "causal correctness repair (fail-closed)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "A call with uncertain_operations or lookup operand effects no longer issues an edge. This keeps the already-required unknown debts (Sol G5). It is the same preservation the counted row already demands, applied in a sibling function, so it is not a new unit.",
+   "related_rows": [
+    {
+     "id": "lsp-original-call-hierarchy-geometric-fallback",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Readonly procedure target fallback when original invocation has no resolved reference.",
+     "catalogue_required_change": "matching_publications is explicitly only ordered geometry and grants no selected publication/liveness; ignores actual positioned snapshot/occupants/unknown source barriers. Existing matching_source_advice_publications(registry,header sites) purpose validates those and is already used original_declaration::select. Migrate this remaining caller through authentic graph-selected source facet, preserve stronger builtin/local/alias/deletion and unknowns; no header-only call edges from missing reference.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/original_call_hierarchy.rs :: procedure_target"
+     ],
+     "recorded_scope_or_remaining": "Actual original procedure advice uses positioned source publication facet and full current command/token/source reborrow; geometry alone does not select publication.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "This row requires \"preserve stronger builtin/local/alias/deletion and unknowns; no header-only call edges from missing reference\". The piece only brings source_procedure_edges in line with that requirement."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "37f TclOO-faithful nextto class resolution",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-lsp-core/src/definition.rs (canonicalise_class)",
+    "rust/tcl-lsp-core/src/references.rs (removes duplicate canonicalise_class_name)"
+   ],
+   "piece_kind": "consumer behaviour correction (tclsh-faithful)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Inside a member body, nextto class words now resolve through the implicit member-body namespace path, then the root namespace. A name shadowed under the path is refused. Resolution still keys into the report all_classes String map (resolve_written_class_name / _in_scope), so it is not a migration to a typed or selected identity that any catalogue row requires.",
+   "related_rows": [
+    {
+     "id": "compiler.source.typed-member-kind-hierarchy:60",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "shared_owner_repair",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Actual MemberSide/Registry MemberKind + original member metadata, distinct constructor/destructor slots",
+     "catalogue_required_change": "Transport typed member role/name through existing hierarchy/member selection APIs. Preserve instance vs class-side and actual source declaration context; constructor/destructor display text cannot reconstruct role. Shared-owner change with both entrypoints; actual caller adapter counted separately in LSP lane, unchanged downstream users dependencies.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/analyser/class_hierarchy.rs :: class_member_def/member_next_provider",
+      "rust/tcl-compiler/src/analyser/class_hierarchy.rs :: member_next_provider"
+     ],
+     "recorded_scope_or_remaining": "Genuine source-selected typed ordinary member side/name and Registry lifecycle kind carried through hierarchy/Core next consumer; MRO/physical dispatch remains separate.",
+     "effect_of_this_piece": "no count change; stays partial (admission 34)",
+     "reason": "Its recorded scope \"MRO/physical dispatch remains separate\" is not addressed. This is LSP-side written-name canonicalisation only."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "37g clean-only nested body cut memo",
+   "commit": "60051c3c2",
+   "integration": 37,
+   "files": [
+    "rust/tcl-lexer/src/parse_cut.rs (NestedBodyCutMemo)",
+    "rust/tcl-lexer/src/native_script_words.rs",
+    "rust/tcl-lexer/src/lib.rs",
+    "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
+    "rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs",
+    "docs/design/contracts/shared-utility-contracts-rust.md",
+    "docs/design/analysis/name-resolution-proofs/{manifest.json,original-point-operand-projection.md}"
+   ],
+   "piece_kind": "performance memo / helper",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Records clean nested command-body verdicts per whole image so the recursive validation does not re-lex them. The first cut and the geometry are unchanged, and the contract says its warmth \"is derived, never semantic identity\". No catalogue or annex row requires it. A catalogue search on parse_cut, native_script_words, NestedScript, original_source_projection and point-operand-projection returns only unrelated rows (below).",
+   "related_rows": [],
+   "rejected_candidates": [
+    {
+     "id": "compiler.source.original-rewrite-statement-extent:61",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "shared_owner_repair",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "authentic original whole statement rewrite extent",
+     "catalogue_required_change": "Use authentic retained full command/word geometry through existing source owner; transport original source/config/statement correspondence instead of copying another scanner or using rendered values. One statement-extent owner facet with changed actual callers listed separately.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/optimiser/helpers/spans.rs :: full_rewrite_span"
+     ],
+     "recorded_scope_or_remaining": "Conservative partial source adoption of this exact existing purpose; independent full source/Native/execution obligations remain open. No family completion claim.",
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "This row names native_script_words_in_with_purpose only as its API owner, for the optimiser rewrite statement extent. The memo does not change optimiser statement geometry."
+    },
+    {
+     "id": "audit:simulator-script-list-source-host-facet",
+     "catalogue": "baseline-2158",
+     "area": "audit",
+     "report_work_kind": "shared_owner_repair",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "Expose original configured script/list regions to Tcl simulator",
+     "catalogue_required_change": "Add a readonly script/list geometry transport at existing simulator host registration: unchanged full counted source, real input/body purpose, original whole word/container ranges and fatal/unavailable distinction. Tcl string indices must join genuine source units. No selected command/body-role or edit authority follows from lexical geometry.",
+     "catalogue_sites": [
+      "rust/tcl-irule-test/src/live.rs :: LiveSession::new actual framework native-command registration"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "This is an iRule simulator host facet. It is untouched."
+    }
+   ]
+  },
+  {
+   "piece": "38a my edges scoped to call hierarchy",
+   "commit": "1433f2ffe",
+   "integration": 38,
+   "files": [
+    "rust/tcl-lsp-core/src/original_call_hierarchy.rs (hierarchy_edges)"
+   ],
+   "piece_kind": "causal regression repair of 37d",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Moves the 37d my edges from the shared edges() into hierarchy_edges(), used only by incoming and outgoing. The references inventory keeps the plain edge set (this fixes the integration 37 Server regression). Causal repairs add zero.",
+   "related_rows": [],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "38b tclsh-faithful test corrections",
+   "commit": "1433f2ffe",
+   "integration": 38,
+   "files": [
+    "rust/tcl-lsp-core/src/call_hierarchy.rs (tests)",
+    "rust/tcl-lsp-core/src/code_lens.rs (tests)",
+    "rust/tcl-lsp-core/src/document_links.rs (tests)",
+    "rust/tcl-lsp-core/src/definition.rs (tests)",
+    "docs/design/analysis/name-resolution-proofs/original-method-candidates.md"
+   ],
+   "piece_kind": "test-only (user-authorised narrow exceptions, user-decisions-20261017T2030Z)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "These are fixture and assertion corrections, each citing a tclsh probe, made under the 20:30Z user decisions (document_links 124/140, proc into a missing namespace, classmethod at 9.0, nextto namespaced class, two code-lens absence-as-completeness tests). They are test-only, so zero units.",
+   "related_rows": [
+    {
+     "id": "lsp.validation.20.00.fn3",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "validation_code_repair",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Required positive provider/source-result premise",
+     "catalogue_required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/code_lens.rs :: lens_bare_word_in_method_body_is_not_a_self_dispatch"
+     ],
+     "recorded_scope_or_remaining": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "Bookkeeping only. The implementation record says \"All original fixtures/assertions/budgets retained\", but this test now asserts \"References unavailable\" in place of \"0 references\" under the user-authorised exception. Record the exception against this row; the count is unchanged."
+    },
+    {
+     "id": "lsp.validation.20.00.fn13",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "validation_code_repair",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Required positive provider/source-result premise",
+     "catalogue_required_change": "positive lens/reference/class provider controls skip when actual class source inventory is empty",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/code_lens.rs :: lens_unknown_instance_method_is_not_counted"
+     ],
+     "recorded_scope_or_remaining": "Reviewed genuine Tk whole-source word caller or exact validation owner prerequisite/path admission. All original fixtures/assertions/budgets retained. Fresh retry and targeted execution pending.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "Same bookkeeping note as fn3: the expected title changed to \"References unavailable\" under the user-authorised exception."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "38c native constructor/destructor next-chain references",
+   "commit": "1433f2ffe",
+   "integration": 38,
+   "files": [
+    "rust/tcl-lsp-core/src/original_declaration.rs (reference_spans Special role)",
+    "rust/tcl-lsp-core/src/references.rs (original_special_next_chain_spans, effective_special_member)"
+   ],
+   "piece_kind": "consumer coverage addition",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Special (lifecycle) original declarations now report next/nextto sites in other original classes whose MRO provider walk reaches them. This only partly reduces an already counted partial row; captured and foreign-class references stay open.",
+   "related_rows": [
+    {
+     "id": "lsp-codelens-logical-source-identity",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Logical source declaration/reference count and clickable metadata.",
+     "catalogue_required_change": "Final all_procs/all_classes report maps collapse redefinitions and class/member keys are noninjective presentation Strings, identity None. Need authentic retained Logical declaration/source candidate handles rather than lexical-advice permission acting as selection. Unavailable member references map to0 indistinguishable from admitted empty candidate inventory; retain source-purpose limitations. Server legacy resolve uses old lens.range.start against new document, without snapshot/join to same declaration; qname_exists presentation check alone insufficient.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/code_lens.rs :: code_lenses lexical branch / emit_class_member_lenses"
+     ],
+     "recorded_scope_or_remaining": "Genuine source declarations/partial references retained; complete reference/property/lifecycle/captured/foreignclass census open.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "Its recorded open list is \"complete reference/property/lifecycle/captured/foreignclass census open\". This piece adds lifecycle reference positives within one document only; captured and foreign-class coverage remain open."
+    },
+    {
+     "id": "compiler.source.typed-member-kind-hierarchy:60",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "shared_owner_repair",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Actual MemberSide/Registry MemberKind + original member metadata, distinct constructor/destructor slots",
+     "catalogue_required_change": "Transport typed member role/name through existing hierarchy/member selection APIs. Preserve instance vs class-side and actual source declaration context; constructor/destructor display text cannot reconstruct role. Shared-owner change with both entrypoints; actual caller adapter counted separately in LSP lane, unchanged downstream users dependencies.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/analyser/class_hierarchy.rs :: class_member_def/member_next_provider",
+      "rust/tcl-compiler/src/analyser/class_hierarchy.rs :: member_next_provider"
+     ],
+     "recorded_scope_or_remaining": "Genuine source-selected typed ordinary member side/name and Registry lifecycle kind carried through hierarchy/Core next consumer; MRO/physical dispatch remains separate.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "The piece consumes SourceMemberKind::Special and member_next_provider as an LSP caller. The shared owner still has \"MRO/physical dispatch remains separate\"."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "38d member census V4",
+   "commit": "1433f2ffe",
+   "integration": 38,
+   "files": [
+    "rust/tcl-lsp-core/src/original_declaration.rs (complete_member_source_census, MemberCensus)",
+    "rust/tcl-lsp-core/src/source_structure.rs (definition-body member classification in SourceStructure census; SourceSyntaxDefinitionMember::region)",
+    "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs (checked_member_row extraction)",
+    "rust/tcl-registry/src/resolved_invocation.rs (authored_source_self_dispatch, authored_source_retains_callback), rust/tcl-registry/src/lib.rs, rust/tcl-registry/src/selected_script_timing.rs (test)",
+    "rust/tcl-lsp-server/src/lib.rs (code_lens single-document coverage)",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs (single_document_coverage, is_source_census)"
+   ],
+   "piece_kind": "strengthening of an existing post-baseline owner, plus a causal regression repair (Sol G1, admission 26 property census never completed) and new Registry helper facets",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "The census reports Complete only for a proven single-document self-dispatch census and stays fail-closed for callbacks, forwards, filters, captured mentions and other documents. Its owner (original_declaration.rs) and the Server readonly report are post-baseline files with no catalogue site. The rows it touches are already counted, and their open obligations (captured, foreign-class, cross-document) remain. The new Registry facets are helpers. A search of unimplemented rows for self-dispatch, selector-layout and retained-callback facets found only runtime/VM rows on other boundaries.",
+   "related_rows": [
+    {
+     "id": "lsp-codelens-logical-source-identity",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Logical source declaration/reference count and clickable metadata.",
+     "catalogue_required_change": "Final all_procs/all_classes report maps collapse redefinitions and class/member keys are noninjective presentation Strings, identity None. Need authentic retained Logical declaration/source candidate handles rather than lexical-advice permission acting as selection. Unavailable member references map to0 indistinguishable from admitted empty candidate inventory; retain source-purpose limitations. Server legacy resolve uses old lens.range.start against new document, without snapshot/join to same declaration; qname_exists presentation check alone insufficient.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/code_lens.rs :: code_lenses lexical branch / emit_class_member_lenses"
+     ],
+     "recorded_scope_or_remaining": "Genuine source declarations/partial references retained; complete reference/property/lifecycle/captured/foreignclass census open.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "The property/method census is now complete for single-document self dispatch only. The captured and foreign-class census stays open."
+    },
+    {
+     "id": "lsp-server-code-lens-wire-currency",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Native original lens issues opaque actual declaration handle and current source; Logical lens serialises qname+URI and later uses lens.range.start in newer source after existence-only report map check.",
+     "catalogue_required_change": "Move surviving Logical lens followup to actual source declaration/view identity+currency receipt. Reusing old lens range because same report qname still exists may query a different current source word; preserve readonly count/peek purpose, not Native dispatch. Strong original handle branch separately adopted, unknown handle terminal.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-server/src/lib.rs :: code_lens / code_lens_resolve"
+     ],
+     "recorded_scope_or_remaining": "Source-positive original lens followup migrated; unsupported source candidate/reference coverage remains explicit.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "The Server change only degrades a census Complete to Partial when other documents are retained. The recorded \"unsupported source candidate/reference coverage remains explicit\" is unchanged."
+    },
+    {
+     "id": "lsp-code-actions-package-presence-census",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "shared_owner_extension",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Suppression of new package require suggestion when actual source already names require/provide.",
+     "catalogue_required_change": "Loop over represented command_invocations skips unavailable original source schema and ultimately Some(false). Need authentic source inventory completeness/unknown distinction before complete no-require advice; incomplete source cannot prove no requirement/provision. Preserve actual matched package owners and conditional suggestion semantics.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/code_actions.rs :: original_source_package_already_named"
+     ],
+     "recorded_scope_or_remaining": "Actual shared full-input source package-presence census retains positive names apart from incomplete source/body/role coverage; generic SourceSyntaxCoverage separately retains unknown handler debt and grants no project call closure/Nativeabsence/Normal. Existing body/mutation owners reused; newannex0.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "The SourceStructure census now classifies definition-body commands through the member vocabulary instead of a global head lookup (the G1 defect). This repairs inventory completeness inside the already counted owner."
+    },
+    {
+     "id": "lsp-definition-member-unavailable-vs-nonmember",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "shared_owner_extension",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Formatter selected-definition member vocabulary is checked before global command schema. Source formatting inside a genuine definition-member parent; member layout precedes global command source layout.",
+     "catalogue_required_change": "Query skips None and returns Ok(None), so formatter analysis_layout104/engine835 may fall through global source schema. Shared API None conflates genuine nonmember with unavailable/currentness/dynamic/arity selection; Some(empty) can omit unsupported selected body geometry. Extend actual owner with authenticated nonmember vs unavailable vs complete selected-body disposition, preserving real global commands inside definition scripts. No blanket None-to-Err fix. Needs authenticated tri-state nonmember versus unavailable member body selection. A conflated Ok(None) can fall through to global source roles; Some(empty) alone is not complete selected-body correspondence.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/source_structure.rs :: SourceSyntaxStructure::definition_member_at",
+      "rust/tcl-lsp-core/src/formatting/engine.rs :: identify_body_args member_body_arguments ingress"
+     ],
+     "recorded_scope_or_remaining": "Authentic source member tri-state disposition preserves unavailable vs complete nonmember vs empty member. Actual compilation/execution pending; original guards unchanged; no verified completion.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "The census reuses the existing tri-state member disposition and adds no new disposition."
+    }
+   ],
+   "rejected_candidates": [
+    {
+     "id": "compiler.owner.source.definition-member-body-disposition:843",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "shared_owner_repair",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "authenticated member/nonmember/unavailable and complete body disposition",
+     "catalogue_required_change": "Current script_bodies validates actual whole original words/context/selected member layout, but returns None for both nonmember and unavailable, and selected.filter_map904 can produce only partial body geometry. Existing fallback consumers require explicit authenticated nonmember versus unavailable and complete versus partial body result. Extend this existing owner with typed disposition/coverage, preserving actual parent/word/context/vocabulary and refusing unrepresented geometry, no generic fallback authority.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs :: OriginalSourceDefinitionMemberRegion::script_bodies"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "The typed CompleteNonMember/CompleteMember/Unavailable disposition (script_body_disposition) already existed at 2a3928bc6. Integration 38 only factors out checked_member_row (member effect row). Whether earlier uncounted source satisfies :843 is a separate reconciliation and earns no credit here."
+    }
+   ]
+  },
+  {
+   "piece": "39a same-document source order V5",
+   "commit": "e46e88617",
+   "integration": 39,
+   "files": [
+    "rust/tcl-lsp-core/src/source_graph.rs (DocumentSequence)",
+    "rust/tcl-lsp-core/src/namespace_import.rs (removal_in_effect, alias_certainly_live)",
+    "rust/tcl-lsp-core/src/workspace_index.rs (alias_certainly_live_at)",
+    "rust/tcl-lsp-core/src/definition.rs (DocumentOrderCell)",
+    "docs: import-order-source-graph.md, workspace-indexing.md, shared-utility-contracts-rust.md, name-resolution-proofs manifest + namespace-original-export-source-advice.md"
+   ],
+   "piece_kind": "stronger issuer inside an already counted owner (user decision: same-document order)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Straight-line positions within one document now carry DocumentSequence order for query-positioned removal folds. Cross-document, deferred and branch order stays conditional. The ordering purpose is already a counted full unit, and the touched partial navigation rows keep their open string-link and report-popup obligations.",
+   "related_rows": [
+    {
+     "id": "lsp-source-run-order-purpose",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "shared_owner_extension",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Ordering utility consumed by namespace export/import navigation timelines.",
+     "catalogue_required_change": "Source kind is treated as exact without a typed source-phase/Normal premise. WorkspaceIndex resolved_source_edges supplies conditional path advice, so downstream navigation liveness/tombstone suppression needs explicit conditional-order purpose or stronger issuer. No Native execution bug claimed from this pure utility alone.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-core/src/source_graph.rs :: RunEdgeKind::is_exact / RunOrder::build"
+     ],
+     "recorded_scope_or_remaining": "Actual indexed and both in-document Definition producers retain source/input/Realm/body/edge/point currentness and explicit conditional navigation purpose; authenticate both points before package alternatives. Shared graph/cycle/re-source/bounds algorithm reused; conditional ordering cannot supply executed chronology, namespace/export/loader/Normal/tombstone exclusion. Old tests/assertions unchanged.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "The row requires an \"explicit conditional-order purpose or stronger issuer\"; V5 is a stronger same-document issuer within that already counted purpose."
+    },
+    {
+     "id": "lsp-server-workspace-string-command-navigation",
+     "catalogue": "baseline-2158 (original LSP area 325)",
+     "area": "lsp",
+     "report_work_kind": "caller_migration",
+     "status_before": "partially_implemented_pending_validation",
+     "catalogue_purpose": "Logical branch has current source/config and shared settle_call_against_workspace plus graph-gated source declaration query, then String link/wildcard fallback and qualified proc/class catalogue unions.",
+     "catalogue_required_change": "Keep actual graph-selected readonly candidates and original declaration/provider/argument/source receipts through downstream symbol/reference/hover APIs; do not erase into Vec<String> labelled runtime identity. Raw wildcard fallback(inv.name,resolution_candidates), resolve_command_target and report-map first popup need actual shared source-binding purpose. Preserve already genuine source occupancy gates.",
+     "catalogue_sites": [
+      "rust/tcl-lsp-server/src/lib.rs :: resolve_workspace_symbols_indexed / gather_reference_targets / cross_document_definition"
+     ],
+     "recorded_scope_or_remaining": "Conditional wildcard/navigation advice migrated; remaining exact string links/report popup/provider transport remain open.",
+     "effect_of_this_piece": "no count change; stays partial",
+     "reason": "Its recorded remaining \"exact string links/report popup/provider transport remain open\" is untouched."
+    }
+   ],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "39b inline oo::objdefine own-object producer",
+   "commit": "e46e88617",
+   "integration": 39,
+   "files": [
+    "rust/tcl-compiler/src/command_binding/own_object_configuration.rs (own_object_definition_layout, inline_member_definition)",
+    "rust/tcl-compiler/src/command_binding/object_instance.rs (test row; Luna-10: not an original assertion)",
+    "docs/design/analysis/name-resolution-proofs/{manifest.json,tcloo-original-own-object-method-transfer.md}"
+   ],
+   "piece_kind": "layout extension of an existing post-baseline producer",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "The inline member layout installs the same own-object entry as the script layout, only when every member word is a static Source literal that re-parses to the identical words. own_object_configuration.rs existed at 2a3928bc6 and has no catalogue site. The only catalogue rows for objdefine are the already counted DB layout unit and the analyser walk row, which the integration 18 precedent folded into that unit.",
+   "related_rows": [
+    {
+     "id": "db.unit.registry.tcloo-definition-source-body-layout",
+     "catalogue": "baseline-2158",
+     "area": "db",
+     "report_work_kind": "caller_migration",
+     "status_before": "implemented_pending_validation",
+     "catalogue_purpose": "Actual selected oo::define/oo::objdefine source-role callback returns Body ordinals used by shared source/body consumers; this is source layout, not installed member dispatch.",
+     "catalogue_required_change": "Local OO_DEFINE_SUBCOMMANDS and match roster duplicate central member vocabulary/layout; method bodies are selected by last argv rather than authentic selected role/optional form, and property helper scans every operand for -get/-set instead of consuming actual option/value pairs. Retain original selected definition-member/receiver and exact operand cardinality/value states through existing central layout owner, refusing unsupported/unknown shape rather than guessing from spelling. Keep nominal catalogue availability and actual Native worker/currentness separate.",
+     "catalogue_sites": [
+      "rust/tcl-registry/src/commands/tcl/oo_define.rs :: oo_define_arg_roles",
+      "rust/tcl-registry/src/commands/tcl/oo_define.rs :: collect_property_body_roles"
+     ],
+     "recorded_scope_or_remaining": "Exact selected source option/member/body layout or complete retained array nested lexical grammar transport; source geometry only, no Native/Normal/binding grant.",
+     "effect_of_this_piece": "no count change; already implemented_pending_validation",
+     "reason": "The piece consumes the selected definition grammar and complete roles; it adds no new layout owner."
+    }
+   ],
+   "rejected_candidates": [
+    {
+     "id": "compiler.source.selected-definition-member-body:6436:object-body",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "caller_migration",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "selected object definition body layout",
+     "catalogue_required_change": "Use the genuinely selected object-definition grammar/member body plan rather than selecting stock oo::objdefine grammar; preserve original class definition body/current receiver receipt.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/analyser/handlers.rs :: walk_oo_objdefine_form"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "This row targets the analyser walk_oo_objdefine_form, not the command-binding producer, and is folded into the DB unit by precedent."
+    }
+   ]
+  },
+  {
+   "piece": "39c tcl-dialect doc lint",
+   "commit": "e46e88617",
+   "integration": 39,
+   "files": [
+    "rust/tcl-dialect/src/version.rs (doc comment backticks)"
+   ],
+   "piece_kind": "lint fix",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "A clippy doc_markdown fix. Lint fixes add zero units.",
+   "related_rows": [],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "clippy cleanup (lexer/syntax/registry/command-core/runtime-api private)",
+   "commit": "5a8dfde48",
+   "integration": null,
+   "files": [
+    "94 files; see git show --stat 5a8dfde48 (includes rust/tcl-registry/src/native_scripts/jim_namespace_*.tcl extracted via include_str!)"
+   ],
+   "piece_kind": "lint-only, plus source copies",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "Behaviour-preserving lint fixes (Sol-12). The new native_scripts/*.tcl files are byte copies of the previously inline raw-string Jim helper bodies, loaded with include_str!. Lint fixes and source copies add zero units. The user deferred the clippy scope at 07:30Z.",
+   "related_rows": [],
+   "rejected_candidates": []
+  },
+  {
+   "piece": "40a TclOO definition-body namespace advice",
+   "commit": "a6e91d0a6",
+   "integration": 40,
+   "files": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs (BodyWalk: record_uncertainty instead of widen for an unentered DefinerFamily::TclOo body)",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs (test only)",
+    "docs/design/contracts/name-handling.md"
+   ],
+   "piece_kind": "precision correction inside an existing owner (tclsh-faithful)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "An unentered TclOO definition body now records the unresolved-command uncertainty (UnknownEarlierMutation is kept) instead of withdrawing every namespace path and export advice. No catalogue row asks for this precision. The only nearby obligations are below, and they are not implemented.",
+   "related_rows": [],
+   "rejected_candidates": [
+    {
+     "id": "compiler.source.selected-definition-deferred-storage-effect-coverage-owner",
+     "catalogue": "annex-71",
+     "kind": "shared_owner_extension",
+     "status_before": "not_integrated_source_blocked",
+     "catalogue_rationale": "One actual selected-definition deferred-storage source-effect closure requirement, beyond readonly original constructor inventory/lifecycle. Complete genuine parent/member source, selected worker source occupancy/observer premises and actual source effect disposition must precede effects_complete without inventing entered frame/Native or subtracting debt. Count the grouped semantic boundary once, not per helper/member/release.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs :: OriginalSourceDefinitionStorageCoverage; OriginalSourceScriptBody::definition_storage_coverage",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs :: BodyWalk::regions; BodyEffectProjection::effects_complete"
+     ],
+     "open_boundaries": [
+      "actual selected worker/source graph occupancy and observer provenance",
+      "Native execution/Normal/installed members",
+      "default or inherited constructor effects",
+      "foreign constructor operand/read observer coverage"
+     ],
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece; stays not_integrated_source_blocked",
+     "reason": "The change is in the BodyWalk fallback branch only. It adds no definition_storage_coverage and no effects_complete closure, and none of the listed open boundaries (worker occupancy/observer provenance, Native members, default/inherited constructor effects, foreign constructor coverage) is addressed. Recording uncertainty is the opposite of a completion premise."
+    },
+    {
+     "id": "compiler.source.logical-selected-class-member-ledger:402",
+     "catalogue": "baseline-2158",
+     "area": "compiler",
+     "report_work_kind": "caller_migration",
+     "status_before": "NONE (no implementation record)",
+     "catalogue_purpose": "conditional Logical factory member override/visibility and actual call horizon",
+     "catalogue_required_change": "Replace ClassDef.class_methods/class_exports/class_unexports report-map membership in Logical branch with actual canonical retained original member ledger and exact current class/parent/source call horizon. Retain unreadable/present override and unknown effects as unavailable; separate attempted versus exported construction views.",
+     "catalogue_sites": [
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs :: source_factory_attempt",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs :: source_factory_attempt Logical branch / logical_constructor_shape",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs :: logical_constructor_shape"
+     ],
+     "recorded_scope_or_remaining": null,
+     "effect_of_this_piece": "rejected candidate: not implemented by this piece",
+     "reason": "source_class.rs gains only a test. source_factory_attempt and logical_constructor_shape are unchanged."
+    }
+   ]
+  },
+  {
+   "piece": "40b same-document order v6 (added, then withdrawn)",
+   "commit": "a6e91d0a6 + d0cd9d73b",
+   "integration": 40,
+   "files": [
+    "rust/tcl-lsp-core/src/source_graph.rs (net zero: git diff e46e88617 d0cd9d73b -- rust/tcl-lsp-core/src/source_graph.rs is empty)",
+    "docs/design/analysis/import-order-source-graph.md"
+   ],
+   "piece_kind": "withdrawn (Luna-12 HOLD)",
+   "new_unit_ids": [],
+   "classification": "zero units",
+   "rationale": "There is no net source at d0cd9d73b, so no units.",
+   "related_rows": [],
+   "rejected_candidates": []
+  }
+ ],
+ "proposed_delta": {
+  "new_unit_ids": [],
+  "partial_to_full_ids": [],
+  "original_LSP": {
+   "integrated": "290 + 0 = 290 (228 full + 0, 62 partial + 0; semantic 167 / validation 121 / documentation 2 unchanged); without_integration 35 (all deferred BIG-IP) unchanged",
+   "delta": 0
+  },
+  "baseline": {
+   "integrated": "570 + 0 = 570 (full_scope_pending 405 + 0, partial 165 + 0); without_integration 2158 - 570 = 1588",
+   "delta": 0
+  },
+  "annex": {
+   "integrated": "70 + 0 = 70 of 71; blocked 1 (compiler.source.selected-definition-deferred-storage-effect-coverage-owner) unchanged",
+   "delta": 0
+  },
+  "effective": {
+   "integrated": "baseline 570 + annex 70 = 640 of 2229 (2158 + 71); without_integration 2229 - 640 = 1589",
+   "delta": 0
+  },
+  "verified_complete": {
+   "value": 0,
+   "delta": 0
+  },
+  "studio_NONE_rows_25": "No piece touches Studio; the 25 existing Studio NONE direct-LSP obligations are unchanged."
+ },
+ "pieces_with_no_catalogued_unit": [
+  "37a db042 structural class factory (60051c3c2)",
+  "37b shipped-roster test setup (60051c3c2)",
+  "37c inline oo::objdefine member configuration (analyser) (60051c3c2)",
+  "37d direct my call-hierarchy edges (60051c3c2)",
+  "37e unknown-command debt on procedure call edges (60051c3c2)",
+  "37f TclOO-faithful nextto class resolution (60051c3c2)",
+  "37g clean-only nested body cut memo (60051c3c2)",
+  "38a my edges scoped to call hierarchy (1433f2ffe)",
+  "38b tclsh-faithful test corrections (1433f2ffe)",
+  "38c native constructor/destructor next-chain references (1433f2ffe)",
+  "38d member census V4 (1433f2ffe)",
+  "39a same-document source order V5 (e46e88617)",
+  "39b inline oo::objdefine own-object producer (e46e88617)",
+  "39c tcl-dialect doc lint (e46e88617)",
+  "clippy cleanup (lexer/syntax/registry/command-core/runtime-api private) (5a8dfde48)",
+  "40a TclOO definition-body namespace advice (a6e91d0a6)",
+  "40b same-document order v6 (added, then withdrawn) (a6e91d0a6 + d0cd9d73b)"
+ ],
+ "bookkeeping_notes": [
+  "lsp.validation.20.00.fn3 and lsp.validation.20.00.fn13: implementation text \"All original fixtures/assertions/budgets retained\" is stale after 1433f2ffe changed their expected title to \"References unavailable\" under user-decisions-20261017T2030Z (non_tcl_tests). Record the narrow exception; status and count unchanged.",
+  "tcl_lsp_server readonly_reference_reports tests (readonly_member_wire_retains_owner_and_partial_coverage family) and Core test-096 moved Partial->Complete under the same user decision (method_census_contradiction: Complete wins); record as an authorised exception, not as unit credit.",
+  "compiler.owner.source.definition-member-body-disposition:843 remains NONE although a typed tri-state disposition exists in source since before 2a3928bc6. This needs separate reconciliation against its full required change; it earns no credit from integrations 37-40.",
+  "Validation for every related row remains \"pending\"; capture41 is a regression gate (no pass->fail), not semantic or full-gate acceptance."
+ ]
+}
