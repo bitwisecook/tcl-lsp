@@ -682,10 +682,9 @@ struct OriginalSourceOrderSite {
 /// operand that may hold an unrepresented script or inside a definition body.
 /// The root region is straight; a body is straight only when a command of a
 /// straight region outside every caller-context-unavailable body, with
-/// nominal words ([`SequenceCapture::nominal`]), enters it once and
-/// immediately in the current frame (`ScriptBodyFlow::{Sequence,
-/// ConcatenatedScript}` without a frame level word) and no document
-/// declaration shadows its command word. Deferred
+/// `Selected` words, enters it once and immediately in the current frame
+/// (`ScriptBodyFlow::{Sequence, ConcatenatedScript}` without a frame level
+/// word) and no document declaration shadows its command word. Deferred
 /// bodies, conditional, looping or caught branches, substitutions and frame
 /// shifts are never straight.
 ///
@@ -700,8 +699,9 @@ struct OriginalSourceOrderSite {
 /// transfers control (`break`, `continue`, `tailcall`), evaluates another
 /// file (`source`), runs a script now that is not retained (`apply $l`,
 /// `expr $e`), an expression calling a math function (`expr {f(1)}`) or a
-/// command prefix (`lsort -command`), or lacks nominal Registry words (a
-/// user procedure or a dynamic head may `return -code return`).
+/// command prefix (`lsort -command`), or lacks selected
+/// Registry words (a user procedure or a dynamic head may
+/// `return -code return`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DocumentSequence {
     end: u32,
@@ -735,8 +735,8 @@ struct SequenceCommand {
     /// The command word: the command's own position, whatever its arguments.
     head: Option<tcl_lexer::Span>,
     /// Operands whose role may carry a script; `None` admits only the command
-    /// word (words that are not nominal, unknown roles, an unrepresented
-    /// operand or a command word the document itself declares).
+    /// word (unselected words, unknown roles, an unrepresented operand or a
+    /// command word the document itself declares).
     script_operands: Option<Vec<tcl_lexer::Span>>,
 }
 
@@ -865,7 +865,7 @@ impl SequenceCapture<'_> {
             })
     }
 
-    /// Operands whose role may carry a script, for nominal words with
+    /// Operands whose role may carry a script, for `Selected` words with
     /// complete roles; the written token and the whole native word are both
     /// covered.
     fn script_operands(
@@ -1035,36 +1035,13 @@ impl SequenceCapture<'_> {
         })
     }
 
-    /// Whether the words are the Registry schema of the command written at
-    /// the head, up to a command table the compiler does not close:
-    /// `Selected`; a Conditional native schema whose only obligations are
-    /// that unclosed table (`UnknownCurrentLookup`, `UnknownLookupCoordinates`,
-    /// `UnretainedHolder`); or source-transition words without alias or move
-    /// lineage. The compiler leaves the table unclosed after a statement it
-    /// does not model — `namespace export`, `import` or `forget` in a
-    /// `namespace eval` body — although that statement rebinds no command
-    /// word of this document. A head the source transition tape sees aliased,
-    /// shadowed, deleted or held by a source procedure has no words at all
-    /// (the Realm barrier); a known earlier or alternative binding, an
-    /// unknown executing namespace and every other source are refused here.
-    fn nominal(
+    fn selected(
         words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     ) -> bool {
-        use tcl_compiler::command_binding::OriginalCatalogueSourceObligation as Obligation;
-        use tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource as Source;
-        match words.source() {
-            Source::Selected => true,
-            Source::Conditional(metadata) => metadata.obligations().iter().all(|obligation| {
-                matches!(
-                    obligation,
-                    Obligation::UnknownCurrentLookup
-                        | Obligation::UnknownLookupCoordinates
-                        | Obligation::UnretainedHolder(_)
-                )
-            }),
-            Source::SourceTransitions(advice) => advice.lineage().is_empty(),
-            _ => false,
-        }
+        matches!(
+            words.source(),
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected
+        )
     }
 
     /// Bodies a deferring command stores for a later invocation.
@@ -1237,7 +1214,7 @@ impl DocumentSequence {
     /// cuts every later position and the end; anything else that may end the
     /// document's normal completion early — control transfer, a sourced
     /// file, a script-carrying operand that is not retained or a command
-    /// prefix, words that are not nominal Registry words (user procedures,
+    /// prefix, words that are not selected Registry words (user procedures,
     /// dynamic heads) — withholds only the end, since a later position is
     /// reached only when control did pass.
     fn record_exits(
@@ -1263,7 +1240,7 @@ impl DocumentSequence {
         self.end_withheld |= unretained
             || completes_early
             || flow.is_none_or(|flow| flow.may_end_load)
-            || !words.is_some_and(SequenceCapture::nominal);
+            || !words.is_some_and(SequenceCapture::selected);
     }
 
     /// Admit one direct command of a straight region and mark the bodies it
@@ -1276,11 +1253,11 @@ impl DocumentSequence {
         words: Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
         flow: Option<CommandFlow>,
     ) {
-        let nominal = words
-            .filter(|words| SequenceCapture::nominal(words) && !capture.declares_head(command));
-        let script_operands = nominal.and_then(SequenceCapture::script_operands);
+        let selected = words
+            .filter(|words| SequenceCapture::selected(words) && !capture.declares_head(command));
+        let script_operands = selected.and_then(SequenceCapture::script_operands);
         if script_operands.is_some()
-            && let Some(words) = nominal
+            && let Some(words) = selected
             && let Some(flow) = flow
         {
             self.mark(&capture.entered_bodies(command, words, flow), |region| {
@@ -1908,18 +1885,11 @@ impl RunOrder {
 
     /// Conditional compatibility within an actually represented statement
     /// horizon. An unentered sibling/deferred body is never a root event.
-    /// Two straight-line positions of one document keep that document's own
-    /// sequence (§8.1), whether or not a site is retained for them.
     pub(crate) fn source_advice_statement_precedence(
         &self,
         event: RunPoint<'_>,
         query: RunPoint<'_>,
     ) -> Option<bool> {
-        if let Some(known) = self.document_sequence(event, query, |event, query| {
-            tcl_compiler::analyser::indirection::in_effect_within(event, query, None)
-        }) {
-            return Some(known.relation);
-        }
         let event = self.original_point(event)?;
         let query = self.original_point(query)?;
         if event.enclosing_body.is_some()
@@ -1941,12 +1911,6 @@ impl RunOrder {
         a: RunPoint<'_>,
         b: RunPoint<'_>,
     ) -> Option<std::cmp::Ordering> {
-        use crate::namespace_import::load_order;
-        if let Some(known) =
-            self.document_sequence(a, b, |a, b| load_order(a, false).cmp(&load_order(b, false)))
-        {
-            return Some(known.relation);
-        }
         let a = self.original_point(a)?;
         let b = self.original_point(b)?;
         if (a.enclosing_body.is_some() || b.enclosing_body.is_some())
@@ -1966,22 +1930,16 @@ impl RunOrder {
     ) -> Option<bool> {
         let contexts = self.source_contexts.as_ref()?;
         let context = contexts.get(uri)?;
-        let query = RunPoint {
-            uri,
-            at: u32::try_from(context.image.bytes().len()).ok()?,
-            enclosing_body: None,
-        };
-        // A straight-line position before an admitted end (§8.1).
-        if let Some(known) = self.document_sequence(event, query, |event, query| {
-            tcl_compiler::analyser::indirection::in_effect_within(event, query, None)
-        }) {
-            return Some(known.relation);
-        }
         let event = self.original_point(event)?;
         // Root text ending does not enter a deferred procedure/method body.
         if event.enclosing_body.is_some() {
             return None;
         }
+        let query = RunPoint {
+            uri,
+            at: u32::try_from(context.image.bytes().len()).ok()?,
+            enclosing_body: None,
+        };
         let (event, query) = self.common_original_frame(event, query)?;
         let relation = tcl_compiler::analyser::indirection::in_effect_within(
             event.at,
@@ -3393,14 +3351,7 @@ mod original_source_navigation_order_tests {
         let purpose = sequence_purposes(source);
         assert_eq!(purpose("set before", "set inner"), KNOWN);
         assert_eq!(purpose("set inner", "set after"), KNOWN);
-        // The compiler leaves `set after` unresolved behind the condition's
-        // variable read, which withholds the end here; without the branch
-        // the end follows normal completion.
-        let straight = sequence_purposes(
-            "set before 1\nnamespace eval ::n {\n    set inner 2\n}\nproc q {} {set body 4; return}\nset after 6\n",
-        );
-        assert_eq!(straight("set inner", "END"), KNOWN);
-        assert_eq!(straight("set after", "END"), KNOWN);
+        assert_eq!(purpose("set after", "END"), KNOWN);
         for withheld in ["set branch", "set body"] {
             assert_ne!(purpose(withheld, "set after"), KNOWN, "{withheld}");
             assert_ne!(purpose("set before", withheld), KNOWN, "{withheld}");
@@ -3416,39 +3367,6 @@ mod original_source_navigation_order_tests {
             order
                 .navigation_precedence(point("doc", 0), point("elsewhere", 0))
                 .is_none()
-        );
-    }
-
-    #[test]
-    fn document_sequence_enters_bodies_after_an_unmodelled_namespace_statement() {
-        // tclsh 8.6 / 9.0: `namespace export`, `import` and `forget` in a
-        // `namespace eval` body rebind no command word of the document. The
-        // compiler leaves the command table unclosed behind them, yet a later
-        // root `namespace eval` body still runs once, immediately, in order,
-        // and the arguments of its commands run with them.
-        let source = "namespace eval ::m {proc h {} {}; namespace export h}\nnamespace eval ::a {namespace import ::m::*}\nnamespace eval ::a {namespace forget ::m::h}\nset after 1\n";
-        let purpose = sequence_purposes(source);
-        assert_eq!(purpose("namespace export", "namespace import"), KNOWN);
-        assert_eq!(purpose("::m::*", "::m::h}"), KNOWN);
-        assert_eq!(purpose("::m::h}", "set after"), KNOWN);
-        assert_eq!(purpose("::m::h}", "END"), KNOWN);
-        // Source-horizon advice keeps the same order between those positions
-        // and the end, although no site is retained inside either body.
-        let analysis = Analyser::new().analyse(source, "tcl8.6");
-        let context = SourceOrderContext::capture(&analysis).unwrap();
-        let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
-        let at = |needle: &str| point("doc", u32::try_from(source.find(needle).unwrap()).unwrap());
-        assert_eq!(
-            order.source_advice_statement_precedence(at("::m::h}"), at("::m::*")),
-            Some(false)
-        );
-        assert_eq!(
-            order.source_advice_statement_comparison(at("::m::*"), at("::m::h}")),
-            Some(std::cmp::Ordering::Less)
-        );
-        assert_eq!(
-            order.source_advice_after_document(at("::m::h}"), "doc"),
-            Some(true)
         );
     }
 
