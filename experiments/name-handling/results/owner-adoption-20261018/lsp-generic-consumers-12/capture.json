@@ -1,0 +1,10 @@
+{
+  "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+  "archive": "capture-lsp43.tar.gz", "sha256": "ce099a2f3bfcd32e91445251cd1a7dc2628999070eece85f4bf43b66fec0a4aa", "members_index_sha256": "710733ef588e150aed01d79728e65e47bc68f96feb39b33065ed3e2b8fcf7a91", "members": 1125,
+  "source_head": "db5a1ba9a (integrations 41-42)", "source_snapshot_sha256": "0c7b540bbefa0244502c8fbdecd96ecf96facf3f15eebf24eaec7458afa8dc65",
+  "artifacts_sha256": "ebe2fbf75c718ae8255c47592c851d4c9106a938abfdc0ef8952b8b048556fe3",
+  "completed": 1085, "passed": 860, "failed": 225, "timeouts_in_failed": 2,
+  "comparison_to_capture41": "Zero pass->fail; one gain: definition::tests::a_forget_after_the_import_stops_resolving_the_alias (404).",
+  "restart_note": "First attempt interrupted by a container restart at ~10:12Z and discarded; ELF hashes re-verified; capture restarted from the beginning.",
+  "scope": "Direct LSP selections; not compiler/integration/server-process/host acceptance."
+}
