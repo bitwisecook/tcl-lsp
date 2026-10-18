@@ -1,0 +1,83 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T09:12:52.525550+00:00",
+  "scheduled_report_utc": "2026-10-18T09:10:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0,
+    "note": "Integrations 37-40 cleared the regression gate; unit mapping against the audit catalogue is in progress before counts move."
+  },
+  "admissions": {
+    "pending_mapping": [
+      "60051c3c2 integration37",
+      "1433f2ffe integration38",
+      "e46e88617 integration39",
+      "a6e91d0a6/d0cd9d73b integration40 (v6 withdrawn)"
+    ]
+  },
+  "validation_recorded_at_capture": {
+    "capture41_final": {
+      "receipt": "experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-11/capture.json",
+      "completed": 1085,
+      "passed": 859,
+      "failed": 226,
+      "timeouts": 2,
+      "guards": "PASS",
+      "vs_capture36": "0 pass->fail; +21 original core",
+      "progression": "capture36 838 -> capture37 848 -> capture41 859"
+    }
+  },
+  "reviews_since_previous_report": {
+    "layer_a_named_ensembles": "v2 HOLD on one blocker (ensemble create can replace a stock ensemble); v3 with a separate ensemble_created bit in progress",
+    "guard_fixture": "ADMIT (Luna-13), to apply with the next integration"
+  },
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "H2: unpositioned link query as end-of-load",
+    "stock auto_import premise: test 404 family and source_c_import_follows_the_original_command_object stay withheld under a sound rule unless an environment assumption (no auto_index entries) is accepted or fixtures change"
+  ],
+  "next_report_utc": "2026-10-18T09:41:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
