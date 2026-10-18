@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T17:44:28.955970+00:00",
+  "scheduled_report_utc": "2026-10-18T17:36:47Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "candidates": {
+    "integration44": {
+      "targeted_45a": "1218/1338 passed; receipts integration-44/targeted-45a-result.json and targeted-45a-baseline-comparison.json",
+      "baseline_comparison": "117 of 120 failures also fail on integration43 binaries; 2 PASS->FAIL (completion argument-slot and OO selector-gap rows corrected to tclsh lone-CR, whose code paths scan gaps outside the lexer); 1 new test fails (8.4 multi-requirement vsatisfies gives Conditional, expected Unavailable)",
+      "now_passing_owed_tests": [
+        "Compiler221 retain_original_body_and_conditional_scope (all later assertions)",
+        "forced-import before-the-call",
+        "signature 513 lone-CR",
+        "call-hierarchy lone-CR geometry",
+        "readonly_authored_coverage x3",
+        "Sol-17 shadow and control tests",
+        "all tcl-dialect and lone-CR lexer tests"
+      ],
+      "status": "not admissible as composed; Sol-24 holds the tree to fix the 3 defects"
+    }
+  },
+  "reviews_running": [
+    "Luna-26: Server102/103 and Server108 drafts",
+    "Luna-27: survey option (a) v1 and reachability helper deletion"
+  ],
+  "drafts_running": [
+    "Sol-22 v2: DB921 merged unit D1-D4"
+  ],
+  "next_report_utc": "2026-10-18T18:08:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
