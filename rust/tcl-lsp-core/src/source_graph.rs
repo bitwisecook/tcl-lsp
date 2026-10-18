@@ -1486,6 +1486,13 @@ impl SourceOrderContext {
             .min_by_key(|site| site.span.end() - site.span.start())
     }
 
+    /// The document end when it is a sequence position: the document is
+    /// read after it completes normally.
+    fn sequence_end(&self) -> Option<u32> {
+        let end = self.sequence.as_ref()?.end;
+        self.sequence_position(end).then_some(end)
+    }
+
     /// Whether `at` is a straight-line sequence position of this document
     /// under the same retained image/input/Realm currency as [`Self::site`].
     fn sequence_position(&self, at: u32) -> bool {
@@ -1841,6 +1848,19 @@ impl RunOrder {
         }
         let answer = self.comparison_relation(a, b)?;
         Some(self.source_navigation_answer(answer))
+    }
+
+    /// The end of `uri` — after that document completes normally — for a
+    /// consumer with no query point of its own, when the document's
+    /// sequence admits it. None keeps such a consumer conditional.
+    #[must_use]
+    pub(crate) fn document_end<'a>(&self, uri: &'a str) -> Option<RunPoint<'a>> {
+        let at = self.source_contexts.as_ref()?.get(uri)?.sequence_end()?;
+        Some(RunPoint {
+            uri,
+            at,
+            enclosing_body: None,
+        })
     }
 
     /// Whether this is purpose-bound workspace navigation rather than an
@@ -3300,23 +3320,64 @@ mod original_source_navigation_order_tests {
             exported_and_live(&order, before, foreign, end),
             (true, true)
         );
-        // With no query point the order stays conditional, as at a link.
-        let mut aliases = [
-            crate::namespace_import::AliasEvent {
-                kind: crate::namespace_import::AliasEventKind::Install,
-                at: before,
+        // With no query point, as at a link, the document is read after it
+        // completes normally: the same-document removal has run, a foreign
+        // one is not ordered after the install.
+        assert!(!unpositioned_live(&order, before, after));
+        assert!(unpositioned_live(&order, before, foreign));
+    }
+
+    /// Whether an alias installed at `install` and removed at `removal` is
+    /// live for a consumer with no query point.
+    fn unpositioned_live(order: &RunOrder, install: RunPoint<'_>, removal: RunPoint<'_>) -> bool {
+        use crate::namespace_import::{AliasEvent, AliasEventKind};
+        let aliases = [
+            AliasEvent {
+                kind: AliasEventKind::Install,
+                at: install,
             },
-            crate::namespace_import::AliasEvent {
-                kind: crate::namespace_import::AliasEventKind::Remove,
-                at: after,
+            AliasEvent {
+                kind: AliasEventKind::Remove,
+                at: removal,
             },
-        ]
-        .into_iter();
-        assert!(crate::namespace_import::alias_live_at(
-            &mut aliases,
-            &order,
-            None
-        ));
+        ];
+        crate::namespace_import::alias_live_at(&mut aliases.into_iter(), order, None)
+    }
+
+    #[test]
+    fn an_unpositioned_removal_applies_only_before_an_admitted_document_end() {
+        // tclsh 8.6 / 9.0, with `namespace import` at `set install` and
+        // `namespace forget` at `set removal`: after `source` the forget has
+        // run and the alias is gone. Behind a possible early exit, after an
+        // end-only cutoff, in a procedure body or a branch, or before the
+        // install, the answer stays conditional and the alias stays live.
+        for (source, live) in [
+            ("set install 1\nset removal 2\n", false),
+            (
+                "namespace eval ::app {\n    set install 1\n    set removal 2\n}\n",
+                false,
+            ),
+            ("set install 1\nif {$x} return\nset removal 2\n", true),
+            ("set install 1\nset removal 2\nsource y.tcl\n", true),
+            (
+                "proc myreturn {} {return -code return}\nset install 1\nset removal 2\nmyreturn\n",
+                true,
+            ),
+            ("set install 1\nproc q {} {set removal 2}\n", true),
+            ("set install 1\nif {$x} {set removal 2}\n", true),
+            ("set removal 2\nset install 1\n", true),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let context = SourceOrderContext::capture(&analysis).unwrap();
+            let order = RunOrder::for_source_navigation(&[], [("doc".into(), context)].into_iter());
+            let at =
+                |needle: &str| point("doc", u32::try_from(source.find(needle).unwrap()).unwrap());
+            assert_eq!(
+                unpositioned_live(&order, at("set install"), at("set removal")),
+                live,
+                "{source}"
+            );
+        }
     }
 
     fn sequence_purposes(

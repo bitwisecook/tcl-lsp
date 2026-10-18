@@ -155,8 +155,13 @@ statements run consecutively), so a `namespace export p` followed by a
 
 The **exact**-import link tier runs the same decision function with no call
 site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
-question a link answers is "does this alias exist for navigation", so every
-recorded removal counts as having run and the ordering that remains is the
+question a link answers is "does this alias exist for navigation", so it reads
+the state after the document completes normally, as tclsh leaves it after
+`source`. A removal counts as having run when its document's end is admitted
+and it is a straight-line position before that end
+([import-order-source-graph.md §8.1](../analysis/import-order-source-graph.md));
+where the end is withheld, or the removal sits in a deferred body or a
+branch, it does not, and the link stays live. The ordering that remains is the
 removal's position relative to the *import* — a forget or a redefinition of
 the imported name in the import's own document revokes the link when written
 after it, one before it is undone by the import, and one in another document
@@ -568,7 +573,8 @@ ordinary settlement and binding/edit folds retain their stronger purpose. The
 only order `modeled_source_exclusion` admits from source navigation is the
 same-document straight-line sequence of
 [import-order-source-graph.md §8.1](../analysis/import-order-source-graph.md),
-for folds with a query point.
+for folds with a query point and, through the admitted document end, for the
+unpositioned link fold.
 
 A written query uses its genuine source statement. The legacy report-only
 `u32::MAX` query spelling declares an end-of-document source horizon using the

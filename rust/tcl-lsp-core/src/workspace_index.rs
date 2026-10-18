@@ -8735,15 +8735,20 @@ impl<'a> WildcardImportIndex<'a> {
     /// resolve `::dst::p`.
     ///
     /// The question a link answers is "does this alias exist for navigation",
-    /// which has no query point of its own.
+    /// which has no query point of its own, so it reads the state after the
+    /// document completes normally, as tclsh leaves it after `source`.
     ///
-    /// - On workspace navigation no forget or redefinition is applied here:
-    ///   with no query point the source order stays conditional, for exact and
-    ///   glob imports alike, so the link stays live.
-    /// - Only an explicitly constructed order treats every recorded removal
-    ///   as having run and orders it against the **import**: one written
-    ///   *after* the import in the import's own document revokes the link,
-    ///   one written before is undone by the import itself (a re-import after
+    /// - On workspace navigation a forget or redefinition applies only when
+    ///   its document's end is admitted and it is a sequence position before
+    ///   that end; it then revokes the link when written *after* the import
+    ///   in the same document. Where the end is withheld (a possible early
+    ///   exit, an unretained script, a function call, unresolved words), or
+    ///   the removal sits in a deferred body or a branch, the order stays
+    ///   conditional and the link stays live.
+    /// - An explicitly constructed order treats every recorded removal as
+    ///   having run.
+    /// - Either way the removal is ordered against the **import**: one
+    ///   written before it is undone by the import itself (a re-import after
     ///   a forget reinstalls — oracle), and one in another document revokes
     ///   nothing, exactly as in [`Self::alias_live_at`].
     /// - A destroyed source command revokes regardless, and is **not** put on
@@ -12038,7 +12043,7 @@ p\uD801";
         // event to fall back on and the resolver must abstain.
         let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
         let app = analyse(
-            "namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
+            "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::*\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
         );
         let index = WorkspaceIndex::from_documents([
             ("file:///mymod.tcl", &mymod),
@@ -12388,7 +12393,7 @@ p\uD801";
         // TN, the other direction of the same-document rule — when the import, the forget
         // and the call really do share a document the offsets mean something
         // and the ordering is unchanged.
-        let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\nhelper\n";
+        let src = "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::*\n}\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\nhelper\n";
         let mymod =
             analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
         let app = analyse(src);
@@ -12428,7 +12433,7 @@ p\uD801";
     fn a_top_level_call_before_its_own_import_does_not_resolve() {
         // TN. Both call sites are top level, so the offsets are in genuine
         // execution order and the earlier one reaches nothing.
-        let src = "helper\nnamespace eval ::app {\n    namespace import ::mymod::*\n}\nhelper\n";
+        let src = "rename auto_import savedPrelude; helper\nnamespace eval ::app {\n    namespace import ::mymod::*\n}\nhelper\n";
         let mymod =
             analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
         let app = analyse(src);
@@ -12960,7 +12965,7 @@ p\uD801";
         let mymod =
             analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
         let app = analyse(
-            "namespace eval ::app {\n    namespace import ::mymod::helper\n    namespace forget ::mymod::helper\n}\n",
+            "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::helper\n    namespace forget ::mymod::helper\n}\n",
         );
         let index = WorkspaceIndex::from_documents([
             ("file:///mymod.tcl", &mymod),
@@ -12972,6 +12977,32 @@ p\uD801";
             "a forgotten exact import installs no live link"
         );
         assert!(!index.workspace_command_exists("::app::helper"));
+    }
+
+    #[test]
+    fn an_exact_import_link_keeps_a_conditional_same_file_forget() {
+        // The link reads the document after it completes normally. A forget
+        // behind a possible early exit, or in a procedure body, has run only
+        // on some paths (tclsh 8.6 / 9.0: `x` true, or `teardown` never
+        // called, leaves `::app::helper` imported), so the link stays live.
+        // The renamed `auto_import` keeps the imports themselves modelled.
+        let mymod =
+            analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+        for source in [
+            "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::helper\n}\nif {$x} return\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\n",
+            "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::helper\n}\nproc teardown {} {\n    namespace eval ::app {namespace forget ::mymod::helper}\n}\n",
+        ] {
+            let app = analyse(source);
+            let index = WorkspaceIndex::from_documents([
+                ("file:///mymod.tcl", &mymod),
+                ("file:///app.tcl", &app),
+            ]);
+            assert_eq!(
+                index.resolve_command_target("::app::helper"),
+                "::mymod::helper",
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -13293,7 +13324,7 @@ p\uD801";
         // (oracle: `info commands ::a5::*` empty).
         let mymod = analyse("namespace eval ::mymod { proc helper {} {} }\n");
         let app = analyse(
-            "namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
+            "rename auto_import savedPrelude; namespace eval ::app {\n    namespace import ::mymod::helper\n    proc run {} { helper }\n}\nnamespace eval ::mymod {\n    namespace export helper\n}\n",
         );
         let index = WorkspaceIndex::from_documents([
             ("file:///mymod.tcl", &mymod),

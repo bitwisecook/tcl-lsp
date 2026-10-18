@@ -198,9 +198,11 @@ impl NamespaceStatementPurpose {
     /// source deletion) when it may revoke a candidate. On workspace
     /// navigation a removal applies only at a query point against which its
     /// own position is known, so a conditional or unplaced removal never pairs
-    /// with a known [`Self::after`]; with no query point none applies, which
-    /// is the conditional answer. Constructed models and SourceHorizon keep
-    /// [`Self::in_effect`].
+    /// with a known [`Self::after`]. With no query point the state after the
+    /// removal's document completes normally is read: the removal applies
+    /// when that document's end is admitted and the removal is a sequence
+    /// position before it; otherwise none applies, which is the conditional
+    /// answer. Constructed models and SourceHorizon keep [`Self::in_effect`].
     fn removal_in_effect(
         self,
         order: &RunOrder,
@@ -208,9 +210,9 @@ impl NamespaceStatementPurpose {
         query: Option<RunPoint<'_>>,
     ) -> bool {
         match self {
-            Self::Modeled if order.is_source_navigation() => {
-                query.is_some_and(|query| self.precedence(order, event, query) == Some(true))
-            }
+            Self::Modeled if order.is_source_navigation() => query
+                .or_else(|| order.document_end(event.uri))
+                .is_some_and(|query| self.precedence(order, event, query) == Some(true)),
             _ => self.in_effect(order, event, query),
         }
     }
@@ -708,7 +710,9 @@ pub struct AliasEvent<'a> {
 /// `query` is `None` for a caller with no query point of its own — the
 /// whole-index liveness mask over exact import links
 /// (`WildcardImportIndex::link_alias_live`), which asks "does this alias exist
-/// for navigation at all". Every event then counts as having run, and the only
+/// for navigation at all". Every install then counts as having run; on
+/// workspace navigation a removal counts only when its document's end is
+/// admitted and it precedes that end in the document's sequence, and the only
 /// ordering left is each removal's position relative to the install.
 ///
 /// Gating the *install* is what makes a bare call written **before** its own

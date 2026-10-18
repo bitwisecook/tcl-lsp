@@ -5715,7 +5715,7 @@ c\uD800";
         // `namespace eval ::src {proc p {} {return P}}; namespace eval ::dst
         // {namespace import ::src::*}; namespace eval ::src {namespace export
         // p}; ::dst::p` → `invalid command name "::dst::p"`.
-        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5758,7 +5758,7 @@ c\uD800";
         // document. Oracle (8.6.14 / 9.0.4): the bare call is `invalid command
         // name "p"` and `info commands ::dst::*` is empty, so go-to-definition
         // must not answer `::src::p` through `fallback_proc_by_simple_name`.
-        let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 10, 4, &analysis);
         assert!(
@@ -5812,7 +5812,7 @@ c\uD800";
         // not just the export snapshot: after `namespace forget ::src::p` the
         // bare call is `invalid command name` (oracle on `alias_live_at`), so
         // the fallback must not answer either.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 11, 4, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
@@ -5862,7 +5862,7 @@ c\uD800";
         // written *before* the import leaves nothing for it to bind.
         // Oracle: after `namespace export -clear`, `namespace export`
         // returns the empty list, and the later import binds no command.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n    namespace export -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -5876,7 +5876,7 @@ c\uD800";
         // TP + TN — `namespace export a b; namespace export -clear p` leaves
         // exactly `p` exported (oracle: `namespace export` → `p`), so an
         // import after it binds `p` and not `a`.
-        let src = "namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc a {} { return A }\n    proc p {} { return P }\n    namespace export a\n    namespace export -clear p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX).is_some(),
@@ -6040,7 +6040,7 @@ c\uD800";
         //   namespace eval ::dst { namespace forget ::src::p }
         //   namespace eval ::dst { p }                        → invalid command name "p"
         //   info commands ::dst::*                            → (empty)
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -6067,7 +6067,7 @@ c\uD800";
     fn a_glob_forget_removes_every_matching_alias() {
         // TN — oracle: `namespace forget ::src::*` empties `info commands
         // ::dst::*` entirely.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export *\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    proc q {} { return Q }\n    namespace export *\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::*\n}\n";
         let analysis = analyse(src);
         for name in ["p", "q"] {
             assert!(
@@ -6095,7 +6095,7 @@ c\uD800";
     /// this pins the consequence a consumer actually sees.
     #[test]
     fn a_dynamic_forget_pattern_revokes_nothing() {
-        let dynamic = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::$name\n}\n";
+        let dynamic = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::$name\n}\n";
         let analysis = analyse(dynamic);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -6195,7 +6195,7 @@ c\uD800";
         // against this namespace's own imported command names, whatever their
         // origin. Oracle: `namespace eval ::dst {namespace forget p}` leaves
         // `info commands ::dst::*` empty and raises no error.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    namespace forget p\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX).is_none(),
@@ -6398,7 +6398,7 @@ c\uD800";
         //   namespace eval ::dst {proc p {} {return LOCAL}}    (rc 0, silent)
         //   ::dst::p                    → LOCAL ; origin → ::dst::p
         //   ::src::p                    → SRC   (untouched)
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
         let analysis = analyse(src);
         // TP — between the import and the redefinition, the alias is live.
         let between = at_first(src, "\np\n") + 1;
@@ -6428,7 +6428,7 @@ c\uD800";
         // the valid local definition and answer the import source forever.
         // Oracle: `proc ::dst::p` after `namespace import -force ::src::*`
         // returns LOCAL2 with `namespace origin ::dst::p` → `::dst::p`.
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
         let analysis = analyse(src);
         let between = at_first(src, "namespace import -force")
             + u32::try_from("namespace import -force ::src::*".len()).expect("tiny");
@@ -6525,7 +6525,7 @@ c\uD800";
         // FN guard for the conflict rule — the conflict is the *live* alias, not the
         // fact that one was ever installed. Oracle: forgetting `::A::p` first
         // makes the unforced `::B::*` import succeed (`origin` → `::B::p`).
-        let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -6762,7 +6762,7 @@ c\uD800";
         //
         // Deliberately run against the real `WorkspaceIndex` snapshot rather
         // than [`FakeExports`], which is position-blind by design.
-        let src = "namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let call = after_last(src, "    p\n");
         let index = crate::workspace_index::WorkspaceIndex::from_documents([(
@@ -6810,7 +6810,7 @@ c\uD800";
         //   rename ::src::p {}
         //   ::dst::p              → invalid command name "::dst::p"
         //   info commands ::dst::* → (empty)
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p {}\n";
+        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nrename ::src::p {}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
         assert!(
@@ -6899,7 +6899,7 @@ c\uD800";
         // `::A::p` an `invalid command name` too, because deleting an imported
         // command deletes the commands imported *from* it. Both `info commands
         // ::A::*` and `::B::*` come back empty.
-        let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\nnamespace eval B {\n    namespace forget ::C::p\n}\n";
+        let src = "rename auto_import savedPrelude; namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n}\nnamespace eval B {\n    namespace forget ::C::p\n}\n";
         let analysis = analyse(src);
         assert!(
             proc_visible_via_wildcard_import(&analysis, DOC, "A", "p", u32::MAX).is_none(),

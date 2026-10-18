@@ -21372,7 +21372,7 @@ mod tests {
 
     #[test]
     fn source_c_import_follows_the_original_command_object() {
-        let source = "namespace eval a {proc f {} {return OLD}; namespace export f}\nnamespace eval b {namespace import ::a::f}\nrename ::a::f ::a::saved\nproc ::a::f {} {return NEW}\n::b::f";
+        let source = "rename auto_import savedPrelude; namespace eval a {proc f {} {return OLD}; namespace export f}\nnamespace eval b {namespace import ::a::f}\nrename ::a::f ::a::saved\nproc ::a::f {} {return NEW}\n::b::f";
         let binding = source_proof(
             source,
             "::b::f",
