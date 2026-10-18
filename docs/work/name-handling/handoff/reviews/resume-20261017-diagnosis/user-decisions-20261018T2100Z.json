@@ -1,0 +1,9 @@
+{
+ "recorded_utc": "2026-10-18T21:00Z",
+ "source": "User answers in chat (AskUserQuestion)",
+ "decisions": {
+  "both_tiers_covering_export_fixture": "Add a loader document (`source exports.tcl; source main.tcl`) so the load order is provable; the expected answer ::src::helper stays.",
+  "provable_source_order": "Teach the workspace RunOrder to prove execution order from an unconditional top-level `source` chain in a loader, as tclsh does, so a proof-grade export verdict can come from another file. The both_tiers test waits for this."
+ },
+ "context": "Option A (forced-import-A2): export verdicts fed to the compiler must be proof-grade; RunOrder for_source_navigation never proves cross-document order today."
+}
