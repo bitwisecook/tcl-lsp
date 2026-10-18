@@ -1,0 +1,97 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T08:39:03.165161+00:00",
+  "scheduled_report_utc": "2026-10-18T08:38:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "validation_recorded_at_capture": {
+    "capture41": {
+      "status": "RUNNING",
+      "source": "d0cd9d73b",
+      "original_core": {
+        "complete": 664,
+        "passed": 546,
+        "failed": 118,
+        "timeouts": 0,
+        "vs_capture36": "+21 gains, 0 losses",
+        "vs_capture37": "0 losses"
+      },
+      "original_db": [
+        11,
+        7,
+        4,
+        0
+      ],
+      "server_partial": {
+        "complete": 147,
+        "passed": 129,
+        "timeouts": 2,
+        "losses_vs36": 0
+      },
+      "budget_boundary": {
+        "selector": "tcl_lsp_server tests::workspace_symbol_caps_its_answer",
+        "seconds": {
+          "capture36": "180.0 TIMEOUT",
+          "capture37": "179.7 PASS",
+          "capture41": "180.0 TIMEOUT"
+        },
+        "classification": "boundary timing, not a code regression; open user decision Server108 (per-document re-analysis cost); 180 s budget unchanged"
+      }
+    }
+  },
+  "diagnosis_since_previous_report": {
+    "namespace_eval_entry": "Root cause found: NamedEnsembleInvocation subcommands (namespace export/import/forget and array/binary/file/info/string members) always get Unknown selection and fall back to a global opaque binding mutation that poisons every later command; the existing compiler test source_c_import_follows_the_original_command_object fails at HEAD. Layer A patch drafted with premise checks for n1-n10 hijacks; independent review running.",
+    "guard_fixture": "unset-x read makes tclsh error, so END withheld is correct for that fixture; corrected fixture defines x with an unknown value and keeps the unset case as a withheld control (review running)"
+  },
+  "user_decisions_still_open": [
+    "Compiler221",
+    "DB921 identity",
+    "Server102/103 freshness vs snapshot",
+    "Server108 validation cost",
+    "H2: unpositioned link query as end-of-load"
+  ],
+  "next_report_utc": "2026-10-18T09:09:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
