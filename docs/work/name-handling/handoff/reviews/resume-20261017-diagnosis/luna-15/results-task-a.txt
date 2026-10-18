@@ -1,0 +1,526 @@
+##### source_c_import_follows_the_original_command_object
+  [a 8.6]
+    src source_c_import_follows_the_original_command_object.a.tcl rc=0 OLD
+    ai=::a::f auto_import=1 savedPrelude=0
+    state={::a::f->::a::f ::a::saved->::a::saved} ::b::f->::a::saved
+    probe {::b::f} rc=0 OLD
+    probe {namespace origin ::b::f} rc=0 ::a::saved
+  [a 9.0]
+    src source_c_import_follows_the_original_command_object.a.tcl rc=0 OLD
+    ai=::a::f auto_import=1 savedPrelude=0
+    state={::a::f->::a::f ::a::saved->::a::saved} ::b::f->::a::saved
+    probe {::b::f} rc=0 OLD
+    probe {namespace origin ::b::f} rc=0 ::a::saved
+  [b 8.6]
+    src source_c_import_follows_the_original_command_object.b.tcl rc=0 OLD
+    ai={} auto_import=0 savedPrelude=1
+    state={::a::f->::a::f ::a::saved->::a::saved} ::b::f->::a::saved
+    probe {::b::f} rc=0 OLD
+    probe {namespace origin ::b::f} rc=0 ::a::saved
+  [b 9.0]
+    src source_c_import_follows_the_original_command_object.b.tcl rc=0 OLD
+    ai={} auto_import=0 savedPrelude=1
+    state={::a::f->::a::f ::a::saved->::a::saved} ::b::f->::a::saved
+    probe {::b::f} rc=0 OLD
+    probe {namespace origin ::b::f} rc=0 ::a::saved
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### import_site_snapshot_ignores_a_later_export
+  [a 8.6]
+    src import_site_snapshot_ignores_a_later_export.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [a 9.0]
+    src import_site_snapshot_ignores_a_later_export.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 8.6]
+    src import_site_snapshot_ignores_a_later_export.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 9.0]
+    src import_site_snapshot_ignores_a_later_export.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### single_file_definition_refuses_direction_b_through_the_fallback
+  [a 8.6]
+    src single_file_definition_refuses_direction_b_through_the_fallback.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [a 9.0]
+    src single_file_definition_refuses_direction_b_through_the_fallback.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 8.6]
+    src single_file_definition_refuses_direction_b_through_the_fallback.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 9.0]
+    src single_file_definition_refuses_direction_b_through_the_fallback.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### the_tail_match_refuses_a_forgotten_import_too
+  [a 8.6]
+    src the_tail_match_refuses_a_forgotten_import_too.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [a 9.0]
+    src the_tail_match_refuses_a_forgotten_import_too.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 8.6]
+    src the_tail_match_refuses_a_forgotten_import_too.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 9.0]
+    src the_tail_match_refuses_a_forgotten_import_too.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### export_clear_before_the_import_does_revoke
+  [a 8.6]
+    src export_clear_before_the_import_does_revoke.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::src {namespace export}} rc=0 {}
+  [a 9.0]
+    src export_clear_before_the_import_does_revoke.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::src {namespace export}} rc=0 {}
+  [b 8.6]
+    src export_clear_before_the_import_does_revoke.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::src {namespace export}} rc=0 {}
+  [b 9.0]
+    src export_clear_before_the_import_does_revoke.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::src {namespace export}} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones
+  [a 8.6]
+    src export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p {::src::a->::src::a ::src::p->::src::p}
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {namespace eval ::src {namespace export}} rc=0 p
+  [a 9.0]
+    src export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p {::src::a->::src::a ::src::p->::src::p}
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {namespace eval ::src {namespace export}} rc=0 p
+  [b 8.6]
+    src export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p {::src::a->::src::a ::src::p->::src::p}
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {namespace eval ::src {namespace export}} rc=0 p
+  [b 9.0]
+    src export_clear_with_patterns_on_the_same_call_keeps_only_the_new_ones.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p {::src::a->::src::a ::src::p->::src::p}
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {namespace eval ::src {namespace export}} rc=0 p
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_forget_after_the_import_stops_resolving_the_alias
+  [a 8.6]
+    src a_forget_after_the_import_stops_resolving_the_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [a 9.0]
+    src a_forget_after_the_import_stops_resolving_the_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 8.6]
+    src a_forget_after_the_import_stops_resolving_the_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  [b 9.0]
+    src a_forget_after_the_import_stops_resolving_the_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+    probe {namespace eval ::dst p} rc=1 {invalid command name "p"}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_glob_forget_removes_every_matching_alias
+  [a 8.6]
+    src a_glob_forget_removes_every_matching_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} {::src::p->::src::p ::src::q->::src::q}
+    probe {info commands ::dst::*} rc=0 {}
+  [a 9.0]
+    src a_glob_forget_removes_every_matching_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} {::src::p->::src::p ::src::q->::src::q}
+    probe {info commands ::dst::*} rc=0 {}
+  [b 8.6]
+    src a_glob_forget_removes_every_matching_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {::src::p->::src::p ::src::q->::src::q}
+    probe {info commands ::dst::*} rc=0 {}
+  [b 9.0]
+    src a_glob_forget_removes_every_matching_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {::src::p->::src::p ::src::q->::src::q}
+    probe {info commands ::dst::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_dynamic_forget_pattern_revokes_nothing
+  [a 8.6]
+    src a_dynamic_forget_pattern_revokes_nothing.a.tcl rc=1 {can't read "name": no such variable}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+  [a 9.0]
+    src a_dynamic_forget_pattern_revokes_nothing.a.tcl rc=1 {can't read "name": no such variable}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+  [b 8.6]
+    src a_dynamic_forget_pattern_revokes_nothing.b.tcl rc=1 {can't read "name": no such variable}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+  [b 9.0]
+    src a_dynamic_forget_pattern_revokes_nothing.b.tcl rc=1 {can't read "name": no such variable}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_simple_forget_pattern_removes_the_alias_too
+  [a 8.6]
+    src a_simple_forget_pattern_removes_the_alias_too.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [a 9.0]
+    src a_simple_forget_pattern_removes_the_alias_too.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 8.6]
+    src a_simple_forget_pattern_removes_the_alias_too.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 9.0]
+    src a_simple_forget_pattern_removes_the_alias_too.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias
+  [a 8.6]
+    src a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+  [a 9.0]
+    src a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+  [b 8.6]
+    src a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+  [b 9.0]
+    src a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_redefinition_ends_a_forced_import_shadow
+  [a 8.6]
+    src a_redefinition_ends_a_forced_import_shadow.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL2
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+  [a 9.0]
+    src a_redefinition_ends_a_forced_import_shadow.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL2
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+  [b 8.6]
+    src a_redefinition_ends_a_forced_import_shadow.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL2
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+  [b 9.0]
+    src a_redefinition_ends_a_forced_import_shadow.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL2
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_forget_lets_the_next_unforced_import_install
+  [a 8.6]
+    src a_forget_lets_the_next_unforced_import_install.a.tcl rc=0 {}
+    ai={::A::* ::B::*} auto_import=1 savedPrelude=0
+    state=::dst::p->::B::p ::A::p->::A::p ::B::p->::B::p
+    probe {::dst::p} rc=0 BP
+    probe {namespace origin ::dst::p} rc=0 ::B::p
+  [a 9.0]
+    src a_forget_lets_the_next_unforced_import_install.a.tcl rc=0 {}
+    ai={::A::* ::B::*} auto_import=1 savedPrelude=0
+    state=::dst::p->::B::p ::A::p->::A::p ::B::p->::B::p
+    probe {::dst::p} rc=0 BP
+    probe {namespace origin ::dst::p} rc=0 ::B::p
+  [b 8.6]
+    src a_forget_lets_the_next_unforced_import_install.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::B::p ::A::p->::A::p ::B::p->::B::p
+    probe {::dst::p} rc=0 BP
+    probe {namespace origin ::dst::p} rc=0 ::B::p
+  [b 9.0]
+    src a_forget_lets_the_next_unforced_import_install.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::B::p ::A::p->::A::p ::B::p->::B::p
+    probe {::dst::p} rc=0 BP
+    probe {namespace origin ::dst::p} rc=0 ::B::p
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### the_real_oracle_does_not_resurrect_an_export_written_after_the_import
+  [a 8.6]
+    src the_real_oracle_does_not_resurrect_an_export_written_after_the_import.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [a 9.0]
+    src the_real_oracle_does_not_resurrect_an_export_written_after_the_import.a.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 8.6]
+    src the_real_oracle_does_not_resurrect_an_export_written_after_the_import.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  [b 9.0]
+    src the_real_oracle_does_not_resurrect_an_export_written_after_the_import.b.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### deleting_the_source_command_kills_the_alias
+  [a 8.6]
+    src deleting_the_source_command_kills_the_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} {}
+    probe {info commands ::dst::*} rc=0 {}
+  [a 9.0]
+    src deleting_the_source_command_kills_the_alias.a.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} {}
+    probe {info commands ::dst::*} rc=0 {}
+  [b 8.6]
+    src deleting_the_source_command_kills_the_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {}
+    probe {info commands ::dst::*} rc=0 {}
+  [b 9.0]
+    src deleting_the_source_command_kills_the_alias.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {}
+    probe {info commands ::dst::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_forget_in_the_middle_of_a_chain_kills_the_whole_chain
+  [a 8.6]
+    src a_forget_in_the_middle_of_a_chain_kills_the_whole_chain.a.tcl rc=0 {}
+    ai={::C::* ::B::*} auto_import=1 savedPrelude=0
+    state={} {} ::C::p->::C::p
+    probe {info commands ::A::*} rc=0 {}
+    probe {info commands ::B::*} rc=0 {}
+  [a 9.0]
+    src a_forget_in_the_middle_of_a_chain_kills_the_whole_chain.a.tcl rc=0 {}
+    ai={::C::* ::B::*} auto_import=1 savedPrelude=0
+    state={} {} ::C::p->::C::p
+    probe {info commands ::A::*} rc=0 {}
+    probe {info commands ::B::*} rc=0 {}
+  [b 8.6]
+    src a_forget_in_the_middle_of_a_chain_kills_the_whole_chain.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {} ::C::p->::C::p
+    probe {info commands ::A::*} rc=0 {}
+    probe {info commands ::B::*} rc=0 {}
+  [b 9.0]
+    src a_forget_in_the_middle_of_a_chain_kills_the_whole_chain.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} {} ::C::p->::C::p
+    probe {info commands ::A::*} rc=0 {}
+    probe {info commands ::B::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import
+  [a 8.6]
+    src mymod_n.tcl rc=0 {}
+    src resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import.a.tcl rc=0 {}
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+    probe {::app::run} rc=1 {invalid command name "helper"}
+  [a 9.0]
+    src mymod_n.tcl rc=0 {}
+    src resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import.a.tcl rc=0 {}
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+    probe {::app::run} rc=1 {invalid command name "helper"}
+  [b 8.6]
+    src mymod_n.tcl rc=0 {}
+    src resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+    probe {::app::run} rc=1 {invalid command name "helper"}
+  [b 9.0]
+    src mymod_n.tcl rc=0 {}
+    src resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+    probe {::app::run} rc=1 {invalid command name "helper"}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_same_file_forget_after_the_import_still_revokes
+  [a 8.6]
+    src mymod_e.tcl rc=0 {}
+    src a_same_file_forget_after_the_import_still_revokes.a.tcl rc=1 {invalid command name "helper"}
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [a 9.0]
+    src mymod_e.tcl rc=0 {}
+    src a_same_file_forget_after_the_import_still_revokes.a.tcl rc=1 {invalid command name "helper"}
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 8.6]
+    src mymod_e.tcl rc=0 {}
+    src a_same_file_forget_after_the_import_still_revokes.b.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 9.0]
+    src mymod_e.tcl rc=0 {}
+    src a_same_file_forget_after_the_import_still_revokes.b.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### a_top_level_call_before_its_own_import_does_not_resolve
+  [a 8.6]
+    src mymod_e.tcl rc=0 {}
+    src a_top_level_call_before_its_own_import_does_not_resolve.a.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=1 savedPrelude=0
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [a 9.0]
+    src mymod_e.tcl rc=0 {}
+    src a_top_level_call_before_its_own_import_does_not_resolve.a.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=1 savedPrelude=0
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 8.6]
+    src mymod_e.tcl rc=0 {}
+    src a_top_level_call_before_its_own_import_does_not_resolve.b.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=0 savedPrelude=1
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 9.0]
+    src mymod_e.tcl rc=0 {}
+    src a_top_level_call_before_its_own_import_does_not_resolve.b.tcl rc=1 {invalid command name "helper"}
+    ai={} auto_import=0 savedPrelude=1
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### an_exact_import_link_dies_on_a_same_file_forget
+  [a 8.6]
+    src mymod_e.tcl rc=0 {}
+    src an_exact_import_link_dies_on_a_same_file_forget.a.tcl rc=0 {}
+    ai=::mymod::helper auto_import=1 savedPrelude=0
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [a 9.0]
+    src mymod_e.tcl rc=0 {}
+    src an_exact_import_link_dies_on_a_same_file_forget.a.tcl rc=0 {}
+    ai=::mymod::helper auto_import=1 savedPrelude=0
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 8.6]
+    src mymod_e.tcl rc=0 {}
+    src an_exact_import_link_dies_on_a_same_file_forget.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  [b 9.0]
+    src mymod_e.tcl rc=0 {}
+    src an_exact_import_link_dies_on_a_same_file_forget.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True
+##### exact_import_ignores_an_export_written_after_it
+  [a 8.6]
+    src mymod_n.tcl rc=0 {}
+    src exact_import_ignores_an_export_written_after_it.a.tcl rc=0 {}
+    ai=::mymod::helper auto_import=1 savedPrelude=0
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+  [a 9.0]
+    src mymod_n.tcl rc=0 {}
+    src exact_import_ignores_an_export_written_after_it.a.tcl rc=0 {}
+    ai=::mymod::helper auto_import=1 savedPrelude=0
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+  [b 8.6]
+    src mymod_n.tcl rc=0 {}
+    src exact_import_ignores_an_export_written_after_it.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+  [b 9.0]
+    src mymod_n.tcl rc=0 {}
+    src exact_import_ignores_an_export_written_after_it.b.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::run->::app::run ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 ::app::run
+  STATE+PROBES IDENTICAL a/b/8.6/9.0: True

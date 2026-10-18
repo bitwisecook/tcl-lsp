@@ -1,0 +1,44 @@
+== 8.6
+root-straight                        rc=0 tclsh=dead patched=dead
+body-straight                        rc=0 tclsh=dead patched=dead
+exit-before-forget-x1                rc=0 tclsh=live patched=live
+exit-before-forget-x0                rc=0 tclsh=dead patched=live
+exit-after-forget-x1                 rc=0 tclsh=dead patched=live
+exit-after-forget-x0                 rc=0 tclsh=dead patched=live
+body-exit-before-x1                  rc=0 tclsh=live patched=live
+proc-body-uncalled                   rc=0 tclsh=live patched=live
+proc-body-called-later               rc=0 tclsh=dead patched=live
+branch-x0                            rc=0 tclsh=live patched=live
+branch-x1                            rc=0 tclsh=dead patched=live
+forget-then-source                   rc=0 tclsh=dead patched=live
+forget-then-userproc                 rc=0 tclsh=dead patched=live
+forget-before-import                 rc=0 tclsh=live patched=live
+bodylocal-import-uncalled            rc=0 tclsh=dead patched=live
+bodylocal-import-called              rc=0 tclsh=live patched=live
+bodylocal-import-and-forget-called   rc=0 tclsh=dead patched=live
+cross-doc-forget-first               rc=0 tclsh=live patched=live
+cross-doc-forget-last                rc=0 tclsh=dead patched=live
+== 9.0
+root-straight                        rc=0 tclsh=dead patched=dead
+body-straight                        rc=0 tclsh=dead patched=dead
+exit-before-forget-x1                rc=0 tclsh=live patched=live
+exit-before-forget-x0                rc=0 tclsh=dead patched=live
+exit-after-forget-x1                 rc=0 tclsh=dead patched=live
+exit-after-forget-x0                 rc=0 tclsh=dead patched=live
+body-exit-before-x1                  rc=0 tclsh=live patched=live
+proc-body-uncalled                   rc=0 tclsh=live patched=live
+proc-body-called-later               rc=0 tclsh=dead patched=live
+branch-x0                            rc=0 tclsh=live patched=live
+branch-x1                            rc=0 tclsh=dead patched=live
+forget-then-source                   rc=0 tclsh=dead patched=live
+forget-then-userproc                 rc=0 tclsh=dead patched=live
+forget-before-import                 rc=0 tclsh=live patched=live
+bodylocal-import-uncalled            rc=0 tclsh=dead patched=live
+bodylocal-import-called              rc=0 tclsh=live patched=live
+bodylocal-import-and-forget-called   rc=0 tclsh=dead patched=live
+cross-doc-forget-first               rc=0 tclsh=live patched=live
+cross-doc-forget-last                rc=0 tclsh=dead patched=live
+error-before-forget rc=1 r=divide by zero tclsh=live patched=dead(normal-completion reading)
+error-before-forget rc=1 r=divide by zero tclsh=live patched=dead(normal-completion reading)
+pkg-require-reimport-after-forget [8.6]: rc=0 r=1 after=1 app=::app::helper origin=::mymod::helper  patched(app.tcl import-site link)=dead if END admitted
+pkg-require-reimport-after-forget [9.0]: rc=0 r=1 after=1 app=::app::helper origin=::mymod::helper  patched(app.tcl import-site link)=dead if END admitted

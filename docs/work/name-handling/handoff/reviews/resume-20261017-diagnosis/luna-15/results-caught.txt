@@ -1,0 +1,110 @@
+[a] local-defined caught: end  (8.6==9.0: True)
+    src v-a-local-defined_caught-9366.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+[a] local-defined caught: between (cut at call)  (8.6==9.0: True)
+    src v-a-local-defined_caught-4051.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p
+[a] real-oracle src2 uncaught  (8.6==9.0: True)
+    src v-a-real-oracle_src2_uncaught-8830.tcl rc=1 {invalid command name "p"}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+[a] real-oracle src2 caught  (8.6==9.0: True)
+    src v-a-real-oracle_src2_caught-2443.tcl rc=0 {}
+    ai={::src::* ::src::*} auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p
+[a] 024 caught: cut before import  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-a-024_caught-2264.tcl rc=0 1
+    ai={} auto_import=1 savedPrelude=0
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+[a] 024 caught: end  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-a-024_caught-2618.tcl rc=0 1
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state=::app::helper->::mymod::helper ::mymod::helper->::mymod::helper
+    probe {namespace origin ::app::helper} rc=0 ::mymod::helper
+    probe {helper} rc=1 {invalid command name "helper"}
+[a] 022 caught: cut before forget  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-a-022_caught-6674.tcl rc=0 {}
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state=::app::helper->::mymod::helper ::mymod::helper->::mymod::helper
+    probe {namespace origin ::app::helper} rc=0 ::mymod::helper
+[a] 022 caught: end  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-a-022_caught-1503.tcl rc=0 1
+    ai=::mymod::* auto_import=1 savedPrelude=0
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+[a] 406 cut between  (8.6==9.0: True)
+    src v-a-406_cut_between-7847.tcl rc=0 {}
+    ai=::src::* auto_import=1 savedPrelude=0
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p
+[b] local-defined caught: end  (8.6==9.0: True)
+    src v-b-local-defined_caught-9366.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::dst::p ::src::p->::src::p
+    probe {::dst::p} rc=0 LOCAL
+    probe {namespace origin ::dst::p} rc=0 ::dst::p
+    probe {::src::p} rc=0 SRC
+[b] local-defined caught: between (cut at call)  (8.6==9.0: True)
+    src v-b-local-defined_caught-4051.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p
+[b] real-oracle src2 uncaught  (8.6==9.0: True)
+    src v-b-real-oracle_src2_uncaught-8830.tcl rc=1 {invalid command name "p"}
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::src::p->::src::p
+    probe {info commands ::dst::*} rc=0 {}
+[b] real-oracle src2 caught  (8.6==9.0: True)
+    src v-b-real-oracle_src2_caught-2443.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p
+[b] 024 caught: cut before import  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-b-024_caught-2264.tcl rc=0 1
+    ai={} auto_import=0 savedPrelude=1
+    state=::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+[b] 024 caught: end  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-b-024_caught-2618.tcl rc=0 1
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::helper->::mymod::helper ::mymod::helper->::mymod::helper
+    probe {namespace origin ::app::helper} rc=0 ::mymod::helper
+    probe {helper} rc=1 {invalid command name "helper"}
+[b] 022 caught: cut before forget  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-b-022_caught-6674.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::app::helper->::mymod::helper ::mymod::helper->::mymod::helper
+    probe {namespace origin ::app::helper} rc=0 ::mymod::helper
+[b] 022 caught: end  (8.6==9.0: True)
+    src mymod_e.tcl rc=0 {}
+    src v-b-022_caught-1503.tcl rc=0 1
+    ai={} auto_import=0 savedPrelude=1
+    state={} ::mymod::helper->::mymod::helper
+    probe {info commands ::app::*} rc=0 {}
+[b] 406 cut between  (8.6==9.0: True)
+    src v-b-406_cut_between-7847.tcl rc=0 {}
+    ai={} auto_import=0 savedPrelude=1
+    state=::dst::p->::src::p ::src::p->::src::p
+    probe {::dst::p} rc=0 SRC
+    probe {namespace origin ::dst::p} rc=0 ::src::p

@@ -2,7 +2,19 @@
  "recorded_utc": "2026-10-18T09:15Z",
  "source": "User answers in chat",
  "decisions": {
-  "auto_import_fixtures": {"answer": "Fix the fixtures", "effect": "Narrow exception: test fixtures that import inside a namespace eval body without `rename auto_import` (test 404 family, workspace tests 022/024/028/029 where applicable, exact_import_ignores_an_export_written_after_it, and compiler test source_c_import_follows_the_original_command_object) may gain `rename auto_import savedPrelude` before the imports, matching the existing positive fixtures. No assertion value changes. The sound rule (stock auto_import may load code) stays in the analysis."},
-  "h2_unpositioned_link": {"answer": "Follow C Tcl", "effect": "An unpositioned consumer (e.g. link_alias_live) reads the document state after normal completion, so a same-file forget after the import revokes the exact link, exactly as tclsh leaves it after `source`. Where the document end is withheld (possible early exit, unretained script, function call, unresolved words), the answer stays conditional."}
+  "auto_import_fixtures": {
+   "answer": "Fix the fixtures",
+   "effect": "Narrow exception: test fixtures that import inside a namespace eval body without `rename auto_import` (test 404 family, workspace tests 022/024/028/029 where applicable, exact_import_ignores_an_export_written_after_it, and compiler test source_c_import_follows_the_original_command_object) may gain `rename auto_import savedPrelude` before the imports, matching the existing positive fixtures. No assertion value changes. The sound rule (stock auto_import may load code) stays in the analysis."
+  },
+  "h2_unpositioned_link": {
+   "answer": "Follow C Tcl",
+   "effect": "An unpositioned consumer (e.g. link_alias_live) reads the document state after normal completion, so a same-file forget after the import revokes the exact link, exactly as tclsh leaves it after `source`. Where the document end is withheld (possible early exit, unretained script, function call, unresolved words), the answer stays conditional."
+  }
+ },
+ "application_record": {
+  "recorded_utc": "2026-10-18T09:50Z",
+  "interpretation": "The auto_import decision is applied to its class: every test fixture that imports inside a namespace eval body without `rename auto_import`. This includes, beyond the tests named at decision time, single_file_definition_refuses_direction_b_through_the_fallback, the_tail_match_refuses_a_forgotten_import_too, a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias, a_redefinition_ends_a_forced_import_shadow (406), a_forget_lets_the_next_unforced_import_install and an_exact_import_link_dies_on_a_same_file_forget (025). Reported to the user for confirmation; revertible per test.",
+  "receipt": "luna-15/results-task-a.txt (all 21 fixtures re-run with and without the prelude on tclsh 8.6.18 and 9.0.4; identical command tables and probe results)",
+  "not_applied": "a_forced_import_before_the_call_does_not_shadow_a_later_call_site needs an assertion correction (tclsh: invalid command name), queued under the correct-to-tclsh policy"
  }
 }
