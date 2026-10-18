@@ -3346,6 +3346,34 @@ impl NativeCompilationSpec {
         )
     }
 
+    /// Select from resolved facts for a caller that retains the authenticated
+    /// original command vector. A named ensemble compiler then emits its
+    /// private-name invocation after the retained selector words; every other
+    /// grammar selects exactly as [`Self::select_for_facts`], which refuses a
+    /// named compiler because it cannot see that the original words survive.
+    #[must_use]
+    pub fn select_for_original_facts(
+        self,
+        words: InvocationWords<'_>,
+        shapes: &[NativeCompilationWordShape],
+        facts: &crate::InvocationFacts,
+        dialect: Option<InvocationDialect>,
+        context: NativeCompilationContext,
+    ) -> NativeCompilationSelection {
+        if !self.is_named_invocation_compiler() {
+            return self.select_for_facts(words, shapes, facts, dialect, context);
+        }
+        self.select_with_named_operand_view(
+            words,
+            shapes,
+            dialect,
+            context,
+            NamedCompilerOperandView::OriginalArguments {
+                selectors_retained: facts.argument_offset,
+            },
+        )
+    }
+
     /// Project native compiler failures through authored grammar, never the
     /// invoked token's spelling. C Tcl 8.4's fixed arity errors name the native
     /// primitive even when the command object was renamed.

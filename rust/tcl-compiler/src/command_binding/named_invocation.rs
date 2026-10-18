@@ -91,7 +91,10 @@ impl SourceNamedInvocationProof {
         };
         let binding = super::source_binding_projection(state, self.captured_name(), &root);
         proof.targets = binding.targets;
-        proof.unknown = binding.unknown;
+        // A later ensemble reconfiguration recompiles the chunk under the new
+        // map, so the captured private name may no longer be the one invoked.
+        proof.unknown = binding.unknown
+            || (self.lookup.is_some() && state.namespace_resolution.ensembles.reconfigured);
         proof.may_be_absent = binding.may_be_absent;
         proof
     }

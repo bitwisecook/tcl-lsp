@@ -404,13 +404,59 @@ fn trace_capture(
     }
 }
 
-fn expected_pattern_transfer(
-    native: super::SourceNativeInvocation<'_>,
+/// The closed pattern transfer of one export, import or forget statement and
+/// every premise under which it runs nothing else: a quiet table before and
+/// after, retained target geometry with closed lookup, fresh import
+/// destinations with a missing preload hook, and live forget origins.
+/// The seal and the compiled named-invocation selection share this owner.
+fn closed_pattern_transfer(
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
-    context: super::SourceExecutionContext<'_>,
     namespace: &SourceNamespaceKey,
     policy: NamePolicyProtocol,
+    operand: &impl Fn(&tcl_registry::TransitionSubject) -> Option<Vec<u8>>,
+) -> Option<Box<ModuleCommandBindings>> {
+    if !quiet(state) {
+        return None;
+    }
+    state.original_namespace_geometry(namespace, policy)?;
+    if state.unknown_lookup_namespaces.contains(namespace) {
+        return None;
+    }
+    let expected = expected_pattern_transfer(facts, state, namespace, policy, operand)?;
+    quiet(&expected).then_some(expected)
+}
+
+/// Whether a compiled named namespace statement with literal pattern words
+/// keeps the same closed transfer the seal requires. Any other declared
+/// transition, a dynamic pattern or a failed premise leaves it unadmitted.
+pub(super) fn literal_pattern_transfer_is_closed(
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    namespace: &SourceNamespaceKey,
+) -> bool {
+    let Some(policy) = policy(state) else {
+        return false;
+    };
+    let native_entry = state.baseline.native_entry.is_some();
+    closed_pattern_transfer(
+        facts,
+        state,
+        namespace,
+        policy,
+        &|subject: &tcl_registry::TransitionSubject| {
+            super::namespace_pattern_operand_bytes(subject, None, native_entry).map(<[u8]>::to_vec)
+        },
+    )
+    .is_some()
+}
+
+fn expected_pattern_transfer(
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    namespace: &SourceNamespaceKey,
+    policy: NamePolicyProtocol,
+    operand: &impl Fn(&tcl_registry::TransitionSubject) -> Option<Vec<u8>>,
 ) -> Option<Box<ModuleCommandBindings>> {
     use tcl_registry::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, hooks::AnalyserHookId,
@@ -426,18 +472,8 @@ fn expected_pattern_transfer(
                 }),
                 Some(AnalyserHookId::NamespaceExport),
             ) => {
-                let operands = patterns
-                    .iter()
-                    .map(|subject| {
-                        super::original_command_table::original_operand(
-                            native, subject, state, context,
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let inputs = operands
-                    .iter()
-                    .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes)
-                    .collect::<Vec<_>>();
+                let operands = patterns.iter().map(operand).collect::<Option<Vec<_>>>()?;
+                let inputs = operands.iter().map(Vec::as_slice).collect::<Vec<_>>();
                 apply_exports(&mut expected, namespace, &inputs)?;
             }
             (
@@ -449,13 +485,11 @@ fn expected_pattern_transfer(
                 Some(AnalyserHookId::NamespaceImport),
             ) => {
                 for subject in patterns {
-                    let input = super::original_command_table::original_operand(
-                        native, subject, state, context,
-                    )?;
+                    let input = operand(subject)?;
                     // The narrow fresh-destination envelope invokes no
                     // replacement cleanup or imported-alias loop callback.
-                    import_is_fresh_and_closed(&expected, namespace, input.bytes(), policy)?;
-                    apply_import(&mut expected, namespace, input.bytes(), Some(*force))?;
+                    import_is_fresh_and_closed(&expected, namespace, &input, policy)?;
+                    apply_import(&mut expected, namespace, &input, Some(*force))?;
                 }
             }
             (
@@ -469,10 +503,8 @@ fn expected_pattern_transfer(
                 // of an unrepresented command cleanup/destructor.
                 import_origins_are_live(&expected, namespace)?;
                 for subject in patterns {
-                    let input = super::original_command_table::original_operand(
-                        native, subject, state, context,
-                    )?;
-                    apply_forget(&mut expected, namespace, input.bytes())?;
+                    let input = operand(subject)?;
+                    apply_forget(&mut expected, namespace, &input)?;
                 }
             }
             _ => return None,
@@ -540,15 +572,16 @@ impl OriginalNamespaceBinding {
             return None;
         }
         let namespace = context.namespace_identity();
-        state.original_namespace_geometry(&namespace, policy)?;
-        if state.unknown_lookup_namespaces.contains(&namespace) {
-            return None;
-        }
-        let expected =
-            expected_pattern_transfer(native, facts, state, context, &namespace, policy)?;
-        if !quiet(&expected) {
-            return None;
-        }
+        let expected = closed_pattern_transfer(
+            facts,
+            state,
+            &namespace,
+            policy,
+            &|subject: &tcl_registry::TransitionSubject| {
+                super::original_command_table::original_operand(native, subject, state, context)
+                    .map(|input| input.bytes().to_vec())
+            },
+        )?;
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(

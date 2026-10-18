@@ -12931,8 +12931,20 @@ impl Hash for BindingBaseline {
 struct NamespaceResolutionProjection {
     changed: bool,
     dynamic: bool,
+    ensembles: EnsembleManagement,
     rebound_names: BTreeSet<String>,
     opaque_namespaces: BTreeSet<String>,
+}
+
+/// Ensemble management observed so far; each axis only rises.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+struct EnsembleManagement {
+    /// A configuration change may have remapped any ensemble, including a
+    /// stock one, so no stock member-to-worker mapping is proved.
+    reconfigured: bool,
+    /// A creation may have replaced any command, including a stock ensemble,
+    /// so a compiled body selects no stock ensemble worker.
+    created: bool,
 }
 
 /// Compact identity for every mutable observation axis other than the live
@@ -12972,6 +12984,7 @@ struct NonBindingObservationStamp {
     unnameable_rebinding_subject: bool,
     namespace_changed: bool,
     namespace_dynamic: bool,
+    namespace_ensembles: EnsembleManagement,
     namespace_rebound_count: usize,
     namespace_opaque_count: usize,
     procedure_body_count: usize,
@@ -12991,6 +13004,14 @@ impl NamespaceResolutionProjection {
             crate::ir_helpers::ExecutionNamespace::SourceContext(_)
             | crate::ir_helpers::ExecutionNamespace::RuntimeSelected => None,
         };
+        if let NamespaceTransition::Ensemble { operation, .. } = transition {
+            use tcl_registry::state_transition::EnsembleManagementOperation as Operation;
+            match operation {
+                Some(Operation::Exists) => {}
+                Some(Operation::Create) => self.ensembles.created = true,
+                _ => self.ensembles.reconfigured = true,
+            }
+        }
         let mut rebound = std::collections::HashSet::new();
         let mut opaque = std::collections::HashSet::new();
         let mut changed = false;
@@ -13011,6 +13032,14 @@ impl NamespaceResolutionProjection {
         }
         if other.dynamic && !self.dynamic {
             self.dynamic = true;
+            joined = true;
+        }
+        let ensembles = EnsembleManagement {
+            reconfigured: self.ensembles.reconfigured || other.ensembles.reconfigured,
+            created: self.ensembles.created || other.ensembles.created,
+        };
+        if ensembles != self.ensembles {
+            self.ensembles = ensembles;
             joined = true;
         }
         let rebound_count = self.rebound_names.len();
@@ -14157,6 +14186,7 @@ impl ModuleCommandBindings {
             unnameable_rebinding_subject: self.unnameable_rebinding_subject,
             namespace_changed: self.namespace_resolution.changed,
             namespace_dynamic: self.namespace_resolution.dynamic,
+            namespace_ensembles: self.namespace_resolution.ensembles,
             namespace_rebound_count: self.namespace_resolution.rebound_names.len(),
             namespace_opaque_count: self.namespace_resolution.opaque_namespaces.len(),
             procedure_body_count: self.procedure_bodies.len(),
@@ -21351,6 +21381,83 @@ mod tests {
         let target = binding.proved_target().expect("stable imported command");
         assert_eq!(target.command, "::a::saved");
         assert_eq!(target.identity.as_ref().unwrap().origin, "::a::f");
+    }
+
+    #[test]
+    fn source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed() {
+        // tclsh 8.6 / 9.0: with the import preload renamed away, export,
+        // import and forget in namespace bodies rebind no root command.
+        let source = "rename auto_import savedPrelude\nnamespace eval src {proc p {} {return P}; namespace export p}\nnamespace eval dst {namespace import ::src::*}\nnamespace eval dst {namespace forget ::src::p}\nset x 0\nincr x\nset after 1";
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for head in ["namespace export", "namespace import", "namespace forget"] {
+            let binding = source_proof(source, head, dialect);
+            assert!(!binding.execution_is_unknown(), "{head}: {binding:#?}");
+        }
+        for head in ["incr x", "set after"] {
+            let binding = source_proof(source, head, dialect);
+            assert!(
+                binding
+                    .proved_target()
+                    .is_some_and(|target| target.registry_backed),
+                "{head}: {binding:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_body_namespace_statements_outside_the_closed_premises_stay_open() {
+        // tclsh 8.6 / 9.0 (each source rebinds the root `incr`, and the
+        // document completes early): a document `auto_import`, the stock
+        // `auto_import` loading an `auto_index` entry or an `auto_path`
+        // index, a delete trace fired by a forget or a forced import, a
+        // destructor of an object a forced import replaces, an ensemble map
+        // changed for `namespace` or `string`, and an ensemble created over
+        // `::namespace` or, by its namespace name, over `::string`.
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let hijack = "proc ::hijack {args} {rename ::incr ::saved_incr; proc ::incr {args} {return -code return}}\n";
+        let export = "namespace eval ::m {proc h {} {}; namespace export h}\n";
+        let tail = "set x 0\nincr x\nset after 1";
+        for body in [
+            format!("{export}proc auto_import {{pattern}} {{::hijack}}\nnamespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("{export}set ::auto_index(::m::zz) {{::hijack}}\nnamespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("lappend ::auto_path /autolib\n{export}namespace eval ::a {{namespace import ::m::*}}\n"),
+            format!("rename auto_import savedPrelude\n{export}namespace eval ::a {{namespace import ::m::*}}\ntrace add command ::a::h delete ::hijack\nnamespace eval ::a {{namespace forget ::m::h}}\n"),
+            format!("rename auto_import savedPrelude\n{export}namespace eval ::a {{proc h {{}} {{}}}}\ntrace add command ::a::h delete ::hijack\nnamespace eval ::a {{namespace import -force ::m::*}}\n"),
+            format!("rename auto_import savedPrelude\n{export}oo::class create C {{destructor {{::hijack}}}}\nnamespace eval ::a {{}}\nC create ::a::h\nnamespace eval ::a {{namespace import -force ::m::*}}\n"),
+            "namespace eval ::z {namespace ensemble configure ::namespace -map {eval ::tcl::namespace::eval export ::hijack}}\nnamespace eval ::a {proc h {} {}; namespace export h}\n".to_owned(),
+            "namespace eval ::z {namespace ensemble configure ::string -map {repeat ::hijack}}\nstring repeat a 2\n".to_owned(),
+            "rename auto_import savedPrelude\nnamespace eval ::fake {namespace ensemble create -command ::namespace -map {eval ::tcl::namespace::eval export ::hijack}}\nnamespace eval ::a {proc h {} {}; namespace export h}\n".to_owned(),
+            "namespace eval ::string {proc repeat {args} {::hijack}; namespace export repeat; namespace ensemble create}\nnamespace eval ::b {string repeat a 2}\n".to_owned(),
+        ] {
+            let source = format!("{hijack}{body}{tail}");
+            let binding = source_proof(&source, "incr x", dialect);
+            assert!(binding.proved_target().is_none(), "{source}: {binding:#?}");
+        }
+        // An import brings a renamed `namespace` or `set` into `::a`, or a
+        // renamed `eval` into the root; those heads no longer reach the stock
+        // command there.
+        for (source, head) in [
+            (
+                "namespace eval ::m {namespace export h namespace; proc h {} {return M}; proc helper args {}; rename helper namespace}\nnamespace eval ::a {namespace import ::m::*}\nnamespace eval ::a {namespace forget ::m::h}\nset ::after 1",
+                "namespace forget",
+            ),
+            (
+                "namespace eval ::m {proc h {} {return M}; namespace export h}\nnamespace import ::m::h\nnamespace eval ::q {namespace export eval; proc helper args {}; rename helper eval}\nnamespace eval :: {namespace import -force ::q::eval}\neval {namespace forget ::m::h}\nset ::after 1",
+                "eval {namespace forget",
+            ),
+            (
+                "namespace eval ::m {proc h {} {return M}; namespace export h}\nnamespace import ::m::h\nnamespace eval ::q {namespace export set; proc helper args {return -code return}; rename helper set}\nnamespace eval ::a {namespace import ::q::*}\nnamespace eval ::a {set x 1}\nnamespace forget ::m::h\nset ::after 1",
+                "set x 1",
+            ),
+        ] {
+            let binding = source_proof(source, head, dialect);
+            assert!(
+                binding
+                    .proved_target()
+                    .is_none_or(|target| !target.registry_backed),
+                "{head}: {binding:#?}"
+            );
+        }
     }
 
     #[test]

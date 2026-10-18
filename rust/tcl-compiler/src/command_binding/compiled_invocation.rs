@@ -1376,13 +1376,23 @@ fn registered_compiler_selection(
         original_registered_compiler_preparation(spec, selected, state, context, argument_offset);
     let admission = original.as_ref().map_or_else(
         || {
-            spec.select_for_facts(
-                invocation,
-                shapes,
-                facts,
-                state.baseline.compilation_dialect(),
-                context.compilation,
-            )
+            if original_named_selection_is_closed(selected, facts, state, context) {
+                spec.select_for_original_facts(
+                    invocation,
+                    shapes,
+                    facts,
+                    state.baseline.compilation_dialect(),
+                    context.compilation,
+                )
+            } else {
+                spec.select_for_facts(
+                    invocation,
+                    shapes,
+                    facts,
+                    state.baseline.compilation_dialect(),
+                    context.compilation,
+                )
+            }
         },
         |(selection, _)| *selection,
     );
@@ -1433,6 +1443,43 @@ fn registered_compiler_selection(
         switch,
         structured,
     })
+}
+
+/// Whether the retained original command may select a named ensemble
+/// compiler from its resolved facts. The handler must declare its transitions:
+/// none at all, or only the namespace pattern statements whose closed transfer
+/// and premises the namespace-binding seal owns. An undeclared or other
+/// transition keeps the compiler selection unknown, and so does an earlier
+/// ensemble creation, which may have replaced a stock ensemble command.
+fn original_named_selection_is_closed(
+    selected: CompilerInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+) -> bool {
+    if state.namespace_resolution.ensembles.created {
+        return false;
+    }
+    let Some(origin) = state.current_source_origin.as_ref() else {
+        return false;
+    };
+    if origin
+        .original_lexical_command(selected.words, selected.offset, context.config)
+        .is_none()
+    {
+        return false;
+    }
+    facts
+        .state_transitions
+        .declared()
+        .is_some_and(|transitions| {
+            transitions.facts().is_empty()
+                || super::original_namespace_binding::literal_pattern_transfer_is_closed(
+                    facts,
+                    state,
+                    &context.namespace_identity(),
+                )
+        })
 }
 
 fn original_compilation_point(
@@ -2706,6 +2753,14 @@ pub(super) fn successful_handler_transfer(
         use tcl_registry::native_compilation::NormalHandlerImplementationLookup;
         match facts.normal_handler_implementation_lookup(state.baseline.dialect) {
             NormalHandlerImplementationLookup::NoneRequired => {}
+            // An earlier ensemble creation may have replaced the stock
+            // ensemble whose private worker this handler requires.
+            NormalHandlerImplementationLookup::Required(_)
+            | NormalHandlerImplementationLookup::RequiredPath(_)
+                if state.namespace_resolution.ensembles.created =>
+            {
+                return None;
+            }
             NormalHandlerImplementationLookup::Required(lookup) => {
                 let namespace = state.variable_frame_namespace_key()?;
                 if !effective

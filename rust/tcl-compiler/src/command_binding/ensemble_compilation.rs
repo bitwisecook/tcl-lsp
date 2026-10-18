@@ -137,7 +137,9 @@ impl ModuleCommandBindings {
             return false;
         }
         let Some(entry) = self.baseline.native_entry.as_ref() else {
-            return true;
+            // The authored baseline retains the stock map until a configuration
+            // change may have remapped this ensemble.
+            return !self.namespace_resolution.ensembles.reconfigured;
         };
         let Some(public) = self.runtime_ensemble_configuration_for_identity(
             target.identity.as_ref(),

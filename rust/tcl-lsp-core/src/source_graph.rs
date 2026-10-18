@@ -3346,12 +3346,20 @@ mod original_source_navigation_order_tests {
         // Only top-level unconditional order is known. A `namespace eval`
         // body is entered once, immediately; an `if` branch and a procedure
         // body are not straight-line sequence. A `return` inside a procedure
-        // body is no early exit of the document.
-        let source = "set before 1\nnamespace eval ::n {\n    set inner 2\n}\nif {$x} {set branch 3}\nproc q {} {set body 4; return}\nset after 6\n";
+        // body is no early exit of the document, and neither is a branch
+        // that may or may not run. `x` holds an unknown value read from stdin.
+        let source = "set before 1\ngets stdin x\nnamespace eval ::n {\n    set inner 2\n}\nif {$x} {set branch 3}\nproc q {} {set body 4; return}\nset after 6\n";
         let purpose = sequence_purposes(source);
         assert_eq!(purpose("set before", "set inner"), KNOWN);
         assert_eq!(purpose("set inner", "set after"), KNOWN);
         assert_eq!(purpose("set after", "END"), KNOWN);
+        // tclsh 8.6 / 9.0: with `x` never set, `if {$x}` fails with
+        // `can't read "x"`, so the document never completes normally and
+        // the later commands are never reached; the end stays withheld.
+        let unset = sequence_purposes(
+            "set before 1\nif {$x} {set branch 3}\nproc q {} {set body 4; return}\nset after 6\n",
+        );
+        assert_ne!(unset("set after", "END"), KNOWN);
         for withheld in ["set branch", "set body"] {
             assert_ne!(purpose(withheld, "set after"), KNOWN, "{withheld}");
             assert_ne!(purpose("set before", withheld), KNOWN, "{withheld}");
