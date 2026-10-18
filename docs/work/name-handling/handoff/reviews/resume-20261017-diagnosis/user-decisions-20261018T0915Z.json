@@ -1,0 +1,8 @@
+{
+ "recorded_utc": "2026-10-18T09:15Z",
+ "source": "User answers in chat",
+ "decisions": {
+  "auto_import_fixtures": {"answer": "Fix the fixtures", "effect": "Narrow exception: test fixtures that import inside a namespace eval body without `rename auto_import` (test 404 family, workspace tests 022/024/028/029 where applicable, exact_import_ignores_an_export_written_after_it, and compiler test source_c_import_follows_the_original_command_object) may gain `rename auto_import savedPrelude` before the imports, matching the existing positive fixtures. No assertion value changes. The sound rule (stock auto_import may load code) stays in the analysis."},
+  "h2_unpositioned_link": {"answer": "Follow C Tcl", "effect": "An unpositioned consumer (e.g. link_alias_live) reads the document state after normal completion, so a same-file forget after the import revokes the exact link, exactly as tclsh leaves it after `source`. Where the document end is withheld (possible early exit, unretained script, function call, unresolved words), the answer stays conditional."}
+ }
+}
