@@ -1,0 +1,63 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-18T21:10:13.422892+00:00",
+  "scheduled_report_utc": "2026-10-18T21:10:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "user_decisions_since_previous_report": {
+    "receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261018T2100Z.json",
+    "summary": "both_tiers covering test gets a loader document; RunOrder learns provable order from an unconditional top-level source chain"
+  },
+  "reviews_since_previous_report": {
+    "Luna-28 forced-import-A1": "REVISE (navigation-grade export verdicts fed to the compiler; CE16, CE17)",
+    "Luna-28 forced-import-A2": "ADMIT-TO-BUILD; conditions CE18-CE20 (namespace delete, conditional and body-level exports) carried to Sol-27"
+  },
+  "in_progress": {
+    "Sol-26": "exclusive tree: integration45 compose and measured runs",
+    "Sol-27": "provable source order (RunOrder) with load-level unconditional export marker and namespace-delete window"
+  },
+  "next_report_utc": "2026-10-18T21:41:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
