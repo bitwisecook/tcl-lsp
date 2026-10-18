@@ -1,0 +1,18 @@
+{
+  "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+  "archive": "capture-lsp41.tar.gz",
+  "sha256": "a308416383fb5c9facf7f160304f93e3b1e128affe98b93ce73acd60188de24f",
+  "members_index_sha256": "6b1d539c492c0a65bc87eedace54681049ad179cec61f01ccc7d0dbd1e0ba276",
+  "members": 1125,
+  "source_head": "d0cd9d73b1adf41ca937cd2eb1bcd6a2f88047c7",
+  "source_snapshot_sha256": "03867a6d1136e087a0d57433ef6151903bd7ace696a5da3aac502bd5c6f2b8b7",
+  "providers_sha256": "922d66d207d22abb5e74807e48741d1b8f8e37b994649c6edb10d7b262b8021c",
+  "artifacts_sha256": "2d03d88aec240286ab9699a1762d8c0da12dcaf132ccb0d136d69cbb42bd1b93",
+  "window_utc": ["2026-10-18T07:59:48Z", "2026-10-18T08:57:49Z"],
+  "completed": 1085, "passed": 859, "failed": 226, "timeouts_in_failed": 2,
+  "groups": {"original_db": [11, 7], "original_core": [664, 546], "original_server": [175, 157], "additive_core": [216, 131], "additive_server": [14, 14], "extra5_source_changed": [5, 4]},
+  "comparison_to_capture36": "Zero pass->fail across all 1085 selectors; original core +21.",
+  "extra5": "Three of five pinned control sources changed (member census V4); run under a separate label; pins not refreshed.",
+  "budget_boundary": "server workspace_symbol_caps_its_answer 180.0 s timeout (179.7 s pass in capture37); boundary timing, open Server108 decision.",
+  "scope": "Direct LSP selections on integration37-40 candidates plus lint cleanup. Not compiler/integration/server-process/host acceptance; clippy gate red by user deferral; no VM/runtime migration."
+}
