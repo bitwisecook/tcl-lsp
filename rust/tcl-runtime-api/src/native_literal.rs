@@ -107,6 +107,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
     /// # Errors
     /// Refuses a changed original episode/entry or exhausted owner count and
     /// retains concrete failures before unused original allocations retire.
+    #[allow(clippy::too_many_arguments)]
     pub fn register_using<P, E>(
         world: &std::rc::Rc<std::cell::RefCell<Self>>,
         key: NativeLiteralKey,
@@ -356,6 +357,7 @@ impl<V: Clone> NativeLocalNameTable<V> {
     ///
     /// # Errors
     /// Preserves the first concrete refusal through actual partial-table cleanup.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_using<P, E>(
         world: &std::rc::Rc<std::cell::RefCell<NativeLiteralWorld<V>>>,
         names: &[Option<tcl_core_types::NameBytes>],
