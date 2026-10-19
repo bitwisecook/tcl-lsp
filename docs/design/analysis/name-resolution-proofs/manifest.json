@@ -1133952,6 +1133952,12 @@
           "status": "linked"
         },
         {
+          "path": "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
+          "selector": "command_binding::original_source_projection::tests::one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order",
+          "assertion": "One nested-body cut memo serves whole-input plans of region zero, including a leading byte-order mark, and nested-script body plans, interleaved in forward, reverse and mixed orders, across five Tcl grammars and both channels; each plan, fatal tail included, equals the unmemoised plan, directly and through the origin's shared memo. Cache reuse grants no physical execution.",
+          "status": "linked"
+        },
+        {
           "path": "rust/tcl-compiler/src/lowering/structured.rs",
           "selector": "lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace",
           "status": "linked",

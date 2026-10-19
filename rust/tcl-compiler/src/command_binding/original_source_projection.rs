@@ -25,7 +25,7 @@ struct ProjectionEntry {
 pub(super) struct OriginalSourceProjectionMemo {
     entries: Mutex<ProjectionEntries>,
     /// Clean nested command-body parse verdicts of this origin's whole image,
-    /// shared by every command projection captured from it.
+    /// shared by every command projection and script-word plan captured from it.
     nested_cuts: tcl_lexer::NestedBodyCutMemo,
     #[cfg(any(test, debug_assertions))]
     trace: bool,
@@ -62,6 +62,10 @@ impl std::fmt::Debug for OriginalSourceProjectionMemo {
 }
 
 impl OriginalSourceProjectionMemo {
+    pub(super) const fn nested_cuts(&self) -> &tcl_lexer::NestedBodyCutMemo {
+        &self.nested_cuts
+    }
+
     pub(super) fn capture(
         &self,
         image: &SourceImage,
@@ -444,6 +448,106 @@ mod tests {
                         assert_eq!(unmemoised.is_some(), *complete, "{name} {offset}");
                         assert_eq!(shared, unmemoised, "{name} {offset}");
                         assert_eq!(memoised, unmemoised, "{name} {offset}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        use tcl_lexer::{SourceSegmentationPurpose as Purpose, Span};
+        // (source, whole input stops at a parse cut, some body stops at one)
+        let sources = [
+            (
+                "set x [list [list a] [list b]]\nputs [list [list c]]\n",
+                false,
+                false,
+            ),
+            (
+                "set x [list [list a]]\nlist [list [list a] {b}c]\nputs after\n",
+                true,
+                true,
+            ),
+            (
+                "\u{feff}set x [list [list a]]\nlist [list {b}c]",
+                true,
+                true,
+            ),
+            (
+                "set y [\u{feff}list [list a]]\nlist [\u{feff}list {b}c]",
+                true,
+                true,
+            ),
+        ];
+        for (source, whole_cut, body_cut) in sources {
+            let whole = Span::new(0, u32::try_from(source.len()).unwrap());
+            let mut plans = vec![(whole, Purpose::WholeInput)];
+            for (open, _) in source.match_indices('[') {
+                let end = tcl_lexer::command_substitution_end(source, open).unwrap();
+                let body = Span::new(
+                    u32::try_from(open + 1).unwrap(),
+                    u32::try_from(end - 1).unwrap(),
+                );
+                plans.push((body, Purpose::NestedScript));
+            }
+            let mut reversed = plans.clone();
+            reversed.reverse();
+            let mut interleaved = plans[1..].to_vec();
+            interleaved.reverse();
+            interleaved.insert(interleaved.len() / 2, plans[0]);
+            for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+                let profile =
+                    tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
+                let config = LexerConfig::from_grammar(profile.grammar);
+                for image in [
+                    SourceImage::document(source),
+                    SourceImage::native(source.as_bytes()),
+                ] {
+                    let unmemoised = |region: Span, purpose: Purpose| {
+                        tcl_lexer::native_script_words_in_with_purpose(
+                            image.clone(),
+                            region,
+                            config,
+                            purpose,
+                        )
+                    };
+                    let tail = |region: Span, purpose: Purpose| {
+                        unmemoised(region, purpose).unwrap().fatal_tail.is_some()
+                    };
+                    assert_eq!(
+                        tail(whole, Purpose::WholeInput),
+                        whole_cut,
+                        "{name} {source:?}"
+                    );
+                    assert_eq!(
+                        plans[1..]
+                            .iter()
+                            .any(|(region, purpose)| tail(*region, *purpose)),
+                        body_cut,
+                        "{name} {source:?}",
+                    );
+                    for order in [&plans, &reversed, &interleaved] {
+                        let memo = tcl_lexer::NestedBodyCutMemo::default();
+                        let origin = SourceOriginId::authored_image(image.clone());
+                        for &(region, purpose) in order {
+                            let expected = unmemoised(region, purpose);
+                            let shared = tcl_lexer::native_script_words_in_with_purpose_and_memo(
+                                image.clone(),
+                                region,
+                                config,
+                                purpose,
+                                &memo,
+                            );
+                            assert_eq!(shared, expected, "{name} {source:?} {region:?}");
+                            assert_eq!(
+                                origin.original_script_words_in(region, config, purpose),
+                                expected,
+                                "{name} {source:?} {region:?}",
+                            );
+                        }
                     }
                 }
             }

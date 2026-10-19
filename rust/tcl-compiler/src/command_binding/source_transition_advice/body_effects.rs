@@ -1138,13 +1138,15 @@ impl BodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
-        let plan = tcl_lexer::native_script_words_in_with_purpose(
-            self.context.origin.source_image().clone(),
-            span,
-            self.context.config,
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        )
-        .ok();
+        let plan = self
+            .context
+            .origin
+            .original_script_words_in(
+                span,
+                self.context.config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            )
+            .ok();
         #[cfg(test)]
         trace_body_inventory(
             "script.plan",

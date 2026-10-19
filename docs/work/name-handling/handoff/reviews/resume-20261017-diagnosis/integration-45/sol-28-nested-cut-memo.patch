@@ -1,0 +1,247 @@
+diff --git a/docs/design/analysis/name-resolution-proofs/manifest.json b/docs/design/analysis/name-resolution-proofs/manifest.json
+index 90ef0f170..e7f9deb61 100644
+--- a/docs/design/analysis/name-resolution-proofs/manifest.json
++++ b/docs/design/analysis/name-resolution-proofs/manifest.json
+@@ -1133951,6 +1133951,12 @@
+           "assertion": "Innermost-first and outermost-first captures of nested command bodies and their enclosing commands, across five Tcl grammars and both channels, give the same native-word and segmented geometry or the same refusal through the projection memo, a shared nested-body cut memo and the unmemoised capture. Cache reuse grants no physical execution.",
+           "status": "linked"
+         },
++        {
++          "path": "rust/tcl-compiler/src/command_binding/original_source_projection.rs",
++          "selector": "command_binding::original_source_projection::tests::one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order",
++          "assertion": "One nested-body cut memo serves whole-input plans of region zero, including a leading byte-order mark, and nested-script body plans, interleaved in forward, reverse and mixed orders, across five Tcl grammars and both channels; each plan, fatal tail included, equals the unmemoised plan, directly and through the origin's shared memo. Cache reuse grants no physical execution.",
++          "status": "linked"
++        },
+         {
+           "path": "rust/tcl-compiler/src/lowering/structured.rs",
+           "selector": "lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace",
+diff --git a/docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md b/docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+index 629ce55b4..2a6e54349 100644
+--- a/docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
++++ b/docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+@@ -101,6 +101,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
+ - [rust/tcl-compiler/src/command_binding/original_source_projection.rs](../../../../rust/tcl-compiler/src/command_binding/original_source_projection.rs), `command_binding::original_source_projection::tests::original_lexical_projection_refuses_changed_vector_grammar_and_partial_source` (linked): Changed original vector, offset, grammar or partial source refuses both memoized and uncached geometry without warming the cache; equal payload text cannot replace full original ancestry.
+ - [rust/tcl-compiler/src/command_binding/original_source_projection.rs](../../../../rust/tcl-compiler/src/command_binding/original_source_projection.rs), `command_binding::original_source_projection::tests::original_lexical_projection_keeps_cache_warmth_and_independent_origins_separate` (linked): Cache warmth stays outside origin semantic identity while independently created source origins retain separate allocation/projection ownership. This deterministic equality/reuse control has no timing or Native admission claim.
+ - [rust/tcl-compiler/src/command_binding/original_source_projection.rs](../../../../rust/tcl-compiler/src/command_binding/original_source_projection.rs), `command_binding::original_source_projection::tests::original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture` (linked): Innermost-first and outermost-first captures of nested command bodies and their enclosing commands, across five Tcl grammars and both channels, give the same native-word and segmented geometry or the same refusal through the projection memo, a shared nested-body cut memo and the unmemoised capture. Cache reuse grants no physical execution.
++- [rust/tcl-compiler/src/command_binding/original_source_projection.rs](../../../../rust/tcl-compiler/src/command_binding/original_source_projection.rs), `command_binding::original_source_projection::tests::one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order` (linked): One nested-body cut memo serves whole-input plans of region zero, including a leading byte-order mark, and nested-script body plans, interleaved in forward, reverse and mixed orders, across five Tcl grammars and both channels; each plan, fatal tail included, equals the unmemoised plan, directly and through the origin's shared memo. Cache reuse grants no physical execution.
+ - [rust/tcl-compiler/src/lowering/structured.rs](../../../../rust/tcl-compiler/src/lowering/structured.rs), `lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace` (linked): Structured body caller keeps parent ordinal and namespace. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+ - [rust/tcl-compiler/src/lowering/structured.rs](../../../../rust/tcl-compiler/src/lowering/structured.rs), `lowering::structured::original_body_word_caller_tests::original_structured_body_word_caller_refuses_full_extent_and_changed_parent` (linked): Structured body word caller refuses full extent and changed parent. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+ - [rust/tcl-compiler/src/command_binding/original_body_namespace.rs](../../../../rust/tcl-compiler/src/command_binding/original_body_namespace.rs), `command_binding::original_body_namespace::tests::original_body_word_extent_keeps_inner_and_whole_geometry_separate` (linked): Body word extent keeps inner and whole geometry separate. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+@@ -119,6 +120,6 @@ Linked Rust selectors do not establish execution or timing. The unchanged 80-dep
+ 
+ A sidecar belongs to the actual Arc allocation: an address is only a bucket, and lookup must upgrade the retained Weak owner and compare the complete actual Arc pointer. Equal-valued independent allocations do not share a memo. The sidecar retains no strong owner, removes dead-owner entries on access, and releases its registry lock before lexical parsing or source interpretation. The existing weak baseline and weak independently owned source-cache checks remain unchanged. A derived result never becomes source identity, metadata admission, Native lookup, entered frame or semantic permission.
+ 
+-`OriginalSourceProjectionMemo` also owns one `NestedBodyCutMemo` for the same origin's whole image. It records a command-substitution body only after the unchanged recursive parse-cut walk of that body finished clean, keyed by whole-image body extent, full lexer configuration and channel. Bodies that cut or whose lexical stream or geometry is unavailable are never recorded and are walked again, so every projection keeps the unmemoised first cut and refusal. The sidecar is derived warmth: its Debug output names no bytes or keys, and it is not origin identity.
++`OriginalSourceProjectionMemo` also owns one `NestedBodyCutMemo` for the same origin's whole image. It records a command-substitution body only after the unchanged recursive parse-cut walk of that body finished clean, keyed by whole-image body extent, full lexer configuration and channel. Bodies that cut or whose lexical stream or geometry is unavailable are never recorded and are walked again, so every projection keeps the unmemoised first cut and refusal. `SourceOriginId::original_script_words_in` shares the same memo for checked script-word plans of regions of that image — the source transition advice root plan and its body walk — whose plans equal the unshared capture. The sidecar is derived warmth: its Debug output names no bytes or keys, and it is not origin identity.
+ 
+ Fixed source/analysis-owner lifetime controls retain products through the real lexical and conditional-declaration routes, drop the owner, and verify weak expiry plus retirement on the next sidecar access. Existing lexical projection controls use the accessor in place of the removed mutable field; their capture-count predicates, values and original source fixtures remain unchanged. These source controls are not claimed executed by this packet.
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index c0be41717..712578532 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -657,6 +657,25 @@ impl SourceOriginId {
+             .capture(self.source_image(), words, offset, config)
+     }
+ 
++    /// Checked original words of `region` in this source's own image. Clean
++    /// nested command-body verdicts are shared with every other walk of this
++    /// immutable source instance; the plan equals the unshared capture.
++    pub(crate) fn original_script_words_in(
++        &self,
++        region: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++        purpose: tcl_lexer::SourceSegmentationPurpose,
++    ) -> Result<tcl_lexer::NativeScriptWordsPlan, tcl_lexer::NativeScriptWordsUnavailable> {
++        let projection = self.original_lexical_projection();
++        tcl_lexer::native_script_words_in_with_purpose_and_memo(
++            self.source_image().clone(),
++            region,
++            config,
++            purpose,
++            projection.nested_cuts(),
++        )
++    }
++
+     fn original_lexical_projection(
+         &self,
+     ) -> Arc<original_source_projection::OriginalSourceProjectionMemo> {
+diff --git a/rust/tcl-compiler/src/command_binding/original_source_projection.rs b/rust/tcl-compiler/src/command_binding/original_source_projection.rs
+index 4bef8d30e..d06516977 100644
+--- a/rust/tcl-compiler/src/command_binding/original_source_projection.rs
++++ b/rust/tcl-compiler/src/command_binding/original_source_projection.rs
+@@ -25,7 +25,7 @@ struct ProjectionEntry {
+ pub(super) struct OriginalSourceProjectionMemo {
+     entries: Mutex<ProjectionEntries>,
+     /// Clean nested command-body parse verdicts of this origin's whole image,
+-    /// shared by every command projection captured from it.
++    /// shared by every command projection and script-word plan captured from it.
+     nested_cuts: tcl_lexer::NestedBodyCutMemo,
+     #[cfg(any(test, debug_assertions))]
+     trace: bool,
+@@ -62,6 +62,10 @@ impl std::fmt::Debug for OriginalSourceProjectionMemo {
+ }
+ 
+ impl OriginalSourceProjectionMemo {
++    pub(super) const fn nested_cuts(&self) -> &tcl_lexer::NestedBodyCutMemo {
++        &self.nested_cuts
++    }
++
+     pub(super) fn capture(
+         &self,
+         image: &SourceImage,
+@@ -449,4 +453,104 @@ mod tests {
+             }
+         }
+     }
++
++    #[test]
++    fn one_nested_cut_memo_serves_whole_input_and_nested_script_plans_in_any_order() {
++        // naming.source.original-point-operand-projection
++        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
++        use tcl_lexer::{SourceSegmentationPurpose as Purpose, Span};
++        // (source, whole input stops at a parse cut, some body stops at one)
++        let sources = [
++            (
++                "set x [list [list a] [list b]]\nputs [list [list c]]\n",
++                false,
++                false,
++            ),
++            (
++                "set x [list [list a]]\nlist [list [list a] {b}c]\nputs after\n",
++                true,
++                true,
++            ),
++            (
++                "\u{feff}set x [list [list a]]\nlist [list {b}c]",
++                true,
++                true,
++            ),
++            (
++                "set y [\u{feff}list [list a]]\nlist [\u{feff}list {b}c]",
++                true,
++                true,
++            ),
++        ];
++        for (source, whole_cut, body_cut) in sources {
++            let whole = Span::new(0, u32::try_from(source.len()).unwrap());
++            let mut plans = vec![(whole, Purpose::WholeInput)];
++            for (open, _) in source.match_indices('[') {
++                let end = tcl_lexer::command_substitution_end(source, open).unwrap();
++                let body = Span::new(
++                    u32::try_from(open + 1).unwrap(),
++                    u32::try_from(end - 1).unwrap(),
++                );
++                plans.push((body, Purpose::NestedScript));
++            }
++            let mut reversed = plans.clone();
++            reversed.reverse();
++            let mut interleaved = plans[1..].to_vec();
++            interleaved.reverse();
++            interleaved.insert(interleaved.len() / 2, plans[0]);
++            for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++                let profile =
++                    tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
++                let config = LexerConfig::from_grammar(profile.grammar);
++                for image in [
++                    SourceImage::document(source),
++                    SourceImage::native(source.as_bytes()),
++                ] {
++                    let unmemoised = |region: Span, purpose: Purpose| {
++                        tcl_lexer::native_script_words_in_with_purpose(
++                            image.clone(),
++                            region,
++                            config,
++                            purpose,
++                        )
++                    };
++                    let tail = |region: Span, purpose: Purpose| {
++                        unmemoised(region, purpose).unwrap().fatal_tail.is_some()
++                    };
++                    assert_eq!(
++                        tail(whole, Purpose::WholeInput),
++                        whole_cut,
++                        "{name} {source:?}"
++                    );
++                    assert_eq!(
++                        plans[1..]
++                            .iter()
++                            .any(|(region, purpose)| tail(*region, *purpose)),
++                        body_cut,
++                        "{name} {source:?}",
++                    );
++                    for order in [&plans, &reversed, &interleaved] {
++                        let memo = tcl_lexer::NestedBodyCutMemo::default();
++                        let origin = SourceOriginId::authored_image(image.clone());
++                        for &(region, purpose) in order {
++                            let expected = unmemoised(region, purpose);
++                            let shared = tcl_lexer::native_script_words_in_with_purpose_and_memo(
++                                image.clone(),
++                                region,
++                                config,
++                                purpose,
++                                &memo,
++                            );
++                            assert_eq!(shared, expected, "{name} {source:?} {region:?}");
++                            assert_eq!(
++                                origin.original_script_words_in(region, config, purpose),
++                                expected,
++                                "{name} {source:?} {region:?}",
++                            );
++                        }
++                    }
++                }
++            }
++        }
++    }
+ }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+index 435d6f014..76b8212b7 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -3192,12 +3192,13 @@ impl OriginalSourceTransitionSeed {
+         {
+             return None;
+         }
+-        let plan = tcl_lexer::native_script_words_in(
+-            origin.source_image().clone(),
+-            tcl_lexer::Span::new(0, u32::try_from(origin.source_image().bytes().len()).ok()?),
+-            config,
+-        )
+-        .ok()?;
++        let plan = origin
++            .original_script_words_in(
++                tcl_lexer::Span::new(0, u32::try_from(origin.source_image().bytes().len()).ok()?),
++                config,
++                tcl_lexer::SourceSegmentationPurpose::WholeInput,
++            )
++            .ok()?;
+         if plan.fatal_tail.is_some() && purpose == OriginalSourceCataloguePurpose::CompleteProgram {
+             return None;
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+index ecbdd9489..ad4d9921a 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -1138,13 +1138,15 @@ impl BodyWalk<'_, '_> {
+         if depth > MAX_DEPTH {
+             return None;
+         }
+-        let plan = tcl_lexer::native_script_words_in_with_purpose(
+-            self.context.origin.source_image().clone(),
+-            span,
+-            self.context.config,
+-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+-        )
+-        .ok();
++        let plan = self
++            .context
++            .origin
++            .original_script_words_in(
++                span,
++                self.context.config,
++                tcl_lexer::SourceSegmentationPurpose::NestedScript,
++            )
++            .ok();
+         #[cfg(test)]
+         trace_body_inventory(
+             "script.plan",

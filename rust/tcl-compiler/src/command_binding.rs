@@ -657,6 +657,25 @@ impl SourceOriginId {
             .capture(self.source_image(), words, offset, config)
     }
 
+    /// Checked original words of `region` in this source's own image. Clean
+    /// nested command-body verdicts are shared with every other walk of this
+    /// immutable source instance; the plan equals the unshared capture.
+    pub(crate) fn original_script_words_in(
+        &self,
+        region: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+    ) -> Result<tcl_lexer::NativeScriptWordsPlan, tcl_lexer::NativeScriptWordsUnavailable> {
+        let projection = self.original_lexical_projection();
+        tcl_lexer::native_script_words_in_with_purpose_and_memo(
+            self.source_image().clone(),
+            region,
+            config,
+            purpose,
+            projection.nested_cuts(),
+        )
+    }
+
     fn original_lexical_projection(
         &self,
     ) -> Arc<original_source_projection::OriginalSourceProjectionMemo> {

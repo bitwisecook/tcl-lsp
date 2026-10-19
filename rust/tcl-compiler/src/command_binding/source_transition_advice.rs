@@ -3192,12 +3192,13 @@ impl OriginalSourceTransitionSeed {
         {
             return None;
         }
-        let plan = tcl_lexer::native_script_words_in(
-            origin.source_image().clone(),
-            tcl_lexer::Span::new(0, u32::try_from(origin.source_image().bytes().len()).ok()?),
-            config,
-        )
-        .ok()?;
+        let plan = origin
+            .original_script_words_in(
+                tcl_lexer::Span::new(0, u32::try_from(origin.source_image().bytes().len()).ok()?),
+                config,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .ok()?;
         if plan.fatal_tail.is_some() && purpose == OriginalSourceCataloguePurpose::CompleteProgram {
             return None;
         }
