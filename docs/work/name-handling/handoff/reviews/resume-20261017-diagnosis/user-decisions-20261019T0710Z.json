@@ -4,6 +4,7 @@
  "decisions": {
   "server108": "Profile and reduce per-document analysis cost; keep the original fixture and the 180 s budget; cached reuse only for open warm documents. The Salsa-published fixture change (measured 368-377 s) is not applied.",
   "source_order_entry_script": "Assume a sourced file is not also an entry script, except files with a `#!` line or that read argv0 (those prove nothing). Stated in the contract (SourceOrderPremises UnlessMarked).",
-  "source_order_working_directory": "Anchored paths only: an absolute path or [file join [file dirname [info script]] ...] proves order; a relative literal `source` proves nothing. The both_tiers loader fixture is written in the anchored form."
+  "source_order_working_directory": "Anchored paths only: an absolute path or [file join [file dirname [info script]] ...] proves order; a relative literal `source` proves nothing. The both_tiers loader fixture is written in the anchored form.",
+  "source_order_symlink": "Recorded 07:40Z: accept 'a loader is invoked at its indexed path' as part of the Anchored premise; [file dirname [info script]] anchored paths keep proving order (a symlinked invocation from another directory is outside the premise)."
  }
 }
