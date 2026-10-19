@@ -60,6 +60,11 @@ use tcl_registry::spec::CommandSpec;
 /// registry, which keeps "no packs configured" exactly as cheap as it was
 /// before packs existed.
 ///
+/// Either way the registry carries the compiled-in surface of the core family
+/// `profile`'s environment runs on (Jim's own commands for a `jim` profile),
+/// with a non-empty set's commands indexed over it
+/// ([`tcl_registry::model::profile_store_with_overlay`]).
+///
 /// Returned as an owning handle. This is the pack-carrying axis, so this is
 /// exactly the registry that must be *retirable*: hold the handle for as long
 /// as you are reading from it and drop it when you are done, and the
@@ -83,7 +88,7 @@ pub fn registry_with_packs(
     // context takes that same lock to reach the un-overlaid store — doing
     // it inside the closure deadlocks.
     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
-    tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
+    tcl_registry::model::profile_store_with_overlay(profile, packs.key, |registry| {
         install_into(registry, packs, context);
     })
 }

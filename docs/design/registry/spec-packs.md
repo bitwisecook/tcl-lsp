@@ -942,7 +942,12 @@ of every upstream tag 0.76–0.84 (no Jim command is gated behind a package).
 Its specs are registered with the registry as the family's own surface
 (`tcl_registry::register_core_surface_specs`), not installed as a pack
 overlay: the registry assembled for a `jim` document extends the shared store
-with them, and no other environment's store carries them. They are registered
+with them, and no other environment's store carries them. Jim is a core
+dialect of its own, so a pack set installed for it lands in a store keyed by
+Jim's own profile, not plain Tcl's: `registry_with_packs` builds it through
+`tcl_registry::model::profile_store_with_overlay`, with Jim's commands beneath
+the set's, and a `jim` generation handed the set's key reads that same store.
+They are registered
 by `tcl_spectcl::core_surfaces::ensure`, which every constructor that hands a
 consumer a registry or a pack set calls (`registry_with_packs`,
 `bundled::packs`, `publish_pack_set`) and which the language server calls in its

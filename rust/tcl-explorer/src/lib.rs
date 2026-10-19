@@ -298,6 +298,81 @@ fn run_pipeline_with_inputs(
 mod tests {
     use super::*;
 
+    /// With the shipped packs loaded, the registry a `jim` unit is built with
+    /// resolves Jim's own commands to the rows a `jim` document's context
+    /// resolves them to, and the pipeline built on it reports the same unknown
+    /// calls as the one built on the static context's store.
+    #[test]
+    fn jim_own_commands_resolve_with_packs_loaded() {
+        assert!(tcl_spectcl::bundled::active().is_none());
+        assert_ne!(
+            tcl_spectcl::bundled::packs().key,
+            0,
+            "the shipped packs are installed"
+        );
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jim").default_context_registry();
+        let explorer = registry_for_dialect("jim");
+        let analysed = tcl_registry::model::ingress::resolve_environment("jim")
+            .context_registry(
+                &tcl_registry::model::KeyedVersions::default(),
+                tcl_spectcl::bundled::packs().key,
+            )
+            .expect("a jim analysis finds the shipped packs");
+        assert!(
+            std::sync::Arc::ptr_eq(analysed.commands(), &explorer),
+            "the explorer and a jim analysis read one store"
+        );
+        for head in [
+            "local",
+            "upcall",
+            "stackdump",
+            "getref",
+            "setref",
+            "defer",
+            "xtrace",
+        ] {
+            let expected = context
+                .resolve_command(head)
+                .unwrap_or_else(|| panic!("`{head}` resolves for a jim document"));
+            let held = explorer
+                .get(head)
+                .unwrap_or_else(|| panic!("`{head}` is unknown to the explorer's registry"));
+            assert!(std::ptr::eq(held, expected), "`{head}`");
+        }
+
+        let source = "proc ::p {} {\n    stackdump {}\n    getref r\n}\n\
+                      proc ::q {} {\n    nosuchcmd\n}\n";
+        let unknown_calls = |result: &ExplorerResult| {
+            let mut rows: Vec<(String, bool)> = result
+                .unit
+                .interproc
+                .as_ref()
+                .expect("interprocedural analysis")
+                .procedures
+                .values()
+                .map(|summary| (summary.qualified_name.clone(), summary.has_unknown_calls))
+                .collect();
+            rows.sort();
+            rows
+        };
+        let profile = environment::profile_for_dialect("jim");
+        let on_context = run_pipeline_with_inputs(
+            source,
+            "jim",
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
+            profile,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            None,
+        );
+        let expected = unknown_calls(&on_context);
+        assert!(
+            expected.contains(&("::q".to_owned(), true)),
+            "the control call is unknown: {expected:?}"
+        );
+        assert_eq!(unknown_calls(&run_pipeline(source, "jim")), expected);
+    }
+
     #[test]
     fn supplied_analysis_input_controls_the_document_pipeline() {
         let profile =

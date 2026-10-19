@@ -3496,7 +3496,11 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             return;
         };
         for layout in self.semantics.repeated_args {
-            let indices = if layout.optional_leading_word {
+            // Without a frame grammar to resolve the leading word's width,
+            // the layout anchors itself on the last covered word.
+            let indices = if layout.optional_leading_word
+                && (frame_layout.is_some() || self.semantics.frame_effect.is_some())
+            {
                 match frame_layout.or_else(|| {
                     self.semantics.frame_effect.map(|effect| {
                         if successful {

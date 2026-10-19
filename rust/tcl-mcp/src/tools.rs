@@ -2783,6 +2783,32 @@ mod policy_tests {
             .clone()
     }
 
+    /// A `jim` document's diagnostics run with the shipped packs installed:
+    /// the generation the analysis reads at the packs' key exists, so the
+    /// analysis is available and Jim's own commands are neither disabled nor
+    /// unresolved, while the same source under Tcl 8.6 flags them.
+    #[test]
+    fn a_jim_document_is_analysed_with_the_shipped_packs() {
+        let source = "loop i 0 3 { puts $i }\nsleep 0.1\n";
+        let jim = json!({ "source": source, "dialect": "jim" });
+        let analysed = analyse_under(source, "jim", &inputs(&jim, "diagnostics", ""));
+        assert_eq!(
+            analysed.findings.analysis.analysis_context_unavailable,
+            None
+        );
+        let payload = analyze_with(&jim, &inputs(&jim, "diagnostics", ""));
+        assert!(
+            payload["analysis_context_unavailable"].is_null(),
+            "{payload}"
+        );
+        let shown = analyzed(&jim, "");
+        assert!(!has_code(&shown, "W002"), "{shown:?}");
+        assert!(!has_code(&shown, "W123"), "{shown:?}");
+        let tcl = json!({ "source": source, "dialect": "tcl8.6" });
+        let control = analyzed(&tcl, "");
+        assert!(has_code(&control, "W002"), "{control:?}");
+    }
+
     #[test]
     fn analyze_honours_an_inline_noqa() {
         let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
