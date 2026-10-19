@@ -1,0 +1,64 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-19T08:39:40.882691+00:00",
+  "scheduled_report_utc": "2026-10-19T08:39:26Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "candidates": {
+    "integration45": {
+      "commit": "aff99dc7e",
+      "capture47": "1085 executed, guards pass; 5 FAIL->PASS; 1 PASS->FAIL: parse_pkg_index_survives_deeply_nested_source_wrapper 180.0 s timeout (172.0 s at integration44; 179.3 s alone). Not admitted.",
+      "record": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/integration-45/COMPOSITION.md"
+    }
+  },
+  "in_progress": {
+    "Sol-28": "exclusive tree: profile the nested-wrapper test and Server108 analysis cost; result-identical optimisation to restore headroom"
+  },
+  "queued_after_admission": [
+    "forced-import A2 + source-order proof v5 (both ADMIT-TO-BUILD)"
+  ],
+  "next_report_utc": "2026-10-19T09:10:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
