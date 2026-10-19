@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-19T16:10Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "merge_origin_rust_vm_runtime_conflicts": {
+      "choice": "Port everything",
+      "meaning": "When merging origin/rust into work, keep work's restructured VM/runtime/cmd-core code and port every upstream VM/runtime feature into it so nothing origin/rust has is lost and upstream tests stay green: compiled-vs-direct evaluation model and 8.4 compile errors, ::env host-sync traces, TypedError C-int/long reads, value-representation tracking, yieldable package require, coroinject, namespace inscope frame, stdin/script-file entry points, float_result, deadline_after, numbers: NumberSyntax string-core parameters, lseq/lsearch/lsort upstream changes, index::drill release parameter, and the other dropped hunks recorded in the merge notes.",
+      "evidence": "scratchpad merge drafts merge-A-NOTES.md (36 dropped entries) and merge-B-NOTES.md (8 dropped hunks)"
+    }
+  }
+}
